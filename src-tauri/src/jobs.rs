@@ -178,6 +178,20 @@ impl JobQueue {
         Ok(job)
     }
 
+    pub fn renew_job_lease(
+        conn: &Connection,
+        job_id: &str,
+        worker_id: &str,
+    ) -> rusqlite::Result<bool> {
+        let lease_until = now_millis().saturating_add(JOB_LEASE_MILLIS);
+        let updated = conn.execute(
+            "UPDATE jobs SET lease_until = ?1
+             WHERE id = ?2 AND status = 'processing' AND worker_id = ?3",
+            params![lease_until, job_id, worker_id],
+        )?;
+        Ok(updated > 0)
+    }
+
     pub fn complete_job(
         conn: &Connection,
         job_id: &str,
@@ -356,11 +370,16 @@ fn process_pending_jobs(db_path: &PathBuf, worker_id: &str) {
             _ => break,
         };
 
-        process_job(&storage, job, worker_id);
+        process_job(&storage, job, worker_id, db_path);
     }
 }
 
-fn process_job(storage: &crate::storage::LibraryStorage, job: JobDto, worker_id: &str) {
+fn process_job(
+    storage: &crate::storage::LibraryStorage,
+    job: JobDto,
+    worker_id: &str,
+    db_path: &PathBuf,
+) {
     if job.kind != JobKind::OcrImage {
         let _ = JobQueue::fail_job(
             &storage.connection,
@@ -429,7 +448,16 @@ fn process_job(storage: &crate::storage::LibraryStorage, job: JobDto, worker_id:
     };
 
     let backend = crate::ocr::create_ocr_backend();
-    match backend.extract_text(&bytes) {
+    let (stop_heartbeat, heartbeat_handle) = start_job_lease_heartbeat(
+        db_path,
+        &job.id,
+        worker_id,
+    );
+    let extraction = backend.extract_text(&bytes);
+    let _ = stop_heartbeat.send(());
+    let _ = heartbeat_handle.join();
+
+    match extraction {
         Ok(Some(text)) => {
             match storage.update_item_ocr_text(&item.id, &text, backend.name()) {
                 Ok(()) => {
@@ -452,6 +480,35 @@ fn process_job(storage: &crate::storage::LibraryStorage, job: JobDto, worker_id:
             let _ = JobQueue::fail_job(&storage.connection, &job.id, worker_id, &format!("{e}"));
         }
     }
+}
+
+fn start_job_lease_heartbeat(
+    db_path: &PathBuf,
+    job_id: &str,
+    worker_id: &str,
+) -> (Sender<()>, thread::JoinHandle<()>) {
+    let (stop_tx, stop_rx) = mpsc::channel();
+    let db_path = db_path.clone();
+    let job_id = job_id.to_owned();
+    let worker_id = worker_id.to_owned();
+    let interval = Duration::from_millis((JOB_LEASE_MILLIS / 3) as u64);
+    let handle = thread::Builder::new()
+        .name("job-lease-heartbeat".into())
+        .spawn(move || loop {
+            match stop_rx.recv_timeout(interval) {
+                Ok(()) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    let connection = match Connection::open(&db_path) {
+                        Ok(connection) => connection,
+                        Err(_) => continue,
+                    };
+                    let _ = connection.busy_timeout(Duration::from_secs(5));
+                    let _ = JobQueue::renew_job_lease(&connection, &job_id, &worker_id);
+                }
+            }
+        })
+        .expect("failed to spawn job lease heartbeat thread");
+    (stop_tx, handle)
 }
 
 pub(crate) fn enqueue_ocr_for_item(
