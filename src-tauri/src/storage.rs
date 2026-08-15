@@ -15,7 +15,7 @@ use tauri::{AppHandle, Manager, State};
 use url::Url;
 use uuid::Uuid;
 
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 const MAX_FILE_BYTES: usize = 50 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION: u32 = 20_000;
 const MAX_IMAGE_ALLOC_BYTES: u64 = 256 * 1024 * 1024;
@@ -224,6 +224,9 @@ impl LibraryStorage {
                  DROP TABLE IF EXISTS items_fts;",
             )
             .ok();
+        } else if version == 2 {
+            connection.execute("ALTER TABLE jobs ADD COLUMN worker_id TEXT", [])?;
+            connection.execute("ALTER TABLE jobs ADD COLUMN lease_until INTEGER", [])?;
         }
 
         connection.execute_batch(crate::jobs::JOBS_SCHEMA)?;

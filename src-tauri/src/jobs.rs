@@ -7,6 +7,8 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+const JOB_LEASE_MILLIS: i64 = 5 * 60 * 1000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum JobKind {
@@ -50,7 +52,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     error_message TEXT,
     created_at INTEGER NOT NULL,
     started_at INTEGER,
-    completed_at INTEGER
+    completed_at INTEGER,
+    worker_id TEXT,
+    lease_until INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_status_created
@@ -140,7 +144,10 @@ impl JobQueue {
         Ok(id)
     }
 
-    pub fn claim_next_job(conn: &Connection) -> rusqlite::Result<Option<JobDto>> {
+    pub fn claim_next_job(
+        conn: &Connection,
+        worker_id: &str,
+    ) -> rusqlite::Result<Option<JobDto>> {
         let tx = conn.unchecked_transaction()?;
         let job = tx
             .query_row(
@@ -155,50 +162,75 @@ impl JobQueue {
             )
             .optional()?;
 
-        if let Some(ref job) = job {
+        if let Some(ref mut job) = job {
             let now = now_millis();
             tx.execute(
-                "UPDATE jobs SET status = 'processing', started_at = ?1
-                 WHERE id = ?2",
-                params![now, job.id],
+                "UPDATE jobs
+                 SET status = 'processing', started_at = ?1,
+                     worker_id = ?2, lease_until = ?3
+                 WHERE id = ?4 AND status = 'pending'",
+                params![now, worker_id, now.saturating_add(JOB_LEASE_MILLIS), job.id],
             )?;
+            job.status = JobStatus::Processing;
+            job.started_at = Some(now);
         }
         tx.commit()?;
         Ok(job)
     }
 
-    pub fn complete_job(conn: &Connection, job_id: &str) -> rusqlite::Result<()> {
-        let now = now_millis();
-        conn.execute(
-            "UPDATE jobs SET status = 'completed', completed_at = ?1, started_at = COALESCE(started_at, ?1)
-             WHERE id = ?2",
-            params![now, job_id],
-        )?;
-        Ok(())
-    }
-
-    pub fn fail_job(conn: &Connection, job_id: &str, error: &str) -> rusqlite::Result<bool> {
+    pub fn complete_job(
+        conn: &Connection,
+        job_id: &str,
+        worker_id: &str,
+    ) -> rusqlite::Result<bool> {
         let now = now_millis();
         let updated = conn.execute(
-            "UPDATE jobs SET error_message = ?1, started_at = COALESCE(started_at, ?2)
-             WHERE id = ?3 AND retry_count < max_retries",
-            params![error, now, job_id],
+            "UPDATE jobs
+             SET status = 'completed', completed_at = ?1,
+                 started_at = COALESCE(started_at, ?1),
+                 worker_id = NULL, lease_until = NULL
+             WHERE id = ?2 AND status = 'processing' AND worker_id = ?3",
+            params![now, job_id, worker_id],
+        )?;
+        Ok(updated > 0)
+    }
+
+    pub fn fail_job(
+        conn: &Connection,
+        job_id: &str,
+        worker_id: &str,
+        error: &str,
+    ) -> rusqlite::Result<bool> {
+        let now = now_millis();
+        let tx = conn.unchecked_transaction()?;
+        let updated = tx.execute(
+            "UPDATE jobs
+             SET error_message = ?1, started_at = COALESCE(started_at, ?2)
+             WHERE id = ?3 AND status = 'processing'
+               AND worker_id = ?4 AND retry_count < max_retries",
+            params![error, now, job_id, worker_id],
         )?;
 
         if updated == 0 {
-            conn.execute(
-                "UPDATE jobs SET status = 'failed', completed_at = ?1, error_message = ?2
-                 WHERE id = ?3",
-                params![now, error, job_id],
+            let failed = tx.execute(
+                "UPDATE jobs
+                 SET status = 'failed', completed_at = ?1, error_message = ?2,
+                     worker_id = NULL, lease_until = NULL
+                 WHERE id = ?3 AND status = 'processing' AND worker_id = ?4",
+                params![now, error, job_id, worker_id],
             )?;
-            return Ok(false);
+            tx.commit()?;
+            return Ok(failed > 0);
         }
 
-        conn.execute(
-            "UPDATE jobs SET status = 'pending', retry_count = retry_count + 1
-             WHERE id = ?1",
-            params![job_id],
+        tx.execute(
+            "UPDATE jobs
+             SET status = 'pending', retry_count = retry_count + 1,
+                 worker_id = NULL, lease_until = NULL
+             WHERE id = ?1 AND status = 'processing' AND worker_id = ?2",
+            params![job_id, worker_id],
         )?;
+        tx.commit()?;
         Ok(true)
     }
 
@@ -219,15 +251,16 @@ impl JobQueue {
 
     /// Requeue jobs left in `processing` after an interrupted worker run.
     ///
-    /// This is safe to call before each worker pass because the worker claims
-    /// jobs only after recovery has completed, so an active job cannot be
-    /// mistaken for an interrupted one by the same worker.
+    /// Requeue only jobs whose lease has expired. This prevents one live worker
+    /// from reclaiming another worker's in-flight job.
     pub fn recover_processing_jobs(conn: &Connection) -> rusqlite::Result<usize> {
         conn.execute(
             "UPDATE jobs
-             SET status = 'pending', started_at = NULL, error_message = NULL
-             WHERE status = 'processing'",
-            [],
+             SET status = 'pending', started_at = NULL, error_message = NULL,
+                 worker_id = NULL, lease_until = NULL
+             WHERE status = 'processing'
+               AND (lease_until IS NULL OR lease_until <= ?1)",
+            params![now_millis()],
         )
     }
 
@@ -240,11 +273,22 @@ impl JobQueue {
     }
 }
 
-#[derive(Default)]
 pub struct ProcessingState {
     pub wake_tx: std::sync::Mutex<Option<Sender<()>>>,
     pub database_path: std::sync::Mutex<Option<PathBuf>>,
     pub worker_handle: std::sync::Mutex<Option<thread::JoinHandle<()>>>,
+    worker_id: String,
+}
+
+impl Default for ProcessingState {
+    fn default() -> Self {
+        Self {
+            wake_tx: std::sync::Mutex::new(None),
+            database_path: std::sync::Mutex::new(None),
+            worker_handle: std::sync::Mutex::new(None),
+            worker_id: Uuid::new_v4().to_string(),
+        }
+    }
 }
 
 impl ProcessingState {
@@ -266,9 +310,10 @@ impl ProcessingState {
         *self.wake_tx.lock().unwrap() = Some(tx);
 
         let db_path = db_path.to_path_buf();
+        let worker_id = self.worker_id.clone();
         let handle = thread::Builder::new()
             .name("job-worker".into())
-            .spawn(move || worker_loop(&db_path, rx))
+            .spawn(move || worker_loop(&db_path, &worker_id, rx))
             .expect("failed to spawn job worker thread");
         *handle_guard = Some(handle);
     }
@@ -281,7 +326,7 @@ impl ProcessingState {
 
 }
 
-fn worker_loop(db_path: &PathBuf, rx: Receiver<()>) {
+fn worker_loop(db_path: &PathBuf, worker_id: &str, rx: Receiver<()>) {
     loop {
         match rx.recv_timeout(Duration::from_secs(5)) {
             Ok(()) => {}
@@ -289,11 +334,11 @@ fn worker_loop(db_path: &PathBuf, rx: Receiver<()>) {
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         }
 
-        process_pending_jobs(db_path);
+        process_pending_jobs(db_path, worker_id);
     }
 }
 
-fn process_pending_jobs(db_path: &PathBuf) {
+fn process_pending_jobs(db_path: &PathBuf, worker_id: &str) {
     let storage = match crate::storage::LibraryStorage::open(db_path.clone()) {
         Ok(s) => s,
         Err(_) => return,
@@ -306,20 +351,21 @@ fn process_pending_jobs(db_path: &PathBuf) {
     }
 
     loop {
-        let job = match JobQueue::claim_next_job(conn) {
+        let job = match JobQueue::claim_next_job(conn, worker_id) {
             Ok(Some(job)) => job,
             _ => break,
         };
 
-        process_job(&storage, job);
+        process_job(&storage, job, worker_id);
     }
 }
 
-fn process_job(storage: &crate::storage::LibraryStorage, job: JobDto) {
+fn process_job(storage: &crate::storage::LibraryStorage, job: JobDto, worker_id: &str) {
     if job.kind != JobKind::OcrImage {
         let _ = JobQueue::fail_job(
             &storage.connection,
             &job.id,
+            worker_id,
             "this processing job is not implemented yet",
         );
         return;
@@ -328,7 +374,7 @@ fn process_job(storage: &crate::storage::LibraryStorage, job: JobDto) {
     let item = match storage.get_item(&job.item_id) {
         Ok(Some(item)) => item,
         _ => {
-            let _ = JobQueue::fail_job(&storage.connection, &job.id, "item not found");
+            let _ = JobQueue::fail_job(&storage.connection, &job.id, worker_id, "item not found");
             return;
         }
     };
@@ -336,7 +382,12 @@ fn process_job(storage: &crate::storage::LibraryStorage, job: JobDto) {
     let asset_path = match &item.local_asset_path {
         Some(p) => p,
         None => {
-            let _ = JobQueue::fail_job(&storage.connection, &job.id, "item has no local asset path");
+            let _ = JobQueue::fail_job(
+                &storage.connection,
+                &job.id,
+                worker_id,
+                "item has no local asset path",
+            );
             return;
         }
     };
@@ -344,20 +395,35 @@ fn process_job(storage: &crate::storage::LibraryStorage, job: JobDto) {
     let resolved = match storage.resolve_asset_path(asset_path) {
         Ok(p) => p,
         Err(e) => {
-            let _ = JobQueue::fail_job(&storage.connection, &job.id, &format!("cannot resolve asset: {e}"));
+            let _ = JobQueue::fail_job(
+                &storage.connection,
+                &job.id,
+                worker_id,
+                &format!("cannot resolve asset: {e}"),
+            );
             return;
         }
     };
 
     if !std::path::Path::new(&resolved).exists() {
-        let _ = JobQueue::fail_job(&storage.connection, &job.id, "asset file not found");
+        let _ = JobQueue::fail_job(
+            &storage.connection,
+            &job.id,
+            worker_id,
+            "asset file not found",
+        );
         return;
     }
 
     let bytes = match std::fs::read(&resolved) {
         Ok(b) => b,
         Err(e) => {
-            let _ = JobQueue::fail_job(&storage.connection, &job.id, &format!("cannot read asset: {e}"));
+            let _ = JobQueue::fail_job(
+                &storage.connection,
+                &job.id,
+                worker_id,
+                &format!("cannot read asset: {e}"),
+            );
             return;
         }
     };
@@ -367,22 +433,23 @@ fn process_job(storage: &crate::storage::LibraryStorage, job: JobDto) {
         Ok(Some(text)) => {
             match storage.update_item_ocr_text(&item.id, &text, backend.name()) {
                 Ok(()) => {
-                    let _ = JobQueue::complete_job(&storage.connection, &job.id);
+                    let _ = JobQueue::complete_job(&storage.connection, &job.id, worker_id);
                 }
                 Err(error) => {
                     let _ = JobQueue::fail_job(
                         &storage.connection,
                         &job.id,
+                        worker_id,
                         &format!("cannot store OCR text: {error}"),
                     );
                 }
             }
         }
         Ok(None) => {
-            let _ = JobQueue::complete_job(&storage.connection, &job.id);
+            let _ = JobQueue::complete_job(&storage.connection, &job.id, worker_id);
         }
         Err(e) => {
-            let _ = JobQueue::fail_job(&storage.connection, &job.id, &format!("{e}"));
+            let _ = JobQueue::fail_job(&storage.connection, &job.id, worker_id, &format!("{e}"));
         }
     }
 }
@@ -452,42 +519,70 @@ mod tests {
         let connection = Connection::open_in_memory().unwrap();
         connection
             .execute_batch(
-                "CREATE TABLE items (id TEXT PRIMARY KEY NOT NULL);\n                 CREATE TABLE jobs (\n                     id TEXT PRIMARY KEY NOT NULL,\n                     item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,\n                     kind TEXT NOT NULL,\n                     status TEXT NOT NULL DEFAULT 'pending',\n                     retry_count INTEGER NOT NULL DEFAULT 0,\n                     max_retries INTEGER NOT NULL DEFAULT 3,\n                     error_message TEXT,\n                     created_at INTEGER NOT NULL,\n                     started_at INTEGER,\n                     completed_at INTEGER\n                 );",
+                "CREATE TABLE items (id TEXT PRIMARY KEY NOT NULL);\n                 CREATE TABLE jobs (\n                     id TEXT PRIMARY KEY NOT NULL,\n                     item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,\n                     kind TEXT NOT NULL,\n                     status TEXT NOT NULL DEFAULT 'pending',\n                     retry_count INTEGER NOT NULL DEFAULT 0,\n                     max_retries INTEGER NOT NULL DEFAULT 3,\n                     error_message TEXT,\n                     created_at INTEGER NOT NULL,\n                     started_at INTEGER,\n                     completed_at INTEGER,\n                     worker_id TEXT,\n                     lease_until INTEGER\n                 );",
             )
             .unwrap();
         connection
     }
 
     #[test]
-    fn recovers_interrupted_jobs_and_preserves_deduplication() {
+    fn recovers_expired_jobs_but_preserves_live_leases() {
         let connection = test_connection();
         connection
-            .execute("INSERT INTO items (id) VALUES ('item-1')", [])
-            .unwrap();
-        connection
-            .execute(
-                "INSERT INTO jobs (
+            .execute_batch(
+                "INSERT INTO items (id) VALUES ('item-1');
+                 INSERT INTO jobs (
                     id, item_id, kind, status, error_message, created_at, started_at
-                 ) VALUES ('job-1', 'item-1', 'ocr_image', 'processing', 'old error', 1, 2)",
-                [],
+                 ) VALUES ('job-1', 'item-1', 'ocr_image', 'processing', 'old error', 1, 2);
+                 INSERT INTO jobs (
+                    id, item_id, kind, status, created_at, started_at, worker_id, lease_until
+                 ) VALUES ('job-2', 'item-1', 'ocr_image', 'processing', 3, 4, 'worker-a', 9999999999999);",
             )
             .unwrap();
 
         assert_eq!(JobQueue::recover_processing_jobs(&connection).unwrap(), 1);
         let jobs = JobQueue::get_jobs_for_item(&connection, "item-1").unwrap();
-        assert_eq!(jobs.len(), 1);
-        assert_eq!(jobs[0].status, JobStatus::Pending);
-        assert_eq!(jobs[0].started_at, None);
-        assert_eq!(jobs[0].error_message, None);
-        assert_eq!(JobQueue::count_active_jobs(&connection).unwrap(), 1);
+        let expired = jobs.iter().find(|job| job.id == "job-1").unwrap();
+        assert_eq!(expired.status, JobStatus::Pending);
+        assert_eq!(expired.started_at, None);
+        assert_eq!(expired.error_message, None);
+        let live = jobs.iter().find(|job| job.id == "job-2").unwrap();
+        assert_eq!(live.status, JobStatus::Processing);
+        assert_eq!(JobQueue::count_active_jobs(&connection).unwrap(), 2);
 
         assert_eq!(
             JobQueue::enqueue_job(&connection, "item-1", JobKind::OcrImage).unwrap(),
             "job-1"
         );
         assert_eq!(
-            JobQueue::claim_next_job(&connection).unwrap().unwrap().status,
+            JobQueue::claim_next_job(&connection, "worker-b")
+                .unwrap()
+                .unwrap()
+                .status,
             JobStatus::Processing
+        );
+    }
+
+    #[test]
+    fn only_the_owner_can_finish_a_claimed_job() {
+        let connection = test_connection();
+        connection
+            .execute("INSERT INTO items (id) VALUES ('item-1')", [])
+            .unwrap();
+        JobQueue::enqueue_job(&connection, "item-1", JobKind::OcrImage).unwrap();
+        let job = JobQueue::claim_next_job(&connection, "worker-a")
+            .unwrap()
+            .unwrap();
+
+        assert!(!JobQueue::complete_job(&connection, &job.id, "worker-b").unwrap());
+        assert!(JobQueue::complete_job(&connection, &job.id, "worker-a").unwrap());
+        assert_eq!(
+            JobQueue::get_jobs_for_item(&connection, "item-1")
+                .unwrap()
+                .pop()
+                .unwrap()
+                .status,
+            JobStatus::Completed
         );
     }
 }
