@@ -65,7 +65,7 @@ pub fn render_pages(_pdf_bytes: &[u8]) -> Result<Vec<Vec<u8>>, PdfError> {
 #[cfg(windows)]
 mod windows_impl {
     use super::PdfError;
-    use tokio::runtime::Runtime;
+    use tokio::runtime::Builder;
     use windows::{
         Data::Pdf::PdfDocument,
         Storage::Streams::{DataReader, DataWriter, InMemoryRandomAccessStream},
@@ -73,15 +73,25 @@ mod windows_impl {
     };
 
     pub fn render_pages(pdf_bytes: &[u8]) -> Result<Vec<Vec<u8>>, PdfError> {
-        let runtime =
-            Runtime::new().map_err(|error| PdfError::new("runtime-init", error.to_string()))?;
-
         unsafe { RoInitialize(RO_INIT_MULTITHREADED) }
             .map_err(|error| PdfError::new("winrt-init", error.to_string()))?;
+        let _winrt = WinRtGuard;
+        let runtime = Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| PdfError::new("runtime-init", error.to_string()))?;
 
         let result = runtime.block_on(render_pages_inner(pdf_bytes));
-        unsafe { RoUninitialize() };
+        drop(runtime);
         result
+    }
+
+    struct WinRtGuard;
+
+    impl Drop for WinRtGuard {
+        fn drop(&mut self) {
+            unsafe { RoUninitialize() };
+        }
     }
 
     async fn render_pages_inner(pdf_bytes: &[u8]) -> Result<Vec<Vec<u8>>, PdfError> {
