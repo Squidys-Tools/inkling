@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import {
   Archive,
   ArrowUpRight,
   Bookmark,
+  Camera,
   CircleHelp,
   Clock3,
   Command,
@@ -26,6 +28,7 @@ import {
 import {
   assetUrl,
   createUrl,
+  currentDeepLinks,
   createNote,
   initializeStorage,
   isTauriRuntime,
@@ -222,8 +225,206 @@ function App() {
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
   const [listMode, setListMode] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function persistFile(file: File, captureSource: string) {
+    const kind = classifyFile(file);
+    const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
+    if (isTauriRuntime()) {
+      const storedItem = await saveFile({
+        fileName: file.name,
+        mimeType: file.type,
+        kind,
+        bytes,
+      });
+      const libraryItem = await storedItemToLibraryItem(storedItem);
+      setItems((current) => [libraryItem, ...current]);
+      return;
+    }
+
+    const item: LibraryItem = {
+      id: Date.now(),
+      kind: kind === "image" ? "Image" : kind === "pdf" ? "PDF" : kind === "video" ? "Video" : "File",
+      title: file.name,
+      description: `Saved from ${captureSource}.`,
+      source: captureSource,
+      date: "Just now",
+      tags: [],
+      image: kind === "image" ? URL.createObjectURL(file) : undefined,
+    };
+    setItems((current) => [item, ...current]);
+  }
+
+  async function captureFile(file: File, captureSource: string) {
+    setCaptureError(null);
+    setIsCapturing(true);
+    try {
+      await persistFile(file, captureSource);
+      setSelectedFile(null);
+      setIsAdding(false);
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsCapturing(false);
+    }
+  }
+
+  async function persistArticle(sourceUrl: string, captureSource: string) {
+    const { ingestUrl } = await import("./lib/ingestion");
+    const article = await ingestUrl(sourceUrl);
+    const metadata = {
+      author: article.author,
+      publishedDate: article.publishedDate,
+      extractedText: article.text,
+      html: article.html,
+      imageUrls: article.imageUrls,
+      safeEmbeds: article.safeEmbeds,
+      extractor: article.extractor,
+      captureSource,
+    };
+
+    if (isTauriRuntime()) {
+      const storedItem = await createUrl({
+        sourceUrl: article.canonicalUrl,
+        title: article.title,
+        description: article.description,
+        body: article.text,
+        metadata,
+      });
+      const libraryItem = await storedItemToLibraryItem(storedItem);
+      setItems((current) => [libraryItem, ...current]);
+      return;
+    }
+
+    const item: LibraryItem = {
+      id: Date.now(),
+      kind: "Article",
+      title: article.title,
+      description: article.description || article.text.slice(0, 180),
+      source: new URL(article.canonicalUrl).hostname,
+      date: "Just now",
+      tags: [],
+      image: article.imageUrls[0],
+    };
+    setItems((current) => [item, ...current]);
+  }
+
+  async function captureArticle(sourceUrl: string, captureSource: string) {
+    setCaptureError(null);
+    setIsCapturing(true);
+    try {
+      await persistArticle(sourceUrl, captureSource);
+      setCaptureUrl("");
+      setIsAdding(false);
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsCapturing(false);
+    }
+  }
+
+  async function captureText(text: string, captureSource: string) {
+    setCaptureError(null);
+    setIsCapturing(true);
+    try {
+      await persistText(text, captureSource);
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsCapturing(false);
+    }
+  }
+
+  async function persistText(text: string, captureSource: string) {
+    const value = text.trim();
+    if (!value) return;
+    if (/^https?:\/\//iu.test(value)) {
+      await persistArticle(value, captureSource);
+      return;
+    }
+
+    if (isTauriRuntime()) {
+      const storedItem = await createNote({
+        body: value,
+        metadata: { captureSource },
+      });
+      const libraryItem = await storedItemToLibraryItem(storedItem);
+      setItems((current) => [libraryItem, ...current]);
+      return;
+    }
+
+    const item: LibraryItem = {
+      id: Date.now(),
+      kind: "Note",
+      title: value,
+      description: "Saved from the clipboard.",
+      source: captureSource,
+      date: "Just now",
+      tags: [],
+      accent: "paper-blue",
+    };
+    setItems((current) => [item, ...current]);
+  }
+
+  async function captureScreenshot() {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setCaptureError("Screenshot capture is not available in this window.");
+      return;
+    }
+
+    setCaptureError(null);
+    setIsCapturing(true);
+    let stream: MediaStream | null = null;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      await video.play();
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      if (width === 0 || height === 0) throw new Error("The selected display has no capturable frame.");
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d")?.drawImage(video, 0, 0, width, height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("The screenshot could not be encoded.");
+      const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" });
+      await persistFile(file, "screenshot");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    } finally {
+      stream?.getTracks().forEach((track) => track.stop());
+      setIsCapturing(false);
+    }
+  }
+
+  function extensionCaptureTarget(value: string): string | null {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== "mymind:" || parsed.hostname !== "capture") return null;
+      const target = parsed.searchParams.get("url") ?? parsed.searchParams.get("source");
+      return target && /^https?:\/\//iu.test(target) ? target : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function handleDeepLinkPayload(payload: unknown) {
+    const values: string[] = Array.isArray(payload)
+      ? payload.filter((value): value is string => typeof value === "string")
+      : typeof payload === "string"
+        ? [payload]
+        : [];
+    for (const value of values) {
+      const target = extensionCaptureTarget(value);
+      if (target) await captureArticle(target, "browser extension");
+    }
+  }
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -238,6 +439,61 @@ function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLElement && target.isContentEditable) {
+        return;
+      }
+
+      const file = Array.from(event.clipboardData?.files ?? [])[0];
+      if (file) {
+        event.preventDefault();
+        void captureFile(file, "clipboard");
+        return;
+      }
+
+      const text = event.clipboardData?.getData("text/plain").trim();
+      if (text) {
+        event.preventDefault();
+        void captureText(text, "clipboard");
+      }
+    };
+
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let cancelled = false;
+    const unlisten: Array<() => void> = [];
+
+    async function connectCaptureEvents() {
+      const removeListener = await listen<string[]>("deep-link://new-url", (event) => {
+        void handleDeepLinkPayload(event.payload);
+      });
+      if (cancelled) {
+        removeListener();
+      } else {
+        unlisten.push(removeListener);
+      }
+
+      const links = await currentDeepLinks();
+      if (!cancelled) {
+        for (const link of links ?? []) await handleDeepLinkPayload(link);
+      }
+    }
+
+    void connectCaptureEvents().catch((error: unknown) => {
+      if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+    });
+    return () => {
+      cancelled = true;
+      unlisten.forEach((removeListener) => removeListener());
+    };
   }, []);
 
   useEffect(() => {
@@ -285,89 +541,13 @@ function App() {
     try {
       if (captureMode === "note") {
         if (!newTitle.trim()) return;
-        if (isTauriRuntime()) {
-          const storedItem = await createNote({
-            body: newTitle.trim(),
-            metadata: { captureSource: "quick-note" },
-          });
-          const libraryItem = await storedItemToLibraryItem(storedItem);
-          setItems((current) => [libraryItem, ...current]);
-        } else {
-          const item: LibraryItem = {
-            id: Date.now(),
-            kind: "Note",
-            title: newTitle.trim(),
-            description: "Saved just now. Expand this thought whenever it asks for more room.",
-            source: "Quick note",
-            date: "Just now",
-            tags: ["new note"],
-            accent: "paper-blue",
-          };
-          setItems((current) => [item, ...current]);
-        }
+        await persistText(newTitle.trim(), "quick note");
       } else if (captureMode === "url") {
         if (!captureUrl.trim()) return;
-        const { ingestUrl } = await import("./lib/ingestion");
-        const article = await ingestUrl(captureUrl.trim());
-        const metadata = {
-          author: article.author,
-          publishedDate: article.publishedDate,
-          extractedText: article.text,
-          html: article.html,
-          imageUrls: article.imageUrls,
-          safeEmbeds: article.safeEmbeds,
-          extractor: article.extractor,
-        };
-
-        if (isTauriRuntime()) {
-          const storedItem = await createUrl({
-            sourceUrl: article.canonicalUrl,
-            title: article.title,
-            description: article.description,
-            body: article.text,
-            metadata,
-          });
-          const libraryItem = await storedItemToLibraryItem(storedItem);
-          setItems((current) => [libraryItem, ...current]);
-        } else {
-          const item: LibraryItem = {
-            id: Date.now(),
-            kind: "Article",
-            title: article.title,
-            description: article.description || article.text.slice(0, 180),
-            source: new URL(article.canonicalUrl).hostname,
-            date: "Just now",
-            tags: [],
-            image: article.imageUrls[0],
-          };
-          setItems((current) => [item, ...current]);
-        }
+        await persistArticle(captureUrl.trim(), "quick link");
       } else {
         if (!selectedFile) return;
-        const kind = classifyFile(selectedFile);
-        const bytes = Array.from(new Uint8Array(await selectedFile.arrayBuffer()));
-        if (isTauriRuntime()) {
-          const storedItem = await saveFile({
-            fileName: selectedFile.name,
-            mimeType: selectedFile.type,
-            kind,
-            bytes,
-          });
-          const libraryItem = await storedItemToLibraryItem(storedItem);
-          setItems((current) => [libraryItem, ...current]);
-        } else {
-          const item: LibraryItem = {
-            id: Date.now(),
-            kind: kind === "image" ? "Image" : kind === "pdf" ? "PDF" : kind === "video" ? "Video" : "File",
-            title: selectedFile.name,
-            description: "Saved locally from this device.",
-            source: "Local file",
-            date: "Just now",
-            tags: [],
-            image: kind === "image" ? URL.createObjectURL(selectedFile) : undefined,
-          };
-          setItems((current) => [item, ...current]);
-        }
+        await persistFile(selectedFile, "file picker");
       }
 
       setNewTitle("");
@@ -389,8 +569,39 @@ function App() {
     setIsAdding(true);
   }
 
+  function handleDragOver(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setIsDragActive(true);
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLElement>) {
+    if (event.currentTarget === event.target) setIsDragActive(false);
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setIsDragActive(false);
+    const file = Array.from(event.dataTransfer.files)[0];
+    if (file) {
+      void captureFile(file, "drag and drop");
+      return;
+    }
+
+    const droppedText = (event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain"))
+      .split(/\r?\n/u)
+      .map((value) => value.trim())
+      .find(Boolean);
+    if (!droppedText) return;
+    if (/^https?:\/\//iu.test(droppedText)) {
+      void captureArticle(droppedText, "drag and drop");
+    } else {
+      void captureText(droppedText, "drag and drop");
+    }
+  }
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isDragActive ? "drag-active" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       <aside className="sidebar">
         <div className="brand-lockup">
           <div className="brand-mark" aria-hidden="true">
@@ -494,6 +705,10 @@ function App() {
           <button className="add-button" onClick={() => setIsAdding((current) => !current)}>
             <Plus size={18} />
             <span>Add to your mind</span>
+          </button>
+          <button className="capture-tool-button" onClick={() => void captureScreenshot()} disabled={isCapturing} title="Capture a screenshot">
+            <Camera size={17} />
+            <span>{isCapturing ? "Capturing…" : "Screenshot"}</span>
           </button>
         </section>
 

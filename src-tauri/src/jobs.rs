@@ -149,7 +149,7 @@ impl JobQueue {
         worker_id: &str,
     ) -> rusqlite::Result<Option<JobDto>> {
         let tx = conn.unchecked_transaction()?;
-        let job = tx
+        let mut job = tx
             .query_row(
                 "SELECT id, item_id, kind, status, retry_count, max_retries,
                         error_message, created_at, started_at, completed_at
@@ -162,7 +162,7 @@ impl JobQueue {
             )
             .optional()?;
 
-        if let Some(ref mut job) = job {
+        if let Some(job) = job.as_mut() {
             let now = now_millis();
             tx.execute(
                 "UPDATE jobs
@@ -337,7 +337,6 @@ impl ProcessingState {
             let _ = tx.send(());
         }
     }
-
 }
 
 fn worker_loop(db_path: &PathBuf, worker_id: &str, rx: Receiver<()>) {
@@ -380,16 +379,6 @@ fn process_job(
     worker_id: &str,
     db_path: &PathBuf,
 ) {
-    if job.kind != JobKind::OcrImage {
-        let _ = JobQueue::fail_job(
-            &storage.connection,
-            &job.id,
-            worker_id,
-            "this processing job is not implemented yet",
-        );
-        return;
-    }
-
     let item = match storage.get_item(&job.item_id) {
         Ok(Some(item)) => item,
         _ => {
@@ -398,88 +387,253 @@ fn process_job(
         }
     };
 
-    let asset_path = match &item.local_asset_path {
-        Some(p) => p,
-        None => {
-            let _ = JobQueue::fail_job(
-                &storage.connection,
-                &job.id,
-                worker_id,
-                "item has no local asset path",
-            );
-            return;
+    match job.kind {
+        JobKind::OcrImage => {
+            let bytes = match read_item_asset(storage, &item) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    fail_claimed_job(storage, &job, worker_id, &error);
+                    return;
+                }
+            };
+            process_image_ocr(storage, &item, &job, worker_id, db_path, &bytes);
         }
-    };
-
-    let resolved = match storage.resolve_asset_path(asset_path) {
-        Ok(p) => p,
-        Err(e) => {
-            let _ = JobQueue::fail_job(
-                &storage.connection,
-                &job.id,
-                worker_id,
-                &format!("cannot resolve asset: {e}"),
-            );
-            return;
+        JobKind::OcrPdfPage => {
+            let bytes = match read_item_asset(storage, &item) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    fail_claimed_job(storage, &job, worker_id, &error);
+                    return;
+                }
+            };
+            process_pdf_ocr(storage, &item, &job, worker_id, db_path, &bytes);
         }
-    };
-
-    if !std::path::Path::new(&resolved).exists() {
-        let _ = JobQueue::fail_job(
-            &storage.connection,
-            &job.id,
-            worker_id,
-            "asset file not found",
-        );
-        return;
+        JobKind::GenerateEmbedding => {
+            process_embeddings(storage, &item, &job, worker_id, db_path);
+        }
     }
+}
 
-    let bytes = match std::fs::read(&resolved) {
-        Ok(b) => b,
-        Err(e) => {
-            let _ = JobQueue::fail_job(
-                &storage.connection,
-                &job.id,
-                worker_id,
-                &format!("cannot read asset: {e}"),
-            );
-            return;
-        }
-    };
+fn read_item_asset(
+    storage: &crate::storage::LibraryStorage,
+    item: &crate::storage::ItemDto,
+) -> Result<Vec<u8>, String> {
+    let asset_path = item
+        .local_asset_path
+        .as_deref()
+        .ok_or_else(|| "item has no local asset path".to_string())?;
+    let resolved = storage
+        .resolve_asset_path(asset_path)
+        .map_err(|error| format!("cannot resolve asset: {error}"))?;
+    if !std::path::Path::new(&resolved).exists() {
+        return Err("asset file not found".into());
+    }
+    std::fs::read(&resolved).map_err(|error| format!("cannot read asset: {error}"))
+}
 
+fn fail_claimed_job(
+    storage: &crate::storage::LibraryStorage,
+    job: &JobDto,
+    worker_id: &str,
+    error: &str,
+) {
+    let _ = JobQueue::fail_job(&storage.connection, &job.id, worker_id, error);
+}
+
+fn process_image_ocr(
+    storage: &crate::storage::LibraryStorage,
+    item: &crate::storage::ItemDto,
+    job: &JobDto,
+    worker_id: &str,
+    db_path: &PathBuf,
+    bytes: &[u8],
+) {
     let backend = crate::ocr::create_ocr_backend();
-    let (stop_heartbeat, heartbeat_handle) = start_job_lease_heartbeat(
-        db_path,
-        &job.id,
-        worker_id,
-    );
-    let extraction = backend.extract_text(&bytes);
+    let (stop_heartbeat, heartbeat_handle) = start_job_lease_heartbeat(db_path, &job.id, worker_id);
+    let extraction = backend.extract_text(bytes);
     let _ = stop_heartbeat.send(());
     let _ = heartbeat_handle.join();
 
     match extraction {
-        Ok(Some(text)) => {
-            match storage.update_item_ocr_text(&item.id, &text, backend.name()) {
-                Ok(()) => {
-                    let _ = JobQueue::complete_job(&storage.connection, &job.id, worker_id);
-                }
-                Err(error) => {
-                    let _ = JobQueue::fail_job(
-                        &storage.connection,
-                        &job.id,
-                        worker_id,
-                        &format!("cannot store OCR text: {error}"),
-                    );
-                }
+        Ok(Some(text)) => match storage.update_item_ocr_text(&item.id, &text, backend.name()) {
+            Ok(()) => {
+                let _ = JobQueue::enqueue_job(&storage.connection, &item.id, JobKind::GenerateEmbedding);
+                let _ = JobQueue::complete_job(&storage.connection, &job.id, worker_id);
             }
-        }
+            Err(error) => fail_claimed_job(
+                storage,
+                job,
+                worker_id,
+                &format!("cannot store OCR text: {error}"),
+            ),
+        },
         Ok(None) => {
             let _ = JobQueue::complete_job(&storage.connection, &job.id, worker_id);
         }
-        Err(e) => {
-            let _ = JobQueue::fail_job(&storage.connection, &job.id, worker_id, &format!("{e}"));
+        Err(error) => fail_claimed_job(storage, job, worker_id, &error.to_string()),
+    }
+}
+
+fn process_pdf_ocr(
+    storage: &crate::storage::LibraryStorage,
+    item: &crate::storage::ItemDto,
+    job: &JobDto,
+    worker_id: &str,
+    db_path: &PathBuf,
+    bytes: &[u8],
+) {
+    let backend = crate::ocr::create_ocr_backend();
+    let (stop_heartbeat, heartbeat_handle) = start_job_lease_heartbeat(db_path, &job.id, worker_id);
+    let extraction = extract_pdf_text(backend.as_ref(), bytes);
+    let _ = stop_heartbeat.send(());
+    let _ = heartbeat_handle.join();
+
+    match extraction {
+        Ok(Some((text, engine))) => match storage.update_item_ocr_text(&item.id, &text, &engine) {
+            Ok(()) => {
+                let _ = JobQueue::enqueue_job(&storage.connection, &item.id, JobKind::GenerateEmbedding);
+                let _ = JobQueue::complete_job(&storage.connection, &job.id, worker_id);
+            }
+            Err(error) => fail_claimed_job(
+                storage,
+                job,
+                worker_id,
+                &format!("cannot store PDF text: {error}"),
+            ),
+        },
+        Ok(None) => {
+            let _ = JobQueue::complete_job(&storage.connection, &job.id, worker_id);
+        }
+        Err(error) => fail_claimed_job(storage, job, worker_id, &error),
+    }
+}
+
+fn extract_pdf_text(
+    backend: &dyn crate::ocr::OcrBackend,
+    bytes: &[u8],
+) -> Result<Option<(String, String)>, String> {
+    let mut pages = crate::pdf::extract_text_by_pages(bytes)
+        .map_err(|error| format!("PDF extraction failed: {error}"))?;
+    let needs_ocr = pages.iter().any(|page| page.is_empty());
+    let mut ocr_pages = 0;
+
+    if needs_ocr {
+        let rendered_pages = crate::pdf::render_pages(bytes)
+            .map_err(|error| format!("PDF page rendering failed: {error}"))?;
+        if rendered_pages.len() < pages.len() {
+            return Err("PDF renderer returned fewer pages than the text extractor".into());
+        }
+        for (page, rendered) in pages.iter_mut().zip(rendered_pages.iter()) {
+            if !page.is_empty() {
+                continue;
+            }
+            if let Some(text) = backend
+                .extract_text(rendered)
+                .map_err(|error| format!("PDF page OCR failed: {error}"))?
+            {
+                *page = text;
+                ocr_pages += 1;
+            }
         }
     }
+
+    let text = pages
+        .into_iter()
+        .filter(|page| !page.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    if text.is_empty() {
+        return Ok(None);
+    }
+    let engine = if ocr_pages == 0 {
+        "pdf-text".to_string()
+    } else {
+        format!("pdf-text+{}-ocr", backend.name())
+    };
+    Ok(Some((text, engine)))
+}
+
+fn process_embeddings(
+    storage: &crate::storage::LibraryStorage,
+    item: &crate::storage::ItemDto,
+    job: &JobDto,
+    worker_id: &str,
+    db_path: &PathBuf,
+) {
+    let model_cache = db_path
+        .parent()
+        .map(|path| path.join("models"))
+        .unwrap_or_else(|| PathBuf::from("models"));
+    let (stop_heartbeat, heartbeat_handle) = start_job_lease_heartbeat(db_path, &job.id, worker_id);
+    let result = generate_embeddings(storage, item, &model_cache);
+    let _ = stop_heartbeat.send(());
+    let _ = heartbeat_handle.join();
+
+    match result {
+        Ok(()) => {
+            let _ = JobQueue::complete_job(&storage.connection, &job.id, worker_id);
+        }
+        Err(error) => fail_claimed_job(storage, job, worker_id, &error),
+    }
+}
+
+fn generate_embeddings(
+    storage: &crate::storage::LibraryStorage,
+    item: &crate::storage::ItemDto,
+    model_cache: &std::path::Path,
+) -> Result<(), String> {
+    let text = embedding_text(item);
+    if let Some(text) = text.as_deref() {
+        let vector = crate::embeddings::text_embedding(model_cache, text)?;
+        let bytes = crate::embeddings::encode_f32(&vector);
+        storage
+            .store_embedding(
+                &item.id,
+                "text",
+                crate::embeddings::TEXT_MODEL,
+                &bytes,
+                vector.len(),
+            )
+            .map_err(|error| format!("cannot store text embedding: {error}"))?;
+    }
+
+    if item.kind == "image" {
+        let image_bytes = read_item_asset(storage, item)?;
+        let vector = crate::embeddings::image_embedding(model_cache, &image_bytes)?;
+        let bytes = crate::embeddings::encode_f32(&vector);
+        storage
+            .store_embedding(
+                &item.id,
+                "image",
+                crate::embeddings::IMAGE_MODEL,
+                &bytes,
+                vector.len(),
+            )
+            .map_err(|error| format!("cannot store image embedding: {error}"))?;
+    }
+
+    Ok(())
+}
+
+fn embedding_text(item: &crate::storage::ItemDto) -> Option<String> {
+    let mut parts = Vec::new();
+    for value in [item.title.as_deref(), item.description.as_deref(), Some(item.ocr_text.as_str())]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        parts.push(value.to_owned());
+    }
+    for key in ["text", "extractedText"] {
+        if let Some(value) = item.metadata.get(key).and_then(serde_json::Value::as_str) {
+            let value = value.trim();
+            if !value.is_empty() {
+                parts.push(value.to_owned());
+            }
+        }
+    }
+    (!parts.is_empty()).then(|| parts.join("\n\n"))
 }
 
 fn start_job_lease_heartbeat(
@@ -516,11 +670,20 @@ pub(crate) fn enqueue_ocr_for_item(
     item_id: &str,
     item_kind: &str,
 ) -> rusqlite::Result<Option<String>> {
-    if item_kind != "image" {
-        return Ok(None);
-    }
+    let kind = match item_kind {
+        "image" => JobKind::OcrImage,
+        "pdf" => JobKind::OcrPdfPage,
+        _ => return Ok(None),
+    };
 
-    JobQueue::enqueue_job(conn, item_id, JobKind::OcrImage).map(Some)
+    JobQueue::enqueue_job(conn, item_id, kind).map(Some)
+}
+
+pub(crate) fn enqueue_embedding_for_item(
+    conn: &Connection,
+    item_id: &str,
+) -> rusqlite::Result<String> {
+    JobQueue::enqueue_job(conn, item_id, JobKind::GenerateEmbedding)
 }
 
 #[tauri::command]
@@ -539,9 +702,14 @@ pub fn enqueue_ocr_job(
         .ok_or_else(|| "item not found".to_string())?;
     let job_id = enqueue_ocr_for_item(&storage.connection, &item_id, &item.kind)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| "OCR is only available for image items".to_string())?;
+        .ok_or_else(|| "OCR is only available for image and PDF items".to_string())?;
 
-    state.enqueue_and_wake(&item_id, JobKind::OcrImage);
+    let kind = if item.kind == "pdf" {
+        JobKind::OcrPdfPage
+    } else {
+        JobKind::OcrImage
+    };
+    state.enqueue_and_wake(&item_id, kind);
     Ok(job_id)
 }
 

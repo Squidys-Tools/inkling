@@ -8,8 +8,10 @@ The product treats search and associative memory as the organizing system instea
 
 Early development. The browser preview uses seed data, while the Tauri runtime reads and writes the local SQLite library.
 
-- **Working:** URL capture with article extraction (Defuddle + fallback), local file capture (image/PDF/video), note capture, SQLite storage with FTS5 search, thumbnail generation, safe embed allowlists, the background job queue, and local OCR for saved images through Windows.Media.Ocr.
-- **In progress:** PDF page OCR, text and image embeddings, semantic and visual search, and Smart Spaces are still planned work. The benchmark harness includes Windows OCR and tesseract.js adapters for comparing OCR results.
+- **Working:** URL capture with article extraction (Defuddle + fallback), file picker, drag-and-drop, clipboard, screenshot, and browser-extension capture, SQLite storage with FTS5 search, thumbnail generation, safe embed allowlists, the background job queue, PDF text extraction with scanned-page OCR on Windows, and local text/image embeddings.
+- **In progress:** semantic and visual search and Smart Spaces. The current embedding backend is a deterministic local feature encoder; a learned ONNX model can replace it behind the same job and storage boundary after model selection.
+
+The browser-extension handoff is a `mymind://capture?url=<encoded-http-url>` deep link; the extension itself can remain a separate package.
 
 ## Stack
 
@@ -20,7 +22,7 @@ Early development. The browser preview uses seed data, while the Tauri runtime r
 - SQLite and FTS5 for local storage and full-text search
 - Windows.Media.Ocr for native image OCR on Windows
 - Defuddle for readable article extraction
-- ONNX Runtime and local models for embeddings and image understanding (next milestone)
+- Local deterministic text and image feature embeddings, with an ONNX model boundary reserved for the next model-selection milestone
 - llama.cpp for optional local summaries and structured analysis (next milestone)
 
 ## Development
@@ -127,6 +129,6 @@ PRODUCT.md                 # Product definition and principles
 
 The current technical slice accepts an image, URL, or PDF; creates a card immediately; stores local assets; extracts articles with Defuddle; and indexes titles, descriptions, metadata, and image OCR text with SQLite FTS5. Image OCR runs in a persisted background job and can be searched after processing finishes.
 
-The remaining first-milestone work is scanned-PDF OCR, text and image embeddings, semantic and image-similarity search, and saved Smart Spaces.
+The remaining first-milestone work is learned embedding model selection, semantic and image-similarity search, and saved Smart Spaces.
 
 The application is designed for Windows first while keeping the frontend and domain boundaries portable enough for a future web version.
