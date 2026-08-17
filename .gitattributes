@@ -1,0 +1,2 @@
+# Preserve PDF bytes exactly; line endings inside xref tables are significant to some parsers.
+benchmarks/corpus/pdfs/*.pdf binary

@@ -134,7 +134,9 @@ impl JobQueue {
             .query_row(
                 "SELECT id FROM jobs
                  WHERE item_id = ?1 AND kind = ?2 AND status IN ('pending', 'processing')
-                 ORDER BY created_at DESC LIMIT 1",
+                 ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END,
+                          created_at DESC
+                 LIMIT 1",
                 params![item_id, kind_name],
                 |row| row.get::<_, String>(0),
             )

@@ -640,7 +640,7 @@ impl LibraryStorage {
                             i.favorite
                      FROM items_fts f
                      JOIN items i ON i.id = f.item_id
-                     WHERE i.archived = 0 AND f MATCH ?1
+                     WHERE i.archived = 0 AND items_fts MATCH ?1
                      ORDER BY i.updated_at DESC, i.created_at DESC
                      LIMIT ?2",
                 )?;
