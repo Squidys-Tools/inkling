@@ -39,6 +39,9 @@ pub struct JobDto {
     pub created_at: i64,
     pub started_at: Option<i64>,
     pub completed_at: Option<i64>,
+    pub progress_current: i64,
+    pub progress_total: Option<i64>,
+    pub progress_message: Option<String>,
 }
 
 pub const JOBS_SCHEMA: &str = r#"
@@ -54,7 +57,10 @@ CREATE TABLE IF NOT EXISTS jobs (
     started_at INTEGER,
     completed_at INTEGER,
     worker_id TEXT,
-    lease_until INTEGER
+    lease_until INTEGER,
+    progress_current INTEGER NOT NULL DEFAULT 0,
+    progress_total INTEGER,
+    progress_message TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_status_created
@@ -109,6 +115,9 @@ fn job_from_row(row: &Row<'_>) -> rusqlite::Result<JobDto> {
         created_at: row.get(7)?,
         started_at: row.get(8)?,
         completed_at: row.get(9)?,
+        progress_current: row.get(10)?,
+        progress_total: row.get(11)?,
+        progress_message: row.get(12)?,
     })
 }
 
@@ -144,15 +153,13 @@ impl JobQueue {
         Ok(id)
     }
 
-    pub fn claim_next_job(
-        conn: &Connection,
-        worker_id: &str,
-    ) -> rusqlite::Result<Option<JobDto>> {
+    pub fn claim_next_job(conn: &Connection, worker_id: &str) -> rusqlite::Result<Option<JobDto>> {
         let tx = conn.unchecked_transaction()?;
         let mut job = tx
             .query_row(
                 "SELECT id, item_id, kind, status, retry_count, max_retries,
-                        error_message, created_at, started_at, completed_at
+                        error_message, created_at, started_at, completed_at,
+                        progress_current, progress_total, progress_message
                  FROM jobs
                  WHERE status = 'pending'
                  ORDER BY created_at ASC
@@ -166,8 +173,9 @@ impl JobQueue {
             let now = now_millis();
             tx.execute(
                 "UPDATE jobs
-                 SET status = 'processing', started_at = ?1,
-                     worker_id = ?2, lease_until = ?3
+                SET status = 'processing', started_at = ?1,
+                     worker_id = ?2, lease_until = ?3,
+                     progress_current = 0, progress_message = NULL
                  WHERE id = ?4 AND status = 'pending'",
                 params![now, worker_id, now.saturating_add(JOB_LEASE_MILLIS), job.id],
             )?;
@@ -202,7 +210,9 @@ impl JobQueue {
             "UPDATE jobs
              SET status = 'completed', completed_at = ?1,
                  started_at = COALESCE(started_at, ?1),
-                 worker_id = NULL, lease_until = NULL
+                 worker_id = NULL, lease_until = NULL,
+                 progress_current = COALESCE(progress_total, progress_current),
+                 progress_message = NULL
              WHERE id = ?2 AND status = 'processing' AND worker_id = ?3",
             params![now, job_id, worker_id],
         )?;
@@ -229,6 +239,7 @@ impl JobQueue {
             let failed = tx.execute(
                 "UPDATE jobs
                  SET status = 'failed', completed_at = ?1, error_message = ?2,
+                     progress_message = ?2,
                      worker_id = NULL, lease_until = NULL
                  WHERE id = ?3 AND status = 'processing' AND worker_id = ?4",
                 params![now, error, job_id, worker_id],
@@ -240,7 +251,8 @@ impl JobQueue {
         tx.execute(
             "UPDATE jobs
              SET status = 'pending', retry_count = retry_count + 1,
-                 worker_id = NULL, lease_until = NULL
+                 worker_id = NULL, lease_until = NULL, progress_current = 0,
+                 progress_message = NULL
              WHERE id = ?1 AND status = 'processing' AND worker_id = ?2",
             params![job_id, worker_id],
         )?;
@@ -248,19 +260,48 @@ impl JobQueue {
         Ok(true)
     }
 
-    pub fn get_jobs_for_item(
-        conn: &Connection,
-        item_id: &str,
-    ) -> rusqlite::Result<Vec<JobDto>> {
+    pub fn get_jobs_for_item(conn: &Connection, item_id: &str) -> rusqlite::Result<Vec<JobDto>> {
         let mut stmt = conn.prepare(
             "SELECT id, item_id, kind, status, retry_count, max_retries,
-                    error_message, created_at, started_at, completed_at
+                    error_message, created_at, started_at, completed_at,
+                    progress_current, progress_total, progress_message
              FROM jobs WHERE item_id = ?1 ORDER BY created_at DESC",
         )?;
         let jobs = stmt
             .query_map(params![item_id], job_from_row)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(jobs)
+    }
+
+    pub fn update_progress(
+        conn: &Connection,
+        job_id: &str,
+        worker_id: &str,
+        current: i64,
+        total: Option<i64>,
+        message: Option<&str>,
+    ) -> rusqlite::Result<bool> {
+        let current = current.max(0);
+        let total = total.map(|value| value.max(current).max(0));
+        let updated = conn.execute(
+            "UPDATE jobs
+             SET progress_current = ?1, progress_total = ?2, progress_message = ?3
+             WHERE id = ?4 AND status = 'processing' AND worker_id = ?5",
+            params![current, total, message, job_id, worker_id],
+        )?;
+        Ok(updated > 0)
+    }
+
+    pub fn retry_job(conn: &Connection, job_id: &str) -> rusqlite::Result<bool> {
+        let updated = conn.execute(
+            "UPDATE jobs
+             SET status = 'pending', error_message = NULL, started_at = NULL,
+                 completed_at = NULL, worker_id = NULL, lease_until = NULL,
+                 progress_current = 0, progress_message = NULL
+             WHERE id = ?1 AND status = 'failed'",
+            params![job_id],
+        )?;
+        Ok(updated > 0)
     }
 
     /// Requeue jobs left in `processing` after an interrupted worker run.
@@ -271,7 +312,8 @@ impl JobQueue {
         conn.execute(
             "UPDATE jobs
              SET status = 'pending', started_at = NULL, error_message = NULL,
-                 worker_id = NULL, lease_until = NULL
+                 worker_id = NULL, lease_until = NULL, progress_current = 0,
+                 progress_message = NULL
              WHERE status = 'processing'
                AND (lease_until IS NULL OR lease_until <= ?1)",
             params![now_millis()],
@@ -449,6 +491,14 @@ fn process_image_ocr(
     bytes: &[u8],
 ) {
     let backend = crate::ocr::create_ocr_backend();
+    let _ = JobQueue::update_progress(
+        &storage.connection,
+        &job.id,
+        worker_id,
+        0,
+        Some(1),
+        Some("Reading image"),
+    );
     let (stop_heartbeat, heartbeat_handle) = start_job_lease_heartbeat(db_path, &job.id, worker_id);
     let extraction = backend.extract_text(bytes);
     let _ = stop_heartbeat.send(());
@@ -457,7 +507,19 @@ fn process_image_ocr(
     match extraction {
         Ok(Some(text)) => match storage.update_item_ocr_text(&item.id, &text, backend.name()) {
             Ok(()) => {
-                let _ = JobQueue::enqueue_job(&storage.connection, &item.id, JobKind::GenerateEmbedding);
+                let _ = JobQueue::update_progress(
+                    &storage.connection,
+                    &job.id,
+                    worker_id,
+                    1,
+                    Some(1),
+                    Some("Image text indexed"),
+                );
+                let _ = JobQueue::enqueue_job(
+                    &storage.connection,
+                    &item.id,
+                    JobKind::GenerateEmbedding,
+                );
                 let _ = JobQueue::complete_job(&storage.connection, &job.id, worker_id);
             }
             Err(error) => fail_claimed_job(
@@ -468,6 +530,14 @@ fn process_image_ocr(
             ),
         },
         Ok(None) => {
+            let _ = JobQueue::update_progress(
+                &storage.connection,
+                &job.id,
+                worker_id,
+                1,
+                Some(1),
+                Some("No text found"),
+            );
             let _ = JobQueue::complete_job(&storage.connection, &job.id, worker_id);
         }
         Err(error) => fail_claimed_job(storage, job, worker_id, &error.to_string()),
@@ -483,15 +553,45 @@ fn process_pdf_ocr(
     bytes: &[u8],
 ) {
     let backend = crate::ocr::create_ocr_backend();
+    let _ = JobQueue::update_progress(
+        &storage.connection,
+        &job.id,
+        worker_id,
+        0,
+        None,
+        Some("Reading PDF pages"),
+    );
     let (stop_heartbeat, heartbeat_handle) = start_job_lease_heartbeat(db_path, &job.id, worker_id);
-    let extraction = extract_pdf_text(backend.as_ref(), bytes);
+    let extraction =
+        extract_pdf_text_with_progress(backend.as_ref(), bytes, &mut |current, total, message| {
+            let _ = JobQueue::update_progress(
+                &storage.connection,
+                &job.id,
+                worker_id,
+                current as i64,
+                Some(total as i64),
+                Some(message),
+            );
+        });
     let _ = stop_heartbeat.send(());
     let _ = heartbeat_handle.join();
 
     match extraction {
         Ok(Some((text, engine))) => match storage.update_item_ocr_text(&item.id, &text, &engine) {
             Ok(()) => {
-                let _ = JobQueue::enqueue_job(&storage.connection, &item.id, JobKind::GenerateEmbedding);
+                let _ = JobQueue::update_progress(
+                    &storage.connection,
+                    &job.id,
+                    worker_id,
+                    1,
+                    Some(1),
+                    Some("PDF text indexed"),
+                );
+                let _ = JobQueue::enqueue_job(
+                    &storage.connection,
+                    &item.id,
+                    JobKind::GenerateEmbedding,
+                );
                 let _ = JobQueue::complete_job(&storage.connection, &job.id, worker_id);
             }
             Err(error) => fail_claimed_job(
@@ -502,18 +602,29 @@ fn process_pdf_ocr(
             ),
         },
         Ok(None) => {
+            let _ = JobQueue::update_progress(
+                &storage.connection,
+                &job.id,
+                worker_id,
+                1,
+                Some(1),
+                Some("No text found"),
+            );
             let _ = JobQueue::complete_job(&storage.connection, &job.id, worker_id);
         }
         Err(error) => fail_claimed_job(storage, job, worker_id, &error),
     }
 }
 
-fn extract_pdf_text(
+fn extract_pdf_text_with_progress(
     backend: &dyn crate::ocr::OcrBackend,
     bytes: &[u8],
+    progress: &mut dyn FnMut(usize, usize, &str),
 ) -> Result<Option<(String, String)>, String> {
     let mut pages = crate::pdf::extract_text_by_pages(bytes)
         .map_err(|error| format!("PDF extraction failed: {error}"))?;
+    let total_pages = pages.len();
+    progress(0, total_pages, "Reading PDF pages");
     let needs_ocr = pages.iter().any(|page| page.is_empty());
     let mut ocr_pages = 0;
 
@@ -523,10 +634,18 @@ fn extract_pdf_text(
         if rendered_pages.len() < pages.len() {
             return Err("PDF renderer returned fewer pages than the text extractor".into());
         }
-        for (page, rendered) in pages.iter_mut().zip(rendered_pages.iter()) {
+        for (page_index, (page, rendered)) in
+            pages.iter_mut().zip(rendered_pages.iter()).enumerate()
+        {
             if !page.is_empty() {
+                progress(page_index + 1, total_pages, "Reading PDF text");
                 continue;
             }
+            progress(
+                page_index,
+                total_pages,
+                &format!("OCR page {} of {}", page_index + 1, total_pages),
+            );
             if let Some(text) = backend
                 .extract_text(rendered)
                 .map_err(|error| format!("PDF page OCR failed: {error}"))?
@@ -534,7 +653,14 @@ fn extract_pdf_text(
                 *page = text;
                 ocr_pages += 1;
             }
+            progress(
+                page_index + 1,
+                total_pages,
+                &format!("OCR page {} of {}", page_index + 1, total_pages),
+            );
         }
+    } else {
+        progress(total_pages, total_pages, "Reading PDF text");
     }
 
     let text = pages
@@ -565,7 +691,21 @@ fn process_embeddings(
         .map(|path| path.join("models"))
         .unwrap_or_else(|| PathBuf::from("models"));
     let (stop_heartbeat, heartbeat_handle) = start_job_lease_heartbeat(db_path, &job.id, worker_id);
-    let result = generate_embeddings(storage, item, &model_cache);
+    let result = generate_embeddings(
+        storage,
+        item,
+        &model_cache,
+        &mut |current, total, message| {
+            let _ = JobQueue::update_progress(
+                &storage.connection,
+                &job.id,
+                worker_id,
+                current as i64,
+                Some(total as i64),
+                Some(message),
+            );
+        },
+    );
     let _ = stop_heartbeat.send(());
     let _ = heartbeat_handle.join();
 
@@ -581,8 +721,12 @@ fn generate_embeddings(
     storage: &crate::storage::LibraryStorage,
     item: &crate::storage::ItemDto,
     model_cache: &std::path::Path,
+    progress: &mut dyn FnMut(usize, usize, &str),
 ) -> Result<(), String> {
     let text = embedding_text(item);
+    let total = usize::from(text.is_some()) + usize::from(item.kind == "image");
+    progress(0, total, "Preparing search index");
+    let mut current = 0;
     if let Some(text) = text.as_deref() {
         let vector = crate::embeddings::text_embedding(model_cache, text)?;
         let bytes = crate::embeddings::encode_f32(&vector);
@@ -595,6 +739,8 @@ fn generate_embeddings(
                 vector.len(),
             )
             .map_err(|error| format!("cannot store text embedding: {error}"))?;
+        current += 1;
+        progress(current, total, "Text search index ready");
     }
 
     if item.kind == "image" {
@@ -610,6 +756,8 @@ fn generate_embeddings(
                 vector.len(),
             )
             .map_err(|error| format!("cannot store image embedding: {error}"))?;
+        current += 1;
+        progress(current, total, "Image similarity index ready");
     }
 
     Ok(())
@@ -617,11 +765,15 @@ fn generate_embeddings(
 
 fn embedding_text(item: &crate::storage::ItemDto) -> Option<String> {
     let mut parts = Vec::new();
-    for value in [item.title.as_deref(), item.description.as_deref(), Some(item.ocr_text.as_str())]
-        .into_iter()
-        .flatten()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
+    for value in [
+        item.title.as_deref(),
+        item.description.as_deref(),
+        Some(item.ocr_text.as_str()),
+    ]
+    .into_iter()
+    .flatten()
+    .map(str::trim)
+    .filter(|value| !value.is_empty())
     {
         parts.push(value.to_owned());
     }
@@ -692,7 +844,9 @@ pub fn enqueue_ocr_job(
     state: tauri::State<'_, ProcessingState>,
     storage_state: tauri::State<'_, crate::storage::StorageState>,
 ) -> Result<String, String> {
-    let guard = storage_state.lock().map_err(|_| "storage lock poisoned".to_string())?;
+    let guard = storage_state
+        .lock()
+        .map_err(|_| "storage lock poisoned".to_string())?;
     let storage = guard
         .as_ref()
         .ok_or_else(|| "storage not initialized".to_string())?;
@@ -718,7 +872,9 @@ pub fn get_job_status(
     item_id: String,
     storage_state: tauri::State<'_, crate::storage::StorageState>,
 ) -> Result<Vec<JobDto>, String> {
-    let guard = storage_state.lock().map_err(|_| "storage lock poisoned".to_string())?;
+    let guard = storage_state
+        .lock()
+        .map_err(|_| "storage lock poisoned".to_string())?;
     let storage = guard
         .as_ref()
         .ok_or_else(|| "storage not initialized".to_string())?;
@@ -729,11 +885,45 @@ pub fn get_job_status(
 pub fn count_active_jobs(
     storage_state: tauri::State<'_, crate::storage::StorageState>,
 ) -> Result<i64, String> {
-    let guard = storage_state.lock().map_err(|_| "storage lock poisoned".to_string())?;
+    let guard = storage_state
+        .lock()
+        .map_err(|_| "storage lock poisoned".to_string())?;
     let storage = guard
         .as_ref()
         .ok_or_else(|| "storage not initialized".to_string())?;
     JobQueue::count_active_jobs(&storage.connection).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn retry_processing_job(
+    job_id: String,
+    processing: tauri::State<'_, ProcessingState>,
+    storage_state: tauri::State<'_, crate::storage::StorageState>,
+) -> Result<bool, String> {
+    let guard = storage_state
+        .lock()
+        .map_err(|_| "storage lock poisoned".to_string())?;
+    let storage = guard
+        .as_ref()
+        .ok_or_else(|| "storage not initialized".to_string())?;
+    let item_id = storage
+        .connection
+        .query_row(
+            "SELECT item_id FROM jobs WHERE id = ?1 AND status = 'failed'",
+            params![job_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let retried =
+        JobQueue::retry_job(&storage.connection, &job_id).map_err(|error| error.to_string())?;
+    drop(guard);
+    if retried {
+        if let Some(item_id) = item_id {
+            processing.enqueue_and_wake(&item_id, JobKind::GenerateEmbedding);
+        }
+    }
+    Ok(retried)
 }
 
 #[cfg(test)]
@@ -745,6 +935,13 @@ mod tests {
         connection
             .execute_batch(
                 "CREATE TABLE items (id TEXT PRIMARY KEY NOT NULL);\n                 CREATE TABLE jobs (\n                     id TEXT PRIMARY KEY NOT NULL,\n                     item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,\n                     kind TEXT NOT NULL,\n                     status TEXT NOT NULL DEFAULT 'pending',\n                     retry_count INTEGER NOT NULL DEFAULT 0,\n                     max_retries INTEGER NOT NULL DEFAULT 3,\n                     error_message TEXT,\n                     created_at INTEGER NOT NULL,\n                     started_at INTEGER,\n                     completed_at INTEGER,\n                     worker_id TEXT,\n                     lease_until INTEGER\n                 );",
+            )
+            .unwrap();
+        connection
+            .execute_batch(
+                "ALTER TABLE jobs ADD COLUMN progress_current INTEGER NOT NULL DEFAULT 0;
+                 ALTER TABLE jobs ADD COLUMN progress_total INTEGER;
+                 ALTER TABLE jobs ADD COLUMN progress_message TEXT;",
             )
             .unwrap();
         connection
@@ -809,5 +1006,108 @@ mod tests {
                 .status,
             JobStatus::Completed
         );
+    }
+
+    #[cfg(windows)]
+    mod windows_benchmark_tests {
+        use super::super::*;
+        use std::fs;
+
+        fn benchmark_root() -> std::path::PathBuf {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join("benchmarks")
+        }
+
+        fn contains_term(text: &str, term: &str) -> bool {
+            text.to_ascii_lowercase()
+                .contains(&term.to_ascii_lowercase())
+        }
+
+        #[test]
+        fn benchmark_pdfs_run_through_storage_worker_and_embedding_pipeline() {
+            let cases: &[(&str, &[&str])] = &[
+                (
+                    "pdf-native-text-01.pdf",
+                    &["local first", "capture rule", "retrieval", "field guide"],
+                ),
+                (
+                    "pdf-scanned-01.pdf",
+                    &["memorandum", "inventory", "warehouse", "sprouted bulbs"],
+                ),
+                (
+                    "pdf-multicolumn-01.pdf",
+                    &["field notes", "newspapers", "column", "margin"],
+                ),
+                (
+                    "pdf-tables-01.pdf",
+                    &["quarterly", "operating", "revenue", "Q4", "unaudited"],
+                ),
+                (
+                    "pdf-images-captions-01.pdf",
+                    &["site survey", "west meadow", "oaks", "wildflower"],
+                ),
+                (
+                    "pdf-bad-metadata-01.pdf",
+                    &["untitled fragment", "no title", "metadata"],
+                ),
+            ];
+
+            for (file_name, expected_terms) in cases {
+                let database_directory =
+                    std::env::temp_dir().join(format!("mymind-benchmark-{}", Uuid::new_v4()));
+                fs::create_dir_all(&database_directory).unwrap();
+                let database_path = database_directory.join("library.sqlite3");
+                let storage = crate::storage::LibraryStorage::open(database_path.clone()).unwrap();
+                let bytes =
+                    fs::read(benchmark_root().join("corpus").join("pdfs").join(file_name)).unwrap();
+                let item = storage
+                    .save_file(crate::storage::SaveFileInput {
+                        id: None,
+                        file_name: (*file_name).to_owned(),
+                        mime_type: Some("application/pdf".into()),
+                        kind: Some("pdf".into()),
+                        bytes,
+                    })
+                    .unwrap();
+                enqueue_ocr_for_item(&storage.connection, &item.id, &item.kind).unwrap();
+                enqueue_embedding_for_item(&storage.connection, &item.id).unwrap();
+
+                let worker_id = format!("benchmark-{}", Uuid::new_v4());
+                while let Some(job) =
+                    JobQueue::claim_next_job(&storage.connection, &worker_id).unwrap()
+                {
+                    process_job(&storage, job, &worker_id, &database_path);
+                }
+
+                let stored = storage.get_item(&item.id).unwrap().unwrap();
+                for &term in *expected_terms {
+                    assert!(
+                        contains_term(&stored.ocr_text, term),
+                        "{file_name} did not contain expected term {term:?}: {}",
+                        stored.ocr_text
+                    );
+                }
+                let embedding_count: i64 = storage
+                    .connection
+                    .query_row(
+                        "SELECT COUNT(*) FROM item_embeddings WHERE item_id = ?1",
+                        rusqlite::params![item.id],
+                        |row| row.get(0),
+                    )
+                    .unwrap();
+                assert_eq!(
+                    embedding_count, 1,
+                    "{file_name} should have a text embedding"
+                );
+                assert!(JobQueue::get_jobs_for_item(&storage.connection, &item.id)
+                    .unwrap()
+                    .iter()
+                    .all(|job| job.status == JobStatus::Completed));
+
+                drop(storage);
+                fs::remove_dir_all(database_directory).unwrap();
+            }
+        }
     }
 }

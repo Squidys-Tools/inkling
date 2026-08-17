@@ -85,7 +85,18 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 @media (max-width: 780px) { .sidebar { display: none; }.main-content { width: 100%; padding: 0 18px 24px; }.mobile-menu { display: grid; place-items: center; width: 34px; height: 34px; border: 0; background: transparent; color: var(--muted); }.breadcrumb { margin-right: auto; margin-left: 8px; }.library-header { display: block; padding-top: 41px; }.library-header h1 { font-size: 38px; }.library-meta { margin-top: 22px; }.capture-bar { display: grid; grid-template-columns: 1fr; }.add-button { justify-content: center; }.search-field kbd { display: none; }.library-card:nth-child(n) { grid-column: span 12; }.library-card:nth-child(2) .card-image-wrap, .library-card:nth-child(4) .card-image-wrap { height: 245px; }.main-footer { gap: 12px; flex-wrap: wrap; }.topbar { height: 67px; }.item-inspector { width: min(320px, 92vw); } }
 
 .capture-error { margin: 12px 0 0; color: #a4472e; font-size: 12px; }
+.job-summary { display: inline-flex; align-items: center; gap: 6px; color: var(--green); }
+.job-summary svg, .card-processing svg, .inspector-processing > svg { animation: spin 1.2s linear infinite; }
+.card-processing, .inspector-processing { display: flex; align-items: center; gap: 7px; margin-top: 13px; color: var(--green); font: 10px "DM Mono", monospace; line-height: 1.35; }
+.card-processing span:nth-child(3), .inspector-processing span:last-of-type { margin-left: auto; color: #9a9993; }
+.card-processing.failed, .inspector-processing.failed { color: #a4472e; align-items: flex-start; }
+.retry-button { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.retry-button:hover { color: #7f321f; }
+.similar-button { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 25px; padding: 12px; border: 1px solid #cbd8d2; border-radius: 8px; background: var(--green-soft); color: #4f6e5f; cursor: pointer; font-size: 12px; }
+.similar-button:hover { border-color: #aabfb3; background: #d3e4d9; }
+.similar-button:disabled { cursor: wait; opacity: .65; }
 .drag-active .main-content { background: rgba(220, 233, 224, .38); }.drag-active .capture-bar { outline: 2px dashed var(--green); outline-offset: 8px; border-radius: 10px; }
 .capture-mode-tabs { display: flex; gap: 3px; padding: 3px; border-radius: 6px; background: rgba(255,255,255,.56); }.capture-mode-tabs button { border: 0; border-radius: 4px; padding: 5px 7px; color: #789087; background: transparent; cursor: pointer; font: 10px "DM Mono", monospace; }.capture-mode-tabs button.selected { color: #fff; background: var(--green); }.file-picker { min-width: 0; flex: 1; overflow: hidden; border: 0; background: transparent; color: var(--ink); text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; font-size: 13px; }.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 @media (max-width: 780px) { .add-button, .capture-tool-button { justify-content: center; } }
+@keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }

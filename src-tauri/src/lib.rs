@@ -1,7 +1,7 @@
+mod embeddings;
 mod jobs;
 mod ocr;
 mod pdf;
-mod embeddings;
 mod storage;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -22,9 +22,11 @@ pub fn run() {
             storage::update_item,
             storage::archive_item,
             storage::search_items,
+            storage::search_similar_images,
             jobs::enqueue_ocr_job,
             jobs::get_job_status,
             jobs::count_active_jobs,
+            jobs::retry_processing_job,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

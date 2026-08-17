@@ -73,8 +73,8 @@ mod windows_impl {
     };
 
     pub fn render_pages(pdf_bytes: &[u8]) -> Result<Vec<Vec<u8>>, PdfError> {
-        let runtime = Runtime::new()
-            .map_err(|error| PdfError::new("runtime-init", error.to_string()))?;
+        let runtime =
+            Runtime::new().map_err(|error| PdfError::new("runtime-init", error.to_string()))?;
 
         unsafe { RoInitialize(RO_INIT_MULTITHREADED) }
             .map_err(|error| PdfError::new("winrt-init", error.to_string()))?;

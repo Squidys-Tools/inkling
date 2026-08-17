@@ -40,18 +40,65 @@ export type SaveFileInput = {
   bytes: number[];
 };
 
+export type ProcessingJobKind = "ocr_image" | "ocr_pdf_page" | "generate_embedding";
+export type ProcessingJobStatus = "pending" | "processing" | "completed" | "failed";
+
 export type ProcessingJob = {
   id: string;
   itemId: string;
-  kind: "ocr_image" | "ocr_pdf_page" | "generate_embedding";
-  status: "pending" | "processing" | "completed" | "failed";
+  kind: ProcessingJobKind;
+  status: ProcessingJobStatus;
   retryCount: number;
   maxRetries: number;
   errorMessage: string | null;
   createdAt: number;
   startedAt: number | null;
   completedAt: number | null;
+  progressCurrent: number;
+  progressTotal: number | null;
+  progressMessage: string | null;
 };
+
+export type ProcessingSummary = {
+  active: boolean;
+  completed: number;
+  total: number;
+  progressCurrent: number;
+  progressTotal: number | null;
+  message: string | null;
+  failedJob: ProcessingJob | null;
+};
+
+function latestJobsByKind(jobs: ProcessingJob[]) {
+  const latest = new Map<ProcessingJobKind, ProcessingJob>();
+  for (const job of jobs) {
+    const previous = latest.get(job.kind);
+    if (!previous || job.createdAt > previous.createdAt) latest.set(job.kind, job);
+  }
+  return [...latest.values()];
+}
+
+export function summarizeProcessingJobs(jobs: ProcessingJob[]): ProcessingSummary {
+  const latestJobs = latestJobsByKind(jobs);
+  const failedJob = latestJobs.find((job) => job.status === "failed") ?? null;
+  const activeJobs = latestJobs.filter((job) => job.status === "pending" || job.status === "processing");
+  const completed = latestJobs.filter((job) => job.status === "completed").length;
+  const progressTotal = latestJobs.reduce<number | null>((total, job) => {
+    if (job.progressTotal == null) return total;
+    return (total ?? 0) + job.progressTotal;
+  }, null);
+  const progressCurrent = latestJobs.reduce((current, job) => current + job.progressCurrent, 0);
+
+  return {
+    active: activeJobs.length > 0,
+    completed,
+    total: latestJobs.length,
+    progressCurrent,
+    progressTotal,
+    message: activeJobs.find((job) => job.progressMessage)?.progressMessage ?? null,
+    failedJob,
+  };
+}
 
 const runtimeIsTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -70,6 +117,10 @@ export async function listActiveItems() {
 
 export async function searchItems(query: string) {
   return invoke<StoredLibraryItem[]>("search_items", { query, limit: 100 });
+}
+
+export async function searchSimilarImages(itemId: string) {
+  return invoke<StoredLibraryItem[]>("search_similar_images", { itemId, limit: 12 });
 }
 
 export async function createNote(input: CreateNoteInput) {
@@ -105,6 +156,10 @@ export async function getJobStatus(itemId: string) {
 
 export async function countActiveJobs() {
   return invoke<number>("count_active_jobs");
+}
+
+export async function retryProcessingJob(jobId: string) {
+  return invoke<boolean>("retry_processing_job", { jobId });
 }
 
 export async function currentDeepLinks() {

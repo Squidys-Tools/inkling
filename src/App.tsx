@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   Archive,
+  AlertCircle,
   ArrowUpRight,
   Bookmark,
   Camera,
@@ -14,6 +15,7 @@ import {
   Grid2X2,
   Image as ImageIcon,
   Layers3,
+  LoaderCircle,
   Link2,
   List,
   Menu,
@@ -21,6 +23,7 @@ import {
   PanelRight,
   Plus,
   Search,
+  RotateCw,
   Settings2,
   Sparkles,
   X,
@@ -28,13 +31,19 @@ import {
 import {
   assetUrl,
   createUrl,
+  countActiveJobs,
   currentDeepLinks,
   createNote,
   initializeStorage,
   isTauriRuntime,
   listActiveItems,
+  getJobStatus,
+  retryProcessingJob,
   saveFile,
   searchItems,
+  searchSimilarImages,
+  summarizeProcessingJobs,
+  type ProcessingSummary,
   type StoredLibraryItem,
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
@@ -55,6 +64,7 @@ type LibraryItem = {
   accent?: string;
   featured?: boolean;
   favorite?: boolean;
+  processing?: ProcessingSummary;
 };
 
 function displayKind(kind: string): ItemKind {
@@ -86,7 +96,10 @@ function formatItemDate(timestamp: number) {
   return date.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
 }
 
-async function storedItemToLibraryItem(item: StoredLibraryItem): Promise<LibraryItem> {
+async function storedItemToLibraryItem(
+  item: StoredLibraryItem,
+  processing?: ProcessingSummary,
+): Promise<LibraryItem> {
   const kind = displayKind(item.kind);
   const metadataTags = item.metadata.tags;
   const tags = Array.isArray(metadataTags)
@@ -109,6 +122,7 @@ async function storedItemToLibraryItem(item: StoredLibraryItem): Promise<Library
     ocrText: item.ocrText,
     image,
     favorite: item.favorite,
+    processing,
   };
 }
 
@@ -227,6 +241,9 @@ function App() {
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [activeJobCount, setActiveJobCount] = useState(0);
+  const [isFindingSimilar, setIsFindingSimilar] = useState(false);
+  const [similaritySource, setSimilaritySource] = useState<{ id: string; title: string } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -414,6 +431,41 @@ function App() {
     }
   }
 
+  async function findSimilarImages(item: LibraryItem) {
+    if (!isTauriRuntime()) {
+      setCaptureError("Image similarity is available in the Windows app.");
+      return;
+    }
+
+    setCaptureError(null);
+    setIsFindingSimilar(true);
+    try {
+      const storedItems = await searchSimilarImages(String(item.id));
+      const libraryItems = await Promise.all(storedItems.map(async (storedItem) => {
+        const jobs = await getJobStatus(storedItem.id);
+        return storedItemToLibraryItem(storedItem, summarizeProcessingJobs(jobs));
+      }));
+      setQuery("");
+      setSimilaritySource({ id: String(item.id), title: item.title });
+      setItems(libraryItems);
+      setSelectedItem(null);
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsFindingSimilar(false);
+    }
+  }
+
+  async function retryJob(jobId: string) {
+    setCaptureError(null);
+    try {
+      const retried = await retryProcessingJob(jobId);
+      if (!retried) setCaptureError("That processing job is no longer available to retry.");
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   async function handleDeepLinkPayload(payload: unknown) {
     const values: string[] = Array.isArray(payload)
       ? payload.filter((value): value is string => typeof value === "string")
@@ -499,29 +551,50 @@ function App() {
   useEffect(() => {
     if (!isTauriRuntime()) return;
     let cancelled = false;
+    let loading = false;
 
     async function loadItems() {
+      if (loading) return;
+      loading = true;
       try {
         await initializeStorage();
-        const storedItems = query.trim() ? await searchItems(query) : await listActiveItems();
-        if (!cancelled) setItems(await Promise.all(storedItems.map(storedItemToLibraryItem)));
+        const storedItemsPromise = similaritySource
+          ? searchSimilarImages(similaritySource.id)
+          : query.trim()
+            ? searchItems(query)
+            : listActiveItems();
+        const [storedItems, activeCount] = await Promise.all([storedItemsPromise, countActiveJobs()]);
+        const libraryItems = await Promise.all(storedItems.map(async (item) => {
+          const jobs = await getJobStatus(item.id);
+          return storedItemToLibraryItem(item, summarizeProcessingJobs(jobs));
+        }));
+        if (!cancelled) {
+          setItems(libraryItems);
+          setActiveJobCount(activeCount);
+        }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+      } finally {
+        loading = false;
       }
     }
 
     void loadItems();
+    const refreshTimer = window.setInterval(() => void loadItems(), 1000);
     return () => {
       cancelled = true;
+      window.clearInterval(refreshTimer);
     };
-  }, [query]);
+  }, [query, similaritySource?.id]);
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return items.filter((item) => {
       const matchesQuery = !normalizedQuery
         ? true
-        : [item.title, item.description, item.source, item.kind, ...item.tags]
+        : isTauriRuntime() || similaritySource
+          ? true
+          : [item.title, item.description, item.source, item.kind, ...item.tags]
             .join(" ")
             .toLowerCase()
             .includes(normalizedQuery);
@@ -532,7 +605,7 @@ function App() {
         (activeView === "Design references" && item.tags.includes("reference"));
       return matchesQuery && matchesView;
     });
-  }, [activeView, items, query]);
+  }, [activeView, items, query, similaritySource]);
 
   async function saveCapture(event: React.FormEvent) {
     event.preventDefault();
@@ -685,7 +758,14 @@ function App() {
         <section className="library-header">
           <div>
             <h1>{activeView === "Everything" ? "Everything" : activeView}</h1>
-            <p><span className="live-dot" />{items.length} things saved · Search by whatever you remember.</p>
+            <p>
+              <span className="live-dot" />
+              {activeJobCount > 0 ? (
+                <span className="job-summary" aria-live="polite"><LoaderCircle size={12} />Processing {activeJobCount} {activeJobCount === 1 ? "thing" : "things"}…</span>
+              ) : (
+                `${items.length} things saved · Search by whatever you remember.`
+              )}
+            </p>
           </div>
           <button className="quiet-link" onClick={() => openCapture("note")}><Plus size={15} /> Add a note</button>
         </section>
@@ -696,7 +776,10 @@ function App() {
             <input
               ref={searchRef}
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setSimilaritySource(null);
+                setQuery(event.target.value);
+              }}
               placeholder="Search your mind"
               aria-label="Search your mind"
             />
@@ -758,7 +841,7 @@ function App() {
         <div className="library-toolbar">
           <div className="result-context">
             <span className="result-count">{filteredItems.length}</span> things to remember
-            {query && <span className="search-context">for “{query}”</span>}
+            {similaritySource ? <span className="search-context">similar to “{similaritySource.title}”</span> : query && <span className="search-context">for “{query}”</span>}
           </div>
           <div className="view-controls" aria-label="View options">
             <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => setListMode(false)} aria-label="Grid view" title="Grid view"><Grid2X2 size={16} /></button>
@@ -793,6 +876,29 @@ function App() {
                 <div className="card-kicker"><span><KindIcon kind={item.kind} />{item.kind}</span><span>{item.date}</span></div>
                 <h2>{item.title}</h2>
                 <p>{item.description}</p>
+                {item.processing?.active && (
+                  <div className="card-processing" role="status">
+                    <LoaderCircle size={13} />
+                    <span>{item.processing.message ?? "Processing"}</span>
+                    {item.processing.progressTotal != null && <span>{item.processing.progressCurrent}/{item.processing.progressTotal}</span>}
+                  </div>
+                )}
+                {item.processing?.failedJob && (
+                  <div className="card-processing failed" role="alert">
+                    <AlertCircle size={13} />
+                    <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
+                    <button
+                      type="button"
+                      className="retry-button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void retryJob(item.processing?.failedJob?.id ?? "");
+                      }}
+                    >
+                      <RotateCw size={12} /> Try again
+                    </button>
+                  </div>
+                )}
                 <div className="card-footer"><span className="card-source">{item.source}</span><ArrowUpRight size={15} /></div>
               </div>
             </article>
@@ -804,7 +910,7 @@ function App() {
             <div className="empty-icon"><Search size={20} /></div>
             <h2>Nothing surfaced yet.</h2>
             <p>Try another word, or save something new to your mind.</p>
-            <button className="text-button" onClick={() => { setQuery(""); setActiveView("Everything"); }}>Clear search</button>
+            <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); setActiveView("Everything"); }}>Clear search</button>
           </div>
         )}
 
@@ -815,7 +921,35 @@ function App() {
         <aside className="item-inspector" aria-label="Selected item">
           <div className="inspector-top"><span>Item details</span><button className="icon-button small" onClick={() => setSelectedItem(null)} aria-label="Close details"><X size={16} /></button></div>
           {selectedItem.image ? <img src={selectedItem.image} alt="" className="inspector-image" /> : <div className={`inspector-art ${selectedItem.accent ?? "ink"}`}><KindIcon kind={selectedItem.kind} /><span>{selectedItem.kind}</span></div>}
-          <div className="inspector-copy"><div className="card-kicker"><span><KindIcon kind={selectedItem.kind} />{selectedItem.kind}</span><span>{selectedItem.date}</span></div><h2>{selectedItem.title}</h2><p>{selectedItem.description}</p><div className="inspector-source"><span>Source</span><strong>{selectedItem.source}</strong></div><div className="tag-row">{selectedItem.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div><button className="open-source"><ExternalLink size={15} /> Open original</button></div>
+          <div className="inspector-copy">
+            <div className="card-kicker"><span><KindIcon kind={selectedItem.kind} />{selectedItem.kind}</span><span>{selectedItem.date}</span></div>
+            <h2>{selectedItem.title}</h2>
+            <p>{selectedItem.description}</p>
+            {selectedItem.processing?.active && (
+              <div className="inspector-processing" role="status">
+                <LoaderCircle size={14} />
+                <span>{selectedItem.processing.message ?? "Processing"}</span>
+                {selectedItem.processing.progressTotal != null && <span>{selectedItem.processing.progressCurrent}/{selectedItem.processing.progressTotal}</span>}
+              </div>
+            )}
+            {selectedItem.processing?.failedJob && (
+              <div className="inspector-processing failed" role="alert">
+                <AlertCircle size={14} />
+                <span>{selectedItem.processing.failedJob.errorMessage ?? "Processing failed"}</span>
+                <button type="button" className="retry-button" onClick={() => void retryJob(selectedItem.processing?.failedJob?.id ?? "")}>
+                  <RotateCw size={12} /> Try again
+                </button>
+              </div>
+            )}
+            <div className="inspector-source"><span>Source</span><strong>{selectedItem.source}</strong></div>
+            <div className="tag-row">{selectedItem.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
+            {selectedItem.kind === "Image" && isTauriRuntime() && (
+              <button className="similar-button" type="button" onClick={() => void findSimilarImages(selectedItem)} disabled={isFindingSimilar}>
+                <Sparkles size={15} /> {isFindingSimilar ? "Finding similar…" : "Find similar images"}
+              </button>
+            )}
+            <button className="open-source"><ExternalLink size={15} /> Open original</button>
+          </div>
         </aside>
       )}
     </div>

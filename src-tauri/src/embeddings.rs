@@ -91,11 +91,7 @@ fn add_hashed_feature(vector: &mut [f32], feature: &[u8], weight: f32) {
 }
 
 fn normalize(vector: &mut [f32]) {
-    let magnitude = vector
-        .iter()
-        .map(|value| value * value)
-        .sum::<f32>()
-        .sqrt();
+    let magnitude = vector.iter().map(|value| value * value).sum::<f32>().sqrt();
     if magnitude > f32::EPSILON {
         for value in vector {
             *value /= magnitude;
@@ -127,8 +123,10 @@ mod tests {
 
     #[test]
     fn text_vectors_are_normalized_and_stable() {
-        let first = text_embedding(std::path::Path::new("models"), "Warm light and timber").unwrap();
-        let second = text_embedding(std::path::Path::new("other"), "Warm light and timber").unwrap();
+        let first =
+            text_embedding(std::path::Path::new("models"), "Warm light and timber").unwrap();
+        let second =
+            text_embedding(std::path::Path::new("other"), "Warm light and timber").unwrap();
         assert_eq!(first, second);
         let magnitude = first.iter().map(|value| value * value).sum::<f32>().sqrt();
         assert!((magnitude - 1.0).abs() < 0.0001);
