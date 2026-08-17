@@ -106,3 +106,8 @@ export async function getJobStatus(itemId: string) {
 export async function countActiveJobs() {
   return invoke<number>("count_active_jobs");
 }
+
+export async function currentDeepLinks() {
+  if (!runtimeIsTauri) return [] satisfies string[];
+  return invoke<string[] | null>("plugin:deep-link|get_current");
+}

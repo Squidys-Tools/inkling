@@ -1,5 +1,7 @@
 mod jobs;
 mod ocr;
+mod pdf;
+mod embeddings;
 mod storage;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -7,6 +9,8 @@ pub fn run() {
     tauri::Builder::default()
         .manage(storage::StorageState::default())
         .manage(jobs::ProcessingState::default())
+        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             storage::initialize_storage,

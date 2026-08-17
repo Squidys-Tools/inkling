@@ -15,7 +15,7 @@ use tauri::{AppHandle, Manager, State};
 use url::Url;
 use uuid::Uuid;
 
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 const MAX_FILE_BYTES: usize = 50 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION: u32 = 20_000;
 const MAX_IMAGE_ALLOC_BYTES: u64 = 256 * 1024 * 1024;
@@ -44,6 +44,22 @@ CREATE INDEX IF NOT EXISTS idx_items_active_updated
 
 CREATE INDEX IF NOT EXISTS idx_items_kind
     ON items (kind);
+
+"#;
+
+const EMBEDDINGS_SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS item_embeddings (
+    item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('text', 'image')),
+    model TEXT NOT NULL,
+    dimension INTEGER NOT NULL CHECK (dimension > 0),
+    vector BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (item_id, kind)
+);
+
+CREATE INDEX IF NOT EXISTS idx_item_embeddings_kind
+    ON item_embeddings (kind, model);
 "#;
 
 #[derive(Debug)]
@@ -230,6 +246,7 @@ impl LibraryStorage {
         }
 
         connection.execute_batch(crate::jobs::JOBS_SCHEMA)?;
+        connection.execute_batch(EMBEDDINGS_SCHEMA)?;
         let fts5_enabled = setup_fts5(&connection);
         connection.pragma_update(None, "user_version", SCHEMA_VERSION)?;
 
@@ -549,6 +566,53 @@ impl LibraryStorage {
         Ok(())
     }
 
+    pub(crate) fn store_embedding(
+        &self,
+        item_id: &str,
+        kind: &str,
+        model: &str,
+        vector: &[u8],
+        dimension: usize,
+    ) -> Result<(), StorageError> {
+        if !matches!(kind, "text" | "image") {
+            return Err(StorageError::InvalidInput(
+                "embedding kind must be text or image".into(),
+            ));
+        }
+        if model.trim().is_empty() {
+            return Err(StorageError::InvalidInput(
+                "embedding model cannot be empty".into(),
+            ));
+        }
+        let dimension = i64::try_from(dimension)
+            .map_err(|_| StorageError::InvalidInput("embedding dimension is too large".into()))?;
+        if dimension == 0 || vector.is_empty() {
+            return Err(StorageError::InvalidInput(
+                "embedding vector cannot be empty".into(),
+            ));
+        }
+        let expected_bytes = usize::try_from(dimension)
+            .ok()
+            .and_then(|value| value.checked_mul(std::mem::size_of::<f32>()));
+        if expected_bytes != Some(vector.len()) {
+            return Err(StorageError::InvalidInput(
+                "embedding vector byte length does not match its dimension".into(),
+            ));
+        }
+
+        self.connection.execute(
+            "INSERT INTO item_embeddings (item_id, kind, model, dimension, vector, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(item_id, kind) DO UPDATE SET
+                model = excluded.model,
+                dimension = excluded.dimension,
+                vector = excluded.vector,
+                created_at = excluded.created_at",
+            params![item_id, kind, model, dimension, vector, now_millis()?],
+        )?;
+        Ok(())
+    }
+
     fn search_items(&self, query: &str, limit: u32) -> Result<Vec<ItemDto>, StorageError> {
         let limit = i64::from(limit.clamp(1, 200));
         let query = query.trim();
@@ -675,26 +739,50 @@ pub fn list_active_items(state: State<'_, StorageState>) -> Result<Vec<ItemDto>,
 pub fn create_note(
     input: CreateNoteInput,
     state: State<'_, StorageState>,
+    processing: State<'_, crate::jobs::ProcessingState>,
 ) -> Result<ItemDto, String> {
     let database = state.require_storage().map_err(String::from)?;
-    database
+    let item = database
         .as_ref()
         .expect("require_storage guarantees initialization")
         .create_note(input)
-        .map_err(String::from)
+        .map_err(String::from)?;
+    crate::jobs::enqueue_embedding_for_item(
+        &database
+            .as_ref()
+            .expect("require_storage guarantees initialization")
+            .connection,
+        &item.id,
+    )
+    .map_err(|error| error.to_string())?;
+    drop(database);
+    processing.enqueue_and_wake(&item.id, crate::jobs::JobKind::GenerateEmbedding);
+    Ok(item)
 }
 
 #[tauri::command]
 pub fn create_url(
     input: CreateUrlInput,
     state: State<'_, StorageState>,
+    processing: State<'_, crate::jobs::ProcessingState>,
 ) -> Result<ItemDto, String> {
     let database = state.require_storage().map_err(String::from)?;
-    database
+    let item = database
         .as_ref()
         .expect("require_storage guarantees initialization")
         .create_url(input)
-        .map_err(String::from)
+        .map_err(String::from)?;
+    crate::jobs::enqueue_embedding_for_item(
+        &database
+            .as_ref()
+            .expect("require_storage guarantees initialization")
+            .connection,
+        &item.id,
+    )
+    .map_err(|error| error.to_string())?;
+    drop(database);
+    processing.enqueue_and_wake(&item.id, crate::jobs::JobKind::GenerateEmbedding);
+    Ok(item)
 }
 
 #[tauri::command]
@@ -708,9 +796,8 @@ pub fn save_file(
         .as_ref()
         .expect("require_storage guarantees initialization")
         .save_file(input)
-        .map_err(String::from)
-        ?;
-    let job_id = crate::jobs::enqueue_ocr_for_item(
+        .map_err(String::from)?;
+    let ocr_job_id = crate::jobs::enqueue_ocr_for_item(
         &database
             .as_ref()
             .expect("require_storage guarantees initialization")
@@ -719,10 +806,24 @@ pub fn save_file(
         &item.kind,
     )
     .map_err(|error| error.to_string())?;
+    crate::jobs::enqueue_embedding_for_item(
+        &database
+            .as_ref()
+            .expect("require_storage guarantees initialization")
+            .connection,
+        &item.id,
+    )
+    .map_err(|error| error.to_string())?;
     drop(database);
-    if job_id.is_some() {
-        processing.enqueue_and_wake(&item.id, crate::jobs::JobKind::OcrImage);
+    if ocr_job_id.is_some() {
+        let kind = if item.kind == "pdf" {
+            crate::jobs::JobKind::OcrPdfPage
+        } else {
+            crate::jobs::JobKind::OcrImage
+        };
+        processing.enqueue_and_wake(&item.id, kind);
     }
+    processing.enqueue_and_wake(&item.id, crate::jobs::JobKind::GenerateEmbedding);
     Ok(item)
 }
 

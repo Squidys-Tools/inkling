@@ -67,8 +67,8 @@ Capture
 | Capability | Initial choice |
 |---|---|
 | OCR | Tesseract |
-| Text embeddings | Small ONNX model through ONNX Runtime |
-| Image embeddings | CLIP-compatible ONNX model |
+| Text embeddings | Deterministic local feature encoder behind an embedding boundary; learned ONNX model can replace it after model selection |
+| Image embeddings | Deterministic spatial/color feature encoder behind an embedding boundary; CLIP-compatible ONNX model remains the learned-model target |
 | Image concepts | Deterministic image analysis plus vision/embedding model |
 | Summaries | Optional quantized local LLM through llama.cpp |
 | PDF extraction | Local PDF text extraction, followed by Tesseract for scanned pages |
@@ -107,6 +107,6 @@ Treat all fetched HTML as untrusted. Sanitize article HTML before rendering, all
 
 ## First technical milestone
 
-Implement a vertical slice that accepts an image, URL, and PDF; creates a card immediately; runs Tesseract on images and scanned PDFs; extracts an article with Defuddle; stores local assets and extracted content; indexes text with SQLite FTS5; produces one text embedding and one image embedding; supports semantic search and image similarity; and saves a search as a Smart Space.
+Implement a vertical slice that accepts an image, URL, and PDF; creates a card immediately; runs Windows OCR on images and scanned PDF pages; extracts an article with Defuddle; stores local assets and extracted content; indexes text with SQLite FTS5; produces one text embedding and one image embedding; supports semantic search and image similarity; and saves a search as a Smart Space.
 
 The model benchmark corpus should be created immediately before this milestone. It will include articles, screenshots, PDFs, images with text, handwriting, video embeds, and visually similar image sets.
