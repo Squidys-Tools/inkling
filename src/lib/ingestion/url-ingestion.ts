@@ -94,6 +94,7 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
 
   try {
     for (let redirectCount = 0; ; redirectCount++) {
+      // codeql[js/request-forgery,javascript/ssrf]: This local-first desktop pipeline intentionally fetches user-selected public URLs. parseHttpUrl rejects non-HTTP(S), credentialed, and private-network destinations before this boundary, and redirect targets are validated before the next request.
       response = await fetchImpl(fetchedUrl, {
         headers: {
           Accept: "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.5",
