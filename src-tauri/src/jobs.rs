@@ -631,8 +631,10 @@ fn extract_pdf_text_with_progress(
     let mut ocr_pages = 0;
 
     if needs_ocr {
+        eprintln!("PDF render start");
         let rendered_pages = crate::pdf::render_pages(bytes)
             .map_err(|error| format!("PDF page rendering failed: {error}"))?;
+        eprintln!("PDF render complete");
         if rendered_pages.len() < pages.len() {
             return Err("PDF renderer returned fewer pages than the text extractor".into());
         }
@@ -648,6 +650,7 @@ fn extract_pdf_text_with_progress(
                 total_pages,
                 &format!("OCR page {} of {}", page_index + 1, total_pages),
             );
+            eprintln!("PDF OCR start: page {}", page_index + 1);
             if let Some(text) = backend
                 .extract_text(rendered)
                 .map_err(|error| format!("PDF page OCR failed: {error}"))?
@@ -655,6 +658,7 @@ fn extract_pdf_text_with_progress(
                 *page = text;
                 ocr_pages += 1;
             }
+            eprintln!("PDF OCR complete: page {}", page_index + 1);
             progress(
                 page_index + 1,
                 total_pages,
