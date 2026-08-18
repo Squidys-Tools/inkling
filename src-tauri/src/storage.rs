@@ -1,6 +1,6 @@
 use std::{
-    fmt,
-    fs,
+    collections::HashMap,
+    fmt, fs,
     io::Cursor,
     path::{Path, PathBuf},
     sync::{Mutex, MutexGuard},
@@ -15,7 +15,7 @@ use tauri::{AppHandle, Manager, State};
 use url::Url;
 use uuid::Uuid;
 
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 5;
 const MAX_FILE_BYTES: usize = 50 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION: u32 = 20_000;
 const MAX_IMAGE_ALLOC_BYTES: u64 = 256 * 1024 * 1024;
@@ -228,24 +228,27 @@ impl LibraryStorage {
         if version < 1 {
             connection.execute_batch(ITEMS_SCHEMA)?;
         } else if version == 1 {
-            connection.execute(
-                "ALTER TABLE items ADD COLUMN ocr_text TEXT NOT NULL DEFAULT ''",
-                [],
-            )
-            .ok();
-            connection.execute_batch(
-                "DROP TRIGGER IF EXISTS items_fts_after_insert;
+            connection
+                .execute(
+                    "ALTER TABLE items ADD COLUMN ocr_text TEXT NOT NULL DEFAULT ''",
+                    [],
+                )
+                .ok();
+            connection
+                .execute_batch(
+                    "DROP TRIGGER IF EXISTS items_fts_after_insert;
                  DROP TRIGGER IF EXISTS items_fts_after_update;
                  DROP TRIGGER IF EXISTS items_fts_after_delete;
                  DROP TABLE IF EXISTS items_fts;",
-            )
-            .ok();
+                )
+                .ok();
         } else if version == 2 {
             connection.execute("ALTER TABLE jobs ADD COLUMN worker_id TEXT", [])?;
             connection.execute("ALTER TABLE jobs ADD COLUMN lease_until INTEGER", [])?;
         }
 
         connection.execute_batch(crate::jobs::JOBS_SCHEMA)?;
+        ensure_job_columns(&connection)?;
         connection.execute_batch(EMBEDDINGS_SCHEMA)?;
         let fts5_enabled = setup_fts5(&connection);
         connection.pragma_update(None, "user_version", SCHEMA_VERSION)?;
@@ -342,7 +345,7 @@ impl LibraryStorage {
         self.get_item(&id)?.ok_or(StorageError::NotFound(id))
     }
 
-    fn save_file(&self, input: SaveFileInput) -> Result<ItemDto, StorageError> {
+    pub(crate) fn save_file(&self, input: SaveFileInput) -> Result<ItemDto, StorageError> {
         if input.bytes.len() > MAX_FILE_BYTES {
             return Err(StorageError::InvalidInput(format!(
                 "file exceeds the {} MB input limit",
@@ -350,7 +353,9 @@ impl LibraryStorage {
             )));
         }
         if input.bytes.is_empty() {
-            return Err(StorageError::InvalidInput("file bytes cannot be empty".into()));
+            return Err(StorageError::InvalidInput(
+                "file bytes cannot be empty".into(),
+            ));
         }
 
         let file_name = sanitize_file_name(&input.file_name)?;
@@ -450,7 +455,9 @@ impl LibraryStorage {
     pub(crate) fn resolve_asset_path(&self, relative_path: &str) -> Result<String, StorageError> {
         let normalized = relative_path.replace('\\', "/");
         let relative = normalized.strip_prefix("assets/").ok_or_else(|| {
-            StorageError::InvalidInput("asset path must be relative to the managed assets directory".into())
+            StorageError::InvalidInput(
+                "asset path must be relative to the managed assets directory".into(),
+            )
         })?;
         let relative_path = Path::new(relative);
         if relative_path.components().any(|component| {
@@ -461,13 +468,17 @@ impl LibraryStorage {
                     | std::path::Component::Prefix(_)
             )
         }) {
-            return Err(StorageError::InvalidInput("asset path contains an unsafe segment".into()));
+            return Err(StorageError::InvalidInput(
+                "asset path contains an unsafe segment".into(),
+            ));
         }
 
         let assets_root = fs::canonicalize(self.assets_root())?;
         let candidate = fs::canonicalize(assets_root.join(relative_path))?;
         if !candidate.starts_with(&assets_root) {
-            return Err(StorageError::InvalidInput("asset path escaped the managed assets directory".into()));
+            return Err(StorageError::InvalidInput(
+                "asset path escaped the managed assets directory".into(),
+            ));
         }
         Ok(candidate.to_string_lossy().into_owned())
     }
@@ -511,7 +522,8 @@ impl LibraryStorage {
             return Err(StorageError::NotFound(input.id));
         }
 
-        self.get_item(&input.id)?.ok_or(StorageError::NotFound(input.id))
+        self.get_item(&input.id)?
+            .ok_or(StorageError::NotFound(input.id))
     }
 
     fn archive_item(&self, id: &str, archived: bool) -> Result<ItemDto, StorageError> {
@@ -524,7 +536,8 @@ impl LibraryStorage {
             return Err(StorageError::NotFound(id.to_owned()));
         }
 
-        self.get_item(id)?.ok_or_else(|| StorageError::NotFound(id.to_owned()))
+        self.get_item(id)?
+            .ok_or_else(|| StorageError::NotFound(id.to_owned()))
     }
 
     pub(crate) fn update_item_ocr_text(
@@ -535,22 +548,17 @@ impl LibraryStorage {
     ) -> Result<(), StorageError> {
         let now = now_millis()?;
 
-        let current_metadata: String = self
-            .connection
-            .query_row("SELECT metadata FROM items WHERE id = ?1", params![id], |row| {
-                row.get::<_, String>(0)
-            })?;
+        let current_metadata: String = self.connection.query_row(
+            "SELECT metadata FROM items WHERE id = ?1",
+            params![id],
+            |row| row.get::<_, String>(0),
+        )?;
 
         let mut metadata: serde_json::Map<String, Value> =
-            serde_json::from_str(&current_metadata).unwrap_or_else(|_| {
-                serde_json::Map::new()
-            });
+            serde_json::from_str(&current_metadata).unwrap_or_else(|_| serde_json::Map::new());
 
         metadata.remove("ocrText");
-        metadata.insert(
-            "ocrEngine".into(),
-            Value::String(engine.to_owned()),
-        );
+        metadata.insert("ocrEngine".into(), Value::String(engine.to_owned()));
         metadata.insert(
             "ocrCompletedAt".into(),
             Value::Number(serde_json::Number::from(now)),
@@ -621,49 +629,159 @@ impl LibraryStorage {
             return self.list_active_items_limited(limit);
         }
 
+        let mut lexical_items = Vec::new();
         if self.fts5_enabled {
             let fts_query = escape_fts_query(query);
+            if !fts_query.is_empty() {
+                let mut statement = self.connection.prepare(
+                    "SELECT i.id, i.kind, i.title, i.description, i.source_url,
+                            i.source_label, i.local_asset_path, i.thumbnail_path,
+                            i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
+                            i.favorite
+                     FROM items_fts f
+                     JOIN items i ON i.id = f.item_id
+                     WHERE i.archived = 0 AND items_fts MATCH ?1
+                     ORDER BY i.updated_at DESC, i.created_at DESC
+                     LIMIT ?2",
+                )?;
+                lexical_items = statement
+                    .query_map(params![fts_query, limit], item_from_row)?
+                    .collect::<Result<Vec<_>, _>>()?;
+            }
+        } else {
+            let pattern = format!("%{query}%");
+            let mut statement = self.connection.prepare(
+                "SELECT id, kind, title, description, source_url, source_label,
+                        local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
+                        updated_at, archived, favorite
+                 FROM items
+                 WHERE archived = 0
+                   AND (title LIKE ?1 COLLATE NOCASE
+                        OR description LIKE ?1 COLLATE NOCASE
+                        OR source_label LIKE ?1 COLLATE NOCASE
+                        OR ocr_text LIKE ?1 COLLATE NOCASE
+                        OR metadata LIKE ?1 COLLATE NOCASE)
+                 ORDER BY updated_at DESC, created_at DESC
+                 LIMIT ?2",
+            )?;
+            lexical_items = statement
+                .query_map(params![pattern, limit], item_from_row)?
+                .collect::<Result<Vec<_>, _>>()?;
+        }
+
+        let query_vector = crate::embeddings::text_embedding(Path::new("models"), query).ok();
+        let mut ranked = HashMap::<String, (ItemDto, f32)>::new();
+        for item in lexical_items {
+            ranked.insert(item.id.clone(), (item, 2.0));
+        }
+
+        if let Some(query_vector) = query_vector {
             let mut statement = self.connection.prepare(
                 "SELECT i.id, i.kind, i.title, i.description, i.source_url,
                         i.source_label, i.local_asset_path, i.thumbnail_path,
                         i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
-                        i.favorite
-                 FROM items_fts f
-                 JOIN items i ON i.id = f.item_id
-                 WHERE i.archived = 0 AND f MATCH ?1
-                 ORDER BY i.updated_at DESC, i.created_at DESC
-                 LIMIT ?2",
+                        i.favorite, e.dimension, e.vector
+                 FROM item_embeddings e
+                 JOIN items i ON i.id = e.item_id
+                 WHERE i.archived = 0 AND e.kind = 'text' AND e.model = ?1",
             )?;
-
-            let items = statement
-                .query_map(params![fts_query, limit], item_from_row)?
-                .collect::<Result<Vec<_>, _>>()?;
-            return Ok(items);
+            let mut rows = statement.query(params![crate::embeddings::TEXT_MODEL])?;
+            while let Some(row) = rows.next()? {
+                let item = item_from_row(row)?;
+                let dimension = row.get::<_, i64>(14)?;
+                let bytes = row.get::<_, Vec<u8>>(15)?;
+                let vector = match crate::embeddings::decode_f32(&bytes) {
+                    Ok(vector) if vector.len() == usize::try_from(dimension).unwrap_or(0) => vector,
+                    _ => continue,
+                };
+                let similarity = dot_product(&query_vector, &vector);
+                if similarity <= 0.0 && !ranked.contains_key(&item.id) {
+                    continue;
+                }
+                let score = if ranked.contains_key(&item.id) {
+                    2.0 + similarity.max(0.0)
+                } else {
+                    similarity
+                };
+                ranked
+                    .entry(item.id.clone())
+                    .and_modify(|(_, current)| *current = current.max(score))
+                    .or_insert((item, score));
+            }
         }
 
-        let pattern = format!("%{query}%");
-        let mut statement = self.connection.prepare(
-            "SELECT id, kind, title, description, source_url, source_label,
-                    local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
-                    updated_at, archived, favorite
-             FROM items
-             WHERE archived = 0
-               AND (title LIKE ?1 COLLATE NOCASE
-                    OR description LIKE ?1 COLLATE NOCASE
-                    OR source_label LIKE ?1 COLLATE NOCASE
-                    OR ocr_text LIKE ?1 COLLATE NOCASE
-                    OR metadata LIKE ?1 COLLATE NOCASE)
-             ORDER BY updated_at DESC, created_at DESC
-             LIMIT ?2",
-        )?;
-
-        let items = statement
-            .query_map(params![pattern, limit], item_from_row)?
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(items)
+        let mut ranked = ranked.into_values().collect::<Vec<_>>();
+        ranked.sort_by(|(left_item, left_score), (right_item, right_score)| {
+            right_score
+                .total_cmp(left_score)
+                .then_with(|| right_item.updated_at.cmp(&left_item.updated_at))
+        });
+        Ok(ranked
+            .into_iter()
+            .take(usize::try_from(limit).unwrap_or(200))
+            .map(|(item, _)| item)
+            .collect())
     }
 
-     fn list_active_items_limited(&self, limit: i64) -> Result<Vec<ItemDto>, StorageError> {
+    fn search_similar_images(
+        &self,
+        item_id: &str,
+        limit: u32,
+    ) -> Result<Vec<ItemDto>, StorageError> {
+        let source = self
+            .connection
+            .query_row(
+                "SELECT dimension, vector FROM item_embeddings
+                 WHERE item_id = ?1 AND kind = 'image' AND model = ?2",
+                params![item_id, crate::embeddings::IMAGE_MODEL],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?)),
+            )
+            .optional()?;
+        let Some((dimension, bytes)) = source else {
+            return Ok(Vec::new());
+        };
+        let source_vector =
+            crate::embeddings::decode_f32(&bytes).map_err(StorageError::InvalidInput)?;
+        if source_vector.len() != usize::try_from(dimension).unwrap_or(0) {
+            return Err(StorageError::InvalidInput(
+                "stored image embedding dimension does not match its vector".into(),
+            ));
+        }
+
+        let mut statement = self.connection.prepare(
+            "SELECT i.id, i.kind, i.title, i.description, i.source_url,
+                    i.source_label, i.local_asset_path, i.thumbnail_path,
+                    i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
+                    i.favorite, e.dimension, e.vector
+             FROM item_embeddings e
+             JOIN items i ON i.id = e.item_id
+             WHERE i.archived = 0 AND i.kind = 'image' AND i.id != ?1
+               AND e.kind = 'image' AND e.model = ?2",
+        )?;
+        let mut rows = statement.query(params![item_id, crate::embeddings::IMAGE_MODEL])?;
+        let mut ranked = Vec::new();
+        while let Some(row) = rows.next()? {
+            let item = item_from_row(row)?;
+            let dimension = row.get::<_, i64>(14)?;
+            let bytes = row.get::<_, Vec<u8>>(15)?;
+            let vector = match crate::embeddings::decode_f32(&bytes) {
+                Ok(vector) if vector.len() == usize::try_from(dimension).unwrap_or(0) => vector,
+                _ => continue,
+            };
+            if vector.len() != source_vector.len() {
+                continue;
+            }
+            ranked.push((item, dot_product(&source_vector, &vector)));
+        }
+        ranked.sort_by(|(_, left), (_, right)| right.total_cmp(left));
+        Ok(ranked
+            .into_iter()
+            .take(usize::try_from(limit.clamp(1, 50)).unwrap_or(50))
+            .map(|(item, _)| item)
+            .collect())
+    }
+
+    fn list_active_items_limited(&self, limit: i64) -> Result<Vec<ItemDto>, StorageError> {
         let mut statement = self.connection.prepare(
             "SELECT id, kind, title, description, source_url, source_label,
                     local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
@@ -693,6 +811,29 @@ impl LibraryStorage {
             .optional()
             .map_err(StorageError::from)
     }
+}
+
+fn ensure_job_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
+    for (name, definition) in [
+        ("worker_id", "TEXT"),
+        ("lease_until", "INTEGER"),
+        ("progress_current", "INTEGER NOT NULL DEFAULT 0"),
+        ("progress_total", "INTEGER"),
+        ("progress_message", "TEXT"),
+    ] {
+        let present: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('jobs') WHERE name = ?1",
+            params![name],
+            |row| row.get(0),
+        )?;
+        if present == 0 {
+            connection.execute(
+                &format!("ALTER TABLE jobs ADD COLUMN {name} {definition}"),
+                [],
+            )?;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -828,10 +969,7 @@ pub fn save_file(
 }
 
 #[tauri::command]
-pub fn resolve_asset_path(
-    path: String,
-    state: State<'_, StorageState>,
-) -> Result<String, String> {
+pub fn resolve_asset_path(path: String, state: State<'_, StorageState>) -> Result<String, String> {
     let database = state.require_storage().map_err(String::from)?;
     database
         .as_ref()
@@ -881,6 +1019,20 @@ pub fn search_items(
         .map_err(String::from)
 }
 
+#[tauri::command]
+pub fn search_similar_images(
+    item_id: String,
+    limit: Option<u32>,
+    state: State<'_, StorageState>,
+) -> Result<Vec<ItemDto>, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .search_similar_images(&item_id, limit.unwrap_or(12))
+        .map_err(String::from)
+}
+
 fn setup_fts5(connection: &Connection) -> bool {
     let result = connection.execute_batch(
         r#"
@@ -927,7 +1079,8 @@ fn setup_fts5(connection: &Connection) -> bool {
 
 fn item_from_row(row: &Row<'_>) -> rusqlite::Result<ItemDto> {
     let metadata_json: String = row.get(9)?;
-    let metadata = serde_json::from_str(&metadata_json).unwrap_or_else(|_| Value::Object(Map::new()));
+    let metadata =
+        serde_json::from_str(&metadata_json).unwrap_or_else(|_| Value::Object(Map::new()));
 
     Ok(ItemDto {
         id: row.get(0)?,
@@ -955,6 +1108,16 @@ fn escape_fts_query(query: &str) -> String {
         .filter(|token| token != "\"\"")
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn dot_product(left: &[f32], right: &[f32]) -> f32 {
+    if left.len() != right.len() {
+        return f32::NEG_INFINITY;
+    }
+    left.iter()
+        .zip(right)
+        .map(|(left, right)| left * right)
+        .sum()
 }
 
 fn non_empty_string(value: String) -> Option<String> {
@@ -1063,12 +1226,35 @@ fn sanitize_file_name(value: &str) -> Result<String, StorageError> {
     if name.starts_with('.') {
         name.insert(0, '_');
     }
-    let stem = name.split('.').next().unwrap_or_default().to_ascii_uppercase();
+    let stem = name
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_uppercase();
     if matches!(
         stem.as_str(),
-        "CON" | "PRN" | "AUX" | "NUL" | "COM1" | "COM2" | "COM3" | "COM4"
-            | "COM5" | "COM6" | "COM7" | "COM8" | "COM9" | "LPT1" | "LPT2" | "LPT3"
-            | "LPT4" | "LPT5" | "LPT6" | "LPT7" | "LPT8" | "LPT9"
+        "CON"
+            | "PRN"
+            | "AUX"
+            | "NUL"
+            | "COM1"
+            | "COM2"
+            | "COM3"
+            | "COM4"
+            | "COM5"
+            | "COM6"
+            | "COM7"
+            | "COM8"
+            | "COM9"
+            | "LPT1"
+            | "LPT2"
+            | "LPT3"
+            | "LPT4"
+            | "LPT5"
+            | "LPT6"
+            | "LPT7"
+            | "LPT8"
+            | "LPT9"
     ) {
         name.insert(0, '_');
     }
@@ -1116,11 +1302,17 @@ fn normalize_file_kind(
 }
 
 fn is_image_extension(extension: &str) -> bool {
-    matches!(extension, "avif" | "bmp" | "gif" | "ico" | "jpeg" | "jpg" | "png" | "tif" | "tiff" | "webp")
+    matches!(
+        extension,
+        "avif" | "bmp" | "gif" | "ico" | "jpeg" | "jpg" | "png" | "tif" | "tiff" | "webp"
+    )
 }
 
 fn is_video_extension(extension: &str) -> bool {
-    matches!(extension, "avi" | "m4v" | "mkv" | "mov" | "mp4" | "mpeg" | "webm" | "wmv")
+    matches!(
+        extension,
+        "avi" | "m4v" | "mkv" | "mov" | "mp4" | "mpeg" | "webm" | "wmv"
+    )
 }
 
 fn make_image_thumbnail(bytes: &[u8]) -> Result<Vec<u8>, StorageError> {
@@ -1153,7 +1345,10 @@ fn file_metadata(file_name: &str, mime_type: Option<&str>, byte_length: usize) -
     Value::Object(metadata)
 }
 
-fn relative_asset_path(path: &std::path::Path, assets_root: &std::path::Path) -> Result<String, StorageError> {
+fn relative_asset_path(
+    path: &std::path::Path,
+    assets_root: &std::path::Path,
+) -> Result<String, StorageError> {
     let relative = path.strip_prefix(assets_root).map_err(|_| {
         StorageError::InvalidInput("managed asset path escaped the assets directory".into())
     })?;
@@ -1170,7 +1365,92 @@ fn bool_to_int(value: bool) -> i64 {
 fn now_millis() -> Result<i64, StorageError> {
     let duration = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_err(|error| StorageError::InvalidInput(format!("system clock before Unix epoch: {error}")))?;
-    i64::try_from(duration.as_millis())
-        .map_err(|_| StorageError::InvalidInput("system timestamp exceeds SQLite integer range".into()))
+        .map_err(|error| {
+            StorageError::InvalidInput(format!("system clock before Unix epoch: {error}"))
+        })?;
+    i64::try_from(duration.as_millis()).map_err(|_| {
+        StorageError::InvalidInput("system timestamp exceeds SQLite integer range".into())
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn semantic_search_reads_stored_text_embeddings() {
+        let directory =
+            std::env::temp_dir().join(format!("mymind-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let database_path = directory.join("library.sqlite3");
+        let storage = LibraryStorage::open(database_path).unwrap();
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("A quiet reference".into()),
+                body: "Kept in the archive.".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let vector =
+            crate::embeddings::text_embedding(Path::new("models"), "warm light and timber")
+                .unwrap();
+        storage
+            .store_embedding(
+                &item.id,
+                "text",
+                crate::embeddings::TEXT_MODEL,
+                &crate::embeddings::encode_f32(&vector),
+                vector.len(),
+            )
+            .unwrap();
+
+        let results = storage.search_items("timber", 10).unwrap();
+        assert_eq!(results.first().map(|result| &result.id), Some(&item.id));
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn image_similarity_reads_stored_image_embeddings() {
+        let directory =
+            std::env::temp_dir().join(format!("mymind-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let database_path = directory.join("library.sqlite3");
+        let storage = LibraryStorage::open(database_path).unwrap();
+        for id in ["source", "near", "far"] {
+            storage
+                .connection
+                .execute(
+                    "INSERT INTO items (id, kind, title, metadata, ocr_text, created_at, updated_at)
+                     VALUES (?1, 'image', ?1, '{}', '', 1, 1)",
+                    params![id],
+                )
+                .unwrap();
+        }
+        for (id, vector) in [
+            ("source", vec![1.0, 0.0]),
+            ("near", vec![0.9, 0.1]),
+            ("far", vec![-1.0, 0.0]),
+        ] {
+            storage
+                .store_embedding(
+                    id,
+                    "image",
+                    crate::embeddings::IMAGE_MODEL,
+                    &crate::embeddings::encode_f32(&vector),
+                    vector.len(),
+                )
+                .unwrap();
+        }
+
+        let results = storage.search_similar_images("source", 10).unwrap();
+        assert_eq!(
+            results.first().map(|result| result.id.as_str()),
+            Some("near")
+        );
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
 }

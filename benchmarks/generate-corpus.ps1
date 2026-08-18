@@ -616,7 +616,7 @@ function New-Pdf {
         $imgBytes = [System.Collections.Generic.List[byte]]::new()
         $imgBytes.AddRange($ascii.GetBytes($imgHead))
         $imgBytes.AddRange($Jpeg)
-        $imgBytes.AddRange($ascii.GetBytes("endstream"))
+        $imgBytes.AddRange($ascii.GetBytes("`r`nendstream"))
         $objects.Add($imgBytes.ToArray())
     }
 
@@ -633,12 +633,12 @@ function New-Pdf {
     }
 
     $xrefOffset = $out.Count
-    $out.AddRange($ascii.GetBytes("xref`n0 $count`n"))
-    $out.AddRange($ascii.GetBytes('0000000000 65535 f' + "`n"))
+    $out.AddRange($ascii.GetBytes("xref`r`n0 $count`r`n"))
+    $out.AddRange($ascii.GetBytes('0000000000 65535 f' + "`r`n"))
     for ($i = 0; $i -lt $offsets.Count; $i++) {
-        $out.AddRange($ascii.GetBytes($offsets[$i].ToString('D10') + ' 00000 n' + "`n"))
+        $out.AddRange($ascii.GetBytes($offsets[$i].ToString('D10') + ' 00000 n' + "`r`n"))
     }
-    $out.AddRange($ascii.GetBytes("trailer`n<< /Size $count /Root 1 0 R >>`nstartxref`n$xrefOffset`n%%EOF"))
+    $out.AddRange($ascii.GetBytes("trailer`r`n<< /Size $count /Root 1 0 R >>`r`nstartxref`r`n$xrefOffset`r`n%%EOF"))
 
     [System.IO.File]::WriteAllBytes($Path, $out.ToArray())
 }

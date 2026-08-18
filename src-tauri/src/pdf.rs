@@ -64,49 +64,55 @@ pub fn render_pages(_pdf_bytes: &[u8]) -> Result<Vec<Vec<u8>>, PdfError> {
 
 #[cfg(windows)]
 mod windows_impl {
+    use std::path::Path;
+
     use super::PdfError;
-    use tokio::runtime::Runtime;
+    use tokio::runtime::Builder;
     use windows::{
         Data::Pdf::PdfDocument,
-        Storage::Streams::{DataReader, DataWriter, InMemoryRandomAccessStream},
+        Storage::Streams::{DataReader, FileRandomAccessStream, InMemoryRandomAccessStream},
         Win32::System::WinRT::{RoInitialize, RoUninitialize, RO_INIT_MULTITHREADED},
     };
 
     pub fn render_pages(pdf_bytes: &[u8]) -> Result<Vec<Vec<u8>>, PdfError> {
-        let runtime = Runtime::new()
-            .map_err(|error| PdfError::new("runtime-init", error.to_string()))?;
+        let path = std::env::temp_dir().join(format!("mymind-pdf-{}.pdf", uuid::Uuid::new_v4()));
+        std::fs::write(&path, pdf_bytes)
+            .map_err(|error| PdfError::new("pdf-temp-write", error.to_string()))?;
 
-        unsafe { RoInitialize(RO_INIT_MULTITHREADED) }
-            .map_err(|error| PdfError::new("winrt-init", error.to_string()))?;
-
-        let result = runtime.block_on(render_pages_inner(pdf_bytes));
-        unsafe { RoUninitialize() };
+        let result = render_pages_from_file(&path);
+        let _ = std::fs::remove_file(&path);
         result
     }
 
-    async fn render_pages_inner(pdf_bytes: &[u8]) -> Result<Vec<Vec<u8>>, PdfError> {
-        let input = InMemoryRandomAccessStream::new()
-            .map_err(|error| PdfError::new("stream-create", error.to_string()))?;
-        {
-            let writer = DataWriter::CreateDataWriter(&input)
-                .map_err(|error| PdfError::new("stream-writer", error.to_string()))?;
-            writer
-                .WriteBytes(pdf_bytes)
-                .map_err(|error| PdfError::new("stream-write", error.to_string()))?;
-            writer
-                .StoreAsync()
-                .map_err(|error| PdfError::new("stream-store", error.to_string()))?
-                .await
-                .map_err(|error| PdfError::new("stream-store-await", error.to_string()))?;
-            writer
-                .FlushAsync()
-                .map_err(|error| PdfError::new("stream-flush", error.to_string()))?
-                .await
-                .map_err(|error| PdfError::new("stream-flush-await", error.to_string()))?;
+    fn render_pages_from_file(path: &Path) -> Result<Vec<Vec<u8>>, PdfError> {
+        unsafe { RoInitialize(RO_INIT_MULTITHREADED) }
+            .map_err(|error| PdfError::new("winrt-init", error.to_string()))?;
+        let _winrt = WinRtGuard;
+        let runtime = Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| PdfError::new("runtime-init", error.to_string()))?;
+
+        let result = runtime.block_on(render_pages_inner(path));
+        drop(runtime);
+        result
+    }
+
+    struct WinRtGuard;
+
+    impl Drop for WinRtGuard {
+        fn drop(&mut self) {
+            unsafe { RoUninitialize() };
         }
-        input
-            .Seek(0)
-            .map_err(|error| PdfError::new("stream-seek", error.to_string()))?;
+    }
+
+    async fn render_pages_inner(path: &Path) -> Result<Vec<Vec<u8>>, PdfError> {
+        let path = windows::core::HSTRING::from(path.to_string_lossy().as_ref());
+        let input =
+            FileRandomAccessStream::OpenAsync(&path, windows::Storage::FileAccessMode::Read)
+                .map_err(|error| PdfError::new("stream-open", error.to_string()))?
+                .await
+                .map_err(|error| PdfError::new("stream-open-await", error.to_string()))?;
 
         let document = PdfDocument::LoadFromStreamAsync(&input)
             .map_err(|error| PdfError::new("pdf-open", error.to_string()))?

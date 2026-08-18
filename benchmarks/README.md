@@ -131,6 +131,17 @@ TypeScript). From the repo root:
 bun benchmarks/harness/index.ts   # or: bun run bench
 ```
 
+On Windows, run the native PDF end-to-end tests as well:
+
+```powershell
+bun run test:windows:pdfs
+```
+
+These tests save the benchmark PDFs into a temporary SQLite library, run the
+same persisted OCR/extraction and embedding jobs used by the desktop app, and
+verify searchable text, stored embeddings, and terminal job status. The
+`pdf-scanned-01` case exercises Windows PDF rendering plus `Windows.Media.Ocr`.
+
 What it does:
 
 1. Serves `corpus/` over a local HTTP server (`harness/server.ts`) so the

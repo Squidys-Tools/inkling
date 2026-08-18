@@ -62,4 +62,4 @@ jobs:
 
       - name: Run Rust tests
         working-directory: src-tauri
-        run: cargo test --locked
+        run: cargo test --locked -- --nocapture
