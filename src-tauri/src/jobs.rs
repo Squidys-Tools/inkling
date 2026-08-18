@@ -1056,6 +1056,7 @@ mod tests {
             ];
 
             for (file_name, expected_terms) in cases {
+                eprintln!("benchmark PDF start: {file_name}");
                 let database_directory =
                     std::env::temp_dir().join(format!("mymind-benchmark-{}", Uuid::new_v4()));
                 fs::create_dir_all(&database_directory).unwrap();
@@ -1109,6 +1110,7 @@ mod tests {
 
                 drop(storage);
                 fs::remove_dir_all(database_directory).unwrap();
+                eprintln!("benchmark PDF complete: {file_name}");
             }
         }
     }
