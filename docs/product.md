@@ -46,8 +46,8 @@ The primary experience is a Windows desktop application used during browsing, re
 
 ## Evidence on Hand
 
-- Product behavior specification: `docs/product-behavior-spec.md`
-- Technical decisions: `docs/technical-decision-record.md`
+- Product behavior specification: `product-behavior-spec.md`
+- Technical decisions: `technical-decision-record.md`
 - Benchmark plan: `benchmarks/README.md`
 - The current repository is an early Tauri scaffold, not an established visual system.
 
