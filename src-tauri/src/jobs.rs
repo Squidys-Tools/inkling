@@ -1088,11 +1088,6 @@ mod tests {
                 }
 
                 let stored = storage.get_item(&item.id).unwrap().unwrap();
-                for job in JobQueue::get_jobs_for_item(&storage.connection, &item.id).unwrap() {
-                    if let Some(error) = job.error_message.as_deref() {
-                        eprintln!("benchmark job failure: {file_name}: {error}");
-                    }
-                }
                 for &term in *expected_terms {
                     assert!(
                         contains_term(&stored.ocr_text, term),

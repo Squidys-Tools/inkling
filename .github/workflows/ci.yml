@@ -45,10 +45,15 @@ jobs:
       - name: Install English OCR language
         shell: pwsh
         run: |
-          $capabilityName = 'Language.OCR~~~en-US~0.0.1.0'
-          $capability = Get-WindowsCapability -Online -Name $capabilityName
-          if ($capability.State -ne 'Installed') {
-            Add-WindowsCapability -Online -Name $capabilityName
+          $capabilityNames = @(
+            'ServerCore.AppCompatibility~~~~0.0.1.0',
+            'Language.OCR~~~en-US~0.0.1.0'
+          )
+          foreach ($capabilityName in $capabilityNames) {
+            $capability = Get-WindowsCapability -Online -Name $capabilityName
+            if ($capability.State -ne 'Installed') {
+              Add-WindowsCapability -Online -Name $capabilityName
+            }
           }
 
       - name: Install Rust stable
