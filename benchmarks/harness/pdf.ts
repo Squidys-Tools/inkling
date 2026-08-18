@@ -69,7 +69,7 @@ export function extractPdf(filePath: string): PdfExtraction {
       tokens.push(decodePdfString(t[1]));
     }
 
-    const arrRe = /\[((?:\((?:(?:[^()\\]|\\.)*)\)|[^[\]])*)\]\s*TJ/g;
+    const arrRe = /\[((?:\((?:[^()[\]\\]|\\.)*\)|[^()[\]])*)\]\s*TJ/g;
     while ((t = arrRe.exec(stream)) !== null) {
       const litRe = /\(((?:[^()\\]|\\.)*)\)/g;
       let l: RegExpExecArray | null;

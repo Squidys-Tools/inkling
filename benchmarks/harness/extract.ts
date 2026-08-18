@@ -20,7 +20,7 @@ export interface ExtractionOutcome {
 export async function extractFixture(baseUrl: string, relPath: string): Promise<ExtractionOutcome> {
   const url = `${baseUrl}/${relPath}`;
   try {
-    const article = await ingestUrl(url);
+    const article = await ingestUrl(url, { allowPrivateNetwork: true });
     return {
       engine: "production:ingestUrl",
       ok: true,

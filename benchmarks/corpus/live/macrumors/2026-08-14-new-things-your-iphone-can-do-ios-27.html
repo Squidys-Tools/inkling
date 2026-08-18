@@ -35,7 +35,7 @@
             function getCookie(name) { for (var nameEQ = name + "=", ca = document.cookie.split(";"), i = 0; i < ca.length; i++) { for (var c = ca[i]; " " == c.charAt(0);)c = c.substring(1, c.length); if (0 == c.indexOf(nameEQ)) return c.substring(nameEQ.length, c.length) } return null }            
             function setCookie(name,value,days) {var expires = ""; if (days) {var date = new Date();date.setTime(date.getTime() + (days*24*60*60*1000)); expires = "; expires=" + date.toUTCString();} document.cookie = name + "=" + (value || "")  + expires + "; path=/; domain=.macrumors.com; SameSite=Lax; Secure";}
             function eraseCookie(name) {document.cookie = name+'=; Max-Age=-99999999; path=/; domain=.macrumors.com; SameSite=Lax; Secure';}
-            function getUrlParamByName(name) { name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]"); var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"), results = regex.exec(location.search); return null === results ? "" : decodeURIComponent(results[1].replace(/\+/g, " ")) }            
+            function getUrlParamByName(name) { return new URLSearchParams(location.search).get(name) ?? "" }
             function forumsUserCheck() { return  getCookie("xf_logged_in") }
             function hideAdsCheck() { if ( getUrlParamByName('ads') == 1) { setCookie('mr-showads','1',365); return false; } if ( getUrlParamByName('ads') == 2) { eraseCookie('mr-showads');} if (getCookie('mr-showads') == 1) {return false;} if ((getCookie('xf_contributor') >= 1) || (1==0)) return true; return false;}
             var forum_logged_in = forumsUserCheck();

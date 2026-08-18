@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "ingest:smoke": "bun src/lib/ingestion/ingestion.smoke.ts",
+    "test:pdf": "bun benchmarks/harness/pdf.smoke.ts",
     "bench": "bun benchmarks/harness/index.ts",
     "typecheck:benchmarks": "tsc -p benchmarks/harness/tsconfig.json",
     "test:windows:pdfs": "cargo test --manifest-path src-tauri/Cargo.toml --locked windows_benchmark_tests -- --nocapture"

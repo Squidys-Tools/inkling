@@ -6,6 +6,7 @@ export type UrlIngestionErrorCode =
   | "parse-failed"
   | "unsupported-content-type"
   | "http-error"
+  | "redirect-error"
   | "timeout";
 
 export interface UrlIngestionErrorDetails {

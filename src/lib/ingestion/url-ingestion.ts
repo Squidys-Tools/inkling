@@ -9,6 +9,11 @@ import type { NormalizedArticle, RawArticleExtraction, UrlIngestionOptions } fro
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_USER_AGENT = "mymind-library/0.1 (+local article capture)";
+const MAX_REDIRECTS = 5;
+
+function isRedirectStatus(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
 
 async function readResponseText(response: Response, maxBytes: number, url: string): Promise<string> {
   if (!response.body) {
@@ -73,7 +78,7 @@ function parseDocument(html: string): Document {
 }
 
 export async function ingestUrl(input: string, options: UrlIngestionOptions = {}): Promise<NormalizedArticle> {
-  const sourceUrl = parseHttpUrl(input).toString();
+  const sourceUrl = parseHttpUrl(input, { allowPrivateNetwork: options.allowPrivateNetwork }).toString();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
   const fetchImpl = options.fetch ?? globalThis.fetch;
@@ -85,25 +90,43 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
+  let fetchedUrl = sourceUrl;
 
   try {
-    response = await fetchImpl(sourceUrl, {
-      headers: {
-        Accept: "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.5",
-        "User-Agent": options.userAgent ?? DEFAULT_USER_AGENT,
-      },
-      redirect: "follow",
-      signal: controller.signal,
-    });
+    for (let redirectCount = 0; ; redirectCount++) {
+      response = await fetchImpl(fetchedUrl, {
+        headers: {
+          Accept: "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.5",
+          "User-Agent": options.userAgent ?? DEFAULT_USER_AGENT,
+        },
+        redirect: "manual",
+        signal: controller.signal,
+      });
+
+      if (!isRedirectStatus(response.status)) break;
+      if (redirectCount >= MAX_REDIRECTS) {
+        throw new UrlIngestionError("redirect-error", "The page redirected too many times.", { url: fetchedUrl });
+      }
+
+      const location = response.headers.get("location");
+      const redirectUrl = location ? normalizeHttpUrl(location, fetchedUrl) : null;
+      if (!redirectUrl) {
+        throw new UrlIngestionError("redirect-error", "The page returned an invalid redirect destination.", {
+          url: fetchedUrl,
+        });
+      }
+
+      fetchedUrl = parseHttpUrl(redirectUrl, { allowPrivateNetwork: options.allowPrivateNetwork }).toString();
+    }
   } catch (cause) {
     clearTimeout(timeout);
+    if (cause instanceof UrlIngestionError) throw cause;
     if (controller.signal.aborted) {
       throw new UrlIngestionError("timeout", "The page took too long to download.", { cause, url: sourceUrl });
     }
     throw new UrlIngestionError("network-error", "The page could not be downloaded.", { cause, url: sourceUrl });
   }
 
-  let fetchedUrl = sourceUrl;
   let rawHtml: string;
   try {
     if (!response.ok) {
@@ -113,7 +136,6 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
       });
     }
 
-    fetchedUrl = normalizeHttpUrl(response.url, sourceUrl) ?? sourceUrl;
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
     if (contentType && !contentType.includes("text/html") && !contentType.includes("application/xhtml+xml") && !contentType.startsWith("text/plain")) {
       throw new UrlIngestionError("unsupported-content-type", "The URL did not return an HTML document.", {

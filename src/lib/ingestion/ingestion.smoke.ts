@@ -5,6 +5,7 @@ import { collectSafeEmbeds, sanitizeHtml } from "./html-safety";
 import { classifyFile } from "./file-classification";
 import { assetRelativePath, sanitizeAssetSegment, thumbnailRelativePath } from "./asset-paths";
 import { ingestUrl } from "./url-ingestion";
+import { isUrlIngestionError } from "./errors";
 import { normalizeHttpUrl } from "./url";
 import { sanitizeEmbedUrl } from "./safe-embeds";
 
@@ -61,6 +62,46 @@ const fallbackFetched = await ingestUrl(pageUrl, {
   defuddleAdapter: { name: "failing-test-adapter", extract: () => { throw new Error("expected test failure"); } },
 });
 assert(fallbackFetched.extractor === "fallback", "ingestion falls back when Defuddle fails");
+
+const redirectRequests: string[] = [];
+const redirected = await ingestUrl(pageUrl, {
+  fetch: async (url, init) => {
+    assert(init?.redirect === "manual", "ingestion inspects redirects before following them");
+    redirectRequests.push(String(url));
+    if (redirectRequests.length === 1) {
+      return new Response(null, { status: 302, headers: { location: "https://example.com/articles/redirected" } });
+    }
+    return new Response(html, { headers: { "content-type": "text/html" } });
+  },
+});
+assert(redirected.fetchedUrl === "https://example.com/articles/redirected", "safe redirects remain supported");
+assert(redirectRequests.length === 2, "safe redirects are followed after validation");
+
+let privateNetworkRejected = false;
+try {
+  await ingestUrl("http://127.0.0.1:1420/");
+} catch (error) {
+  privateNetworkRejected = isUrlIngestionError(error) && error.code === "invalid-url";
+}
+assert(privateNetworkRejected, "private-network URLs are rejected before fetch");
+
+let ipv6PrivateNetworkRejected = false;
+try {
+  await ingestUrl("http://[::1]:1420/");
+} catch (error) {
+  ipv6PrivateNetworkRejected = isUrlIngestionError(error) && error.code === "invalid-url";
+}
+assert(ipv6PrivateNetworkRejected, "IPv6 loopback URLs are rejected before fetch");
+
+let privateRedirectRejected = false;
+try {
+  await ingestUrl(pageUrl, {
+    fetch: async () => new Response(null, { status: 302, headers: { location: "http://127.0.0.1:1420/" } }),
+  });
+} catch (error) {
+  privateRedirectRejected = isUrlIngestionError(error) && error.code === "invalid-url";
+}
+assert(privateRedirectRejected, "redirects to private-network URLs are rejected before the next fetch");
 
 assert(normalizeHttpUrl("../cover.jpg", pageUrl) === "https://example.com/cover.jpg", "relative URL normalization works");
 assert(sanitizeEmbedUrl("https://youtu.be/abc12345678")?.provider === "youtube", "standalone YouTube policy allows valid URL");
