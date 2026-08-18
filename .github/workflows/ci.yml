@@ -42,6 +42,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Install English OCR language
+        shell: pwsh
+        run: |
+          $capabilityName = 'Language.OCR~~~en-US~0.0.1.0'
+          $capability = Get-WindowsCapability -Online -Name $capabilityName
+          if ($capability.State -ne 'Installed') {
+            Add-WindowsCapability -Online -Name $capabilityName
+          }
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:

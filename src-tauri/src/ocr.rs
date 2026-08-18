@@ -23,6 +23,7 @@ impl std::error::Error for OcrError {}
 mod windows_impl {
     use super::{OcrBackend, OcrError};
     use windows::{
+        Globalization::Language,
         Graphics::Imaging::{BitmapDecoder, BitmapPixelFormat, SoftwareBitmap},
         Media::Ocr::OcrEngine,
         Storage::Streams::{DataWriter, InMemoryRandomAccessStream},
@@ -164,7 +165,14 @@ mod windows_impl {
 
         let bitmap = ensure_bitmap_format(bitmap)?;
 
-        let engine = OcrEngine::TryCreateFromUserProfileLanguages().map_err(|e| OcrError {
+        let language =
+            Language::CreateLanguage(&windows::core::HSTRING::from("en-US")).map_err(|e| {
+                OcrError {
+                    code: "language-create",
+                    message: e.to_string(),
+                }
+            })?;
+        let engine = OcrEngine::TryCreateFromLanguage(&language).map_err(|e| OcrError {
             code: "engine-create",
             message: e.to_string(),
         })?;
