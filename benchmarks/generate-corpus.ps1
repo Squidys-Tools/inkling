@@ -616,7 +616,7 @@ function New-Pdf {
         $imgBytes = [System.Collections.Generic.List[byte]]::new()
         $imgBytes.AddRange($ascii.GetBytes($imgHead))
         $imgBytes.AddRange($Jpeg)
-        $imgBytes.AddRange($ascii.GetBytes("endstream"))
+        $imgBytes.AddRange($ascii.GetBytes("`r`nendstream"))
         $objects.Add($imgBytes.ToArray())
     }
 
