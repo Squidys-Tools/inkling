@@ -120,6 +120,10 @@ mod windows_impl {
                     code: "flush-async",
                     message: e.to_string(),
                 })?;
+            writer.DetachStream().map_err(|e| OcrError {
+                code: "writer-detach",
+                message: e.to_string(),
+            })?;
         }
 
         stream.Seek(0u64).map_err(|e| OcrError {
