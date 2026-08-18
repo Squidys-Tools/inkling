@@ -111,19 +111,23 @@ benchmarks/
   expected/                # Expected outputs for benchmark scoring
   results/                 # Benchmark result JSON and summaries
 docs/
+  product.md               # Product definition and principles
+  design.md                # Visual design direction
   product-behavior-spec.md  # Product behavior specification
   technical-decision-record.md  # Architecture and technology decisions
-DESIGN.md                  # Visual design direction
-PRODUCT.md                 # Product definition and principles
+  changelog.md             # Development history by phase
+  roadmap.md               # Milestones and current status
 ```
 
 ## Project documents
 
+- [Product definition](docs/product.md)
+- [Visual design direction](docs/design.md)
 - [Product behavior specification](docs/product-behavior-spec.md)
 - [Technical decision record](docs/technical-decision-record.md)
+- [Changelog](docs/changelog.md)
+- [Roadmap](docs/roadmap.md)
 - [AI and extraction benchmark plan](benchmarks/README.md)
-- [Benchmark manifest](benchmarks/manifest.json)
-- [Visual design direction](DESIGN.md)
 
 ## Direction
 
