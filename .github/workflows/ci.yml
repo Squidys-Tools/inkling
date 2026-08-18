@@ -16,7 +16,7 @@ concurrency:
 jobs:
   frontend:
     name: Frontend checks
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
 
     steps:
       - name: Check out repository
@@ -36,7 +36,7 @@ jobs:
 
   native:
     name: Native checks
-    runs-on: windows-latest
+    runs-on: blacksmith-4vcpu-windows-2025
 
     steps:
       - name: Check out repository
