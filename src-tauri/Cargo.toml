@@ -30,5 +30,5 @@ image = { version = "0.25", default-features = false, features = ["bmp", "gif", 
 pdf-extract = "0.12"
 tokio = { version = "1", features = ["rt", "net", "time"] }
 url = "2"
-windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_WinRT", "Foundation", "Foundation_Collections", "Globalization", "Data_Pdf", "Media_Ocr", "Storage_Streams", "Graphics_Imaging"] }
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_WinRT", "Foundation", "Foundation_Collections", "Data_Pdf", "Media_Ocr", "Storage_Streams", "Graphics_Imaging"] }
 

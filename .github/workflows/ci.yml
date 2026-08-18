@@ -36,25 +36,11 @@ jobs:
 
   native:
     name: Native checks
-    runs-on: blacksmith-4vcpu-windows-2025
+    runs-on: windows-latest
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
-
-      - name: Install English OCR language
-        shell: pwsh
-        run: |
-          $capabilityNames = @(
-            'ServerCore.AppCompatibility~~~~0.0.1.0',
-            'Language.OCR~~~en-US~0.0.1.0'
-          )
-          foreach ($capabilityName in $capabilityNames) {
-            $capability = Get-WindowsCapability -Online -Name $capabilityName
-            if ($capability.State -ne 'Installed') {
-              Add-WindowsCapability -Online -Name $capabilityName
-            }
-          }
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
