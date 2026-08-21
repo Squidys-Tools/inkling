@@ -1,0 +1,140 @@
+{
+  "version": "2.17",
+  "children": [],
+  "fileToken": "33e52928-955c-4101-a989-07fc76fe1857",
+  "fonts": [
+    {
+      "name": "__Carter_One_1a276c",
+      "url": "fonts/albo.inc/73fceda560ede633.woff2"
+    },
+    {
+      "name": "__JetBrains_Mono_898c26",
+      "url": "fonts/albo.inc/5562e9683b0f4487.woff2"
+    },
+    {
+      "name": "__JetBrains_Mono_898c26",
+      "url": "fonts/albo.inc/5562e9683b0f4487.woff2",
+      "weight": 500
+    },
+    {
+      "name": "__JetBrains_Mono_898c26",
+      "url": "fonts/albo.inc/5562e9683b0f4487.woff2",
+      "weight": 700
+    },
+    {
+      "name": "__Press_Start_2P_6d0c14",
+      "url": "fonts/albo.inc/437551de7e55d281.woff2"
+    },
+    {
+      "name": "__Roboto_716821",
+      "url": "fonts/albo.inc/591d5a2166189847.woff2"
+    },
+    {
+      "name": "__Roboto_716821",
+      "url": "fonts/albo.inc/591d5a2166189847.woff2",
+      "weight": 500
+    },
+    {
+      "name": "__Roboto_716821",
+      "url": "fonts/albo.inc/591d5a2166189847.woff2",
+      "weight": 700
+    },
+    {
+      "name": "Apple Garamond",
+      "url": "fonts/albo.inc/8dfda5c62bfdf2fd.ttf",
+      "weight": 300
+    },
+    {
+      "name": "Apple Garamond",
+      "url": "fonts/albo.inc/6234a2fd7e115f47.ttf",
+      "style": "italic",
+      "weight": 300
+    },
+    {
+      "name": "Apple Garamond",
+      "url": "fonts/albo.inc/635fc2a3a6474b44.ttf"
+    },
+    {
+      "name": "Apple Garamond",
+      "url": "fonts/albo.inc/1bdf0b30fc051eb3.ttf",
+      "style": "italic"
+    },
+    {
+      "name": "Apple Garamond",
+      "url": "fonts/albo.inc/872ea58021d21590.ttf",
+      "weight": 700
+    },
+    {
+      "name": "Apple Garamond",
+      "url": "fonts/albo.inc/b44865f9be201112.ttf",
+      "style": "italic",
+      "weight": 700
+    },
+    {
+      "name": "FA Brands",
+      "url": "fonts/albo.inc/d72b8cb1e30d944c.ttf"
+    },
+    {
+      "name": "FA Pro Light",
+      "url": "fonts/albo.inc/445b9a7575ac40db.ttf",
+      "weight": 300
+    },
+    {
+      "name": "FA Pro Regular",
+      "url": "fonts/albo.inc/d888af8e6e3e5c96.ttf"
+    },
+    {
+      "name": "FA Pro Solid",
+      "url": "fonts/albo.inc/9bbcf14a98bda07d.ttf",
+      "weight": 900
+    },
+    {
+      "name": "Font Awesome 5 Brands",
+      "url": "fonts/albo.inc/31c30351084e2670.woff2"
+    },
+    {
+      "name": "Font Awesome 5 Free",
+      "url": "fonts/albo.inc/7cd8afd6501962fd.woff2",
+      "weight": 900
+    },
+    {
+      "name": "Font Awesome 5 Free",
+      "url": "fonts/albo.inc/e9b6f5b842be227e.woff2"
+    },
+    {
+      "name": "Font Awesome 6 Brands",
+      "url": "fonts/albo.inc/31c30351084e2670.woff2"
+    },
+    {
+      "name": "Font Awesome 6 Free",
+      "url": "fonts/albo.inc/e9b6f5b842be227e.woff2"
+    },
+    {
+      "name": "Font Awesome 6 Free",
+      "url": "fonts/albo.inc/7cd8afd6501962fd.woff2",
+      "weight": 900
+    },
+    {
+      "name": "FontAwesome",
+      "url": "fonts/albo.inc/7cd8afd6501962fd.woff2"
+    },
+    {
+      "name": "Helvetica",
+      "url": "fonts/albo.inc/53cb59bdb997dd39.ttf"
+    },
+    {
+      "name": "Helvetica",
+      "url": "fonts/albo.inc/d064906892c6baf2.ttf",
+      "weight": 700
+    },
+    {
+      "name": "Helvetica",
+      "url": "fonts/albo.inc/a7d02da118efb487.ttf",
+      "weight": 300
+    },
+    {
+      "name": "Stella",
+      "url": "fonts/albo.inc/31bcb1eb7a9ac850.ttf"
+    }
+  ]
+}
