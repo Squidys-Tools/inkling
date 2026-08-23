@@ -1,0 +1,24 @@
+#!/bin/sh
+# Auto-format staged Rust code before committing so CI `cargo fmt --check` never fails.
+# To activate: git config core.hooksPath .githooks
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR -- 'src-tauri/*.rs')
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+cargo fmt --manifest-path src-tauri/Cargo.toml
+if [ $? -ne 0 ]; then
+  echo "pre-commit: cargo fmt failed; fix the errors above and retry." >&2
+  exit 1
+fi
+
+# Re-stage any files the formatter touched.
+for file in $staged; do
+  if ! git diff --quiet -- "$file"; then
+    git add "$file"
+    echo "pre-commit: reformatted $file"
+  fi
+done
+
+exit 0

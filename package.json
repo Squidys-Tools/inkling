@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "prepare": "lefthook install",
     "dev": "vite",
     "build": "tsc -p benchmarks/harness/tsconfig.json && tsc && vite build",
     "preview": "vite preview",
@@ -12,7 +13,9 @@
     "test:pdf": "bun benchmarks/harness/pdf.smoke.ts",
     "bench": "bun benchmarks/harness/index.ts",
     "typecheck:benchmarks": "tsc -p benchmarks/harness/tsconfig.json",
-    "test:windows:pdfs": "cargo test --manifest-path src-tauri/Cargo.toml --locked windows_benchmark_tests -- --nocapture"
+    "test:windows:pdfs": "cargo test --manifest-path src-tauri/Cargo.toml --locked windows_benchmark_tests -- --nocapture",
+    "fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "fmt:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -30,6 +33,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.5",
+    "lefthook": "^2.1.10",
     "tesseract.js": "^7.0.0",
     "typescript": "^7.0.2",
     "vite": "^8.2.1"

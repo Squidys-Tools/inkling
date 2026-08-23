@@ -1,0 +1,6 @@
+pre-commit:
+  commands:
+    cargo-fmt:
+      glob: "src-tauri/*.rs"
+      run: cargo fmt --manifest-path src-tauri/Cargo.toml
+      stage_fixed: true
