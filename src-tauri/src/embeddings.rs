@@ -59,18 +59,27 @@ pub fn text_embedding(model_cache: &Path, text: &str) -> Result<Vec<f32>, String
 
 /// Embeds stored item content with the Nomic document prefix.
 pub fn text_document_embedding(model_cache: &Path, text: &str) -> Result<Vec<f32>, String> {
-    let text = non_empty_text(text)?;
-    with_text_runtime(model_cache, true, |runtime| {
-        runtime.embed(&format!("search_document: {text}"))
+    let text = non_empty_text(text)?.to_owned();
+    let model_cache = model_cache.to_path_buf();
+    run_with_large_stack(move || {
+        with_text_runtime(&model_cache, true, |runtime| {
+            runtime.embed(&format!("search_document: {text}"))
+        })
     })
 }
 
 /// Embeds a user query without downloading model files during search.
 pub fn text_query_embedding(model_cache: &Path, text: &str) -> Result<Vec<f32>, String> {
-    let text = non_empty_text(text)?;
-    match with_text_runtime(model_cache, false, |runtime| {
-        runtime.embed(&format!("search_query: {text}"))
-    }) {
+    let text = non_empty_text(text)?.to_owned();
+    let model_cache = model_cache.to_path_buf();
+    #[cfg(test)]
+    let fallback_text = text.clone();
+    let result = run_with_large_stack(move || {
+        with_text_runtime(&model_cache, false, |runtime| {
+            runtime.embed(&format!("search_query: {text}"))
+        })
+    });
+    match result {
         Ok(vector) => Ok(vector),
         Err(error) => {
             // Storage tests intentionally run without the 230 MB model bundle.
@@ -78,7 +87,7 @@ pub fn text_query_embedding(model_cache: &Path, text: &str) -> Result<Vec<f32>, 
             #[cfg(test)]
             {
                 let _ = error;
-                Ok(legacy_text_embedding(&text))
+                Ok(legacy_text_embedding(&fallback_text))
             }
             #[cfg(not(test))]
             {
@@ -95,7 +104,27 @@ pub fn image_embedding(model_cache: &Path, image_bytes: &[u8]) -> Result<Vec<f32
         return Err("cannot embed empty image".into());
     }
 
-    with_image_runtime(model_cache, true, |runtime| runtime.embed(image_bytes))
+    let image_bytes = image_bytes.to_vec();
+    let model_cache = model_cache.to_path_buf();
+    run_with_large_stack(move || {
+        with_image_runtime(&model_cache, true, |runtime| runtime.embed(&image_bytes))
+    })
+}
+
+/// ONNX graph loading and inference overflow the default 1-2 MB thread stack
+/// in debug builds (STATUS_STACK_OVERFLOW on Windows). Tauri runs synchronous
+/// commands on the main thread, so every embedding call is executed on a
+/// dedicated thread with a stack large enough for the runtime.
+fn run_with_large_stack<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    std::thread::Builder::new()
+        .name("embedding-inference".into())
+        .stack_size(64 * 1024 * 1024)
+        .spawn(work)
+        .map_err(|error| format!("cannot spawn embedding inference thread: {error}"))?
+        .join()
+        .map_err(|_| "embedding inference thread panicked".to_owned())?
 }
 
 fn non_empty_text(text: &str) -> Result<String, String> {
