@@ -8,6 +8,8 @@ All notable development phases and changes are recorded here. See also [roadmap.
 
 ### Added
 
+- Nomic Embed Text v1.5 and Vision v1.5 local ONNX inference with shared 768-dimensional search space
+- Automatic first-run download and cache of the published INT8 Nomic model artifacts
 - PDF text extraction and scanned-page OCR on Windows (`src-tauri/src/pdf.rs`)
 - Local deterministic text and image embeddings (`src-tauri/src/embeddings.rs`)
 - Job progress tracking with UI feedback
