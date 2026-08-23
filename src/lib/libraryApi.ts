@@ -69,6 +69,36 @@ export type ProcessingSummary = {
   failedJob: ProcessingJob | null;
 };
 
+export type SmartSpaceQuery = {
+  text?: string | null;
+  kind?: string | null;
+  tag?: string | null;
+  favorite?: boolean | null;
+};
+
+export type StoredSpace = {
+  id: string;
+  name: string;
+  color: string;
+  query: SmartSpaceQuery;
+  position: number;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type CreateSpaceInput = {
+  name: string;
+  color?: string;
+  query?: SmartSpaceQuery;
+};
+
+export type UpdateSpaceInput = {
+  id: string;
+  name?: string;
+  color?: string;
+  query?: SmartSpaceQuery;
+};
+
 function latestJobsByKind(jobs: ProcessingJob[]) {
   const latest = new Map<ProcessingJobKind, ProcessingJob>();
   for (const job of jobs) {
@@ -121,6 +151,28 @@ export async function searchItems(query: string) {
 
 export async function searchSimilarImages(itemId: string) {
   return invoke<StoredLibraryItem[]>("search_similar_images", { itemId, limit: 12 });
+}
+
+export async function listSpaces() {
+  if (!runtimeIsTauri) return [] satisfies StoredSpace[];
+  return invoke<StoredSpace[]>("list_spaces");
+}
+
+export async function createSpace(input: CreateSpaceInput) {
+  return invoke<StoredSpace>("create_space", { input });
+}
+
+export async function updateSpace(input: UpdateSpaceInput) {
+  return invoke<StoredSpace>("update_space", { input });
+}
+
+export async function deleteSpace(id: string) {
+  await invoke<void>("delete_space", { id });
+}
+
+// Smart Spaces evaluate lazily: the backend re-runs the saved query on every call.
+export async function listSpaceItems(id: string) {
+  return invoke<StoredLibraryItem[]>("list_space_items", { id, limit: 100 });
 }
 
 export async function createNote(input: CreateNoteInput) {

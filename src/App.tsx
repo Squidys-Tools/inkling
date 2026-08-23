@@ -30,13 +30,17 @@ import {
 } from "lucide-react";
 import {
   assetUrl,
+  createSpace,
   createUrl,
   countActiveJobs,
   currentDeepLinks,
   createNote,
+  deleteSpace,
   initializeStorage,
   isTauriRuntime,
   listActiveItems,
+  listSpaceItems,
+  listSpaces,
   getJobStatus,
   retryProcessingJob,
   saveFile,
@@ -44,7 +48,9 @@ import {
   searchSimilarImages,
   summarizeProcessingJobs,
   type ProcessingSummary,
+  type SmartSpaceQuery,
   type StoredLibraryItem,
+  type StoredSpace,
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
 import "./App.css";
@@ -207,11 +213,74 @@ const seedItems: LibraryItem[] = [
   },
 ];
 
-const spaces = [
-  { name: "Design references", count: 38, color: "orange" },
-  { name: "Read slowly", count: 24, color: "green" },
-  { name: "Ideas in progress", count: 17, color: "blue" },
+const seedSpaces: StoredSpace[] = [
+  {
+    id: "seed-design-references",
+    name: "Design references",
+    color: "orange",
+    query: { tag: "reference" },
+    position: 1,
+    createdAt: 0,
+    updatedAt: 0,
+  },
+  {
+    id: "seed-read-later",
+    name: "Read later",
+    color: "green",
+    query: { tag: "research" },
+    position: 2,
+    createdAt: 0,
+    updatedAt: 0,
+  },
+  {
+    id: "seed-top-picks",
+    name: "Top picks",
+    color: "blue",
+    query: { favorite: true },
+    position: 3,
+    createdAt: 0,
+    updatedAt: 0,
+  },
 ];
+
+const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
+
+const KIND_ALIASES: Record<string, string> = {
+  article: "article",
+  url: "article",
+  image: "image",
+  note: "note",
+  pdf: "pdf",
+  video: "video",
+  embed: "video",
+  file: "file",
+  quote: "quote",
+};
+
+function canonicalKind(kind: string) {
+  const normalized = kind.trim().toLowerCase();
+  return KIND_ALIASES[normalized] ?? normalized;
+}
+
+// Mirrors the backend's Smart Space evaluation for browser (seed data) mode.
+// In the Tauri runtime the saved query is evaluated lazily by the Rust core.
+function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
+  if (spaceQuery.favorite != null && Boolean(item.favorite) !== spaceQuery.favorite) return false;
+  if (
+    spaceQuery.tag &&
+    !item.tags.some((tag) => tag.toLowerCase() === spaceQuery.tag?.toLowerCase())
+  ) {
+    return false;
+  }
+  if (spaceQuery.kind && canonicalKind(item.kind) !== canonicalKind(spaceQuery.kind)) return false;
+
+  const text = spaceQuery.text?.trim().toLowerCase();
+  if (text && ![item.title, item.description, item.source, ...item.tags].join(" ").toLowerCase().includes(text)) {
+    return false;
+  }
+
+  return true;
+}
 
 function KindIcon({ kind }: { kind: ItemKind }) {
   const Icon =
@@ -229,8 +298,12 @@ function KindIcon({ kind }: { kind: ItemKind }) {
 
 function App() {
   const [items, setItems] = useState<LibraryItem[]>(isTauriRuntime() ? [] : seedItems);
+  const [spaces, setSpaces] = useState<StoredSpace[]>(isTauriRuntime() ? [] : seedSpaces);
   const [query, setQuery] = useState("");
   const [activeView, setActiveView] = useState("Everything");
+  const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
+  const [isCreatingSpace, setIsCreatingSpace] = useState(false);
+  const [newSpaceName, setNewSpaceName] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [captureMode, setCaptureMode] = useState<"note" | "url" | "file">("note");
   const [newTitle, setNewTitle] = useState("");
@@ -466,6 +539,65 @@ function App() {
     }
   }
 
+  function selectSpace(space: StoredSpace) {
+    setActiveSpaceId(space.id);
+    setActiveView(space.name);
+    setQuery("");
+    setSimilaritySource(null);
+    setSelectedItem(null);
+  }
+
+  function clearToDefaultView() {
+    setActiveSpaceId(null);
+    setActiveView("Everything");
+  }
+
+  function beginSaveSearch() {
+    setIsCreatingSpace(true);
+    setNewSpaceName(query.trim());
+  }
+
+  async function handleCreateSpace(event: React.FormEvent) {
+    event.preventDefault();
+    const name = newSpaceName.trim();
+    if (!name) return;
+
+    const spaceQuery: SmartSpaceQuery = query.trim() ? { text: query.trim() } : {};
+    const color = SPACE_COLORS[spaces.length % SPACE_COLORS.length];
+    setCaptureError(null);
+
+    try {
+      const created = isTauriRuntime()
+        ? await createSpace({ name, color, query: spaceQuery })
+        : {
+            id: `local-space-${Date.now()}`,
+            name,
+            color,
+            query: spaceQuery,
+            position: spaces.length + 1,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+      setSpaces((current) => [...current, created]);
+      setIsCreatingSpace(false);
+      setNewSpaceName("");
+      selectSpace(created);
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function handleDeleteSpace(space: StoredSpace) {
+    setCaptureError(null);
+    try {
+      if (isTauriRuntime()) await deleteSpace(space.id);
+      setSpaces((current) => current.filter((candidate) => candidate.id !== space.id));
+      if (activeSpaceId === space.id) clearToDefaultView();
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   async function handleDeepLinkPayload(payload: unknown) {
     const values: string[] = Array.isArray(payload)
       ? payload.filter((value): value is string => typeof value === "string")
@@ -551,6 +683,19 @@ function App() {
   useEffect(() => {
     if (!isTauriRuntime()) return;
     let cancelled = false;
+    listSpaces()
+      .then((storedSpaces) => {
+        if (!cancelled) setSpaces(storedSpaces);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let cancelled = false;
     let loading = false;
 
     async function loadItems() {
@@ -560,9 +705,11 @@ function App() {
         await initializeStorage();
         const storedItemsPromise = similaritySource
           ? searchSimilarImages(similaritySource.id)
-          : query.trim()
-            ? searchItems(query)
-            : listActiveItems();
+          : activeSpaceId
+            ? listSpaceItems(activeSpaceId)
+            : query.trim()
+              ? searchItems(query)
+              : listActiveItems();
         const [storedItems, activeCount] = await Promise.all([storedItemsPromise, countActiveJobs()]);
         const libraryItems = await Promise.all(storedItems.map(async (item) => {
           const jobs = await getJobStatus(item.id);
@@ -585,14 +732,19 @@ function App() {
       cancelled = true;
       window.clearInterval(refreshTimer);
     };
-  }, [query, similaritySource?.id]);
+  }, [query, similaritySource?.id, activeSpaceId]);
+
+  const activeSpace = useMemo(
+    () => spaces.find((space) => space.id === activeSpaceId) ?? null,
+    [spaces, activeSpaceId],
+  );
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return items.filter((item) => {
       const matchesQuery = !normalizedQuery
         ? true
-        : isTauriRuntime() || similaritySource
+        : isTauriRuntime() || similaritySource || activeSpace
           ? true
           : [item.title, item.description, item.source, item.kind, ...item.tags]
             .join(" ")
@@ -601,11 +753,12 @@ function App() {
       const matchesView =
         activeView === "Everything" ||
         (activeView === "Top of mind" && item.favorite) ||
-        (activeView === "Read later" && item.tags.includes("research")) ||
-        (activeView === "Design references" && item.tags.includes("reference"));
+        (activeSpace
+          ? isTauriRuntime() || itemMatchesSmartQuery(item, activeSpace.query)
+          : false);
       return matchesQuery && matchesView;
     });
-  }, [activeView, items, query, similaritySource]);
+  }, [activeSpace, activeView, items, query, similaritySource]);
 
   async function saveCapture(event: React.FormEvent) {
     event.preventDefault();
@@ -687,20 +840,29 @@ function App() {
         </div>
 
         <nav className="primary-nav" aria-label="Main navigation">
-          <button className="nav-item active" onClick={() => setActiveView("Everything")}>
+          <button
+            className={`nav-item ${activeView === "Everything" && !activeSpaceId ? "active" : ""}`}
+            onClick={clearToDefaultView}
+          >
             <Layers3 size={17} />
             <span>Everything</span>
             <span className="nav-count">{items.length}</span>
           </button>
-          <button className="nav-item" onClick={() => setActiveView("Top of mind")}>
+          <button
+            className={`nav-item ${activeView === "Top of mind" && !activeSpaceId ? "active" : ""}`}
+            onClick={() => {
+              setActiveSpaceId(null);
+              setActiveView("Top of mind");
+            }}
+          >
             <Sparkles size={17} />
             <span>Top of mind</span>
           </button>
-          <button className="nav-item" onClick={() => setActiveView("Serendipity")}>
+          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Serendipity"); }}>
             <Clock3 size={17} />
             <span>Serendipity</span>
           </button>
-          <button className="nav-item" onClick={() => setActiveView("Archive")}>
+          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Archive"); }}>
             <Archive size={17} />
             <span>Archive</span>
           </button>
@@ -709,23 +871,76 @@ function App() {
         <div className="sidebar-section">
           <div className="sidebar-heading">
             <span>Spaces</span>
-            <button className="icon-button small" aria-label="Add a Space" title="Add a Space">
+            <button
+              className="icon-button small"
+              aria-label="Add a Space"
+              title="Add a Smart Space"
+              onClick={() => {
+                setIsCreatingSpace((current) => !current);
+                setNewSpaceName("");
+              }}
+            >
               <Plus size={15} />
             </button>
           </div>
           <div className="space-list">
             {spaces.map((space) => (
-              <button
-                className="space-item"
-                key={space.name}
-                onClick={() => setActiveView(space.name)}
+              <div
+                className={`space-item ${activeSpaceId === space.id ? "selected" : ""}`}
+                key={space.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => selectSpace(space)}
+                onKeyDown={(event) => event.key === "Enter" && selectSpace(space)}
               >
                 <span className={`space-dot ${space.color}`} />
                 <span>{space.name}</span>
-                <span className="space-count">{space.count}</span>
-              </button>
+                <span className="space-count">{activeSpaceId === space.id ? filteredItems.length : ""}</span>
+                <button
+                  type="button"
+                  className="space-delete"
+                  aria-label={`Delete ${space.name}`}
+                  title="Delete Space"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleDeleteSpace(space);
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              </div>
             ))}
           </div>
+          {isCreatingSpace && (
+            <form className="space-form" onSubmit={handleCreateSpace}>
+              <input
+                autoFocus
+                value={newSpaceName}
+                onChange={(event) => setNewSpaceName(event.target.value)}
+                placeholder={query.trim() ? `Save “${query.trim()}” as…` : "Name this space"}
+                aria-label="Space name"
+                maxLength={80}
+              />
+              <p className="space-form-hint">
+                {query.trim()
+                  ? "A Smart Space that updates automatically as items match this search."
+                  : "An empty Smart Space matches everything you have saved."}
+              </p>
+              <div className="space-form-actions">
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => {
+                    setIsCreatingSpace(false);
+                    setNewSpaceName("");
+                  }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="capture-save">Create Space</button>
+              </div>
+            </form>
+          )}
         </div>
 
         <div className="sidebar-footer">
@@ -778,6 +993,8 @@ function App() {
               value={query}
               onChange={(event) => {
                 setSimilaritySource(null);
+                setActiveSpaceId(null);
+                setActiveView("Everything");
                 setQuery(event.target.value);
               }}
               placeholder="Search your mind"
@@ -841,7 +1058,16 @@ function App() {
         <div className="library-toolbar">
           <div className="result-context">
             <span className="result-count">{filteredItems.length}</span> things to remember
-            {similaritySource ? <span className="search-context">similar to “{similaritySource.title}”</span> : query && <span className="search-context">for “{query}”</span>}
+            {similaritySource ? (
+              <span className="search-context">similar to “{similaritySource.title}”</span>
+            ) : query.trim() ? (
+              <>
+                <span className="search-context">for “{query}”</span>
+                <button type="button" className="quiet-link save-space-link" onClick={beginSaveSearch}>
+                  <Bookmark size={13} /> Save as Space
+                </button>
+              </>
+            ) : null}
           </div>
           <div className="view-controls" aria-label="View options">
             <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => setListMode(false)} aria-label="Grid view" title="Grid view"><Grid2X2 size={16} /></button>
@@ -910,7 +1136,7 @@ function App() {
             <div className="empty-icon"><Search size={20} /></div>
             <h2>Nothing surfaced yet.</h2>
             <p>Try another word, or save something new to your mind.</p>
-            <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); setActiveView("Everything"); }}>Clear search</button>
+            <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
           </div>
         )}
 

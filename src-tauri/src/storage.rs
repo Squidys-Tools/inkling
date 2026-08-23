@@ -15,7 +15,7 @@ use tauri::{AppHandle, Manager, State};
 use url::Url;
 use uuid::Uuid;
 
-const SCHEMA_VERSION: i64 = 5;
+const SCHEMA_VERSION: i64 = 6;
 const MAX_FILE_BYTES: usize = 50 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION: u32 = 20_000;
 const MAX_IMAGE_ALLOC_BYTES: u64 = 256 * 1024 * 1024;
@@ -60,6 +60,21 @@ CREATE TABLE IF NOT EXISTS item_embeddings (
 
 CREATE INDEX IF NOT EXISTS idx_item_embeddings_kind
     ON item_embeddings (kind, model);
+"#;
+
+const SPACES_SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS spaces (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT 'blue',
+    query TEXT NOT NULL DEFAULT '{}',
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_spaces_position
+    ON spaces (position, created_at);
 "#;
 
 #[derive(Debug)]
@@ -186,7 +201,7 @@ pub struct SaveFileInput {
     pub bytes: Vec<u8>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateItemInput {
     pub id: String,
@@ -198,6 +213,48 @@ pub struct UpdateItemInput {
     pub thumbnail_path: Option<String>,
     pub metadata: Option<Value>,
     pub favorite: Option<bool>,
+}
+
+/// A saved search that defines a Smart Space. Every field is optional; an
+/// empty query matches everything. Evaluation is lazy: the query is stored
+/// and re-run whenever the space is opened.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SmartSpaceQuery {
+    pub text: Option<String>,
+    pub kind: Option<String>,
+    pub tag: Option<String>,
+    pub favorite: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpaceDto {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub query: SmartSpaceQuery,
+    pub position: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSpaceInput {
+    pub name: String,
+    pub color: Option<String>,
+    #[serde(default)]
+    pub query: SmartSpaceQuery,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSpaceInput {
+    pub id: String,
+    pub name: Option<String>,
+    pub color: Option<String>,
+    pub query: Option<SmartSpaceQuery>,
 }
 
 impl StorageState {
@@ -250,6 +307,7 @@ impl LibraryStorage {
         connection.execute_batch(crate::jobs::JOBS_SCHEMA)?;
         ensure_job_columns(&connection)?;
         connection.execute_batch(EMBEDDINGS_SCHEMA)?;
+        connection.execute_batch(SPACES_SCHEMA)?;
         let fts5_enabled = setup_fts5(&connection);
         connection.pragma_update(None, "user_version", SCHEMA_VERSION)?;
 
@@ -821,6 +879,224 @@ impl LibraryStorage {
             .optional()
             .map_err(StorageError::from)
     }
+
+    fn space_from_row(row: &Row<'_>) -> rusqlite::Result<SpaceDto> {
+        let query_json: String = row.get(3)?;
+        let query = serde_json::from_str(&query_json).unwrap_or_default();
+
+        Ok(SpaceDto {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            color: row.get(2)?,
+            query,
+            position: row.get(4)?,
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
+        })
+    }
+
+    fn list_spaces(&self) -> Result<Vec<SpaceDto>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, name, color, query, position, created_at, updated_at
+             FROM spaces
+             ORDER BY position, created_at",
+        )?;
+
+        let spaces = statement
+            .query_map([], Self::space_from_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(spaces)
+    }
+
+    fn get_space(&self, id: &str) -> Result<Option<SpaceDto>, StorageError> {
+        self.connection
+            .query_row(
+                "SELECT id, name, color, query, position, created_at, updated_at
+                 FROM spaces WHERE id = ?1",
+                params![id],
+                Self::space_from_row,
+            )
+            .optional()
+            .map_err(StorageError::from)
+    }
+
+    fn create_space(&self, input: CreateSpaceInput) -> Result<SpaceDto, StorageError> {
+        let name = normalize_space_name(&input.name)?;
+        let color = normalize_space_color(input.color.as_deref());
+        let query = validate_smart_space_query(input.query)?;
+        let query_json = serde_json::to_string(&query)?;
+        let id = Uuid::new_v4().to_string();
+        let timestamp = now_millis()?;
+        let position: i64 = self
+            .connection
+            .query_row("SELECT COALESCE(MAX(position), 0) + 1 FROM spaces", [], |row| {
+                row.get(0)
+            })?;
+
+        self.connection.execute(
+            "INSERT INTO spaces (id, name, color, query, position, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+            params![id, name, color, query_json, position, timestamp],
+        )?;
+
+        self.get_space(&id)?.ok_or(StorageError::NotFound(id))
+    }
+
+    fn update_space(&self, input: UpdateSpaceInput) -> Result<SpaceDto, StorageError> {
+        let name = match input.name {
+            Some(name) => Some(normalize_space_name(&name)?),
+            None => None,
+        };
+        let color = input.color.as_deref().map(|value| normalize_space_color(Some(value)));
+        let query_json = input
+            .query
+            .map(validate_smart_space_query)
+            .transpose()?
+            .map(|query| serde_json::to_string(&query))
+            .transpose()?;
+
+        let updated = self.connection.execute(
+            "UPDATE spaces
+             SET name = COALESCE(?2, name),
+                 color = COALESCE(?3, color),
+                 query = COALESCE(?4, query),
+                 updated_at = ?5
+             WHERE id = ?1",
+            params![input.id, name, color, query_json, now_millis()?],
+        )?;
+
+        if updated == 0 {
+            return Err(StorageError::NotFound(input.id));
+        }
+
+        self.get_space(&input.id)?
+            .ok_or(StorageError::NotFound(input.id))
+    }
+
+    fn delete_space(&self, id: &str) -> Result<(), StorageError> {
+        // Deleting a Space never touches its items; only the saved search goes away.
+        let deleted = self
+            .connection
+            .execute("DELETE FROM spaces WHERE id = ?1", params![id])?;
+        if deleted == 0 {
+            return Err(StorageError::NotFound(id.to_owned()));
+        }
+        Ok(())
+    }
+
+    /// Lazy evaluation of a Smart Space: re-run the stored query on demand.
+    fn list_space_items(&self, id: &str, limit: u32) -> Result<Vec<ItemDto>, StorageError> {
+        let limit = usize::try_from(limit.clamp(1, 200)).unwrap_or(100);
+        let space = self
+            .get_space(id)?
+            .ok_or_else(|| StorageError::NotFound(id.to_owned()))?;
+
+        let text = space.query.text.as_deref().unwrap_or("").trim();
+        let candidates = if text.is_empty() {
+            self.list_active_items_limited(i64::try_from(limit).unwrap_or(100))?
+        } else {
+            // Reuse the hybrid lexical + semantic ranking used by normal search.
+            self.search_items(text, u32::try_from(limit).unwrap_or(u32::MAX))?
+        };
+
+        let items = candidates
+            .into_iter()
+            .filter(|item| item_matches_smart_query(item, &space.query))
+            .take(limit)
+            .collect::<Vec<_>>();
+
+        Ok(items)
+    }
+}
+
+fn item_matches_smart_query(item: &ItemDto, query: &SmartSpaceQuery) -> bool {
+    if let Some(favorite) = query.favorite {
+        if item.favorite != favorite {
+            return false;
+        }
+    }
+
+    if let Some(kind) = query.kind.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
+        if !item_matches_kind(&item.kind, kind) {
+            return false;
+        }
+    }
+
+    if let Some(tag) = query.tag.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
+        let matches_tag = item
+            .metadata
+            .get("tags")
+            .and_then(Value::as_array)
+            .is_some_and(|tags| {
+                tags.iter()
+                    .filter_map(Value::as_str)
+                    .any(|candidate| candidate.eq_ignore_ascii_case(tag))
+            });
+        if !matches_tag {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn item_matches_kind(item_kind: &str, filter: &str) -> bool {
+    let item_kind = item_kind.trim().to_ascii_lowercase();
+    let filter = filter.trim().to_ascii_lowercase();
+    match filter.as_str() {
+        "" => true,
+        "article" => item_kind == "url" || item_kind == "article",
+        other => item_kind == other,
+    }
+}
+
+fn validate_smart_space_query(mut query: SmartSpaceQuery) -> Result<SmartSpaceQuery, StorageError> {
+    fn clean(value: Option<String>, field: &str, max: usize) -> Result<Option<String>, StorageError> {
+        match value.map(|value| value.trim().to_owned()) {
+            Some(value) if value.len() > max => Err(StorageError::InvalidInput(format!(
+                "{field} must be at most {max} characters"
+            ))),
+            Some(value) if !value.is_empty() => Ok(Some(value)),
+            _ => Ok(None),
+        }
+    }
+
+    query.text = clean(query.text, "text", 512)?;
+    query.kind = clean(query.kind, "kind", 32)?;
+    query.tag = clean(query.tag, "tag", 64)?;
+
+    Ok(query)
+}
+
+fn normalize_space_name(name: &str) -> Result<String, StorageError> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(StorageError::InvalidInput(
+            "space name cannot be empty".into(),
+        ));
+    }
+    if name.len() > 80 {
+        return Err(StorageError::InvalidInput(
+            "space name must be at most 80 characters".into(),
+        ));
+    }
+    Ok(name.to_owned())
+}
+
+fn normalize_space_color(color: Option<&str>) -> String {
+    let palette = ["blue", "orange", "green", "pink", "purple"];
+    match color.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(value) => {
+            let lowered = value.to_ascii_lowercase();
+            palette
+                .into_iter()
+                .find(|candidate| *candidate == lowered)
+                .unwrap_or("blue")
+                .to_owned()
+        }
+        None => "blue".to_owned(),
+    }
 }
 
 fn ensure_job_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
@@ -1060,6 +1336,68 @@ pub fn search_similar_images(
         .as_ref()
         .expect("require_storage guarantees initialization")
         .search_similar_images(&item_id, limit.unwrap_or(12))
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn list_spaces(state: State<'_, StorageState>) -> Result<Vec<SpaceDto>, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .list_spaces()
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn create_space(
+    input: CreateSpaceInput,
+    state: State<'_, StorageState>,
+) -> Result<SpaceDto, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .create_space(input)
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn update_space(
+    input: UpdateSpaceInput,
+    state: State<'_, StorageState>,
+) -> Result<SpaceDto, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .update_space(input)
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn delete_space(id: String, state: State<'_, StorageState>) -> Result<(), String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .delete_space(&id)
+        .map_err(String::from)
+}
+
+/// Lazy Smart Space evaluation: items are computed from the saved query at
+/// read time, so new captures appear without any membership bookkeeping.
+#[tauri::command]
+pub fn list_space_items(
+    id: String,
+    limit: Option<u32>,
+    state: State<'_, StorageState>,
+) -> Result<Vec<ItemDto>, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .list_space_items(&id, limit.unwrap_or(100))
         .map_err(String::from)
 }
 
@@ -1479,6 +1817,164 @@ mod tests {
             results.first().map(|result| result.id.as_str()),
             Some("near")
         );
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn smart_spaces_evaluate_queries_lazily() {
+        let directory =
+            std::env::temp_dir().join(format!("mymind-spaces-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let tagged = storage
+            .create_note(CreateNoteInput {
+                title: Some("Tagged note".into()),
+                body: "carries the reference tag".into(),
+                metadata: Some(serde_json::json!({ "tags": ["reference"] })),
+            })
+            .unwrap();
+        let favorite = storage
+            .create_note(CreateNoteInput {
+                title: Some("Favorite note".into()),
+                body: "a starred thought about timber".into(),
+                metadata: None,
+            })
+            .unwrap();
+        storage
+            .update_item(UpdateItemInput {
+                id: favorite.id.clone(),
+                favorite: Some(true),
+                ..Default::default()
+            })
+            .unwrap();
+        let plain = storage
+            .create_note(CreateNoteInput {
+                title: Some("Plain note".into()),
+                body: "nothing special here".into(),
+                metadata: None,
+            })
+            .unwrap();
+
+        // Tag-filtered space.
+        let tag_space = storage
+            .create_space(CreateSpaceInput {
+                name: "Design references".into(),
+                color: Some("orange".into()),
+                query: SmartSpaceQuery {
+                    tag: Some("reference".into()),
+                    ..Default::default()
+                },
+            })
+            .unwrap();
+        let items = storage.list_space_items(&tag_space.id, 50).unwrap();
+        assert_eq!(items.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(), vec![tagged.id.as_str()]);
+
+        // Favorite-filtered space.
+        let favorite_space = storage
+            .create_space(CreateSpaceInput {
+                name: "Top picks".into(),
+                color: None,
+                query: SmartSpaceQuery {
+                    favorite: Some(true),
+                    ..Default::default()
+                },
+            })
+            .unwrap();
+        let items = storage.list_space_items(&favorite_space.id, 50).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, favorite.id);
+
+        // Text space reuses lexical search; only matching notes come back.
+        let text_space = storage
+            .create_space(CreateSpaceInput {
+                name: "Timber thinking".into(),
+                color: None,
+                query: SmartSpaceQuery {
+                    text: Some("timber".into()),
+                    ..Default::default()
+                },
+            })
+            .unwrap();
+        let items = storage.list_space_items(&text_space.id, 50).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, favorite.id);
+
+        // Empty query matches everything.
+        let everything = storage
+            .create_space(CreateSpaceInput {
+                name: "Everything space".into(),
+                color: None,
+                query: SmartSpaceQuery::default(),
+            })
+            .unwrap();
+        let items = storage.list_space_items(&everything.id, 50).unwrap();
+        assert_eq!(items.len(), 3);
+        assert!(items.iter().any(|item| item.id == plain.id));
+
+        // Update and delete round-trip.
+        let updated = storage
+            .update_space(UpdateSpaceInput {
+                id: tag_space.id.clone(),
+                name: Some("Renamed space".into()),
+                color: None,
+                query: None,
+            })
+            .unwrap();
+        assert_eq!(updated.name, "Renamed space");
+
+        let listed = storage.list_spaces().unwrap();
+        assert_eq!(listed.len(), 4);
+
+        storage.delete_space(&tag_space.id).unwrap();
+        assert!(storage.get_space(&tag_space.id).unwrap().is_none());
+        assert_eq!(storage.list_spaces().unwrap().len(), 3);
+        // Deleting a Space must not touch its items.
+        assert!(storage.get_item(&tagged.id).unwrap().is_some());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn smart_space_kind_filter_matches_article_urls() {
+        let directory =
+            std::env::temp_dir().join(format!("mymind-spaces-kind-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        storage
+            .create_url(CreateUrlInput {
+                source_url: "https://example.com/article".into(),
+                title: Some("An article".into()),
+                description: None,
+                body: "body text".into(),
+                metadata: None,
+            })
+            .unwrap();
+        storage
+            .create_note(CreateNoteInput {
+                title: None,
+                body: "just a note".into(),
+                metadata: None,
+            })
+            .unwrap();
+
+        let article_space = storage
+            .create_space(CreateSpaceInput {
+                name: "Articles".into(),
+                color: None,
+                query: SmartSpaceQuery {
+                    kind: Some("article".into()),
+                    ..Default::default()
+                },
+            })
+            .unwrap();
+        let items = storage.list_space_items(&article_space.id, 50).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].kind, "url");
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();
