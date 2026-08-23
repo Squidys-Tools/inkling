@@ -30,9 +30,9 @@ Vertical slice from capture through semantic understanding and search.
 - [x] PDF text extraction and scanned-page OCR on Windows
 - [x] Local deterministic text and image embeddings
 - [x] CI, release, and security automation
-- [ ] Learned embedding model selection (ONNX)
-- [ ] Semantic search over text and images
-- [ ] Image similarity search
+- [x] Nomic learned embedding models through ONNX Runtime
+- [x] Semantic search over text and images
+- [x] Image similarity search
 - [ ] Smart Spaces (auto-updating saved searches)
 - [ ] Regular Spaces (manual collections)
 

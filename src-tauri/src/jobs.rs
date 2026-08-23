@@ -731,10 +731,10 @@ fn generate_embeddings(
 ) -> Result<(), String> {
     let text = embedding_text(item);
     let total = usize::from(text.is_some()) + usize::from(item.kind == "image");
-    progress(0, total, "Preparing search index");
+    progress(0, total, "Loading local Nomic embedding models");
     let mut current = 0;
     if let Some(text) = text.as_deref() {
-        let vector = crate::embeddings::text_embedding(model_cache, text)?;
+        let vector = crate::embeddings::text_document_embedding(model_cache, text)?;
         let bytes = crate::embeddings::encode_f32(&vector);
         storage
             .store_embedding(
