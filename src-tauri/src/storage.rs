@@ -928,11 +928,11 @@ impl LibraryStorage {
         let query_json = serde_json::to_string(&query)?;
         let id = Uuid::new_v4().to_string();
         let timestamp = now_millis()?;
-        let position: i64 = self
-            .connection
-            .query_row("SELECT COALESCE(MAX(position), 0) + 1 FROM spaces", [], |row| {
-                row.get(0)
-            })?;
+        let position: i64 = self.connection.query_row(
+            "SELECT COALESCE(MAX(position), 0) + 1 FROM spaces",
+            [],
+            |row| row.get(0),
+        )?;
 
         self.connection.execute(
             "INSERT INTO spaces (id, name, color, query, position, created_at, updated_at)
@@ -948,7 +948,10 @@ impl LibraryStorage {
             Some(name) => Some(normalize_space_name(&name)?),
             None => None,
         };
-        let color = input.color.as_deref().map(|value| normalize_space_color(Some(value)));
+        let color = input
+            .color
+            .as_deref()
+            .map(|value| normalize_space_color(Some(value)));
         let query_json = input
             .query
             .map(validate_smart_space_query)
@@ -1017,13 +1020,23 @@ fn item_matches_smart_query(item: &ItemDto, query: &SmartSpaceQuery) -> bool {
         }
     }
 
-    if let Some(kind) = query.kind.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
+    if let Some(kind) = query
+        .kind
+        .as_deref()
+        .map(str::trim)
+        .filter(|k| !k.is_empty())
+    {
         if !item_matches_kind(&item.kind, kind) {
             return false;
         }
     }
 
-    if let Some(tag) = query.tag.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
+    if let Some(tag) = query
+        .tag
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+    {
         let matches_tag = item
             .metadata
             .get("tags")
@@ -1052,7 +1065,11 @@ fn item_matches_kind(item_kind: &str, filter: &str) -> bool {
 }
 
 fn validate_smart_space_query(mut query: SmartSpaceQuery) -> Result<SmartSpaceQuery, StorageError> {
-    fn clean(value: Option<String>, field: &str, max: usize) -> Result<Option<String>, StorageError> {
+    fn clean(
+        value: Option<String>,
+        field: &str,
+        max: usize,
+    ) -> Result<Option<String>, StorageError> {
         match value.map(|value| value.trim().to_owned()) {
             Some(value) if value.len() > max => Err(StorageError::InvalidInput(format!(
                 "{field} must be at most {max} characters"
@@ -1824,8 +1841,7 @@ mod tests {
 
     #[test]
     fn smart_spaces_evaluate_queries_lazily() {
-        let directory =
-            std::env::temp_dir().join(format!("mymind-spaces-test-{}", Uuid::new_v4()));
+        let directory = std::env::temp_dir().join(format!("mymind-spaces-test-{}", Uuid::new_v4()));
         fs::create_dir_all(&directory).unwrap();
         let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
 
@@ -1870,7 +1886,13 @@ mod tests {
             })
             .unwrap();
         let items = storage.list_space_items(&tag_space.id, 50).unwrap();
-        assert_eq!(items.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(), vec![tagged.id.as_str()]);
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| item.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![tagged.id.as_str()]
+        );
 
         // Favorite-filtered space.
         let favorite_space = storage

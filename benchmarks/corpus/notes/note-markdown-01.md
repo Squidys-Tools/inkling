@@ -22,7 +22,7 @@ reading.
 ## Links
 
 - [SQLite FTS5 docs](https://sqlite.org/fts5.html)
-- Project TDR: `docs/technical-decision-record.md`
+- Project tech stack: `docs/tech-stack.md`
 
 ## Quote worth keeping
 

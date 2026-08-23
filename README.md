@@ -1,138 +1,49 @@
 # mymind library
 
-A Windows-first, local-first visual library for saving and rediscovering ideas, images, articles, notes, PDFs, quotes, and other things worth remembering.
+Save anything worth remembering and find it later. mymind library is a Windows desktop app that keeps articles, images, screenshots, PDFs, notes, quotes, and video links in one private visual library stored on your own machine.
 
-The product treats search and associative memory as the organizing system instead of requiring users to maintain folders and metadata. Content is captured quickly, understood in the background, and retrieved through search, visual browsing, semantic connections, and automatically updated Spaces.
+There is nothing to organize. Saving takes a couple of seconds, then the app reads what you saved in the background so you can find it later by searching for any word in it, including words inside images and scanned documents.
+
+## What it does now
+
+- Capture URLs, files, clipboard contents, and screenshots, or use drag and drop
+- Save pages with the companion browser extension
+- Read saved articles in a clean view without ads and page clutter
+- Search everything by keyword, including text read out of images and scanned PDFs
+- Browse visually with automatic thumbnails
+
+Everything is processed and stored locally. Nothing leaves your computer.
+
+## What's next
+
+Search that understands meaning instead of matching exact words, finding images similar to another image, and Spaces: collections that update themselves based on what you save. See the [roadmap](docs/roadmap.md) for where things stand.
 
 ## Status
 
-Early development. The browser preview uses seed data, while the Tauri runtime reads and writes the local SQLite library.
+Early development. The core capture, storage, and keyword search work well enough to try, but expect rough edges and missing pieces.
 
-- **Working:** URL capture with article extraction (Defuddle + fallback), file picker, drag-and-drop, clipboard, screenshot, and browser-extension capture, SQLite storage with FTS5 search, thumbnail generation, safe embed allowlists, the background job queue, PDF text extraction with scanned-page OCR on Windows, and local text/image embeddings.
-- **In progress:** semantic and visual search and Smart Spaces. The current embedding backend is a deterministic local feature encoder; a learned ONNX model can replace it behind the same job and storage boundary after model selection.
+## Running it from source
 
-The browser-extension handoff is a `mymind://capture?url=<encoded-http-url>` deep link; the extension itself can remain a separate package.
-
-## Stack
-
-- Tauri 2 for the Windows desktop shell
-- React, TypeScript, and Vite for the interface
-- Bun for JavaScript dependencies and scripts
-- Rust for the native application core
-- SQLite and FTS5 for local storage and full-text search
-- Windows.Media.Ocr for native image OCR on Windows
-- Defuddle for readable article extraction
-- Local deterministic text and image feature embeddings, with an ONNX model boundary reserved for the next model-selection milestone
-- llama.cpp for optional local summaries and structured analysis (next milestone)
-
-## Development
-
-Install dependencies:
+You need [Bun](https://bun.sh) and the Rust toolchain installed.
 
 ```powershell
 bun install
+bun run preview
 ```
+This starts the web preview of the app. Just basically to see the ui without doing a heavy and long rust compilation.
 
-Start the desktop development app:
 
 ```powershell
+bun install
 bun run tauri dev
 ```
 
-Build the web frontend:
+This starts the Windows desktop app.
 
-```powershell
-bun run build
-```
 
-Run the ingestion smoke tests:
+## More documentation
 
-```powershell
-bun run ingest:smoke
-```
-
-Run the AI and extraction benchmark harness:
-
-```powershell
-bun run bench
-```
-
-Check the Rust application:
-
-```powershell
-cargo check --manifest-path src-tauri/Cargo.toml
-```
-
-## Project layout
-
-```
-src/
-  App.tsx                  # Application UI (browser seed data, Tauri-backed runtime)
-  main.tsx                 # React entry point
-  App.css                  # Styles
-  lib/
-    libraryApi.ts          # Tauri invoke wrappers (storage, items, assets)
-    ingestion/             # Frontend ingestion pipeline (TypeScript)
-      index.ts             # Re-exports
-      url.ts               # URL parsing, normalization, validation
-      url-ingestion.ts     # ingestUrl: fetch, extract, sanitize, normalize
-      defuddle-adapter.ts  # Defuddle article extraction + JSON-LD metadata
-      fallback.ts          # Fallback metadata extraction from HTML head/dom
-      html-safety.ts       # HTML sanitization, image URL collection, safe embeds
-      safe-embeds.ts       # URL-only embed allowlist (YouTube, Vimeo, direct media)
-      file-classification.ts  # File type detection by MIME type and extension
-      asset-paths.ts       # Content-addressed asset path helpers
-      json-ld.ts           # schema.org JSON-LD article metadata extraction
-      errors.ts            # UrlIngestionError with typed codes
-      ingestion.smoke.ts   # Smoke tests for the ingestion pipeline
-src-tauri/
-  Cargo.toml               # Rust dependencies (Tauri, rusqlite, image, uuid, tokio, windows)
-  src/
-    main.rs                # Entry point
-    lib.rs                 # Tauri command handlers
-    storage.rs             # SQLite storage, FTS5, asset management, thumbnails, OCR text
-    jobs.rs                # Persisted background job queue and worker
-    ocr.rs                 # Replaceable OCR backend interface and Windows backend
-benchmarks/
-  README.md                # Corpus and evaluation notes
-  manifest.json            # Benchmark corpus definition (items + expected results)
-  generate-corpus.ps1      # Regenerate image/screenshot/PDF fixtures
-  fetch-macrumors.ts       # Fetch live MacRumors articles as fixtures
-  harness/                 # Benchmark harness (TypeScript)
-    index.ts               # Main benchmark entry point
-    server.ts              # Local HTTP server for fixture pages
-    extract.ts             # Article extraction scoring
-    pdf.ts                 # Naive PDF text extractor for benchmarks
-    ocr.ts                 # OCR engine abstraction (Windows OCR + tesseract.js)
-    score.ts               # Scoring utilities (token recall/precision, term matching)
-    manifest.ts            # Manifest type definitions and loading
-    tesseract.d.ts         # Ambient types for optional tesseract.js
-  corpus/                  # Test fixtures (articles, images, screenshots, PDFs, etc.)
-  expected/                # Expected outputs for benchmark scoring
-  results/                 # Benchmark result JSON and summaries
-docs/
-  product.md               # Product definition and principles
-  design.md                # Visual design direction
-  product-behavior-spec.md  # Product behavior specification
-  technical-decision-record.md  # Architecture and technology decisions
-  changelog.md             # Development history by phase
-  roadmap.md               # Milestones and current status
-```
-
-## Project documents
-
-- [Product definition](docs/product.md)
-- [Visual design direction](docs/design.md)
-- [Product behavior specification](docs/product-behavior-spec.md)
-- [Technical decision record](docs/technical-decision-record.md)
-- [Changelog](docs/changelog.md)
-- [Roadmap](docs/roadmap.md)
-- [AI and extraction benchmark plan](benchmarks/README.md)
-
-## Direction
-
-The current technical slice accepts an image, URL, or PDF; creates a card immediately; stores local assets; extracts articles with Defuddle; and indexes titles, descriptions, metadata, and image OCR text with SQLite FTS5. Image OCR runs in a persisted background job and can be searched after processing finishes.
-
-The remaining first-milestone work is learned embedding model selection, semantic and image-similarity search, and saved Smart Spaces.
-
-The application is designed for Windows first while keeping the frontend and domain boundaries portable enough for a future web version.
+- [Product definition](docs/product.md): who it's for and why it exists
+- [Behavior specification](docs/product-behavior.md): how each feature should behave
+- [Tech stack](docs/tech-stack.md): architecture choices and reasoning
+- [Roadmap](docs/roadmap.md) and [changelog](docs/changelog.md)
