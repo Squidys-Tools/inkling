@@ -669,7 +669,12 @@ impl LibraryStorage {
                 .collect::<Result<Vec<_>, _>>()?;
         }
 
-        let query_vector = crate::embeddings::text_embedding(Path::new("models"), query).ok();
+        let model_cache = self
+            .database_path
+            .parent()
+            .map(|path| path.join("models"))
+            .unwrap_or_else(|| PathBuf::from("models"));
+        let query_vector = crate::embeddings::text_query_embedding(&model_cache, query).ok();
         let mut ranked = HashMap::<String, (ItemDto, f32)>::new();
         for item in lexical_items {
             ranked.insert(item.id.clone(), (item, 2.0));
@@ -683,9 +688,14 @@ impl LibraryStorage {
                         i.favorite, e.dimension, e.vector
                  FROM item_embeddings e
                  JOIN items i ON i.id = e.item_id
-                 WHERE i.archived = 0 AND e.kind = 'text' AND e.model = ?1",
+                 WHERE i.archived = 0
+                   AND ((e.kind = 'text' AND e.model = ?1)
+                        OR (e.kind = 'image' AND e.model = ?2))",
             )?;
-            let mut rows = statement.query(params![crate::embeddings::TEXT_MODEL])?;
+            let mut rows = statement.query(params![
+                crate::embeddings::TEXT_MODEL,
+                crate::embeddings::IMAGE_MODEL,
+            ])?;
             while let Some(row) = rows.next()? {
                 let item = item_from_row(row)?;
                 let dimension = row.get::<_, i64>(14)?;
@@ -982,13 +992,33 @@ pub fn resolve_asset_path(path: String, state: State<'_, StorageState>) -> Resul
 pub fn update_item(
     input: UpdateItemInput,
     state: State<'_, StorageState>,
+    processing: State<'_, crate::jobs::ProcessingState>,
 ) -> Result<ItemDto, String> {
+    let should_reembed = input.title.is_some()
+        || input.description.is_some()
+        || input.metadata.is_some()
+        || input.local_asset_path.is_some();
     let database = state.require_storage().map_err(String::from)?;
-    database
+    let item = database
         .as_ref()
         .expect("require_storage guarantees initialization")
         .update_item(input)
-        .map_err(String::from)
+        .map_err(String::from)?;
+    if should_reembed {
+        crate::jobs::enqueue_embedding_for_item(
+            &database
+                .as_ref()
+                .expect("require_storage guarantees initialization")
+                .connection,
+            &item.id,
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    drop(database);
+    if should_reembed {
+        processing.enqueue_and_wake(&item.id, crate::jobs::JobKind::GenerateEmbedding);
+    }
+    Ok(item)
 }
 
 #[tauri::command]

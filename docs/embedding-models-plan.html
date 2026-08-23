@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Embedding model decision brief | mymind library</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f7f7f5;
+      --surface: #ffffff;
+      --warm: #f0f0ed;
+      --ink: #343434;
+      --muted: #777773;
+      --rule: #dfdfda;
+      --orange: #ef7540;
+      --blue: #e7eef5;
+      --green: #e6f0e6;
+      --yellow: #f5f0d9;
+      --lavender: #eee9f5;
+      --shadow: 0 12px 28px rgba(52, 52, 52, 0.07);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    a { color: #8d3b20; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    a:hover { color: var(--orange); }
+
+    .shell { max-width: 1160px; margin: 0 auto; padding: 34px 24px 70px; }
+    .eyebrow { color: var(--orange); font-size: 12px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    h1, h2, h3 { line-height: 1.15; letter-spacing: -.025em; }
+    h1 { max-width: 760px; margin: 12px 0 18px; font-size: clamp(36px, 6vw, 68px); font-weight: 780; }
+    h2 { margin: 0 0 14px; font-size: 27px; }
+    h3 { margin: 0 0 8px; font-size: 18px; }
+    p { margin: 0 0 14px; }
+    .lede { max-width: 760px; color: #5e5e5a; font-size: 19px; line-height: 1.5; }
+    .meta { margin-top: 18px; color: var(--muted); font-size: 13px; }
+
+    .hero { padding: 22px 0 36px; border-bottom: 1px solid var(--rule); }
+    .recommendation { margin-top: 26px; padding: 19px 22px; border-left: 4px solid var(--orange); background: var(--surface); box-shadow: var(--shadow); font-size: 17px; }
+    .recommendation strong { color: #7b321b; }
+
+    section { margin-top: 42px; }
+    .section-intro { max-width: 760px; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .card { padding: 20px; border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); }
+    .card.blue { background: var(--blue); }
+    .card.green { background: var(--green); }
+    .card.yellow { background: var(--yellow); }
+    .card.lavender { background: var(--lavender); }
+    .card p:last-child { margin-bottom: 0; }
+    .metric { display: block; margin-bottom: 6px; font-size: 29px; font-weight: 780; letter-spacing: -.04em; }
+    .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .09em; }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+    table { width: 100%; min-width: 850px; border-collapse: collapse; text-align: left; }
+    th, td { padding: 15px 16px; vertical-align: top; border-bottom: 1px solid var(--rule); }
+    th { background: var(--warm); color: #60605c; font-size: 12px; letter-spacing: .07em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    td:first-child { min-width: 190px; font-weight: 700; }
+    .pick { color: #26713d; font-weight: 750; }
+    .watch { color: #9b5d14; font-weight: 700; }
+    code { padding: 2px 5px; border-radius: 5px; background: var(--warm); font: 0.92em ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+    .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 20px; }
+    .step { position: relative; min-height: 126px; padding: 18px; border: 1px solid var(--rule); background: var(--surface); }
+    .step + .step { border-left: 0; }
+    .step:first-child { border-radius: 14px 0 0 14px; }
+    .step:last-child { border-radius: 0 14px 14px 0; }
+    .step-number { color: var(--orange); font-weight: 800; }
+    .step p { color: var(--muted); font-size: 13px; }
+
+    .split { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; align-items: start; }
+    .list { margin: 0; padding-left: 20px; }
+    .list li { margin: 7px 0; }
+    .note { padding: 18px 20px; border-radius: 14px; background: var(--lavender); }
+    .note p:last-child { margin-bottom: 0; }
+    .source-list { margin: 0; padding-left: 20px; color: var(--muted); }
+    .source-list li { margin: 7px 0; }
+
+    footer { margin-top: 50px; padding-top: 22px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 13px; }
+
+    @media (max-width: 760px) {
+      .shell { padding: 24px 16px 52px; }
+      .grid, .split { grid-template-columns: 1fr; }
+      .flow { grid-template-columns: 1fr; }
+      .step + .step { border-left: 1px solid var(--rule); border-top: 0; }
+      .step:first-child { border-radius: 14px 14px 0 0; }
+      .step:last-child { border-radius: 0 0 14px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="eyebrow">mymind library · milestone 1</div>
+      <h1>Choose the pair that makes the library feel associative.</h1>
+      <p class="lede">The next step is learned embeddings, but the decision is not only about text quality. We need local Windows inference, image similarity, natural-language search, and a clean path to text-to-image retrieval.</p>
+      <p class="meta">Decision brief · researched August 22, 2026 · recommendation for the first learned-model spike</p>
+      <p class="recommendation"><strong>Recommendation:</strong> test and provisionally adopt <a href="https://huggingface.co/nomic-ai/nomic-embed-text-v1.5">Nomic Embed Text v1.5</a> with <a href="https://huggingface.co/nomic-ai/nomic-embed-vision-v1.5">Nomic Embed Vision v1.5</a>. They share one embedding space, which means a text query can find images by meaning. Keep <a href="https://huggingface.co/BAAI/bge-small-en-v1.5">BGE small English v1.5</a> plus a small CLIP-style encoder as the fallback if Nomic export or CPU performance does not hold up.</p>
+    </header>
+
+    <section>
+      <h2>Why this fits the project</h2>
+      <p class="section-intro">The current corpus is English-first and covers articles, notes, quotes, PDFs, screenshots, OCR text, photos, moodboards, and visually similar image pairs. The app already has a persisted background job and a model boundary in Rust. The learned model should improve retrieval without changing capture or making users manage AI output.</p>
+      <div class="grid" style="margin-top:20px">
+        <article class="card blue">
+          <span class="metric">one space</span>
+          <span class="label">Text + image retrieval</span>
+          <p>Text embeddings and image embeddings can be compared directly, so "warm interiors" can return both an article and a matching image.</p>
+        </article>
+        <article class="card green">
+          <span class="metric">768 → 128</span>
+          <span class="label">Storage headroom</span>
+          <p>Nomic Text v1.5 supports Matryoshka-style dimensionality choices. Start at 768 for quality, then measure whether 512 or 256 is enough.</p>
+        </article>
+        <article class="card yellow">
+          <span class="metric">Apache 2.0</span>
+          <span class="label">Model license</span>
+          <p>The Nomic text and vision model cards list Apache 2.0. That is easier to ship with this MIT project than a gated or research-only model.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Shortlist</h2>
+      <p class="section-intro">The shortlist favors models that can run locally and have a believable ONNX path. Leaderboard scores are useful for narrowing the field, not for making the final decision.</p>
+      <div class="table-wrap" style="margin-top:20px">
+        <table>
+          <thead>
+            <tr><th>Candidate</th><th>What it gives us</th><th>Cost or risk</th><th>Fit</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Nomic Text v1.5<br>+ Nomic Vision v1.5</td>
+              <td>English text model with 8,192-token context and a 768-dimensional output. The vision model is aligned to the same space and lists image-text retrieval as a use case.</td>
+              <td>Both repos are large in their default weights. The model cards use custom code, so ONNX export, preprocessing, and quantization need a real spike.</td>
+              <td class="pick">Best product fit</td>
+            </tr>
+            <tr>
+              <td>BGE small English v1.5<br>+ SigLIP 2 base</td>
+              <td>Small 384-dimensional English text model with an established ONNX path. SigLIP 2 supports zero-shot image classification and image-text retrieval.</td>
+              <td>These are separate spaces. Cross-modal search needs extra design. SigLIP 2 base is roughly 0.4B parameters and its default weights are heavy for a CPU-first app.</td>
+              <td class="watch">Strong fallback</td>
+            </tr>
+            <tr>
+              <td>E5-small-v2<br>+ MobileCLIP S0/S2</td>
+              <td>Very small English text encoder, 384 dimensions and 33.4M parameters. MobileCLIP is designed for fast image-text inference.</td>
+              <td>E5 requires the right <code>query:</code> and <code>passage:</code> prefixes. Apple's model terms are research-oriented, so redistribution needs legal review.</td>
+              <td>CPU baseline</td>
+            </tr>
+            <tr>
+              <td>EmbeddingGemma 300M</td>
+              <td>Designed for on-device use, trained on 100+ languages, supports 2K context and output sizes from 768 down to 128.</td>
+              <td>It uses the Gemma license and is gated on Hugging Face. It is text-only, so it does not solve the shared text-image space by itself.</td>
+              <td>Future text option</td>
+            </tr>
+            <tr>
+              <td>Qwen3 Embedding 0.6B</td>
+              <td>Apache 2.0, 100+ languages, 32K context, up to 1024 dimensions, and custom instructions.</td>
+              <td>It is a larger text-only model. The model card says task instructions usually improve retrieval, adding more prompt policy to the embedding boundary.</td>
+              <td>Quality experiment</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Proposed behavior</h2>
+      <div class="flow">
+        <article class="step"><div class="step-number">01</div><h3>Capture</h3><p>Create the card immediately. Keep URL, file, OCR, and extracted article text as today.</p></article>
+        <article class="step"><div class="step-number">02</div><h3>Prepare</h3><p>Build one stable text input from title, description, source, OCR, note body, and extracted content.</p></article>
+        <article class="step"><div class="step-number">03</div><h3>Encode</h3><p>Run text and vision jobs in the existing worker. Normalize every vector and record its model revision.</p></article>
+        <article class="step"><div class="step-number">04</div><h3>Rank</h3><p>Blend exact FTS5 hits with semantic scores. Keep image similarity as a separate visual action until the ranking feels right.</p></article>
+      </div>
+      <div class="split" style="margin-top:18px">
+        <article class="card">
+          <h3>Storage shape</h3>
+          <ul class="list">
+            <li>Keep the existing embedding table and model discriminator.</li>
+            <li>Use stable IDs such as <code>nomic-text-v1.5</code> and <code>nomic-vision-v1.5</code>.</li>
+            <li>Record dimension, model revision, preprocessing version, and source content hash.</li>
+            <li>Store normalized float vectors first. Add quantized storage only after quality and recall are measured.</li>
+            <li>When an image has OCR or useful metadata, store both its vision vector and a text vector. This lets a text query find the image through either meaning or visible words.</li>
+          </ul>
+        </article>
+        <aside class="note">
+          <h3>One deliberate constraint</h3>
+          <p>Start with one item-level text vector. Do not introduce chunk storage for every article and PDF yet. If long-document tests show that one vector misses useful passages, add chunk vectors as a second index with clear provenance.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section>
+      <h2>Benchmark before we commit</h2>
+      <p class="section-intro">The existing 48-item corpus is enough to expose the first failures. Add a small hand-written query set so the benchmark measures the product we want, not only generic embedding behavior.</p>
+      <div class="grid" style="margin-top:20px">
+        <article class="card lavender">
+          <h3>Text retrieval</h3>
+          <p>Test exact-title misses, paraphrases, OCR terms, article themes, note meaning, PDF language, and negative distractors. Compare FTS5 alone, embeddings alone, and a hybrid rank.</p>
+        </article>
+        <article class="card blue">
+          <h3>Visual retrieval</h3>
+          <p>Query the warm interior pair, the desert pair, and the ocean distractor. Measure whether composition survives color changes and whether low-resolution images degrade gracefully.</p>
+        </article>
+        <article class="card green">
+          <h3>Local runtime</h3>
+          <p>Record download size, cold start, warm latency, peak RAM, CPU time per item, batch throughput, and DirectML behavior. Run on CPU first, then try GPU acceleration.</p>
+        </article>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h3>Suggested acceptance gates</h3>
+        <ul class="list">
+          <li>Exact and OCR search remain available when a model is missing or a job fails.</li>
+          <li>The learned model beats the deterministic encoder on hand-written semantic queries without causing obvious false positives.</li>
+          <li>The Nomic pair returns relevant text and images for cross-modal queries, not only same-type results.</li>
+          <li>First-run model download is explicit, resumable, and separate from the application installer.</li>
+          <li>Changing the model revision marks old vectors stale and gives the worker a safe reindex path.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <h2>Implementation order</h2>
+      <div class="split">
+        <article class="card">
+          <ol class="list">
+            <li>Build a small model runner outside the UI and export Nomic text and vision to ONNX.</li>
+            <li>Verify tokenizer, image resize, normalization, pooling, output dimensions, and cosine scores against the reference implementation.</li>
+            <li>Add a model manifest with revision, license text, download URL, expected files, and SHA-256 hashes.</li>
+            <li>Replace the deterministic functions behind the existing Rust boundary.</li>
+            <li>Reindex the benchmark corpus, add semantic query commands, and compare hybrid ranking.</li>
+            <li>Only then decide whether 768 dimensions or a smaller Matryoshka slice is the production default.</li>
+          </ol>
+        </article>
+        <article class="card yellow">
+          <h3>Fallback rule</h3>
+          <p>If Nomic cannot meet the CPU or packaging budget, choose BGE small v1.5 for text and a compact CLIP-family image encoder for visual similarity. Keep cross-modal search as a later feature rather than forcing incompatible spaces together.</p>
+          <p>This is the safe engineering fallback, not the preferred product behavior.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Sources checked</h2>
+      <ul class="source-list">
+        <li><a href="https://huggingface.co/nomic-ai/nomic-embed-text-v1.5">Nomic Embed Text v1.5 model card</a>, including context length, dimensionality options, prefixes, and Apache 2.0 license.</li>
+        <li><a href="https://huggingface.co/nomic-ai/nomic-embed-vision-v1.5">Nomic Embed Vision v1.5 model card</a>, including shared-space behavior, image-text retrieval, model size, and license.</li>
+        <li><a href="https://huggingface.co/BAAI/bge-small-en-v1.5">BGE small English v1.5 model card</a>, including 384 dimensions, 512-token input, MTEB results, and ONNX usage.</li>
+        <li><a href="https://huggingface.co/intfloat/e5-small-v2">E5-small-v2 model card</a>, including 384 dimensions, 33.4M parameters, prefixes, English-only limitation, and MIT license.</li>
+        <li><a href="https://huggingface.co/google/siglip2-base-patch16-224">Google SigLIP 2 base model card</a> and <a href="https://github.com/apple/ml-mobileclip">Apple MobileCLIP repository</a> for image-text alternatives.</li>
+        <li><a href="https://ai.google.dev/gemma/docs/embeddinggemma">Google EmbeddingGemma overview</a>, including on-device positioning, multilingual support, and flexible output sizes.</li>
+        <li><a href="https://huggingface.co/Qwen/Qwen3-Embedding-0.6B">Qwen3 Embedding 0.6B model card</a> for the larger multilingual text-only comparison.</li>
+        <li><a href="https://onnxruntime.ai/docs/execution-providers/">ONNX Runtime execution providers</a> for CPU, DirectML, and other acceleration paths.</li>
+      </ul>
+    </section>
+
+    <footer>
+      This is a proposed model-selection brief, not a final lock. The final choice should follow the local benchmark and the ONNX export spike. The product can keep ordinary FTS5 search working while learned vectors are unavailable.
+    </footer>
+  </main>
+</body>
+</html>

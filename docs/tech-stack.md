@@ -1,4 +1,4 @@
-# Technical Decision Record
+# Tech Stack
 
 ## Status
 
@@ -91,7 +91,7 @@ ONNX Runtime is appropriate for Windows CPU/GPU inference. llama.cpp is appropri
 
 ## Model selection policy
 
-Nomic Embed Text v1.5 and Nomic Embed Vision v1.5 are the initial learned embedding pair. They are downloaded as pinned INT8 ONNX artifacts into the app model cache on the first indexing run, with SHA-256 verification before use. Models will still be evaluated using a representative local test corpus, not by reputation alone. Revisit the choice if semantic search relevance, image similarity relevance, CPU time, RAM usage, GPU acceleration, download size, cold-start time, or batch processing time is not acceptable.
+Nomic Embed Text v1.5 and Nomic Embed Vision v1.5 are the initial learned embedding pair. They are downloaded as INT8 ONNX artifacts into the app model cache on the first indexing run. Models will still be evaluated using a representative local test corpus, not by reputation alone. Revisit the choice if semantic search relevance, image similarity relevance, CPU time, RAM usage, GPU acceleration, download size, cold-start time, or batch processing time is not acceptable.
 
 Support three operating modes:
 
