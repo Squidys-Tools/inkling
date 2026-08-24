@@ -10,7 +10,6 @@ import {
   Camera,
   CircleHelp,
   Clock3,
-  Command,
   ExternalLink,
   FileText,
   Grid2X2,
@@ -1709,7 +1708,7 @@ function App() {
         <div className={`library-grid ${listMode ? "list-mode" : ""}`}>
           {filteredItems.map((item, index) => (
             <article
-              className={`library-card ${item.featured ? "featured-card" : ""} ${item.accent ?? ""}`}
+              className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""}`}
               key={item.id}
               style={{ "--card-index": index } as React.CSSProperties}
               onClick={() => setSelectedItem(item)}
@@ -1730,16 +1729,16 @@ function App() {
               ) : item.kind === "Post" && item.post ? (
                 <PostArtwork post={item.post} />
               ) : (
-                <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art paper-yellow" : item.kind === "Note" ? "paper-blue" : item.accent ?? ""}`} aria-hidden="true">
+                <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.kind === "Note" ? "note-art" : item.accent ?? ""}`} aria-hidden="true">
                   {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
-                  {item.kind === "Note" && <><span className="note-scribble">remember<br />the shape<br />of a day</span><span className="note-star">✳</span></>}
+                  {item.kind === "Note" && <><span className="note-pin" /><span className="note-label">QUICK THOUGHT</span><span className="note-scribble">remember<br />the shape<br />of a day</span><span className="note-rule note-rule-one" /><span className="note-rule note-rule-two" /><span className="note-star">✳</span></>}
                   {item.kind === "PDF" && <><span className="pdf-label">FIELD<br />NOTES</span><span className="pdf-rule" /></>}
                   {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
                 </div>
               )}
-              <div className={`card-content ${item.kind === "Quote" ? "quote-content" : ""}`}>
+              <div className={`card-content ${item.kind === "Quote" ? "quote-content" : item.kind === "Note" ? "note-content" : ""}`}>
                 <div className="card-kicker"><span><KindIcon kind={item.kind} />{item.kind}</span><span>{item.date}</span></div>
-                <h2 className={item.kind === "Quote" ? "quote-title" : ""}>{item.kind === "Quote" ? `“${item.title}”` : item.title}</h2>
+                <h2 className={item.kind === "Quote" ? "quote-title" : ""}>{item.kind === "Quote" ? (/^["“]/u.test(item.title.trim()) ? item.title : `“${item.title}”`) : item.title}</h2>
                 <p className={item.kind === "Quote" ? "quote-attribution" : ""}>{item.description ? (item.kind === "Quote" && !item.description.trim().startsWith("—") ? `— ${item.description}` : item.description) : (item.kind === "Quote" ? "" : item.description)}</p>
                 {item.processing?.active && (
                   <div className="card-processing" role="status">
@@ -1804,7 +1803,6 @@ function App() {
           </div>
         )}
 
-        <footer className="main-footer"><span>mymind library</span><span>Save without organizing.</span><span className="footer-shortcut"><Command size={12} /> K to add</span></footer>
         </div>
       </main>
 
