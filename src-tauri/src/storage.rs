@@ -192,6 +192,15 @@ pub struct CreateUrlInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CreateQuoteInput {
+    pub body: String,
+    pub attribution: Option<String>,
+    pub source_url: Option<String>,
+    pub metadata: Option<Value>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SaveFileInput {
     #[serde(default, alias = "itemId")]
     pub id: Option<String>,
@@ -363,6 +372,89 @@ impl LibraryStorage {
                 created_at, updated_at
              ) VALUES (?1, 'note', ?2, ?3, ?4, '', ?5, ?5)",
             params![id, title, body, metadata_json, timestamp],
+        )?;
+
+        self.get_item(&id)?.ok_or(StorageError::NotFound(id))
+    }
+
+    fn create_quote(&self, input: CreateQuoteInput) -> Result<ItemDto, StorageError> {
+        let body = input.body.trim().to_owned();
+        if body.is_empty() {
+            return Err(StorageError::InvalidInput(
+                "quote text cannot be empty".into(),
+            ));
+        }
+        if body.len() > 2000 {
+            return Err(StorageError::InvalidInput(
+                "quote text must be at most 2000 characters".into(),
+            ));
+        }
+        let attribution = input.attribution.and_then(non_empty_string);
+        if attribution
+            .as_deref()
+            .is_some_and(|value| value.len() > 240)
+        {
+            return Err(StorageError::InvalidInput(
+                "quote attribution must be at most 240 characters".into(),
+            ));
+        }
+        let source_url = match input.source_url.and_then(non_empty_string) {
+            Some(url) => Some(normalize_http_url(&url)?),
+            None => None,
+        };
+        let source_label = source_url
+            .as_deref()
+            .and_then(|url| Url::parse(url).ok())
+            .and_then(|url| url.host_str().map(str::to_owned))
+            .or_else(|| {
+                attribution
+                    .as_deref()
+                    .map(|value| value.split(',').next().unwrap_or(value).trim().to_owned())
+                    .filter(|value| !value.is_empty())
+            });
+
+        let id = Uuid::new_v4().to_string();
+        let timestamp = now_millis()?;
+        let mut metadata = match input.metadata.unwrap_or_else(|| Value::Object(Map::new())) {
+            Value::Object(map) => map,
+            _ => {
+                return Err(StorageError::InvalidInput(
+                    "metadata must be a JSON object".into(),
+                ))
+            }
+        };
+        metadata.insert("quoteText".into(), Value::String(body.clone()));
+        if let Some(attribution) = attribution.clone() {
+            metadata.insert("attribution".into(), Value::String(attribution));
+        }
+        if let Some(source_url) = source_url.clone() {
+            metadata.insert("sourceUrl".into(), Value::String(source_url.clone()));
+        }
+        // Keep a searchable text field for embeddings and FTS fallback.
+        let searchable = match attribution.clone() {
+            Some(attribution) => format!("{body}\n\n{attribution}"),
+            None => body.clone(),
+        };
+        metadata.insert("text".into(), Value::String(searchable));
+        let metadata_json = serde_json::to_string(&Value::Object(metadata))?;
+        // For quotes, title holds the quote text, description holds attribution.
+        let title = Some(body.clone());
+        let description = attribution.clone();
+
+        self.connection.execute(
+            "INSERT INTO items (
+                id, kind, title, description, source_url, source_label,
+                metadata, ocr_text, created_at, updated_at
+             ) VALUES (?1, 'quote', ?2, ?3, ?4, ?5, ?6, '', ?7, ?7)",
+            params![
+                id,
+                title,
+                description,
+                source_url,
+                source_label,
+                metadata_json,
+                timestamp
+            ],
         )?;
 
         self.get_item(&id)?.ok_or(StorageError::NotFound(id))
@@ -1190,6 +1282,31 @@ pub fn create_note(
         .as_ref()
         .expect("require_storage guarantees initialization")
         .create_note(input)
+        .map_err(String::from)?;
+    crate::jobs::enqueue_embedding_for_item(
+        &database
+            .as_ref()
+            .expect("require_storage guarantees initialization")
+            .connection,
+        &item.id,
+    )
+    .map_err(|error| error.to_string())?;
+    drop(database);
+    processing.enqueue_and_wake(&item.id, crate::jobs::JobKind::GenerateEmbedding);
+    Ok(item)
+}
+
+#[tauri::command]
+pub fn create_quote(
+    input: CreateQuoteInput,
+    state: State<'_, StorageState>,
+    processing: State<'_, crate::jobs::ProcessingState>,
+) -> Result<ItemDto, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    let item = database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .create_quote(input)
         .map_err(String::from)?;
     crate::jobs::enqueue_embedding_for_item(
         &database

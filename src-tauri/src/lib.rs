@@ -16,6 +16,7 @@ pub fn run() {
             storage::initialize_storage,
             storage::list_active_items,
             storage::create_note,
+            storage::create_quote,
             storage::create_url,
             storage::save_file,
             storage::resolve_asset_path,
