@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   Archive,
   AlertCircle,
   ArrowUpRight,
+  BadgeCheck,
   Bookmark,
   BookOpen,
   Camera,
@@ -12,19 +13,22 @@ import {
   Command,
   ExternalLink,
   FileText,
-  Filter,
   Grid2X2,
   Image as ImageIcon,
   Layers3,
   LoaderCircle,
   Link2,
   List,
+  AtSign,
+  Heart,
+  MessageCircle,
   Menu,
-  MoreHorizontal,
   PanelRight,
   Plus,
+  Repeat2,
   Search,
   RotateCw,
+  Share2,
   Settings2,
   Sparkles,
   X,
@@ -33,7 +37,6 @@ import {
   assetUrl,
   createSpace,
   createUrl,
-  countActiveJobs,
   currentDeepLinks,
   createNote,
   deleteSpace,
@@ -55,9 +58,12 @@ import {
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
+import { normalizeXPostOEmbed, xPostOEmbedUrl } from "./lib/ingestion/x-post";
+import type { XPostMetadata } from "./lib/ingestion/types";
 import "./App.css";
 
-type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "File";
+type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
+type CaptureMode = "note" | "url" | "file";
 
 export type LibraryItem = {
   id: string | number;
@@ -69,11 +75,21 @@ export type LibraryItem = {
   tags: string[];
   ocrText?: string;
   image?: string;
+  imageAlt?: string;
+  sourceUrl?: string;
+  author?: string;
+  social?: XPostMetadata;
+  post?: {
+    displayName: string;
+    handle: string;
+    body: string;
+    published: string;
+    avatarUrl?: string;
+  };
   accent?: string;
   featured?: boolean;
   favorite?: boolean;
   processing?: ProcessingSummary;
-  sourceUrl?: string;
   articleHtml?: string;
   articleAuthor?: string;
   publishedDate?: string;
@@ -93,6 +109,9 @@ function displayKind(kind: string): ItemKind {
     case "video":
     case "embed":
       return "Video";
+    case "post":
+    case "tweet":
+      return "Post";
     case "file":
       return "File";
     default:
@@ -108,11 +127,45 @@ function formatItemDate(timestamp: number) {
   return date.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
 }
 
+function readXPostMetadata(value: unknown): XPostMetadata | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  if (record.provider !== "x" || typeof record.postUrl !== "string" || typeof record.postId !== "string") {
+    return undefined;
+  }
+
+  return {
+    provider: "x",
+    postUrl: record.postUrl,
+    postId: record.postId,
+    embedHtml: typeof record.embedHtml === "string" ? record.embedHtml : undefined,
+    authorName: typeof record.authorName === "string" ? record.authorName : undefined,
+    authorUrl: typeof record.authorUrl === "string" ? record.authorUrl : undefined,
+    authorHandle: typeof record.authorHandle === "string" ? record.authorHandle : undefined,
+    text: typeof record.text === "string" ? record.text : undefined,
+    publishedDate: typeof record.publishedDate === "string" ? record.publishedDate : null,
+    width: typeof record.width === "number" ? record.width : null,
+  };
+}
+
+function postFallbackFromMetadata(social: XPostMetadata): NonNullable<LibraryItem["post"]> {
+  const published = social.publishedDate
+    ? new Date(social.publishedDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    : "On X";
+  return {
+    displayName: social.authorName ?? "X user",
+    handle: social.authorHandle ? `@${social.authorHandle.replace(/^@/u, "")}` : "@x",
+    body: social.text ?? "Post preview unavailable.",
+    published,
+  };
+}
+
 async function storedItemToLibraryItem(
   item: StoredLibraryItem,
   processing?: ProcessingSummary,
 ): Promise<LibraryItem> {
-  const kind = displayKind(item.kind);
+  const social = readXPostMetadata(item.metadata.social);
+  const kind = social ? "Post" : displayKind(item.kind);
   const metadataTags = item.metadata.tags;
   const tags = Array.isArray(metadataTags)
     ? metadataTags.filter((tag): tag is string => typeof tag === "string")
@@ -122,7 +175,13 @@ async function storedItemToLibraryItem(
   const metadataPublishedDate =
     typeof item.metadata.publishedDate === "string" ? item.metadata.publishedDate : undefined;
 
-  const image = await assetUrl(item.thumbnailPath ?? item.localAssetPath);
+  const remoteImage = Array.isArray(item.metadata.imageUrls)
+    ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")
+    : undefined;
+  const image = (await assetUrl(item.thumbnailPath ?? item.localAssetPath)) ?? remoteImage;
+  const source = social
+    ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
+    : item.sourceLabel || item.sourceUrl || "Quick note";
 
   return {
     id: item.id,
@@ -130,16 +189,20 @@ async function storedItemToLibraryItem(
     title: item.title?.trim() || "Untitled note",
     description:
       item.description?.trim() ||
+      social?.text?.trim() ||
       item.ocrText?.trim().slice(0, 180) ||
       "Saved to your mind.",
-    source: item.sourceLabel || item.sourceUrl || "Quick note",
+    source,
+    sourceUrl: item.sourceUrl ?? undefined,
     date: formatItemDate(item.createdAt),
     tags,
     ocrText: item.ocrText,
     image,
+    imageAlt: item.title?.trim() || undefined,
+    social,
+    post: social ? postFallbackFromMetadata(social) : undefined,
     favorite: item.favorite,
     processing,
-    sourceUrl: item.sourceUrl ?? undefined,
     articleHtml: metadataHtml && metadataHtml.trim() ? metadataHtml : undefined,
     articleAuthor: metadataAuthor,
     publishedDate: metadataPublishedDate,
@@ -151,12 +214,17 @@ const seedItems: LibraryItem[] = [
   {
     id: 1,
     kind: "Article",
-    title: "The quiet architecture of attention",
+    title: "As We May Think",
     description:
-      "A field note on designing environments that make room for deep work, wandering, and the occasional useful distraction.",
-    source: "thecreativeindependent.com",
+      "Vannevar Bush imagines the memex: a personal desk for storing, linking, and revisiting everything worth reading.",
+    source: "The Atlantic",
+    sourceUrl: "https://www.theatlantic.com/magazine/archive/1945/07/as-we-may-think/303881/",
+    author: "Vannevar Bush",
+    image:
+      "https://cdn.theatlantic.com/thumbor/p3pkh2RYR4qWpQk3qC6zhJpPd9Y=/0x350:2994x1909/1200x625/media/img/2018/03/AP_413517775098/original.jpg",
+    imageAlt: "A historical photograph from The Atlantic's archive accompanying As We May Think",
     date: "Saved today",
-    tags: ["attention", "writing"],
+    tags: ["essay", "memory"],
     accent: "ink",
     featured: true,
     favorite: true,
@@ -164,67 +232,171 @@ const seedItems: LibraryItem[] = [
   {
     id: 2,
     kind: "Image",
-    title: "A room that remembers",
-    description: "Warm light, timber, and one very good chair.",
-    source: "are.na",
+    title: "Lago di Braies, Dolomites",
+    description: "The boathouse at the north shore, before the day-trippers arrive.",
+    source: "Unsplash",
+    sourceUrl: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1800&q=90",
     date: "Yesterday",
-    tags: ["interiors", "warm"],
+    tags: ["landscape", "reference"],
     image:
-      "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1000&q=85",
+      "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1000&q=85",
+    imageAlt: "A wooden boat house beside a clear alpine lake with mountains behind it",
     favorite: true,
   },
   {
     id: 3,
-    kind: "Note",
-    title: "Things worth making time for",
+    kind: "Article",
+    title: "How to Do Great Work",
     description:
-      "A short list: morning pages, long walks without a destination, learning the names of trees, sending the postcard.",
-    source: "Quick note",
-    date: "Monday",
-    tags: ["thoughts", "life"],
-    accent: "paper-blue",
+      "Paul Graham’s guide to choosing work, following curiosity to the frontier, and making successive versions until something great appears.",
+    source: "Paul Graham",
+    sourceUrl: "https://paulgraham.com/greatwork.html",
+    author: "Paul Graham",
+    image: "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1000&q=85",
+    imageAlt: "A notebook and coffee on a desk, a quiet setting for doing great work",
+    date: "Aug 20",
+    tags: ["essay", "work"],
+    favorite: true,
   },
   {
     id: 4,
     kind: "Image",
-    title: "Orange as a signal",
-    description: "A color study collected from a passing afternoon.",
-    source: "Are.na channel",
-    date: "May 18",
-    tags: ["color", "reference"],
+    title: "Wireframes on a design desk",
+    description: "A real product sketch: paper prototypes, a pencil, and the first shape of a flow.",
+    source: "Unsplash",
+    sourceUrl: "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?auto=format&fit=crop&w=1800&q=90",
+    date: "Aug 18",
+    tags: ["ui", "reference"],
     image:
-      "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1000&q=85",
+      "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?auto=format&fit=crop&w=1000&q=85",
+    imageAlt: "A designer sketching interface wireframes on paper beside a laptop",
   },
   {
     id: 5,
-    kind: "PDF",
-    title: "Notes on a living archive",
-    description: "A small research paper on memory, retrieval, and why indexes become places.",
-    source: "Internet Archive",
-    date: "May 14",
-    tags: ["research", "archive"],
-    accent: "paper-green",
+    kind: "Post",
+    title: "The first post on Twitter",
+    description: "A two-word product launch document from the first day of Twitter.",
+    source: "X · @jack",
+    sourceUrl: "https://x.com/jack/status/20",
+    date: "Mar 21, 2006",
+    tags: ["twitter", "history", "post"],
+    social: {
+      provider: "x",
+      postUrl: "https://x.com/jack/status/20",
+      postId: "20",
+      embedHtml:
+        '<blockquote class="twitter-tweet" data-width="550" data-dnt="true" data-theme="light"><p lang="en" dir="ltr">just setting up my twttr</p>&mdash; jack (@jack) <a href="https://x.com/jack/status/20?ref_src=twsrc%5Etfw">March 21, 2006</a></blockquote>',
+    },
+    post: {
+      displayName: "jack",
+      handle: "@jack",
+      body: "just setting up my twttr",
+      published: "Mar 21, 2006",
+      avatarUrl: "https://unavatar.io/twitter/jack",
+    },
   },
   {
     id: 6,
-    kind: "Quote",
-    title: "“The mind is a place with weather.”",
-    description: "— Annie Dillard",
-    source: "Pilgrim at Tinker Creek",
-    date: "May 08",
-    tags: ["writing", "wonder"],
-    accent: "paper-yellow",
+    kind: "Image",
+    title: "A dashboard worth studying",
+    description: "Dark UI, dense information, and just enough color to make the important number pop.",
+    source: "Unsplash",
+    sourceUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1800&q=90",
+    date: "Aug 12",
+    tags: ["ui", "reference"],
+    image:
+      "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1000&q=85",
+    imageAlt: "A dark analytics dashboard with charts and colorful data visualizations",
   },
   {
     id: 7,
+    kind: "Article",
+    title: "10 Usability Heuristics for User Interface Design",
+    description:
+      "Jakob Nielsen’s durable checklist for interfaces: visibility, user control, error recovery, consistency, and more.",
+    source: "Nielsen Norman Group",
+    sourceUrl: "https://www.nngroup.com/articles/ten-usability-heuristics/",
+    author: "Jakob Nielsen",
+    image: "https://media.nngroup.com/media/articles/opengraph_images/Updated10HeuristicSocialCard-36.png",
+    imageAlt: "Nielsen Norman Group social card for the ten usability heuristics",
+    date: "Aug 08",
+    tags: ["ui", "ux", "heuristics"],
+  },
+  {
+    id: 8,
+    kind: "Video",
+    title: "Inventing on Principle",
+    description:
+      "Bret Victor argues creators should see and react to their work instantly — the talk that reframed how a generation thinks about tooling.",
+    source: "Bret Victor",
+    sourceUrl: "https://worrydream.com/#!/InventingOnPrinciple",
+    author: "Bret Victor",
+    image: "https://i.ytimg.com/vi/PUv66718DII/hqdefault.jpg",
+    imageAlt: "Bret Victor presenting Inventing on Principle",
+    date: "Aug 05",
+    tags: ["talks", "design"],
+  },
+  {
+    id: 9,
     kind: "Image",
-    title: "Built for looking slowly",
-    description: "A study in quiet proportions and imperfect repetition.",
-    source: "mymind library",
-    date: "May 02",
-    tags: ["objects", "form"],
+    title: "Peaks above a sea of clouds",
+    description: "Alpine dusk from above the cloud layer.",
+    source: "Unsplash",
+    sourceUrl: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1800&q=90",
+    date: "Aug 02",
+    tags: ["landscape", "color"],
     image:
-      "https://images.unsplash.com/photo-1549490349-8643362247b5?auto=format&fit=crop&w=1000&q=85",
+      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1000&q=85",
+    imageAlt: "Snowy mountain peaks glowing above a sea of clouds at sunset",
+  },
+  {
+    id: 10,
+    kind: "PDF",
+    title: "Attention Is All You Need",
+    description:
+      "The transformer paper. Eight authors, one architecture, and the beginning of everything since.",
+    source: "arXiv",
+    sourceUrl: "https://arxiv.org/abs/1706.03762",
+    image: "https://arxiv.org/html/1706.03762/x1.png",
+    imageAlt: "The transformer architecture diagram from Attention Is All You Need",
+    date: "Jul 29",
+    tags: ["research", "ml"],
+    accent: "paper-green",
+  },
+  {
+    id: 11,
+    kind: "Image",
+    title: "A web layout in the wild",
+    description: "A product page on a laptop: editorial spacing, a strong image, and a single clear action.",
+    source: "Unsplash",
+    sourceUrl: "https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?auto=format&fit=crop&w=1800&q=90",
+    date: "Jul 24",
+    tags: ["web", "ui", "reference"],
+    image:
+      "https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?auto=format&fit=crop&w=1000&q=85",
+    imageAlt: "A laptop displaying a colorful web page on a wooden desk",
+  },
+  {
+    id: 12,
+    kind: "Note",
+    title: "Books to reread this fall",
+    description:
+      "Pilgrim at Tinker Creek, The Design of Everyday Things, Seeing Like a State. Start with the Dillard.",
+    source: "Quick note",
+    date: "Jul 19",
+    tags: ["books", "life"],
+    accent: "paper-yellow",
+  },
+  {
+    id: 13,
+    kind: "Quote",
+    title: "“It is not that we have a short time to live, but that we waste a lot of it.”",
+    description: "— Seneca",
+    source: "On the Shortness of Life",
+    date: "Jul 11",
+    tags: ["writing", "time"],
+    accent: "paper-yellow",
+    sourceUrl: "https://en.wikisource.org/wiki/Of_The_Shortness_of_Life/Chapter_1",
   },
 ];
 
@@ -242,7 +414,7 @@ const seedSpaces: StoredSpace[] = [
     id: "seed-read-later",
     name: "Read later",
     color: "green",
-    query: { tag: "research" },
+    query: { tag: "essay" },
     position: 2,
     createdAt: 0,
     updatedAt: 0,
@@ -270,6 +442,8 @@ const KIND_ALIASES: Record<string, string> = {
   embed: "video",
   file: "file",
   quote: "quote",
+  post: "post",
+  tweet: "post",
 };
 
 function canonicalKind(kind: string) {
@@ -307,8 +481,278 @@ function KindIcon({ kind }: { kind: ItemKind }) {
           ? FileText
           : kind === "Quote"
             ? Bookmark
-            : Sparkles;
+            : kind === "Post"
+              ? AtSign
+              : Sparkles;
   return <Icon size={13} strokeWidth={1.8} />;
+}
+
+function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }) {
+  return (
+    <div className="post-art" aria-hidden="true">
+      <div className="post-author">
+        <span className="post-avatar">
+          <span>j</span>
+          {post.avatarUrl && <img src={post.avatarUrl} alt="" />}
+        </span>
+        <span>
+          <strong>{post.displayName}</strong>
+          <BadgeCheck size={13} />
+          <small>{post.handle}</small>
+        </span>
+        <span className="post-platform">X</span>
+      </div>
+      <p>{post.body}</p>
+      <div className="post-date">{post.published}</div>
+      <div className="post-actions">
+        <MessageCircle size={14} />
+        <Repeat2 size={14} />
+        <Heart size={14} />
+        <Share2 size={14} />
+      </div>
+    </div>
+  );
+}
+
+type XWidgets = {
+  widgets?: {
+    load: (element?: HTMLElement) => void;
+  };
+};
+
+declare global {
+  interface Window {
+    twttr?: XWidgets;
+  }
+}
+
+let xWidgetsPromise: Promise<void> | null = null;
+const X_WIDGETS_SRC = "https://platform.twitter.com/widgets.js";
+
+function loadXWidgets() {
+  if (typeof window === "undefined" || window.twttr?.widgets) return Promise.resolve();
+  if (xWidgetsPromise) return xWidgetsPromise;
+
+  xWidgetsPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>("#twitter-wjs");
+    const script = existing ?? document.createElement("script");
+    let pollId: number | undefined;
+    let timeoutId: number | undefined;
+    let settled = false;
+
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      if (pollId !== undefined) window.clearInterval(pollId);
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      if (error) reject(error);
+      else resolve();
+    };
+
+    const checkReady = () => {
+      if (window.twttr?.widgets) finish();
+    };
+
+    const handleLoad = () => {
+      checkReady();
+      window.setTimeout(checkReady, 0);
+    };
+    const handleError = () => finish(new Error("X widgets could not be loaded."));
+
+    script.addEventListener("load", handleLoad, { once: true });
+    script.addEventListener("error", handleError, { once: true });
+
+    if (!existing) {
+      script.id = "twitter-wjs";
+      script.src = X_WIDGETS_SRC;
+      script.async = true;
+      script.charset = "utf-8";
+      document.head.appendChild(script);
+    }
+
+    checkReady();
+    pollId = window.setInterval(checkReady, 100);
+    timeoutId = window.setTimeout(() => finish(new Error("X widgets timed out.")), 15000);
+  });
+
+  return xWidgetsPromise;
+}
+
+function waitForXWidget(root: HTMLElement, timeoutMs = 8000): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let observer: MutationObserver | null = null;
+    let timeoutId: number | undefined;
+
+    const finish = (loaded: boolean) => {
+      if (settled) return;
+      settled = true;
+      observer?.disconnect();
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      resolve(loaded);
+    };
+
+    const watchWidget = () => {
+      const iframe = root.querySelector<HTMLIFrameElement>("iframe");
+      if (!iframe) return;
+
+      // X replaces the blockquote with its official cross-origin iframe. The
+      // iframe load event is not a reliable readiness signal here: cached
+      // frames can finish before a listener is attached, and some browsers do
+      // not surface a second load event for an already-created frame. Seeing
+      // the official iframe is the stable signal that widgets.js transformed
+      // this embed. Do not wait for requestAnimationFrame here: the preview
+      // can be backgrounded, and browsers throttle animation frames in that
+      // state even though the cross-origin iframe has already loaded.
+      finish(true);
+    };
+
+    observer = new MutationObserver(watchWidget);
+    observer.observe(root, { childList: true, subtree: true });
+    watchWidget();
+    timeoutId = window.setTimeout(() => finish(false), timeoutMs);
+  });
+}
+
+function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallback: ReactNode }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const nativeRef = useRef<HTMLDivElement>(null);
+  const [shouldLoad, setShouldLoad] = useState(false);
+  const [embedHtml, setEmbedHtml] = useState<string | undefined>(social.embedHtml);
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setShouldLoad(true);
+      return;
+    }
+
+    const idleWindow = window as unknown as {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    let cancelScheduledLoad: (() => void) | undefined;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        observer.disconnect();
+
+        let cancelled = false;
+        const start = () => {
+          if (!cancelled) setShouldLoad(true);
+        };
+        const idleId = idleWindow.requestIdleCallback
+          ? idleWindow.requestIdleCallback(start, { timeout: 1200 })
+          : window.setTimeout(start, 0);
+        cancelScheduledLoad = () => {
+          cancelled = true;
+          if (idleWindow.cancelIdleCallback && idleWindow.requestIdleCallback) {
+            idleWindow.cancelIdleCallback(idleId);
+          } else {
+            window.clearTimeout(idleId);
+          }
+        };
+      },
+      { rootMargin: "120px 0px" },
+    );
+    observer.observe(host);
+
+    return () => {
+      observer.disconnect();
+      cancelScheduledLoad?.();
+    };
+  }, [social.postUrl]);
+
+  useEffect(() => {
+    setShouldLoad(false);
+    setEmbedHtml(social.embedHtml);
+    setStatus("idle");
+  }, [social.embedHtml, social.postUrl]);
+
+  useEffect(() => {
+    if (!shouldLoad) return;
+    let cancelled = false;
+    setStatus("loading");
+
+    if (social.embedHtml) {
+      setEmbedHtml(social.embedHtml);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    fetch(xPostOEmbedUrl(social.postUrl), { headers: { Accept: "application/json" } })
+      .then((response) => {
+        if (!response.ok) throw new Error(`X oEmbed returned HTTP ${response.status}.`);
+        return response.json() as Promise<unknown>;
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        const normalized = normalizeXPostOEmbed(social.postUrl, payload as Parameters<typeof normalizeXPostOEmbed>[1]);
+        if (!normalized?.embedHtml) throw new Error("X did not return embed markup.");
+        setEmbedHtml(normalized.embedHtml);
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("failed");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldLoad, social.embedHtml, social.postUrl]);
+
+  useEffect(() => {
+    const root = nativeRef.current;
+    if (!root || !embedHtml) return;
+
+    root.innerHTML = embedHtml;
+    const updateEmbedWidth = () => {
+      const width = Math.min(550, Math.max(280, Math.floor(root.getBoundingClientRect().width)));
+      const iframe = root.querySelector<HTMLIFrameElement>("iframe");
+
+      if (iframe) {
+        // The iframe itself is width: 100%; changing its URL after X has
+        // rendered causes the widget to reload and can create a resize loop.
+        // Its document receives the new viewport width through the iframe box.
+        return;
+      }
+
+      root.querySelector<HTMLElement>("blockquote.twitter-tweet")?.setAttribute("data-width", String(width));
+    };
+
+    updateEmbedWidth();
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateEmbedWidth);
+    resizeObserver?.observe(root);
+    window.addEventListener("resize", updateEmbedWidth);
+    let cancelled = false;
+    loadXWidgets()
+      .then(async () => {
+        if (cancelled) return;
+        const widgetLoad = waitForXWidget(root);
+        window.twttr?.widgets?.load(root);
+        const loaded = await widgetLoad;
+        if (!cancelled) setStatus(loaded ? "ready" : "failed");
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("failed");
+      });
+
+    return () => {
+      cancelled = true;
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateEmbedWidth);
+      root.replaceChildren();
+    };
+  }, [embedHtml, shouldLoad]);
+
+  return (
+    <div className="x-post-embed" ref={hostRef} data-x-status={status}>
+      <div className={`x-post-native ${status === "ready" ? "is-ready" : ""}`} ref={nativeRef} aria-hidden={status !== "ready"} />
+      {status !== "ready" && <div className="x-post-fallback">{fallback}</div>}
+    </div>
+  );
 }
 
 function App() {
@@ -319,8 +763,9 @@ function App() {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
-  const [captureMode, setCaptureMode] = useState<"note" | "url" | "file">("note");
+  const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [captureUrl, setCaptureUrl] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -330,7 +775,6 @@ function App() {
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
-  const [activeJobCount, setActiveJobCount] = useState(0);
   const [isFindingSimilar, setIsFindingSimilar] = useState(false);
   const [similaritySource, setSimilaritySource] = useState<{ id: string; title: string } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -371,6 +815,7 @@ function App() {
       await persistFile(file, captureSource);
       setSelectedFile(null);
       setIsAdding(false);
+      setCaptureMode(null);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -389,6 +834,7 @@ function App() {
       imageUrls: article.imageUrls,
       safeEmbeds: article.safeEmbeds,
       extractor: article.extractor,
+      social: article.social,
       captureSource,
     };
 
@@ -405,19 +851,25 @@ function App() {
       return;
     }
 
+    const social = article.social;
     const item: LibraryItem = {
       id: Date.now(),
-      kind: "Article",
+      kind: social ? "Post" : "Article",
       title: article.title,
       description: article.description || article.text.slice(0, 180),
-      source: new URL(article.canonicalUrl).hostname,
+      source: social
+        ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
+        : new URL(article.canonicalUrl).hostname,
+      sourceUrl: article.canonicalUrl,
+      author: article.author,
       date: "Just now",
       tags: [],
       image: article.imageUrls[0],
-      sourceUrl: article.canonicalUrl,
       articleAuthor: article.author || undefined,
       publishedDate: article.publishedDate ?? undefined,
       articleHtml: article.html,
+      social,
+      post: social ? postFallbackFromMetadata(social) : undefined,
     };
     setItems((current) => [item, ...current]);
   }
@@ -429,6 +881,7 @@ function App() {
       await persistArticle(sourceUrl, captureSource);
       setCaptureUrl("");
       setIsAdding(false);
+      setCaptureMode(null);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -565,11 +1018,13 @@ function App() {
     setQuery("");
     setSimilaritySource(null);
     setSelectedItem(null);
+    setIsSidebarOpen(false);
   }
 
   function clearToDefaultView() {
     setActiveSpaceId(null);
     setActiveView("Everything");
+    setIsSidebarOpen(false);
   }
 
   function beginSaveSearch() {
@@ -640,6 +1095,8 @@ function App() {
       if (event.key === "Escape") {
         setSelectedItem(null);
         setIsAdding(false);
+        setCaptureMode(null);
+        setIsSidebarOpen(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -736,14 +1193,13 @@ function App() {
             : query.trim()
               ? searchItems(query)
               : listActiveItems();
-        const [storedItems, activeCount] = await Promise.all([storedItemsPromise, countActiveJobs()]);
+        const storedItems = await storedItemsPromise;
         const libraryItems = await Promise.all(storedItems.map(async (item) => {
           const jobs = await getJobStatus(item.id);
           return storedItemToLibraryItem(item, summarizeProcessingJobs(jobs));
         }));
         if (!cancelled) {
           setItems(libraryItems);
-          setActiveJobCount(activeCount);
         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -790,6 +1246,8 @@ function App() {
     event.preventDefault();
     setCaptureError(null);
 
+    if (!captureMode) return;
+
     try {
       if (captureMode === "note") {
         if (!newTitle.trim()) return;
@@ -806,19 +1264,36 @@ function App() {
       setCaptureUrl("");
       setSelectedFile(null);
       setIsAdding(false);
+      setCaptureMode(null);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }
 
-  function selectCaptureMode(mode: "note" | "url" | "file") {
+  function selectCaptureMode(mode: CaptureMode) {
     setCaptureMode(mode);
     setCaptureError(null);
   }
 
-  function openCapture(mode: "note" | "url" | "file" = "note") {
-    selectCaptureMode(mode);
+  function openCaptureModal() {
+    setCaptureError(null);
+    setSelectedFile(null);
+    setCaptureMode(null);
+    setIsSidebarOpen(false);
     setIsAdding(true);
+  }
+
+  function closeCaptureModal() {
+    if (isCapturing) return;
+    setIsAdding(false);
+    setCaptureMode(null);
+    setSelectedFile(null);
+  }
+
+  function startScreenshotCapture() {
+    setIsAdding(false);
+    setCaptureMode(null);
+    void captureScreenshot();
   }
 
   function handleDragOver(event: React.DragEvent<HTMLElement>) {
@@ -854,7 +1329,8 @@ function App() {
 
   return (
     <div className={`app-shell ${isDragActive ? "drag-active" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-      <aside className="sidebar">
+      {isSidebarOpen && <button type="button" className="sidebar-scrim" aria-label="Close navigation" onClick={() => setIsSidebarOpen(false)} />}
+      <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
         <div className="brand-lockup">
           <div className="brand-mark" aria-hidden="true">
             <span />
@@ -863,6 +1339,9 @@ function App() {
             <strong>mymind</strong>
             <span>library</span>
           </div>
+          <button type="button" className="sidebar-close" aria-label="Close navigation" onClick={() => setIsSidebarOpen(false)}>
+            <X size={18} />
+          </button>
         </div>
 
         <nav className="primary-nav" aria-label="Main navigation">
@@ -879,16 +1358,17 @@ function App() {
             onClick={() => {
               setActiveSpaceId(null);
               setActiveView("Top of mind");
+              setIsSidebarOpen(false);
             }}
           >
             <Sparkles size={17} />
             <span>Top of mind</span>
           </button>
-          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Serendipity"); }}>
+          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Serendipity"); setIsSidebarOpen(false); }}>
             <Clock3 size={17} />
             <span>Serendipity</span>
           </button>
-          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Archive"); }}>
+          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Archive"); setIsSidebarOpen(false); }}>
             <Archive size={17} />
             <span>Archive</span>
           </button>
@@ -970,10 +1450,6 @@ function App() {
         </div>
 
         <div className="sidebar-footer">
-          <div className="sidebar-prompt">
-            <span className="prompt-orb"><Sparkles size={14} /></span>
-            <span>Save something<br />to your mind.</span>
-          </div>
           <button className="nav-item footer-item">
             <Settings2 size={17} />
             <span>Settings</span>
@@ -987,28 +1463,25 @@ function App() {
 
       <main className="main-content">
         <header className="topbar">
-          <button className="mobile-menu" aria-label="Open navigation"><Menu size={19} /></button>
+          <button
+            type="button"
+            className="mobile-menu"
+            aria-label={isSidebarOpen ? "Close navigation" : "Open navigation"}
+            aria-expanded={isSidebarOpen}
+            aria-controls="library-navigation"
+            onClick={() => setIsSidebarOpen((current) => !current)}
+          >
+            <Menu size={19} />
+          </button>
           <div className="breadcrumb"><span>Library</span><span className="slash">/</span><strong>{activeView}</strong></div>
           <div className="topbar-actions">
-            <button className="icon-button" aria-label="Filter library" title="Filter library"><Filter size={17} /></button>
             <button className="icon-button" aria-label="Open panel" title="Open panel"><PanelRight size={17} /></button>
             <div className="avatar">M</div>
           </div>
         </header>
 
         <section className="library-header">
-          <div>
-            <h1>{activeView === "Everything" ? "Everything" : activeView}</h1>
-            <p>
-              <span className="live-dot" />
-              {activeJobCount > 0 ? (
-                <span className="job-summary" aria-live="polite"><LoaderCircle size={12} />Processing {activeJobCount} {activeJobCount === 1 ? "thing" : "things"}…</span>
-              ) : (
-                `${items.length} things saved · Search by whatever you remember.`
-              )}
-            </p>
-          </div>
-          <button className="quiet-link" onClick={() => openCapture("note")}><Plus size={15} /> Add a note</button>
+          <h1>{activeView === "Everything" ? "Everything" : activeView}</h1>
         </section>
 
         <section className="capture-bar" aria-label="Capture and search">
@@ -1028,62 +1501,92 @@ function App() {
             />
             <kbd><span>/</span> to search</kbd>
           </div>
-          <button className="add-button" onClick={() => setIsAdding((current) => !current)}>
+          <button className="add-button" onClick={openCaptureModal} disabled={isCapturing} title="Add something to your library">
             <Plus size={18} />
-            <span>Add to your mind</span>
-          </button>
-          <button className="capture-tool-button" onClick={() => void captureScreenshot()} disabled={isCapturing} title="Capture a screenshot">
-            <Camera size={17} />
-            <span>{isCapturing ? "Capturing…" : "Screenshot"}</span>
+            <span>{isCapturing ? "Saving…" : "Add to library"}</span>
           </button>
         </section>
 
         {isAdding && (
-          <form className="quick-capture" onSubmit={saveCapture}>
-            <div className="quick-capture-icon"><Sparkles size={16} /></div>
-            <div className="capture-mode-tabs" role="tablist" aria-label="Capture type">
-              <button type="button" className={captureMode === "note" ? "selected" : ""} onClick={() => selectCaptureMode("note")}>Note</button>
-              <button type="button" className={captureMode === "url" ? "selected" : ""} onClick={() => selectCaptureMode("url")}>Link</button>
-              <button type="button" className={captureMode === "file" ? "selected" : ""} onClick={() => selectCaptureMode("file")}>File</button>
-            </div>
-            {captureMode === "note" && <input
-              autoFocus
-              value={newTitle}
-              onChange={(event) => setNewTitle(event.target.value)}
-              placeholder="A thought, a link, a small beginning…"
-              aria-label="New note"
-            />}
-            {captureMode === "url" && <input
-              autoFocus
-              type="url"
-              value={captureUrl}
-              onChange={(event) => setCaptureUrl(event.target.value)}
-              placeholder="Paste a link to save and read later…"
-              aria-label="URL to save"
-            />}
-            {captureMode === "file" && <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="visually-hidden"
-                accept="image/*,application/pdf,video/*"
-                onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-              />
-              <button type="button" className="file-picker" onClick={() => fileInputRef.current?.click()}>
-                {selectedFile ? selectedFile.name : "Choose an image, PDF, or video"}
-              </button>
-            </>}
-            <span className="capture-type">{captureMode === "note" ? "Quick note" : captureMode === "url" ? "Defuddle article" : "Local file"}</span>
-            <button className="capture-save" type="submit">Save</button>
-            <button className="capture-close" type="button" onClick={() => setIsAdding(false)} aria-label="Close capture"><X size={16} /></button>
-          </form>
+          <div className="capture-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && closeCaptureModal()}>
+            <section className="capture-modal" role="dialog" aria-modal="true" aria-labelledby="capture-modal-title">
+              <header className="capture-modal-header">
+                <div>
+                  <h2 id="capture-modal-title">Add to your library</h2>
+                  <p>Choose what you want to save.</p>
+                </div>
+                <button className="icon-button small" type="button" onClick={closeCaptureModal} aria-label="Close add menu"><X size={16} /></button>
+              </header>
+
+              <div className="capture-options" aria-label="Add options">
+                <button type="button" className={`capture-option ${captureMode === "note" ? "selected" : ""}`} onClick={() => selectCaptureMode("note")} aria-pressed={captureMode === "note"}>
+                  <span className="capture-option-icon"><FileText size={18} /></span>
+                  <span className="capture-option-copy"><strong>Note</strong><span>Write something to remember.</span></span>
+                </button>
+                <button type="button" className={`capture-option ${captureMode === "url" ? "selected" : ""}`} onClick={() => selectCaptureMode("url")} aria-pressed={captureMode === "url"}>
+                  <span className="capture-option-icon"><Link2 size={18} /></span>
+                  <span className="capture-option-copy"><strong>Link</strong><span>Save an article, page, or X post.</span></span>
+                </button>
+                <button type="button" className={`capture-option ${captureMode === "file" ? "selected" : ""}`} onClick={() => selectCaptureMode("file")} aria-pressed={captureMode === "file"}>
+                  <span className="capture-option-icon"><ImageIcon size={18} /></span>
+                  <span className="capture-option-copy"><strong>File</strong><span>Upload an image, PDF, or video.</span></span>
+                </button>
+                <button type="button" className="capture-option" onClick={startScreenshotCapture} disabled={isCapturing}>
+                  <span className="capture-option-icon"><Camera size={18} /></span>
+                  <span className="capture-option-copy"><strong>Screenshot</strong><span>Capture a window or display.</span></span>
+                </button>
+              </div>
+
+              {captureMode && (
+                <form className="capture-editor" onSubmit={saveCapture}>
+                  <div className="capture-editor-heading">
+                    <strong>{captureMode === "note" ? "New note" : captureMode === "url" ? "Save a link" : "Upload a file"}</strong>
+                    <span>{captureMode === "note" ? "Quick note" : captureMode === "url" ? "Article or social post" : "Local file"}</span>
+                  </div>
+                  {captureMode === "note" && <input
+                    autoFocus
+                    value={newTitle}
+                    onChange={(event) => setNewTitle(event.target.value)}
+                    placeholder="A thought, a link, a small beginning…"
+                    aria-label="New note"
+                  />}
+                  {captureMode === "url" && <input
+                    autoFocus
+                    type="url"
+                    value={captureUrl}
+                    onChange={(event) => setCaptureUrl(event.target.value)}
+                    placeholder="Paste a link to save and read later…"
+                    aria-label="URL to save"
+                  />}
+                  {captureMode === "file" && <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="visually-hidden"
+                      accept="image/*,application/pdf,video/*"
+                      onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                    />
+                    <button type="button" className="file-picker" onClick={() => fileInputRef.current?.click()}>
+                      {selectedFile ? selectedFile.name : "Choose an image, PDF, or video"}
+                    </button>
+                  </>}
+                  <div className="capture-editor-actions">
+                    <button className="capture-cancel" type="button" onClick={() => setCaptureMode(null)}>Back</button>
+                    <button className="capture-save" type="submit" disabled={isCapturing}>{isCapturing ? "Saving…" : "Save to library"}</button>
+                  </div>
+                </form>
+              )}
+
+              {captureError && <p className="capture-error" role="alert">Couldn’t save this yet: {captureError}</p>}
+            </section>
+          </div>
         )}
 
-        {captureError && <p className="capture-error">Couldn’t save this yet: {captureError}</p>}
+        {captureError && !isAdding && <p className="capture-error">Couldn’t save this yet: {captureError}</p>}
 
         <div className="library-toolbar">
           <div className="result-context">
-            <span className="result-count">{filteredItems.length}</span> things to remember
+            <span className="result-count">{filteredItems.length}</span> items in library
             {similaritySource ? (
               <span className="search-context">similar to “{similaritySource.title}”</span>
             ) : query.trim() ? (
@@ -1095,12 +1598,15 @@ function App() {
               </>
             ) : null}
           </div>
-          <div className="view-controls" aria-label="View options">
-            <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => setListMode(false)} aria-label="Grid view" title="Grid view"><Grid2X2 size={16} /></button>
-            <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => setListMode(true)} aria-label="List view" title="List view"><List size={16} /></button>
+          <div className="toolbar-actions">
+            <div className="view-controls" aria-label="View options">
+              <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => setListMode(false)} aria-label="Grid view" title="Grid view"><Grid2X2 size={16} /></button>
+              <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => setListMode(true)} aria-label="List view" title="List view"><List size={16} /></button>
+            </div>
           </div>
         </div>
 
+        <div className="library-scroll">
         <div className={`library-grid ${listMode ? "list-mode" : ""}`}>
           {filteredItems.map((item, index) => (
             <article
@@ -1111,11 +1617,19 @@ function App() {
               tabIndex={0}
               onKeyDown={(event) => event.key === "Enter" && setSelectedItem(item)}
             >
-              {item.image ? (
-                <div className="card-image-wrap">
-                  <img src={item.image} alt="" className="card-image" />
-                  <button className="card-action" onClick={(event) => event.stopPropagation()} aria-label="More actions"><MoreHorizontal size={17} /></button>
+              {item.social?.provider === "x" ? (
+                <div className="x-post-art">
+                  <XPostEmbed
+                    social={item.social}
+                    fallback={item.post ? <PostArtwork post={item.post} /> : <div className="post-art">Post preview unavailable.</div>}
+                  />
                 </div>
+              ) : item.image ? (
+                <div className="card-image-wrap">
+                  <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />
+                </div>
+              ) : item.kind === "Post" && item.post ? (
+                <PostArtwork post={item.post} />
               ) : (
                 <div className="card-paper-art" aria-hidden="true">
                   {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
@@ -1192,12 +1706,26 @@ function App() {
         )}
 
         <footer className="main-footer"><span>mymind library</span><span>Save without organizing.</span><span className="footer-shortcut"><Command size={12} /> K to add</span></footer>
+        </div>
       </main>
 
       {selectedItem && (
         <aside className="item-inspector" aria-label="Selected item">
           <div className="inspector-top"><span>Item details</span><button className="icon-button small" onClick={() => setSelectedItem(null)} aria-label="Close details"><X size={16} /></button></div>
-          {selectedItem.image ? <img src={selectedItem.image} alt="" className="inspector-image" /> : <div className={`inspector-art ${selectedItem.accent ?? "ink"}`}><KindIcon kind={selectedItem.kind} /><span>{selectedItem.kind}</span></div>}
+          {selectedItem.social?.provider === "x" ? (
+            <div className="x-post-inspector">
+              <XPostEmbed
+                social={selectedItem.social}
+                fallback={selectedItem.post ? <PostArtwork post={selectedItem.post} /> : <div className="inspector-art ink">Post preview unavailable.</div>}
+              />
+            </div>
+          ) : selectedItem.image ? (
+            <img src={selectedItem.image} alt={selectedItem.imageAlt ?? selectedItem.title} className="inspector-image" />
+          ) : selectedItem.kind === "Post" && selectedItem.post ? (
+            <PostArtwork post={selectedItem.post} />
+          ) : (
+            <div className={`inspector-art ${selectedItem.accent ?? "ink"}`}><KindIcon kind={selectedItem.kind} /><span>{selectedItem.kind}</span></div>
+          )}
           <div className="inspector-copy">
             <div className="card-kicker"><span><KindIcon kind={selectedItem.kind} />{selectedItem.kind}</span><span>{selectedItem.date}</span></div>
             <h2>{selectedItem.title}</h2>
@@ -1241,6 +1769,7 @@ function App() {
             )}
             <button
               className="open-source"
+              type="button"
               onClick={() => selectedItem.sourceUrl && window.open(selectedItem.sourceUrl, "_blank", "noopener,noreferrer")}
               disabled={!selectedItem.sourceUrl}
             >
