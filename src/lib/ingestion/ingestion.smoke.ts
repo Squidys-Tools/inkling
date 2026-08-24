@@ -8,6 +8,7 @@ import { ingestUrl } from "./url-ingestion";
 import { isUrlIngestionError } from "./errors";
 import { normalizeHttpUrl } from "./url";
 import { sanitizeEmbedUrl } from "./safe-embeds";
+import { normalizeXPostOEmbed, parseXPostUrl, xPostOEmbedUrl } from "./x-post";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`Smoke assertion failed: ${message}`);
@@ -88,6 +89,32 @@ assert(roundup.publishedDate === "2026-08-18T23:31:35.000Z", "visible byline dat
 assert(roundup.html.includes("At a Glance"), "summary aside is promoted into article content");
 assert(!/>roundup<\/h[12]>/iu.test(roundup.html), "heading duplicating the article title is removed");
 assert(roundup.html.includes('class="article-lede"'), "heading duplicating the description becomes a lede paragraph");
+const xPostUrl = "https://x.com/jack/status/20";
+assert(parseXPostUrl(`${xPostUrl}#reply`)?.postId === "20", "X post URLs are recognized");
+assert(parseXPostUrl("https://x.com/jack") === null, "X profile URLs are not treated as posts");
+const xOEmbedHtml = `<blockquote class="twitter-tweet" data-dnt="true"><p lang="en">just setting up my twttr</p>&mdash; jack (@jack) <a href="${xPostUrl}">March 21, 2006</a></blockquote>`;
+const xOEmbed = normalizeXPostOEmbed(xPostUrl, {
+  html: xOEmbedHtml,
+  author_name: "jack",
+  author_url: "https://x.com/jack",
+  width: 550,
+});
+assert(xOEmbed?.provider === "x", "X oEmbed responses become social metadata");
+assert(xOEmbed?.text === "just setting up my twttr", "X oEmbed text is extracted");
+const ingestedXPost = await ingestUrl(xPostUrl, {
+  fetch: async (url) => {
+    assert(String(url) === xPostOEmbedUrl(xPostUrl), "X ingestion requests the official oEmbed endpoint");
+    return new Response(JSON.stringify({
+      html: xOEmbedHtml,
+      author_name: "jack",
+      author_url: "https://x.com/jack",
+      width: 550,
+    }), { headers: { "content-type": "application/json" } });
+  },
+});
+assert(ingestedXPost.social?.provider === "x", "X URLs ingest as social posts");
+assert(ingestedXPost.title === "jack's post", "X ingestion preserves the author in the title");
+
 const redirectRequests: string[] = [];
 const redirected = await ingestUrl(pageUrl, {
   fetch: async (url, init) => {
