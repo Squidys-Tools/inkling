@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import {
   assetUrl,
+  createQuote,
   createSpace,
   createUrl,
   currentDeepLinks,
@@ -63,7 +64,7 @@ import type { XPostMetadata } from "./lib/ingestion/types";
 import "./App.css";
 
 type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
-type CaptureMode = "note" | "url" | "file";
+type CaptureMode = "note" | "url" | "file" | "quote";
 
 export type LibraryItem = {
   id: string | number;
@@ -104,6 +105,8 @@ function displayKind(kind: string): ItemKind {
       return "Image";
     case "note":
       return "Note";
+    case "quote":
+      return "Quote";
     case "pdf":
       return "PDF";
     case "video":
@@ -183,15 +186,18 @@ async function storedItemToLibraryItem(
     ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
     : item.sourceLabel || item.sourceUrl || "Quick note";
 
+  const isQuote = kind === "Quote";
+  const rawTitle = item.title?.trim() || "Untitled note";
+  const rawDescription =
+    item.description?.trim() ||
+    item.ocrText?.trim().slice(0, 180) ||
+    (isQuote ? "" : "Saved to your mind.");
+
   return {
     id: item.id,
     kind,
-    title: item.title?.trim() || "Untitled note",
-    description:
-      item.description?.trim() ||
-      social?.text?.trim() ||
-      item.ocrText?.trim().slice(0, 180) ||
-      "Saved to your mind.",
+    title: rawTitle,
+    description: social?.text?.trim() || rawDescription,
     source,
     sourceUrl: item.sourceUrl ?? undefined,
     date: formatItemDate(item.createdAt),
@@ -201,6 +207,7 @@ async function storedItemToLibraryItem(
     imageAlt: item.title?.trim() || undefined,
     social,
     post: social ? postFallbackFromMetadata(social) : undefined,
+    accent: isQuote ? "paper-yellow" : undefined,
     favorite: item.favorite,
     processing,
     articleHtml: metadataHtml && metadataHtml.trim() ? metadataHtml : undefined,
@@ -437,11 +444,11 @@ const KIND_ALIASES: Record<string, string> = {
   url: "article",
   image: "image",
   note: "note",
+  quote: "quote",
   pdf: "pdf",
   video: "video",
   embed: "video",
   file: "file",
-  quote: "quote",
   post: "post",
   tweet: "post",
 };
@@ -769,6 +776,9 @@ function App() {
   const [newTitle, setNewTitle] = useState("");
   const [captureUrl, setCaptureUrl] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [newQuoteText, setNewQuoteText] = useState("");
+  const [newQuoteAttribution, setNewQuoteAttribution] = useState("");
+  const [newQuoteSourceUrl, setNewQuoteSourceUrl] = useState("");
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
   const [readingItem, setReadingItem] = useState<{ item: LibraryItem; origin: ReaderOrigin } | null>(null);
   const [listMode, setListMode] = useState(false);
@@ -928,6 +938,54 @@ function App() {
       date: "Just now",
       tags: [],
       accent: "paper-blue",
+    };
+    setItems((current) => [item, ...current]);
+  }
+
+  async function persistQuote(
+    quoteText: string,
+    attribution: string,
+    sourceUrl: string,
+    captureSource: string,
+  ) {
+    const body = quoteText.trim();
+    if (!body) throw new Error("Quote text cannot be empty.");
+    const trimmedAttribution = attribution.trim();
+    const trimmedSource = sourceUrl.trim();
+
+    if (isTauriRuntime()) {
+      const storedItem = await createQuote({
+        body,
+        attribution: trimmedAttribution || undefined,
+        sourceUrl: trimmedSource || undefined,
+        metadata: { captureSource },
+      });
+      const libraryItem = await storedItemToLibraryItem(storedItem);
+      setItems((current) => [libraryItem, ...current]);
+      return;
+    }
+
+    let sourceLabel = "Quote";
+    if (trimmedSource) {
+      try {
+        sourceLabel = new URL(trimmedSource).hostname.replace(/^www\./u, "");
+      } catch {
+        sourceLabel = trimmedSource;
+      }
+    } else if (trimmedAttribution) {
+      sourceLabel = trimmedAttribution.split(",")[0]?.trim() || "Quote";
+    }
+
+    const item: LibraryItem = {
+      id: Date.now(),
+      kind: "Quote",
+      title: body,
+      description: trimmedAttribution,
+      source: sourceLabel,
+      date: "Just now",
+      tags: [],
+      accent: "paper-yellow",
+      sourceUrl: trimmedSource || undefined,
     };
     setItems((current) => [item, ...current]);
   }
@@ -1252,6 +1310,9 @@ function App() {
       if (captureMode === "note") {
         if (!newTitle.trim()) return;
         await persistText(newTitle.trim(), "quick note");
+      } else if (captureMode === "quote") {
+        if (!newQuoteText.trim()) return;
+        await persistQuote(newQuoteText, newQuoteAttribution, newQuoteSourceUrl, "quick quote");
       } else if (captureMode === "url") {
         if (!captureUrl.trim()) return;
         await persistArticle(captureUrl.trim(), "quick link");
@@ -1261,6 +1322,9 @@ function App() {
       }
 
       setNewTitle("");
+      setNewQuoteText("");
+      setNewQuoteAttribution("");
+      setNewQuoteSourceUrl("");
       setCaptureUrl("");
       setSelectedFile(null);
       setIsAdding(false);
@@ -1275,12 +1339,16 @@ function App() {
     setCaptureError(null);
   }
 
-  function openCaptureModal() {
+  function openCapture(mode: CaptureMode | null = null) {
     setCaptureError(null);
     setSelectedFile(null);
-    setCaptureMode(null);
+    setCaptureMode(mode);
     setIsSidebarOpen(false);
     setIsAdding(true);
+  }
+
+  function openCaptureModal() {
+    openCapture();
   }
 
   function closeCaptureModal() {
@@ -1531,6 +1599,10 @@ function App() {
                   <span className="capture-option-icon"><ImageIcon size={18} /></span>
                   <span className="capture-option-copy"><strong>File</strong><span>Upload an image, PDF, or video.</span></span>
                 </button>
+                <button type="button" className={`capture-option ${captureMode === "quote" ? "selected" : ""}`} onClick={() => selectCaptureMode("quote")} aria-pressed={captureMode === "quote"}>
+                  <span className="capture-option-icon"><Bookmark size={18} /></span>
+                  <span className="capture-option-copy"><strong>Quote</strong><span>Save a passage with its source.</span></span>
+                </button>
                 <button type="button" className="capture-option" onClick={startScreenshotCapture} disabled={isCapturing}>
                   <span className="capture-option-icon"><Camera size={18} /></span>
                   <span className="capture-option-copy"><strong>Screenshot</strong><span>Capture a window or display.</span></span>
@@ -1540,8 +1612,8 @@ function App() {
               {captureMode && (
                 <form className="capture-editor" onSubmit={saveCapture}>
                   <div className="capture-editor-heading">
-                    <strong>{captureMode === "note" ? "New note" : captureMode === "url" ? "Save a link" : "Upload a file"}</strong>
-                    <span>{captureMode === "note" ? "Quick note" : captureMode === "url" ? "Article or social post" : "Local file"}</span>
+                    <strong>{captureMode === "note" ? "New note" : captureMode === "quote" ? "New quote" : captureMode === "url" ? "Save a link" : "Upload a file"}</strong>
+                    <span>{captureMode === "note" ? "Quick note" : captureMode === "quote" ? "Quote with source" : captureMode === "url" ? "Article or social post" : "Local file"}</span>
                   </div>
                   {captureMode === "note" && <input
                     autoFocus
@@ -1558,6 +1630,33 @@ function App() {
                     placeholder="Paste a link to save and read later…"
                     aria-label="URL to save"
                   />}
+                  {captureMode === "quote" && <div className="quote-capture-fields">
+                    <textarea
+                      autoFocus
+                      value={newQuoteText}
+                      onChange={(event) => setNewQuoteText(event.target.value)}
+                      placeholder="“The mind is a place with weather…”"
+                      aria-label="Quote text"
+                      rows={3}
+                      maxLength={2000}
+                    />
+                    <div className="quote-capture-row">
+                      <input
+                        value={newQuoteAttribution}
+                        onChange={(event) => setNewQuoteAttribution(event.target.value)}
+                        placeholder="Attribution"
+                        aria-label="Quote attribution"
+                        maxLength={240}
+                      />
+                      <input
+                        type="url"
+                        value={newQuoteSourceUrl}
+                        onChange={(event) => setNewQuoteSourceUrl(event.target.value)}
+                        placeholder="Source URL (optional)"
+                        aria-label="Quote source URL"
+                      />
+                    </div>
+                  </div>}
                   {captureMode === "file" && <>
                     <input
                       ref={fileInputRef}
@@ -1631,17 +1730,17 @@ function App() {
               ) : item.kind === "Post" && item.post ? (
                 <PostArtwork post={item.post} />
               ) : (
-                <div className="card-paper-art" aria-hidden="true">
+                <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art paper-yellow" : item.kind === "Note" ? "paper-blue" : item.accent ?? ""}`} aria-hidden="true">
                   {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
                   {item.kind === "Note" && <><span className="note-scribble">remember<br />the shape<br />of a day</span><span className="note-star">✳</span></>}
                   {item.kind === "PDF" && <><span className="pdf-label">FIELD<br />NOTES</span><span className="pdf-rule" /></>}
-                  {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-line" /></>}
+                  {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
                 </div>
               )}
-              <div className="card-content">
+              <div className={`card-content ${item.kind === "Quote" ? "quote-content" : ""}`}>
                 <div className="card-kicker"><span><KindIcon kind={item.kind} />{item.kind}</span><span>{item.date}</span></div>
-                <h2>{item.title}</h2>
-                <p>{item.description}</p>
+                <h2 className={item.kind === "Quote" ? "quote-title" : ""}>{item.kind === "Quote" ? `“${item.title}”` : item.title}</h2>
+                <p className={item.kind === "Quote" ? "quote-attribution" : ""}>{item.description ? (item.kind === "Quote" && !item.description.trim().startsWith("—") ? `— ${item.description}` : item.description) : (item.kind === "Quote" ? "" : item.description)}</p>
                 {item.processing?.active && (
                   <div className="card-processing" role="status">
                     <LoaderCircle size={13} />
@@ -1721,6 +1820,8 @@ function App() {
             </div>
           ) : selectedItem.image ? (
             <img src={selectedItem.image} alt={selectedItem.imageAlt ?? selectedItem.title} className="inspector-image" />
+          ) : selectedItem.kind === "Quote" ? (
+            <div className="inspector-art quote-inspector-art paper-yellow"><span className="inspector-quote-mark">“</span><span>{selectedItem.kind}</span></div>
           ) : selectedItem.kind === "Post" && selectedItem.post ? (
             <PostArtwork post={selectedItem.post} />
           ) : (
@@ -1728,8 +1829,17 @@ function App() {
           )}
           <div className="inspector-copy">
             <div className="card-kicker"><span><KindIcon kind={selectedItem.kind} />{selectedItem.kind}</span><span>{selectedItem.date}</span></div>
-            <h2>{selectedItem.title}</h2>
-            <p>{selectedItem.description}</p>
+            {selectedItem.kind === "Quote" ? (
+              <>
+                <blockquote className="inspector-quote">“{selectedItem.title}”</blockquote>
+                {selectedItem.description && <p className="inspector-attribution">— {selectedItem.description.replace(/^—\s*/u, "")}</p>}
+              </>
+            ) : (
+              <>
+                <h2>{selectedItem.title}</h2>
+                <p>{selectedItem.description}</p>
+              </>
+            )}
             {selectedItem.processing?.active && (
               <div className="inspector-processing" role="status">
                 <LoaderCircle size={14} />
