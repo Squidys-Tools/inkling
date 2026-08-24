@@ -20,7 +20,7 @@ Local library with capture, extraction, and text search.
 
 ## Milestone 1 -- Vision and Semantics
 
-**Status: In Progress**
+**Status: Complete**
 
 Vertical slice from capture through semantic understanding and search.
 
@@ -33,8 +33,7 @@ Vertical slice from capture through semantic understanding and search.
 - [x] Nomic learned embedding models through ONNX Runtime
 - [x] Semantic search over text and images
 - [x] Image similarity search
-- [ ] Smart Spaces (auto-updating saved searches)
-- [ ] Regular Spaces (manual collections)
+- [x] Smart Spaces (auto-updating saved searches)
 
 ## Milestone 2 -- Reading and Writing
 
@@ -42,7 +41,7 @@ Vertical slice from capture through semantic understanding and search.
 
 Content consumption and creation experiences.
 
-- [ ] Distraction-free article reader with clean typography
+- [x] Distraction-free article reader with clean typography
 - [ ] Focus Mode for long-form writing
 - [ ] Rich note editor (headings, bold, links, todos)
 - [ ] Quote cards with source attribution
@@ -83,3 +82,11 @@ Production readiness and first release.
 - [ ] Accessibility audit (contrast, focus indicators, screen readers)
 - [ ] Windows installer and update mechanism
 - [ ] Web version portability (frontend + domain boundaries)
+
+## TBD
+
+**Status: unknown**
+
+Future features under consideration
+
+- [ ] Regular Spaces (manual collections)

@@ -63,6 +63,31 @@ const fallbackFetched = await ingestUrl(pageUrl, {
 });
 assert(fallbackFetched.extractor === "fallback", "ingestion falls back when Defuddle fails");
 
+const roundupHtml = `
+  <html><head><title>Roundup</title>
+    <meta name="description" content="A subtitle line worth keeping">
+    <script type="application/ld+json">{"@type":"Article","headline":"Roundup","author":{"@type":"Person","name":"Original Writer"},"datePublished":"2026-03-19T12:21:47-07:00"}</script>
+  </head><body>
+    <article>
+      <header><h1>Roundup</h1></header>
+      <aside aria-label="At a glance">
+        <h3>At a Glance</h3>
+        <ul><li>Coming September 2026.</li></ul>
+      </aside>
+      <h2>A subtitle line worth keeping</h2>
+      <div class="textRow__minor">By <a href="/author/staff/">MacRumors Staff</a> <time itemprop="dateModified" dateTime="2026-08-18T16:31:35-07:00">on August 18, 2026</time></div>
+      <p>Enough meaningful body text for the extractor to accept this page as readable article content.</p>
+    </article>
+  </body></html>`;
+
+const roundup = await ingestUrl("https://example.com/roundup/thing/", {
+  fetch: async () => new Response(roundupHtml, { headers: { "content-type": "text/html; charset=utf-8" } }),
+});
+assert(roundup.author === "MacRumors Staff", "visible byline beats structured author metadata");
+assert(roundup.publishedDate === "2026-08-18T23:31:35.000Z", "visible byline date beats structured publish date");
+assert(roundup.html.includes("At a Glance"), "summary aside is promoted into article content");
+assert(!/>roundup<\/h[12]>/iu.test(roundup.html), "heading duplicating the article title is removed");
+assert(roundup.html.includes('class="article-lede"'), "heading duplicating the description becomes a lede paragraph");
 const redirectRequests: string[] = [];
 const redirected = await ingestUrl(pageUrl, {
   fetch: async (url, init) => {

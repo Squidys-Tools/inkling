@@ -5,6 +5,7 @@ import {
   AlertCircle,
   ArrowUpRight,
   Bookmark,
+  BookOpen,
   Camera,
   CircleHelp,
   Clock3,
@@ -53,11 +54,12 @@ import {
   type StoredSpace,
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
+import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
 import "./App.css";
 
 type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "File";
 
-type LibraryItem = {
+export type LibraryItem = {
   id: string | number;
   kind: ItemKind;
   title: string;
@@ -71,6 +73,10 @@ type LibraryItem = {
   featured?: boolean;
   favorite?: boolean;
   processing?: ProcessingSummary;
+  sourceUrl?: string;
+  articleHtml?: string;
+  articleAuthor?: string;
+  publishedDate?: string;
 };
 
 function displayKind(kind: string): ItemKind {
@@ -111,6 +117,10 @@ async function storedItemToLibraryItem(
   const tags = Array.isArray(metadataTags)
     ? metadataTags.filter((tag): tag is string => typeof tag === "string")
     : [];
+  const metadataHtml = typeof item.metadata.html === "string" ? item.metadata.html : undefined;
+  const metadataAuthor = typeof item.metadata.author === "string" ? item.metadata.author : undefined;
+  const metadataPublishedDate =
+    typeof item.metadata.publishedDate === "string" ? item.metadata.publishedDate : undefined;
 
   const image = await assetUrl(item.thumbnailPath ?? item.localAssetPath);
 
@@ -129,8 +139,13 @@ async function storedItemToLibraryItem(
     image,
     favorite: item.favorite,
     processing,
+    sourceUrl: item.sourceUrl ?? undefined,
+    articleHtml: metadataHtml && metadataHtml.trim() ? metadataHtml : undefined,
+    articleAuthor: metadataAuthor,
+    publishedDate: metadataPublishedDate,
   };
 }
+
 
 const seedItems: LibraryItem[] = [
   {
@@ -310,6 +325,7 @@ function App() {
   const [captureUrl, setCaptureUrl] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
+  const [readingItem, setReadingItem] = useState<{ item: LibraryItem; origin: ReaderOrigin } | null>(null);
   const [listMode, setListMode] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -398,6 +414,10 @@ function App() {
       date: "Just now",
       tags: [],
       image: article.imageUrls[0],
+      sourceUrl: article.canonicalUrl,
+      articleAuthor: article.author || undefined,
+      publishedDate: article.publishedDate ?? undefined,
+      articleHtml: article.html,
     };
     setItems((current) => [item, ...current]);
   }
@@ -612,6 +632,7 @@ function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (readingItem) return;
       if (event.key === "/" && document.activeElement?.tagName !== "INPUT") {
         event.preventDefault();
         searchRef.current?.focus();
@@ -623,7 +644,12 @@ function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [readingItem]);
+
+  function openReader(item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) {
+    if (!item.articleHtml) return;
+    setReadingItem({ item, origin });
+  }
 
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
@@ -1125,7 +1151,32 @@ function App() {
                     </button>
                   </div>
                 )}
-                <div className="card-footer"><span className="card-source">{item.source}</span><ArrowUpRight size={15} /></div>
+                <div className="card-footer">
+                  <span className="card-source">{item.source}</span>
+                  {item.kind === "Article" && (
+                    <button
+                      type="button"
+                      className="card-read"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        openReader(item, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+                      }}
+                      onKeyDown={(event) => {
+                        event.stopPropagation();
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          openReader(item);
+                        }
+                      }}
+                      disabled={!item.articleHtml}
+                      title={item.articleHtml ? "Open reader" : "No saved article text"}
+                    >
+                      Read <ArrowUpRight size={13} />
+                    </button>
+                  )}
+                  {!item.kind.startsWith("Article") && <ArrowUpRight size={15} />}
+                </div>
               </div>
             </article>
           ))}
@@ -1174,9 +1225,47 @@ function App() {
                 <Sparkles size={15} /> {isFindingSimilar ? "Finding similar…" : "Find similar images"}
               </button>
             )}
-            <button className="open-source"><ExternalLink size={15} /> Open original</button>
+            {selectedItem.kind === "Article" && (
+              <button
+                className="similar-button read-button"
+                type="button"
+                onClick={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  openReader(selectedItem, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+                }}
+                disabled={!selectedItem.articleHtml}
+                title={selectedItem.articleHtml ? "Open reader" : "No saved article text"}
+              >
+                <BookOpen size={15} /> Read
+              </button>
+            )}
+            <button
+              className="open-source"
+              onClick={() => selectedItem.sourceUrl && window.open(selectedItem.sourceUrl, "_blank", "noopener,noreferrer")}
+              disabled={!selectedItem.sourceUrl}
+            >
+              <ExternalLink size={15} /> Open original
+            </button>
           </div>
         </aside>
+      )}
+      {readingItem?.item.articleHtml && (
+        <ReaderView
+          item={
+            {
+              id: readingItem.item.id,
+              title: readingItem.item.title,
+              author: readingItem.item.articleAuthor,
+              publishedDate: readingItem.item.publishedDate,
+              savedDate: readingItem.item.date,
+              sourceLabel: readingItem.item.source,
+              sourceUrl: readingItem.item.sourceUrl ?? "",
+              html: readingItem.item.articleHtml,
+            } satisfies ReaderItem
+          }
+          origin={readingItem.origin}
+          onRequestClose={() => setReadingItem(null)}
+        />
       )}
     </div>
   );

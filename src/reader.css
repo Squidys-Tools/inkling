@@ -1,0 +1,534 @@
+@import url("https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Lora:ital,wght@0,400;0,600;1,400&family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Cormorant+Garamond:ital,wght@0,500;1,500&family=Vollkorn:ital,wght@0,400;0,600;1,400&family=Spectral:ital,wght@0,400;0,600;0,700;1,400&family=PT+Serif:ital,wght@0,400;0,700;1,400&family=Bitter:ital,wght@0,400;0,600;1,400&family=Gelasio:ital,wght@0,400;0,600;1,400&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Playfair+Display:ital,wght@1,500&family=Zilla+Slab:ital,wght@0,400;0,600;1,400&family=Space+Grotesk:wght@500;700&family=Libre+Baskerville:ital,wght@0,400;1,400&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto:ital,wght@0,400;0,700;1,400&family=Arimo:ital,wght@0,400;0,700;1,400&family=Noto+Sans:ital,wght@0,400;0,700;1,400&family=Nunito+Sans:ital,wght@0,400;0,700;0,900;1,400&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=PT+Sans:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@400;500&display=swap");
+
+.reader-overlay {
+  --reader-bg: #191917;
+  --reader-surface: #20201e;
+  --reader-ink: #e6e2da;
+  --reader-muted: #9a958b;
+  --reader-faint: #6e6a62;
+  --reader-rule: #33322e;
+  --reader-accent: #d98d68;
+  --reader-code-bg: #262624;
+  --reader-quote-bg: transparent;
+
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--reader-bg);
+  color: var(--reader-ink);
+  animation: reader-reveal 0.72s cubic-bezier(0.25, 0.8, 0.25, 1) both;
+}
+
+.reader-overlay.closing {
+  animation: reader-collapse 0.55s cubic-bezier(0.6, 0, 0.8, 0.4) both;
+}
+
+@keyframes reader-reveal {
+  from {
+    clip-path: circle(0px at var(--reader-origin-x, 50%) var(--reader-origin-y, 50%));
+  }
+  to {
+    clip-path: circle(142vmax at var(--reader-origin-x, 50%) var(--reader-origin-y, 50%));
+  }
+}
+
+@keyframes reader-collapse {
+  from {
+    clip-path: circle(142vmax at var(--reader-origin-x, 50%) var(--reader-origin-y, 50%));
+  }
+  to {
+    clip-path: circle(0px at var(--reader-origin-x, 50%) var(--reader-origin-y, 50%));
+  }
+}
+
+.reader-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    circle 340px at var(--reader-origin-x, 50%) var(--reader-origin-y, 50%),
+    color-mix(in srgb, var(--reader-accent) 14%, transparent),
+    transparent 70%
+  );
+  animation: reader-wash 1.2s ease-out both;
+}
+
+.reader-overlay.closing::before {
+  animation: none;
+  opacity: 0;
+}
+
+@keyframes reader-wash {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+    transform-origin: var(--reader-origin-x, 50%) var(--reader-origin-y, 50%);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+    transform-origin: var(--reader-origin-x, 50%) var(--reader-origin-y, 50%);
+  }
+}
+
+.reader-scroll {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 120px,
+    #000 calc(100% - 110px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 120px,
+    #000 calc(100% - 110px),
+    transparent 100%
+  );
+}
+
+.reader-close {
+  position: fixed;
+  top: 16px;
+  right: clamp(16px, 3vw, 32px);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 7px 0 5px;
+  border: 1px solid var(--reader-rule);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--reader-surface) 72%, transparent);
+  backdrop-filter: blur(12px);
+  color: var(--reader-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  animation: reader-fade 0.7s ease 0.32s both;
+}
+
+.reader-close:hover {
+  color: var(--reader-ink);
+  border-color: var(--reader-faint);
+}
+
+.reader-overlay.closing .reader-close {
+  animation: none;
+}
+
+.reader-close-esc {
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--reader-code-bg);
+  font: 500 10px "DM Mono", monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reader-close svg {
+  margin: 0 1px;
+}
+
+.reader-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: clamp(30px, 6vh, 56px) clamp(20px, 5vw, 44px) 120px;
+  animation: reader-rise 0.85s cubic-bezier(0.2, 0.75, 0.25, 1) 0.3s both;
+}
+
+.reader-overlay.closing .reader-page {
+  animation: none;
+}
+
+@keyframes reader-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes reader-rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-overlay,
+  .reader-overlay.closing,
+  .reader-overlay::before,
+  .reader-close,
+  .reader-page {
+    animation: none;
+  }
+}
+
+.reader-header {
+  margin-bottom: clamp(30px, 6vh, 54px);
+}
+
+.reader-header h1 {
+  margin: 0;
+  font-family: var(--reader-font-heading);
+  font-size: clamp(30px, 4.6vw, 42px);
+  font-weight: var(--reader-heading-weight);
+  line-height: 1.14;
+  letter-spacing: var(--reader-heading-tracking);
+  color: var(--reader-ink);
+  text-wrap: balance;
+}
+
+.reader-byline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 16px 0 0;
+  color: var(--reader-muted);
+  font-family: var(--reader-font-meta);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+}
+
+.reader-byline span + span::before {
+  content: "·";
+  margin-right: 14px;
+  color: var(--reader-faint);
+}
+
+.reader-content {
+  font-family: var(--reader-font-body);
+  font-size: var(--reader-body-size);
+  line-height: 1.75;
+  color: var(--reader-ink);
+}
+
+.reader-content .article-lede {
+  margin: 0;
+  font-size: 1.18em;
+  line-height: 1.6;
+  color: var(--reader-muted);
+}
+
+.reader-content .article-lede + * {
+  margin-top: 1.4em;
+}
+
+.reader-content > * + * {
+  margin-top: 1.15em;
+}
+
+.reader-content p {
+  margin: 0;
+}
+
+.reader-content a {
+  color: var(--reader-accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--reader-accent) 45%, transparent);
+  text-underline-offset: 3px;
+}
+
+.reader-content a:hover {
+  text-decoration-color: var(--reader-accent);
+}
+
+.reader-content h1,
+.reader-content h2,
+.reader-content h3,
+.reader-content h4,
+.reader-content h5,
+.reader-content h6 {
+  margin: 2em 0 0.6em;
+  font-family: var(--reader-font-heading);
+  font-weight: var(--reader-heading-weight);
+  line-height: 1.22;
+  letter-spacing: var(--reader-heading-tracking);
+  color: var(--reader-ink);
+}
+
+.reader-content h1 { font-size: 1.55em; }
+.reader-content h2 { font-size: 1.35em; }
+.reader-content h3 { font-size: 1.15em; }
+.reader-content h4,
+.reader-content h5,
+.reader-content h6 { font-size: 1em; }
+
+.reader-content > h1:first-child,
+.reader-content > h2:first-child,
+.reader-content > h3:first-child {
+  margin-top: 0;
+}
+
+.reader-content ul,
+.reader-content ol {
+  margin: 0;
+  padding-left: 1.5em;
+  font-family: var(--reader-font-list);
+}
+
+.reader-content li {
+  margin: 0.4em 0;
+}
+
+.reader-content li::marker {
+  color: var(--reader-accent);
+}
+
+.reader-content blockquote {
+  margin: 1.4em 0;
+  padding: 0.35em 0 0.35em 1.4em;
+  border-left: 2px solid var(--reader-accent);
+  background: var(--reader-quote-bg);
+  font-family: var(--reader-font-quote);
+  font-size: 1.08em;
+  font-style: italic;
+  line-height: 1.65;
+  color: var(--reader-ink);
+}
+
+.reader-content blockquote p {
+  margin: 0.35em 0;
+}
+
+.reader-content img,
+.reader-content video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.6em auto;
+  border-radius: 10px;
+}
+
+.reader-content figure {
+  margin: 1.6em 0;
+}
+
+.reader-content figcaption {
+  margin-top: 0.6em;
+  color: var(--reader-muted);
+  font-family: var(--reader-font-meta);
+  font-size: 12px;
+  text-align: center;
+}
+
+.reader-content pre {
+  overflow-x: auto;
+  margin: 1.4em 0;
+  padding: 1em 1.2em;
+  border: 1px solid var(--reader-rule);
+  border-radius: 10px;
+  background: var(--reader-code-bg);
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-size: 0.82em;
+  line-height: 1.6;
+}
+
+.reader-content code {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--reader-code-bg);
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-size: 0.85em;
+}
+
+.reader-content pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.reader-content hr {
+  margin: 2.4em auto;
+  width: 88px;
+  border: 0;
+  border-top: 1px solid var(--reader-rule);
+}
+
+.reader-content table {
+  width: 100%;
+  margin: 1.6em 0;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+
+.reader-content th,
+.reader-content td {
+  padding: 0.5em 0.7em;
+  border-bottom: 1px solid var(--reader-rule);
+  text-align: left;
+}
+
+.reader-content iframe {
+  display: block;
+  max-width: 100%;
+  margin: 1.6em auto;
+  border: 0;
+  border-radius: 10px;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  width: 100%;
+}
+
+.reader-footer {
+  margin-top: clamp(44px, 8vh, 70px);
+  padding-top: 26px;
+  border-top: 1px solid var(--reader-rule);
+  text-align: center;
+}
+
+.reader-footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 18px;
+  border: 1px solid var(--reader-rule);
+  border-radius: 999px;
+  background: var(--reader-surface);
+  color: var(--reader-ink);
+  font-family: var(--reader-font-meta);
+  font-size: 13px;
+  text-decoration: none;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.reader-footer a:hover {
+  border-color: var(--reader-accent);
+  transform: translateY(-1px);
+}
+
+.reader-footer svg {
+  color: var(--reader-accent);
+}
+
+.reader-font-picker {
+  position: fixed;
+  left: 18px;
+  bottom: 16px;
+  z-index: 3;
+}
+
+.reader-font-picker label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--reader-rule);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--reader-bg) 90%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.reader-font-picker span {
+  color: var(--reader-faint);
+  font: 10px "DM Mono", monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.reader-font-picker select {
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--reader-ink);
+  font: 12px "DM Sans", ui-sans-serif, sans-serif;
+  cursor: pointer;
+}
+
+.reader-overlay.reader-font-quiet-classic {
+  --reader-font-heading: "Crimson Pro", Georgia, serif;
+  --reader-font-body: "Source Serif 4", Georgia, serif;
+  --reader-font-quote: "Newsreader", Georgia, serif;
+  --reader-font-list: "Lora", Georgia, serif;
+  --reader-font-meta: "DM Mono", monospace;
+  --reader-heading-weight: 600;
+  --reader-heading-tracking: -0.01em;
+  --reader-body-size: 19px;
+}
+
+.reader-overlay.reader-font-bookplate {
+  --reader-font-heading: "EB Garamond", Georgia, serif;
+  --reader-font-body: "Literata", Georgia, serif;
+  --reader-font-quote: "Cormorant Garamond", Georgia, serif;
+  --reader-font-list: "Vollkorn", Georgia, serif;
+  --reader-font-meta: "EB Garamond", Georgia, serif;
+  --reader-heading-weight: 600;
+  --reader-heading-tracking: 0;
+  --reader-body-size: 19px;
+  --reader-quote-bg: color-mix(in srgb, var(--reader-accent) 5%, transparent);
+}
+
+.reader-overlay.reader-font-print-shop {
+  --reader-font-heading: "Spectral", Georgia, serif;
+  --reader-font-body: "PT Serif", Georgia, serif;
+  --reader-font-quote: "Bitter", Georgia, serif;
+  --reader-font-list: "Gelasio", Georgia, serif;
+  --reader-font-meta: "Spectral", Georgia, serif;
+  --reader-heading-weight: 700;
+  --reader-heading-tracking: -0.005em;
+  --reader-body-size: 18px;
+}
+
+.reader-overlay.reader-font-bold-editorial {
+  --reader-font-heading: "Fraunces", Georgia, serif;
+  --reader-font-body: "Bitter", Georgia, serif;
+  --reader-font-quote: "Playfair Display", Georgia, serif;
+  --reader-font-list: "Zilla Slab", Georgia, serif;
+  --reader-font-meta: "Zilla Slab", Georgia, serif;
+  --reader-heading-weight: 700;
+  --reader-heading-tracking: -0.015em;
+  --reader-body-size: 18px;
+}
+
+.reader-overlay.reader-font-statement {
+  --reader-font-heading: "Space Grotesk", ui-sans-serif, sans-serif;
+  --reader-font-body: "Gelasio", Georgia, serif;
+  --reader-font-quote: "Libre Baskerville", Georgia, serif;
+  --reader-font-list: "IBM Plex Serif", Georgia, serif;
+  --reader-font-meta: "Space Grotesk", ui-sans-serif, sans-serif;
+  --reader-heading-weight: 700;
+  --reader-heading-tracking: -0.02em;
+  --reader-body-size: 18px;
+}
+
+.reader-overlay.reader-font-web-standard {
+  --reader-font-heading: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --reader-font-body: "Roboto", Arial, sans-serif;
+  --reader-font-quote: "Arimo", Arial, sans-serif;
+  --reader-font-list: "Noto Sans", Arial, sans-serif;
+  --reader-font-meta: "Roboto", Arial, sans-serif;
+  --reader-heading-weight: 700;
+  --reader-heading-tracking: -0.02em;
+  --reader-body-size: 17px;
+  --reader-quote-bg: color-mix(in srgb, var(--reader-faint) 8%, transparent);
+}
+
+.reader-overlay.reader-font-web-standard .reader-content blockquote {
+  font-style: normal;
+  font-size: 1em;
+}
+
+.reader-overlay.reader-font-casual-web {
+  --reader-font-heading: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
+  --reader-font-body: "Source Sans 3", ui-sans-serif, sans-serif;
+  --reader-font-quote: "Lora", Georgia, serif;
+  --reader-font-list: "PT Sans", ui-sans-serif, sans-serif;
+  --reader-font-meta: "Source Sans 3", ui-sans-serif, sans-serif;
+  --reader-heading-weight: 900;
+  --reader-heading-tracking: -0.01em;
+  --reader-body-size: 18px;
+}
