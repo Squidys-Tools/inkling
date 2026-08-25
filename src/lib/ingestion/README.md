@@ -13,6 +13,11 @@ pipeline.
   origins. Direct video files require an exact HTTPS origin in
   `allowedDirectMediaOrigins`. `javascript:`, `data:`, `blob:`, HTTP, URLs with
   credentials/ports, unknown hosts, and malformed provider URLs are rejected.
+- `x-post.ts` recognizes public X/Twitter Post URLs and normalizes the official
+  X oEmbed response into sanitized embed markup plus searchable post metadata.
+  URL ingestion persists that metadata under `social`; the UI upgrades it with
+  X's official widgets when available and keeps a local fallback for offline or
+  blocked embeds.
 
 No function in this folder fetches network content, executes embeds, performs
 OCR, or exposes AI-derived metadata. A later ingestion service can call these

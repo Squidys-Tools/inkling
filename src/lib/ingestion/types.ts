@@ -19,6 +19,19 @@ export interface SafeEmbedCandidate {
   title?: string;
 }
 
+export interface XPostMetadata {
+  provider: "x";
+  postUrl: string;
+  postId: string;
+  embedHtml?: string;
+  authorName?: string;
+  authorUrl?: string;
+  authorHandle?: string;
+  text?: string;
+  publishedDate?: string | null;
+  width?: number | null;
+}
+
 export interface NormalizedArticle {
   sourceUrl: string;
   fetchedUrl: string;
@@ -32,6 +45,7 @@ export interface NormalizedArticle {
   imageUrls: string[];
   safeEmbeds: SafeEmbedCandidate[];
   extractor: IngestionExtractor;
+  social?: XPostMetadata;
 }
 
 export interface RawArticleExtraction {

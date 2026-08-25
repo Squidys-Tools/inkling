@@ -5,7 +5,8 @@ import { extractFallback } from "./fallback";
 import { collectImageUrls, collectSafeEmbeds, hasReadableText, htmlToText, sanitizeHtml } from "./html-safety";
 import { visibleByline } from "./fallback";
 import { normalizeHttpUrl, normalizePublishedDate, normalizeText, parseHttpUrl, uniqueStrings } from "./url";
-import type { NormalizedArticle, RawArticleExtraction, UrlIngestionOptions } from "./types";
+import { normalizeXPostOEmbed, parseXPostUrl, xPostOEmbedUrl } from "./x-post";
+import type { NormalizedArticle, RawArticleExtraction, UrlIngestionOptions, XPostMetadata } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
@@ -145,6 +146,52 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   let fetchedUrl = sourceUrl;
+
+  let xPost: XPostMetadata | null = null;
+  if (parseXPostUrl(sourceUrl)) {
+    try {
+      const oEmbedResponse = await fetchImpl(xPostOEmbedUrl(sourceUrl), {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": options.userAgent ?? DEFAULT_USER_AGENT,
+        },
+        redirect: "follow",
+        signal: controller.signal,
+      });
+
+      if (oEmbedResponse.ok) {
+        const oEmbedBody = await readResponseText(oEmbedResponse, Math.min(maxResponseBytes, 512 * 1024), sourceUrl);
+        try {
+          xPost = normalizeXPostOEmbed(sourceUrl, JSON.parse(oEmbedBody) as Record<string, unknown>);
+        } catch {
+          xPost = null;
+        }
+      }
+    } catch {
+      // X can block or rate-limit the oEmbed request. Fall through to the
+      // normal page pipeline so capture still has a chance to succeed.
+    }
+  }
+
+  if (xPost) {
+    clearTimeout(timeout);
+    const text = xPost.text || `${xPost.authorName ?? "X"} post`;
+    return {
+      sourceUrl,
+      fetchedUrl: sourceUrl,
+      canonicalUrl: xPost.postUrl,
+      title: xPost.authorName ? `${xPost.authorName}'s post` : "X post",
+      description: text,
+      author: xPost.authorName ?? "",
+      publishedDate: xPost.publishedDate ?? null,
+      html: xPost.embedHtml ?? "",
+      text,
+      imageUrls: [],
+      safeEmbeds: [],
+      extractor: "fallback",
+      social: xPost,
+    };
+  }
 
   try {
     for (let redirectCount = 0; ; redirectCount++) {
