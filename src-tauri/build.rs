@@ -64,5 +64,16 @@ fn main() {
             }
         }
     }
+
+    // onnxruntime.dll is a local, gitignored download for the load-dynamic ort
+    // backend. tauri-build validates bundle resources on every cargo invocation,
+    // so when the DLL has not been fetched yet, drop the bundle.resources entry
+    // via a config override instead of failing the build (CI check/test runs).
+    let ort_dylib = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("onnxruntime.dll");
+    println!("cargo:rerun-if-changed={}", ort_dylib.display());
+    if !ort_dylib.is_file() && env::var_os("TAURI_CONFIG").is_none() {
+        env::set_var("TAURI_CONFIG", r#"{"bundle":{"resources":[]}}"#);
+    }
+
     tauri_build::build()
 }
