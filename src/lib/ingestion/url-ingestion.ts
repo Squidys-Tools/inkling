@@ -3,8 +3,10 @@ import { DefaultDefuddleAdapter } from "./defuddle-adapter";
 import { UrlIngestionError } from "./errors";
 import { extractFallback } from "./fallback";
 import { collectImageUrls, collectSafeEmbeds, hasReadableText, htmlToText, sanitizeHtml } from "./html-safety";
+import { visibleByline } from "./fallback";
 import { normalizeHttpUrl, normalizePublishedDate, normalizeText, parseHttpUrl, uniqueStrings } from "./url";
-import type { NormalizedArticle, RawArticleExtraction, UrlIngestionOptions } from "./types";
+import { normalizeXPostOEmbed, parseXPostUrl, xPostOEmbedUrl } from "./x-post";
+import type { NormalizedArticle, RawArticleExtraction, UrlIngestionOptions, XPostMetadata } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
@@ -77,6 +79,59 @@ function parseDocument(html: string): Document {
   }
 }
 
+function normalizeHeadingText(value: string | null | undefined): string {
+  return (value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+// Summary boxes ("At a Glance", TL;DR panels) are usually <aside> elements,
+// which readers drop. Ones with a heading plus a list are article content, so
+// promote them to <section> before extraction.
+function promoteInfoAsides(document: Document): void {
+  for (const aside of [...document.querySelectorAll("aside")]) {
+    if (!aside.querySelector("h2, h3, h4") || !aside.querySelector("ul, ol")) continue;
+    const section = document.createElement("section");
+    while (aside.firstChild) section.appendChild(aside.firstChild);
+    for (const attribute of [...aside.attributes]) section.setAttribute(attribute.name, attribute.value);
+    aside.replaceWith(section);
+  }
+}
+
+// The page title and subtitle/deck usually repeat inside the extracted body.
+// Drop a leading heading that duplicates the title and turn a heading that
+// duplicates the description into a lede paragraph.
+function isDuplicateHeading(headingText: string, title: string): boolean {
+  if (!headingText || !title) return false;
+  if (headingText === title) return true;
+  if (headingText.length < 4 || title.length < 4) return false;
+  return title.startsWith(headingText) || headingText.startsWith(title);
+}
+
+function cleanArticleHeadings(document: Document, title: string, description: string): string {
+  const headings = [...document.querySelectorAll("h1, h2, h3")].filter(
+    (heading) => !heading.closest("section, aside"),
+  );
+
+  let index = 0;
+  for (let guard = 0; guard < 2 && index < headings.length; guard += 1) {
+    const heading = headings[index];
+    if (!isDuplicateHeading(normalizeHeadingText(heading.textContent), normalizeHeadingText(title))) break;
+    heading.remove();
+    index += 1;
+  }
+
+  const ledeHeading = headings[index];
+  const ledeText = normalizeHeadingText(ledeHeading?.textContent);
+  const readsLikeSentence = ledeText.length >= 50 && /[.!?]$/u.test(ledeText);
+  if (ledeHeading && description && (ledeText === normalizeHeadingText(description) || readsLikeSentence)) {
+    const lede = document.createElement("p");
+    lede.className = "article-lede";
+    lede.textContent = ledeHeading.textContent;
+    ledeHeading.replaceWith(lede);
+  }
+
+  return document.body?.innerHTML ?? "";
+}
+
 export async function ingestUrl(input: string, options: UrlIngestionOptions = {}): Promise<NormalizedArticle> {
   const sourceUrl = parseHttpUrl(input, { allowPrivateNetwork: options.allowPrivateNetwork }).toString();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -91,6 +146,52 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   let fetchedUrl = sourceUrl;
+
+  let xPost: XPostMetadata | null = null;
+  if (parseXPostUrl(sourceUrl)) {
+    try {
+      const oEmbedResponse = await fetchImpl(xPostOEmbedUrl(sourceUrl), {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": options.userAgent ?? DEFAULT_USER_AGENT,
+        },
+        redirect: "follow",
+        signal: controller.signal,
+      });
+
+      if (oEmbedResponse.ok) {
+        const oEmbedBody = await readResponseText(oEmbedResponse, Math.min(maxResponseBytes, 512 * 1024), sourceUrl);
+        try {
+          xPost = normalizeXPostOEmbed(sourceUrl, JSON.parse(oEmbedBody) as Record<string, unknown>);
+        } catch {
+          xPost = null;
+        }
+      }
+    } catch {
+      // X can block or rate-limit the oEmbed request. Fall through to the
+      // normal page pipeline so capture still has a chance to succeed.
+    }
+  }
+
+  if (xPost) {
+    clearTimeout(timeout);
+    const text = xPost.text || `${xPost.authorName ?? "X"} post`;
+    return {
+      sourceUrl,
+      fetchedUrl: sourceUrl,
+      canonicalUrl: xPost.postUrl,
+      title: xPost.authorName ? `${xPost.authorName}'s post` : "X post",
+      description: text,
+      author: xPost.authorName ?? "",
+      publishedDate: xPost.publishedDate ?? null,
+      html: xPost.embedHtml ?? "",
+      text,
+      imageUrls: [],
+      safeEmbeds: [],
+      extractor: "fallback",
+      social: xPost,
+    };
+  }
 
   try {
     for (let redirectCount = 0; ; redirectCount++) {
@@ -160,6 +261,7 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
 
   const sourceDocument = parseDocument(rawHtml);
   const extractionDocument = parseDocument(rawHtml);
+  promoteInfoAsides(extractionDocument);
   const fallback = extractFallback(sourceDocument, fetchedUrl);
   const adapter = options.defuddleAdapter ?? new DefaultDefuddleAdapter();
   let extraction = fallback;
@@ -173,7 +275,14 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
     extraction = fallback;
   }
 
-  const html = sanitizeHtml(extraction.contentHtml ?? "", fetchedUrl);
+  const byline = visibleByline(sourceDocument);
+  if (byline.author) extraction = { ...extraction, author: byline.author };
+  if (byline.publishedDate) extraction = { ...extraction, publishedDate: byline.publishedDate };
+
+  const title = normalizeText(extraction.title) || new URL(fetchedUrl).hostname;
+  const description = normalizeText(extraction.description);
+  const contentDocument = parseDocument(`<html><head></head><body>${sanitizeHtml(extraction.contentHtml ?? "", fetchedUrl)}</body></html>`);
+  const html = cleanArticleHeadings(contentDocument, title, description);
   if (!hasReadableText(html)) {
     throw new UrlIngestionError("extraction-failed", "No readable article content was found on the page.", {
       url: fetchedUrl,
@@ -190,8 +299,8 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
     sourceUrl,
     fetchedUrl,
     canonicalUrl,
-    title: normalizeText(extraction.title) || new URL(fetchedUrl).hostname,
-    description: normalizeText(extraction.description),
+    title,
+    description,
     author: normalizeText(extraction.author),
     publishedDate: normalizePublishedDate(extraction.publishedDate),
     html,

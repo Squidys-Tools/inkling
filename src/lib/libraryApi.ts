@@ -25,6 +25,13 @@ export type CreateNoteInput = {
   metadata?: Record<string, unknown>;
 };
 
+export type CreateQuoteInput = {
+  body: string;
+  attribution?: string;
+  sourceUrl?: string;
+  metadata?: Record<string, unknown>;
+};
+
 export type CreateUrlInput = {
   sourceUrl: string;
   title: string;
@@ -177,6 +184,10 @@ export async function listSpaceItems(id: string) {
 
 export async function createNote(input: CreateNoteInput) {
   return invoke<StoredLibraryItem>("create_note", { input });
+}
+
+export async function createQuote(input: CreateQuoteInput) {
+  return invoke<StoredLibraryItem>("create_quote", { input });
 }
 
 export async function createUrl(input: CreateUrlInput) {
