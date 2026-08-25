@@ -44,9 +44,9 @@ Content consumption and creation experiences.
 - [x] Distraction-free article reader with clean typography
 - [ ] Focus Mode for long-form writing
 - [ ] Rich note editor (headings, bold, links, todos)
-- [ ] Quote cards with source attribution
-- [ ] Video link cards with previews
-- [ ] PDF viewer with page navigation
+- [x] Quote cards with source attribution
+- [x] Video link cards with previews
+- [x] PDF viewer with page navigation
 
 ## Milestone 3 -- Rediscovery
 

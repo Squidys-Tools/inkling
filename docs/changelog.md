@@ -2,6 +2,16 @@
 
 All notable development phases and changes are recorded here. See also [roadmap.md](roadmap.md) for what comes next.
 
+## Phase 5 -- Reading and Writing (Aug 25, 2026)
+
+### Added
+
+- Video link cards: saved YouTube and Vimeo links are recognized at capture time, promoted to Video items with provider-canonicalized embeds and derived poster images (`src/lib/ingestion/video-links.ts`)
+- Play overlay, scrim, and provider badge on video cards in the library grid
+- Click-to-play embed player in the item inspector for YouTube/Vimeo links; native `<video>` playback for uploaded video files
+
+---
+
 ## Phase 4 -- PDF, Embeddings, CI (Aug 17-18, 2026)
 
 **PR #10** -- PDF pipeline, embeddings, CI automation, Windows fixes.

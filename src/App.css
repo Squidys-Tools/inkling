@@ -222,3 +222,18 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .post-avatar img { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; }
 .post-platform { margin-left: auto; color: #243d42; font: 700 17px/1 "DM Sans", sans-serif; letter-spacing: -.1em; }
 .post-art > p { max-width: 22ch; font-size: 20px; }
+
+.card-video-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(12, 12, 10, .02) 40%, rgba(12, 12, 10, .5)); pointer-events: none; }
+.card-play { position: absolute; inset: 0; z-index: 1; margin: auto; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: rgba(18, 18, 16, .78); color: #f2ede2; box-shadow: 0 8px 24px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 255, 255, .22); pointer-events: none; transition: transform .2s ease, background .2s ease; }
+.library-card:hover .card-play { transform: scale(1.07); background: rgba(30, 29, 26, .85); }
+.card-video-badge { position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; padding: 4px 9px; border-radius: 999px; background: rgba(14, 14, 12, .72); color: #d8d2c6; font: 500 10px "DM Sans", ui-sans-serif, sans-serif; letter-spacing: .03em; backdrop-filter: blur(6px); pointer-events: none; }
+.video-paper-play { position: absolute; inset: 0; margin: auto; width: 52px; height: 52px; display: grid; place-items: center; border: 1px solid #4a4842; border-radius: 50%; color: #b3ad8d; }
+.inspector-video { position: relative; height: 215px; margin: 16px 20px 20px; overflow: hidden; border-radius: 12px; background: #101010; }
+.inspector-video iframe { display: block; width: 100%; height: 100%; border: 0; }
+.video-poster { position: relative; display: block; width: 100%; height: 100%; padding: 0; border: 0; cursor: pointer; background: #101010; }
+.video-poster img { width: 100%; height: 100%; object-fit: cover; opacity: .88; transition: opacity .2s ease; }
+.video-poster:hover img { opacity: 1; }
+.video-poster-play { position: absolute; inset: 0; margin: auto; width: 54px; height: 54px; display: grid; place-items: center; border-radius: 50%; background: rgba(18, 18, 16, .8); color: #f2ede2; box-shadow: 0 10px 28px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .22); transition: transform .2s ease; }
+.video-poster:hover .video-poster-play { transform: scale(1.08); }
+.video-provider { position: absolute; left: 12px; bottom: 11px; color: #b3ad8d; font: 9px "DM Mono", monospace; letter-spacing: .13em; text-transform: uppercase; text-shadow: 0 1px 6px rgba(0, 0, 0, .7); pointer-events: none; }
+.inspector-native-video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
