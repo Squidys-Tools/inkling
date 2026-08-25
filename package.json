@@ -23,6 +23,7 @@
     "defuddle": "^0.19.2",
     "linkedom": "^0.18.13",
     "lucide-react": "^1.31.0",
+    "pdfjs-dist": "^6.2.108",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "regenerator-runtime": "^0.14.1"

@@ -53,6 +53,7 @@ import {
   type StoredSpace,
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
+import PdfViewer from "./components/PdfViewer";
 import "./App.css";
 
 type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "File";
@@ -67,6 +68,7 @@ type LibraryItem = {
   tags: string[];
   ocrText?: string;
   image?: string;
+  fileUrl?: string;
   accent?: string;
   featured?: boolean;
   favorite?: boolean;
@@ -112,7 +114,8 @@ async function storedItemToLibraryItem(
     ? metadataTags.filter((tag): tag is string => typeof tag === "string")
     : [];
 
-  const image = await assetUrl(item.thumbnailPath ?? item.localAssetPath);
+  const image = await assetUrl(item.thumbnailPath ?? (kind === "Image" ? item.localAssetPath : null));
+  const fileUrl = kind === "PDF" ? await assetUrl(item.localAssetPath) : undefined;
 
   return {
     id: item.id,
@@ -127,6 +130,7 @@ async function storedItemToLibraryItem(
     tags,
     ocrText: item.ocrText,
     image,
+    fileUrl,
     favorite: item.favorite,
     processing,
   };
@@ -310,6 +314,7 @@ function App() {
   const [captureUrl, setCaptureUrl] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
+  const [pdfViewerItem, setPdfViewerItem] = useState<LibraryItem | null>(null);
   const [listMode, setListMode] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -1169,6 +1174,11 @@ function App() {
             )}
             <div className="inspector-source"><span>Source</span><strong>{selectedItem.source}</strong></div>
             <div className="tag-row">{selectedItem.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
+            {selectedItem.kind === "PDF" && selectedItem.fileUrl && (
+              <button className="similar-button" type="button" onClick={() => setPdfViewerItem(selectedItem)}>
+                <FileText size={15} /> Read PDF
+              </button>
+            )}
             {selectedItem.kind === "Image" && isTauriRuntime() && (
               <button className="similar-button" type="button" onClick={() => void findSimilarImages(selectedItem)} disabled={isFindingSimilar}>
                 <Sparkles size={15} /> {isFindingSimilar ? "Finding similar…" : "Find similar images"}
@@ -1177,6 +1187,14 @@ function App() {
             <button className="open-source"><ExternalLink size={15} /> Open original</button>
           </div>
         </aside>
+      )}
+
+      {pdfViewerItem?.fileUrl && (
+        <PdfViewer
+          url={pdfViewerItem.fileUrl}
+          title={pdfViewerItem.title}
+          onClose={() => setPdfViewerItem(null)}
+        />
       )}
     </div>
   );

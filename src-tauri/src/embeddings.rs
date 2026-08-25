@@ -36,6 +36,20 @@ const TEXT_TOKENIZER_SHA256: &str =
     "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66";
 const IMAGE_MODEL_SHA256: &str = "ba9107df6e412828dae8c675096209aa39f6536de8ec8d9a872665b54dc750c3";
 
+/// huggingface.co is unreachable from some networks; `HF_ENDPOINT` accepts a
+/// mirror host (same layout, e.g. https://hf-mirror.com) without changing the
+/// pinned artifact paths or hashes.
+fn resolve_model_url(url: &str) -> String {
+    match std::env::var("HF_ENDPOINT") {
+        Ok(endpoint) if !endpoint.trim().is_empty() => url.replacen(
+            "https://huggingface.co",
+            endpoint.trim().trim_end_matches('/'),
+            1,
+        ),
+        _ => url.to_owned(),
+    }
+}
+
 static ORT_INIT: Once = Once::new();
 static TEXT_RUNTIME: OnceLock<Mutex<Option<TextRuntime>>> = OnceLock::new();
 static IMAGE_RUNTIME: OnceLock<Mutex<Option<ImageRuntime>>> = OnceLock::new();
@@ -404,7 +418,7 @@ fn prepare_asset(
             .and_then(|name| name.to_str())
             .unwrap_or("model")
     ));
-    let mut response = ureq::get(url)
+    let mut response = ureq::get(&resolve_model_url(url))
         .call()
         .map_err(|error| format!("cannot download Nomic model asset from {url}: {error}"))?;
     let mut output = File::create(&partial_path).map_err(|error| {

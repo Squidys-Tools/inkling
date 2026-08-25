@@ -28,7 +28,9 @@ sha2 = "0.10"
 rusqlite = { version = "0.40", features = ["bundled"] }
 uuid = { version = "1", features = ["v4"] }
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff", "webp"] }
-ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "download-binaries", "tls-rustls"] }
+# `load-dynamic` instead of `download-binaries`: pyke publishes no windows-gnu
+# ONNX Runtime binaries; we load the official MSVC-built DLL at runtime instead.
+ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "load-dynamic", "tls-rustls"] }
 pdf-extract = "0.12"
 tokenizers = { version = "0.23.1", default-features = false, features = ["fancy-regex"] }
 tokio = { version = "1", features = ["rt", "net", "time"] }
