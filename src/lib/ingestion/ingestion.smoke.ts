@@ -8,6 +8,7 @@ import { ingestUrl } from "./url-ingestion";
 import { isUrlIngestionError } from "./errors";
 import { normalizeHttpUrl } from "./url";
 import { sanitizeEmbedUrl } from "./safe-embeds";
+import { autoplayEmbedUrl, providerLabel, videoLinkFromSourceUrl } from "./video-links";
 import { normalizeXPostOEmbed, parseXPostUrl, xPostOEmbedUrl } from "./x-post";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -160,6 +161,17 @@ assert(sanitizeEmbedUrl("https://youtu.be/abc12345678")?.provider === "youtube",
 assert(sanitizeEmbedUrl("https://videos.example/clip.mp4", { allowedDirectMediaOrigins: ["https://videos.example"] })?.type === "video", "standalone direct-media policy allows exact origin");
 assert(sanitizeEmbedUrl("https://videos.example/clip.mp4", { allowedDirectMediaOrigins: ["https://other.example"] }) === null, "standalone direct-media policy rejects unknown origin");
 assert(sanitizeEmbedUrl("javascript:alert(1)") === null, "standalone embed policy rejects javascript URL");
+
+const youTubeLink = videoLinkFromSourceUrl("https://www.youtube.com/watch?v=abc12345678");
+assert(youTubeLink?.provider === "youtube", "YouTube watch links become video link cards");
+assert(youTubeLink?.embedUrl === "https://www.youtube-nocookie.com/embed/abc12345678", "video link embed URLs are canonicalized");
+assert(youTubeLink?.posterUrl === "https://i.ytimg.com/vi/abc12345678/hqdefault.jpg", "YouTube video links derive a poster image");
+const vimeoLink = videoLinkFromSourceUrl("https://vimeo.com/12345678901");
+assert(vimeoLink?.provider === "vimeo" && vimeoLink.posterUrl === undefined, "Vimeo links become video cards without a derived poster");
+assert(videoLinkFromSourceUrl("https://example.com/articles/first") === null, "non-video article links stay articles");
+assert(videoLinkFromSourceUrl("https://youtube.com/channel/xyz") === null, "YouTube pages without a video id stay articles");
+assert(autoplayEmbedUrl("https://player.vimeo.com/video/123") === "https://player.vimeo.com/video/123?autoplay=1", "autoplay parameter appends cleanly");
+assert(providerLabel("youtube") === "YouTube" && providerLabel("vimeo") === "Vimeo", "provider labels render properly");
 
 assert(classifyFile({ name: "photo.pdf", type: "image/png" }) === "image", "recognized MIME type beats misleading extension");
 assert(classifyFile({ name: "clip.bin", type: "video/mp4; codecs=h264" }) === "video", "video MIME type is recognized");

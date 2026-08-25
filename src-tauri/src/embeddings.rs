@@ -464,7 +464,11 @@ fn verify_asset(path: &Path, expected_sha256: &str) -> Result<(), String> {
         }
         hasher.update(&buffer[..bytes_read]);
     }
-    let actual = format!("{:x}", hasher.finalize());
+    let actual: String = hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
     if actual != expected_sha256 {
         return Err(format!(
             "Nomic model asset integrity check failed for {}",
@@ -547,7 +551,9 @@ fn add_hashed_feature(vector: &mut [f32], feature: &[u8], weight: f32) {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_f32, encode_f32, image_embedding, text_embedding};
+    use super::{decode_f32, encode_f32, image_embedding, text_embedding, verify_asset};
+    use std::fs;
+    use std::path::Path;
 
     #[test]
     fn round_trips_f32_vectors() {
@@ -568,5 +574,31 @@ mod tests {
     #[test]
     fn rejects_empty_image() {
         assert!(image_embedding(std::path::Path::new("models"), &[]).is_err());
+    }
+
+    #[test]
+    fn verifies_asset_against_known_sha256() {
+        // SHA-256("abc") from the NIST test vectors.
+        const EXPECTED: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        let path = std::env::temp_dir().join(format!("mymind-sha-{}", uuid::Uuid::new_v4()));
+        fs::write(&path, b"abc").unwrap();
+        let result = verify_asset(&path, EXPECTED);
+        fs::remove_file(&path).unwrap();
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn rejects_asset_with_wrong_sha256() {
+        let path = std::env::temp_dir().join(format!("mymind-sha-{}", uuid::Uuid::new_v4()));
+        fs::write(&path, b"abc").unwrap();
+        let result = verify_asset(&path, "not-the-digest");
+        fs::remove_file(&path).unwrap();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn verify_asset_reports_missing_files() {
+        let missing = Path::new("models").join("does-not-exist.bin");
+        assert!(verify_asset(&missing, "0".repeat(64).as_str()).is_err());
     }
 }

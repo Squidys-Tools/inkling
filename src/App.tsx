@@ -23,6 +23,7 @@ import {
   MessageCircle,
   Menu,
   PanelRight,
+  Play,
   Plus,
   Repeat2,
   Search,
@@ -57,6 +58,7 @@ import {
   type StoredSpace,
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
+import { autoplayEmbedUrl, providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 import PdfViewer from "./components/PdfViewer";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
 import { normalizeXPostOEmbed, xPostOEmbedUrl } from "./lib/ingestion/x-post";
@@ -92,9 +94,10 @@ export type LibraryItem = {
   featured?: boolean;
   favorite?: boolean;
   processing?: ProcessingSummary;
-  articleHtml?: string;
-  articleAuthor?: string;
-  publishedDate?: string;
+   articleHtml?: string;
+   articleAuthor?: string;
+   publishedDate?: string;
+   video?: VideoLinkEmbed;
 };
 
 function displayKind(kind: string): ItemKind {
@@ -169,7 +172,9 @@ async function storedItemToLibraryItem(
   processing?: ProcessingSummary,
 ): Promise<LibraryItem> {
   const social = readXPostMetadata(item.metadata.social);
-  const kind = social ? "Post" : displayKind(item.kind);
+  const baseKind = displayKind(item.kind);
+  const videoLink = baseKind === "Article" ? videoLinkFromSourceUrl(item.sourceUrl) : null;
+  const kind = social ? "Post" : videoLink ? "Video" : baseKind;
   const metadataTags = item.metadata.tags;
   const tags = Array.isArray(metadataTags)
     ? metadataTags.filter((tag): tag is string => typeof tag === "string")
@@ -183,8 +188,10 @@ async function storedItemToLibraryItem(
     ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")
     : undefined;
   const image =
-    (await assetUrl(item.thumbnailPath ?? (kind === "Image" ? item.localAssetPath : null))) ?? remoteImage;
-  const fileUrl = kind === "PDF" ? await assetUrl(item.localAssetPath) : undefined;
+    (await assetUrl(item.thumbnailPath ?? (kind === "Image" ? item.localAssetPath : null))) ??
+    remoteImage ??
+    videoLink?.posterUrl;
+  const fileUrl = kind === "PDF" || kind === "Video" ? await assetUrl(item.localAssetPath) : undefined;
   const source = social
     ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
     : item.sourceLabel || item.sourceUrl || "Quick note";
@@ -217,6 +224,7 @@ async function storedItemToLibraryItem(
     articleHtml: metadataHtml && metadataHtml.trim() ? metadataHtml : undefined,
     articleAuthor: metadataAuthor,
     publishedDate: metadataPublishedDate,
+    video: videoLink ?? undefined,
   };
 }
 
@@ -494,7 +502,9 @@ function KindIcon({ kind }: { kind: ItemKind }) {
             ? Bookmark
             : kind === "Post"
               ? AtSign
-              : Sparkles;
+              : kind === "Video"
+                ? Play
+                : Sparkles;
   return <Icon size={13} strokeWidth={1.8} />;
 }
 
@@ -522,6 +532,53 @@ function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }) {
         <Share2 size={14} />
       </div>
     </div>
+  );
+}
+
+const VIDEO_IFRAME_ALLOW =
+  "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+
+function InspectorVideoMedia({ item }: { item: LibraryItem }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  useEffect(() => setIsPlaying(false), [item.id]);
+
+  if (item.video) {
+    const poster = item.image ?? item.video.posterUrl;
+    return (
+      <div className="inspector-video">
+        {isPlaying ? (
+          <iframe
+            src={autoplayEmbedUrl(item.video.embedUrl)}
+            title={item.title}
+            allow={VIDEO_IFRAME_ALLOW}
+            allowFullScreen
+          />
+        ) : (
+          <button
+            type="button"
+            className="video-poster"
+            onClick={() => setIsPlaying(true)}
+            aria-label={`Play video: ${item.title}`}
+          >
+            {poster && <img src={poster} alt="" loading="lazy" />}
+            <span className="video-poster-play" aria-hidden="true"><Play size={21} /></span>
+            <span className="video-provider">{providerLabel(item.video.provider)}</span>
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (item.fileUrl) {
+    return (
+      <div className="inspector-video">
+        <video className="inspector-native-video" src={item.fileUrl} controls preload="metadata" />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`inspector-art ${item.accent ?? "ink"}`}><KindIcon kind={item.kind} /><span>{item.kind}</span></div>
   );
 }
 
@@ -867,9 +924,10 @@ function App() {
     }
 
     const social = article.social;
+    const videoLink = social ? null : videoLinkFromSourceUrl(article.canonicalUrl);
     const item: LibraryItem = {
       id: Date.now(),
-      kind: social ? "Post" : "Article",
+      kind: social ? "Post" : videoLink ? "Video" : "Article",
       title: article.title,
       description: article.description || article.text.slice(0, 180),
       source: social
@@ -885,6 +943,7 @@ function App() {
       articleHtml: article.html,
       social,
       post: social ? postFallbackFromMetadata(social) : undefined,
+      video: videoLink ?? undefined,
     };
     setItems((current) => [item, ...current]);
   }
@@ -1731,11 +1790,19 @@ function App() {
               ) : item.image ? (
                 <div className="card-image-wrap">
                   <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />
+                  {item.kind === "Video" && (
+                    <>
+                      <span className="card-video-scrim" aria-hidden="true" />
+                      <span className="card-play" aria-hidden="true"><Play size={16} /></span>
+                      <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
+                    </>
+                  )}
                 </div>
               ) : item.kind === "Post" && item.post ? (
                 <PostArtwork post={item.post} />
               ) : (
                 <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.kind === "Note" ? "note-art" : item.accent ?? ""}`} aria-hidden="true">
+                  {item.kind === "Video" && <span className="video-paper-play"><Play size={20} /></span>}
                   {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
                   {item.kind === "Note" && <><span className="note-pin" /><span className="note-label">QUICK THOUGHT</span><span className="note-scribble">remember<br />the shape<br />of a day</span><span className="note-rule note-rule-one" /><span className="note-rule note-rule-two" /><span className="note-star">✳</span></>}
                   {item.kind === "PDF" && <><span className="pdf-label">FIELD<br />NOTES</span><span className="pdf-rule" /></>}
@@ -1793,7 +1860,19 @@ function App() {
                       Read <ArrowUpRight size={13} />
                     </button>
                   )}
-                  {!item.kind.startsWith("Article") && <ArrowUpRight size={15} />}
+                  {item.kind === "Video" && item.video && (
+                    <button
+                      type="button"
+                      className="card-read"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedItem(item);
+                      }}
+                    >
+                      Watch <Play size={11} />
+                    </button>
+                  )}
+                  {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && <ArrowUpRight size={15} />}
                 </div>
               </div>
             </article>
@@ -1822,6 +1901,8 @@ function App() {
                 fallback={selectedItem.post ? <PostArtwork post={selectedItem.post} /> : <div className="inspector-art ink">Post preview unavailable.</div>}
               />
             </div>
+          ) : selectedItem.kind === "Video" ? (
+            <InspectorVideoMedia item={selectedItem} />
           ) : selectedItem.image ? (
             <img src={selectedItem.image} alt={selectedItem.imageAlt ?? selectedItem.title} className="inspector-image" />
           ) : selectedItem.kind === "Quote" ? (
