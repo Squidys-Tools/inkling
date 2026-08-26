@@ -10,11 +10,15 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "mymind library",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "decorations": false,
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay"
       }
     ],
     "security": {

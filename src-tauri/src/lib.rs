@@ -4,6 +4,9 @@ mod ocr;
 mod pdf;
 mod storage;
 
+use tauri::Manager;
+use tauri_plugin_decorum::WebviewWindowExt;
+
 // ort is built with `load-dynamic`, so it loads onnxruntime.dll at runtime.
 fn configure_ort_dylib() {
     if std::env::var_os("ORT_DYLIB_PATH").is_some() {
@@ -33,6 +36,15 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_decorum::init())
+        .setup(|app| {
+            // Replaces the native titlebar with an overlay: the webview fills
+            // the window and decorum injects a drag strip plus window controls.
+            app.get_webview_window("main")
+                .expect("main window must be defined in tauri.conf.json")
+                .create_overlay_titlebar()?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             storage::initialize_storage,
             storage::list_active_items,

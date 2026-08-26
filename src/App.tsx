@@ -22,7 +22,8 @@ import {
   Heart,
   MessageCircle,
   Menu,
-  PanelRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Play,
   Plus,
   Repeat2,
@@ -1015,7 +1016,10 @@ function App() {
     const body = quoteText.trim();
     if (!body) throw new Error("Quote text cannot be empty.");
     const trimmedAttribution = attribution.trim();
-    const trimmedSource = sourceUrl.trim();
+    const rawSource = sourceUrl.trim();
+    const trimmedSource = rawSource && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/u.test(rawSource) && rawSource.includes(".") && !rawSource.includes(" ")
+      ? `https://${rawSource}`
+      : rawSource;
 
     if (isTauriRuntime()) {
       const storedItem = await createQuote({
@@ -1463,16 +1467,34 @@ function App() {
     <div className={`app-shell ${isDragActive ? "drag-active" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       {isSidebarOpen && <button type="button" className="sidebar-scrim" aria-label="Close navigation" onClick={() => setIsSidebarOpen(false)} />}
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
-        <div className="brand-lockup">
+          <div className="brand-lockup" data-tauri-drag-region>
           <div className="brand-mark" aria-hidden="true">
-            <span />
+            <svg viewBox="-125 -125 250 250" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <mask id="bot-mask-2xogmq" maskUnits="userSpaceOnUse" x="-158" y="-158" width="316" height="316">
+                  <path d="M98.02 0.27C97.53 3.45 96.85 6.6 96.04 9.68C95.23 12.75 94.25 15.76 93.17 18.7C92.08 21.63 90.85 24.49 89.54 27.27C88.22 30.05 86.79 32.76 85.27 35.38C83.76 38 82.15 40.54 80.47 43.01C78.78 45.48 77.02 47.86 75.18 50.17C73.34 52.48 71.43 54.72 69.45 56.87C67.47 59.02 65.42 61.1 63.29 63.09C61.17 65.08 58.97 66.99 56.71 68.8C54.44 70.62 52.1 72.35 49.69 73.97C47.29 75.59 44.81 77.12 42.27 78.53C39.73 79.93 37.11 81.24 34.45 82.41C31.78 83.58 29.05 84.63 26.28 85.54C23.51 86.45 20.67 87.24 17.82 87.87C14.97 88.51 12.06 89.01 9.15 89.35C6.24 89.7 3.3 89.91 0.36 89.96C-2.57 90.02 -5.53 89.93 -8.46 89.7C-11.39 89.47 -14.33 89.1 -17.23 88.59C-20.14 88.09 -23.03 87.44 -25.89 86.67C-28.75 85.9 -31.58 84.99 -34.37 83.97C-37.15 82.95 -39.91 81.8 -42.62 80.55C-45.33 79.29 -48 77.91 -50.61 76.43C-53.22 74.94 -55.8 73.34 -58.3 71.63C-60.81 69.92 -63.27 68.1 -65.65 66.17C-68.04 64.24 -70.37 62.2 -72.6 60.05C-74.84 57.89 -77.01 55.63 -79.06 53.25C-81.12 50.87 -83.1 48.38 -84.93 45.78C-86.77 43.19 -88.51 40.47 -90.09 37.67C-91.66 34.87 -93.11 31.95 -94.37 28.96C-95.63 25.97 -96.74 22.87 -97.64 19.73C-98.53 16.59 -99.25 13.35 -99.74 10.11C-100.24 6.87 -100.53 3.56 -100.58 0.27C-100.64 -3.02 -100.47 -6.34 -100.07 -9.61C-99.67 -12.87 -99.04 -16.13 -98.19 -19.3C-97.34 -22.47 -96.25 -25.6 -94.97 -28.6C-93.69 -31.6 -92.18 -34.53 -90.51 -37.31C-88.85 -40.09 -86.96 -42.76 -84.96 -45.26C-82.96 -47.77 -80.78 -50.14 -78.51 -52.34C-76.24 -54.55 -73.82 -56.6 -71.36 -58.49C-68.9 -60.39 -66.32 -62.12 -63.73 -63.72C-61.14 -65.31 -58.48 -66.75 -55.82 -68.07C-53.16 -69.4 -50.46 -70.57 -47.78 -71.66C-45.1 -72.75 -42.41 -73.72 -39.73 -74.62C-37.06 -75.52 -34.39 -76.32 -31.73 -77.08C-29.07 -77.84 -26.42 -78.52 -23.77 -79.16C-21.12 -79.81 -18.48 -80.4 -15.82 -80.96C-13.16 -81.52 -10.5 -82.04 -7.8 -82.52C-5.11 -82.99 -2.39 -83.43 0.36 -83.81C3.12 -84.18 5.91 -84.52 8.75 -84.76C11.59 -85.01 14.48 -85.2 17.41 -85.26C20.34 -85.33 23.32 -85.32 26.32 -85.15C29.33 -84.98 32.38 -84.71 35.44 -84.25C38.49 -83.8 41.58 -83.2 44.63 -82.41C47.68 -81.61 50.76 -80.65 53.74 -79.48C56.73 -78.31 59.71 -76.95 62.56 -75.38C65.41 -73.82 68.21 -72.05 70.84 -70.09C73.48 -68.13 76.02 -65.96 78.37 -63.64C80.71 -61.31 82.93 -58.78 84.92 -56.13C86.91 -53.48 88.73 -50.65 90.32 -47.73C91.91 -44.82 93.3 -41.75 94.46 -38.64C95.61 -35.53 96.55 -32.3 97.26 -29.07C97.98 -25.85 98.46 -22.54 98.75 -19.27C99.03 -15.99 99.09 -12.68 98.96 -9.43C98.84 -6.17 98.51 -2.91 98.02 0.27Z" fill="#fff" />
+                  <path d="M-12 -11A12 12 0 0 1 0 -23L0 -23A12 12 0 0 1 12 -11L12 11A12 12 0 0 1 0 23L0 23A12 12 0 0 1 -12 11Z" transform="matrix(0.95,-0.3,0.3,0.93,0.76,17.82)" opacity="1" fill="#000" />
+                  <path d="M-10 -9A10 10 0 0 1 0 -19L0 -19A10 10 0 0 1 10 -9L10 9A10 10 0 0 1 0 19L0 19A10 10 0 0 1 -10 9Z" transform="matrix(0.77,-0.39,0.28,0.91,51.44,6.78)" opacity="1" fill="#000" />
+                </mask>
+              </defs>
+              <path d="M98.02 0.27C97.53 3.45 96.85 6.6 96.04 9.68C95.23 12.75 94.25 15.76 93.17 18.7C92.08 21.63 90.85 24.49 89.54 27.27C88.22 30.05 86.79 32.76 85.27 35.38C83.76 38 82.15 40.54 80.47 43.01C78.78 45.48 77.02 47.86 75.18 50.17C73.34 52.48 71.43 54.72 69.45 56.87C67.47 59.02 65.42 61.1 63.29 63.09C61.17 65.08 58.97 66.99 56.71 68.8C54.44 70.62 52.1 72.35 49.69 73.97C47.29 75.59 44.81 77.12 42.27 78.53C39.73 79.93 37.11 81.24 34.45 82.41C31.78 83.58 29.05 84.63 26.28 85.54C23.51 86.45 20.67 87.24 17.82 87.87C14.97 88.51 12.06 89.01 9.15 89.35C6.24 89.7 3.3 89.91 0.36 89.96C-2.57 90.02 -5.53 89.93 -8.46 89.7C-11.39 89.47 -14.33 89.1 -17.23 88.59C-20.14 88.09 -23.03 87.44 -25.89 86.67C-28.75 85.9 -31.58 84.99 -34.37 83.97C-37.15 82.95 -39.91 81.8 -42.62 80.55C-45.33 79.29 -48 77.91 -50.61 76.43C-53.22 74.94 -55.8 73.34 -58.3 71.63C-60.81 69.92 -63.27 68.1 -65.65 66.17C-68.04 64.24 -70.37 62.2 -72.6 60.05C-74.84 57.89 -77.01 55.63 -79.06 53.25C-81.12 50.87 -83.1 48.38 -84.93 45.78C-86.77 43.19 -88.51 40.47 -90.09 37.67C-91.66 34.87 -93.11 31.95 -94.37 28.96C-95.63 25.97 -96.74 22.87 -97.64 19.73C-98.53 16.59 -99.25 13.35 -99.74 10.11C-100.24 6.87 -100.53 3.56 -100.58 0.27C-100.64 -3.02 -100.47 -6.34 -100.07 -9.61C-99.67 -12.87 -99.04 -16.13 -98.19 -19.3C-97.34 -22.47 -96.25 -25.6 -94.97 -28.6C-93.69 -31.6 -92.18 -34.53 -90.51 -37.31C-88.85 -40.09 -86.96 -42.76 -84.96 -45.26C-82.96 -47.77 -80.78 -50.14 -78.51 -52.34C-76.24 -54.55 -73.82 -56.6 -71.36 -58.49C-68.9 -60.39 -66.32 -62.12 -63.73 -63.72C-61.14 -65.31 -58.48 -66.75 -55.82 -68.07C-53.16 -69.4 -50.46 -70.57 -47.78 -71.66C-45.1 -72.75 -42.41 -73.72 -39.73 -74.62C-37.06 -75.52 -34.39 -76.32 -31.73 -77.08C-29.07 -77.84 -26.42 -78.52 -23.77 -79.16C-21.12 -79.81 -18.48 -80.4 -15.82 -80.96C-13.16 -81.52 -10.5 -82.04 -7.8 -82.52C-5.11 -82.99 -2.39 -83.43 0.36 -83.81C3.12 -84.18 5.91 -84.52 8.75 -84.76C11.59 -85.01 14.48 -85.2 17.41 -85.26C20.34 -85.33 23.32 -85.32 26.32 -85.15C29.33 -84.98 32.38 -84.71 35.44 -84.25C38.49 -83.8 41.58 -83.2 44.63 -82.41C47.68 -81.61 50.76 -80.65 53.74 -79.48C56.73 -78.31 59.71 -76.95 62.56 -75.38C65.41 -73.82 68.21 -72.05 70.84 -70.09C73.48 -68.13 76.02 -65.96 78.37 -63.64C80.71 -61.31 82.93 -58.78 84.92 -56.13C86.91 -53.48 88.73 -50.65 90.32 -47.73C91.91 -44.82 93.3 -41.75 94.46 -38.64C95.61 -35.53 96.55 -32.3 97.26 -29.07C97.98 -25.85 98.46 -22.54 98.75 -19.27C99.03 -15.99 99.09 -12.68 98.96 -9.43C98.84 -6.17 98.51 -2.91 98.02 0.27Z" fill="#f9f9f9" />
+              <g mask="url(#bot-mask-2xogmq)">
+                <rect x="-158" y="-158" width="316" height="316" fill="#0a0a0c" />
+              </g>
+            </svg>
           </div>
           <div>
             <strong>mymind</strong>
             <span>library</span>
           </div>
-          <button type="button" className="sidebar-close" aria-label="Close navigation" onClick={() => setIsSidebarOpen(false)}>
-            <X size={18} />
+          <button
+            type="button"
+            className="sidebar-close"
+            aria-label="Close panel"
+            title="Close panel"
+            onClick={() => setIsSidebarOpen(false)}
+          >
+            <PanelLeftClose size={16} />
           </button>
         </div>
 
@@ -1582,11 +1604,11 @@ function App() {
         </div>
 
         <div className="sidebar-footer">
-          <button className="nav-item footer-item">
+          <button className="nav-item footer-item" aria-label="Settings" title="Settings">
             <Settings2 size={17} />
             <span>Settings</span>
           </button>
-          <button className="nav-item footer-item">
+          <button className="nav-item footer-item" aria-label="Help & shortcuts" title="Help & shortcuts">
             <CircleHelp size={17} />
             <span>Help & shortcuts</span>
           </button>
@@ -1594,7 +1616,7 @@ function App() {
       </aside>
 
       <main className="main-content">
-        <header className="topbar">
+        <header className="topbar" data-tauri-drag-region>
           <button
             type="button"
             className="mobile-menu"
@@ -1605,15 +1627,23 @@ function App() {
           >
             <Menu size={19} />
           </button>
-          <div className="breadcrumb"><span>Library</span><span className="slash">/</span><strong>{activeView}</strong></div>
-          <div className="topbar-actions">
-            <button className="icon-button" aria-label="Open panel" title="Open panel"><PanelRight size={17} /></button>
-            <div className="avatar">M</div>
+          <div className="topbar-left">
+            <button
+              type="button"
+              className="sidebar-toggle"
+              aria-label="Open panel"
+              title="Open panel"
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              <PanelLeftOpen size={16} />
+            </button>
+            <div className="topbar-title">
+              <span>{activeView}</span>
+            </div>
           </div>
         </header>
 
         <section className="library-header">
-          <h1>{activeView === "Everything" ? "Everything" : activeView}</h1>
         </section>
 
         <section className="capture-bar" aria-label="Capture and search">
@@ -1677,7 +1707,6 @@ function App() {
                 <form className="capture-editor" onSubmit={saveCapture}>
                   <div className="capture-editor-heading">
                     <strong>{captureMode === "note" ? "New note" : captureMode === "quote" ? "New quote" : captureMode === "url" ? "Save a link" : "Upload a file"}</strong>
-                    <span>{captureMode === "note" ? "Quick note" : captureMode === "quote" ? "Quote with source" : captureMode === "url" ? "Article or social post" : "Local file"}</span>
                   </div>
                   {captureMode === "note" && <input
                     autoFocus
@@ -1713,11 +1742,12 @@ function App() {
                         maxLength={240}
                       />
                       <input
-                        type="url"
+                        type="text"
                         value={newQuoteSourceUrl}
                         onChange={(event) => setNewQuoteSourceUrl(event.target.value)}
                         placeholder="Source URL (optional)"
                         aria-label="Quote source URL"
+                        inputMode="url"
                       />
                     </div>
                   </div>}
