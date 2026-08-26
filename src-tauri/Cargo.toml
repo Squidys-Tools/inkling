@@ -21,6 +21,9 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
+# Overlay titlebar: strips the native frame, keeps Windows Snap Layout,
+# and injects window controls into the webview so the UI runs edge to edge.
+tauri-plugin-decorum = "1.1.1"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
