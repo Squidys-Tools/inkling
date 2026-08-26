@@ -2,33 +2,47 @@
 
 ## Direction
 
-A quiet visual board for a private mind: a pale, low-chrome workspace where the search field and a heterogeneous field of saved objects do most of the work. The interface should feel calm, visual, and lightly playful rather than like a dashboard or document manager.
+A thoughtful canvas companion: a clean, modern workspace where the Bloub character exists as a responsive companion—anchored but alive, enhancing the library experience through subtle, purposeful interactions while maintaining organized precision and Apple-like animation craft. The interface balances character presence with UI cleanliness, never letting the companion dominate the workspace.
 
 ## Composition
 
-- A narrow left rail anchors navigation and Spaces.
-- Search is the primary surface at the top of the library.
-- The item field is the first visual priority: notes, quotes, images, articles, and documents use distinct card treatments.
-- The header is compact; there is no hero statement, storage meter, or dashboard metric block.
-- The detail inspector appears only when an item is selected, preserving browsing space.
+- A narrow left rail (64px) anchors navigation and Spaces with icon-based navigation.
+- Search is the primary surface at the top (48px height), with the character leaning toward it on focus.
+- The Bloub character lives in the upper-right corner (80px size) as a constant but unobtrusive presence.
+- The item field is the first visual priority: notes, quotes, images, articles, and documents use distinct card treatments with content-type color strips.
+- The header is compact; the character provides personality without needing hero statements or dashboard metrics.
+- The detail inspector appears only when an item is selected, with the character moving to the inspector's upper-right corner.
 
 ## Materials and tokens
 
-- Paper: `#f7f7f5`
-- Warm surface: `#f0f0ed`
-- Ink: `#343434`
-- Muted ink: `#858581`
-- Rule: `#e1e1dd`
-- Signal orange: `#ef7540`
-- Pastel card fields: peach, blue, green, yellow, and lavender.
-- Typography: clean sans for the interface, with no display-serif dashboard treatment.
-- Radii: 14px for content surfaces, 9px for controls.
-- Elevation: a single soft offset shadow on floating surfaces; rules elsewhere.
+- Canvas ground: `#faf9f6` (warm off-white)
+- Ink primary: `#1a1a1a` (near-black for main content)
+- Ink secondary: `#6b6b6b` (muted gray for supporting text)
+- Rule/subtle: `#e8e6e1` (soft dividers and borders)
+- Character body: `#1a1a1a` (same as ink primary for seamless integration)
+- Character eyes: `#ffffff` (pure white for contrast)
+- Character accent: `#ff7e5f` (soft coral for eye highlights/active states)
+- Content-type accents: blue `#4a90e2`, orange `#f5a623`, green `#7ed321`, purple `#bd10e0`, red `#e74c3c`
+- Card surface: `#ffffff` (pure white cards on canvas ground)
+- Typography: System UI font stack (Inter/SF Pro/Segoe UI) at 15px body, 18px headlines, 13px secondary
+- Radii: 14px for content surfaces (matching character's organic curves), 8px for controls
+- Elevation: Single soft shadow `0 2px 8px rgba(0,0,0,0.06)` on floating surfaces
+
+## Character behavior
+
+- Home base: upper-right corner, 80px from edges, with 120px movement zone
+- States: idle (breathing animation), observing (eyes follow cursor), processing (thinking morph), delighted (bounce), sleeping (eyes close after inactivity)
+- Content-type reactions: character morphs based on viewed content (reading posture for articles, wider eyes for images, thoughtful shape for notes, playful tilt for quotes)
+- Contextual surfacing: leans toward search on focus, moves to center for empty states, celebrates successes, droops slightly on errors
+- Movement: Physics-based drift within zone, 200-400ms transitions, never obscures content
+- Accessibility: Character never sole indicator of state, can be disabled in settings, respects motion preferences
 
 ## Interaction grammar
 
-- Search is the primary action and remains visible.
-- Add opens a compact capture action without a heavy modal.
-- Hover reveals media actions without obscuring the card.
-- Selection opens an inspector; Escape closes it.
-- Motion is limited to a single page entrance and small state transitions.
+- Search is the primary action and remains visible, with character enhancing the experience through contextual reactions.
+- Add opens a compact capture action without a heavy modal; character acknowledges with subtle movement.
+- Hover reveals media actions without obscuring the card; character's eyes follow cursor to hovered items.
+- Selection opens an inspector; Escape closes it; character moves between views with smooth transitions.
+- Motion follows Apple-like principles: purposeful (communicates something), subtle (never draws attention), consistent (similar timing), performant (60fps).
+- Timing standards: 150ms for micro-interactions, 200-300ms for character morphs, 300ms for layout transitions, 400ms for delight moments.
+- Easing: Default `cubic-bezier(0.4, 0.0, 0.2, 1)`, character movement `cubic-bezier(0.25, 0.1, 0.25, 1)` for organic feel.

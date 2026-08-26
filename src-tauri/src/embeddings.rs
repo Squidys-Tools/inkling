@@ -36,6 +36,20 @@ const TEXT_TOKENIZER_SHA256: &str =
     "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66";
 const IMAGE_MODEL_SHA256: &str = "ba9107df6e412828dae8c675096209aa39f6536de8ec8d9a872665b54dc750c3";
 
+/// huggingface.co is unreachable from some networks; `HF_ENDPOINT` accepts a
+/// mirror host (same layout, e.g. https://hf-mirror.com) without changing the
+/// pinned artifact paths or hashes.
+fn resolve_model_url(url: &str) -> String {
+    match std::env::var("HF_ENDPOINT") {
+        Ok(endpoint) if !endpoint.trim().is_empty() => url.replacen(
+            "https://huggingface.co",
+            endpoint.trim().trim_end_matches('/'),
+            1,
+        ),
+        _ => url.to_owned(),
+    }
+}
+
 static ORT_INIT: Once = Once::new();
 static TEXT_RUNTIME: OnceLock<Mutex<Option<TextRuntime>>> = OnceLock::new();
 static IMAGE_RUNTIME: OnceLock<Mutex<Option<ImageRuntime>>> = OnceLock::new();
@@ -404,7 +418,7 @@ fn prepare_asset(
             .and_then(|name| name.to_str())
             .unwrap_or("model")
     ));
-    let mut response = ureq::get(url)
+    let mut response = ureq::get(&resolve_model_url(url))
         .call()
         .map_err(|error| format!("cannot download Nomic model asset from {url}: {error}"))?;
     let mut output = File::create(&partial_path).map_err(|error| {
@@ -450,7 +464,11 @@ fn verify_asset(path: &Path, expected_sha256: &str) -> Result<(), String> {
         }
         hasher.update(&buffer[..bytes_read]);
     }
-    let actual = format!("{:x}", hasher.finalize());
+    let actual: String = hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
     if actual != expected_sha256 {
         return Err(format!(
             "Nomic model asset integrity check failed for {}",
@@ -533,7 +551,9 @@ fn add_hashed_feature(vector: &mut [f32], feature: &[u8], weight: f32) {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_f32, encode_f32, image_embedding, text_embedding};
+    use super::{decode_f32, encode_f32, image_embedding, text_embedding, verify_asset};
+    use std::fs;
+    use std::path::Path;
 
     #[test]
     fn round_trips_f32_vectors() {
@@ -554,5 +574,31 @@ mod tests {
     #[test]
     fn rejects_empty_image() {
         assert!(image_embedding(std::path::Path::new("models"), &[]).is_err());
+    }
+
+    #[test]
+    fn verifies_asset_against_known_sha256() {
+        // SHA-256("abc") from the NIST test vectors.
+        const EXPECTED: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        let path = std::env::temp_dir().join(format!("mymind-sha-{}", uuid::Uuid::new_v4()));
+        fs::write(&path, b"abc").unwrap();
+        let result = verify_asset(&path, EXPECTED);
+        fs::remove_file(&path).unwrap();
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn rejects_asset_with_wrong_sha256() {
+        let path = std::env::temp_dir().join(format!("mymind-sha-{}", uuid::Uuid::new_v4()));
+        fs::write(&path, b"abc").unwrap();
+        let result = verify_asset(&path, "not-the-digest");
+        fs::remove_file(&path).unwrap();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn verify_asset_reports_missing_files() {
+        let missing = Path::new("models").join("does-not-exist.bin");
+        assert!(verify_asset(&missing, "0".repeat(64).as_str()).is_err());
     }
 }

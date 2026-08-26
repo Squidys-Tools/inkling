@@ -21,14 +21,19 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
+# Overlay titlebar: strips the native frame, keeps Windows Snap Layout,
+# and injects window controls into the webview so the UI runs edge to edge.
+tauri-plugin-decorum = "1.1.1"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 rusqlite = { version = "0.40", features = ["bundled"] }
 uuid = { version = "1", features = ["v4"] }
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff", "webp"] }
-ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "download-binaries", "tls-rustls"] }
+# `load-dynamic` instead of `download-binaries`: pyke publishes no windows-gnu
+# ONNX Runtime binaries; we load the official MSVC-built DLL at runtime instead.
+ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "load-dynamic", "tls-rustls"] }
 pdf-extract = "0.12"
 tokenizers = { version = "0.23.1", default-features = false, features = ["fancy-regex"] }
 tokio = { version = "1", features = ["rt", "net", "time"] }

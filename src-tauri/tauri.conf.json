@@ -10,11 +10,15 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "mymind library",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "decorations": false,
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay"
       }
     ],
     "security": {
@@ -28,6 +32,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": ["onnxruntime.dll"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
