@@ -3,7 +3,6 @@ import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
 import { gsap } from "gsap";
-import { Flip } from "gsap/Flip";
 import {
   Archive,
   AlertCircle,
@@ -534,8 +533,6 @@ const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
 
 const LIBRARY_VIEW_TRANSITION_MS = 440;
 const LIBRARY_VIEW_EASE = "circ.inOut";
-
-gsap.registerPlugin(Flip);
 
 const KIND_ALIASES: Record<string, string> = {
   article: "article",
@@ -1099,6 +1096,29 @@ type LibraryCardPosition = {
   height: number;
 };
 
+const LIBRARY_TRANSITION_TARGET_SELECTOR =
+  ".library-card-media > .card-image-wrap, .library-card-media > .card-paper-art, .library-card-media > .post-art, .library-card-media > .x-post-art, .card-content";
+
+function clearLibraryTransitionTargetStyle(target: HTMLElement) {
+  for (const property of ["position", "box-sizing", "left", "top", "width", "height", "min-width", "min-height", "max-width", "max-height", "aspect-ratio"]) {
+    target.style.removeProperty(property);
+  }
+}
+
+function setLibraryTransitionTargetStyle(target: HTMLElement, left: number, top: number, width: number, height: number) {
+  target.style.position = "absolute";
+  target.style.boxSizing = "border-box";
+  target.style.left = `${left}px`;
+  target.style.top = `${top}px`;
+  target.style.width = `${width}px`;
+  target.style.height = `${height}px`;
+  target.style.minWidth = "0px";
+  target.style.minHeight = "0px";
+  target.style.maxWidth = "none";
+  target.style.maxHeight = "none";
+  target.style.aspectRatio = "auto";
+}
+
 function App() {
   const [items, setItems] = useState<LibraryItem[]>(isTauriRuntime() ? [] : seedItems);
   const [spaces, setSpaces] = useState<StoredSpace[]>(isTauriRuntime() ? [] : seedSpaces);
@@ -1132,7 +1152,7 @@ function App() {
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const libraryTransitionOverlayRef = useRef<HTMLDivElement>(null);
   const pendingLibraryViewPositionsRef = useRef<Map<string, LibraryCardPosition> | null>(null);
-  const libraryViewAnimationsRef = useRef<Array<ReturnType<typeof Flip.from>>>([]);
+  const libraryViewAnimationsRef = useRef<Array<ReturnType<typeof gsap.timeline>>>([]);
   const libraryViewPreparationTimerRef = useRef<number | null>(null);
   const libraryViewTransitionRunRef = useRef(0);
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
@@ -1233,6 +1253,12 @@ function App() {
       clone.style.translate = "none";
       clone.style.willChange = "transform, opacity";
       overlay.appendChild(clone);
+
+      const cloneRect = clone.getBoundingClientRect();
+      for (const target of clone.querySelectorAll<HTMLElement>(LIBRARY_TRANSITION_TARGET_SELECTOR)) {
+        const rect = target.getBoundingClientRect();
+        setLibraryTransitionTargetStyle(target, rect.left - cloneRect.left, rect.top - cloneRect.top, rect.width, rect.height);
+      }
     }
 
     return overlay.childElementCount > 0;
@@ -1353,7 +1379,7 @@ function App() {
         .map(([id, position]) => `${id}:${Math.round(position.left)}:${Math.round(position.top)}:${Math.round(position.width)}:${Math.round(position.height)}`)
         .join("|");
 
-    const finishTransition = (animations: Array<ReturnType<typeof Flip.from>>) => {
+    const finishTransition = (animations: Array<ReturnType<typeof gsap.timeline>>) => {
       if (libraryViewAnimationsRef.current !== animations || run !== libraryViewTransitionRunRef.current) return;
       for (const animation of animations) animation.kill();
       libraryViewAnimationsRef.current = [];
@@ -1370,9 +1396,13 @@ function App() {
 
       const rootRect = root.getBoundingClientRect();
       const clones = Array.from(overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]"));
-      const flipTargets: HTMLElement[] = [];
       const leavingTargets: HTMLElement[] = [];
-      const destinationPositions: Array<{ clone: HTMLElement; position: LibraryCardPosition }> = [];
+      const layoutTargets: Array<{
+        clone: HTMLElement;
+        source: LibraryCardPosition;
+        position: LibraryCardPosition;
+        sourceBoxes: Array<{ target: HTMLElement; left: number; top: number; width: number; height: number }>;
+      }> = [];
 
       for (const clone of clones) {
         const id = clone.dataset.libraryItemId;
@@ -1386,35 +1416,89 @@ function App() {
           continue;
         }
 
-        destinationPositions.push({ clone, position: last });
-        flipTargets.push(clone);
+        const sourceCardRect = clone.getBoundingClientRect();
+        const sourceTargets = Array.from(clone.querySelectorAll<HTMLElement>(LIBRARY_TRANSITION_TARGET_SELECTOR));
+        const sourceBoxes = sourceTargets.map((target) => {
+          const rect = target.getBoundingClientRect();
+          return {
+            target,
+            left: rect.left - sourceCardRect.left,
+            top: rect.top - sourceCardRect.top,
+            width: rect.width,
+            height: rect.height,
+          };
+        });
+        layoutTargets.push({ clone, source: first, position: last, sourceBoxes });
       }
 
-      if (flipTargets.length === 0 && leavingTargets.length === 0) {
-        const noAnimations: Array<ReturnType<typeof Flip.from>> = [];
+      if (layoutTargets.length === 0 && leavingTargets.length === 0) {
+        const noAnimations: Array<ReturnType<typeof gsap.timeline>> = [];
         libraryViewAnimationsRef.current = noAnimations;
         finishTransition(noAnimations);
         return;
       }
 
-      const flipState = flipTargets.length > 0 ? Flip.getState(flipTargets) : null;
+      for (const { sourceBoxes } of layoutTargets) {
+        for (const { target } of sourceBoxes) clearLibraryTransitionTargetStyle(target);
+      }
       overlay.classList.toggle("is-list", listMode);
-      for (const { clone, position } of destinationPositions) {
+      for (const { clone, position } of layoutTargets) {
         clone.style.left = `${position.left - rootRect.left}px`;
         clone.style.top = `${position.top - rootRect.top}px`;
         clone.style.width = `${position.width}px`;
         clone.style.height = `${position.height}px`;
       }
 
-      const animations: Array<ReturnType<typeof Flip.from>> = [];
-      if (flipState) {
-        animations.push(Flip.from(flipState, {
+      const layoutAnimation = gsap.timeline({ paused: true });
+      for (const { clone, source, position, sourceBoxes } of layoutTargets) {
+        const destinationCardRect = clone.getBoundingClientRect();
+
+        for (const sourceBox of sourceBoxes) {
+          const destinationRect = sourceBox.target.getBoundingClientRect();
+          const destinationBox = {
+            left: destinationRect.left - destinationCardRect.left,
+            top: destinationRect.top - destinationCardRect.top,
+            width: destinationRect.width,
+            height: destinationRect.height,
+          };
+          setLibraryTransitionTargetStyle(sourceBox.target, sourceBox.left, sourceBox.top, sourceBox.width, sourceBox.height);
+          layoutAnimation.fromTo(sourceBox.target, {
+            left: sourceBox.left,
+            top: sourceBox.top,
+            width: sourceBox.width,
+            height: sourceBox.height,
+          }, {
+            left: destinationBox.left,
+            top: destinationBox.top,
+            width: destinationBox.width,
+            height: destinationBox.height,
+            duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
+            ease: LIBRARY_VIEW_EASE,
+            autoRound: false,
+          }, 0);
+        }
+
+        clone.style.left = `${source.left - rootRect.left}px`;
+        clone.style.top = `${source.top - rootRect.top}px`;
+        clone.style.width = `${source.width}px`;
+        clone.style.height = `${source.height}px`;
+        layoutAnimation.fromTo(clone, {
+          left: source.left - rootRect.left,
+          top: source.top - rootRect.top,
+          width: source.width,
+          height: source.height,
+        }, {
+          left: position.left - rootRect.left,
+          top: position.top - rootRect.top,
+          width: position.width,
+          height: position.height,
           duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
           ease: LIBRARY_VIEW_EASE,
-          scale: false,
-          paused: true,
-        }));
+          autoRound: false,
+        }, 0);
       }
+
+      const animations: Array<ReturnType<typeof gsap.timeline>> = [layoutAnimation];
       if (leavingTargets.length > 0) {
         animations.push(gsap.timeline({ paused: true }).to(leavingTargets, {
             opacity: 0,
