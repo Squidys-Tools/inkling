@@ -2,6 +2,8 @@ import { type ReactNode, memo, useCallback, useEffect, useLayoutEffect, useMemo,
 import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
+import { gsap } from "gsap";
+import { Flip } from "gsap/Flip";
 import {
   Archive,
   AlertCircle,
@@ -531,6 +533,8 @@ const seedSpaces: StoredSpace[] = [
 const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
 
 const LIBRARY_VIEW_TRANSITION_MS = 440;
+
+gsap.registerPlugin(Flip);
 
 const KIND_ALIASES: Record<string, string> = {
   article: "article",
@@ -1127,7 +1131,7 @@ function App() {
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const libraryTransitionOverlayRef = useRef<HTMLDivElement>(null);
   const pendingLibraryViewPositionsRef = useRef<Map<string, LibraryCardPosition> | null>(null);
-  const libraryViewAnimationsRef = useRef<Animation[]>([]);
+  const libraryViewAnimationsRef = useRef<Array<ReturnType<typeof Flip.from>>>([]);
   const libraryViewPreparationTimerRef = useRef<number | null>(null);
   const libraryViewTransitionRunRef = useRef(0);
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
@@ -1192,14 +1196,14 @@ function App() {
     overlay.classList.remove("is-visible", "is-list");
   }, []);
 
-  const buildLibraryTransitionOverlay = useCallback((sourcePositions: Map<string, LibraryCardPosition>) => {
+  const buildLibraryTransitionOverlay = useCallback((sourcePositions: Map<string, LibraryCardPosition>, sourceListMode: boolean) => {
     const root = libraryScrollRef.current;
     const overlay = libraryTransitionOverlayRef.current;
     if (!root || !overlay || sourcePositions.size === 0) return false;
 
     const rootRect = root.getBoundingClientRect();
     overlay.replaceChildren();
-    overlay.classList.toggle("is-list", listMode);
+    overlay.classList.toggle("is-list", sourceListMode);
 
     for (const card of root.querySelectorAll<HTMLElement>(".library-grid .library-card[data-library-item-id]")) {
       const id = card.dataset.libraryItemId;
@@ -1209,6 +1213,7 @@ function App() {
 
       const clone = card.cloneNode(true) as HTMLElement;
       clone.classList.add("library-transition-card");
+      clone.dataset.flipId = `library-card-${id}`;
       clone.removeAttribute("tabindex");
       clone.inert = true;
       clone.setAttribute("aria-hidden", "true");
@@ -1231,7 +1236,7 @@ function App() {
 
     overlay.classList.add("is-visible");
     return overlay.childElementCount > 0;
-  }, [listMode]);
+  }, []);
 
   const normalizeLibraryTransitionOverlay = useCallback(() => {
     const overlay = libraryTransitionOverlayRef.current;
@@ -1251,11 +1256,7 @@ function App() {
   }, []);
 
   const cancelLibraryViewAnimations = useCallback(() => {
-    for (const animation of libraryViewAnimationsRef.current) {
-      const target = (animation.effect as KeyframeEffect | null)?.target;
-      if (target instanceof HTMLElement) target.style.willChange = "";
-      animation.cancel();
-    }
+    for (const animation of libraryViewAnimationsRef.current) animation.kill();
     libraryViewAnimationsRef.current = [];
   }, []);
 
@@ -1271,8 +1272,8 @@ function App() {
     const transitionIsActive = (libraryTransitionOverlayRef.current?.childElementCount ?? 0) > 0;
     const currentPositions = transitionIsActive ? measureLibraryTransitionCards() : measureLibraryCards();
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (transitionIsActive && !prefersReducedMotion) normalizeLibraryTransitionOverlay();
     cancelLibraryViewAnimations();
+    if (transitionIsActive && !prefersReducedMotion) normalizeLibraryTransitionOverlay();
 
     if (prefersReducedMotion || currentPositions.size === 0) {
       pendingLibraryViewPositionsRef.current = null;
@@ -1283,7 +1284,7 @@ function App() {
       return;
     }
 
-    if (!transitionIsActive) buildLibraryTransitionOverlay(currentPositions);
+    if (!transitionIsActive) buildLibraryTransitionOverlay(currentPositions, listMode);
     pendingLibraryViewPositionsRef.current = currentPositions;
     setViewSelectionListMode(listMode);
     setIsLibraryViewTransitioning(true);
@@ -1349,13 +1350,9 @@ function App() {
         .map(([id, position]) => `${id}:${Math.round(position.left)}:${Math.round(position.top)}:${Math.round(position.width)}:${Math.round(position.height)}`)
         .join("|");
 
-    const finishTransition = (animations: Animation[]) => {
+    const finishTransition = (animations: Array<ReturnType<typeof Flip.from>>) => {
       if (libraryViewAnimationsRef.current !== animations || run !== libraryViewTransitionRunRef.current) return;
-      for (const animation of animations) {
-        const target = (animation.effect as KeyframeEffect | null)?.target;
-        if (target instanceof HTMLElement) target.style.willChange = "";
-        animation.cancel();
-      }
+      for (const animation of animations) animation.kill();
       libraryViewAnimationsRef.current = [];
       clearLibraryTransitionOverlay();
       setIsLibraryViewTransitioning(false);
@@ -1365,49 +1362,72 @@ function App() {
       if (cancelled || run !== libraryViewTransitionRunRef.current) return;
 
       const rootRect = root.getBoundingClientRect();
-      const animations: Animation[] = [];
+      const clones = Array.from(overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]"));
+      const flipTargets: HTMLElement[] = [];
+      const leavingTargets: HTMLElement[] = [];
+      const destinationPositions: Array<{ clone: HTMLElement; position: LibraryCardPosition }> = [];
 
-      for (const clone of overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]")) {
+      for (const clone of clones) {
         const id = clone.dataset.libraryItemId;
         const first = id ? firstPositions.get(id) : undefined;
         const last = id ? lastPositions.get(id) : undefined;
-        if (!id || !first || !clone.animate) continue;
+        if (!id || !first) continue;
 
         clone.style.willChange = "transform, opacity";
         if (!last) {
-          animations.push(clone.animate(
-            [{ opacity: 1 }, { opacity: 0 }],
-            { duration: 220, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "both" },
-          ));
+          leavingTargets.push(clone);
           continue;
         }
 
-        clone.style.left = `${last.left - rootRect.left}px`;
-        clone.style.top = `${last.top - rootRect.top}px`;
-        clone.style.width = `${last.width}px`;
-        clone.style.height = `${last.height}px`;
-        const deltaX = first.left - last.left;
-        const deltaY = first.top - last.top;
-        const scaleX = last.width > 0 ? first.width / last.width : 1;
-        const scaleY = last.height > 0 ? first.height / last.height : 1;
-        animations.push(clone.animate(
-          [
-            { transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(${scaleX}, ${scaleY})`, transformOrigin: "top left" },
-            { transform: "translate3d(0, 0, 0) scale(1, 1)", transformOrigin: "top left" },
-          ],
-          { duration: LIBRARY_VIEW_TRANSITION_MS, easing: "cubic-bezier(0.77, 0, 0.175, 1)", fill: "both" },
-        ));
+        destinationPositions.push({ clone, position: last });
+        flipTargets.push(clone);
+      }
+
+      if (flipTargets.length === 0 && leavingTargets.length === 0) {
+        const noAnimations: Array<ReturnType<typeof Flip.from>> = [];
+        libraryViewAnimationsRef.current = noAnimations;
+        finishTransition(noAnimations);
+        return;
+      }
+
+      const flipState = flipTargets.length > 0 ? Flip.getState(flipTargets) : null;
+      overlay.classList.toggle("is-list", listMode);
+      for (const { clone, position } of destinationPositions) {
+        clone.style.left = `${position.left - rootRect.left}px`;
+        clone.style.top = `${position.top - rootRect.top}px`;
+        clone.style.width = `${position.width}px`;
+        clone.style.height = `${position.height}px`;
+      }
+
+      const animations: Array<ReturnType<typeof Flip.from>> = [];
+      if (flipState) {
+        animations.push(Flip.from(flipState, {
+          duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
+          ease: "power1.inOut",
+          scale: true,
+          nested: true,
+          paused: true,
+        }));
+      }
+      if (leavingTargets.length > 0) {
+        animations.push(gsap.timeline({ paused: true }).to(leavingTargets, {
+            opacity: 0,
+            duration: 0.22,
+            ease: "power1.out",
+          }));
       }
 
       libraryViewAnimationsRef.current = animations;
       setViewSelectionListMode(listMode);
-      if (animations.length === 0) {
-        finishTransition(animations);
-        return;
+      let completedAnimations = 0;
+      const finishWhenReady = () => {
+        completedAnimations += 1;
+        if (completedAnimations === animations.length) finishTransition(animations);
+      };
+      for (const animation of animations) {
+        animation.eventCallback("onComplete", finishWhenReady);
+        animation.play(0);
       }
-      void Promise.all(animations.map((animation) => animation.finished.catch(() => undefined))).then(() => {
-        finishTransition(animations);
-      });
     };
 
     const waitForSettledLayout = () => {

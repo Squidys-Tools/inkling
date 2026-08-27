@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A quiet transition: grid to list</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --paper: #171715;
+      --surface: #20201d;
+      --surface-soft: #252520;
+      --ink: #e8e1d5;
+      --muted: #aaa294;
+      --faint: #777166;
+      --rule: #3a3831;
+      --orange: #e8875f;
+      --green: #9bb49f;
+      --blue: #9db8bf;
+      --red: #d77b67;
+      --serif: Georgia, "Times New Roman", serif;
+      --sans: "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
+      --mono: "Cascadia Mono", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--paper); }
+    body {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 56px 28px 84px;
+      color: var(--ink);
+      background: var(--paper);
+      font: 15px/1.65 var(--sans);
+    }
+    a { color: var(--blue); text-underline-offset: 3px; }
+    a:hover { color: var(--ink); }
+    h1, h2, h3 { margin: 0; font-weight: 500; letter-spacing: -0.035em; }
+    h1 { max-width: 780px; font: 500 clamp(42px, 7vw, 78px)/.98 var(--serif); }
+    h2 { padding-top: 10px; font-size: 25px; }
+    h3 { font-size: 17px; }
+    p { max-width: 76ch; margin: 12px 0; }
+    code, .mono { font-family: var(--mono); font-size: .88em; }
+    code { color: #d6c4a7; }
+    header { padding-bottom: 52px; border-bottom: 1px solid var(--rule); }
+    .eyebrow {
+      margin-bottom: 18px;
+      color: var(--orange);
+      font: 11px var(--mono);
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    .dek { max-width: 680px; margin-top: 24px; color: var(--muted); font-size: 18px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 26px; color: var(--faint); font: 11px var(--mono); }
+    .meta span::before { content: "·  "; color: var(--orange); }
+    section { padding: 42px 0; border-bottom: 1px solid var(--rule); }
+    .section-label { margin-bottom: 10px; color: var(--faint); font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    .verdict {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(220px, .7fr);
+      gap: 28px;
+      align-items: start;
+    }
+    .callout {
+      padding: 20px 22px;
+      border: 1px solid #635344;
+      border-radius: 4px;
+      background: #2b2520;
+    }
+    .callout strong { color: #f0c09e; font-weight: 600; }
+    .quiet-rule { color: var(--green); }
+    .grid, .matrix { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 13px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; text-align: left; }
+    th { color: var(--faint); font: 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+    td:first-child { width: 22%; color: var(--ink); }
+    .severity { display: inline-block; min-width: 43px; margin-right: 8px; color: var(--red); font: 10px var(--mono); letter-spacing: .08em; }
+    .severity.med { color: var(--orange); }
+    .severity.low { color: var(--green); }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 1px;
+      margin: 22px 0 4px;
+      border: 1px solid var(--rule);
+      background: var(--rule);
+    }
+    .flow div { min-height: 120px; padding: 14px; background: var(--surface); }
+    .flow b { display: block; margin-bottom: 12px; color: var(--orange); font: 11px var(--mono); }
+    .flow span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .library { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; }
+    .library article { padding: 20px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); }
+    .library article.recommended { border-color: #667967; background: #222923; }
+    .library h3 { margin-bottom: 10px; }
+    .tag { display: inline-block; margin-bottom: 13px; padding: 3px 7px; border: 1px solid var(--rule); color: var(--faint); font: 10px var(--mono); text-transform: uppercase; }
+    .library article.recommended .tag { color: var(--green); border-color: #667967; }
+    .library p { color: var(--muted); font-size: 14px; }
+    .library ul, .steps, .checks { margin: 12px 0 0; padding-left: 19px; }
+    li { margin: 7px 0; }
+    .steps { list-style: none; padding-left: 0; counter-reset: phase; }
+    .steps > li { counter-increment: phase; display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 17px; margin: 0; padding: 22px 0; border-top: 1px solid var(--rule); }
+    .steps > li::before { content: counter(phase, decimal-leading-zero); color: var(--orange); font: 19px var(--mono); }
+    .steps h3 { margin-bottom: 6px; }
+    .steps p { color: var(--muted); }
+    .exit { margin-top: 12px; padding: 12px 14px; border-left: 2px solid var(--green); color: #c9d2c5; background: #202720; }
+    .matrix td:first-child { width: 18%; }
+    .matrix td:nth-child(2) { width: 27%; }
+    .matrix td:nth-child(3) { width: 27%; }
+    .matrix td:nth-child(4) { width: 28%; }
+    .source-list { columns: 2; column-gap: 36px; margin: 18px 0 0; padding-left: 19px; }
+    .source-list li { break-inside: avoid; margin: 8px 0; }
+    footer { padding-top: 30px; color: var(--faint); font: 11px/1.6 var(--mono); }
+    @media (max-width: 760px) {
+      body { padding: 34px 18px 60px; }
+      .verdict, .library { grid-template-columns: 1fr; }
+      .flow { grid-template-columns: 1fr; }
+      .flow div { min-height: 0; }
+      .matrix { display: block; overflow-x: auto; white-space: normal; }
+      .matrix th, .matrix td { min-width: 180px; }
+      .source-list { columns: 1; }
+    }
+    @media print {
+      body { max-width: none; padding: 0; color: #111; background: #fff; }
+      section, header { border-color: #bbb; }
+      a { color: #0645ad; }
+      .callout, .library article, .flow div, .exit { background: #f4f4f1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">Inkling library · motion audit · decision plan</div>
+    <h1>A quiet transition from grid to list.</h1>
+    <p class="dek">A source-backed, implementation-free plan for making the library view change feel deliberate, fluid, and kind to the machine. The shape of the answer is simple: make the DOM contract calm before tuning the motion.</p>
+    <div class="meta">
+      <span>Prepared 27 Aug 2026</span>
+      <span>Scope: React + Virtuoso Masonry + Motion</span>
+      <span>Research: Motion, GSAP, Anime.js</span>
+      <span>Build check: passed</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="section-label">The short answer</div>
+    <div class="verdict">
+      <div>
+        <h2>Motion is ruled out for card geometry.</h2>
+        <p>The library is virtualized with <code>@virtuoso.dev/masonry</code>, and the app uses the modern <code>motion</code> package through <code>motion/react</code>. Your hands-on result is now a hard constraint: Motion and Virtuoso do not produce a reliable card transition together in this codebase.</p>
+        <p>The grid/list transition itself is currently a custom snapshot layer: measure cards, clone visible cards, hide the live masonry, wait for a new layout, then call the browser’s <code>Element.animate()</code>. Motion is animating the toolbar indicator and other app surfaces, not the card geometry.</p>
+        <p class="quiet-rule">The difficult part is not “which easing?” It is that the virtualizer owns which cards exist, where their column wrappers live, and when their sizes are trustworthy.</p>
+      </div>
+      <div class="callout"><strong>Recommendation</strong><br>Keep Motion for React-owned, non-card surfaces. Make GSAP Flip the primary card-transition spike, with Anime.js <code>createLayout()</code> as the lighter comparison. First solve the virtualization contract: every engine can animate mounted cards, but none can animate cards Virtuoso has removed or recycled.</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-label">What the code does now</div>
+    <h2>One click crosses five moving boundaries.</h2>
+    <div class="flow" aria-label="Current transition flow">
+      <div><b>01 · capture</b><span>Read mounted card rectangles from the outer library wrapper.</span></div>
+      <div><b>02 · snapshot</b><span>Clone only cards intersecting the visible viewport.</span></div>
+      <div><b>03 · commit</b><span>Flip <code>listMode</code>; Virtuoso changes columns and the card CSS changes shape.</span></div>
+      <div><b>04 · wait</b><span>Poll rectangles every 16ms until the geometry appears stable, up to 800ms.</span></div>
+      <div><b>05 · play</b><span>Animate clone transforms for 440ms, then remove the overlay.</span></div>
+    </div>
+    <p>The production build passes. That rules out a type or bundling failure, but it does not prove a smooth interaction. The browser preview could not attach in this audit, so frame pacing and visual behavior still need to be measured in the real Tauri WebView or a browser.</p>
+
+    <table class="grid">
+      <thead><tr><th>Severity</th><th>Finding</th><th>Why it matters</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td><span class="severity">P0</span>geometry</td><td>Destination styling is built from the old mode.</td><td><code>buildLibraryTransitionOverlay()</code> toggles <code>is-list</code> from the current <code>listMode</code>, then <code>switchLibraryView()</code> commits the next mode. The clone can therefore keep grid internals while being animated toward list bounds, or the reverse.</td><td><code>App.tsx</code> 1195–1234 and 1262–1291</td></tr>
+        <tr><td><span class="severity">P0</span>boundary</td><td>The card transition is a custom overlay, not Motion layout.</td><td>The app is maintaining a second DOM representation and a second timing system. The clone is scaled as one surface, so text, borders, media, and artwork can stretch together.</td><td><code>App.tsx</code> 1370–1403; <code>App.css</code> 131–138</td></tr>
+        <tr><td><span class="severity">P0</span>identity</td><td>Virtualized masonry can move items between column parents and recycle them.</td><td>A <code>data-library-item-id</code> helps the custom query match snapshots, but it is not the same as preserving a React DOM node. The installed masonry build renders absolute item wrappers under column wrappers and keys them by index.</td><td><code>App.tsx</code> 965–1058; installed masonry build 602–642</td></tr>
+        <tr><td><span class="severity">P0</span>decision</td><td>Motion + Virtuoso is ruled out for card geometry.</td><td>Stop spending time tuning Motion layout props for the virtualized card bodies. Keep its use bounded to surfaces that remain under ordinary React ownership.</td><td>Confirmed by hands-on testing</td></tr>
+        <tr><td><span class="severity med">P1</span>scroll</td><td>There are two layout owners.</td><td>The ref and overlay live on <code>.library-scroll</code>, while <code>VirtuosoMasonry</code> creates its own scrolling element when <code>useWindowScroll</code> is false. A scroll, scrollbar, or width difference can make the measured coordinate spaces disagree.</td><td><code>App.tsx</code> 2450–2462; <a href="https://virtuoso.dev/masonry/api-reference/virtuoso-masonry/">Virtuoso Masonry API</a></td></tr>
+        <tr><td><span class="severity med">P1</span>timing</td><td>The settle loop can end on a timeout rather than a verified layout.</td><td>When the expected width is not ready, the signature is reset on every poll. At 800ms the animation proceeds anyway. That creates a quiet pause followed by a possible jump.</td><td><code>App.tsx</code> 1313–1449</td></tr>
+        <tr><td><span class="severity med">P1</span>churn</td><td>Data refresh can overlap a transition.</td><td>In Tauri, items and processing status are reloaded once per second. New object identities, changed card heights, or a new filter result can invalidate the snapshot while it is playing.</td><td><code>App.tsx</code> 1903–1941</td></tr>
+        <tr><td><span class="severity med">P1</span>scope</td><td>The snapshot intentionally excludes most of the library.</td><td>Only mounted cards inside the viewport are cloned. That is a reasonable performance choice, but it means the product must promise a visible-window transition, not a physically animated whole-library transition.</td><td><code>App.tsx</code> 1204–1209; <a href="https://virtuoso.dev/masonry/">Virtuoso Masonry overview</a></td></tr>
+        <tr><td><span class="severity low">P2</span>policy</td><td>Motion, raw WAAPI, and CSS each participate in reduced-motion behavior.</td><td>The behavior is partly coordinated, but it should be tested as one policy, including a live preference change. Motion’s <code>MotionConfig</code> does not automatically govern raw clones.</td><td><code>App.tsx</code> 2072; <code>App.css</code> 185</td></tr>
+        <tr><td><span class="severity low">P2</span>load</td><td>The client bundle is already large.</td><td>The build reports a minified main chunk of about 1,041 kB. This is not the root cause, but animation profiling should include main-thread work from embeds, ingestion code, and rendering.</td><td><code>bun run build</code> output</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="section-label">Research pass</div>
+    <h2>Three engines, three kinds of leverage.</h2>
+    <p>The library choice matters after the DOM and virtualization contract is explicit. Every engine can animate a mounted element. None can animate a card that Virtuoso has removed from the DOM.</p>
+    <div class="library">
+      <article class="recommended">
+        <div class="tag">Non-card surfaces</div>
+        <h3>Motion</h3>
+        <p>Motion’s React layout system remains a good fit for the toolbar indicator, overlays, reader UI, and other elements that React can keep mounted. It is excluded from the virtualized library-card transition by the confirmed incompatibility.</p>
+        <ul>
+          <li>Use <code>layout</code>, <code>layout="position"</code>, and <code>layoutDependency</code> for stable React-owned geometry.</li>
+          <li>Use <code>layoutScroll</code> only on the actual scroll container, and <code>layoutId</code> selectively for deliberate one-to-one continuity.</li>
+          <li><code>AnimatePresence</code> handles mounted/unmounted exits, but cannot preserve a node that the virtualizer removes.</li>
+          <li>Keep <code>MotionConfig reducedMotion="user"</code> aligned with the app-wide reduced-motion policy.</li>
+        </ul>
+        <p><a href="https://motion.dev/docs/react-layout-animations">Layout animations</a> · <a href="https://motion.dev/docs/react-animate-presence">AnimatePresence</a> · <a href="https://motion.dev/docs/react-accessibility">Accessibility</a></p>
+      </article>
+      <article>
+        <div class="tag">Primary card spike</div>
+        <h3>GSAP + Flip</h3>
+        <p>With Motion ruled out for card geometry, GSAP Flip is the primary specialist to test. It is strongest when the transition must coordinate an imperative before/after state, structural changes, absolute positioning, enter/leave callbacks, nested targets, interruptions, or a composed timeline.</p>
+        <ul>
+          <li><code>Flip.getState()</code> → commit DOM change → <code>Flip.from()</code>, with explicit targets and stable <code>data-flip-id</code> values.</li>
+          <li><code>absolute</code>, <code>scale</code>, <code>nested</code>, <code>prune</code>, <code>onEnter</code>, <code>onLeave</code>, and batching are useful for a controlled snapshot layer.</li>
+          <li>React integration needs disciplined cleanup: <code>useGSAP()</code>, context scoping, and <code>contextSafe()</code> for click-created animations.</li>
+          <li>It still needs a mounted target set and explicit behavior for scroll or resize during the flip.</li>
+        </ul>
+        <p><a href="https://gsap.com/docs/v3/Plugins/Flip/">Flip plugin</a> · <a href="https://gsap.com/resources/React/">React integration</a> · <a href="https://gsap.com/docs/v3/GSAP/gsap.matchMedia%28%29/">matchMedia and reduced motion</a></p>
+      </article>
+      <article>
+        <div class="tag">Secondary card spike</div>
+        <h3>Anime.js</h3>
+        <p>Anime.js is now a serious layout candidate, not only a low-level tween engine. Its current Auto Layout API has an explicit grid/list-style toggle example and can animate grid settings, flex direction, display, DOM order, enter/exit, and shared layout IDs.</p>
+        <ul>
+          <li><code>createLayout(root)</code> with <code>layout.update()</code> is the closest direct experiment for a class-based layout switch.</li>
+          <li><code>children</code>, <code>enterFrom</code>, <code>leaveTo</code>, <code>swapAt</code>, and <code>data-layout-id</code> provide useful control.</li>
+          <li>React uses <code>createScope()</code> plus <code>revert()</code>; lifecycle discipline is more imperative than Motion.</li>
+          <li>Its WAAPI path is attractive for transform/opacity under CPU load, but it does not remove the virtualizer’s mounted-DOM boundary.</li>
+        </ul>
+        <p><a href="https://animejs.com/documentation/layout/">Auto Layout</a> · <a href="https://animejs.com/documentation/getting-started/using-with-react/">React integration</a> · <a href="https://animejs.com/documentation/web-animation-api/when-to-use-waapi/">WAAPI guidance</a></p>
+      </article>
+    </div>
+
+    <table class="matrix">
+      <thead><tr><th>Question</th><th>Motion</th><th>GSAP Flip</th><th>Anime.js</th></tr></thead>
+      <tbody>
+        <tr><td>Best use here</td><td>React-owned motion outside the virtualized card bodies.</td><td>Primary controlled FLIP across the card view switch.</td><td>Secondary Auto Layout toggle with a smaller, more imperative surface.</td></tr>
+        <tr><td>Virtualization</td><td>Cannot measure removed cards; can coordinate mounted ones.</td><td>Same limitation; explicit target matching helps only when targets exist.</td><td>Same limitation; <code>createLayout</code> observes the DOM it is given.</td></tr>
+        <tr><td>React lifecycle</td><td>Native component and presence model.</td><td>Use <code>@gsap/react</code> and context-safe interaction handlers.</td><td>Use <code>createScope</code> and revert on teardown.</td></tr>
+        <tr><td>Art direction</td><td>Good for restrained, interruptible UI motion.</td><td>Best control over absolute, nested, enter/leave, and timelines.</td><td>Good control, plus layout-specific state parameters and WAAPI options.</td></tr>
+        <tr><td>Decision</td><td><strong>Keep off the card path.</strong></td><td><strong>Prototype first for card geometry.</strong></td><td><strong>Prototype second for comparison.</strong></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="section-label">Recommended sequence</div>
+    <h2>Make the promise small enough to keep.</h2>
+    <ol class="steps">
+      <li>
+        <div><h3>Define the transition contract.</h3><p>Choose the honest product promise before touching an engine: the visible cards preserve their identity; cards outside the mounted window settle without ceremony; scroll is held or the transition aborts; filtering/capture updates either wait or cancel the run; reduced motion snaps geometry or uses a quiet opacity change.</p><div class="exit"><strong>Exit:</strong> one written contract and a test matrix accepted by design and engineering.</div></div>
+      </li>
+      <li>
+        <div><h3>Instrument the existing experiment.</h3><p>Record view mode, actual Virtuoso scroller, mounted-card count, clone count, first/last rect mismatch, preparation duration, scrollTop/scrollHeight, React commits, long tasks, and frame times. Mark the exact moment of input, mode commit, first valid destination layout, animation start, and cleanup.</p><div class="exit"><strong>Exit:</strong> a trace can distinguish a bad first/last state from a main-thread hitch.</div></div>
+      </li>
+      <li>
+        <div><h3>Repair the geometry contract before tuning.</h3><p>Use one source of truth for the requested and committed mode. Separate the virtualizer’s positioning wrapper from the visual card wrapper. Verify the actual scroll element and coordinate origin. Treat stable item IDs as identity data, not proof of DOM continuity. Decide whether <code>contain: layout paint</code> and whole-card nonuniform scale are acceptable for the chosen engine.</p><div class="exit"><strong>Exit:</strong> grid and list destination boxes are correct without animation, at top/middle/bottom scroll positions and across breakpoints.</div></div>
+      </li>
+      <li>
+        <div><h3>Run an engine-neutral card fixture.</h3><p>Build a small, isolated fixture with about twelve mixed cards, the same card markup, the same virtualizer, and the same inner scroller. First prove the mounted-card set, item identity, coordinate origin, and destination rectangles without Motion. Then use that fixture for the GSAP Flip spike and the Anime.js Auto Layout comparison.</p><div class="exit"><strong>Exit:</strong> no visible hold, no text stretch, no scroll jump, and a clean rapid-toggle interruption. If identity is not stable across column parents, stop tuning any animation engine and resolve the virtualization boundary.</div></div>
+      </li>
+      <li>
+        <div><h3>Choose the transition architecture.</h3><p>For a large library, prefer visible-window continuity and preserve virtualization. If the visual requirement is that every card travels, relax or suspend virtualization for a bounded transition or create a deliberate, non-interactive snapshot layer. Do not claim a whole-library physical transition while only a handful of cards exist.</p><div class="exit"><strong>Exit:</strong> the architecture states exactly which cards animate, which cards settle, and what happens when the user scrolls or data changes.</div></div>
+      </li>
+      <li>
+        <div><h3>Validate GSAP Flip, then Anime.js.</h3><p>Motion is no longer part of the card-engine comparison. Prototype GSAP Flip first against the same fixture and measurements, with explicit target IDs and a deliberately defined mounted-window policy. Then test Anime.js <code>createLayout</code> as the lighter alternative if its layout controller gives the same continuity with less integration weight. Each spike should replace the transition controller, not layer another one on top of the custom overlay.</p><div class="exit"><strong>Exit:</strong> a short decision record based on continuity, interruption, cleanup, bundle cost, and frame trace—not on a prettier isolated demo.</div></div>
+      </li>
+      <li>
+        <div><h3>Art-direct the quiet details last.</h3><p>Start near the design system’s 300ms layout target. Avoid a large stagger across the library; it makes a re-composition feel like a parade. Let geometry lead, let text reflow naturally, and reserve small opacity or internal transforms for entering content. Keep the toolbar indicator synchronized with the requested state. Test reduced motion as a first-class state, including preference changes while the app is open.</p><div class="exit"><strong>Exit:</strong> the transition feels like the shelf gently changing shape, not the interface performing a trick.</div></div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="section-label">Verification matrix</div>
+    <h2>Small tests. Honest edges.</h2>
+    <ul class="checks">
+      <li><strong>Geometry:</strong> grid → list and list → grid at top, middle, and near the end of the collection.</li>
+      <li><strong>Scale:</strong> small, medium, and large data sets; mixed image ratios; notes, quotes, PDFs, videos, and X embeds.</li>
+      <li><strong>Responsive:</strong> every column breakpoint, sidebar open/closed, narrow window, and scrollbar present/absent.</li>
+      <li><strong>Interruption:</strong> rapid repeated toggles; scroll wheel or trackpad input during the transition; window resize during the transition.</li>
+      <li><strong>Concurrent state:</strong> item capture, processing-status refresh, search/filter changes, selected inspector, and media loading during the transition.</li>
+      <li><strong>Accessibility:</strong> keyboard view toggle, focus order, <code>aria-pressed</code> truthfulness, reduced motion, and no duplicate accessible content from snapshots.</li>
+      <li><strong>Performance:</strong> a 60Hz trace with no sustained frame budget breach, no long blank hold, bounded layout reads, and cleanup of every animation and timer.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="section-label">Definition of done</div>
+    <h2>The transition is ready when:</h2>
+    <ul class="checks">
+      <li>The selected engine has one owner for geometry and one owner for lifecycle.</li>
+      <li>Mounted-card identity is explicit; virtualized recycling is not mistaken for continuity.</li>
+      <li>The actual scroll container and coordinate system are measured, not guessed.</li>
+      <li>The transition never waits 800ms hoping the layout becomes correct.</li>
+      <li>Text and artwork reflow or counter-scale without a rubber-sheet effect.</li>
+      <li>Offscreen behavior is intentional and documented.</li>
+      <li>Rapid toggles, data refresh, resize, scroll, embeds, and reduced motion have tested outcomes.</li>
+      <li>The frame trace supports the feeling: quiet, responsive, and unforced.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="section-label">Official source shelf</div>
+    <h2>Read the constraints at the source.</h2>
+    <ul class="source-list">
+      <li><a href="https://motion.dev/docs/react-installation">Motion installation and package naming</a></li>
+      <li><a href="https://motion.dev/docs/react-layout-animations">Motion layout animation and scale correction</a></li>
+      <li><a href="https://motion.dev/docs/react-animate-presence">Motion presence lifecycle and modes</a></li>
+      <li><a href="https://motion.dev/docs/react-accessibility">Motion reduced-motion policy</a></li>
+      <li><a href="https://gsap.com/docs/v3/Plugins/Flip/">GSAP Flip state, targets, absolute, nested, and interruptions</a></li>
+      <li><a href="https://gsap.com/resources/React/">GSAP React cleanup and context-safe handlers</a></li>
+      <li><a href="https://animejs.com/documentation/layout/">Anime.js Auto Layout</a></li>
+      <li><a href="https://animejs.com/documentation/layout/common-auto-layout-gotchas/">Anime.js Auto Layout gotchas</a></li>
+      <li><a href="https://animejs.com/documentation/getting-started/using-with-react/">Anime.js React scope and revert</a></li>
+      <li><a href="https://animejs.com/documentation/web-animation-api/hardware-accelerated-animations/">Anime.js hardware-accelerated properties</a></li>
+      <li><a href="https://virtuoso.dev/masonry/">Virtuoso Masonry virtualization and dynamic columns</a></li>
+      <li><a href="https://virtuoso.dev/masonry/api-reference/virtuoso-masonry/">Virtuoso Masonry API surface</a></li>
+    </ul>
+  </section>
+
+  <footer>Prepared from the repository audit and first-party documentation research. No source implementation was changed as part of this plan.</footer>
+</body>
+</html>
