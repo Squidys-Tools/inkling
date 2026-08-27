@@ -530,7 +530,7 @@ const seedSpaces: StoredSpace[] = [
 
 const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
 
-const LIBRARY_VIEW_TRANSITION_MS = 520;
+const LIBRARY_VIEW_TRANSITION_MS = 440;
 
 const KIND_ALIASES: Record<string, string> = {
   article: "article",
@@ -1090,6 +1090,8 @@ function masonryColumnCount(width: number): number {
 type LibraryCardPosition = {
   left: number;
   top: number;
+  width: number;
+  height: number;
 };
 
 function App() {
@@ -1113,7 +1115,8 @@ function App() {
   const [pdfViewerItem, setPdfViewerItem] = useState<LibraryItem | null>(null);
   const [readingItem, setReadingItem] = useState<{ item: LibraryItem; origin: ReaderOrigin } | null>(null);
   const [listMode, setListMode] = useState(false);
-  const [isLibraryViewSwitching, setIsLibraryViewSwitching] = useState(false);
+  const [isLibraryViewTransitioning, setIsLibraryViewTransitioning] = useState(false);
+  const [viewSelectionListMode, setViewSelectionListMode] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
@@ -1122,9 +1125,11 @@ function App() {
   const searchRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
+  const libraryTransitionOverlayRef = useRef<HTMLDivElement>(null);
   const pendingLibraryViewPositionsRef = useRef<Map<string, LibraryCardPosition> | null>(null);
   const libraryViewAnimationsRef = useRef<Animation[]>([]);
-  const libraryViewTransitionTimerRef = useRef<number | null>(null);
+  const libraryViewPreparationTimerRef = useRef<number | null>(null);
+  const libraryViewTransitionRunRef = useRef(0);
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
     typeof window === "undefined" ? 960 : window.innerWidth,
   );
@@ -1153,42 +1158,137 @@ function App() {
     if (!root) return new Map<string, LibraryCardPosition>();
 
     return new Map(
-      Array.from(root.querySelectorAll<HTMLElement>(".library-card[data-library-item-id]"))
+      Array.from(root.querySelectorAll<HTMLElement>(".library-grid .library-card[data-library-item-id]"))
         .map((card) => {
           const id = card.dataset.libraryItemId;
           if (!id) return null;
           const rect = card.getBoundingClientRect();
-          return [id, { left: rect.left, top: rect.top }] as const;
+          return [id, { left: rect.left, top: rect.top, width: rect.width, height: rect.height }] as const;
         })
         .filter((entry): entry is readonly [string, LibraryCardPosition] => entry !== null),
     );
   }, []);
 
+  const measureLibraryTransitionCards = useCallback(() => {
+    const overlay = libraryTransitionOverlayRef.current;
+    if (!overlay) return new Map<string, LibraryCardPosition>();
+
+    return new Map(
+      Array.from(overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]"))
+        .map((card) => {
+          const id = card.dataset.libraryItemId;
+          if (!id) return null;
+          const rect = card.getBoundingClientRect();
+          return [id, { left: rect.left, top: rect.top, width: rect.width, height: rect.height }] as const;
+        })
+        .filter((entry): entry is readonly [string, LibraryCardPosition] => entry !== null),
+    );
+  }, []);
+
+  const clearLibraryTransitionOverlay = useCallback(() => {
+    const overlay = libraryTransitionOverlayRef.current;
+    if (!overlay) return;
+    overlay.replaceChildren();
+    overlay.classList.remove("is-visible", "is-list");
+  }, []);
+
+  const buildLibraryTransitionOverlay = useCallback((sourcePositions: Map<string, LibraryCardPosition>) => {
+    const root = libraryScrollRef.current;
+    const overlay = libraryTransitionOverlayRef.current;
+    if (!root || !overlay || sourcePositions.size === 0) return false;
+
+    const rootRect = root.getBoundingClientRect();
+    overlay.replaceChildren();
+    overlay.classList.toggle("is-list", listMode);
+
+    for (const card of root.querySelectorAll<HTMLElement>(".library-grid .library-card[data-library-item-id]")) {
+      const id = card.dataset.libraryItemId;
+      const source = id ? sourcePositions.get(id) : undefined;
+      if (!id || !source) continue;
+      if (source.top >= rootRect.bottom || source.top + source.height <= rootRect.top) continue;
+
+      const clone = card.cloneNode(true) as HTMLElement;
+      clone.classList.add("library-transition-card");
+      clone.removeAttribute("tabindex");
+      clone.inert = true;
+      clone.setAttribute("aria-hidden", "true");
+      clone.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
+      clone.querySelectorAll("iframe").forEach((iframe) => {
+        const placeholder = document.createElement("div");
+        placeholder.className = "library-transition-embed-placeholder";
+        iframe.replaceWith(placeholder);
+      });
+      clone.style.left = `${source.left - rootRect.left}px`;
+      clone.style.top = `${source.top - rootRect.top}px`;
+      clone.style.width = `${source.width}px`;
+      clone.style.height = `${source.height}px`;
+      clone.style.margin = "0";
+      clone.style.transform = "none";
+      clone.style.translate = "none";
+      clone.style.willChange = "transform, opacity";
+      overlay.appendChild(clone);
+    }
+
+    overlay.classList.add("is-visible");
+    return overlay.childElementCount > 0;
+  }, [listMode]);
+
+  const normalizeLibraryTransitionOverlay = useCallback(() => {
+    const overlay = libraryTransitionOverlayRef.current;
+    const root = libraryScrollRef.current;
+    if (!overlay || !root || overlay.childElementCount === 0) return;
+
+    const rootRect = root.getBoundingClientRect();
+    for (const card of overlay.querySelectorAll<HTMLElement>(".library-transition-card")) {
+      const rect = card.getBoundingClientRect();
+      card.style.left = `${rect.left - rootRect.left}px`;
+      card.style.top = `${rect.top - rootRect.top}px`;
+      card.style.width = `${rect.width}px`;
+      card.style.height = `${rect.height}px`;
+      card.style.transform = "none";
+      card.style.opacity = "1";
+    }
+  }, []);
+
   const cancelLibraryViewAnimations = useCallback(() => {
-    for (const animation of libraryViewAnimationsRef.current) animation.cancel();
+    for (const animation of libraryViewAnimationsRef.current) {
+      const target = (animation.effect as KeyframeEffect | null)?.target;
+      if (target instanceof HTMLElement) target.style.willChange = "";
+      animation.cancel();
+    }
     libraryViewAnimationsRef.current = [];
   }, []);
 
   const switchLibraryView = useCallback((nextListMode: boolean) => {
     if (nextListMode === listMode) return;
-    cancelLibraryViewAnimations();
-    if (libraryViewTransitionTimerRef.current !== null) {
-      window.clearTimeout(libraryViewTransitionTimerRef.current);
-    }
-    pendingLibraryViewPositionsRef.current = measureLibraryCards();
-    setIsLibraryViewSwitching(true);
-    setListMode(nextListMode);
-    libraryViewTransitionTimerRef.current = window.setTimeout(() => {
-      setIsLibraryViewSwitching(false);
-      libraryViewTransitionTimerRef.current = null;
-    }, LIBRARY_VIEW_TRANSITION_MS);
-  }, [cancelLibraryViewAnimations, listMode, measureLibraryCards]);
 
-  useEffect(() => () => {
-    if (libraryViewTransitionTimerRef.current !== null) {
-      window.clearTimeout(libraryViewTransitionTimerRef.current);
+    if (libraryViewPreparationTimerRef.current !== null) {
+      window.clearTimeout(libraryViewPreparationTimerRef.current);
+      libraryViewPreparationTimerRef.current = null;
     }
-  }, []);
+    libraryViewTransitionRunRef.current += 1;
+
+    const transitionIsActive = (libraryTransitionOverlayRef.current?.childElementCount ?? 0) > 0;
+    const currentPositions = transitionIsActive ? measureLibraryTransitionCards() : measureLibraryCards();
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (transitionIsActive && !prefersReducedMotion) normalizeLibraryTransitionOverlay();
+    cancelLibraryViewAnimations();
+
+    if (prefersReducedMotion || currentPositions.size === 0) {
+      pendingLibraryViewPositionsRef.current = null;
+      clearLibraryTransitionOverlay();
+      setIsLibraryViewTransitioning(false);
+      setViewSelectionListMode(nextListMode);
+      setListMode(nextListMode);
+      return;
+    }
+
+    if (!transitionIsActive) buildLibraryTransitionOverlay(currentPositions);
+    pendingLibraryViewPositionsRef.current = currentPositions;
+    setViewSelectionListMode(listMode);
+    setIsLibraryViewTransitioning(true);
+    setListMode(nextListMode);
+  }, [buildLibraryTransitionOverlay, cancelLibraryViewAnimations, clearLibraryTransitionOverlay, listMode, measureLibraryCards, measureLibraryTransitionCards, normalizeLibraryTransitionOverlay]);
 
   useEffect(() => {
     const element = libraryScrollRef.current;
@@ -1213,58 +1313,149 @@ function App() {
   useLayoutEffect(() => {
     const firstPositions = pendingLibraryViewPositionsRef.current;
     pendingLibraryViewPositionsRef.current = null;
-    if (!firstPositions || firstPositions.size === 0) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!firstPositions || firstPositions.size === 0) {
+      setIsLibraryViewTransitioning(false);
+      setViewSelectionListMode(listMode);
+      return;
+    }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      clearLibraryTransitionOverlay();
+      setIsLibraryViewTransitioning(false);
+      setViewSelectionListMode(listMode);
+      return;
+    }
 
-    let firstFrame = 0;
-    let secondFrame = 0;
+    const root = libraryScrollRef.current;
+    const overlay = libraryTransitionOverlayRef.current;
+    if (!root || !overlay || overlay.childElementCount === 0) {
+      setIsLibraryViewTransitioning(false);
+      setViewSelectionListMode(listMode);
+      return;
+    }
+
+    const run = libraryViewTransitionRunRef.current;
+    const startedAt = performance.now();
+    const quietPeriod = 64;
+    const maxPreparationTime = 800;
+    const columnCount = listMode ? 1 : gridColumnCount;
+    const minimumMountedCards = Math.min(firstPositions.size, 5);
+    let stableSignature = "";
+    let stableSince = startedAt;
     let cancelled = false;
 
-    firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => {
-        if (cancelled) return;
+    const positionSignature = (positions: Map<string, LibraryCardPosition>) =>
+      Array.from(positions.entries())
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([id, position]) => `${id}:${Math.round(position.left)}:${Math.round(position.top)}:${Math.round(position.width)}:${Math.round(position.height)}`)
+        .join("|");
 
-        const lastPositions = measureLibraryCards();
-        const root = libraryScrollRef.current;
-        if (!root) return;
+    const finishTransition = (animations: Animation[]) => {
+      if (libraryViewAnimationsRef.current !== animations || run !== libraryViewTransitionRunRef.current) return;
+      for (const animation of animations) {
+        const target = (animation.effect as KeyframeEffect | null)?.target;
+        if (target instanceof HTMLElement) target.style.willChange = "";
+        animation.cancel();
+      }
+      libraryViewAnimationsRef.current = [];
+      clearLibraryTransitionOverlay();
+      setIsLibraryViewTransitioning(false);
+    };
 
-        const animations: Animation[] = [];
-        for (const card of root.querySelectorAll<HTMLElement>(".library-card[data-library-item-id]")) {
-          const id = card.dataset.libraryItemId;
-          const first = id ? firstPositions.get(id) : undefined;
-          const last = id ? lastPositions.get(id) : undefined;
-          if (!first || !last || typeof card.animate !== "function") continue;
+    const animateSettledLayout = (lastPositions: Map<string, LibraryCardPosition>) => {
+      if (cancelled || run !== libraryViewTransitionRunRef.current) return;
 
-          const deltaX = first.left - last.left;
-          const deltaY = first.top - last.top;
-          if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) continue;
+      const rootRect = root.getBoundingClientRect();
+      const animations: Animation[] = [];
 
-          animations.push(card.animate(
-            [
-              { transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(.985)`, opacity: 0.78 },
-              { transform: "translate3d(0, 0, 0) scale(1)", opacity: 1 },
-            ],
-            {
-              duration: LIBRARY_VIEW_TRANSITION_MS,
-              easing: "cubic-bezier(0.77, 0, 0.175, 1)",
-              fill: "both",
-            },
+      for (const clone of overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]")) {
+        const id = clone.dataset.libraryItemId;
+        const first = id ? firstPositions.get(id) : undefined;
+        const last = id ? lastPositions.get(id) : undefined;
+        if (!id || !first || !clone.animate) continue;
+
+        clone.style.willChange = "transform, opacity";
+        if (!last) {
+          animations.push(clone.animate(
+            [{ opacity: 1 }, { opacity: 0 }],
+            { duration: 220, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "both" },
           ));
+          continue;
         }
 
-        libraryViewAnimationsRef.current = animations;
-        void Promise.all(animations.map((animation) => animation.finished.catch(() => undefined))).then(() => {
-          if (libraryViewAnimationsRef.current === animations) libraryViewAnimationsRef.current = [];
-        });
-      });
-    });
+        clone.style.left = `${last.left - rootRect.left}px`;
+        clone.style.top = `${last.top - rootRect.top}px`;
+        clone.style.width = `${last.width}px`;
+        clone.style.height = `${last.height}px`;
+        const deltaX = first.left - last.left;
+        const deltaY = first.top - last.top;
+        const scaleX = last.width > 0 ? first.width / last.width : 1;
+        const scaleY = last.height > 0 ? first.height / last.height : 1;
+        animations.push(clone.animate(
+          [
+            { transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(${scaleX}, ${scaleY})`, transformOrigin: "top left" },
+            { transform: "translate3d(0, 0, 0) scale(1, 1)", transformOrigin: "top left" },
+          ],
+          { duration: LIBRARY_VIEW_TRANSITION_MS, easing: "cubic-bezier(0.77, 0, 0.175, 1)", fill: "both" },
+        ));
+      }
 
+      libraryViewAnimationsRef.current = animations;
+      setViewSelectionListMode(listMode);
+      if (animations.length === 0) {
+        finishTransition(animations);
+        return;
+      }
+      void Promise.all(animations.map((animation) => animation.finished.catch(() => undefined))).then(() => {
+        finishTransition(animations);
+      });
+    };
+
+    const waitForSettledLayout = () => {
+      if (cancelled || run !== libraryViewTransitionRunRef.current) return;
+      const positions = measureLibraryCards();
+      const signature = positionSignature(positions);
+      const now = performance.now();
+
+      const rootWidth = root.clientWidth;
+      const gridGap = Number.parseFloat(getComputedStyle(root).gap) || 14;
+      const expectedCardWidth = columnCount > 0
+        ? (rootWidth - gridGap * Math.max(0, columnCount - 1)) / columnCount
+        : 0;
+      const layoutIsReady = positions.size >= minimumMountedCards && Array.from(positions.values()).every((position) =>
+        rootWidth > 0 && Math.abs(position.width - expectedCardWidth) < 2,
+      );
+      if (!layoutIsReady) {
+        stableSignature = signature;
+        stableSince = now;
+      } else if (signature !== stableSignature) {
+        stableSignature = signature;
+        stableSince = now;
+      }
+      if ((layoutIsReady && now - stableSince >= quietPeriod) || now - startedAt >= maxPreparationTime) {
+        animateSettledLayout(positions);
+        return;
+      }
+      libraryViewPreparationTimerRef.current = window.setTimeout(waitForSettledLayout, 16);
+    };
+
+    libraryViewPreparationTimerRef.current = window.setTimeout(waitForSettledLayout, 16);
     return () => {
       cancelled = true;
-      window.cancelAnimationFrame(firstFrame);
-      window.cancelAnimationFrame(secondFrame);
+      if (libraryViewPreparationTimerRef.current !== null) {
+        window.clearTimeout(libraryViewPreparationTimerRef.current);
+        libraryViewPreparationTimerRef.current = null;
+      }
     };
-  }, [listMode, measureLibraryCards]);
+  }, [clearLibraryTransitionOverlay, listMode, measureLibraryCards]);
+
+  useEffect(() => () => {
+    if (libraryViewPreparationTimerRef.current !== null) {
+      window.clearTimeout(libraryViewPreparationTimerRef.current);
+      libraryViewPreparationTimerRef.current = null;
+    }
+    cancelLibraryViewAnimations();
+    clearLibraryTransitionOverlay();
+  }, [cancelLibraryViewAnimations, clearLibraryTransitionOverlay]);
 
   async function persistFile(file: File, captureSource: string) {
     const kind = classifyFile(file);
@@ -2247,7 +2438,7 @@ function App() {
                 className="view-selection"
                 aria-hidden="true"
                 initial={false}
-                animate={{ transform: listMode ? "translateX(30px)" : "translateX(0px)" }}
+                animate={{ transform: viewSelectionListMode ? "translateX(30px)" : "translateX(0px)" }}
                 transition={{ duration: LIBRARY_VIEW_TRANSITION_MS / 1000, ease: [0.77, 0, 0.175, 1] }}
               />
               <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><Grid2X2 size={16} /></button>
@@ -2259,7 +2450,7 @@ function App() {
         <div className="library-scroll" ref={libraryScrollRef}>
         {filteredItems.length > 0 && (
           <VirtuosoMasonry
-            className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewSwitching ? "view-switching" : ""}`}
+            className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
             columnCount={listMode ? 1 : gridColumnCount}
             data={filteredItems}
             context={libraryCardContext}
@@ -2267,6 +2458,8 @@ function App() {
             style={{ height: "100%", width: "100%" }}
           />
         )}
+
+        <div ref={libraryTransitionOverlayRef} className="library-transition-overlay" aria-hidden="true" />
 
         {filteredItems.length === 0 && (
           <div className="empty-state">
@@ -2291,7 +2484,7 @@ function App() {
             exit={{ opacity: 0, transform: "translateX(12px)" }}
             transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
           >
-          <div className="inspector-top"><span>Item details</span><button className="icon-button small" onClick={() => setSelectedItem(null)} aria-label="Close details"><X size={16} /></button></div>
+          <button type="button" className="inspector-close icon-button small" onClick={() => setSelectedItem(null)} aria-label="Close details"><X size={16} /></button>
           {selectedItem.social?.provider === "x" ? (
             <div className="x-post-inspector">
               <XPostEmbed
