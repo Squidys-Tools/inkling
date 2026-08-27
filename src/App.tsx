@@ -3,7 +3,6 @@ import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
 import { gsap } from "gsap";
-import { CustomEase } from "gsap/CustomEase";
 import { Flip } from "gsap/Flip";
 import {
   Archive,
@@ -534,10 +533,9 @@ const seedSpaces: StoredSpace[] = [
 const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
 
 const LIBRARY_VIEW_TRANSITION_MS = 440;
-const LIBRARY_VIEW_EASE = "library-view";
+const LIBRARY_VIEW_EASE = "circ.inOut";
 
-gsap.registerPlugin(CustomEase, Flip);
-CustomEase.create(LIBRARY_VIEW_EASE, "0.77,0,0.175,1");
+gsap.registerPlugin(Flip);
 
 const KIND_ALIASES: Record<string, string> = {
   article: "article",
