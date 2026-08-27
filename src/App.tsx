@@ -1235,7 +1235,6 @@ function App() {
       overlay.appendChild(clone);
     }
 
-    overlay.classList.add("is-visible");
     return overlay.childElementCount > 0;
   }, []);
 
@@ -1330,10 +1329,13 @@ function App() {
     const root = libraryScrollRef.current;
     const overlay = libraryTransitionOverlayRef.current;
     if (!root || !overlay || overlay.childElementCount === 0) {
+      clearLibraryTransitionOverlay();
       setIsLibraryViewTransitioning(false);
       setViewSelectionListMode(listMode);
       return;
     }
+
+    overlay.classList.add("is-visible");
 
     const run = libraryViewTransitionRunRef.current;
     const startedAt = performance.now();
@@ -1355,8 +1357,12 @@ function App() {
       if (libraryViewAnimationsRef.current !== animations || run !== libraryViewTransitionRunRef.current) return;
       for (const animation of animations) animation.kill();
       libraryViewAnimationsRef.current = [];
-      clearLibraryTransitionOverlay();
       setIsLibraryViewTransitioning(false);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (run === libraryViewTransitionRunRef.current) clearLibraryTransitionOverlay();
+        });
+      });
     };
 
     const animateSettledLayout = (lastPositions: Map<string, LibraryCardPosition>) => {
@@ -1405,8 +1411,7 @@ function App() {
         animations.push(Flip.from(flipState, {
           duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
           ease: LIBRARY_VIEW_EASE,
-          scale: true,
-          nested: true,
+          scale: false,
           paused: true,
         }));
       }
