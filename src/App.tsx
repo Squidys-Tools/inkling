@@ -1119,6 +1119,12 @@ function setLibraryTransitionTargetStyle(target: HTMLElement, left: number, top:
   target.style.aspectRatio = "auto";
 }
 
+function clearLibraryTransitionMediaStyle(clone: HTMLElement) {
+  const mediaFrame = clone.querySelector<HTMLElement>(".library-card-media");
+  mediaFrame?.style.removeProperty("height");
+  mediaFrame?.style.removeProperty("min-height");
+}
+
 function App() {
   const [items, setItems] = useState<LibraryItem[]>(isTauriRuntime() ? [] : seedItems);
   const [spaces, setSpaces] = useState<StoredSpace[]>(isTauriRuntime() ? [] : seedSpaces);
@@ -1255,7 +1261,22 @@ function App() {
       overlay.appendChild(clone);
 
       const cloneRect = clone.getBoundingClientRect();
-      for (const target of clone.querySelectorAll<HTMLElement>(LIBRARY_TRANSITION_TARGET_SELECTOR)) {
+      const transitionTargets = Array.from(clone.querySelectorAll<HTMLElement>(LIBRARY_TRANSITION_TARGET_SELECTOR));
+      const mediaTarget = clone.querySelector<HTMLElement>(
+        ".library-card-media > .card-image-wrap, .library-card-media > .card-paper-art, .library-card-media > .post-art, .library-card-media > .x-post-art",
+      );
+      const mediaFrame = mediaTarget?.parentElement;
+      for (const target of transitionTargets) {
+        if (target !== mediaTarget) continue;
+        const rect = target.getBoundingClientRect();
+        setLibraryTransitionTargetStyle(target, rect.left - cloneRect.left, rect.top - cloneRect.top, rect.width, rect.height);
+        if (mediaFrame) {
+          mediaFrame.style.height = `${rect.height}px`;
+          mediaFrame.style.minHeight = "0px";
+        }
+      }
+      for (const target of transitionTargets) {
+        if (target === mediaTarget) continue;
         const rect = target.getBoundingClientRect();
         setLibraryTransitionTargetStyle(target, rect.left - cloneRect.left, rect.top - cloneRect.top, rect.width, rect.height);
       }
@@ -1441,6 +1462,7 @@ function App() {
       for (const { sourceBoxes } of layoutTargets) {
         for (const { target } of sourceBoxes) clearLibraryTransitionTargetStyle(target);
       }
+      for (const { clone } of layoutTargets) clearLibraryTransitionMediaStyle(clone);
       overlay.classList.toggle("is-list", listMode);
       for (const { clone, position } of layoutTargets) {
         clone.style.left = `${position.left - rootRect.left}px`;
