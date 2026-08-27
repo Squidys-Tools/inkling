@@ -21,12 +21,14 @@ const html = `
     <title>Fallback title</title>
     <meta name="description" content="A useful description">
     <meta property="og:image" content="/images/cover.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <link rel="canonical" href="/articles/canonical">
   </head><body>
     <article>
       <h1>Fallback title</h1>
       <p>This article has enough meaningful text to exercise both the normal Defuddle path and the fallback path.</p>
-      <img src="photos/inline.jpg">
+      <img src="photos/inline.jpg" width="800" height="600">
       <iframe src="https://www.youtube.com/watch?v=abc12345678" title="Video"></iframe>
       <iframe src="https://www.youtube.com/not-a-video"></iframe>
       <video src="https://www.youtube.com/watch?v=abc12345678"></video>
@@ -42,6 +44,8 @@ assert(defuddle.canonicalUrl === "https://example.com/articles/canonical", "Defu
 const fallback = extractFallback(document, pageUrl);
 assert(fallback.canonicalUrl === "https://example.com/articles/canonical", "fallback normalizes canonical URL");
 assert(fallback.imageUrls?.includes("https://example.com/articles/photos/inline.jpg"), "fallback resolves relative image URL");
+assert(fallback.imageDimensions?.some((image) => image.url === "https://example.com/articles/photos/inline.jpg" && image.width === 800 && image.height === 600), "fallback keeps declared image dimensions");
+assert(fallback.imageDimensions?.some((image) => image.url === "https://example.com/images/cover.jpg" && image.width === 1200 && image.height === 630), "fallback keeps Open Graph image dimensions");
 
 const safeEmbeds = collectSafeEmbeds(document, pageUrl);
 assert(safeEmbeds.some((embed) => embed.provider === "youtube"), "valid YouTube iframe is allowlisted");
@@ -58,6 +62,7 @@ const fetched = await ingestUrl(pageUrl, {
 assert(fetched.extractor === "defuddle", "ingestUrl reports Defuddle extraction");
 assert(fetched.imageUrls.includes("https://example.com/images/cover.jpg"), "ingestion keeps relative Open Graph image");
 assert(fetched.imageUrls.includes("https://example.com/articles/photos/inline.jpg"), "ingestion keeps relative inline image");
+assert(fetched.imageDimensions.some((image) => image.url === "https://example.com/images/cover.jpg" && image.width === 1200 && image.height === 630), "ingestion persists Open Graph image dimensions");
 
 const fallbackFetched = await ingestUrl(pageUrl, {
   fetch: async () => new Response(html, { headers: { "content-type": "text/html" } }),

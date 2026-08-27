@@ -68,6 +68,9 @@ function mergeExtraction(primary: RawArticleExtraction, fallback: RawArticleExtr
     canonicalUrl: primary.canonicalUrl ?? fallback.canonicalUrl,
     contentHtml: hasReadableText(primary.contentHtml) ? primary.contentHtml : fallback.contentHtml,
     imageUrls: uniqueStrings([...(fallback.imageUrls ?? []), ...(primary.imageUrls ?? [])]),
+    imageDimensions: [...(fallback.imageDimensions ?? []), ...(primary.imageDimensions ?? [])].filter(
+      (value, index, values) => values.findIndex((candidate) => candidate.url === value.url) === index,
+    ),
   };
 }
 
@@ -187,6 +190,7 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
       html: xPost.embedHtml ?? "",
       text,
       imageUrls: [],
+      imageDimensions: [],
       safeEmbeds: [],
       extractor: "fallback",
       social: xPost,
@@ -294,6 +298,14 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
     ...collectImageUrls(sourceDocument, fetchedUrl),
     ...(extraction.imageUrls ?? []).map((value) => normalizeHttpUrl(value, fetchedUrl)).filter((value): value is string => value !== null),
   ]);
+  const imageDimensions = (extraction.imageDimensions ?? [])
+    .map((value) => {
+      const url = normalizeHttpUrl(value.url, fetchedUrl);
+      return url ? { ...value, url } : null;
+    })
+    .filter((value, index, values): value is NonNullable<typeof value> =>
+      value !== null && imageUrls.includes(value.url) && values.findIndex((candidate) => candidate?.url === value.url) === index,
+    );
 
   return {
     sourceUrl,
@@ -306,6 +318,7 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
     html,
     text: htmlToText(html),
     imageUrls,
+    imageDimensions,
     safeEmbeds: collectSafeEmbeds(sourceDocument, fetchedUrl),
     extractor,
   };
