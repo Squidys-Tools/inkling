@@ -1,5 +1,5 @@
 [package]
-name = "mymind-library"
+name = "inkling"
 version = "0.1.0"
 description = "A private visual library for saving and rediscovering ideas"
 authors = ["you"]

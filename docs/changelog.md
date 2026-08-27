@@ -91,7 +91,7 @@ All notable development phases and changes are recorded here. See also [roadmap.
 - SQLite storage with FTS5 full-text search (`src-tauri/src/storage.rs`)
 - URL and file capture pipeline with article extraction (Defuddle + fallback)
 - File picker, drag-and-drop, clipboard, and screenshot capture
-- Browser-extension deep link (`mymind://capture?url=<url>`)
+- Browser-extension deep link (`inkling://capture?url=<url>`; earlier `mymind://` links remain supported)
 - Background job queue for async processing (`src-tauri/src/jobs.rs`)
 - Thumbnail generation and content-addressed asset storage
 - Safe embed allowlists (YouTube, Vimeo, direct media)

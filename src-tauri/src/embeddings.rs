@@ -384,7 +384,7 @@ impl ImageRuntime {
 
 fn init_onnx_runtime() {
     ORT_INIT.call_once(|| {
-        ort::init().with_name("mymind-library embeddings").commit();
+        ort::init().with_name("inkling embeddings").commit();
     });
 }
 
@@ -580,7 +580,7 @@ mod tests {
     fn verifies_asset_against_known_sha256() {
         // SHA-256("abc") from the NIST test vectors.
         const EXPECTED: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
-        let path = std::env::temp_dir().join(format!("mymind-sha-{}", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("inkling-sha-{}", uuid::Uuid::new_v4()));
         fs::write(&path, b"abc").unwrap();
         let result = verify_asset(&path, EXPECTED);
         fs::remove_file(&path).unwrap();
@@ -589,7 +589,7 @@ mod tests {
 
     #[test]
     fn rejects_asset_with_wrong_sha256() {
-        let path = std::env::temp_dir().join(format!("mymind-sha-{}", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("inkling-sha-{}", uuid::Uuid::new_v4()));
         fs::write(&path, b"abc").unwrap();
         let result = verify_asset(&path, "not-the-digest");
         fs::remove_file(&path).unwrap();

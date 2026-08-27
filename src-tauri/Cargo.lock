@@ -2865,7 +2865,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mymind-library"
+name = "inkling"
 version = "0.1.0"
 dependencies = [
  "image",

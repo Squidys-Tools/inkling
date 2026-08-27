@@ -1882,7 +1882,7 @@ mod tests {
     #[test]
     fn semantic_search_reads_stored_text_embeddings() {
         let directory =
-            std::env::temp_dir().join(format!("mymind-storage-test-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
         fs::create_dir_all(&directory).unwrap();
         let database_path = directory.join("library.sqlite3");
         let storage = LibraryStorage::open(database_path).unwrap();
@@ -1916,7 +1916,7 @@ mod tests {
     #[test]
     fn image_similarity_reads_stored_image_embeddings() {
         let directory =
-            std::env::temp_dir().join(format!("mymind-storage-test-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
         fs::create_dir_all(&directory).unwrap();
         let database_path = directory.join("library.sqlite3");
         let storage = LibraryStorage::open(database_path).unwrap();
@@ -1958,7 +1958,8 @@ mod tests {
 
     #[test]
     fn smart_spaces_evaluate_queries_lazily() {
-        let directory = std::env::temp_dir().join(format!("mymind-spaces-test-{}", Uuid::new_v4()));
+        let directory =
+            std::env::temp_dir().join(format!("inkling-spaces-test-{}", Uuid::new_v4()));
         fs::create_dir_all(&directory).unwrap();
         let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
 
@@ -2080,7 +2081,7 @@ mod tests {
     #[test]
     fn smart_space_kind_filter_matches_article_urls() {
         let directory =
-            std::env::temp_dir().join(format!("mymind-spaces-kind-test-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("inkling-spaces-kind-test-{}", Uuid::new_v4()));
         fs::create_dir_all(&directory).unwrap();
         let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
 
