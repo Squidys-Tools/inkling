@@ -23,7 +23,6 @@ import {
   AtSign,
   Heart,
   MessageCircle,
-  Menu,
   PanelLeftClose,
   PanelLeftOpen,
   Play,
@@ -423,6 +422,12 @@ const seedItems: LibraryItem[] = [
     image: "https://i.ytimg.com/vi/PUv66718DII/hqdefault.jpg",
     mediaAspectRatio: 16 / 9,
     imageAlt: "Bret Victor presenting Inventing on Principle",
+    video: {
+      provider: "youtube",
+      embedUrl: "https://www.youtube-nocookie.com/embed/PUv66718DII",
+      sourceUrl: "https://worrydream.com/#!/InventingOnPrinciple",
+      posterUrl: "https://i.ytimg.com/vi/PUv66718DII/hqdefault.jpg",
+    },
     date: "Aug 05",
     tags: ["talks", "design"],
   },
@@ -611,6 +616,53 @@ function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }) {
 
 const VIDEO_IFRAME_ALLOW =
   "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+
+function LibraryVideoMedia({ item }: { item: LibraryItem }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  useEffect(() => setIsPlaying(false), [item.id]);
+
+  if (!item.video && !item.fileUrl) {
+    return item.image
+      ? <div className="card-image-wrap"><img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" /></div>
+      : <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><Play size={20} /></span></div>;
+  }
+
+  if (isPlaying) {
+    return (
+      <div className="card-image-wrap card-video-playing" onClick={(event) => event.stopPropagation()}>
+        {item.video ? (
+          <iframe
+            src={autoplayEmbedUrl(item.video.embedUrl)}
+            title={item.title}
+            allow={VIDEO_IFRAME_ALLOW}
+            allowFullScreen
+          />
+        ) : (
+          <video className="card-video-player" src={item.fileUrl} controls autoPlay playsInline preload="metadata" />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="card-image-wrap">
+      <button
+        type="button"
+        className="card-video-poster"
+        onClick={(event) => {
+          event.stopPropagation();
+          setIsPlaying(true);
+        }}
+        aria-label={`Play video: ${item.title}`}
+      >
+        {item.image && <img src={item.image} alt="" className="card-image" loading="lazy" decoding="async" />}
+        <span className="card-video-scrim" aria-hidden="true" />
+        <span className="card-play" aria-hidden="true"><Play size={16} /></span>
+        <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
+      </button>
+    </div>
+  );
+}
 
 function InspectorVideoMedia({ item }: { item: LibraryItem }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -936,22 +988,16 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                 fallback={item.post ? <PostArtwork post={item.post} /> : <div className="post-art">Post preview unavailable.</div>}
               />
             </div>
+          ) : item.kind === "Video" ? (
+            <LibraryVideoMedia item={item} />
           ) : item.image ? (
             <div className="card-image-wrap">
               <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />
-              {item.kind === "Video" && (
-                <>
-                  <span className="card-video-scrim" aria-hidden="true" />
-                  <span className="card-play" aria-hidden="true"><Play size={16} /></span>
-                  <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
-                </>
-              )}
             </div>
           ) : item.kind === "Post" && item.post ? (
             <PostArtwork post={item.post} />
           ) : (
             <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.kind === "Note" ? "note-art" : item.accent ?? ""}`} aria-hidden="true">
-              {item.kind === "Video" && <span className="video-paper-play"><Play size={20} /></span>}
               {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
               {item.kind === "Note" && <><span className="note-pin" /><span className="note-label">QUICK THOUGHT</span><span className="note-scribble">remember<br />the shape<br />of a day</span><span className="note-rule note-rule-one" /><span className="note-rule note-rule-two" /><span className="note-star">✳</span></>}
               {item.kind === "PDF" && <><span className="pdf-label">FIELD<br />NOTES</span><span className="pdf-rule" /></>}
@@ -1034,7 +1080,9 @@ function masonryColumnCount(width: number): number {
   if (width < 560) return 1;
   if (width < 900) return 2;
   if (width < 1220) return 3;
-  return 4;
+  if (width < 1540) return 4;
+  if (width < 1900) return 5;
+  return 6;
 }
 
 type LibraryCardPosition = {
@@ -1050,7 +1098,7 @@ function App() {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -1063,6 +1111,7 @@ function App() {
   const [pdfViewerItem, setPdfViewerItem] = useState<LibraryItem | null>(null);
   const [readingItem, setReadingItem] = useState<{ item: LibraryItem; origin: ReaderOrigin } | null>(null);
   const [listMode, setListMode] = useState(false);
+  const [isLibraryViewSwitching, setIsLibraryViewSwitching] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
@@ -1073,6 +1122,7 @@ function App() {
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const pendingLibraryViewPositionsRef = useRef<Map<string, LibraryCardPosition> | null>(null);
   const libraryViewAnimationsRef = useRef<Animation[]>([]);
+  const libraryViewTransitionTimerRef = useRef<number | null>(null);
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
     typeof window === "undefined" ? 960 : window.innerWidth,
   );
@@ -1120,9 +1170,23 @@ function App() {
   const switchLibraryView = useCallback((nextListMode: boolean) => {
     if (nextListMode === listMode) return;
     cancelLibraryViewAnimations();
+    if (libraryViewTransitionTimerRef.current !== null) {
+      window.clearTimeout(libraryViewTransitionTimerRef.current);
+    }
     pendingLibraryViewPositionsRef.current = measureLibraryCards();
+    setIsLibraryViewSwitching(true);
     setListMode(nextListMode);
+    libraryViewTransitionTimerRef.current = window.setTimeout(() => {
+      setIsLibraryViewSwitching(false);
+      libraryViewTransitionTimerRef.current = null;
+    }, 360);
   }, [cancelLibraryViewAnimations, listMode, measureLibraryCards]);
+
+  useEffect(() => () => {
+    if (libraryViewTransitionTimerRef.current !== null) {
+      window.clearTimeout(libraryViewTransitionTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     const element = libraryScrollRef.current;
@@ -1175,12 +1239,12 @@ function App() {
 
           animations.push(card.animate(
             [
-              { transform: `translate3d(${deltaX}px, ${deltaY}px, 0)` },
-              { transform: "translate3d(0, 0, 0)" },
+              { transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(.985)`, opacity: 0.78 },
+              { transform: "translate3d(0, 0, 0) scale(1)", opacity: 1 },
             ],
             {
-              duration: 240,
-              easing: "cubic-bezier(0.77, 0, 0.175, 1)",
+              duration: 360,
+              easing: "cubic-bezier(0.23, 1, 0.32, 1)",
               fill: "both",
             },
           ));
@@ -1986,35 +2050,18 @@ function App() {
         </div>
       </aside>
 
-      <main className="main-content">
-        <header className="topbar" data-tauri-drag-region>
-          <button
-            type="button"
-            className="sidebar-toggle"
-            aria-label="Open panel"
-            aria-expanded={isSidebarOpen}
-            aria-controls="library-navigation"
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <PanelLeftOpen size={16} />
-          </button>
-          <button
-            type="button"
-            className="mobile-menu"
-            aria-label={isSidebarOpen ? "Close navigation" : "Open navigation"}
-            aria-expanded={isSidebarOpen}
-            aria-controls="library-navigation"
-            onClick={() => setIsSidebarOpen((current) => !current)}
-          >
-            <Menu size={19} />
-          </button>
-          <div className="topbar-left">
-            <div className="topbar-title">
-              <span>{activeView}</span>
-            </div>
-          </div>
-        </header>
+      <button
+        type="button"
+        className="sidebar-toggle"
+        aria-label={isSidebarOpen ? "Close navigation" : "Open navigation"}
+        aria-expanded={isSidebarOpen}
+        aria-controls="library-navigation"
+        onClick={() => setIsSidebarOpen((current) => !current)}
+      >
+        {isSidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+      </button>
 
+      <main className="main-content">
         <section className="library-header">
         </section>
 
@@ -2199,7 +2246,7 @@ function App() {
                 aria-hidden="true"
                 initial={false}
                 animate={{ transform: listMode ? "translateX(30px)" : "translateX(0px)" }}
-                transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+                transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
               />
               <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><Grid2X2 size={16} /></button>
               <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><List size={16} /></button>
@@ -2210,7 +2257,7 @@ function App() {
         <div className="library-scroll" ref={libraryScrollRef}>
         {filteredItems.length > 0 && (
           <VirtuosoMasonry
-            className={`library-grid ${listMode ? "list-mode" : ""}`}
+            className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewSwitching ? "view-switching" : ""}`}
             columnCount={listMode ? 1 : gridColumnCount}
             data={filteredItems}
             context={libraryCardContext}
