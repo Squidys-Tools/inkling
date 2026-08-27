@@ -10,7 +10,7 @@ import type { NormalizedArticle, RawArticleExtraction, UrlIngestionOptions, XPos
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
-const DEFAULT_USER_AGENT = "mymind-library/0.1 (+local article capture)";
+const DEFAULT_USER_AGENT = "inkling/0.1 (+local article capture)";
 const MAX_REDIRECTS = 5;
 
 function isRedirectStatus(status: number): boolean {

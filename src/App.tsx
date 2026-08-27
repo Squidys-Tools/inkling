@@ -1095,7 +1095,7 @@ function App() {
   function extensionCaptureTarget(value: string): string | null {
     try {
       const parsed = new URL(value);
-      if (parsed.protocol !== "mymind:" || parsed.hostname !== "capture") return null;
+      if (!["inkling:", "mymind:"].includes(parsed.protocol) || parsed.hostname !== "capture") return null;
       const target = parsed.searchParams.get("url") ?? parsed.searchParams.get("source");
       return target && /^https?:\/\//iu.test(target) ? target : null;
     } catch {
@@ -1484,8 +1484,7 @@ function App() {
             </svg>
           </div>
           <div>
-            <strong>mymind</strong>
-            <span>library</span>
+            <strong>inkling</strong>
           </div>
           <button
             type="button"
