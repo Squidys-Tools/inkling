@@ -530,6 +530,8 @@ const seedSpaces: StoredSpace[] = [
 
 const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
 
+const LIBRARY_VIEW_TRANSITION_MS = 520;
+
 const KIND_ALIASES: Record<string, string> = {
   article: "article",
   url: "article",
@@ -1179,7 +1181,7 @@ function App() {
     libraryViewTransitionTimerRef.current = window.setTimeout(() => {
       setIsLibraryViewSwitching(false);
       libraryViewTransitionTimerRef.current = null;
-    }, 360);
+    }, LIBRARY_VIEW_TRANSITION_MS);
   }, [cancelLibraryViewAnimations, listMode, measureLibraryCards]);
 
   useEffect(() => () => {
@@ -1243,8 +1245,8 @@ function App() {
               { transform: "translate3d(0, 0, 0) scale(1)", opacity: 1 },
             ],
             {
-              duration: 360,
-              easing: "cubic-bezier(0.23, 1, 0.32, 1)",
+              duration: LIBRARY_VIEW_TRANSITION_MS,
+              easing: "cubic-bezier(0.77, 0, 0.175, 1)",
               fill: "both",
             },
           ));
@@ -1518,7 +1520,7 @@ function App() {
   function extensionCaptureTarget(value: string): string | null {
     try {
       const parsed = new URL(value);
-      if (parsed.protocol !== "mymind:" || parsed.hostname !== "capture") return null;
+      if (!["inkling:", "mymind:"].includes(parsed.protocol) || parsed.hostname !== "capture") return null;
       const target = parsed.searchParams.get("url") ?? parsed.searchParams.get("source");
       return target && /^https?:\/\//iu.test(target) ? target : null;
     } catch {
@@ -1911,7 +1913,7 @@ function App() {
             </svg>
           </div>
           <div>
-            <strong>mymind</strong>
+            <strong>inkling</strong>
             <span>library</span>
           </div>
           <button
@@ -2246,7 +2248,7 @@ function App() {
                 aria-hidden="true"
                 initial={false}
                 animate={{ transform: listMode ? "translateX(30px)" : "translateX(0px)" }}
-                transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
+                transition={{ duration: LIBRARY_VIEW_TRANSITION_MS / 1000, ease: [0.77, 0, 0.175, 1] }}
               />
               <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><Grid2X2 size={16} /></button>
               <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><List size={16} /></button>
