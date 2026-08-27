@@ -185,6 +185,10 @@ function mediaAspectRatioFor(item: LibraryItem): number {
     return item.mediaWidth / item.mediaHeight;
   }
 
+  // Keep native X posts compact enough to read as a card while leaving the
+  // full-height version available in the inspector.
+  if (item.social?.provider === "x") return 1.6;
+
   switch (item.kind) {
     case "Video":
       return 16 / 9;
@@ -2237,7 +2241,6 @@ function App() {
           </div>
           <div>
             <strong>inkling</strong>
-            <span>library</span>
           </div>
           <button
             type="button"
