@@ -56,6 +56,7 @@ import { classifyFile } from "./lib/ingestion/file-classification";
 import { autoplayEmbedUrl, providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 import PdfViewer from "./components/PdfViewer";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
+import { type SourceRects } from "./components/overlayMotion";
 import { KindIcon, PostArtwork, XPostEmbed, VIDEO_IFRAME_ALLOW, mediaAspectRatioFor } from "./components/ItemMedia";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
@@ -588,10 +589,23 @@ function LibraryVideoMedia({ item }: { item: LibraryItem }) {
 }
 
 type LibraryCardContext = {
-  onSelectItem: (item: LibraryItem) => void;
+  onSelectItem: (item: LibraryItem, rects?: SourceRects) => void;
   onOpenReader: (item: LibraryItem, origin?: ReaderOrigin) => void;
   onRetryJob: (jobId: string) => void | Promise<void>;
 };
+
+// Captures the card and its media box before selection state changes, so the
+// overlay's opening flight starts from the card's exact position.
+function cardRectsFor(card: HTMLElement): SourceRects {
+  const cardRect = card.getBoundingClientRect();
+  const mediaRect = card.querySelector<HTMLElement>(".library-card-media")?.getBoundingClientRect();
+  return {
+    card: { left: cardRect.left, top: cardRect.top, width: cardRect.width, height: cardRect.height },
+    media: mediaRect
+      ? { left: mediaRect.left, top: mediaRect.top, width: mediaRect.width, height: mediaRect.height }
+      : { left: cardRect.left, top: cardRect.top, width: cardRect.width, height: 0 },
+  };
+}
 
 type VirtualizedLibraryItemProps = {
   data: LibraryItem;
@@ -610,12 +624,12 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
         className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""}`}
         data-library-item-id={String(item.id)}
         style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
-        onClick={() => context.onSelectItem(item)}
+        onClick={(event) => context.onSelectItem(item, cardRectsFor(event.currentTarget))}
         tabIndex={0}
         onKeyDown={(event) => {
           if (event.key !== "Enter" && event.key !== " ") return;
           event.preventDefault();
-          context.onSelectItem(item);
+          context.onSelectItem(item, cardRectsFor(event.currentTarget));
         }}
       >
         <div className="library-card-media">
@@ -700,7 +714,8 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                 className="card-read"
                 onClick={(event) => {
                   event.stopPropagation();
-                  context.onSelectItem(item);
+                  const card = event.currentTarget.closest<HTMLElement>(".library-card");
+                  context.onSelectItem(item, card ? cardRectsFor(card) : undefined);
                 }}
               >
                 Watch <Play size={11} />
@@ -795,11 +810,13 @@ function App() {
   const libraryViewAnimationsRef = useRef<Array<ReturnType<typeof gsap.timeline>>>([]);
   const libraryViewPreparationTimerRef = useRef<number | null>(null);
   const libraryViewTransitionRunRef = useRef(0);
+  const selectionRectsRef = useRef<SourceRects | null>(null);
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
     typeof window === "undefined" ? 960 : window.innerWidth,
   );
 
-  const selectLibraryItem = useCallback((item: LibraryItem) => {
+  const selectLibraryItem = useCallback((item: LibraryItem, rects?: SourceRects) => {
+    selectionRectsRef.current = rects ?? null;
     setSelectedItem(item);
   }, []);
 
@@ -2258,15 +2275,15 @@ function App() {
         </div>
       </main>
 
-      <AnimatePresence>
-        {selectedItem && (
-          <ExpandedItemOverlay
-            key="expanded-item-overlay"
-            item={selectedItem}
-            actions={expandedOverlayActions}
-          />
-        )}
-      </AnimatePresence>
+      {selectedItem && (
+        <ExpandedItemOverlay
+          key="expanded-item-overlay"
+          item={selectedItem}
+          actions={expandedOverlayActions}
+          originRectsRef={selectionRectsRef}
+          contentAreaRef={libraryScrollRef}
+        />
+      )}
       <AnimatePresence>
         {pdfViewerItem?.fileUrl && (
           <motion.div
