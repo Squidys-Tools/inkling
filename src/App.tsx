@@ -1,4 +1,4 @@
-import { type ReactNode, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
@@ -7,31 +7,23 @@ import {
   Archive,
   AlertCircle,
   ArrowUpRight,
-  BadgeCheck,
   Bookmark,
-  BookOpen,
   Camera,
   CircleHelp,
   Clock3,
-  ExternalLink,
   FileText,
   Grid2X2,
   Image as ImageIcon,
   Layers3,
-  LoaderCircle,
   Link2,
+  LoaderCircle,
   List,
-  AtSign,
-  Heart,
-  MessageCircle,
   PanelLeftClose,
   PanelLeftOpen,
   Play,
   Plus,
-  Repeat2,
   Search,
   RotateCw,
-  Share2,
   Settings2,
   Sparkles,
   X,
@@ -63,12 +55,13 @@ import {
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { autoplayEmbedUrl, providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 import PdfViewer from "./components/PdfViewer";
+import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
+import { KindIcon, PostArtwork, XPostEmbed, VIDEO_IFRAME_ALLOW, mediaAspectRatioFor } from "./components/ItemMedia";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
-import { normalizeXPostOEmbed, xPostOEmbedUrl } from "./lib/ingestion/x-post";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import "./App.css";
 
-type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
+export type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
 type CaptureMode = "note" | "url" | "file" | "quote";
 
 export type LibraryItem = {
@@ -175,36 +168,6 @@ function postFallbackFromMetadata(social: XPostMetadata): NonNullable<LibraryIte
 
 function positiveNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-function mediaAspectRatioFor(item: LibraryItem): number {
-  if (item.mediaAspectRatio && Number.isFinite(item.mediaAspectRatio) && item.mediaAspectRatio > 0) {
-    return item.mediaAspectRatio;
-  }
-  if (item.mediaWidth && item.mediaHeight && item.mediaWidth > 0 && item.mediaHeight > 0) {
-    return item.mediaWidth / item.mediaHeight;
-  }
-
-  // Keep native X posts compact enough to read as a card while leaving the
-  // full-height version available in the inspector.
-  if (item.social?.provider === "x") return 1.6;
-
-  switch (item.kind) {
-    case "Video":
-      return 16 / 9;
-    case "Article":
-      return 16 / 10;
-    case "Image":
-      return 4 / 3;
-    case "Post":
-      return 1.45;
-    case "PDF":
-      return 4 / 3;
-    case "Quote":
-      return 1.4;
-    default:
-      return 1.45;
-  }
 }
 
 function readImageDimensions(src: string): Promise<{ width: number; height: number } | undefined> {
@@ -577,54 +540,6 @@ function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
   return true;
 }
 
-function KindIcon({ kind }: { kind: ItemKind }) {
-  const Icon =
-    kind === "Image"
-      ? ImageIcon
-      : kind === "Article"
-        ? Link2
-        : kind === "PDF"
-          ? FileText
-          : kind === "Quote"
-            ? Bookmark
-            : kind === "Post"
-              ? AtSign
-              : kind === "Video"
-                ? Play
-                : Sparkles;
-  return <Icon size={13} strokeWidth={1.8} />;
-}
-
-function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }) {
-  return (
-    <div className="post-art" aria-hidden="true">
-      <div className="post-author">
-        <span className="post-avatar">
-          <span>j</span>
-          {post.avatarUrl && <img src={post.avatarUrl} alt="" />}
-        </span>
-        <span>
-          <strong>{post.displayName}</strong>
-          <BadgeCheck size={13} />
-          <small>{post.handle}</small>
-        </span>
-        <span className="post-platform">X</span>
-      </div>
-      <p>{post.body}</p>
-      <div className="post-date">{post.published}</div>
-      <div className="post-actions">
-        <MessageCircle size={14} />
-        <Repeat2 size={14} />
-        <Heart size={14} />
-        <Share2 size={14} />
-      </div>
-    </div>
-  );
-}
-
-const VIDEO_IFRAME_ALLOW =
-  "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
-
 function LibraryVideoMedia({ item }: { item: LibraryItem }) {
   const [isPlaying, setIsPlaying] = useState(false);
   useEffect(() => setIsPlaying(false), [item.id]);
@@ -668,291 +583,6 @@ function LibraryVideoMedia({ item }: { item: LibraryItem }) {
         <span className="card-play" aria-hidden="true"><Play size={16} /></span>
         <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
       </button>
-    </div>
-  );
-}
-
-function InspectorVideoMedia({ item }: { item: LibraryItem }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  useEffect(() => setIsPlaying(false), [item.id]);
-
-  if (item.video) {
-    const poster = item.image ?? item.video.posterUrl;
-    return (
-      <div className="inspector-video">
-        {isPlaying ? (
-          <iframe
-            src={autoplayEmbedUrl(item.video.embedUrl)}
-            title={item.title}
-            allow={VIDEO_IFRAME_ALLOW}
-            allowFullScreen
-          />
-        ) : (
-          <button
-            type="button"
-            className="video-poster"
-            onClick={() => setIsPlaying(true)}
-            aria-label={`Play video: ${item.title}`}
-          >
-            {poster && <img src={poster} alt="" loading="lazy" />}
-            <span className="video-poster-play" aria-hidden="true"><Play size={21} /></span>
-            <span className="video-provider">{providerLabel(item.video.provider)}</span>
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  if (item.fileUrl) {
-    return (
-      <div className="inspector-video">
-        <video className="inspector-native-video" src={item.fileUrl} controls preload="metadata" />
-      </div>
-    );
-  }
-
-  return (
-    <div className={`inspector-art ${item.accent ?? "ink"}`}><KindIcon kind={item.kind} /><span>{item.kind}</span></div>
-  );
-}
-
-type XWidgets = {
-  widgets?: {
-    load: (element?: HTMLElement) => void;
-  };
-};
-
-declare global {
-  interface Window {
-    twttr?: XWidgets;
-  }
-}
-
-let xWidgetsPromise: Promise<void> | null = null;
-const X_WIDGETS_SRC = "https://platform.twitter.com/widgets.js";
-
-function loadXWidgets() {
-  if (typeof window === "undefined" || window.twttr?.widgets) return Promise.resolve();
-  if (xWidgetsPromise) return xWidgetsPromise;
-
-  xWidgetsPromise = new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>("#twitter-wjs");
-    const script = existing ?? document.createElement("script");
-    let pollId: number | undefined;
-    let timeoutId: number | undefined;
-    let settled = false;
-
-    const finish = (error?: Error) => {
-      if (settled) return;
-      settled = true;
-      if (pollId !== undefined) window.clearInterval(pollId);
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-      if (error) reject(error);
-      else resolve();
-    };
-
-    const checkReady = () => {
-      if (window.twttr?.widgets) finish();
-    };
-
-    const handleLoad = () => {
-      checkReady();
-      window.setTimeout(checkReady, 0);
-    };
-    const handleError = () => finish(new Error("X widgets could not be loaded."));
-
-    script.addEventListener("load", handleLoad, { once: true });
-    script.addEventListener("error", handleError, { once: true });
-
-    if (!existing) {
-      script.id = "twitter-wjs";
-      script.src = X_WIDGETS_SRC;
-      script.async = true;
-      script.charset = "utf-8";
-      document.head.appendChild(script);
-    }
-
-    checkReady();
-    pollId = window.setInterval(checkReady, 100);
-    timeoutId = window.setTimeout(() => finish(new Error("X widgets timed out.")), 15000);
-  });
-
-  return xWidgetsPromise;
-}
-
-function waitForXWidget(root: HTMLElement, timeoutMs = 8000): Promise<boolean> {
-  return new Promise((resolve) => {
-    let settled = false;
-    let observer: MutationObserver | null = null;
-    let timeoutId: number | undefined;
-
-    const finish = (loaded: boolean) => {
-      if (settled) return;
-      settled = true;
-      observer?.disconnect();
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-      resolve(loaded);
-    };
-
-    const watchWidget = () => {
-      const iframe = root.querySelector<HTMLIFrameElement>("iframe");
-      if (!iframe) return;
-
-      // X replaces the blockquote with its official cross-origin iframe. The
-      // iframe load event is not a reliable readiness signal here: cached
-      // frames can finish before a listener is attached, and some browsers do
-      // not surface a second load event for an already-created frame. Seeing
-      // the official iframe is the stable signal that widgets.js transformed
-      // this embed. Do not wait for requestAnimationFrame here: the preview
-      // can be backgrounded, and browsers throttle animation frames in that
-      // state even though the cross-origin iframe has already loaded.
-      finish(true);
-    };
-
-    observer = new MutationObserver(watchWidget);
-    observer.observe(root, { childList: true, subtree: true });
-    watchWidget();
-    timeoutId = window.setTimeout(() => finish(false), timeoutMs);
-  });
-}
-
-function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallback: ReactNode }) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const nativeRef = useRef<HTMLDivElement>(null);
-  const [shouldLoad, setShouldLoad] = useState(false);
-  const [embedHtml, setEmbedHtml] = useState<string | undefined>(social.embedHtml);
-  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    if (typeof IntersectionObserver === "undefined") {
-      setShouldLoad(true);
-      return;
-    }
-
-    const idleWindow = window as unknown as {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    };
-    let cancelScheduledLoad: (() => void) | undefined;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        observer.disconnect();
-
-        let cancelled = false;
-        const start = () => {
-          if (!cancelled) setShouldLoad(true);
-        };
-        const idleId = idleWindow.requestIdleCallback
-          ? idleWindow.requestIdleCallback(start, { timeout: 1200 })
-          : window.setTimeout(start, 0);
-        cancelScheduledLoad = () => {
-          cancelled = true;
-          if (idleWindow.cancelIdleCallback && idleWindow.requestIdleCallback) {
-            idleWindow.cancelIdleCallback(idleId);
-          } else {
-            window.clearTimeout(idleId);
-          }
-        };
-      },
-      { rootMargin: "120px 0px" },
-    );
-    observer.observe(host);
-
-    return () => {
-      observer.disconnect();
-      cancelScheduledLoad?.();
-    };
-  }, [social.postUrl]);
-
-  useEffect(() => {
-    setShouldLoad(false);
-    setEmbedHtml(social.embedHtml);
-    setStatus("idle");
-  }, [social.embedHtml, social.postUrl]);
-
-  useEffect(() => {
-    if (!shouldLoad) return;
-    let cancelled = false;
-    setStatus("loading");
-
-    if (social.embedHtml) {
-      setEmbedHtml(social.embedHtml);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    fetch(xPostOEmbedUrl(social.postUrl), { headers: { Accept: "application/json" } })
-      .then((response) => {
-        if (!response.ok) throw new Error(`X oEmbed returned HTTP ${response.status}.`);
-        return response.json() as Promise<unknown>;
-      })
-      .then((payload) => {
-        if (cancelled) return;
-        const normalized = normalizeXPostOEmbed(social.postUrl, payload as Parameters<typeof normalizeXPostOEmbed>[1]);
-        if (!normalized?.embedHtml) throw new Error("X did not return embed markup.");
-        setEmbedHtml(normalized.embedHtml);
-      })
-      .catch(() => {
-        if (!cancelled) setStatus("failed");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [shouldLoad, social.embedHtml, social.postUrl]);
-
-  useEffect(() => {
-    const root = nativeRef.current;
-    if (!root || !embedHtml) return;
-
-    root.innerHTML = embedHtml;
-    const updateEmbedWidth = () => {
-      const width = Math.min(550, Math.max(280, Math.floor(root.getBoundingClientRect().width)));
-      const iframe = root.querySelector<HTMLIFrameElement>("iframe");
-
-      if (iframe) {
-        // The iframe itself is width: 100%; changing its URL after X has
-        // rendered causes the widget to reload and can create a resize loop.
-        // Its document receives the new viewport width through the iframe box.
-        return;
-      }
-
-      root.querySelector<HTMLElement>("blockquote.twitter-tweet")?.setAttribute("data-width", String(width));
-    };
-
-    updateEmbedWidth();
-    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateEmbedWidth);
-    resizeObserver?.observe(root);
-    window.addEventListener("resize", updateEmbedWidth);
-    let cancelled = false;
-    loadXWidgets()
-      .then(async () => {
-        if (cancelled) return;
-        const widgetLoad = waitForXWidget(root);
-        window.twttr?.widgets?.load(root);
-        const loaded = await widgetLoad;
-        if (!cancelled) setStatus(loaded ? "ready" : "failed");
-      })
-      .catch(() => {
-        if (!cancelled) setStatus("failed");
-      });
-
-    return () => {
-      cancelled = true;
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", updateEmbedWidth);
-      root.replaceChildren();
-    };
-  }, [embedHtml, shouldLoad]);
-
-  return (
-    <div className="x-post-embed" ref={hostRef} data-x-status={status}>
-      <div className={`x-post-native ${status === "ready" ? "is-ready" : ""}`} ref={nativeRef} aria-hidden={status !== "ready"} />
-      {status !== "ready" && <div className="x-post-fallback">{fallback}</div>}
     </div>
   );
 }
@@ -1959,7 +1589,6 @@ function App() {
         searchRef.current?.focus();
       }
       if (event.key === "Escape") {
-        setSelectedItem(null);
         setIsAdding(false);
         setCaptureMode(null);
       }
@@ -2201,6 +1830,27 @@ function App() {
     onOpenReader: openReader,
     onRetryJob: retryJob,
   }), [openReader, retryJob, selectLibraryItem]);
+
+  const expandedOverlayActions = useMemo<ExpandedOverlayActions>(() => ({
+    onClose: () => setSelectedItem(null),
+    onOpenPdf: setPdfViewerItem,
+    onOpenReader: openReader,
+    onFindSimilar: (item) => void findSimilarImages(item),
+    onRetryJob: retryJob,
+    isFindingSimilar,
+  }), [isFindingSimilar, openReader, retryJob]);
+
+  // Selection styling stays out of the card render tree so opening the
+  // overlay does not re-render (or remount embeds in) the whole grid.
+  useEffect(() => {
+    const selectedCards = document.querySelectorAll<HTMLElement>(".library-card.is-selected");
+    for (const card of selectedCards) card.classList.remove("is-selected");
+    if (!selectedItem) return;
+    const source = document.querySelector<HTMLElement>(
+      `.library-card[data-library-item-id="${CSS.escape(String(selectedItem.id))}"]`,
+    );
+    source?.classList.add("is-selected");
+  }, [selectedItem]);
 
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);
 
@@ -2610,99 +2260,11 @@ function App() {
 
       <AnimatePresence>
         {selectedItem && (
-          <motion.aside
-            key="inspector"
-            className="item-inspector"
-            aria-label="Selected item"
-            initial={{ opacity: 0, transform: "translateX(12px)" }}
-            animate={{ opacity: 1, transform: "translateX(0)" }}
-            exit={{ opacity: 0, transform: "translateX(12px)" }}
-            transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
-          >
-          <button type="button" className="inspector-close icon-button small" onClick={() => setSelectedItem(null)} aria-label="Close details"><X size={16} /></button>
-          {selectedItem.social?.provider === "x" ? (
-            <div className="x-post-inspector">
-              <XPostEmbed
-                social={selectedItem.social}
-                fallback={selectedItem.post ? <PostArtwork post={selectedItem.post} /> : <div className="inspector-art ink">Post preview unavailable.</div>}
-              />
-            </div>
-          ) : selectedItem.kind === "Video" ? (
-            <InspectorVideoMedia item={selectedItem} />
-          ) : selectedItem.image ? (
-            <img src={selectedItem.image} alt={selectedItem.imageAlt ?? selectedItem.title} className="inspector-image" />
-          ) : selectedItem.kind === "Quote" ? (
-            <div className="inspector-art quote-inspector-art paper-yellow"><span className="inspector-quote-mark">“</span><span>{selectedItem.kind}</span></div>
-          ) : selectedItem.kind === "Post" && selectedItem.post ? (
-            <PostArtwork post={selectedItem.post} />
-          ) : (
-            <div className={`inspector-art ${selectedItem.accent ?? "ink"}`}><KindIcon kind={selectedItem.kind} /><span>{selectedItem.kind}</span></div>
-          )}
-          <div className="inspector-copy">
-            <div className="card-kicker"><span><KindIcon kind={selectedItem.kind} />{selectedItem.kind}</span><span>{selectedItem.date}</span></div>
-            {selectedItem.kind === "Quote" ? (
-              <>
-                <blockquote className="inspector-quote">“{selectedItem.title}”</blockquote>
-                {selectedItem.description && <p className="inspector-attribution">— {selectedItem.description.replace(/^—\s*/u, "")}</p>}
-              </>
-            ) : (
-              <>
-                <h2>{selectedItem.title}</h2>
-                <p>{selectedItem.description}</p>
-              </>
-            )}
-            {selectedItem.processing?.active && (
-              <div className="inspector-processing" role="status">
-                <LoaderCircle size={14} />
-                <span>{selectedItem.processing.message ?? "Processing"}</span>
-                {selectedItem.processing.progressTotal != null && <span>{selectedItem.processing.progressCurrent}/{selectedItem.processing.progressTotal}</span>}
-              </div>
-            )}
-            {selectedItem.processing?.failedJob && (
-              <div className="inspector-processing failed" role="alert">
-                <AlertCircle size={14} />
-                <span>{selectedItem.processing.failedJob.errorMessage ?? "Processing failed"}</span>
-                <button type="button" className="retry-button" onClick={() => void retryJob(selectedItem.processing?.failedJob?.id ?? "")}>
-                  <RotateCw size={12} /> Try again
-                </button>
-              </div>
-            )}
-            <div className="inspector-source"><span>Source</span><strong>{selectedItem.source}</strong></div>
-            <div className="tag-row">{selectedItem.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
-            {selectedItem.kind === "PDF" && selectedItem.fileUrl && (
-              <button className="similar-button" type="button" onClick={() => setPdfViewerItem(selectedItem)}>
-                <FileText size={15} /> Read PDF
-              </button>
-            )}
-            {selectedItem.kind === "Image" && isTauriRuntime() && (
-              <button className="similar-button" type="button" onClick={() => void findSimilarImages(selectedItem)} disabled={isFindingSimilar}>
-                <Sparkles size={15} /> {isFindingSimilar ? "Finding similar…" : "Find similar images"}
-              </button>
-            )}
-            {selectedItem.kind === "Article" && (
-              <button
-                className="similar-button read-button"
-                type="button"
-                onClick={(event) => {
-                  const rect = event.currentTarget.getBoundingClientRect();
-                  openReader(selectedItem, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
-                }}
-                disabled={!selectedItem.articleHtml}
-                title={selectedItem.articleHtml ? "Open reader" : "No saved article text"}
-              >
-                <BookOpen size={15} /> Read
-              </button>
-            )}
-            <button
-              className="open-source"
-              type="button"
-              onClick={() => selectedItem.sourceUrl && window.open(selectedItem.sourceUrl, "_blank", "noopener,noreferrer")}
-              disabled={!selectedItem.sourceUrl}
-            >
-              <ExternalLink size={15} /> Open original
-            </button>
-          </div>
-          </motion.aside>
+          <ExpandedItemOverlay
+            key="expanded-item-overlay"
+            item={selectedItem}
+            actions={expandedOverlayActions}
+          />
         )}
       </AnimatePresence>
       <AnimatePresence>
