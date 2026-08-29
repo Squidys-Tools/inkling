@@ -1,10 +1,24 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { motion } from "motion/react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { gsap } from "gsap";
 import { AlertCircle, BookOpen, Check, Copy, ExternalLink, FileText, LoaderCircle, RotateCw, Sparkles, X } from "lucide-react";
 import type { LibraryItem } from "../App";
 import { isTauriRuntime } from "../lib/libraryApi";
 import type { ReaderOrigin } from "../ReaderView";
-import { KindIcon, PostArtwork, XPostEmbed, DetailVideoMedia, mediaAspectRatioFor } from "./ItemMedia";
+import { KindIcon, PostArtwork, XPostEmbed, DetailVideoMedia } from "./ItemMedia";
+import {
+  OVERLAY_EASE,
+  OVERLAY_FLIGHT_MS,
+  computeOverlayDestination,
+  overlayMediaHeight,
+  prefersReducedMotion,
+  queryCardRects,
+  rectFrom,
+  refitDestination,
+  relativeBox,
+  type FlightRect,
+  type OverlayDestination,
+  type SourceRects,
+} from "./overlayMotion";
 
 export type ExpandedOverlayActions = {
   onClose: () => void;
@@ -23,6 +37,24 @@ type OverlayAction = {
   disabled?: boolean;
   title?: string;
 };
+
+type Flight =
+  | { kind: "open"; id: number; originRects: SourceRects; destination: OverlayDestination; headerHeight: number }
+  | {
+      kind: "switch";
+      id: number;
+      fromItem: LibraryItem;
+      fromRects: SourceRects;
+      toRects: SourceRects;
+      destination: OverlayDestination;
+      headerHeight: number;
+    }
+  | { kind: "close"; id: number; fromRects: SourceRects; toRects: SourceRects; headerHeight: number };
+
+const CARD_RADIUS = 14;
+const OVERLAY_RADIUS = 18;
+const CARD_SHADOW = "0 11px 27px rgba(0,0,0,.45)";
+const OVERLAY_SHADOW = "0 30px 80px rgba(0,0,0,.55)";
 
 function clickOrigin(event: React.MouseEvent<HTMLElement>): ReaderOrigin {
   const rect = event.currentTarget.getBoundingClientRect();
@@ -99,12 +131,7 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
   if (item.image) {
     return (
       <div className="expanded-overlay-media">
-        <img
-          src={item.image}
-          alt={item.imageAlt ?? item.title}
-          className="detail-image"
-          style={{ aspectRatio: String(mediaAspectRatioFor(item)) } as CSSProperties}
-        />
+        <img src={item.image} alt={item.imageAlt ?? item.title} className="detail-image" />
       </div>
     );
   }
@@ -138,19 +165,327 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
   );
 }
 
-export function ExpandedItemOverlay({ item, actions }: { item: LibraryItem; actions: ExpandedOverlayActions }) {
+// Non-interactive media representation for flight frames. Third-party embeds
+// are replaced with their static fallback so no live iframe is ever
+// duplicated or transform-scaled during a transition.
+function FlightMedia({ item }: { item: LibraryItem }) {
+  if (item.image) {
+    return <img src={item.image} alt={item.imageAlt ?? item.title} className="overlay-flight-img" />;
+  }
+  if (item.social?.provider === "x" && item.post) {
+    return (
+      <div className="overlay-flight-art">
+        <PostArtwork post={item.post} />
+      </div>
+    );
+  }
+  if (item.kind === "Quote") {
+    return (
+      <div className="overlay-flight-art detail-quote-art paper-yellow">
+        <span className="detail-quote-mark">“</span>
+        <span>{item.kind}</span>
+      </div>
+    );
+  }
+  return (
+    <div className={`overlay-flight-art ${item.accent ?? "ink"}`}>
+      <KindIcon kind={item.kind} />
+      <span>{item.kind}</span>
+    </div>
+  );
+}
+
+type ExpandedItemOverlayProps = {
+  item: LibraryItem;
+  actions: ExpandedOverlayActions;
+  originRectsRef: RefObject<SourceRects | null>;
+  contentAreaRef: RefObject<HTMLElement | null>;
+};
+
+export function ExpandedItemOverlay({ item, actions, originRectsRef, contentAreaRef }: ExpandedItemOverlayProps) {
+  const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const mediaRef = useRef<HTMLDivElement>(null);
+  const outgoingFrameRef = useRef<HTMLDivElement>(null);
+  const outgoingMediaRef = useRef<HTMLDivElement>(null);
+  const incomingFrameRef = useRef<HTMLDivElement>(null);
+  const incomingMediaRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const itemIdRef = useRef(item.id);
+  const itemRef = useRef(item);
+  const previousItemRef = useRef(item);
   const copyTimerRef = useRef<number | null>(null);
+  const flightIdRef = useRef(0);
+  const flightRef = useRef<Flight | null>(null);
+  const destinationRef = useRef<OverlayDestination | null>(null);
+  const originRatioRef = useRef(1.45);
+  const hasSettledOnceRef = useRef(false);
+  const [destination, setDestination] = useState<OverlayDestination | null>(null);
+  const [flight, setFlight] = useState<Flight | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
+  itemRef.current = item;
+  flightRef.current = flight;
+
+  const contentAreaRect = (): FlightRect => {
+    const rect = contentAreaRef.current?.getBoundingClientRect();
+    if (rect) return rectFrom(rect);
+    return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+  };
+
+  const measureHeaderHeight = (): number => headerRef.current?.offsetHeight ?? 52;
+
+  // Picks the overlay's final rectangle before the opening animation starts.
   useLayoutEffect(() => {
-    closeButtonRef.current?.focus({ preventScroll: true });
+    const originRects = originRectsRef.current;
+    const content = contentAreaRect();
+    const ratio = originRects ? originRects.card.width / Math.max(originRects.card.height, 1) : 1.45;
+    originRatioRef.current = ratio;
+    const sourceForPlacement: SourceRects =
+      originRects ?? {
+        card: { left: content.left + content.width / 2 - 100, top: content.top + content.height / 2 - 69, width: 200, height: 138 },
+        media: { left: content.left + content.width / 2 - 100, top: content.top + content.height / 2 - 69, width: 200, height: 138 },
+      };
+    const next = computeOverlayDestination(sourceForPlacement, content, item, window.innerHeight);
+    destinationRef.current = next;
+    setDestination(next);
+    if (!originRects || prefersReducedMotion()) {
+      gsap.fromTo(layerRef.current, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power1.out" });
+      return;
+    }
+    flightIdRef.current += 1;
+    setFlight({ kind: "open", id: flightIdRef.current, originRects, destination: next, headerHeight: measureHeaderHeight() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Runs every flight. GSAP owns the overlay's rectangle geometry: the frame
+  // (position, size, radius, shadow) and its media box tween as one object.
+  useLayoutEffect(() => {
+    if (!flight) return;
+    const media = mediaRef.current;
+    const header = headerRef.current;
+    const body = bodyRef.current;
+
+    if (flight.kind === "open") {
+      if (!dialogRef.current || !media || !header || !body) return;
+      const { originRects, destination: dest, headerHeight } = flight;
+      gsap.set([header, body], { autoAlpha: 0 });
+      const duration = OVERLAY_FLIGHT_MS / 1000;
+      const timeline = gsap.timeline({
+        onComplete: () => {
+          setFlight(null);
+          closeButtonRef.current?.focus({ preventScroll: true });
+        },
+      });
+      timeline
+        .fromTo(
+          dialogRef.current,
+          {
+            left: originRects.card.left,
+            top: originRects.card.top,
+            width: originRects.card.width,
+            height: originRects.card.height,
+            borderRadius: CARD_RADIUS,
+            boxShadow: CARD_SHADOW,
+          },
+          {
+            left: dest.frame.left,
+            top: dest.frame.top,
+            width: dest.frame.width,
+            height: dest.frame.height,
+            borderRadius: OVERLAY_RADIUS,
+            boxShadow: OVERLAY_SHADOW,
+            duration,
+            ease: OVERLAY_EASE,
+            autoRound: false,
+          },
+          0,
+        )
+        .fromTo(
+          media,
+          {
+            top: relativeBox(originRects.media, originRects.card).top,
+            left: relativeBox(originRects.media, originRects.card).left,
+            width: relativeBox(originRects.media, originRects.card).width,
+            height: relativeBox(originRects.media, originRects.card).height,
+          },
+          {
+            top: headerHeight,
+            left: 0,
+            width: dest.frame.width,
+            height: dest.mediaHeight,
+            duration,
+            ease: OVERLAY_EASE,
+            autoRound: false,
+          },
+          0,
+        )
+        .to([header, body], { autoAlpha: 1, duration: 0.16 }, duration * 0.55);
+      return () => {
+        timeline.kill();
+      };
+    }
+
+    if (flight.kind === "close") {
+      if (!dialogRef.current || !media || !header || !body) {
+        actions.onClose();
+        return;
+      }
+      const duration = OVERLAY_FLIGHT_MS / 1000;
+      const timeline = gsap.timeline({ onComplete: actions.onClose });
+      timeline.to([header, body], { autoAlpha: 0, duration: 0.1 }, 0);
+      timeline
+        .fromTo(
+          dialogRef.current,
+          { left: flight.fromRects.card.left, top: flight.fromRects.card.top, width: flight.fromRects.card.width, height: flight.fromRects.card.height },
+          {
+            left: flight.toRects.card.left,
+            top: flight.toRects.card.top,
+            width: flight.toRects.card.width,
+            height: flight.toRects.card.height,
+            borderRadius: CARD_RADIUS,
+            boxShadow: CARD_SHADOW,
+            duration,
+            ease: OVERLAY_EASE,
+            autoRound: false,
+          },
+          0.06,
+        )
+        .fromTo(
+          media,
+          { top: flight.fromRects.media.top, left: flight.fromRects.media.left, width: flight.fromRects.media.width, height: flight.fromRects.media.height },
+          {
+            top: relativeBox(flight.toRects.media, flight.toRects.card).top,
+            left: relativeBox(flight.toRects.media, flight.toRects.card).left,
+            width: relativeBox(flight.toRects.media, flight.toRects.card).width,
+            height: relativeBox(flight.toRects.media, flight.toRects.card).height,
+            duration,
+            ease: OVERLAY_EASE,
+            autoRound: false,
+          },
+          0.06,
+        );
+      return () => {
+        timeline.kill();
+      };
+    }
+
+    // Switch flight: two temporary representations. The outgoing one returns
+    // to its source card while the incoming one grows into the same overlay
+    // destination; the live dialog stays settled on top of nothing and the
+    // ghosts cover it only where they overlap.
+    const outgoingFrame = outgoingFrameRef.current;
+    const outgoingMedia = outgoingMediaRef.current;
+    const incomingFrame = incomingFrameRef.current;
+    const incomingMedia = incomingMediaRef.current;
+    if (!outgoingFrame || !outgoingMedia || !incomingFrame || !incomingMedia) return;
+    const dest = flight.destination;
+    const fromMediaHeight = overlayMediaHeight(flight.fromItem, dest.frame.width, window.innerHeight);
+    const toMediaHeight = overlayMediaHeight(itemRef.current, dest.frame.width, window.innerHeight);
+    const duration = OVERLAY_FLIGHT_MS / 1000;
+    const outgoingFromMedia = { left: 0, top: flight.headerHeight, width: dest.frame.width, height: fromMediaHeight };
+    const outgoingToMedia = relativeBox(flight.fromRects.media, flight.fromRects.card);
+    const incomingFromMedia = relativeBox(flight.toRects.media, flight.toRects.card);
+    const incomingToMedia = { left: 0, top: flight.headerHeight, width: dest.frame.width, height: toMediaHeight };
+    const timeline = gsap.timeline({ onComplete: () => setFlight(null) });
+    timeline
+      .fromTo(
+        outgoingFrame,
+        { left: dest.frame.left, top: dest.frame.top, width: dest.frame.width, height: dest.frame.height, borderRadius: OVERLAY_RADIUS, boxShadow: OVERLAY_SHADOW },
+        {
+          left: flight.fromRects.card.left,
+          top: flight.fromRects.card.top,
+          width: flight.fromRects.card.width,
+          height: flight.fromRects.card.height,
+          borderRadius: CARD_RADIUS,
+          boxShadow: CARD_SHADOW,
+          duration,
+          ease: OVERLAY_EASE,
+          autoRound: false,
+        },
+        0,
+      )
+      .fromTo(
+        outgoingMedia,
+        { left: outgoingFromMedia.left, top: outgoingFromMedia.top, width: outgoingFromMedia.width, height: outgoingFromMedia.height },
+        { left: outgoingToMedia.left, top: outgoingToMedia.top, width: outgoingToMedia.width, height: outgoingToMedia.height, duration, ease: OVERLAY_EASE, autoRound: false },
+        0,
+      )
+      .fromTo(
+        incomingFrame,
+        { left: flight.toRects.card.left, top: flight.toRects.card.top, width: flight.toRects.card.width, height: flight.toRects.card.height, borderRadius: CARD_RADIUS, boxShadow: CARD_SHADOW },
+        {
+          left: dest.frame.left,
+          top: dest.frame.top,
+          width: dest.frame.width,
+          height: dest.frame.height,
+          borderRadius: OVERLAY_RADIUS,
+          boxShadow: OVERLAY_SHADOW,
+          duration,
+          ease: OVERLAY_EASE,
+          autoRound: false,
+        },
+        0,
+      )
+      .fromTo(
+        incomingMedia,
+        { left: incomingFromMedia.left, top: incomingFromMedia.top, width: incomingFromMedia.width, height: incomingFromMedia.height },
+        { left: incomingToMedia.left, top: incomingToMedia.top, width: incomingToMedia.width, height: incomingToMedia.height, duration, ease: OVERLAY_EASE, autoRound: false },
+        0,
+      );
+    return () => {
+      timeline.kill();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flight]);
+
+  // Re-clamps the settled geometry when the window is resized. The placement
+  // decision itself stays as chosen at open time.
+  useEffect(() => {
+    const onResize = () => {
+      const current = destinationRef.current;
+      if (!current) return;
+      const next = refitDestination(current, originRatioRef.current, contentAreaRect(), itemRef.current, window.innerHeight);
+      destinationRef.current = next;
+      setDestination(next);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     itemIdRef.current = item.id;
+  }, [item.id]);
+
+  // Switching items while the overlay is open. Both source cards keep their
+  // live grid positions; the ghosts do all flying and the dialog content
+  // swaps underneath. Interruptions cancel the active timeline and start
+  // from the current visual state.
+  useLayoutEffect(() => {
+    const previous = previousItemRef.current;
+    if (previous.id === item.id) return;
+    previousItemRef.current = item;
+    const activeFlight = flightRef.current;
+    if (activeFlight && (activeFlight.kind === "open" || activeFlight.kind === "close")) {
+      if (mediaRef.current) gsap.set(mediaRef.current, { clearProps: "top,left,width,height" });
+      if (headerRef.current) gsap.set(headerRef.current, { clearProps: "opacity,visibility" });
+      if (bodyRef.current) gsap.set(bodyRef.current, { clearProps: "opacity,visibility" });
+    }
+    setFlight(null);
+    if (prefersReducedMotion()) return;
+    const fromRects = queryCardRects(previous.id);
+    const toRects = queryCardRects(item.id);
+    const dest = destinationRef.current;
+    if (!fromRects || !toRects || !dest) {
+      if (bodyRef.current) gsap.fromTo(bodyRef.current, { opacity: 0.35 }, { opacity: 1, duration: 0.15 });
+      return;
+    }
+    flightIdRef.current += 1;
+    setFlight({ kind: "switch", id: flightIdRef.current, fromItem: previous, fromRects, toRects, destination: dest, headerHeight: measureHeaderHeight() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.id]);
 
   // On close, hand focus back to the source card while it is still mounted.
@@ -166,15 +501,54 @@ export function ExpandedItemOverlay({ item, actions }: { item: LibraryItem; acti
     card?.focus({ preventScroll: true });
   }, []);
 
+  // Move focus to the close control when the overlay finishes opening.
+  useLayoutEffect(() => {
+    if (flight || !destination || hasSettledOnceRef.current) return;
+    hasSettledOnceRef.current = true;
+    closeButtonRef.current?.focus({ preventScroll: true });
+  }, [flight, destination]);
+
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
+
+  // All close paths funnel through here so the closing flight can run before
+  // the overlay unmounts. Cards that are no longer mounted fall back to a
+  // short opacity fade.
+  const requestClose = () => {
+    if (flightRef.current?.kind === "close") return;
+    const rects = queryCardRects(itemIdRef.current);
+    const currentDestination = destinationRef.current;
+    let fromRects: SourceRects | null = null;
+    const dialog = dialogRef.current;
+    const media = mediaRef.current;
+    if (dialog && media) {
+      const dialogRect = rectFrom(dialog.getBoundingClientRect());
+      fromRects = { card: dialogRect, media: relativeBox(rectFrom(media.getBoundingClientRect()), dialogRect) };
+    } else if (currentDestination) {
+      fromRects = {
+        card: currentDestination.frame,
+        media: { left: 0, top: measureHeaderHeight(), width: currentDestination.frame.width, height: currentDestination.mediaHeight },
+      };
+    }
+    if (prefersReducedMotion() || !rects || !fromRects) {
+      if (flightRef.current) setFlight(null);
+      gsap.to(layerRef.current, { opacity: 0, duration: 0.15, onComplete: actionsRef.current.onClose });
+      return;
+    }
+    flightIdRef.current += 1;
+    setFlight({ kind: "close", id: flightIdRef.current, fromRects, toRects: rects, headerHeight: measureHeaderHeight() });
+  };
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.stopPropagation();
-      actions.onClose();
+      requestClose();
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [actions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Modeless close: clicks on empty library space dismiss the overlay, while
   // clicks on cards fall through to the card's own handler, which switches
@@ -185,17 +559,22 @@ export function ExpandedItemOverlay({ item, actions }: { item: LibraryItem; acti
       if (!(target instanceof Node)) return;
       if (dialogRef.current?.contains(target)) return;
       if (target instanceof Element && target.closest(".library-card")) return;
-      actions.onClose();
+      requestClose();
     };
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [actions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => () => {
     if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
   }, []);
 
   const triage = triageActions(item, actions);
+  const dialogFlying = flight?.kind === "open" || flight?.kind === "close";
+  const placedStyle: CSSProperties | undefined = destination
+    ? { left: destination.frame.left, top: destination.frame.top, width: destination.frame.width, height: destination.frame.height }
+    : undefined;
 
   function copySourceLink() {
     if (!item.sourceUrl) return;
@@ -207,30 +586,37 @@ export function ExpandedItemOverlay({ item, actions }: { item: LibraryItem; acti
   }
 
   return (
-    <motion.div
-      className="expanded-overlay-layer"
-      initial={{ opacity: 0, transform: "scale(0.97)" }}
-      animate={{ opacity: 1, transform: "scale(1)" }}
-      exit={{ opacity: 0, transform: "scale(0.98)" }}
-      transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
-    >
-      <section ref={dialogRef} className="expanded-overlay" role="dialog" aria-modal={false} aria-label={item.title}>
-        <header className="expanded-overlay-header">
+    <div className="expanded-overlay-layer" ref={layerRef}>
+      <section
+        ref={dialogRef}
+        className={`expanded-overlay ${destination ? "is-placed" : ""}`}
+        role="dialog"
+        aria-modal={false}
+        aria-label={item.title}
+        style={dialogFlying ? undefined : placedStyle}
+      >
+        <header className="expanded-overlay-header" ref={headerRef}>
           <span className="expanded-overlay-kicker"><KindIcon kind={item.kind} />{item.kind}</span>
           <button
             type="button"
             ref={closeButtonRef}
             className="expanded-overlay-close"
-            onClick={actions.onClose}
+            onClick={requestClose}
             aria-label="Close details"
           >
             <X size={16} />
           </button>
         </header>
 
-        <OverlayMedia item={item} />
+        <div
+          className={`expanded-overlay-media ${dialogFlying ? "is-flighting" : ""}`}
+          ref={mediaRef}
+          style={dialogFlying ? undefined : ({ height: destination ? overlayMediaHeight(item, destination.frame.width, window.innerHeight) : undefined } as CSSProperties)}
+        >
+          {dialogFlying ? <FlightMedia item={item} /> : <OverlayMedia item={item} />}
+        </div>
 
-        <div className="expanded-overlay-body">
+        <div className="expanded-overlay-body" ref={bodyRef}>
           <div className="card-kicker"><span><KindIcon kind={item.kind} />{item.kind}</span><span>{item.date}</span></div>
           {item.kind === "Quote" ? (
             <>
@@ -289,6 +675,37 @@ export function ExpandedItemOverlay({ item, actions }: { item: LibraryItem; acti
           <div className="expanded-overlay-related" hidden />
         </div>
       </section>
-    </motion.div>
+
+      {flight?.kind === "switch" && (
+        <>
+          <div
+            className="overlay-flight-frame"
+            ref={outgoingFrameRef}
+            style={{ left: flight.destination.frame.left, top: flight.destination.frame.top, width: flight.destination.frame.width, height: flight.destination.frame.height }}
+          >
+            <div
+              className="overlay-flight-media"
+              ref={outgoingMediaRef}
+              style={{ left: 0, top: flight.headerHeight, width: flight.destination.frame.width, height: overlayMediaHeight(flight.fromItem, flight.destination.frame.width, window.innerHeight) }}
+            >
+              <FlightMedia item={flight.fromItem} />
+            </div>
+          </div>
+          <div
+            className="overlay-flight-frame"
+            ref={incomingFrameRef}
+            style={{ left: flight.toRects.card.left, top: flight.toRects.card.top, width: flight.toRects.card.width, height: flight.toRects.card.height }}
+          >
+            <div
+              className="overlay-flight-media"
+              ref={incomingMediaRef}
+              style={{ left: relativeBox(flight.toRects.media, flight.toRects.card).left, top: relativeBox(flight.toRects.media, flight.toRects.card).top, width: relativeBox(flight.toRects.media, flight.toRects.card).width, height: relativeBox(flight.toRects.media, flight.toRects.card).height }}
+            >
+              <FlightMedia item={item} />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
