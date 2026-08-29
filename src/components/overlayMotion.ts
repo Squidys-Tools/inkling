@@ -6,7 +6,8 @@ export type SourceRects = { card: FlightRect; media: FlightRect };
 export type Placement = "center" | "side";
 export type OverlayDestination = { frame: FlightRect; mediaHeight: number; placement: Placement };
 
-export const OVERLAY_FLIGHT_MS = 400;
+export const OVERLAY_FLIGHT_MS = 600;
+// GSAP's circ.inOut is the classic easeInOutCirc curve.
 export const OVERLAY_EASE = "circ.inOut";
 const OVERLAY_MAX_WIDTH = 1080;
 const OVERLAY_MIN_HEIGHT = 320;
