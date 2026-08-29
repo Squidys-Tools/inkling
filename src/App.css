@@ -138,6 +138,7 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .expanded-overlay-layer { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding: clamp(16px, 4vh, 40px) clamp(16px, 3vw, 48px); pointer-events: none; }
 .expanded-overlay { pointer-events: auto; display: flex; flex-direction: column; width: min(680px, 100%); max-height: 100%; border: 1px solid #4a4842; border-radius: 18px; overflow: hidden; background: #1e1e1c; box-shadow: 0 30px 80px rgba(0,0,0,.55); }
 .expanded-overlay.is-placed { position: absolute; z-index: 1; width: auto; height: auto; }
+.expanded-overlay.is-flying { will-change: left, top, width, height, opacity; }
 .overlay-flight-frame { position: absolute; z-index: 2; overflow: hidden; background: #1e1e1c; border: 1px solid #4a4842; pointer-events: none; will-change: left, top, width, height; }
 .overlay-flight-media { position: absolute; overflow: hidden; background: #101010; will-change: top, left, width, height; }
 .overlay-flight-img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -149,7 +150,6 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .expanded-overlay-close:hover { border-color: #716d64; background: #4a4842; }
 .expanded-overlay-close:active { transform: scale(.96); }
 .expanded-overlay-media { flex: 0 0 auto; overflow: hidden; border-bottom: 1px solid var(--rule); background: #101010; }
-.expanded-overlay-media.is-flighting { position: absolute; }
 .expanded-overlay-media .detail-image { display: block; width: 100%; height: 100%; object-fit: cover; }
 .expanded-overlay-media .detail-art, .expanded-overlay-media .detail-video { height: 100%; margin: 0; border-radius: 0; }
 .expanded-overlay-media .post-art { min-height: 0; height: 100%; margin: 0; border-radius: 0; }

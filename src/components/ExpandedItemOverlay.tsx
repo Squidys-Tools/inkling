@@ -39,7 +39,7 @@ type OverlayAction = {
 };
 
 type Flight =
-  | { kind: "open"; id: number; originRects: SourceRects; destination: OverlayDestination; headerHeight: number }
+  | { kind: "open"; id: number; originRects: SourceRects; destination: OverlayDestination }
   | {
       kind: "switch";
       id: number;
@@ -49,7 +49,7 @@ type Flight =
       destination: OverlayDestination;
       headerHeight: number;
     }
-  | { kind: "close"; id: number; fromRects: SourceRects; toRects: SourceRects; headerHeight: number };
+  | { kind: "close"; id: number; fromCard: FlightRect; fromMediaHeight: number; toRects: SourceRects };
 
 const CARD_RADIUS = 14;
 const OVERLAY_RADIUS = 18;
@@ -256,23 +256,23 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
       return;
     }
     flightIdRef.current += 1;
-    setFlight({ kind: "open", id: flightIdRef.current, originRects, destination: next, headerHeight: measureHeaderHeight() });
+    setFlight({ kind: "open", id: flightIdRef.current, originRects, destination: next });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Runs every flight. GSAP owns the overlay's rectangle geometry: the frame
-  // (position, size, radius, shadow) and its media box tween as one object.
+  // Runs every flight. GSAP owns the overlay's rectangle geometry. The
+  // dialog's real content stays mounted and laid out at the destination
+  // width during the whole flight — the frame is all that moves — so text
+  // never re-wraps mid-flight and nothing unmounts or flashes.
   useLayoutEffect(() => {
     if (!flight) return;
     const media = mediaRef.current;
-    const header = headerRef.current;
-    const body = bodyRef.current;
 
     if (flight.kind === "open") {
-      if (!dialogRef.current || !media || !header || !body) return;
-      const { originRects, destination: dest, headerHeight } = flight;
-      gsap.set([header, body], { autoAlpha: 0 });
+      if (!dialogRef.current || !media) return;
+      const { originRects, destination: dest } = flight;
       const duration = OVERLAY_FLIGHT_MS / 1000;
+      const hasEmbed = itemRef.current.social?.provider === "x" || (itemRef.current.kind === "Video" && !!itemRef.current.video);
       const timeline = gsap.timeline({
         onComplete: () => {
           setFlight(null);
@@ -288,7 +288,6 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
             width: originRects.card.width,
             height: originRects.card.height,
             borderRadius: CARD_RADIUS,
-            boxShadow: CARD_SHADOW,
           },
           {
             left: dest.frame.left,
@@ -296,77 +295,64 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
             width: dest.frame.width,
             height: dest.frame.height,
             borderRadius: OVERLAY_RADIUS,
-            boxShadow: OVERLAY_SHADOW,
             duration,
             ease: OVERLAY_EASE,
             autoRound: false,
           },
           0,
         )
-        .fromTo(
+        .fromTo(dialogRef.current, { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "power1.out" }, 0);
+      if (hasEmbed) {
+        // Third-party embeds keep a stable frame for the whole flight.
+        gsap.set(media, { height: dest.mediaHeight });
+      } else {
+        timeline.fromTo(
           media,
-          {
-            top: relativeBox(originRects.media, originRects.card).top,
-            left: relativeBox(originRects.media, originRects.card).left,
-            width: relativeBox(originRects.media, originRects.card).width,
-            height: relativeBox(originRects.media, originRects.card).height,
-          },
-          {
-            top: headerHeight,
-            left: 0,
-            width: dest.frame.width,
-            height: dest.mediaHeight,
-            duration,
-            ease: OVERLAY_EASE,
-            autoRound: false,
-          },
+          { height: originRects.media.height },
+          { height: dest.mediaHeight, duration, ease: OVERLAY_EASE, autoRound: false },
           0,
-        )
-        .to([header, body], { autoAlpha: 1, duration: 0.16 }, duration * 0.55);
+        );
+      }
       return () => {
         timeline.kill();
       };
     }
 
     if (flight.kind === "close") {
-      if (!dialogRef.current || !media || !header || !body) {
+      if (!dialogRef.current || !media) {
         actions.onClose();
         return;
       }
       const duration = OVERLAY_FLIGHT_MS / 1000;
+      const hasEmbed = itemRef.current.social?.provider === "x" || (itemRef.current.kind === "Video" && !!itemRef.current.video);
       const timeline = gsap.timeline({ onComplete: actions.onClose });
-      timeline.to([header, body], { autoAlpha: 0, duration: 0.1 }, 0);
       timeline
         .fromTo(
           dialogRef.current,
-          { left: flight.fromRects.card.left, top: flight.fromRects.card.top, width: flight.fromRects.card.width, height: flight.fromRects.card.height },
+          { left: flight.fromCard.left, top: flight.fromCard.top, width: flight.fromCard.width, height: flight.fromCard.height },
           {
             left: flight.toRects.card.left,
             top: flight.toRects.card.top,
             width: flight.toRects.card.width,
             height: flight.toRects.card.height,
             borderRadius: CARD_RADIUS,
-            boxShadow: CARD_SHADOW,
             duration,
             ease: OVERLAY_EASE,
             autoRound: false,
           },
-          0.06,
+          0,
         )
-        .fromTo(
+        .to(dialogRef.current, { opacity: 0, duration: 0.18, ease: "power1.in" }, duration - 0.18);
+      if (hasEmbed) {
+        gsap.set(media, { height: flight.fromMediaHeight });
+      } else {
+        timeline.fromTo(
           media,
-          { top: flight.fromRects.media.top, left: flight.fromRects.media.left, width: flight.fromRects.media.width, height: flight.fromRects.media.height },
-          {
-            top: relativeBox(flight.toRects.media, flight.toRects.card).top,
-            left: relativeBox(flight.toRects.media, flight.toRects.card).left,
-            width: relativeBox(flight.toRects.media, flight.toRects.card).width,
-            height: relativeBox(flight.toRects.media, flight.toRects.card).height,
-            duration,
-            ease: OVERLAY_EASE,
-            autoRound: false,
-          },
-          0.06,
+          { height: flight.fromMediaHeight },
+          { height: flight.toRects.media.height, duration, ease: OVERLAY_EASE, autoRound: false },
+          0,
         );
+      }
       return () => {
         timeline.kill();
       };
@@ -470,9 +456,8 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     previousItemRef.current = item;
     const activeFlight = flightRef.current;
     if (activeFlight && (activeFlight.kind === "open" || activeFlight.kind === "close")) {
-      if (mediaRef.current) gsap.set(mediaRef.current, { clearProps: "top,left,width,height" });
-      if (headerRef.current) gsap.set(headerRef.current, { clearProps: "opacity,visibility" });
-      if (bodyRef.current) gsap.set(bodyRef.current, { clearProps: "opacity,visibility" });
+      if (mediaRef.current) gsap.set(mediaRef.current, { clearProps: "height" });
+      if (dialogRef.current) gsap.set(dialogRef.current, { clearProps: "opacity" });
     }
     setFlight(null);
     if (prefersReducedMotion()) return;
@@ -517,26 +502,21 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   const requestClose = () => {
     if (flightRef.current?.kind === "close") return;
     const rects = queryCardRects(itemIdRef.current);
-    const currentDestination = destinationRef.current;
-    let fromRects: SourceRects | null = null;
     const dialog = dialogRef.current;
     const media = mediaRef.current;
-    if (dialog && media) {
-      const dialogRect = rectFrom(dialog.getBoundingClientRect());
-      fromRects = { card: dialogRect, media: relativeBox(rectFrom(media.getBoundingClientRect()), dialogRect) };
-    } else if (currentDestination) {
-      fromRects = {
-        card: currentDestination.frame,
-        media: { left: 0, top: measureHeaderHeight(), width: currentDestination.frame.width, height: currentDestination.mediaHeight },
-      };
+    let fromCard: FlightRect | null = null;
+    let fromMediaHeight: number | null = null;
+    if (dialog) {
+      fromCard = rectFrom(dialog.getBoundingClientRect());
+      fromMediaHeight = media ? media.getBoundingClientRect().height : null;
     }
-    if (prefersReducedMotion() || !rects || !fromRects) {
+    if (prefersReducedMotion() || !rects || !fromCard || !fromMediaHeight) {
       if (flightRef.current) setFlight(null);
       gsap.to(layerRef.current, { opacity: 0, duration: 0.15, onComplete: actionsRef.current.onClose });
       return;
     }
     flightIdRef.current += 1;
-    setFlight({ kind: "close", id: flightIdRef.current, fromRects, toRects: rects, headerHeight: measureHeaderHeight() });
+    setFlight({ kind: "close", id: flightIdRef.current, fromCard, fromMediaHeight, toRects: rects });
   };
 
   useEffect(() => {
@@ -589,7 +569,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     <div className="expanded-overlay-layer" ref={layerRef}>
       <section
         ref={dialogRef}
-        className={`expanded-overlay ${destination ? "is-placed" : ""}`}
+        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""}`}
         role="dialog"
         aria-modal={false}
         aria-label={item.title}
@@ -609,14 +589,18 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
         </header>
 
         <div
-          className={`expanded-overlay-media ${dialogFlying ? "is-flighting" : ""}`}
+          className="expanded-overlay-media"
           ref={mediaRef}
           style={dialogFlying ? undefined : ({ height: destination ? overlayMediaHeight(item, destination.frame.width, window.innerHeight) : undefined } as CSSProperties)}
         >
-          {dialogFlying ? <FlightMedia item={item} /> : <OverlayMedia item={item} />}
+          <OverlayMedia item={item} />
         </div>
 
-        <div className="expanded-overlay-body" ref={bodyRef}>
+        <div
+          className="expanded-overlay-body"
+          ref={bodyRef}
+          style={dialogFlying && destination ? { width: destination.frame.width } : undefined}
+        >
           <div className="card-kicker"><span><KindIcon kind={item.kind} />{item.kind}</span><span>{item.date}</span></div>
           {item.kind === "Quote" ? (
             <>
