@@ -68,6 +68,11 @@ export function isCardTooFarOffscreen(card: FlightRect, viewport: FlightRect): b
   return Math.max(clippedWidth, clippedHeight) > CARD_OFFSCREEN_THRESHOLD;
 }
 
+export function scrollViewport(root: HTMLElement | null): HTMLElement | null {
+  if (!root) return null;
+  return root.querySelector<HTMLElement>('[data-testid="virtuoso-scroller"]') ?? root;
+}
+
 // Measures the live grid card for an item, if it is still mounted. Returns
 // viewport coordinates so flights can run inside the fixed overlay layer.
 export function queryCardRects(id: string | number): SourceRects | null {

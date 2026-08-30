@@ -15,6 +15,7 @@ import {
   prefersReducedMotion,
   queryCardRects,
   rectFrom,
+  scrollViewport,
   type FlightRect,
   type SourceRects,
 } from "./overlayMotion";
@@ -168,9 +169,10 @@ type ExpandedItemOverlayProps = {
   actions: ExpandedOverlayActions;
   originRectsRef: RefObject<SourceRects | null>;
   contentAreaRef: RefObject<HTMLElement | null>;
+  selectionScrollRef: RefObject<boolean>;
 };
 
-export function ExpandedItemOverlay({ item, actions, originRectsRef, contentAreaRef }: ExpandedItemOverlayProps) {
+export function ExpandedItemOverlay({ item, actions, originRectsRef, contentAreaRef, selectionScrollRef }: ExpandedItemOverlayProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
@@ -190,6 +192,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   const [pendingOpen, setPendingOpen] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
+  itemIdRef.current = item.id;
   itemRef.current = item;
   flightRef.current = flight;
 
@@ -394,10 +397,6 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    itemIdRef.current = item.id;
-  }, [item.id]);
-
   // Switching items while the overlay is open runs sequentially: the open
   // overlay first animates closed into the card it was showing, and only
   // after it lands does the newly selected item animate open from its own
@@ -546,9 +545,11 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
 
   useEffect(() => {
     const checkSourceVisibility = () => {
+      if (selectionScrollRef.current) return;
       const contentArea = contentAreaRef.current;
+      const viewport = scrollViewport(contentArea);
       const rects = queryCardRects(itemIdRef.current);
-      if (!contentArea || !rects || isCardTooFarOffscreen(rects.card, rectFrom(contentArea.getBoundingClientRect()))) {
+      if (!viewport || !rects || isCardTooFarOffscreen(rects.card, rectFrom(viewport.getBoundingClientRect()))) {
         requestClose();
       }
     };
@@ -560,7 +561,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
       window.removeEventListener("resize", checkSourceVisibility);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectionScrollRef]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

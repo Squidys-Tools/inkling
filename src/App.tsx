@@ -56,7 +56,7 @@ import { classifyFile } from "./lib/ingestion/file-classification";
 import { autoplayEmbedUrl, providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 import PdfViewer from "./components/PdfViewer";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
-import { isCardTooFarOffscreen, queryCardRects, rectFrom, type SourceRects } from "./components/overlayMotion";
+import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
 import { KindIcon, PostArtwork, XPostEmbed, VIDEO_IFRAME_ALLOW, mediaAspectRatioFor } from "./components/ItemMedia";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
@@ -607,10 +607,6 @@ function cardRectsFor(card: HTMLElement): SourceRects {
   };
 }
 
-function libraryScroller(root: HTMLElement): HTMLElement {
-  return root.querySelector<HTMLElement>('[data-testid="virtuoso-scroller"]') ?? root;
-}
-
 type VirtualizedLibraryItemProps = {
   data: LibraryItem;
   index: number;
@@ -816,6 +812,7 @@ function App() {
   const libraryViewTransitionRunRef = useRef(0);
   const selectionRectsRef = useRef<SourceRects | null>(null);
   const selectionRunRef = useRef(0);
+  const selectionScrollRef = useRef(false);
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
     typeof window === "undefined" ? 960 : window.innerWidth,
   );
@@ -824,8 +821,9 @@ function App() {
     const run = ++selectionRunRef.current;
     const sourceRects = rects ?? queryCardRects(item.id);
     const contentArea = libraryScrollRef.current;
-    const scrollElement = contentArea ? libraryScroller(contentArea) : null;
+    const scrollElement = scrollViewport(contentArea);
     if (!sourceRects || !scrollElement || !isCardTooFarOffscreen(sourceRects.card, rectFrom(scrollElement.getBoundingClientRect()))) {
+      selectionScrollRef.current = false;
       selectionRectsRef.current = sourceRects;
       setSelectedItem(item);
       return;
@@ -833,11 +831,13 @@ function App() {
 
     const viewportRect = scrollElement.getBoundingClientRect();
     const nextScrollTop = Math.max(0, scrollElement.scrollTop + sourceRects.card.top - viewportRect.top - 16);
+    selectionScrollRef.current = true;
     scrollElement.scrollTo({ top: nextScrollTop, behavior: "auto" });
     window.requestAnimationFrame(() => {
       if (run !== selectionRunRef.current) return;
       selectionRectsRef.current = queryCardRects(item.id) ?? sourceRects;
       setSelectedItem(item);
+      selectionScrollRef.current = false;
     });
   }, []);
 
@@ -2303,6 +2303,7 @@ function App() {
           actions={expandedOverlayActions}
           originRectsRef={selectionRectsRef}
           contentAreaRef={libraryScrollRef}
+          selectionScrollRef={selectionScrollRef}
         />
       )}
       <AnimatePresence>
