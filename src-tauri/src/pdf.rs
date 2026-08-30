@@ -75,7 +75,7 @@ mod windows_impl {
     };
 
     pub fn render_pages(pdf_bytes: &[u8]) -> Result<Vec<Vec<u8>>, PdfError> {
-        let path = std::env::temp_dir().join(format!("mymind-pdf-{}.pdf", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("inkling-pdf-{}.pdf", uuid::Uuid::new_v4()));
         std::fs::write(&path, pdf_bytes)
             .map_err(|error| PdfError::new("pdf-temp-write", error.to_string()))?;
 

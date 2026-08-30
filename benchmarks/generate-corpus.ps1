@@ -1,5 +1,5 @@
 #Requires -Version 7
-# Generates the mymind benchmark corpus (images, screenshots, PDFs).
+# Generates the inkling benchmark corpus (images, screenshots, PDFs).
 #
 # Every file produced by this script is original and generated locally with
 # .NET System.Drawing. Nothing is downloaded and nothing is copyrighted.
@@ -656,7 +656,7 @@ function Pdf-Line {
 function Write-NativeTextPdf {
     $lines = @()
     $lines += Pdf-Line 'A Field Guide to Local First Software' 22 72 730
-    $lines += Pdf-Line 'by the mymind benchmark team' 12 72 706
+    $lines += Pdf-Line 'by the inkling benchmark team' 12 72 706
     $lines += ''
     $lines += Pdf-Line '1. Introduction' 16 72 660
     $lines += Pdf-Line 'Local first means your data lives on your device and works' 12 72 640

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "mymind library",
+  "productName": "inkling",
   "version": "0.1.0",
   "identifier": "com.mymind.library",
   "build": {
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "mymind library",
+        "title": "inkling",
         "width": 800,
         "height": 600,
         "decorations": false,
@@ -44,7 +44,7 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["mymind"]
+        "schemes": ["inkling", "mymind"]
       }
     }
   }
