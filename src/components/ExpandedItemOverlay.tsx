@@ -8,6 +8,7 @@ import { KindIcon, PostArtwork, XPostEmbed, DetailVideoMedia } from "./ItemMedia
 import {
   OVERLAY_EASE,
   OVERLAY_FLIGHT_MS,
+  isCardTooFarOffscreen,
   overlayMediaHeight,
   overlayPosition,
   overlayWidth,
@@ -544,6 +545,24 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   };
 
   useEffect(() => {
+    const checkSourceVisibility = () => {
+      const contentArea = contentAreaRef.current;
+      const rects = queryCardRects(itemIdRef.current);
+      if (!contentArea || !rects || isCardTooFarOffscreen(rects.card, rectFrom(contentArea.getBoundingClientRect()))) {
+        requestClose();
+      }
+    };
+
+    document.addEventListener("scroll", checkSourceVisibility, true);
+    window.addEventListener("resize", checkSourceVisibility);
+    return () => {
+      document.removeEventListener("scroll", checkSourceVisibility, true);
+      window.removeEventListener("resize", checkSourceVisibility);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.stopPropagation();
@@ -600,18 +619,15 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
         aria-label={shownItem.title}
         style={dialogFlying ? undefined : placedStyle}
       >
-        <header className="expanded-overlay-header">
-          <span className="expanded-overlay-kicker"><KindIcon kind={shownItem.kind} />{shownItem.kind}</span>
-          <button
-            type="button"
-            ref={closeButtonRef}
-            className="expanded-overlay-close"
-            onClick={requestClose}
-            aria-label="Close details"
-          >
-            <X size={16} />
-          </button>
-        </header>
+        <button
+          type="button"
+          ref={closeButtonRef}
+          className="expanded-overlay-close"
+          onClick={requestClose}
+          aria-label="Close details"
+        >
+          <X size={16} />
+        </button>
 
         <div
           className="expanded-overlay-media"

@@ -136,7 +136,7 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .library-transition-overlay.is-list .card-image-wrap, .library-transition-overlay.is-list .card-paper-art, .library-transition-overlay.is-list .post-art, .library-transition-overlay.is-list .x-post-art { height: 155px; aspect-ratio: auto; }
 .library-transition-overlay.is-list .card-content { min-height: 155px; }
 .expanded-overlay-layer { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding: clamp(16px, 4vh, 40px) clamp(16px, 3vw, 48px); pointer-events: none; }
-.expanded-overlay { pointer-events: auto; display: flex; flex-direction: column; width: min(680px, 100%); max-height: 100%; border: 1px solid #4a4842; border-radius: 18px; overflow: hidden; background: #1e1e1c; box-shadow: 0 30px 80px rgba(0,0,0,.55); }
+.expanded-overlay { position: relative; pointer-events: auto; display: flex; flex-direction: column; width: min(680px, 100%); max-height: 100%; border: 1px solid #4a4842; border-radius: 18px; overflow: hidden; background: #1e1e1c; box-shadow: 0 30px 80px rgba(0,0,0,.55); }
 .expanded-overlay.is-placed { position: absolute; z-index: 1; width: auto; height: auto; }
 .expanded-overlay.is-flying { will-change: left, top, width, height, opacity; }
 .overlay-flight-frame { position: absolute; z-index: 2; overflow: hidden; background: #1e1e1c; border: 1px solid #4a4842; pointer-events: none; will-change: left, top, width, height; }
@@ -144,9 +144,7 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .overlay-flight-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .overlay-flight-art { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--green); font: 11px "DM Mono", monospace; text-transform: uppercase; }
 .overlay-flight-art .post-art { width: 100%; height: 100%; min-height: 0; box-sizing: border-box; }
-.expanded-overlay-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px 10px 20px; border-bottom: 1px solid var(--rule); }
-.expanded-overlay-kicker { display: inline-flex; align-items: center; gap: 6px; color: #8b867c; font: 10px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .045em; }
-.expanded-overlay-close { display: inline-grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; border: 1px solid #5a5750; border-radius: 7px; background: #3b3a35; color: var(--ink); cursor: pointer; box-shadow: 0 5px 16px rgba(0,0,0,.3); transition: background .18s ease, color .18s ease, border-color .18s ease, transform .18s cubic-bezier(.23,1,.32,1); }
+.expanded-overlay-close { position: absolute; top: 14px; right: 14px; z-index: 5; display: inline-grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; border: 1px solid #5a5750; border-radius: 7px; background: rgba(59,58,53,.86); color: var(--ink); cursor: pointer; box-shadow: 0 5px 16px rgba(0,0,0,.3); backdrop-filter: blur(8px); transition: background .18s ease, color .18s ease, border-color .18s ease, transform .18s cubic-bezier(.23,1,.32,1); }
 .expanded-overlay-close:hover { border-color: #716d64; background: #4a4842; }
 .expanded-overlay-close:active { transform: scale(.96); }
 .expanded-overlay-media { flex: 0 0 auto; overflow: hidden; border-bottom: 1px solid var(--rule); background: #101010; }
@@ -190,7 +188,6 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .capture-save { transition: transform .16s cubic-bezier(.23,1,.32,1), background .18s ease; }
 .capture-cancel { transition: transform .16s cubic-bezier(.23,1,.32,1), color .15s ease, border-color .15s ease; }
 .overlay-action-primary, .overlay-action-secondary { transition: transform .16s cubic-bezier(.23,1,.32,1), background .18s ease, border-color .18s ease; }
-.drag-active .main-content { background: rgba(127, 160, 141, .1); }.drag-active .capture-bar { outline: 2px dashed var(--green); outline-offset: 8px; border-radius: 10px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 @media (max-width: 780px) { .capture-modal-backdrop { align-items: end; padding: 12px; }.capture-modal { max-height: calc(100vh - 24px); padding: 20px; }.capture-options { grid-template-columns: 1fr; }.capture-option { min-height: 68px; } }
 @media (max-width: 360px) { .add-button { width: 50px; padding-inline: 0; }.add-button span { display: none; } }
