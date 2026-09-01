@@ -9,6 +9,9 @@ export const OVERLAY_FLIGHT_MS = 600 * 0.85;
 export const OVERLAY_EASE = "circ.inOut";
 const OVERLAY_WIDTH = 680;
 const OVERLAY_MARGIN = 24;
+// Hard cap for the details preview's media band so thumbnails stay
+// proportionate to the reading overlay and the cards behind it.
+const OVERLAY_MEDIA_MAX_HEIGHT = 400;
 
 export function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -24,9 +27,10 @@ export function overlayWidth(contentArea: FlightRect): number {
 
 export function overlayMediaHeight(item: LibraryItem, width: number, viewportHeight: number): number {
   // Items with a thumbnail use the thumbnail's own aspect ratio so the media
-  // band shows a natural framing instead of an aggressive crop.
+  // band shows a natural framing instead of an aggressive crop, but the band
+  // is capped so large/tall thumbnails never balloon past the reading frame.
   if (item.image) {
-    return Math.min(width / mediaAspectRatioFor(item), viewportHeight * 0.55);
+    return Math.min(width / mediaAspectRatioFor(item), viewportHeight * 0.48, OVERLAY_MEDIA_MAX_HEIGHT);
   }
   if (item.social?.provider === "x") return Math.min(viewportHeight * 0.34, 320);
   return Math.min(viewportHeight * 0.34, 260);
