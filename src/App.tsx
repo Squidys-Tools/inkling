@@ -53,11 +53,11 @@ import {
   type StoredSpace,
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
-import { autoplayEmbedUrl, providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
+import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 import PdfViewer from "./components/PdfViewer";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
-import { KindIcon, PostArtwork, XPostEmbed, VIDEO_IFRAME_ALLOW, mediaAspectRatioFor } from "./components/ItemMedia";
+import { KindIcon, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import "./App.css";
@@ -542,48 +542,20 @@ function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
 }
 
 function LibraryVideoMedia({ item }: { item: LibraryItem }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  useEffect(() => setIsPlaying(false), [item.id]);
-
   if (!item.video && !item.fileUrl) {
     return item.image
       ? <div className="card-image-wrap"><img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" /></div>
       : <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><Play size={20} /></span></div>;
   }
 
-  if (isPlaying) {
-    return (
-      <div className="card-image-wrap card-video-playing" onClick={(event) => event.stopPropagation()}>
-        {item.video ? (
-          <iframe
-            src={autoplayEmbedUrl(item.video.embedUrl)}
-            title={item.title}
-            allow={VIDEO_IFRAME_ALLOW}
-            allowFullScreen
-          />
-        ) : (
-          <video className="card-video-player" src={item.fileUrl} controls autoPlay playsInline preload="metadata" />
-        )}
-      </div>
-    );
-  }
-
+  // Cards are static thumbnails that open the details overlay on click. The
+  // play badge is a purely visual affordance — playback happens in the overlay.
   return (
     <div className="card-image-wrap">
-      <button
-        type="button"
-        className="card-video-poster"
-        onClick={(event) => {
-          event.stopPropagation();
-          setIsPlaying(true);
-        }}
-        aria-label={`Play video: ${item.title}`}
-      >
-        {item.image && <img src={item.image} alt="" className="card-image" loading="lazy" decoding="async" />}
-        <span className="card-video-scrim" aria-hidden="true" />
-        <span className="card-play" aria-hidden="true"><Play size={16} /></span>
-        <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
-      </button>
+      {item.image && <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />}
+      <span className="card-video-scrim" aria-hidden="true" />
+      <span className="card-play" aria-hidden="true"><Play size={16} /></span>
+      <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
     </div>
   );
 }
@@ -832,12 +804,28 @@ function App() {
     const viewportRect = scrollElement.getBoundingClientRect();
     const nextScrollTop = Math.max(0, scrollElement.scrollTop + sourceRects.card.top - viewportRect.top - 16);
     selectionScrollRef.current = true;
-    scrollElement.scrollTo({ top: nextScrollTop, behavior: "auto" });
-    window.requestAnimationFrame(() => {
+
+    // The card is scrolled into view with an eased, smooth motion before the
+    // overlay opens, so its rect is measured only once the scroll settles.
+    const finish = () => {
       if (run !== selectionRunRef.current) return;
       selectionRectsRef.current = queryCardRects(item.id) ?? sourceRects;
       setSelectedItem(item);
       selectionScrollRef.current = false;
+    };
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      scrollElement.scrollTop = nextScrollTop;
+      finish();
+      return;
+    }
+
+    gsap.to(scrollElement, {
+      scrollTop: nextScrollTop,
+      duration: 0.55,
+      ease: "power2.inOut",
+      overwrite: true,
+      onComplete: finish,
     });
   }, []);
 
@@ -1399,7 +1387,7 @@ function App() {
   async function persistText(text: string, captureSource: string) {
     const value = text.trim();
     if (!value) return;
-    if (/^https?:\/\//iu.test(value)) {
+    if (/^https?:\/\//iu.test(value) || /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u.test(value)) {
       await persistArticle(value, captureSource);
       return;
     }
@@ -1856,7 +1844,7 @@ function App() {
       .map((value) => value.trim())
       .find(Boolean);
     if (!droppedText) return;
-    if (/^https?:\/\//iu.test(droppedText)) {
+    if (/^https?:\/\//iu.test(droppedText) || /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u.test(droppedText)) {
       void captureArticle(droppedText, "drag and drop");
     } else {
       void captureText(droppedText, "drag and drop");
@@ -2179,10 +2167,11 @@ function App() {
                   />}
                   {captureMode === "url" && <input
                     autoFocus
-                    type="url"
+                    type="text"
+                    inputMode="url"
                     value={captureUrl}
                     onChange={(event) => setCaptureUrl(event.target.value)}
-                    placeholder="Paste a link to save and read later…"
+                    placeholder="Paste a link to save and read later (example.com works too)…"
                     aria-label="URL to save"
                   />}
                   {captureMode === "quote" && <div className="quote-capture-fields">
