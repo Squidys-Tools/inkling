@@ -97,8 +97,24 @@ function isPrivateNetworkHostname(hostname: string): boolean {
   return isPrivateIpv4(embedded);
 }
 
+const SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/u;
+// A schemeless bare hostname like `example.com`, `x.com`, or
+// `sub.example.com/path?query` — labels with a dot, an optional port, and an
+// optional path. Matches on a leading dot so full URLs (which have a scheme)
+// and bare words (no dot) are left untouched.
+const BARE_HOST_RE =
+  /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u;
+
+// Accepts both full URLs and bare hostnames (`example.com`, `x.com`), which
+// are upgraded to `https://` before parsing.
+export function normalizeHttpInput(value: string): string {
+  const trimmed = value.trim();
+  if (SCHEME_RE.test(trimmed)) return trimmed;
+  return BARE_HOST_RE.test(trimmed) ? `https://${trimmed}` : trimmed;
+}
+
 export function parseHttpUrl(input: string, options: HttpUrlOptions = {}): URL {
-  const value = input.trim();
+  const value = normalizeHttpInput(input);
 
   if (value.length === 0 || value.length > MAX_URL_LENGTH) {
     throw new UrlIngestionError("invalid-url", "The URL is empty or too long.", { url: input });
