@@ -1087,7 +1087,7 @@ function App() {
       const layoutTargets: Array<{
         clone: HTMLElement;
         source: LibraryCardPosition;
-        position: LibraryCardPosition;
+        position?: LibraryCardPosition;
         sourceBoxes: Array<{ target: HTMLElement; left: number; top: number; width: number; height: number }>;
       }> = [];
 
@@ -1098,7 +1098,7 @@ function App() {
         if (!id || !first) continue;
 
         clone.style.willChange = "transform, opacity";
-        if (!last) {
+        if (!last && !listMode) {
           leavingTargets.push(clone);
           continue;
         }
@@ -1131,14 +1131,52 @@ function App() {
       for (const { clone } of layoutTargets) clearLibraryTransitionMediaStyle(clone);
       overlay.classList.toggle("is-list", listMode);
       for (const { clone, position } of layoutTargets) {
+        if (!position) continue;
         clone.style.left = `${position.left - rootRect.left}px`;
         clone.style.top = `${position.top - rootRect.top}px`;
         clone.style.width = `${position.width}px`;
         clone.style.height = `${position.height}px`;
       }
 
+      for (let index = 0; index < layoutTargets.length; index += 1) {
+        const entry = layoutTargets[index];
+        if (entry.position) continue;
+        const clone = entry.clone;
+        const listWidth = Math.max(0, overlay.clientWidth);
+        const listGap = 9;
+        let cursor = 0;
+        for (const sibling of layoutTargets) {
+          const siblingId = sibling.clone.dataset.libraryItemId;
+          const mounted = siblingId ? lastPositions.get(siblingId) : undefined;
+          if (mounted) {
+            cursor = Math.max(cursor, mounted.top - rootRect.top + mounted.height + listGap);
+          } else if (sibling.position) {
+            cursor = Math.max(cursor, sibling.position.top + sibling.position.height + listGap);
+          }
+        }
+        clone.style.left = "0px";
+        clone.style.top = `${cursor}px`;
+        clone.style.width = `${listWidth}px`;
+        clone.style.height = "";
+        clone.style.margin = "0";
+        const natural = clone.getBoundingClientRect();
+        if (natural.width <= 0 || Number.isNaN(natural.height)) {
+          leavingTargets.push(clone);
+          layoutTargets.splice(index, 1);
+          index -= 1;
+          continue;
+        }
+        entry.position = {
+          left: natural.left - rootRect.left,
+          top: natural.top - rootRect.top,
+          width: natural.width,
+          height: natural.height,
+        };
+      }
+
       const layoutAnimation = gsap.timeline({ paused: true });
-      for (const { clone, source, position, sourceBoxes } of layoutTargets) {
+      for (const { clone, source, position: settledPosition, sourceBoxes } of layoutTargets) {
+        const position = settledPosition ?? source;
         const destinationCardRect = clone.getBoundingClientRect();
 
         for (const sourceBox of sourceBoxes) {
