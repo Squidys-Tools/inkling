@@ -144,6 +144,7 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .library-transition-embed-placeholder { position: absolute; inset: 0; background: #fff; }
 .library-transition-overlay.is-list .library-transition-card { display: grid; grid-template-columns: 155px 1fr; }
 .library-transition-overlay.is-list .card-image-wrap, .library-transition-overlay.is-list .card-paper-art, .library-transition-overlay.is-list .post-art, .library-transition-overlay.is-list .x-post-art { height: 155px; aspect-ratio: auto; position: static; inset: auto; width: auto; }
+.library-transition-overlay.is-list .x-post-art { position: relative; }
 .library-transition-overlay.is-list .library-card-media { position: static; }
 .library-transition-overlay.is-list .card-content { min-height: 155px; display: block; }
 .expanded-overlay-layer { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding: clamp(16px, 4vh, 40px) clamp(16px, 3vw, 48px); pointer-events: none; }
@@ -159,6 +160,7 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .expanded-overlay-close:hover { border-color: #716d64; background: #4a4842; }
 .expanded-overlay-close:active { transform: scale(.96); }
 .expanded-overlay-media { flex: 0 0 auto; overflow: hidden; border-bottom: 1px solid var(--rule); background: #101010; }
+.expanded-overlay-media > .expanded-overlay-media { height: 100%; }
 .expanded-overlay-media .detail-image { display: block; width: 100%; height: 100%; object-fit: cover; }
 .expanded-overlay-media .detail-art, .expanded-overlay-media .detail-video { height: 100%; margin: 0; border-radius: 0; }
 .expanded-overlay-media .post-art { min-height: 0; height: 100%; margin: 0; border-radius: 0; }
@@ -251,7 +253,7 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .x-post-art .x-post-native blockquote { max-width: none !important; min-width: 0 !important; margin: 0 !important; }
 .x-post-art .x-post-native iframe { display: block !important; flex: 1 1 auto !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; height: 100% !important; min-height: 0 !important; }
 .x-post-art .x-post-fallback > .post-art { width: 100%; height: 100%; min-height: 0; box-sizing: border-box; }
-.list-mode .x-post-art { height: 155px; aspect-ratio: auto; position: static; inset: auto; width: auto; }
+.list-mode .x-post-art { height: 155px; aspect-ratio: auto; position: relative; inset: auto; width: auto; }
 .detail-x-post { overflow: hidden; background: #fff; }
 .detail-x-post .x-post-embed { position: relative; height: 100%; padding: 0; }
 .detail-x-post .x-post-native, .detail-x-post .x-post-fallback { position: absolute; inset: 0; width: 100%; height: 100%; }
