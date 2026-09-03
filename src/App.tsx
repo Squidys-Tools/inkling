@@ -3,31 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
 import { gsap } from "gsap";
-import {
-  Archive,
-  AlertCircle,
-  ArrowUpRight,
-  Bookmark,
-  Camera,
-  CircleHelp,
-  Clock3,
-  FileText,
-  Grid2X2,
-  Image as ImageIcon,
-  Layers3,
-  Link2,
-  LoaderCircle,
-  List,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Play,
-  Plus,
-  Search,
-  RotateCw,
-  Settings2,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { AppIcon, IconPackProvider, IconPackSwitcher } from "./components/AppIcon";
 import {
   assetUrl,
   createQuote,
@@ -545,7 +521,7 @@ function LibraryVideoMedia({ item }: { item: LibraryItem }) {
   if (!item.video && !item.fileUrl) {
     return item.image
       ? <div className="card-image-wrap"><img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" /></div>
-      : <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><Play size={20} /></span></div>;
+      : <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><AppIcon name="play" size={20} /></span></div>;
   }
 
   // Cards are static thumbnails that open the details overlay on click. The
@@ -554,7 +530,7 @@ function LibraryVideoMedia({ item }: { item: LibraryItem }) {
     <div className="card-image-wrap">
       {item.image && <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />}
       <span className="card-video-scrim" aria-hidden="true" />
-      <span className="card-play" aria-hidden="true"><Play size={16} /></span>
+      <span className="card-play" aria-hidden="true"><AppIcon name="play" size={16} /></span>
       <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
     </div>
   );
@@ -635,14 +611,14 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
           <p className={item.kind === "Quote" ? "quote-attribution" : ""}>{item.description ? (item.kind === "Quote" && !item.description.trim().startsWith("—") ? `— ${item.description}` : item.description) : (item.kind === "Quote" ? "" : item.description)}</p>
           {item.processing?.active && (
             <div className="card-processing" role="status">
-              <LoaderCircle size={13} />
+              <AppIcon name="loader" size={13} />
               <span>{item.processing.message ?? "Processing"}</span>
               {item.processing.progressTotal != null && <span>{item.processing.progressCurrent}/{item.processing.progressTotal}</span>}
             </div>
           )}
           {item.processing?.failedJob && (
             <div className="card-processing failed" role="alert">
-              <AlertCircle size={13} />
+              <AppIcon name="alert" size={13} />
               <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
               <button
                 type="button"
@@ -652,7 +628,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                   void context.onRetryJob(item.processing?.failedJob?.id ?? "");
                 }}
               >
-                <RotateCw size={12} /> Try again
+                <AppIcon name="rotate" size={12} /> Try again
               </button>
             </div>
           )}
@@ -677,7 +653,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                 disabled={!item.articleHtml}
                 title={item.articleHtml ? "Open reader" : "No saved article text"}
               >
-                Read <ArrowUpRight size={13} />
+                Read <AppIcon name="arrowUpRight" size={13} />
               </button>
             )}
             {item.kind === "Video" && item.video && (
@@ -690,10 +666,10 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                   context.onSelectItem(item, card ? cardRectsFor(card) : undefined);
                 }}
               >
-                Watch <Play size={11} />
+                Watch <AppIcon name="play" size={11} />
               </button>
             )}
-            {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && <ArrowUpRight size={15} />}
+            {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && <AppIcon name="arrowUpRight" size={15} />}
           </div>
         </div>
       </article>
@@ -1925,6 +1901,7 @@ function App() {
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);
 
   return (
+    <IconPackProvider>
     <MotionConfig reducedMotion="user">
       <div className={`app-shell ${isDragActive ? "drag-active" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
         <AnimatePresence>
@@ -1968,7 +1945,7 @@ function App() {
             aria-label="Close panel"
             onClick={() => setIsSidebarOpen(false)}
           >
-            <PanelLeftClose size={16} />
+            <AppIcon name="panelClose" size={16} />
           </button>
         </div>
 
@@ -1977,7 +1954,7 @@ function App() {
             className={`nav-item ${activeView === "Everything" && !activeSpaceId ? "active" : ""}`}
             onClick={clearToDefaultView}
           >
-            <Layers3 size={17} />
+            <AppIcon name="layers" size={17} />
             <span>Everything</span>
             <span className="nav-count">{items.length}</span>
           </button>
@@ -1988,15 +1965,15 @@ function App() {
               setActiveView("Top of mind");
             }}
           >
-            <Sparkles size={17} />
+            <AppIcon name="sparkles" size={17} />
             <span>Top of mind</span>
           </button>
           <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Serendipity"); }}>
-            <Clock3 size={17} />
+            <AppIcon name="clock" size={17} />
             <span>Serendipity</span>
           </button>
           <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Archive"); }}>
-            <Archive size={17} />
+            <AppIcon name="archive" size={17} />
             <span>Archive</span>
           </button>
         </nav>
@@ -2013,7 +1990,7 @@ function App() {
                 setNewSpaceName("");
               }}
             >
-              <Plus size={15} />
+              <AppIcon name="plus" size={15} />
             </button>
           </div>
           <div className="space-list">
@@ -2039,7 +2016,7 @@ function App() {
                     void handleDeleteSpace(space);
                   }}
                 >
-                  <X size={12} />
+                  <AppIcon name="x" size={12} />
                 </button>
               </div>
             ))}
@@ -2087,12 +2064,13 @@ function App() {
         </div>
 
         <div className="sidebar-footer">
+          <IconPackSwitcher />
           <button className="nav-item footer-item" aria-label="Settings" title="Settings">
-            <Settings2 size={17} />
+            <AppIcon name="settings" size={17} />
             <span>Settings</span>
           </button>
           <button className="nav-item footer-item" aria-label="Help & shortcuts" title="Help & shortcuts">
-            <CircleHelp size={17} />
+            <AppIcon name="help" size={17} />
             <span>Help & shortcuts</span>
           </button>
         </div>
@@ -2106,7 +2084,7 @@ function App() {
         aria-controls="library-navigation"
         onClick={() => setIsSidebarOpen((current) => !current)}
       >
-        {isSidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+        {isSidebarOpen ? <AppIcon name="panelClose" size={16} /> : <AppIcon name="panelOpen" size={16} />}
       </button>
 
       <main className="main-content">
@@ -2115,7 +2093,7 @@ function App() {
 
         <section className="capture-bar" aria-label="Capture and search">
           <div className="search-field">
-            <Search size={19} />
+            <AppIcon name="search" size={19} />
             <input
               ref={searchRef}
               value={query}
@@ -2131,7 +2109,7 @@ function App() {
             <kbd><span>/</span> to search</kbd>
           </div>
           <button className="add-button" onClick={openCaptureModal} disabled={isCapturing} title="Add something to your library">
-            <Plus size={18} />
+            <AppIcon name="plus" size={18} />
             <span>{isCapturing ? "Saving…" : "Add to library"}</span>
           </button>
         </section>
@@ -2162,28 +2140,28 @@ function App() {
                   <h2 id="capture-modal-title">Add to your library</h2>
                   <p>Choose what you want to save.</p>
                 </div>
-                <button className="icon-button small" type="button" onClick={closeCaptureModal} aria-label="Close add menu"><X size={16} /></button>
+                <button className="icon-button small" type="button" onClick={closeCaptureModal} aria-label="Close add menu"><AppIcon name="x" size={16} /></button>
               </header>
 
               <div className="capture-options" aria-label="Add options">
                 <button type="button" className={`capture-option ${captureMode === "note" ? "selected" : ""}`} onClick={() => selectCaptureMode("note")} aria-pressed={captureMode === "note"}>
-                  <span className="capture-option-icon"><FileText size={18} /></span>
+                  <span className="capture-option-icon"><AppIcon name="fileText" size={18} /></span>
                   <span className="capture-option-copy"><strong>Note</strong><span>Write something to remember.</span></span>
                 </button>
                 <button type="button" className={`capture-option ${captureMode === "url" ? "selected" : ""}`} onClick={() => selectCaptureMode("url")} aria-pressed={captureMode === "url"}>
-                  <span className="capture-option-icon"><Link2 size={18} /></span>
+                  <span className="capture-option-icon"><AppIcon name="link" size={18} /></span>
                   <span className="capture-option-copy"><strong>Link</strong><span>Save an article, page, or X post.</span></span>
                 </button>
                 <button type="button" className={`capture-option ${captureMode === "file" ? "selected" : ""}`} onClick={() => selectCaptureMode("file")} aria-pressed={captureMode === "file"}>
-                  <span className="capture-option-icon"><ImageIcon size={18} /></span>
+                  <span className="capture-option-icon"><AppIcon name="image" size={18} /></span>
                   <span className="capture-option-copy"><strong>File</strong><span>Upload an image, PDF, or video.</span></span>
                 </button>
                 <button type="button" className={`capture-option ${captureMode === "quote" ? "selected" : ""}`} onClick={() => selectCaptureMode("quote")} aria-pressed={captureMode === "quote"}>
-                  <span className="capture-option-icon"><Bookmark size={18} /></span>
+                  <span className="capture-option-icon"><AppIcon name="bookmark" size={18} /></span>
                   <span className="capture-option-copy"><strong>Quote</strong><span>Save a passage with its source.</span></span>
                 </button>
                 <button type="button" className="capture-option" onClick={startScreenshotCapture} disabled={isCapturing}>
-                  <span className="capture-option-icon"><Camera size={18} /></span>
+                  <span className="capture-option-icon"><AppIcon name="camera" size={18} /></span>
                   <span className="capture-option-copy"><strong>Screenshot</strong><span>Capture a window or display.</span></span>
                 </button>
               </div>
@@ -2283,7 +2261,7 @@ function App() {
               <>
                 <span className="search-context">for “{query}”</span>
                 <button type="button" className="quiet-link save-space-link" onClick={beginSaveSearch}>
-                  <Bookmark size={13} /> Save as Space
+                  <AppIcon name="bookmark" size={13} /> Save as Space
                 </button>
               </>
             ) : null}
@@ -2297,8 +2275,8 @@ function App() {
                 animate={{ transform: viewSelectionListMode ? "translateX(30px)" : "translateX(0px)" }}
                 transition={{ duration: LIBRARY_VIEW_TRANSITION_MS / 1000, ease: [0.77, 0, 0.175, 1] }}
               />
-              <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><Grid2X2 size={16} /></button>
-              <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><List size={16} /></button>
+              <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><AppIcon name="grid" size={16} /></button>
+              <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><AppIcon name="list" size={16} /></button>
             </div>
           </div>
         </div>
@@ -2319,7 +2297,7 @@ function App() {
 
         {filteredItems.length === 0 && (
           <div className="empty-state">
-            <div className="empty-icon"><Search size={20} /></div>
+            <div className="empty-icon"><AppIcon name="search" size={20} /></div>
             <h2>Nothing surfaced yet.</h2>
             <p>Try another word, or save something new to your mind.</p>
             <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
@@ -2379,6 +2357,7 @@ function App() {
       </AnimatePresence>
       </div>
     </MotionConfig>
+    </IconPackProvider>
   );
 }
 
