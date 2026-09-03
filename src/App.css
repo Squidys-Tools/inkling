@@ -21,7 +21,7 @@
   --blue-soft: #243136;
   --yellow-soft: #3a3524;
   --topbar-height: 56px;
-  --titlebar-height: 0px;
+  --titlebar-height: 32px;
 }
 
 * { box-sizing: border-box; }
@@ -69,7 +69,7 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .storage-label { display: flex; justify-content: space-between; color: #8d867c; font: 11px "DM Mono", monospace; }
 .storage-track { height: 4px; margin: 10px 0 8px; border-radius: 99px; background: #33322e; overflow: hidden; }.storage-track span { display: block; width: 24%; height: 100%; background: var(--orange); }
 
-.main-content { width: auto; height: 100vh; min-width: 0; min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; padding: 12px 48px 30px; position: relative; overflow: hidden; transition: padding .3s cubic-bezier(.4,0,.2,1); }
+.main-content { width: auto; height: 100vh; min-width: 0; min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; padding: calc(12px + var(--titlebar-height)) 48px 30px; position: relative; overflow: hidden; transition: padding .3s cubic-bezier(.4,0,.2,1); }
 .topbar { height: var(--topbar-height); padding-top: var(--titlebar-height); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--rule); }
 .topbar-title { font: 600 18px/1.2 "DM Sans", ui-sans-serif, sans-serif; color: var(--ink); }
 .topbar-left { position: relative; display: flex; align-items: center; gap: 8px; }
