@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Cancel01Icon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  Loading01Icon,
+  MinusSignIcon,
+  PlusSignIcon,
+} from "@hugeicons/core-free-icons";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { AppIcon } from "./AppIcon";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -169,7 +177,7 @@ export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
                 onClick={() => setZoom((current) => clampZoom((current ?? renderedScale) - ZOOM_STEP))}
                 aria-label="Zoom out"
               >
-                <AppIcon name="minus" size={15} />
+                <HugeiconsIcon icon={MinusSignIcon} size={15} />
               </button>
               <span className="pdf-viewer-zoom">{zoomLabel}</span>
               <button
@@ -178,7 +186,7 @@ export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
                 onClick={() => setZoom((current) => clampZoom((current ?? renderedScale) + ZOOM_STEP))}
                 aria-label="Zoom in"
               >
-                <AppIcon name="plus" size={15} />
+                <HugeiconsIcon icon={PlusSignIcon} size={15} />
               </button>
               <button type="button" className="text-button" onClick={() => setZoom(null)}>Fit</button>
             </div>
@@ -190,7 +198,7 @@ export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
                 disabled={pageNumber <= 1}
                 aria-label="Previous page"
               >
-                <AppIcon name="chevronLeft" size={15} />
+                <HugeiconsIcon icon={ChevronLeftIcon} size={15} />
               </button>
               <span className="pdf-viewer-page">
                 {state.phase === "ready" ? (
@@ -223,18 +231,18 @@ export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
                 disabled={state.phase !== "ready" || atLastPage}
                 aria-label="Next page"
               >
-                <AppIcon name="chevronRight" size={15} />
+                <HugeiconsIcon icon={ChevronRightIcon} size={15} />
               </button>
             </div>
             <button type="button" className="icon-button small" onClick={onClose} aria-label="Close viewer">
-              <AppIcon name="x" size={16} />
+              <HugeiconsIcon icon={Cancel01Icon} size={16} />
             </button>
           </div>
         </header>
         <div className="pdf-viewer-body" ref={containerRef}>
           {state.phase === "loading" && (
             <div className="pdf-viewer-status" role="status">
-              <AppIcon name="loader" size={18} className="spin" />
+              <HugeiconsIcon icon={Loading01Icon} size={18} className="spin" />
               <span>{state.percent != null ? `Loading ${state.percent}%` : "Loading…"}</span>
             </div>
           )}
