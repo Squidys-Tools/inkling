@@ -65,10 +65,6 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .space-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .save-space-link { margin-left: 14px; }
 .sidebar-footer { margin-top: auto; display: grid; gap: 3px; padding-top: 16px; padding-bottom: 8px; }
-.icon-pack-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 34px; padding: 0 10px; color: #8d867c; font-size: 12px; }
-.icon-pack-row select { min-width: 112px; border: 1px solid #3a3833; border-radius: 6px; padding: 5px 24px 5px 8px; background: #1a1917; color: var(--ink); font: inherit; cursor: pointer; }
-.icon-pack-row select:hover { border-color: #5a5750; }
-.icon-pack-row select:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
 .footer-item { font-size: 12px; min-height: 34px; }
 .storage-label { display: flex; justify-content: space-between; color: #8d867c; font: 11px "DM Mono", monospace; }
 .storage-track { height: 4px; margin: 10px 0 8px; border-radius: 99px; background: #33322e; overflow: hidden; }.storage-track span { display: block; width: 24%; height: 100%; background: var(--orange); }

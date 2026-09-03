@@ -1,9 +1,23 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  AtSignIcon,
+  Bookmark01Icon,
+  CheckmarkBadge01Icon,
+  FileTextIcon,
+  HeartIcon,
+  Image01Icon,
+  Link01Icon,
+  Message01Icon,
+  PlayIcon,
+  RepeatIcon,
+  Share08Icon,
+  SparklesIcon,
+} from "@hugeicons/core-free-icons";
 import { autoplayEmbedUrl, providerLabel } from "../lib/ingestion/video-links";
 import { normalizeXPostOEmbed, xPostOEmbedUrl } from "../lib/ingestion/x-post";
 import type { XPostMetadata } from "../lib/ingestion/types";
 import type { ItemKind, LibraryItem } from "../App";
-import { AppIcon, type IconName } from "./AppIcon";
 
 export function mediaAspectRatioFor(item: LibraryItem): number {
   if (item.mediaAspectRatio && Number.isFinite(item.mediaAspectRatio) && item.mediaAspectRatio > 0) {
@@ -36,21 +50,21 @@ export function mediaAspectRatioFor(item: LibraryItem): number {
 }
 
 export function KindIcon({ kind }: { kind: ItemKind }) {
-  const iconName: IconName =
+  const icon =
     kind === "Image"
-      ? "image"
+      ? Image01Icon
       : kind === "Article"
-        ? "link"
+        ? Link01Icon
         : kind === "PDF"
-          ? "fileText"
+          ? FileTextIcon
           : kind === "Quote"
-            ? "bookmark"
+            ? Bookmark01Icon
             : kind === "Post"
-              ? "atSign"
+              ? AtSignIcon
               : kind === "Video"
-                ? "play"
-                : "sparkles";
-  return <AppIcon name={iconName} size={13} />;
+                ? PlayIcon
+                : SparklesIcon;
+  return <HugeiconsIcon icon={icon} size={13} />;
 }
 
 export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }) {
@@ -63,7 +77,7 @@ export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }
         </span>
         <span>
           <strong>{post.displayName}</strong>
-          <AppIcon name="badgeCheck" size={13} />
+          <HugeiconsIcon icon={CheckmarkBadge01Icon} size={13} />
           <small>{post.handle}</small>
         </span>
         <span className="post-platform">X</span>
@@ -71,10 +85,10 @@ export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }
       <p>{post.body}</p>
       <div className="post-date">{post.published}</div>
       <div className="post-actions">
-        <AppIcon name="message" size={14} />
-        <AppIcon name="repeat" size={14} />
-        <AppIcon name="heart" size={14} />
-        <AppIcon name="share" size={14} />
+        <HugeiconsIcon icon={Message01Icon} size={14} />
+        <HugeiconsIcon icon={RepeatIcon} size={14} />
+        <HugeiconsIcon icon={HeartIcon} size={14} />
+        <HugeiconsIcon icon={Share08Icon} size={14} />
       </div>
     </div>
   );
@@ -106,7 +120,7 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
             aria-label={`Play video: ${item.title}`}
           >
             {poster && <img src={poster} alt="" loading="lazy" />}
-            <span className="video-poster-play" aria-hidden="true"><AppIcon name="play" size={21} /></span>
+            <span className="video-poster-play" aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={21} /></span>
             <span className="video-provider">{providerLabel(item.video.provider)}</span>
           </button>
         )}

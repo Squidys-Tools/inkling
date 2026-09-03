@@ -1,9 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { gsap } from "gsap";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  AlertCircleIcon,
+  ArrowUpRight01Icon,
+  BookOpen01Icon,
+  CheckmarkCircle01Icon,
+  Copy01Icon,
+  FileTextIcon,
+  Loading01Icon,
+  RotateCwIcon,
+  SparklesIcon,
+  Cancel01Icon,
+} from "@hugeicons/core-free-icons";
 import type { LibraryItem } from "../App";
 import { isTauriRuntime } from "../lib/libraryApi";
 import type { ReaderOrigin } from "../ReaderView";
-import { AppIcon } from "./AppIcon";
 import { KindIcon, PostArtwork, XPostEmbed, DetailVideoMedia } from "./ItemMedia";
 import {
   OVERLAY_EASE,
@@ -68,19 +80,19 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
   const openOriginal: OverlayAction = {
     key: "open-original",
     label: "Open original",
-    icon: <AppIcon name="external" size={15} />,
+    icon: <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />,
     onClick: () => item.sourceUrl && window.open(item.sourceUrl, "_blank", "noopener,noreferrer"),
     disabled: !item.sourceUrl,
   };
 
   if (item.kind === "PDF" && item.fileUrl) {
-    list.push({ key: "open-pdf", label: "Open PDF", icon: <AppIcon name="fileText" size={15} />, onClick: () => actions.onOpenPdf(item) });
+    list.push({ key: "open-pdf", label: "Open PDF", icon: <HugeiconsIcon icon={FileTextIcon} size={15} />, onClick: () => actions.onOpenPdf(item) });
   }
   if (item.kind === "Article" && item.articleHtml) {
     list.push({
       key: "read",
       label: "Read",
-      icon: <AppIcon name="bookOpen" size={15} />,
+      icon: <HugeiconsIcon icon={BookOpen01Icon} size={15} />,
       onClick: (event) => actions.onOpenReader(item, clickOrigin(event)),
     });
   }
@@ -89,7 +101,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
     list.push({
       key: "find-similar",
       label: actions.isFindingSimilar ? "Finding similar…" : "Find similar",
-      icon: <AppIcon name="sparkles" size={15} />,
+      icon: <HugeiconsIcon icon={SparklesIcon} size={15} />,
       onClick: () => actions.onFindSimilar(item),
       disabled: actions.isFindingSimilar,
     });
@@ -98,7 +110,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
     list.push({
       key: "read-unavailable",
       label: "Read",
-      icon: <AppIcon name="bookOpen" size={15} />,
+      icon: <HugeiconsIcon icon={BookOpen01Icon} size={15} />,
       onClick: () => {},
       disabled: true,
       title: "No saved article text",
@@ -627,7 +639,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           onClick={requestClose}
           aria-label="Close details"
         >
-          <AppIcon name="x" size={16} />
+          <HugeiconsIcon icon={Cancel01Icon} size={16} />
         </button>
 
         <div
@@ -657,17 +669,17 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           )}
           {shownItem.processing?.active && (
             <div className="detail-processing" role="status">
-              <AppIcon name="loader" size={14} />
+              <HugeiconsIcon icon={Loading01Icon} size={14} />
               <span>{shownItem.processing.message ?? "Processing"}</span>
               {shownItem.processing.progressTotal != null && <span>{shownItem.processing.progressCurrent}/{shownItem.processing.progressTotal}</span>}
             </div>
           )}
           {shownItem.processing?.failedJob && (
             <div className="detail-processing failed" role="alert">
-              <AppIcon name="alert" size={14} />
+              <HugeiconsIcon icon={AlertCircleIcon} size={14} />
               <span>{shownItem.processing.failedJob.errorMessage ?? "Processing failed"}</span>
               <button type="button" className="retry-button" onClick={() => void actions.onRetryJob(shownItem.processing?.failedJob?.id ?? "")}>
-                <AppIcon name="rotate" size={12} /> Try again
+                <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
               </button>
             </div>
           )}
@@ -692,7 +704,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           {shownItem.sourceUrl && (
             <div className="expanded-overlay-utility">
               <button type="button" className="expanded-overlay-utility-action" onClick={copySourceLink} aria-label="Copy link to original">
-                {linkCopied ? <AppIcon name="check" size={13} /> : <AppIcon name="copy" size={13} />} {linkCopied ? "Copied" : "Copy link"}
+                {linkCopied ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={13} /> : <HugeiconsIcon icon={Copy01Icon} size={13} />} {linkCopied ? "Copied" : "Copy link"}
               </button>
             </div>
           )}

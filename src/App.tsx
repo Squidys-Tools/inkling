@@ -3,7 +3,32 @@ import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
 import { gsap } from "gsap";
-import { AppIcon, IconPackProvider, IconPackSwitcher } from "./components/AppIcon";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  AlertCircleIcon,
+  Archive01Icon,
+  ArrowUpRight01Icon,
+  Bookmark01Icon,
+  Camera01Icon,
+  Clock01Icon,
+  Grid2X2Icon,
+  HelpCircleIcon,
+  Image01Icon,
+  Layers01Icon,
+  Link01Icon,
+  ListViewIcon,
+  Loading01Icon,
+  PlusSignIcon,
+  PlayIcon,
+  RotateCwIcon,
+  Search01Icon,
+  Settings01Icon,
+  SidebarLeftIcon,
+  SparklesIcon,
+  ViewSidebarLeftIcon,
+  Cancel01Icon,
+  FileTextIcon,
+} from "@hugeicons/core-free-icons";
 import {
   assetUrl,
   createQuote,
@@ -521,7 +546,7 @@ function LibraryVideoMedia({ item }: { item: LibraryItem }) {
   if (!item.video && !item.fileUrl) {
     return item.image
       ? <div className="card-image-wrap"><img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" /></div>
-      : <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><AppIcon name="play" size={20} /></span></div>;
+      : <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><HugeiconsIcon icon={PlayIcon} size={20} /></span></div>;
   }
 
   // Cards are static thumbnails that open the details overlay on click. The
@@ -530,7 +555,7 @@ function LibraryVideoMedia({ item }: { item: LibraryItem }) {
     <div className="card-image-wrap">
       {item.image && <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />}
       <span className="card-video-scrim" aria-hidden="true" />
-      <span className="card-play" aria-hidden="true"><AppIcon name="play" size={16} /></span>
+      <span className="card-play" aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={16} /></span>
       <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
     </div>
   );
@@ -611,14 +636,14 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
           <p className={item.kind === "Quote" ? "quote-attribution" : ""}>{item.description ? (item.kind === "Quote" && !item.description.trim().startsWith("—") ? `— ${item.description}` : item.description) : (item.kind === "Quote" ? "" : item.description)}</p>
           {item.processing?.active && (
             <div className="card-processing" role="status">
-              <AppIcon name="loader" size={13} />
+              <HugeiconsIcon icon={Loading01Icon} size={13} />
               <span>{item.processing.message ?? "Processing"}</span>
               {item.processing.progressTotal != null && <span>{item.processing.progressCurrent}/{item.processing.progressTotal}</span>}
             </div>
           )}
           {item.processing?.failedJob && (
             <div className="card-processing failed" role="alert">
-              <AppIcon name="alert" size={13} />
+              <HugeiconsIcon icon={AlertCircleIcon} size={13} />
               <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
               <button
                 type="button"
@@ -628,7 +653,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                   void context.onRetryJob(item.processing?.failedJob?.id ?? "");
                 }}
               >
-                <AppIcon name="rotate" size={12} /> Try again
+                <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
               </button>
             </div>
           )}
@@ -653,7 +678,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                 disabled={!item.articleHtml}
                 title={item.articleHtml ? "Open reader" : "No saved article text"}
               >
-                Read <AppIcon name="arrowUpRight" size={13} />
+                Read <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
               </button>
             )}
             {item.kind === "Video" && item.video && (
@@ -666,10 +691,10 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                   context.onSelectItem(item, card ? cardRectsFor(card) : undefined);
                 }}
               >
-                Watch <AppIcon name="play" size={11} />
+                Watch <HugeiconsIcon icon={PlayIcon} size={11} />
               </button>
             )}
-            {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && <AppIcon name="arrowUpRight" size={15} />}
+            {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />}
           </div>
         </div>
       </article>
@@ -1901,7 +1926,6 @@ function App() {
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);
 
   return (
-    <IconPackProvider>
     <MotionConfig reducedMotion="user">
       <div className={`app-shell ${isDragActive ? "drag-active" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
         <AnimatePresence>
@@ -1945,7 +1969,7 @@ function App() {
             aria-label="Close panel"
             onClick={() => setIsSidebarOpen(false)}
           >
-            <AppIcon name="panelClose" size={16} />
+            <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
           </button>
         </div>
 
@@ -1954,7 +1978,7 @@ function App() {
             className={`nav-item ${activeView === "Everything" && !activeSpaceId ? "active" : ""}`}
             onClick={clearToDefaultView}
           >
-            <AppIcon name="layers" size={17} />
+            <HugeiconsIcon icon={Layers01Icon} size={17} />
             <span>Everything</span>
             <span className="nav-count">{items.length}</span>
           </button>
@@ -1965,15 +1989,15 @@ function App() {
               setActiveView("Top of mind");
             }}
           >
-            <AppIcon name="sparkles" size={17} />
+            <HugeiconsIcon icon={SparklesIcon} size={17} />
             <span>Top of mind</span>
           </button>
           <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Serendipity"); }}>
-            <AppIcon name="clock" size={17} />
+            <HugeiconsIcon icon={Clock01Icon} size={17} />
             <span>Serendipity</span>
           </button>
           <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Archive"); }}>
-            <AppIcon name="archive" size={17} />
+            <HugeiconsIcon icon={Archive01Icon} size={17} />
             <span>Archive</span>
           </button>
         </nav>
@@ -1990,7 +2014,7 @@ function App() {
                 setNewSpaceName("");
               }}
             >
-              <AppIcon name="plus" size={15} />
+              <HugeiconsIcon icon={PlusSignIcon} size={15} />
             </button>
           </div>
           <div className="space-list">
@@ -2016,7 +2040,7 @@ function App() {
                     void handleDeleteSpace(space);
                   }}
                 >
-                  <AppIcon name="x" size={12} />
+                  <HugeiconsIcon icon={Cancel01Icon} size={12} />
                 </button>
               </div>
             ))}
@@ -2064,13 +2088,12 @@ function App() {
         </div>
 
         <div className="sidebar-footer">
-          <IconPackSwitcher />
           <button className="nav-item footer-item" aria-label="Settings" title="Settings">
-            <AppIcon name="settings" size={17} />
+            <HugeiconsIcon icon={Settings01Icon} size={17} />
             <span>Settings</span>
           </button>
           <button className="nav-item footer-item" aria-label="Help & shortcuts" title="Help & shortcuts">
-            <AppIcon name="help" size={17} />
+            <HugeiconsIcon icon={HelpCircleIcon} size={17} />
             <span>Help & shortcuts</span>
           </button>
         </div>
@@ -2090,11 +2113,11 @@ function App() {
               aria-controls="library-navigation"
               onClick={() => setIsSidebarOpen(true)}
             >
-              <AppIcon name="panelOpen" size={17} />
+              <HugeiconsIcon icon={ViewSidebarLeftIcon} size={17} />
             </button>
           )}
           <div className="search-field">
-            <AppIcon name="search" size={19} />
+            <HugeiconsIcon icon={Search01Icon} size={19} />
             <input
               ref={searchRef}
               value={query}
@@ -2110,7 +2133,7 @@ function App() {
             <kbd><span>/</span> to search</kbd>
           </div>
           <button className="add-button" onClick={openCaptureModal} disabled={isCapturing} title="Add something to your library">
-            <AppIcon name="plus" size={18} />
+            <HugeiconsIcon icon={PlusSignIcon} size={18} />
             <span>{isCapturing ? "Saving…" : "Add to library"}</span>
           </button>
         </section>
@@ -2141,28 +2164,28 @@ function App() {
                   <h2 id="capture-modal-title">Add to your library</h2>
                   <p>Choose what you want to save.</p>
                 </div>
-                <button className="icon-button small" type="button" onClick={closeCaptureModal} aria-label="Close add menu"><AppIcon name="x" size={16} /></button>
+                <button className="icon-button small" type="button" onClick={closeCaptureModal} aria-label="Close add menu"><HugeiconsIcon icon={Cancel01Icon} size={16} /></button>
               </header>
 
               <div className="capture-options" aria-label="Add options">
                 <button type="button" className={`capture-option ${captureMode === "note" ? "selected" : ""}`} onClick={() => selectCaptureMode("note")} aria-pressed={captureMode === "note"}>
-                  <span className="capture-option-icon"><AppIcon name="fileText" size={18} /></span>
+                  <span className="capture-option-icon"><HugeiconsIcon icon={FileTextIcon} size={18} /></span>
                   <span className="capture-option-copy"><strong>Note</strong><span>Write something to remember.</span></span>
                 </button>
                 <button type="button" className={`capture-option ${captureMode === "url" ? "selected" : ""}`} onClick={() => selectCaptureMode("url")} aria-pressed={captureMode === "url"}>
-                  <span className="capture-option-icon"><AppIcon name="link" size={18} /></span>
+                  <span className="capture-option-icon"><HugeiconsIcon icon={Link01Icon} size={18} /></span>
                   <span className="capture-option-copy"><strong>Link</strong><span>Save an article, page, or X post.</span></span>
                 </button>
                 <button type="button" className={`capture-option ${captureMode === "file" ? "selected" : ""}`} onClick={() => selectCaptureMode("file")} aria-pressed={captureMode === "file"}>
-                  <span className="capture-option-icon"><AppIcon name="image" size={18} /></span>
+                  <span className="capture-option-icon"><HugeiconsIcon icon={Image01Icon} size={18} /></span>
                   <span className="capture-option-copy"><strong>File</strong><span>Upload an image, PDF, or video.</span></span>
                 </button>
                 <button type="button" className={`capture-option ${captureMode === "quote" ? "selected" : ""}`} onClick={() => selectCaptureMode("quote")} aria-pressed={captureMode === "quote"}>
-                  <span className="capture-option-icon"><AppIcon name="bookmark" size={18} /></span>
+                  <span className="capture-option-icon"><HugeiconsIcon icon={Bookmark01Icon} size={18} /></span>
                   <span className="capture-option-copy"><strong>Quote</strong><span>Save a passage with its source.</span></span>
                 </button>
                 <button type="button" className="capture-option" onClick={startScreenshotCapture} disabled={isCapturing}>
-                  <span className="capture-option-icon"><AppIcon name="camera" size={18} /></span>
+                  <span className="capture-option-icon"><HugeiconsIcon icon={Camera01Icon} size={18} /></span>
                   <span className="capture-option-copy"><strong>Screenshot</strong><span>Capture a window or display.</span></span>
                 </button>
               </div>
@@ -2262,7 +2285,7 @@ function App() {
               <>
                 <span className="search-context">for “{query}”</span>
                 <button type="button" className="quiet-link save-space-link" onClick={beginSaveSearch}>
-                  <AppIcon name="bookmark" size={13} /> Save as Space
+                  <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
                 </button>
               </>
             ) : null}
@@ -2276,8 +2299,8 @@ function App() {
                 animate={{ transform: viewSelectionListMode ? "translateX(30px)" : "translateX(0px)" }}
                 transition={{ duration: LIBRARY_VIEW_TRANSITION_MS / 1000, ease: [0.77, 0, 0.175, 1] }}
               />
-              <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><AppIcon name="grid" size={16} /></button>
-              <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><AppIcon name="list" size={16} /></button>
+              <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><HugeiconsIcon icon={Grid2X2Icon} size={16} /></button>
+              <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><HugeiconsIcon icon={ListViewIcon} size={16} /></button>
             </div>
           </div>
         </div>
@@ -2298,7 +2321,7 @@ function App() {
 
         {filteredItems.length === 0 && (
           <div className="empty-state">
-            <div className="empty-icon"><AppIcon name="search" size={20} /></div>
+            <div className="empty-icon"><HugeiconsIcon icon={Search01Icon} size={20} /></div>
             <h2>Nothing surfaced yet.</h2>
             <p>Try another word, or save something new to your mind.</p>
             <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
@@ -2358,7 +2381,6 @@ function App() {
       </AnimatePresence>
       </div>
     </MotionConfig>
-    </IconPackProvider>
   );
 }
 
