@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { ArrowUpRight, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import "./reader.css";
+import { AppIcon } from "./components/AppIcon";
 
 export type ReaderOrigin = { x: number; y: number };
 
@@ -98,7 +98,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
     >
       <button type="button" className="reader-close" onClick={onRequestClose} title="Close reader" aria-label="Close reader (Escape)">
         <span className="reader-close-esc">Esc</span>
-        <X size={16} />
+        <AppIcon name="x" size={16} />
       </button>
 
       <div className="reader-scroll">
@@ -118,7 +118,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
 
           <footer className="reader-footer">
             <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer">
-              Continue reading at {host} <ArrowUpRight size={15} />
+              Continue reading at {host} <AppIcon name="arrowUpRight" size={15} />
             </a>
           </footer>
         </article>

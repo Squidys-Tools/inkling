@@ -1,22 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import {
-  AtSign,
-  BadgeCheck,
-  Bookmark,
-  FileText,
-  Heart,
-  Image as ImageIcon,
-  Link2,
-  MessageCircle,
-  Play,
-  Repeat2,
-  Share2,
-  Sparkles,
-} from "lucide-react";
 import { autoplayEmbedUrl, providerLabel } from "../lib/ingestion/video-links";
 import { normalizeXPostOEmbed, xPostOEmbedUrl } from "../lib/ingestion/x-post";
 import type { XPostMetadata } from "../lib/ingestion/types";
 import type { ItemKind, LibraryItem } from "../App";
+import { AppIcon, type IconName } from "./AppIcon";
 
 export function mediaAspectRatioFor(item: LibraryItem): number {
   if (item.mediaAspectRatio && Number.isFinite(item.mediaAspectRatio) && item.mediaAspectRatio > 0) {
@@ -49,21 +36,21 @@ export function mediaAspectRatioFor(item: LibraryItem): number {
 }
 
 export function KindIcon({ kind }: { kind: ItemKind }) {
-  const Icon =
+  const iconName: IconName =
     kind === "Image"
-      ? ImageIcon
+      ? "image"
       : kind === "Article"
-        ? Link2
+        ? "link"
         : kind === "PDF"
-          ? FileText
+          ? "fileText"
           : kind === "Quote"
-            ? Bookmark
+            ? "bookmark"
             : kind === "Post"
-              ? AtSign
+              ? "atSign"
               : kind === "Video"
-                ? Play
-                : Sparkles;
-  return <Icon size={13} strokeWidth={1.8} />;
+                ? "play"
+                : "sparkles";
+  return <AppIcon name={iconName} size={13} />;
 }
 
 export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }) {
@@ -76,7 +63,7 @@ export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }
         </span>
         <span>
           <strong>{post.displayName}</strong>
-          <BadgeCheck size={13} />
+          <AppIcon name="badgeCheck" size={13} />
           <small>{post.handle}</small>
         </span>
         <span className="post-platform">X</span>
@@ -84,10 +71,10 @@ export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }
       <p>{post.body}</p>
       <div className="post-date">{post.published}</div>
       <div className="post-actions">
-        <MessageCircle size={14} />
-        <Repeat2 size={14} />
-        <Heart size={14} />
-        <Share2 size={14} />
+        <AppIcon name="message" size={14} />
+        <AppIcon name="repeat" size={14} />
+        <AppIcon name="heart" size={14} />
+        <AppIcon name="share" size={14} />
       </div>
     </div>
   );
@@ -119,7 +106,7 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
             aria-label={`Play video: ${item.title}`}
           >
             {poster && <img src={poster} alt="" loading="lazy" />}
-            <span className="video-poster-play" aria-hidden="true"><Play size={21} /></span>
+            <span className="video-poster-play" aria-hidden="true"><AppIcon name="play" size={21} /></span>
             <span className="video-provider">{providerLabel(item.video.provider)}</span>
           </button>
         )}

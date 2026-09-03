@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, LoaderCircle, Minus, Plus, X } from "lucide-react";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { AppIcon } from "./AppIcon";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -169,7 +169,7 @@ export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
                 onClick={() => setZoom((current) => clampZoom((current ?? renderedScale) - ZOOM_STEP))}
                 aria-label="Zoom out"
               >
-                <Minus size={15} />
+                <AppIcon name="minus" size={15} />
               </button>
               <span className="pdf-viewer-zoom">{zoomLabel}</span>
               <button
@@ -178,7 +178,7 @@ export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
                 onClick={() => setZoom((current) => clampZoom((current ?? renderedScale) + ZOOM_STEP))}
                 aria-label="Zoom in"
               >
-                <Plus size={15} />
+                <AppIcon name="plus" size={15} />
               </button>
               <button type="button" className="text-button" onClick={() => setZoom(null)}>Fit</button>
             </div>
@@ -190,7 +190,7 @@ export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
                 disabled={pageNumber <= 1}
                 aria-label="Previous page"
               >
-                <ChevronLeft size={15} />
+                <AppIcon name="chevronLeft" size={15} />
               </button>
               <span className="pdf-viewer-page">
                 {state.phase === "ready" ? (
@@ -223,18 +223,18 @@ export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
                 disabled={state.phase !== "ready" || atLastPage}
                 aria-label="Next page"
               >
-                <ChevronRight size={15} />
+                <AppIcon name="chevronRight" size={15} />
               </button>
             </div>
             <button type="button" className="icon-button small" onClick={onClose} aria-label="Close viewer">
-              <X size={16} />
+              <AppIcon name="x" size={16} />
             </button>
           </div>
         </header>
         <div className="pdf-viewer-body" ref={containerRef}>
           {state.phase === "loading" && (
             <div className="pdf-viewer-status" role="status">
-              <LoaderCircle size={18} className="spin" />
+              <AppIcon name="loader" size={18} className="spin" />
               <span>{state.percent != null ? `Loading ${state.percent}%` : "Loading…"}</span>
             </div>
           )}
