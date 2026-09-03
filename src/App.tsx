@@ -2076,22 +2076,23 @@ function App() {
         </div>
       </aside>
 
-      <button
-        type="button"
-        className="sidebar-toggle"
-        aria-label={isSidebarOpen ? "Close navigation" : "Open navigation"}
-        aria-expanded={isSidebarOpen}
-        aria-controls="library-navigation"
-        onClick={() => setIsSidebarOpen((current) => !current)}
-      >
-        {isSidebarOpen ? <AppIcon name="panelClose" size={16} /> : <AppIcon name="panelOpen" size={16} />}
-      </button>
-
       <main className="main-content">
         <section className="library-header">
         </section>
 
         <section className="capture-bar" aria-label="Capture and search">
+          {!isSidebarOpen && (
+            <button
+              type="button"
+              className="sidebar-toggle"
+              aria-label="Open navigation"
+              aria-expanded={false}
+              aria-controls="library-navigation"
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              <AppIcon name="panelOpen" size={17} />
+            </button>
+          )}
           <div className="search-field">
             <AppIcon name="search" size={19} />
             <input
