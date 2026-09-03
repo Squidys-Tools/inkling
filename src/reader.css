@@ -2,14 +2,14 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto:ital,wght@0,400;0,700;1,400&family=Arimo:ital,wght@0,400;0,700;1,400&family=Noto+Sans:ital,wght@0,400;0,700;1,400&family=Nunito+Sans:ital,wght@0,400;0,700;0,900;1,400&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=PT+Sans:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@400;500&display=swap");
 
 .reader-overlay {
-  --reader-bg: #191917;
-  --reader-surface: #20201e;
-  --reader-ink: #e6e2da;
-  --reader-muted: #9a958b;
-  --reader-faint: #6e6a62;
-  --reader-rule: #33322e;
-  --reader-accent: #d98d68;
-  --reader-code-bg: #262624;
+  --reader-bg: #0c0c0b;
+  --reader-surface: #161412;
+  --reader-ink: #e5ddd2;
+  --reader-muted: #8d867c;
+  --reader-faint: #8d867c;
+  --reader-rule: #262221;
+  --reader-accent: #b0714f;
+  --reader-code-bg: #1b1917;
   --reader-quote-bg: transparent;
 
   position: fixed;
