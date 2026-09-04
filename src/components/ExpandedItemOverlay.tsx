@@ -3,6 +3,7 @@ import { gsap } from "gsap";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   AlertCircleIcon,
+  Archive01Icon,
   ArrowUpRight01Icon,
   BookOpen01Icon,
   CheckmarkCircle01Icon,
@@ -37,6 +38,7 @@ export type ExpandedOverlayActions = {
   onOpenPdf: (item: LibraryItem) => void;
   onOpenReader: (item: LibraryItem, origin: ReaderOrigin) => void;
   onFindSimilar: (item: LibraryItem) => void;
+  onForget: (item: LibraryItem) => void | Promise<void>;
   onRetryJob: (jobId: string) => void | Promise<void>;
   isFindingSimilar: boolean;
 };
@@ -701,13 +703,16 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
             ))}
           </div>
 
-          {shownItem.sourceUrl && (
-            <div className="expanded-overlay-utility">
+          <div className="expanded-overlay-utility">
+            {shownItem.sourceUrl && (
               <button type="button" className="expanded-overlay-utility-action" onClick={copySourceLink} aria-label="Copy link to original">
                 {linkCopied ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={13} /> : <HugeiconsIcon icon={Copy01Icon} size={13} />} {linkCopied ? "Copied" : "Copy link"}
               </button>
-            </div>
-          )}
+            )}
+            <button type="button" className="expanded-overlay-utility-action" onClick={() => void actions.onForget(shownItem)}>
+              <HugeiconsIcon icon={Archive01Icon} size={13} /> Forget
+            </button>
+          </div>
 
           {/* Insertion point for related items (overlay PR 3); renders nothing until then. */}
           <div className="expanded-overlay-related" hidden />

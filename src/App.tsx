@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
 import { gsap } from "gsap";
+import { Toaster, toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   AlertCircleIcon,
@@ -31,6 +32,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import {
   assetUrl,
+  archiveItem,
   createQuote,
   createSpace,
   createUrl,
@@ -845,6 +847,48 @@ function App() {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }, []);
+
+  const restoreForgottenItem = useCallback(async (item: LibraryItem, toastId: string) => {
+    try {
+      const restoredItem = isTauriRuntime()
+        ? await archiveItem(String(item.id), false).then(async (storedItem) => {
+            const jobs = await getJobStatus(storedItem.id);
+            return storedItemToLibraryItem(storedItem, summarizeProcessingJobs(jobs));
+          })
+        : item;
+      setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
+        ? current
+        : [restoredItem, ...current]);
+      toast.success("Restored to your library", { id: toastId, duration: 3000, closeButton: true });
+    } catch (error) {
+      toast.error("Unable to restore this item", { id: toastId, duration: Infinity, closeButton: true });
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, []);
+
+  const forgetItem = useCallback(async (item: LibraryItem) => {
+    setCaptureError(null);
+    try {
+      if (isTauriRuntime()) await archiveItem(String(item.id));
+      setItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
+      setSelectedItem(null);
+
+      const toastId = `forgot-${String(item.id)}-${Date.now()}`;
+      toast("Forgotten from your library", {
+        id: toastId,
+        description: item.title,
+        duration: Infinity,
+        closeButton: true,
+        className: "library-toast",
+        action: {
+          label: "Undo",
+          onClick: () => void restoreForgottenItem(item, toastId),
+        },
+      });
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, [restoreForgottenItem]);
 
   const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
     if (!item.articleHtml) return;
@@ -1907,9 +1951,10 @@ function App() {
     onOpenPdf: setPdfViewerItem,
     onOpenReader: openReader,
     onFindSimilar: (item) => void findSimilarImages(item),
+    onForget: forgetItem,
     onRetryJob: retryJob,
     isFindingSimilar,
-  }), [isFindingSimilar, openReader, retryJob]);
+  }), [forgetItem, isFindingSimilar, openReader, retryJob]);
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
@@ -2380,6 +2425,15 @@ function App() {
         )}
       </AnimatePresence>
       </div>
+      <Toaster
+        position="top-center"
+        offset={{ top: 48, left: 16, right: 16 }}
+        mobileOffset={{ top: 16, left: 12, right: 12 }}
+        theme="dark"
+        richColors={false}
+        closeButton
+        containerAriaLabel="Notifications"
+      />
     </MotionConfig>
   );
 }

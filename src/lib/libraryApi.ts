@@ -205,8 +205,8 @@ export async function assetUrl(path: string | null) {
   return convertFileSrc(absolutePath);
 }
 
-export async function archiveItem(id: string) {
-  return invoke<StoredLibraryItem>("archive_item", { id, archived: true });
+export async function archiveItem(id: string, archived = true) {
+  return invoke<StoredLibraryItem>("archive_item", { id, archived });
 }
 
 export async function enqueueOcrJob(itemId: string) {
