@@ -63,6 +63,7 @@ import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type S
 import { KindIcon, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
+import pdfPointillismOptionB from "./assets/pdf-pointillism-option-b.png";
 import "./App.css";
 
 export type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
@@ -81,6 +82,7 @@ export type LibraryItem = {
   mediaWidth?: number;
   mediaHeight?: number;
   mediaAspectRatio?: number;
+  pdfPageCount?: number;
   fileUrl?: string;
   imageAlt?: string;
   sourceUrl?: string;
@@ -203,6 +205,9 @@ async function storedItemToLibraryItem(
   const metadataAuthor = typeof item.metadata.author === "string" ? item.metadata.author : undefined;
   const metadataPublishedDate =
     typeof item.metadata.publishedDate === "string" ? item.metadata.publishedDate : undefined;
+  const pdfPageCount = baseKind === "PDF" && typeof item.metadata.pdfPageCount === "number" && Number.isInteger(item.metadata.pdfPageCount) && item.metadata.pdfPageCount > 0
+    ? item.metadata.pdfPageCount
+    : undefined;
 
   const remoteImage = Array.isArray(item.metadata.imageUrls)
     ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")
@@ -247,6 +252,7 @@ async function storedItemToLibraryItem(
     mediaWidth,
     mediaHeight,
     mediaAspectRatio: storedAspectRatio ?? (mediaWidth && mediaHeight ? mediaWidth / mediaHeight : undefined),
+    pdfPageCount,
     fileUrl,
     imageAlt: item.title?.trim() || undefined,
     social,
@@ -605,22 +611,47 @@ function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
 }
 
 function LibraryVideoMedia({ item }: { item: LibraryItem }) {
-  if (!item.video && !item.fileUrl) {
-    return item.image
-      ? <div className="card-image-wrap"><img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" /></div>
-      : <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><HugeiconsIcon icon={PlayIcon} size={20} /></span></div>;
+  if (!item.video && !item.fileUrl && !item.image) {
+    return <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><HugeiconsIcon icon={PlayIcon} size={20} /></span></div>;
   }
 
   // Cards are static thumbnails that open the details overlay on click. The
   // play badge is a purely visual affordance — playback happens in the overlay.
   return (
     <div className="card-image-wrap">
-      {item.image && <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />}
+      {item.image ? (
+        <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />
+      ) : item.fileUrl ? (
+        <video
+          className="card-image"
+          src={item.fileUrl}
+          muted
+          playsInline
+          preload="metadata"
+          aria-label={item.title}
+          onLoadedMetadata={(event) => {
+            event.currentTarget.currentTime = 0.01;
+          }}
+        />
+      ) : null}
       <span className="card-video-scrim" aria-hidden="true" />
       <span className="card-play" aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={16} /></span>
       <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
     </div>
   );
+}
+
+function cardPreviewText(value: string | undefined, fallback: string): string {
+  const text = value?.replace(/\s+/gu, " ").trim() || fallback;
+  return text.length > 72 ? `${text.slice(0, 69)}…` : text;
+}
+
+function pdfPreviewTitle(value: string): string {
+  return value
+    .replace(/\.[^.]+$/u, "")
+    .replace(/[-_]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
 }
 
 type LibraryCardContext = {
@@ -686,9 +717,9 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
           ) : (
             <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.kind === "Note" ? "note-art" : item.accent ?? ""}`} aria-hidden="true">
               {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
-              {item.kind === "Note" && <><span className="note-pin" /><span className="note-label">QUICK THOUGHT</span><span className="note-scribble">remember<br />the shape<br />of a day</span><span className="note-rule note-rule-one" /><span className="note-rule note-rule-two" /><span className="note-star">✳</span></>}
-              {item.kind === "PDF" && <><span className="pdf-label">FIELD<br />NOTES</span><span className="pdf-rule" /></>}
-              {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
+              {item.kind === "Note" && <><span className="note-pin" /><span className="note-label">QUICK THOUGHT</span><span className="note-scribble">{cardPreviewText(item.description, item.title || "Saved note")}</span><span className="note-rule note-rule-one" /><span className="note-rule note-rule-two" /><span className="note-star">✳</span></>}
+              {item.kind === "PDF" && <div className="pdf-artwork"><img src={pdfPointillismOptionB} alt="" className="pdf-shader" /><span className="pdf-label">PDF</span><span className="pdf-mark" aria-hidden="true" /><span className="pdf-title">{pdfPreviewTitle(item.title) || "Document"}</span><div className="pdf-legend" aria-hidden="true"><span /><span /><span /></div><span className="pdf-page-count">{item.pdfPageCount ? `${item.pdfPageCount} PAGES` : "PDF"}</span></div>}
+              {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-preview">{cardPreviewText(item.title, "Saved quote")}</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
             </div>
           )}
         </div>
@@ -1439,6 +1470,7 @@ function App() {
       date: "Just now",
       tags: [],
       image,
+      fileUrl: kind === "video" ? URL.createObjectURL(file) : undefined,
       mediaWidth: mediaDimensions?.width,
       mediaHeight: mediaDimensions?.height,
     };
@@ -1490,11 +1522,11 @@ function App() {
     }
 
     const social = article.social;
-    const videoLink = social ? null : videoLinkFromSourceUrl(article.canonicalUrl);
+    const embeddedVideoLink = social ? null : videoLinkFromSourceUrl(article.canonicalUrl);
     const firstImageDimensions = article.imageDimensions.find((value) => value.url === article.imageUrls[0]);
     const item: LibraryItem = {
       id: Date.now(),
-      kind: social ? "Post" : videoLink ? "Video" : "Article",
+      kind: social ? "Post" : embeddedVideoLink ? "Video" : "Article",
       title: article.title,
       description: article.description || article.text.slice(0, 180),
       source: social
@@ -1515,7 +1547,7 @@ function App() {
       articleHtml: article.html,
       social,
       post: social ? postFallbackFromMetadata(social) : undefined,
-      video: videoLink ?? undefined,
+      video: embeddedVideoLink ?? undefined,
     };
     setItems((current) => [item, ...current]);
   }

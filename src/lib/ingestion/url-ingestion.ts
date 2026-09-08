@@ -6,6 +6,7 @@ import { collectImageUrls, collectSafeEmbeds, hasReadableText, htmlToText, sanit
 import { visibleByline } from "./fallback";
 import { normalizeHttpUrl, normalizePublishedDate, normalizeText, parseHttpUrl, uniqueStrings } from "./url";
 import { normalizeXPostOEmbed, parseXPostUrl, xPostOEmbedUrl } from "./x-post";
+import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./video-links";
 import type { NormalizedArticle, RawArticleExtraction, UrlIngestionOptions, XPostMetadata } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -135,11 +136,92 @@ function cleanArticleHeadings(document: Document, title: string, description: st
   return document.body?.innerHTML ?? "";
 }
 
+async function ingestVideoLink(
+  sourceUrl: string,
+  videoLink: VideoLinkEmbed,
+  fetchImpl: typeof globalThis.fetch | undefined,
+  timeoutMs: number,
+  maxResponseBytes: number,
+  userAgent: string,
+): Promise<NormalizedArticle> {
+  let title = `${providerLabel(videoLink.provider)} video`;
+  let author = "";
+  let poster = videoLink.posterUrl;
+
+  if (fetchImpl) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), Math.min(timeoutMs, 4_000));
+    try {
+      const host = videoLink.provider === "youtube" ? "www.youtube.com" : "vimeo.com";
+      const response = await fetchImpl(
+        `https://${host}/oembed.json?url=${encodeURIComponent(videoLink.sourceUrl)}`,
+        {
+          headers: { Accept: "application/json", "User-Agent": userAgent },
+          redirect: "follow",
+          signal: controller.signal,
+        },
+      );
+      if (response.ok) {
+        const body = await readResponseText(response, Math.min(maxResponseBytes, 512 * 1024), sourceUrl);
+        const metadata = JSON.parse(body) as {
+          title?: unknown;
+          author_name?: unknown;
+          thumbnail_url?: unknown;
+        };
+        if (typeof metadata.title === "string" && metadata.title.trim()) title = metadata.title.trim();
+        if (typeof metadata.author_name === "string" && metadata.author_name.trim()) author = metadata.author_name.trim();
+        if (typeof metadata.thumbnail_url === "string") {
+          poster = normalizeHttpUrl(metadata.thumbnail_url, sourceUrl) ?? poster;
+        }
+      }
+    } catch {
+      // oEmbed is enrichment only. The validated URL remains indexable when
+      // a provider blocks or rate-limits metadata requests.
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  return {
+    sourceUrl,
+    fetchedUrl: sourceUrl,
+    canonicalUrl: sourceUrl,
+    title,
+    description: author ? `${providerLabel(videoLink.provider)} · ${author}` : `${providerLabel(videoLink.provider)} video`,
+    author,
+    publishedDate: null,
+    html: "",
+    text: title,
+    imageUrls: poster ? [poster] : [],
+    imageDimensions: [],
+    safeEmbeds: [{
+      kind: "iframe",
+      provider: videoLink.provider,
+      sourceUrl: videoLink.sourceUrl,
+      embedUrl: videoLink.embedUrl,
+      title,
+    }],
+    extractor: "fallback",
+  };
+}
+
 export async function ingestUrl(input: string, options: UrlIngestionOptions = {}): Promise<NormalizedArticle> {
   const sourceUrl = parseHttpUrl(input, { allowPrivateNetwork: options.allowPrivateNetwork }).toString();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
   const fetchImpl = options.fetch ?? globalThis.fetch;
+
+  const videoLink = videoLinkFromSourceUrl(sourceUrl);
+  if (videoLink) {
+    return ingestVideoLink(
+      sourceUrl,
+      videoLink,
+      fetchImpl,
+      timeoutMs,
+      maxResponseBytes,
+      options.userAgent ?? DEFAULT_USER_AGENT,
+    );
+  }
 
   if (!fetchImpl) {
     throw new UrlIngestionError("network-error", "No fetch implementation is available.", { url: sourceUrl });

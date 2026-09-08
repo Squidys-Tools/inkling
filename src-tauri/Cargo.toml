@@ -21,6 +21,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
+tauri-plugin-mcp-bridge = "0.13"
 # Overlay titlebar: strips the native frame, keeps Windows Snap Layout,
 # and injects window controls into the webview so the UI runs edge to edge.
 tauri-plugin-decorum = "1.1.1"
@@ -40,4 +41,3 @@ tokio = { version = "1", features = ["rt", "net", "time"] }
 ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
 url = "2"
 windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_WinRT", "Foundation", "Foundation_Collections", "Data_Pdf", "Media_Ocr", "Storage_Streams", "Graphics_Imaging"] }
-

@@ -546,15 +546,22 @@ impl LibraryStorage {
         let image_dimensions = thumbnail
             .as_ref()
             .map(|thumbnail_data| (thumbnail_data.width, thumbnail_data.height));
+        let pdf_title = (kind == "pdf")
+            .then(|| crate::pdf::title(&input.bytes))
+            .flatten();
+        let pdf_page_count = (kind == "pdf")
+            .then(|| crate::pdf::page_count(&input.bytes))
+            .flatten();
         let metadata = file_metadata(
             &file_name,
             mime_type.as_deref(),
             input.bytes.len(),
             image_dimensions,
+            pdf_page_count,
         );
         let metadata_json = serde_json::to_string(&metadata)?;
         let timestamp = now_millis()?;
-        let title = Some(file_name.clone());
+        let title = Some(pdf_title.unwrap_or_else(|| file_name.clone()));
         let source_label = mime_type.clone();
 
         let existing = self.get_item(&id)?;
@@ -1856,6 +1863,7 @@ fn file_metadata(
     mime_type: Option<&str>,
     byte_length: usize,
     image_dimensions: Option<(u32, u32)>,
+    pdf_page_count: Option<usize>,
 ) -> Value {
     let mut metadata = Map::new();
     metadata.insert("fileName".into(), Value::String(file_name.to_owned()));
@@ -1877,6 +1885,12 @@ fn file_metadata(
         metadata.insert(
             "mediaHeight".into(),
             Value::Number(serde_json::Number::from(height)),
+        );
+    }
+    if let Some(page_count) = pdf_page_count {
+        metadata.insert(
+            "pdfPageCount".into(),
+            Value::Number(serde_json::Number::from(page_count as u64)),
         );
     }
     Value::Object(metadata)
