@@ -468,6 +468,66 @@ const seedItems: LibraryItem[] = [
     accent: "paper-yellow",
     sourceUrl: "https://en.wikisource.org/wiki/Of_The_Shortness_of_Life/Chapter_1",
   },
+  {
+    id: 14,
+    kind: "Image",
+    title: "Ceramic pour-over set",
+    description: "Brewing over a ceramic dripper — comparing this carafe before ordering.",
+    source: "Design Milk",
+    sourceUrl: "https://design-milk.com/",
+    date: "Aug 28",
+    tags: ["kitchen", "wishlist"],
+    image:
+      "https://app.paper.design/file-assets/01M0A79VARA1BWFSH86J9CHQG6/01M1PZCZB7TW62ZG0D1W6ZSFA2.png",
+    mediaWidth: 1024,
+    mediaHeight: 1024,
+    imageAlt: "A ceramic pour-over coffee dripper brewing into a glass carafe on an oak counter",
+  },
+  {
+    id: 15,
+    kind: "Image",
+    title: "Reading corner for the new place",
+    description: "Low oak shelf, boucle chair, warm lamp — the layout to steal.",
+    source: "Dezeen",
+    sourceUrl: "https://www.dezeen.com/",
+    date: "Aug 26",
+    tags: ["interior", "reference"],
+    image:
+      "https://app.paper.design/file-assets/01M0A79VARA1BWFSH86J9CHQG6/01M1PZDKY4T8RYWPH59K4BP4QY.png",
+    mediaWidth: 1232,
+    mediaHeight: 816,
+    imageAlt: "A cozy reading nook with a low bookshelf, boucle armchair, and floor lamp",
+  },
+  {
+    id: 16,
+    kind: "Image",
+    title: "Spiral stairwell in concrete",
+    description: "Daylight down a concrete spiral — saved for the presentation moodboard.",
+    source: "ArchDaily",
+    sourceUrl: "https://www.archdaily.com/",
+    date: "Aug 22",
+    tags: ["architecture", "reference"],
+    image:
+      "https://app.paper.design/file-assets/01M0A79VARA1BWFSH86J9CHQG6/01M1PZDZZZ3CZ3W7HBVKXDMN0M.png",
+    mediaWidth: 1232,
+    mediaHeight: 816,
+    imageAlt: "Looking up inside a brutalist concrete spiral stairwell lit by a skylight",
+  },
+  {
+    id: 17,
+    kind: "Image",
+    title: "Café to try in Lisbon",
+    description: "Pastéis de nata and a cortado — saved from the travel thread.",
+    source: "Time Out",
+    sourceUrl: "https://www.timeout.com/lisbon",
+    date: "Aug 19",
+    tags: ["travel", "food"],
+    image:
+      "https://app.paper.design/file-assets/01M0A79VARA1BWFSH86J9CHQG6/01M1PZECGMBTJFQEFCEYN8N27F.png",
+    mediaWidth: 1232,
+    mediaHeight: 816,
+    imageAlt: "A cortado and two custard tarts on a marble café table",
+  },
 ];
 
 const seedSpaces: StoredSpace[] = [
@@ -759,6 +819,7 @@ function App() {
   const [items, setItems] = useState<LibraryItem[]>(isTauriRuntime() ? [] : seedItems);
   const [spaces, setSpaces] = useState<StoredSpace[]>(isTauriRuntime() ? [] : seedSpaces);
   const [query, setQuery] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeView, setActiveView] = useState("Everything");
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
@@ -889,6 +950,19 @@ function App() {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }, [restoreForgottenItem]);
+
+  const addTagToItem = useCallback((item: LibraryItem, tag: string) => {
+    const clean = tag.trim().replace(/^#+/u, "").toLowerCase();
+    if (!clean) return;
+    const apply = (current: LibraryItem) =>
+      current.tags.some((existing) => existing.toLowerCase() === clean)
+        ? current
+        : { ...current, tags: [...current.tags, clean] };
+    setItems((current) =>
+      current.map((currentItem) => (String(currentItem.id) === String(item.id) ? apply(currentItem) : currentItem)),
+    );
+    setSelectedItem((current) => (current && String(current.id) === String(item.id) ? apply(current) : current));
+  }, []);
 
   const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
     if (!item.articleHtml) return;
@@ -1953,8 +2027,9 @@ function App() {
     onFindSimilar: (item) => void findSimilarImages(item),
     onForget: forgetItem,
     onRetryJob: retryJob,
+    onAddTag: addTagToItem,
     isFindingSimilar,
-  }), [forgetItem, isFindingSimilar, openReader, retryJob]);
+  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob]);
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
@@ -1990,7 +2065,7 @@ function App() {
         </AnimatePresence>
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup" data-tauri-drag-region>
-          <div className="brand-mark" aria-hidden="true">
+          <div className={`brand-mark${isSearchFocused ? " is-away" : ""}`} aria-hidden="true">
             <svg viewBox="-125 -125 250 250" xmlns="http://www.w3.org/2000/svg">
               <defs>
                 <mask id="bot-mask-2xogmq" maskUnits="userSpaceOnUse" x="-158" y="-158" width="316" height="316">
@@ -2059,7 +2134,7 @@ function App() {
                 setNewSpaceName("");
               }}
             >
-              <HugeiconsIcon icon={PlusSignIcon} size={15} />
+              <HugeiconsIcon icon={PlusSignIcon} size={16} />
             </button>
           </div>
           <div className="space-list">
@@ -2161,11 +2236,23 @@ function App() {
               <HugeiconsIcon icon={ViewSidebarLeftIcon} size={17} />
             </button>
           )}
-          <div className="search-field">
-            <HugeiconsIcon icon={Search01Icon} size={19} />
+          <div
+            className={`search-field${isSearchFocused ? " is-mascot" : ""}`}
+            onMouseDown={(event) => {
+              if (event.target !== searchRef.current) {
+                event.preventDefault();
+                searchRef.current?.focus();
+              }
+            }}
+          >
+            <span className="field-mascot" aria-hidden="true">
+              <svg width="20" height="14" viewBox="0 0 20 14" focusable="false"><rect x="4" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /><rect x="13" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /></svg>
+            </span>
             <input
               ref={searchRef}
               value={query}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
               onChange={(event) => {
                 setSimilaritySource(null);
                 setActiveSpaceId(null);
@@ -2179,7 +2266,7 @@ function App() {
           </div>
           <button className="add-button" onClick={openCaptureModal} disabled={isCapturing} title="Add something to your library">
             <HugeiconsIcon icon={PlusSignIcon} size={18} />
-            <span>{isCapturing ? "Saving…" : "Add to library"}</span>
+            <span>{isCapturing ? "Saving…" : "Add"}</span>
           </button>
         </section>
 
