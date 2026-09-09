@@ -53,13 +53,13 @@ If extraction fails, retain the URL, title, domain, and any metadata that was su
 
 ### Image capture
 
-Images can be added by file picker, drag-and-drop, clipboard, screenshot capture, or browser extension.
+Images can be added by file picker, drag-and-drop into the main library grid view, clipboard, screenshot capture, or browser extension. Some of these options are surfacable in the "Add" button available in the main library grid ui. Other forms like drag-and-drop or the browser extension are self explantory.
 
-The system should automatically process images for searchable text, concepts, colors, and similarity. The resulting metadata should improve search and Spaces without exposing an AI-management surface.
+The system should automatically process images for searchable text, concepts, colors, and semantic similarity. The resulting metadata should improve search and Spaces without exposing an AI-management surface.
 
 ### Notes and quotes
 
-Quick Notes should open instantly and remain lightweight. A note can expand into Focus Mode for longer writing.
+Quick Notes should open instantly and remain lightweight. A note can expand into Focus Mode for longer forms of writing or reading.
 
 Quoted text should be stored with its source URL when available and displayed as a quote card.
 
@@ -70,12 +70,12 @@ Minimum card types:
 - Image
 - Screenshot
 - Article
-- Website
+- General Website
 - Product
 - Recipe
 - Book
 - PDF
-- Video
+- Video/Embed
 - Note
 - Quote
 
@@ -94,7 +94,7 @@ type:image
 format:pdf
 site:youtube
 tag:research
--red
+red honeycrisp apple
 ```
 
 Pressing Enter after a term creates a deeper search step. Search should combine:
@@ -103,8 +103,8 @@ Pressing Enter after a term creates a deeper search step. Search should combine:
 - Notes and article text
 - OCR text
 - Domains and authors
-- Manual tags
-- Derived image concepts
+- Manual and auto-generated tags
+- Derived image concepts through semantic embeddings
 - Colors
 - Semantic similarity
 - Dates and item types
@@ -121,15 +121,15 @@ Smart Spaces update automatically whenever an item matches their query. They can
 
 ### Regular Spaces
 
-Regular Spaces contain items manually added by the user.
+Regular Spaces contain items manually added by the user. This is meant more for compatability with other apps and to create a more seamless flow and transfer of the user to this app.
 
 Users should be able to create, rename, reorder, recolor, and delete Spaces. Deleting a Space must not delete its items.
 
 ## Reading and writing
 
-Articles should open in a distraction-free reader with clean typography, cached images, headings and links, code blocks, footnotes where available, safe supported video embeds, and an original source link.
+Articles should open in a distraction-free reader with clean typography, cached images, headings and links, code blocks, footnotes where available, safe supported video embeds, and an original source link at the bottom.
 
-Focus Mode should provide a sparse writing environment with headings, bold text, links, and simple interactive todos.
+Focus Mode should provide a sparse writing environment with headings, bold text, links, and simple interactive todos. A Live Preview or WYSIWYG editor is being actively considered.
 
 ## Rediscovery
 

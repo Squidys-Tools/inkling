@@ -2,6 +2,28 @@
 
 All notable development phases and changes are recorded here. See also [roadmap.md](roadmap.md) for what comes next.
 
+The best times to update this file so as to minimize friction while working with a developer or contributor are:
+1. When completing a medium-large implementation pass of features, bug fixes, performance enhancements, refactoring updates, or likewise changes
+2. The user indicates, whether directly or indirectly through their actions, they want to or are going to finish up the local work and merge the changes afterwards
+3. Before starting a new, unrelated task — close out the entry for the work just finished rather than letting it blur or get jumbled into the next thing
+4. When a change alters public behavior: API contracts, CLI flags, config options, env vars; anything a user of the project depends on being stable
+
+Changelog entry format: 
+
+- Follow [Keep a Changelog](https://keepachangelog.com/): group entries under `Added`, `Changed`, `Fixed`, `Removed`, `Deprecated`, `Security`.
+- Each entry is one line, written for a human reader — what changed in simple technical terms that someone could understand with simple google searches, not a commit message or file diff summary.
+- Reference issue/PR numbers or ticket IDs when they exist
+- Keep an `Unreleased` section at the top; move entries under a version heading at release time
+
+Guardrails:
+- Never mention that changes were made by an AI agent or even a developer — write entries as if the changes were just made
+- Don't editorialize or pad entries to look more substantial than the change was
+- If a change is trivial (typo fix, formatting, comment-only), skip the changelog — not every commit needs an entry
+- Ask before rewriting or reordering existing changelog history when you notice it is drifting from the required structure; only append.
+- When restructuring this document NO important/crucial/technical details should be lost
+
+
+
 ## Phase 5 -- Reading and Writing (Aug 25, 2026)
 
 ### Added
