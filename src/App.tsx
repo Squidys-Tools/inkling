@@ -29,6 +29,8 @@ import {
   Delete02Icon,
   ViewSidebarLeftIcon,
   Cancel01Icon,
+  CircleCheckIcon,
+  CircleIcon,
   CheckListIcon,
   FileTextIcon,
 } from "@hugeicons/core-free-icons";
@@ -735,7 +737,10 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
               }
             }}
           >
-            <HugeiconsIcon icon={archiveSelectionMode ? CheckListIcon : Delete02Icon} size={15} />
+            <HugeiconsIcon
+              icon={archiveSelectionMode ? (isArchivedItemSelected ? CircleCheckIcon : CircleIcon) : Delete02Icon}
+              size={archiveSelectionMode ? 24 : 15}
+            />
           </button>
         )}
         <div className="library-card-media">

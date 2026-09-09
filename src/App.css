@@ -261,21 +261,27 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .settings-panel-header h2 { margin: 0; color: var(--ink); font: 500 24px/1.1 "DM Sans", ui-sans-serif, sans-serif; letter-spacing: -.04em; }
 .settings-panel-count-row { min-height: 27px; display: flex; align-items: center; justify-content: space-between; gap: 14px; align-self: stretch; }
 .settings-archive-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
-.settings-selected-count, .settings-batch-button, .settings-select-button { height: 27px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #e5ddd2; border-radius: var(--search-radius); background: #e5ddd2; color: #0c0c0b; white-space: nowrap; }
-.settings-selected-count { padding: 0 10px; font: 600 10px "DM Mono", monospace; }
-.settings-batch-button, .settings-select-button { padding: 0 11px; cursor: pointer; font-weight: 600; transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease, opacity .18s ease; }
+.settings-selected-count, .settings-batch-button, .settings-select-button { height: 27px; display: inline-flex; align-items: center; justify-content: center; border-radius: 20px; white-space: nowrap; }
+.settings-selected-count { padding: 0; border: 0; background: transparent; color: #e5ddd2; font: 500 10px "DM Mono", monospace; }
+.settings-batch-button, .settings-select-button { padding: 0 10px; border: 1px solid rgba(91,88,83,.28); cursor: pointer; font: 500 11px "DM Sans", ui-sans-serif, sans-serif; transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease, opacity .18s ease; }
 .settings-batch-button:active:not(:disabled), .settings-select-button:active { transform: scale(.96); }
 .settings-batch-button:disabled { cursor: not-allowed; opacity: .42; }
-.settings-selected-count:hover, .settings-batch-button:hover:not(:disabled), .settings-select-button:hover, .settings-select-button.is-active { border-color: #e5ddd2; background: #f2ece1; color: #0c0c0b; }
-.settings-select-button { gap: 7px; font: 600 11px "DM Sans", ui-sans-serif, sans-serif; }
+.settings-selected-count:hover { color: #f2ece1; }
+.settings-batch-recover { background: #adce80; color: #000; }
+.settings-batch-recover:hover:not(:disabled) { border-color: rgba(91,88,83,.45); background: #bddd92; color: #000; }
+.settings-batch-delete { background: #b0714f; color: #0c0c0b; }
+.settings-batch-delete:hover:not(:disabled) { border-color: rgba(91,88,83,.45); background: #c0805e; color: #0c0c0b; }
+.settings-select-button { gap: 6px; background: #b3ad8d; color: #0c0c0b; }
+.settings-select-button:hover, .settings-select-button.is-active { border-color: rgba(91,88,83,.45); background: #c1bb9a; color: #0c0c0b; }
 .settings-close { width: 30px; height: 30px; border-color: #4a4842; border-radius: 7px; background: #262221; }
 .settings-archive-scroll { min-height: 0; flex: 1 1 auto; overflow-y: auto; padding: 18px 3px 5px 0; scrollbar-width: thin; scrollbar-color: #4a4842 transparent; }
 .settings-archive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: 14px; align-items: start; }
 .settings-archive-grid .library-card-slot { min-width: 0; padding-bottom: 0; }
 .archive-card-delete { position: absolute; top: 10px; right: 10px; z-index: 4; display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid rgba(229,221,210,.24); border-radius: 8px; background: rgba(12,12,11,.72); color: var(--ink); cursor: pointer; opacity: .88; backdrop-filter: blur(8px); transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease, opacity .18s ease; }
 .archive-card-delete:hover { border-color: #bd7b5c; background: #3a251d; color: #f0b095; }
-.archive-card-select { border-color: #4a4842; background: #161412; color: #8d867c; }
-.archive-card-select:hover, .archive-card-select.is-selected { border-color: #b0714f; background: #b0714f; color: #0c0c0b; opacity: 1; }
+.archive-card-select { border: 0; border-radius: 50%; background: transparent; color: #8d867c; opacity: .92; }
+.archive-card-select:hover { border: 0; background: rgba(229,221,210,.08); color: #e5ddd2; opacity: 1; }
+.archive-card-select.is-selected { border: 0; background: transparent; color: #b0714f; opacity: 1; }
 .archive-card-selected { border-color: #b0714f !important; box-shadow: 0 0 0 1px #b0714f; }
 .archive-selection-mode { cursor: pointer; }
 .archive-card-delete:active { transform: scale(.96); }
