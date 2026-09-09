@@ -1,10 +1,25 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { gsap } from "gsap";
-import { AlertCircle, BookOpen, Check, Copy, ExternalLink, FileText, LoaderCircle, RotateCw, Sparkles, X } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  AlertCircleIcon,
+  Archive01Icon,
+  ArrowUpRight01Icon,
+  BookOpen01Icon,
+  CheckmarkCircle01Icon,
+  Copy01Icon,
+  FileTextIcon,
+  Globe02Icon,
+  Loading01Icon,
+  PlusSignIcon,
+  RotateCwIcon,
+  SparklesIcon,
+  Cancel01Icon,
+} from "@hugeicons/core-free-icons";
 import type { LibraryItem } from "../App";
 import { isTauriRuntime } from "../lib/libraryApi";
 import type { ReaderOrigin } from "../ReaderView";
-import { KindIcon, PostArtwork, XPostEmbed, DetailVideoMedia } from "./ItemMedia";
+import { KindIcon, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
 import {
   OVERLAY_EASE,
   OVERLAY_FLIGHT_MS,
@@ -25,7 +40,9 @@ export type ExpandedOverlayActions = {
   onOpenPdf: (item: LibraryItem) => void;
   onOpenReader: (item: LibraryItem, origin: ReaderOrigin) => void;
   onFindSimilar: (item: LibraryItem) => void;
+  onForget: (item: LibraryItem) => void | Promise<void>;
   onRetryJob: (jobId: string) => void | Promise<void>;
+  onAddTag?: (item: LibraryItem, tag: string) => void;
   isFindingSimilar: boolean;
 };
 
@@ -60,27 +77,74 @@ function clickOrigin(event: React.MouseEvent<HTMLElement>): ReaderOrigin {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
+// Variant A (provenance row) derives its quiet metadata line from the item
+// itself: the file/media type comes from the pipeline (image extension or
+// kind), and the saved date is the item's own date. Tags render from the
+// item's tag list with an inline + Add affordance.
+function hostnameForUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./u, "");
+  } catch {
+    return null;
+  }
+}
+
+function fileTypeFor(item: LibraryItem): string {
+  if (item.kind === "Image") {
+    const match = item.image?.split("?")[0].match(/\.([a-z0-9]{2,5})$/iu);
+    if (match) {
+      const extension = match[1].toLowerCase();
+      return extension === "jpeg" ? "JPG" : extension.toUpperCase();
+    }
+    return "JPG";
+  }
+  switch (item.kind) {
+    case "PDF":
+      return "PDF";
+    case "Video":
+      return "VIDEO";
+    case "Article":
+      return "LINK";
+    case "Post":
+      return "POST";
+    case "Note":
+      return "NOTE";
+    case "Quote":
+      return "QUOTE";
+    default:
+      return "FILE";
+  }
+}
+
+function savedLabelFor(date: string): string {
+  return `SAVED ${date.replace(/^saved\s+/iu, "").toUpperCase()}`;
+}
+
 // The overlay keeps two triage actions in view: a primary (read / play / open)
 // and secondary (open original / find similar). Everything after the first
 // entry renders in the secondary slot.
 function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): OverlayAction[] {
   const list: OverlayAction[] = [];
+  const sourceHost = hostnameForUrl(item.sourceUrl);
   const openOriginal: OverlayAction = {
     key: "open-original",
-    label: "Open original",
-    icon: <ExternalLink size={15} />,
+    label: sourceHost ?? item.source ?? "Open original",
+    icon: sourceHost
+      ? <HugeiconsIcon icon={Globe02Icon} size={15} />
+      : <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />,
     onClick: () => item.sourceUrl && window.open(item.sourceUrl, "_blank", "noopener,noreferrer"),
     disabled: !item.sourceUrl,
   };
 
   if (item.kind === "PDF" && item.fileUrl) {
-    list.push({ key: "open-pdf", label: "Open PDF", icon: <FileText size={15} />, onClick: () => actions.onOpenPdf(item) });
+    list.push({ key: "open-pdf", label: "Open PDF", icon: <HugeiconsIcon icon={FileTextIcon} size={15} />, onClick: () => actions.onOpenPdf(item) });
   }
   if (item.kind === "Article" && item.articleHtml) {
     list.push({
       key: "read",
       label: "Read",
-      icon: <BookOpen size={15} />,
+      icon: <HugeiconsIcon icon={BookOpen01Icon} size={15} />,
       onClick: (event) => actions.onOpenReader(item, clickOrigin(event)),
     });
   }
@@ -89,7 +153,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
     list.push({
       key: "find-similar",
       label: actions.isFindingSimilar ? "Finding similar…" : "Find similar",
-      icon: <Sparkles size={15} />,
+      icon: <HugeiconsIcon icon={SparklesIcon} size={15} />,
       onClick: () => actions.onFindSimilar(item),
       disabled: actions.isFindingSimilar,
     });
@@ -98,7 +162,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
     list.push({
       key: "read-unavailable",
       label: "Read",
-      icon: <BookOpen size={15} />,
+      icon: <HugeiconsIcon icon={BookOpen01Icon} size={15} />,
       onClick: () => {},
       disabled: true,
       title: "No saved article text",
@@ -123,6 +187,14 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
     return (
       <div className="expanded-overlay-media">
         <DetailVideoMedia item={item} />
+      </div>
+    );
+  }
+
+  if (item.kind === "PDF") {
+    return (
+      <div className="expanded-overlay-media">
+        <PdfArtwork item={item} />
       </div>
     );
   }
@@ -162,6 +234,10 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
       </div>
     </div>
   );
+}
+
+function detailTitleFor(item: LibraryItem): string {
+  return item.kind === "PDF" ? pdfPreviewTitle(item.title) || item.title : item.title;
 }
 
 type ExpandedItemOverlayProps = {
@@ -609,6 +685,37 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   }
 
   const triage = triageActions(shownItem, actions);
+  const sourceAction = triage.find((action) => action.key === "open-original");
+  const otherActions = triage.filter((action) => action.key !== "open-original");
+  // Layout G (Paper): any item with readable content merges into a single
+  // row — Read/Open PDF + domain share the row, copy + forget are bare icons.
+  // Readable = whatever currently renders a Read button in the overlay.
+  const readAction = triage.find(
+    (action) => action.key === "read" || action.key === "open-pdf" || action.key === "read-unavailable",
+  );
+  const isReadRow = Boolean(readAction);
+
+  const [extraTags, setExtraTags] = useState<string[]>([]);
+  const [isAddingTag, setIsAddingTag] = useState(false);
+  const [tagDraft, setTagDraft] = useState("");
+
+  useEffect(() => {
+    setExtraTags([]);
+    setIsAddingTag(false);
+    setTagDraft("");
+  }, [shownItem.id]);
+
+  const allTags = [...shownItem.tags, ...extraTags];
+
+  function submitTag() {
+    const clean = tagDraft.trim().replace(/^#+/u, "").toLowerCase();
+    if (clean && !allTags.some((tag) => tag.toLowerCase() === clean)) {
+      setExtraTags((current) => [...current, clean]);
+      actions.onAddTag?.(shownItem, clean);
+    }
+    setTagDraft("");
+    setIsAddingTag(false);
+  }
 
   return (
     <div className="expanded-overlay-layer" ref={layerRef}>
@@ -617,7 +724,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
         className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""}`}
         role="dialog"
         aria-modal={false}
-        aria-label={shownItem.title}
+        aria-label={detailTitleFor(shownItem)}
         style={dialogFlying ? undefined : placedStyle}
       >
         <button
@@ -627,7 +734,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           onClick={requestClose}
           aria-label="Close details"
         >
-          <X size={16} />
+          <HugeiconsIcon icon={Cancel01Icon} size={16} />
         </button>
 
         <div
@@ -643,7 +750,6 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           ref={bodyRef}
           style={dialogFlying && destination ? { width: destination.frame.width } : undefined}
         >
-          <div className="card-kicker"><span><KindIcon kind={shownItem.kind} />{shownItem.kind}</span><span>{shownItem.date}</span></div>
           {shownItem.kind === "Quote" ? (
             <>
               <blockquote className="detail-quote">“{shownItem.title}”</blockquote>
@@ -651,50 +757,157 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
             </>
           ) : (
             <>
-              <h2 className="expanded-overlay-title">{shownItem.title}</h2>
+              <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
               {shownItem.description && <p className="expanded-overlay-description">{shownItem.description}</p>}
             </>
           )}
           {shownItem.processing?.active && (
             <div className="detail-processing" role="status">
-              <LoaderCircle size={14} />
+              <HugeiconsIcon icon={Loading01Icon} size={14} />
               <span>{shownItem.processing.message ?? "Processing"}</span>
               {shownItem.processing.progressTotal != null && <span>{shownItem.processing.progressCurrent}/{shownItem.processing.progressTotal}</span>}
             </div>
           )}
           {shownItem.processing?.failedJob && (
             <div className="detail-processing failed" role="alert">
-              <AlertCircle size={14} />
+              <HugeiconsIcon icon={AlertCircleIcon} size={14} />
               <span>{shownItem.processing.failedJob.errorMessage ?? "Processing failed"}</span>
               <button type="button" className="retry-button" onClick={() => void actions.onRetryJob(shownItem.processing?.failedJob?.id ?? "")}>
-                <RotateCw size={12} /> Try again
+                <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
               </button>
             </div>
           )}
-          <div className="detail-source"><span>Source</span><strong>{shownItem.source}</strong></div>
-          <div className="tag-row">{shownItem.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
-
-          <div className="expanded-overlay-actions">
-            {triage.map((action, index) => (
-              <button
-                type="button"
-                key={action.key}
-                className={index === 0 ? "overlay-action-primary" : "overlay-action-secondary"}
-                onClick={action.onClick}
-                disabled={action.disabled}
-                title={action.title}
-              >
-                {action.icon} {action.label}
-              </button>
-            ))}
+          <div className="detail-meta">
+            <div className="detail-filemeta">
+              <span className="filemeta-type">{fileTypeFor(shownItem)}</span>
+              <span className="filemeta-dot" aria-hidden="true" />
+              <span className="filemeta-saved">{savedLabelFor(shownItem.date)}</span>
+            </div>
+            <div className="detail-tags">
+              {allTags.map((tag) => <span key={tag} className="detail-tag">#{tag}</span>)}
+              {isAddingTag ? (
+                <input
+                  className="detail-tag-input"
+                  value={tagDraft}
+                  autoFocus
+                  placeholder="tag name"
+                  aria-label="New tag name"
+                  onChange={(event) => setTagDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      submitTag();
+                    } else if (event.key === "Escape") {
+                      setTagDraft("");
+                      setIsAddingTag(false);
+                    }
+                  }}
+                  onBlur={submitTag}
+                />
+              ) : (
+                <button type="button" className="detail-tag-add" onClick={() => setIsAddingTag(true)}>
+                  <HugeiconsIcon icon={PlusSignIcon} size={11} /> Add
+                </button>
+              )}
+            </div>
           </div>
 
-          {shownItem.sourceUrl && (
-            <div className="expanded-overlay-utility">
-              <button type="button" className="expanded-overlay-utility-action" onClick={copySourceLink} aria-label="Copy link to original">
-                {linkCopied ? <Check size={13} /> : <Copy size={13} />} {linkCopied ? "Copied" : "Copy link"}
+          {isReadRow && readAction ? (
+            <div className="expanded-overlay-toolbar is-read-row">
+              <button
+                type="button"
+                className="toolbar-primary toolbar-reading"
+                onClick={readAction.onClick}
+                disabled={readAction.disabled}
+                title={readAction.title ?? (readAction.disabled ? "No saved content to read" : readAction.label)}
+              >
+                {readAction.icon} {readAction.label}
+              </button>
+              {sourceAction && (
+                <button
+                  type="button"
+                  className="toolbar-primary"
+                  onClick={sourceAction.onClick}
+                  disabled={sourceAction.disabled}
+                  title={sourceAction.disabled ? "No source link saved" : `Open ${sourceAction.label}`}
+                >
+                  {sourceAction.icon} {sourceAction.label} <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
+                </button>
+              )}
+              {shownItem.sourceUrl && (
+                <button
+                  type="button"
+                  className="toolbar-icon"
+                  onClick={copySourceLink}
+                  aria-label="Copy link to original"
+                  title={linkCopied ? "Copied" : "Copy link"}
+                >
+                  {linkCopied ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} /> : <HugeiconsIcon icon={Copy01Icon} size={14} />}
+                </button>
+              )}
+              <button
+                type="button"
+                className="toolbar-icon toolbar-icon-muted"
+                onClick={() => void actions.onForget(shownItem)}
+                aria-label="Forget this item"
+                title="Forget"
+              >
+                <HugeiconsIcon icon={Archive01Icon} size={14} />
               </button>
             </div>
+          ) : (
+            <>
+              {otherActions.length > 0 && (
+                <div className="expanded-overlay-actions">
+                  {otherActions.map((action, index) => (
+                    <button
+                      type="button"
+                      key={action.key}
+                      className={index === 0 ? "overlay-action-primary" : "overlay-action-secondary"}
+                      onClick={action.onClick}
+                      disabled={action.disabled}
+                      title={action.title}
+                    >
+                      {action.icon} {action.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="expanded-overlay-toolbar">
+                {sourceAction && (
+                  <button
+                    type="button"
+                    className="toolbar-primary"
+                    onClick={sourceAction.onClick}
+                    disabled={sourceAction.disabled}
+                    title={sourceAction.disabled ? "No source link saved" : `Open ${sourceAction.label}`}
+                  >
+                    {sourceAction.icon} {sourceAction.label} <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
+                  </button>
+                )}
+                {shownItem.sourceUrl && (
+                  <button
+                    type="button"
+                    className="toolbar-icon"
+                    onClick={copySourceLink}
+                    aria-label="Copy link to original"
+                    title={linkCopied ? "Copied" : "Copy link"}
+                  >
+                    {linkCopied ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} /> : <HugeiconsIcon icon={Copy01Icon} size={14} />}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="toolbar-icon toolbar-icon-muted"
+                  onClick={() => void actions.onForget(shownItem)}
+                  aria-label="Forget this item"
+                  title="Forget"
+                >
+                  <HugeiconsIcon icon={Archive01Icon} size={14} />
+                </button>
+              </div>
+            </>
           )}
 
           {/* Insertion point for related items (overlay PR 3); renders nothing until then. */}

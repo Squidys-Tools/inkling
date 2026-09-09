@@ -1,22 +1,24 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  AtSign,
-  BadgeCheck,
-  Bookmark,
-  FileText,
-  Heart,
-  Image as ImageIcon,
-  Link2,
-  MessageCircle,
-  Play,
-  Repeat2,
-  Share2,
-  Sparkles,
-} from "lucide-react";
+  AtSignIcon,
+  Bookmark01Icon,
+  CheckmarkBadge01Icon,
+  FileTextIcon,
+  HeartIcon,
+  Image01Icon,
+  Link01Icon,
+  Message01Icon,
+  PlayIcon,
+  RepeatIcon,
+  Share08Icon,
+  SparklesIcon,
+} from "@hugeicons/core-free-icons";
 import { autoplayEmbedUrl, providerLabel } from "../lib/ingestion/video-links";
 import { normalizeXPostOEmbed, xPostOEmbedUrl } from "../lib/ingestion/x-post";
 import type { XPostMetadata } from "../lib/ingestion/types";
 import type { ItemKind, LibraryItem } from "../App";
+import pdfPointillismOptionB from "../assets/pdf-pointillism-option-b.png";
 
 export function mediaAspectRatioFor(item: LibraryItem): number {
   if (item.mediaAspectRatio && Number.isFinite(item.mediaAspectRatio) && item.mediaAspectRatio > 0) {
@@ -49,21 +51,43 @@ export function mediaAspectRatioFor(item: LibraryItem): number {
 }
 
 export function KindIcon({ kind }: { kind: ItemKind }) {
-  const Icon =
+  const icon =
     kind === "Image"
-      ? ImageIcon
+      ? Image01Icon
       : kind === "Article"
-        ? Link2
+        ? Link01Icon
         : kind === "PDF"
-          ? FileText
+          ? FileTextIcon
           : kind === "Quote"
-            ? Bookmark
+            ? Bookmark01Icon
             : kind === "Post"
-              ? AtSign
+              ? AtSignIcon
               : kind === "Video"
-                ? Play
-                : Sparkles;
-  return <Icon size={13} strokeWidth={1.8} />;
+                ? PlayIcon
+                : SparklesIcon;
+  return <HugeiconsIcon icon={icon} size={13} />;
+}
+
+export function pdfPreviewTitle(value: string): string {
+  return value
+    .replace(/\uFFFD/gu, "’")
+    .replace(/\.[^.]+$/u, "")
+    .replace(/[-_]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+export function PdfArtwork({ item }: { item: LibraryItem }) {
+  return (
+    <div className="pdf-artwork">
+      <img src={pdfPointillismOptionB} alt="" className="pdf-shader" />
+      <span className="pdf-label">PDF</span>
+      <span className="pdf-mark" aria-hidden="true" />
+      <span className="pdf-title">{pdfPreviewTitle(item.title) || "Document"}</span>
+      <div className="pdf-legend" aria-hidden="true"><span /><span /><span /></div>
+      <span className="pdf-page-count">{item.pdfPageCount ? `${item.pdfPageCount} PAGES` : "PDF"}</span>
+    </div>
+  );
 }
 
 export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }) {
@@ -76,7 +100,7 @@ export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }
         </span>
         <span>
           <strong>{post.displayName}</strong>
-          <BadgeCheck size={13} />
+          <HugeiconsIcon icon={CheckmarkBadge01Icon} size={13} />
           <small>{post.handle}</small>
         </span>
         <span className="post-platform">X</span>
@@ -84,10 +108,10 @@ export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }
       <p>{post.body}</p>
       <div className="post-date">{post.published}</div>
       <div className="post-actions">
-        <MessageCircle size={14} />
-        <Repeat2 size={14} />
-        <Heart size={14} />
-        <Share2 size={14} />
+        <HugeiconsIcon icon={Message01Icon} size={14} />
+        <HugeiconsIcon icon={RepeatIcon} size={14} />
+        <HugeiconsIcon icon={HeartIcon} size={14} />
+        <HugeiconsIcon icon={Share08Icon} size={14} />
       </div>
     </div>
   );
@@ -119,7 +143,7 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
             aria-label={`Play video: ${item.title}`}
           >
             {poster && <img src={poster} alt="" loading="lazy" />}
-            <span className="video-poster-play" aria-hidden="true"><Play size={21} /></span>
+            <span className="video-poster-play" aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={21} /></span>
             <span className="video-provider">{providerLabel(item.video.provider)}</span>
           </button>
         )}

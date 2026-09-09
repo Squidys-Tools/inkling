@@ -12,6 +12,7 @@
     "core:window:allow-start-dragging",
     "core:window:allow-set-focus",
     "decorum:allow-show-snap-overlay",
+    "mcp-bridge:default",
     "opener:default",
     "deep-link:default"
   ]

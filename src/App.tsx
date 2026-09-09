@@ -3,33 +3,40 @@ import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
 import { gsap } from "gsap";
+import { Toaster, toast } from "sonner";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Archive,
-  AlertCircle,
-  ArrowUpRight,
-  Bookmark,
-  Camera,
-  CircleHelp,
-  Clock3,
-  FileText,
-  Grid2X2,
-  Image as ImageIcon,
-  Layers3,
-  Link2,
-  LoaderCircle,
-  List,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Play,
-  Plus,
-  Search,
-  RotateCw,
-  Settings2,
-  Sparkles,
-  X,
-} from "lucide-react";
+  AlertCircleIcon,
+  Archive01Icon,
+  ArrowUpRight01Icon,
+  Bookmark01Icon,
+  Camera01Icon,
+  Clock01Icon,
+  Grid2X2Icon,
+  HelpCircleIcon,
+  Image01Icon,
+  Layers01Icon,
+  Link01Icon,
+  ListViewIcon,
+  Loading01Icon,
+  PlusSignIcon,
+  PlayIcon,
+  RotateCwIcon,
+  Search01Icon,
+  Settings01Icon,
+  SidebarLeftIcon,
+  SparklesIcon,
+  Delete02Icon,
+  ViewSidebarLeftIcon,
+  Cancel01Icon,
+  CircleCheckIcon,
+  CircleIcon,
+  CheckListIcon,
+  FileTextIcon,
+} from "@hugeicons/core-free-icons";
 import {
   assetUrl,
+  archiveItem,
   createQuote,
   createSpace,
   createUrl,
@@ -39,11 +46,13 @@ import {
   initializeStorage,
   isTauriRuntime,
   listActiveItems,
+  listArchivedItems,
   listSpaceItems,
   listSpaces,
   getJobStatus,
   retryProcessingJob,
   saveFile,
+  deleteItem,
   searchItems,
   searchSimilarImages,
   summarizeProcessingJobs,
@@ -53,11 +62,11 @@ import {
   type StoredSpace,
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
-import { autoplayEmbedUrl, providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
+import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 import PdfViewer from "./components/PdfViewer";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
-import { KindIcon, PostArtwork, XPostEmbed, VIDEO_IFRAME_ALLOW, mediaAspectRatioFor } from "./components/ItemMedia";
+import { KindIcon, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import "./App.css";
@@ -78,6 +87,7 @@ export type LibraryItem = {
   mediaWidth?: number;
   mediaHeight?: number;
   mediaAspectRatio?: number;
+  pdfPageCount?: number;
   fileUrl?: string;
   imageAlt?: string;
   sourceUrl?: string;
@@ -93,6 +103,7 @@ export type LibraryItem = {
   accent?: string;
   featured?: boolean;
   favorite?: boolean;
+  archived?: boolean;
   processing?: ProcessingSummary;
    articleHtml?: string;
    articleAuthor?: string;
@@ -200,6 +211,9 @@ async function storedItemToLibraryItem(
   const metadataAuthor = typeof item.metadata.author === "string" ? item.metadata.author : undefined;
   const metadataPublishedDate =
     typeof item.metadata.publishedDate === "string" ? item.metadata.publishedDate : undefined;
+  const pdfPageCount = baseKind === "PDF" && typeof item.metadata.pdfPageCount === "number" && Number.isInteger(item.metadata.pdfPageCount) && item.metadata.pdfPageCount > 0
+    ? item.metadata.pdfPageCount
+    : undefined;
 
   const remoteImage = Array.isArray(item.metadata.imageUrls)
     ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")
@@ -244,12 +258,14 @@ async function storedItemToLibraryItem(
     mediaWidth,
     mediaHeight,
     mediaAspectRatio: storedAspectRatio ?? (mediaWidth && mediaHeight ? mediaWidth / mediaHeight : undefined),
+    pdfPageCount,
     fileUrl,
     imageAlt: item.title?.trim() || undefined,
     social,
     post: social ? postFallbackFromMetadata(social) : undefined,
     accent: isQuote ? "paper-yellow" : undefined,
     favorite: item.favorite,
+    archived: item.archived,
     processing,
     articleHtml: metadataHtml && metadataHtml.trim() ? metadataHtml : undefined,
     articleAuthor: metadataAuthor,
@@ -465,7 +481,72 @@ const seedItems: LibraryItem[] = [
     accent: "paper-yellow",
     sourceUrl: "https://en.wikisource.org/wiki/Of_The_Shortness_of_Life/Chapter_1",
   },
+  {
+    id: 14,
+    kind: "Image",
+    title: "Ceramic pour-over set",
+    description: "Brewing over a ceramic dripper — comparing this carafe before ordering.",
+    source: "Design Milk",
+    sourceUrl: "https://design-milk.com/",
+    date: "Aug 28",
+    tags: ["kitchen", "wishlist"],
+    image:
+      "https://app.paper.design/file-assets/01M0A79VARA1BWFSH86J9CHQG6/01M1PZCZB7TW62ZG0D1W6ZSFA2.png",
+    mediaWidth: 1024,
+    mediaHeight: 1024,
+    imageAlt: "A ceramic pour-over coffee dripper brewing into a glass carafe on an oak counter",
+  },
+  {
+    id: 15,
+    kind: "Image",
+    title: "Reading corner for the new place",
+    description: "Low oak shelf, boucle chair, warm lamp — the layout to steal.",
+    source: "Dezeen",
+    sourceUrl: "https://www.dezeen.com/",
+    date: "Aug 26",
+    tags: ["interior", "reference"],
+    image:
+      "https://app.paper.design/file-assets/01M0A79VARA1BWFSH86J9CHQG6/01M1PZDKY4T8RYWPH59K4BP4QY.png",
+    mediaWidth: 1232,
+    mediaHeight: 816,
+    imageAlt: "A cozy reading nook with a low bookshelf, boucle armchair, and floor lamp",
+  },
+  {
+    id: 16,
+    kind: "Image",
+    title: "Spiral stairwell in concrete",
+    description: "Daylight down a concrete spiral — saved for the presentation moodboard.",
+    source: "ArchDaily",
+    sourceUrl: "https://www.archdaily.com/",
+    date: "Aug 22",
+    tags: ["architecture", "reference"],
+    image:
+      "https://app.paper.design/file-assets/01M0A79VARA1BWFSH86J9CHQG6/01M1PZDZZZ3CZ3W7HBVKXDMN0M.png",
+    mediaWidth: 1232,
+    mediaHeight: 816,
+    imageAlt: "Looking up inside a brutalist concrete spiral stairwell lit by a skylight",
+  },
+  {
+    id: 17,
+    kind: "Image",
+    title: "Café to try in Lisbon",
+    description: "Pastéis de nata and a cortado — saved from the travel thread.",
+    source: "Time Out",
+    sourceUrl: "https://www.timeout.com/lisbon",
+    date: "Aug 19",
+    tags: ["travel", "food"],
+    image:
+      "https://app.paper.design/file-assets/01M0A79VARA1BWFSH86J9CHQG6/01M1PZECGMBTJFQEFCEYN8N27F.png",
+    mediaWidth: 1232,
+    mediaHeight: 816,
+    imageAlt: "A cortado and two custard tarts on a marble café table",
+  },
 ];
+
+const previewArchivedItems: LibraryItem[] = seedItems
+  .filter((item) => [3, 10, 12, 5].includes(Number(item.id)))
+  .map((item) => ({ ...item, id: `archive-${item.id}`, archived: true }));
+const browserArchivedItems = import.meta.env.DEV ? previewArchivedItems : [];
 
 const seedSpaces: StoredSpace[] = [
   {
@@ -542,56 +623,49 @@ function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
 }
 
 function LibraryVideoMedia({ item }: { item: LibraryItem }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  useEffect(() => setIsPlaying(false), [item.id]);
-
-  if (!item.video && !item.fileUrl) {
-    return item.image
-      ? <div className="card-image-wrap"><img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" /></div>
-      : <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><Play size={20} /></span></div>;
+  if (!item.video && !item.fileUrl && !item.image) {
+    return <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><HugeiconsIcon icon={PlayIcon} size={20} /></span></div>;
   }
 
-  if (isPlaying) {
-    return (
-      <div className="card-image-wrap card-video-playing" onClick={(event) => event.stopPropagation()}>
-        {item.video ? (
-          <iframe
-            src={autoplayEmbedUrl(item.video.embedUrl)}
-            title={item.title}
-            allow={VIDEO_IFRAME_ALLOW}
-            allowFullScreen
-          />
-        ) : (
-          <video className="card-video-player" src={item.fileUrl} controls autoPlay playsInline preload="metadata" />
-        )}
-      </div>
-    );
-  }
-
+  // Cards are static thumbnails that open the details overlay on click. The
+  // play badge is a purely visual affordance — playback happens in the overlay.
   return (
     <div className="card-image-wrap">
-      <button
-        type="button"
-        className="card-video-poster"
-        onClick={(event) => {
-          event.stopPropagation();
-          setIsPlaying(true);
-        }}
-        aria-label={`Play video: ${item.title}`}
-      >
-        {item.image && <img src={item.image} alt="" className="card-image" loading="lazy" decoding="async" />}
-        <span className="card-video-scrim" aria-hidden="true" />
-        <span className="card-play" aria-hidden="true"><Play size={16} /></span>
-        <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
-      </button>
+      {item.image ? (
+        <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />
+      ) : item.fileUrl ? (
+        <video
+          className="card-image"
+          src={item.fileUrl}
+          muted
+          playsInline
+          preload="metadata"
+          aria-label={item.title}
+          onLoadedMetadata={(event) => {
+            event.currentTarget.currentTime = 0.01;
+          }}
+        />
+      ) : null}
+      <span className="card-video-scrim" aria-hidden="true" />
+      <span className="card-play" aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={16} /></span>
+      <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
     </div>
   );
+}
+
+function cardPreviewText(value: string | undefined, fallback: string): string {
+  const text = value?.replace(/\s+/gu, " ").trim() || fallback;
+  return text.length > 72 ? `${text.slice(0, 69)}…` : text;
 }
 
 type LibraryCardContext = {
   onSelectItem: (item: LibraryItem, rects?: SourceRects) => void;
   onOpenReader: (item: LibraryItem, origin?: ReaderOrigin) => void;
   onRetryJob: (jobId: string) => void | Promise<void>;
+  onDeleteArchivedItem?: (item: LibraryItem) => void | Promise<void>;
+  archiveSelectionMode?: boolean;
+  isArchivedItemSelected?: (item: LibraryItem) => boolean;
+  onToggleArchivedItem?: (item: LibraryItem) => void;
 };
 
 // Captures the card and its media box before selection state changes, so the
@@ -618,20 +692,57 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
   index,
   context,
 }: VirtualizedLibraryItemProps) {
+  const archiveSelectionMode = context.archiveSelectionMode === true;
+  const isArchivedItemSelected = context.isArchivedItemSelected?.(item) ?? false;
+  const handleCardSelect = (event: React.MouseEvent<HTMLElement>) => {
+    if (archiveSelectionMode) {
+      event.preventDefault();
+      context.onToggleArchivedItem?.(item);
+      return;
+    }
+    context.onSelectItem(item, cardRectsFor(event.currentTarget));
+  };
+
   return (
     <div className="library-card-slot" data-library-index={index}>
       <article
-        className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""}`}
+        className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? "archive-card-selected" : ""}`}
         data-library-item-id={String(item.id)}
         style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
-        onClick={(event) => context.onSelectItem(item, cardRectsFor(event.currentTarget))}
+        onClick={handleCardSelect}
         tabIndex={0}
         onKeyDown={(event) => {
           if (event.key !== "Enter" && event.key !== " ") return;
           event.preventDefault();
-          context.onSelectItem(item, cardRectsFor(event.currentTarget));
+          if (archiveSelectionMode) {
+            context.onToggleArchivedItem?.(item);
+          } else {
+            context.onSelectItem(item, cardRectsFor(event.currentTarget));
+          }
         }}
       >
+        {context.onDeleteArchivedItem && (
+          <button
+            type="button"
+            className={`archive-card-delete ${archiveSelectionMode ? "archive-card-select" : ""} ${isArchivedItemSelected ? "is-selected" : ""}`}
+            aria-label={archiveSelectionMode ? `${isArchivedItemSelected ? "Deselect" : "Select"} ${item.title}` : `Delete ${item.title}`}
+            aria-pressed={archiveSelectionMode ? isArchivedItemSelected : undefined}
+            title={archiveSelectionMode ? (isArchivedItemSelected ? "Deselect item" : "Select item") : "Delete permanently"}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (archiveSelectionMode) {
+                context.onToggleArchivedItem?.(item);
+              } else {
+                void context.onDeleteArchivedItem?.(item);
+              }
+            }}
+          >
+            <HugeiconsIcon
+              icon={archiveSelectionMode ? (isArchivedItemSelected ? CircleCheckIcon : CircleIcon) : Delete02Icon}
+              size={archiveSelectionMode ? 24 : 15}
+            />
+          </button>
+        )}
         <div className="library-card-media">
           {item.social?.provider === "x" ? (
             <div className="x-post-art">
@@ -651,9 +762,9 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
           ) : (
             <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.kind === "Note" ? "note-art" : item.accent ?? ""}`} aria-hidden="true">
               {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
-              {item.kind === "Note" && <><span className="note-pin" /><span className="note-label">QUICK THOUGHT</span><span className="note-scribble">remember<br />the shape<br />of a day</span><span className="note-rule note-rule-one" /><span className="note-rule note-rule-two" /><span className="note-star">✳</span></>}
-              {item.kind === "PDF" && <><span className="pdf-label">FIELD<br />NOTES</span><span className="pdf-rule" /></>}
-              {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
+              {item.kind === "Note" && <><span className="note-pin" /><span className="note-label">QUICK THOUGHT</span><span className="note-scribble">{cardPreviewText(item.description, item.title || "Saved note")}</span><span className="note-rule note-rule-one" /><span className="note-rule note-rule-two" /><span className="note-star">✳</span></>}
+              {item.kind === "PDF" && <PdfArtwork item={item} />}
+              {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-preview">{cardPreviewText(item.title, "Saved quote")}</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
             </div>
           )}
         </div>
@@ -663,14 +774,14 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
           <p className={item.kind === "Quote" ? "quote-attribution" : ""}>{item.description ? (item.kind === "Quote" && !item.description.trim().startsWith("—") ? `— ${item.description}` : item.description) : (item.kind === "Quote" ? "" : item.description)}</p>
           {item.processing?.active && (
             <div className="card-processing" role="status">
-              <LoaderCircle size={13} />
+              <HugeiconsIcon icon={Loading01Icon} size={13} />
               <span>{item.processing.message ?? "Processing"}</span>
               {item.processing.progressTotal != null && <span>{item.processing.progressCurrent}/{item.processing.progressTotal}</span>}
             </div>
           )}
           {item.processing?.failedJob && (
             <div className="card-processing failed" role="alert">
-              <AlertCircle size={13} />
+              <HugeiconsIcon icon={AlertCircleIcon} size={13} />
               <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
               <button
                 type="button"
@@ -680,7 +791,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                   void context.onRetryJob(item.processing?.failedJob?.id ?? "");
                 }}
               >
-                <RotateCw size={12} /> Try again
+                <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
               </button>
             </div>
           )}
@@ -705,7 +816,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                 disabled={!item.articleHtml}
                 title={item.articleHtml ? "Open reader" : "No saved article text"}
               >
-                Read <ArrowUpRight size={13} />
+                Read <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
               </button>
             )}
             {item.kind === "Video" && item.video && (
@@ -718,10 +829,10 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                   context.onSelectItem(item, card ? cardRectsFor(card) : undefined);
                 }}
               >
-                Watch <Play size={11} />
+                Watch <HugeiconsIcon icon={PlayIcon} size={11} />
               </button>
             )}
-            {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && <ArrowUpRight size={15} />}
+            {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />}
           </div>
         </div>
       </article>
@@ -729,13 +840,19 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
   );
 });
 
+// Column count for the masonry grid. Small screens keep their existing
+// breakpoints; wide grids add columns so cards stay close to a target width
+// (~210px, ~70% of the old 300px target) instead of ballooning on big monitors.
+const GRID_GAP = 14;
+const TARGET_CARD_WIDTH = 210;
+const MAX_GRID_COLUMNS = 12;
+
 function masonryColumnCount(width: number): number {
-  if (width < 560) return 1;
-  if (width < 900) return 2;
-  if (width < 1220) return 3;
-  if (width < 1540) return 4;
-  if (width < 1900) return 5;
-  return 6;
+  if (width < 630) return width < 400 ? 1 : 2;
+  if (width < 860) return 3;
+  if (width < 1080) return 4;
+  const columns = Math.round((width + GRID_GAP) / (TARGET_CARD_WIDTH + GRID_GAP));
+  return Math.min(Math.max(columns, 5), MAX_GRID_COLUMNS);
 }
 
 type LibraryCardPosition = {
@@ -778,11 +895,16 @@ function App() {
   const [items, setItems] = useState<LibraryItem[]>(isTauriRuntime() ? [] : seedItems);
   const [spaces, setSpaces] = useState<StoredSpace[]>(isTauriRuntime() ? [] : seedSpaces);
   const [query, setQuery] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeView, setActiveView] = useState("Everything");
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(isTauriRuntime() ? [] : browserArchivedItems);
+  const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
+  const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
   const [isAdding, setIsAdding] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -803,6 +925,8 @@ function App() {
   const [isFindingSimilar, setIsFindingSimilar] = useState(false);
   const [similaritySource, setSimilaritySource] = useState<{ id: string; title: string } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  const settingsCloseRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const libraryTransitionOverlayRef = useRef<HTMLDivElement>(null);
@@ -832,12 +956,28 @@ function App() {
     const viewportRect = scrollElement.getBoundingClientRect();
     const nextScrollTop = Math.max(0, scrollElement.scrollTop + sourceRects.card.top - viewportRect.top - 16);
     selectionScrollRef.current = true;
-    scrollElement.scrollTo({ top: nextScrollTop, behavior: "auto" });
-    window.requestAnimationFrame(() => {
+
+    // The card is scrolled into view with an eased, smooth motion before the
+    // overlay opens, so its rect is measured only once the scroll settles.
+    const finish = () => {
       if (run !== selectionRunRef.current) return;
       selectionRectsRef.current = queryCardRects(item.id) ?? sourceRects;
       setSelectedItem(item);
       selectionScrollRef.current = false;
+    };
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      scrollElement.scrollTop = nextScrollTop;
+      finish();
+      return;
+    }
+
+    gsap.to(scrollElement, {
+      scrollTop: nextScrollTop,
+      duration: 0.55,
+      ease: "power2.inOut",
+      overwrite: true,
+      onComplete: finish,
     });
   }, []);
 
@@ -849,6 +989,61 @@ function App() {
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
+  }, []);
+
+  const restoreForgottenItem = useCallback(async (item: LibraryItem, toastId: string) => {
+    try {
+      const restoredItem = isTauriRuntime()
+        ? await archiveItem(String(item.id), false).then(async (storedItem) => {
+            const jobs = await getJobStatus(storedItem.id);
+            return storedItemToLibraryItem(storedItem, summarizeProcessingJobs(jobs));
+          })
+        : item;
+      setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
+        ? current
+        : [restoredItem, ...current]);
+      toast.success("Restored to your library", { id: toastId, duration: 3000, closeButton: true });
+    } catch (error) {
+      toast.error("Unable to restore this item", { id: toastId, duration: Infinity, closeButton: true });
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, []);
+
+  const forgetItem = useCallback(async (item: LibraryItem) => {
+    setCaptureError(null);
+    try {
+      if (isTauriRuntime()) await archiveItem(String(item.id));
+      setItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
+      setSelectedItem(null);
+
+      const toastId = `forgot-${String(item.id)}-${Date.now()}`;
+      toast("Forgotten from your library", {
+        id: toastId,
+        description: item.title,
+        duration: Infinity,
+        closeButton: true,
+        className: "library-toast",
+        action: {
+          label: "Undo",
+          onClick: () => void restoreForgottenItem(item, toastId),
+        },
+      });
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, [restoreForgottenItem]);
+
+  const addTagToItem = useCallback((item: LibraryItem, tag: string) => {
+    const clean = tag.trim().replace(/^#+/u, "").toLowerCase();
+    if (!clean) return;
+    const apply = (current: LibraryItem) =>
+      current.tags.some((existing) => existing.toLowerCase() === clean)
+        ? current
+        : { ...current, tags: [...current.tags, clean] };
+    setItems((current) =>
+      current.map((currentItem) => (String(currentItem.id) === String(item.id) ? apply(currentItem) : currentItem)),
+    );
+    setSelectedItem((current) => (current && String(current.id) === String(item.id) ? apply(current) : current));
   }, []);
 
   const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
@@ -1093,7 +1288,7 @@ function App() {
       const layoutTargets: Array<{
         clone: HTMLElement;
         source: LibraryCardPosition;
-        position: LibraryCardPosition;
+        position?: LibraryCardPosition;
         sourceBoxes: Array<{ target: HTMLElement; left: number; top: number; width: number; height: number }>;
       }> = [];
 
@@ -1104,7 +1299,7 @@ function App() {
         if (!id || !first) continue;
 
         clone.style.willChange = "transform, opacity";
-        if (!last) {
+        if (!last && !listMode) {
           leavingTargets.push(clone);
           continue;
         }
@@ -1137,14 +1332,52 @@ function App() {
       for (const { clone } of layoutTargets) clearLibraryTransitionMediaStyle(clone);
       overlay.classList.toggle("is-list", listMode);
       for (const { clone, position } of layoutTargets) {
+        if (!position) continue;
         clone.style.left = `${position.left - rootRect.left}px`;
         clone.style.top = `${position.top - rootRect.top}px`;
         clone.style.width = `${position.width}px`;
         clone.style.height = `${position.height}px`;
       }
 
+      for (let index = 0; index < layoutTargets.length; index += 1) {
+        const entry = layoutTargets[index];
+        if (entry.position) continue;
+        const clone = entry.clone;
+        const listWidth = Math.max(0, overlay.clientWidth);
+        const listGap = 9;
+        let cursor = 0;
+        for (const sibling of layoutTargets) {
+          const siblingId = sibling.clone.dataset.libraryItemId;
+          const mounted = siblingId ? lastPositions.get(siblingId) : undefined;
+          if (mounted) {
+            cursor = Math.max(cursor, mounted.top - rootRect.top + mounted.height + listGap);
+          } else if (sibling.position) {
+            cursor = Math.max(cursor, sibling.position.top + sibling.position.height + listGap);
+          }
+        }
+        clone.style.left = "0px";
+        clone.style.top = `${cursor}px`;
+        clone.style.width = `${listWidth}px`;
+        clone.style.height = "";
+        clone.style.margin = "0";
+        const natural = clone.getBoundingClientRect();
+        if (natural.width <= 0 || Number.isNaN(natural.height)) {
+          leavingTargets.push(clone);
+          layoutTargets.splice(index, 1);
+          index -= 1;
+          continue;
+        }
+        entry.position = {
+          left: natural.left - rootRect.left,
+          top: natural.top - rootRect.top,
+          width: natural.width,
+          height: natural.height,
+        };
+      }
+
       const layoutAnimation = gsap.timeline({ paused: true });
-      for (const { clone, source, position, sourceBoxes } of layoutTargets) {
+      for (const { clone, source, position: settledPosition, sourceBoxes } of layoutTargets) {
+        const position = settledPosition ?? source;
         const destinationCardRect = clone.getBoundingClientRect();
 
         for (const sourceBox of sourceBoxes) {
@@ -1288,6 +1521,7 @@ function App() {
       date: "Just now",
       tags: [],
       image,
+      fileUrl: kind === "video" ? URL.createObjectURL(file) : undefined,
       mediaWidth: mediaDimensions?.width,
       mediaHeight: mediaDimensions?.height,
     };
@@ -1339,11 +1573,11 @@ function App() {
     }
 
     const social = article.social;
-    const videoLink = social ? null : videoLinkFromSourceUrl(article.canonicalUrl);
+    const embeddedVideoLink = social ? null : videoLinkFromSourceUrl(article.canonicalUrl);
     const firstImageDimensions = article.imageDimensions.find((value) => value.url === article.imageUrls[0]);
     const item: LibraryItem = {
       id: Date.now(),
-      kind: social ? "Post" : videoLink ? "Video" : "Article",
+      kind: social ? "Post" : embeddedVideoLink ? "Video" : "Article",
       title: article.title,
       description: article.description || article.text.slice(0, 180),
       source: social
@@ -1364,7 +1598,7 @@ function App() {
       articleHtml: article.html,
       social,
       post: social ? postFallbackFromMetadata(social) : undefined,
-      video: videoLink ?? undefined,
+      video: embeddedVideoLink ?? undefined,
     };
     setItems((current) => [item, ...current]);
   }
@@ -1399,7 +1633,7 @@ function App() {
   async function persistText(text: string, captureSource: string) {
     const value = text.trim();
     if (!value) return;
-    if (/^https?:\/\//iu.test(value)) {
+    if (/^https?:\/\//iu.test(value) || /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u.test(value)) {
       await persistArticle(value, captureSource);
       return;
     }
@@ -1627,13 +1861,47 @@ function App() {
         searchRef.current?.focus();
       }
       if (event.key === "Escape") {
+        if (isSettingsOpen) setIsSettingsOpen(false);
         setIsAdding(false);
         setCaptureMode(null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [readingItem]);
+  }, [isSettingsOpen, readingItem]);
+
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusTimer = window.setTimeout(() => settingsCloseRef.current?.focus(), 0);
+
+    const onSettingsKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const modal = document.querySelector<HTMLElement>(".settings-modal");
+      if (!modal) return;
+      const focusable = Array.from(modal.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex=\"-1\"])",
+      ));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onSettingsKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onSettingsKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [isSettingsOpen]);
 
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
@@ -1742,6 +2010,44 @@ function App() {
       window.clearInterval(refreshTimer);
     };
   }, [query, similaritySource?.id, activeSpaceId]);
+
+  useEffect(() => {
+    if (!isSettingsOpen || !isTauriRuntime()) return;
+    let cancelled = false;
+
+    async function loadArchivedItems() {
+      try {
+        await initializeStorage();
+        const storedItems = await listArchivedItems();
+        const nextItems = await Promise.all(storedItems.map(async (item) => {
+          const jobs = await getJobStatus(item.id);
+          return storedItemToLibraryItem(item, summarizeProcessingJobs(jobs));
+        }));
+        if (!cancelled) setArchivedItems(nextItems);
+      } catch (error) {
+        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    void loadArchivedItems();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSettingsOpen]);
+
+  useEffect(() => {
+    if (isSettingsOpen) return;
+    setIsArchiveSelectionMode(false);
+    setSelectedArchivedIds(new Set());
+  }, [isSettingsOpen]);
+
+  useEffect(() => {
+    const archivedIds = new Set(archivedItems.map((item) => String(item.id)));
+    setSelectedArchivedIds((current) => {
+      const next = new Set(Array.from(current).filter((id) => archivedIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [archivedItems]);
 
   const activeSpace = useMemo(
     () => spaces.find((space) => space.id === activeSpaceId) ?? null,
@@ -1856,7 +2162,7 @@ function App() {
       .map((value) => value.trim())
       .find(Boolean);
     if (!droppedText) return;
-    if (/^https?:\/\//iu.test(droppedText)) {
+    if (/^https?:\/\//iu.test(droppedText) || /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u.test(droppedText)) {
       void captureArticle(droppedText, "drag and drop");
     } else {
       void captureText(droppedText, "drag and drop");
@@ -1869,14 +2175,108 @@ function App() {
     onRetryJob: retryJob,
   }), [openReader, retryJob, selectLibraryItem]);
 
+  const deleteArchivedLibraryItem = useCallback(async (item: LibraryItem) => {
+    setCaptureError(null);
+    try {
+      if (isTauriRuntime()) await deleteItem(String(item.id));
+      setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== String(item.id)));
+      if (selectedItem && String(selectedItem.id) === String(item.id)) setSelectedItem(null);
+      toast.success("Deleted permanently", { description: item.title, duration: 3000 });
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, [selectedItem]);
+
+  const toggleArchiveSelectionMode = useCallback(() => {
+    setIsArchiveSelectionMode((current) => {
+      if (current) setSelectedArchivedIds(new Set());
+      return !current;
+    });
+  }, []);
+
+  const toggleArchivedLibraryItem = useCallback((item: LibraryItem) => {
+    setSelectedArchivedIds((current) => {
+      const next = new Set(current);
+      const id = String(item.id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const isArchivedLibraryItemSelected = useCallback(
+    (item: LibraryItem) => selectedArchivedIds.has(String(item.id)),
+    [selectedArchivedIds],
+  );
+
+  const recoverSelectedArchivedItems = useCallback(async () => {
+    const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
+    if (selectedItems.length === 0) return;
+    setCaptureError(null);
+    try {
+      const restoredItems = await Promise.all(selectedItems.map(async (item) => {
+        if (!isTauriRuntime()) return item;
+        const restoredItem = await archiveItem(String(item.id), false);
+        const jobs = await getJobStatus(restoredItem.id);
+        return storedItemToLibraryItem(restoredItem, summarizeProcessingJobs(jobs));
+      }));
+      const restoredIds = new Set(restoredItems.map((item) => String(item.id)));
+      setItems((current) => [
+        ...restoredItems.filter((item) => !current.some((candidate) => String(candidate.id) === String(item.id))),
+        ...current,
+      ]);
+      setArchivedItems((current) => current.filter((item) => !restoredIds.has(String(item.id))));
+      setSelectedArchivedIds(new Set());
+      setIsArchiveSelectionMode(false);
+      toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`, { duration: 3000 });
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, [archivedItems, selectedArchivedIds]);
+
+  const deleteSelectedArchivedItems = useCallback(async () => {
+    const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
+    if (selectedItems.length === 0) return;
+    setCaptureError(null);
+    try {
+      if (isTauriRuntime()) await Promise.all(selectedItems.map((item) => deleteItem(String(item.id))));
+      const deletedIds = new Set(selectedItems.map((item) => String(item.id)));
+      setArchivedItems((current) => current.filter((item) => !deletedIds.has(String(item.id))));
+      if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
+      setSelectedArchivedIds(new Set());
+      setIsArchiveSelectionMode(false);
+      toast.success(`${selectedItems.length} ${selectedItems.length === 1 ? "item" : "items"} deleted permanently`, { duration: 3000 });
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, [archivedItems, selectedArchivedIds, selectedItem]);
+
+  const selectArchivedLibraryItem = useCallback((item: LibraryItem, rects?: SourceRects) => {
+    selectionScrollRef.current = false;
+    selectionRectsRef.current = rects ?? null;
+    setSelectedItem(item);
+  }, []);
+
+  const archivedCardContext = useMemo<LibraryCardContext>(() => ({
+    onSelectItem: selectArchivedLibraryItem,
+    onOpenReader: openReader,
+    onRetryJob: retryJob,
+    onDeleteArchivedItem: deleteArchivedLibraryItem,
+    archiveSelectionMode: isArchiveSelectionMode,
+    isArchivedItemSelected: isArchivedLibraryItemSelected,
+    onToggleArchivedItem: toggleArchivedLibraryItem,
+  }), [deleteArchivedLibraryItem, isArchiveSelectionMode, isArchivedLibraryItemSelected, openReader, retryJob, selectArchivedLibraryItem, toggleArchivedLibraryItem]);
+
   const expandedOverlayActions = useMemo<ExpandedOverlayActions>(() => ({
     onClose: () => setSelectedItem(null),
     onOpenPdf: setPdfViewerItem,
     onOpenReader: openReader,
     onFindSimilar: (item) => void findSimilarImages(item),
+    onForget: forgetItem,
     onRetryJob: retryJob,
+    onAddTag: addTagToItem,
     isFindingSimilar,
-  }), [isFindingSimilar, openReader, retryJob]);
+  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob]);
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
@@ -1894,7 +2294,7 @@ function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className={`app-shell ${isDragActive ? "drag-active" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+      <div className={`app-shell ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
         <AnimatePresence>
           {isSidebarOpen && (
             <motion.button
@@ -1912,7 +2312,7 @@ function App() {
         </AnimatePresence>
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup" data-tauri-drag-region>
-          <div className="brand-mark" aria-hidden="true">
+          <div className={`brand-mark${isSearchFocused ? " is-away" : ""}`} aria-hidden="true">
             <svg viewBox="-125 -125 250 250" xmlns="http://www.w3.org/2000/svg">
               <defs>
                 <mask id="bot-mask-2xogmq" maskUnits="userSpaceOnUse" x="-158" y="-158" width="316" height="316">
@@ -1936,7 +2336,7 @@ function App() {
             aria-label="Close panel"
             onClick={() => setIsSidebarOpen(false)}
           >
-            <PanelLeftClose size={16} />
+            <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
           </button>
         </div>
 
@@ -1945,7 +2345,7 @@ function App() {
             className={`nav-item ${activeView === "Everything" && !activeSpaceId ? "active" : ""}`}
             onClick={clearToDefaultView}
           >
-            <Layers3 size={17} />
+            <HugeiconsIcon icon={Layers01Icon} size={17} />
             <span>Everything</span>
             <span className="nav-count">{items.length}</span>
           </button>
@@ -1956,15 +2356,20 @@ function App() {
               setActiveView("Top of mind");
             }}
           >
-            <Sparkles size={17} />
+            <HugeiconsIcon icon={SparklesIcon} size={17} />
             <span>Top of mind</span>
           </button>
           <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Serendipity"); }}>
-            <Clock3 size={17} />
+            <HugeiconsIcon icon={Clock01Icon} size={17} />
             <span>Serendipity</span>
           </button>
-          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Archive"); }}>
-            <Archive size={17} />
+          <button
+            className={`nav-item ${isSettingsOpen ? "active" : ""}`}
+            aria-haspopup="dialog"
+            aria-controls="settings-modal"
+            onClick={() => setIsSettingsOpen(true)}
+          >
+            <HugeiconsIcon icon={Archive01Icon} size={17} />
             <span>Archive</span>
           </button>
         </nav>
@@ -1981,7 +2386,7 @@ function App() {
                 setNewSpaceName("");
               }}
             >
-              <Plus size={15} />
+              <HugeiconsIcon icon={PlusSignIcon} size={16} />
             </button>
           </div>
           <div className="space-list">
@@ -2007,7 +2412,7 @@ function App() {
                     void handleDeleteSpace(space);
                   }}
                 >
-                  <X size={12} />
+                  <HugeiconsIcon icon={Cancel01Icon} size={12} />
                 </button>
               </div>
             ))}
@@ -2055,38 +2460,60 @@ function App() {
         </div>
 
         <div className="sidebar-footer">
-          <button className="nav-item footer-item" aria-label="Settings" title="Settings">
-            <Settings2 size={17} />
+          <button
+            ref={settingsButtonRef}
+            type="button"
+            className={`nav-item footer-item ${isSettingsOpen ? "active" : ""}`}
+            aria-label="Settings"
+            aria-expanded={isSettingsOpen}
+            aria-controls="settings-modal"
+            title="Settings"
+            onClick={() => setIsSettingsOpen(true)}
+          >
+            <HugeiconsIcon icon={Settings01Icon} size={17} />
             <span>Settings</span>
           </button>
           <button className="nav-item footer-item" aria-label="Help & shortcuts" title="Help & shortcuts">
-            <CircleHelp size={17} />
+            <HugeiconsIcon icon={HelpCircleIcon} size={17} />
             <span>Help & shortcuts</span>
           </button>
         </div>
       </aside>
-
-      <button
-        type="button"
-        className="sidebar-toggle"
-        aria-label={isSidebarOpen ? "Close navigation" : "Open navigation"}
-        aria-expanded={isSidebarOpen}
-        aria-controls="library-navigation"
-        onClick={() => setIsSidebarOpen((current) => !current)}
-      >
-        {isSidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-      </button>
 
       <main className="main-content">
         <section className="library-header">
         </section>
 
         <section className="capture-bar" aria-label="Capture and search">
-          <div className="search-field">
-            <Search size={19} />
+          {!isSidebarOpen && (
+            <button
+              type="button"
+              className="sidebar-toggle"
+              aria-label="Open navigation"
+              aria-expanded={false}
+              aria-controls="library-navigation"
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              <HugeiconsIcon icon={ViewSidebarLeftIcon} size={17} />
+            </button>
+          )}
+          <div
+            className={`search-field${isSearchFocused ? " is-mascot" : ""}`}
+            onMouseDown={(event) => {
+              if (event.target !== searchRef.current) {
+                event.preventDefault();
+                searchRef.current?.focus();
+              }
+            }}
+          >
+            <span className="field-mascot" aria-hidden="true">
+              <svg width="20" height="14" viewBox="0 0 20 14" focusable="false"><rect x="4" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /><rect x="13" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /></svg>
+            </span>
             <input
               ref={searchRef}
               value={query}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
               onChange={(event) => {
                 setSimilaritySource(null);
                 setActiveSpaceId(null);
@@ -2099,8 +2526,8 @@ function App() {
             <kbd><span>/</span> to search</kbd>
           </div>
           <button className="add-button" onClick={openCaptureModal} disabled={isCapturing} title="Add something to your library">
-            <Plus size={18} />
-            <span>{isCapturing ? "Saving…" : "Add to library"}</span>
+            <HugeiconsIcon icon={PlusSignIcon} size={18} />
+            <span>{isCapturing ? "Saving…" : "Add"}</span>
           </button>
         </section>
 
@@ -2130,28 +2557,28 @@ function App() {
                   <h2 id="capture-modal-title">Add to your library</h2>
                   <p>Choose what you want to save.</p>
                 </div>
-                <button className="icon-button small" type="button" onClick={closeCaptureModal} aria-label="Close add menu"><X size={16} /></button>
+                <button className="icon-button small" type="button" onClick={closeCaptureModal} aria-label="Close add menu"><HugeiconsIcon icon={Cancel01Icon} size={16} /></button>
               </header>
 
               <div className="capture-options" aria-label="Add options">
                 <button type="button" className={`capture-option ${captureMode === "note" ? "selected" : ""}`} onClick={() => selectCaptureMode("note")} aria-pressed={captureMode === "note"}>
-                  <span className="capture-option-icon"><FileText size={18} /></span>
+                  <span className="capture-option-icon"><HugeiconsIcon icon={FileTextIcon} size={18} /></span>
                   <span className="capture-option-copy"><strong>Note</strong><span>Write something to remember.</span></span>
                 </button>
                 <button type="button" className={`capture-option ${captureMode === "url" ? "selected" : ""}`} onClick={() => selectCaptureMode("url")} aria-pressed={captureMode === "url"}>
-                  <span className="capture-option-icon"><Link2 size={18} /></span>
+                  <span className="capture-option-icon"><HugeiconsIcon icon={Link01Icon} size={18} /></span>
                   <span className="capture-option-copy"><strong>Link</strong><span>Save an article, page, or X post.</span></span>
                 </button>
                 <button type="button" className={`capture-option ${captureMode === "file" ? "selected" : ""}`} onClick={() => selectCaptureMode("file")} aria-pressed={captureMode === "file"}>
-                  <span className="capture-option-icon"><ImageIcon size={18} /></span>
+                  <span className="capture-option-icon"><HugeiconsIcon icon={Image01Icon} size={18} /></span>
                   <span className="capture-option-copy"><strong>File</strong><span>Upload an image, PDF, or video.</span></span>
                 </button>
                 <button type="button" className={`capture-option ${captureMode === "quote" ? "selected" : ""}`} onClick={() => selectCaptureMode("quote")} aria-pressed={captureMode === "quote"}>
-                  <span className="capture-option-icon"><Bookmark size={18} /></span>
+                  <span className="capture-option-icon"><HugeiconsIcon icon={Bookmark01Icon} size={18} /></span>
                   <span className="capture-option-copy"><strong>Quote</strong><span>Save a passage with its source.</span></span>
                 </button>
                 <button type="button" className="capture-option" onClick={startScreenshotCapture} disabled={isCapturing}>
-                  <span className="capture-option-icon"><Camera size={18} /></span>
+                  <span className="capture-option-icon"><HugeiconsIcon icon={Camera01Icon} size={18} /></span>
                   <span className="capture-option-copy"><strong>Screenshot</strong><span>Capture a window or display.</span></span>
                 </button>
               </div>
@@ -2179,10 +2606,11 @@ function App() {
                   />}
                   {captureMode === "url" && <input
                     autoFocus
-                    type="url"
+                    type="text"
+                    inputMode="url"
                     value={captureUrl}
                     onChange={(event) => setCaptureUrl(event.target.value)}
-                    placeholder="Paste a link to save and read later…"
+                    placeholder="Paste a link to save and read later (example.com works too)…"
                     aria-label="URL to save"
                   />}
                   {captureMode === "quote" && <div className="quote-capture-fields">
@@ -2250,7 +2678,7 @@ function App() {
               <>
                 <span className="search-context">for “{query}”</span>
                 <button type="button" className="quiet-link save-space-link" onClick={beginSaveSearch}>
-                  <Bookmark size={13} /> Save as Space
+                  <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
                 </button>
               </>
             ) : null}
@@ -2264,8 +2692,8 @@ function App() {
                 animate={{ transform: viewSelectionListMode ? "translateX(30px)" : "translateX(0px)" }}
                 transition={{ duration: LIBRARY_VIEW_TRANSITION_MS / 1000, ease: [0.77, 0, 0.175, 1] }}
               />
-              <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><Grid2X2 size={16} /></button>
-              <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><List size={16} /></button>
+              <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><HugeiconsIcon icon={Grid2X2Icon} size={16} /></button>
+              <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><HugeiconsIcon icon={ListViewIcon} size={16} /></button>
             </div>
           </div>
         </div>
@@ -2286,7 +2714,7 @@ function App() {
 
         {filteredItems.length === 0 && (
           <div className="empty-state">
-            <div className="empty-icon"><Search size={20} /></div>
+            <div className="empty-icon"><HugeiconsIcon icon={Search01Icon} size={20} /></div>
             <h2>Nothing surfaced yet.</h2>
             <p>Try another word, or save something new to your mind.</p>
             <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
@@ -2295,6 +2723,125 @@ function App() {
 
         </div>
       </main>
+
+      <AnimatePresence>
+        {isSettingsOpen && (
+          <motion.div
+            key="settings-modal-backdrop"
+            className="settings-modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setIsSettingsOpen(false);
+            }}
+          >
+            <motion.section
+              id="settings-modal"
+              className="settings-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="settings-modal-title"
+              initial={{ opacity: 0, transform: "translateY(10px) scale(0.98)" }}
+              animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
+              exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
+              transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
+            >
+              <aside className="settings-modal-sidebar" aria-label="Settings sections">
+                <header className="settings-sidebar-header">
+                  <h2>Settings</h2>
+                </header>
+                <div className="settings-sidebar-content">
+                  <button type="button" className="settings-tab active" aria-current="page">
+                    <HugeiconsIcon icon={Archive01Icon} size={16} />
+                    <span>Archive</span>
+                    <span className="settings-tab-count">{archivedItems.length}</span>
+                  </button>
+                </div>
+              </aside>
+
+              <section className="settings-panel" aria-labelledby="archive-panel-title">
+                <header className="settings-panel-header">
+                  <div className="settings-panel-header-content">
+                    <div className="settings-panel-heading">
+                      <h2 id="archive-panel-title">Archived items</h2>
+                    </div>
+                    <div className="settings-panel-count-row">
+                      <span className="settings-panel-count">{archivedItems.length} {archivedItems.length === 1 ? "item" : "items"} in archive</span>
+                      <div className="settings-archive-actions" aria-label="Archive actions">
+                        {isArchiveSelectionMode && (
+                          <>
+                            <span className="settings-selected-count" role="status" aria-live="polite">
+                              {selectedArchivedIds.size} selected
+                            </span>
+                            <button
+                              type="button"
+                              className="settings-batch-button settings-batch-recover"
+                              disabled={selectedArchivedIds.size === 0}
+                              onClick={() => void recoverSelectedArchivedItems()}
+                            >
+                              Recover
+                            </button>
+                            <button
+                              type="button"
+                              className="settings-batch-button settings-batch-delete"
+                              disabled={selectedArchivedIds.size === 0}
+                              onClick={() => void deleteSelectedArchivedItems()}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          className={`settings-select-button ${isArchiveSelectionMode ? "is-active" : ""}`}
+                          aria-pressed={isArchiveSelectionMode}
+                          aria-label={isArchiveSelectionMode ? "Exit multi-select mode" : "Select archived items"}
+                          onClick={toggleArchiveSelectionMode}
+                        >
+                          <HugeiconsIcon icon={CheckListIcon} size={15} />
+                          <span>Select</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    ref={settingsCloseRef}
+                    type="button"
+                    className="icon-button small settings-close"
+                    onClick={() => setIsSettingsOpen(false)}
+                    aria-label="Close settings"
+                  >
+                    <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                  </button>
+                </header>
+
+                <div className="settings-archive-scroll">
+                  {archivedItems.length > 0 ? (
+                    <div className="settings-archive-grid">
+                      {archivedItems.map((item, index) => (
+                        <VirtualizedLibraryItem
+                          key={String(item.id)}
+                          data={item}
+                          index={index}
+                          context={archivedCardContext}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="settings-empty-state">
+                      <div className="settings-empty-icon"><HugeiconsIcon icon={Archive01Icon} size={19} /></div>
+                      <h4>Your archive is empty.</h4>
+                      <p>Items you forget from the library will appear here.</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {selectedItem && (
         <ExpandedItemOverlay
@@ -2345,6 +2892,15 @@ function App() {
         )}
       </AnimatePresence>
       </div>
+      <Toaster
+        position="top-center"
+        offset={{ top: 48, left: 16, right: 16 }}
+        mobileOffset={{ top: 16, left: 12, right: 12 }}
+        theme="dark"
+        richColors={false}
+        closeButton
+        containerAriaLabel="Notifications"
+      />
     </MotionConfig>
   );
 }

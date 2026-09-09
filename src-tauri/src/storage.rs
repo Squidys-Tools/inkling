@@ -352,6 +352,23 @@ impl LibraryStorage {
         Ok(items)
     }
 
+    fn list_archived_items(&self) -> Result<Vec<ItemDto>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, kind, title, description, source_url, source_label,
+                    local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
+                    updated_at, archived, favorite
+             FROM items
+             WHERE archived = 1
+             ORDER BY updated_at DESC, created_at DESC",
+        )?;
+
+        let items = statement
+            .query_map([], item_from_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(items)
+    }
+
     fn create_note(&self, input: CreateNoteInput) -> Result<ItemDto, StorageError> {
         let body = input.body.trim().to_owned();
         if body.is_empty() {
@@ -546,15 +563,22 @@ impl LibraryStorage {
         let image_dimensions = thumbnail
             .as_ref()
             .map(|thumbnail_data| (thumbnail_data.width, thumbnail_data.height));
+        let pdf_title = (kind == "pdf")
+            .then(|| crate::pdf::title(&input.bytes))
+            .flatten();
+        let pdf_page_count = (kind == "pdf")
+            .then(|| crate::pdf::page_count(&input.bytes))
+            .flatten();
         let metadata = file_metadata(
             &file_name,
             mime_type.as_deref(),
             input.bytes.len(),
             image_dimensions,
+            pdf_page_count,
         );
         let metadata_json = serde_json::to_string(&metadata)?;
         let timestamp = now_millis()?;
-        let title = Some(file_name.clone());
+        let title = Some(pdf_title.unwrap_or_else(|| file_name.clone()));
         let source_label = mime_type.clone();
 
         let existing = self.get_item(&id)?;
@@ -696,6 +720,19 @@ impl LibraryStorage {
 
         self.get_item(id)?
             .ok_or_else(|| StorageError::NotFound(id.to_owned()))
+    }
+
+    fn delete_item(&self, id: &str) -> Result<(), StorageError> {
+        let deleted = self.connection.execute(
+            "DELETE FROM items WHERE id = ?1 AND archived = 1",
+            params![id],
+        )?;
+
+        if deleted == 0 {
+            return Err(StorageError::NotFound(id.to_owned()));
+        }
+
+        Ok(())
     }
 
     pub(crate) fn update_item_ocr_text(
@@ -1280,6 +1317,16 @@ pub fn list_active_items(state: State<'_, StorageState>) -> Result<Vec<ItemDto>,
 }
 
 #[tauri::command]
+pub fn list_archived_items(state: State<'_, StorageState>) -> Result<Vec<ItemDto>, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .list_archived_items()
+        .map_err(String::from)
+}
+
+#[tauri::command]
 pub fn create_note(
     input: CreateNoteInput,
     state: State<'_, StorageState>,
@@ -1450,6 +1497,16 @@ pub fn archive_item(
         .as_ref()
         .expect("require_storage guarantees initialization")
         .archive_item(&id, archived.unwrap_or(true))
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn delete_item(id: String, state: State<'_, StorageState>) -> Result<(), String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .delete_item(&id)
         .map_err(String::from)
 }
 
@@ -1856,6 +1913,7 @@ fn file_metadata(
     mime_type: Option<&str>,
     byte_length: usize,
     image_dimensions: Option<(u32, u32)>,
+    pdf_page_count: Option<usize>,
 ) -> Value {
     let mut metadata = Map::new();
     metadata.insert("fileName".into(), Value::String(file_name.to_owned()));
@@ -1877,6 +1935,12 @@ fn file_metadata(
         metadata.insert(
             "mediaHeight".into(),
             Value::Number(serde_json::Number::from(height)),
+        );
+    }
+    if let Some(page_count) = pdf_page_count {
+        metadata.insert(
+            "pdfPageCount".into(),
+            Value::Number(serde_json::Number::from(page_count as u64)),
         );
     }
     Value::Object(metadata)

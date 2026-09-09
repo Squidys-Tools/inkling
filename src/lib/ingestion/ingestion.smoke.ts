@@ -171,6 +171,19 @@ const youTubeLink = videoLinkFromSourceUrl("https://www.youtube.com/watch?v=abc1
 assert(youTubeLink?.provider === "youtube", "YouTube watch links become video link cards");
 assert(youTubeLink?.embedUrl === "https://www.youtube-nocookie.com/embed/abc12345678", "video link embed URLs are canonicalized");
 assert(youTubeLink?.posterUrl === "https://i.ytimg.com/vi/abc12345678/hqdefault.jpg", "YouTube video links derive a poster image");
+const indexedYouTubeLink = await ingestUrl("https://www.youtube.com/watch?v=abc12345678", {
+  fetch: async (url) => {
+    assert(String(url).startsWith("https://www.youtube.com/oembed.json?url="), "video indexing uses the provider oEmbed endpoint");
+    return new Response(JSON.stringify({
+      title: "Indexed video title",
+      author_name: "Theo",
+      thumbnail_url: "https://i.ytimg.com/vi/abc12345678/hqdefault.jpg",
+    }), { headers: { "content-type": "application/json" } });
+  },
+});
+assert(indexedYouTubeLink.title === "Indexed video title", "video indexing preserves oEmbed titles");
+assert(indexedYouTubeLink.safeEmbeds[0]?.embedUrl === youTubeLink.embedUrl, "video indexing stores the safe embed URL");
+assert(indexedYouTubeLink.imageUrls.includes(youTubeLink.posterUrl ?? ""), "video indexing stores the poster image");
 const vimeoLink = videoLinkFromSourceUrl("https://vimeo.com/12345678901");
 assert(vimeoLink?.provider === "vimeo" && vimeoLink.posterUrl === undefined, "Vimeo links become video cards without a derived poster");
 assert(videoLinkFromSourceUrl("https://example.com/articles/first") === null, "non-video article links stay articles");

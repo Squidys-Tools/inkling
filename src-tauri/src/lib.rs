@@ -1,7 +1,7 @@
 mod embeddings;
 mod jobs;
 mod ocr;
-mod pdf;
+pub(crate) mod pdf;
 mod storage;
 
 use tauri::Manager;
@@ -30,7 +30,13 @@ fn configure_ort_dylib() {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     configure_ort_dylib();
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(tauri_plugin_mcp_bridge::init());
+    }
+
+    builder
         .manage(storage::StorageState::default())
         .manage(jobs::ProcessingState::default())
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
@@ -48,6 +54,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             storage::initialize_storage,
             storage::list_active_items,
+            storage::list_archived_items,
             storage::create_note,
             storage::create_quote,
             storage::create_url,
@@ -55,6 +62,7 @@ pub fn run() {
             storage::resolve_asset_path,
             storage::update_item,
             storage::archive_item,
+            storage::delete_item,
             storage::search_items,
             storage::search_similar_images,
             storage::list_spaces,
