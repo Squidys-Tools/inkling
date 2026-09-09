@@ -8,12 +8,14 @@ import { KindIcon, PostArtwork, XPostEmbed, DetailVideoMedia } from "./ItemMedia
 import {
   OVERLAY_EASE,
   OVERLAY_FLIGHT_MS,
+  isCardTooFarOffscreen,
   overlayMediaHeight,
   overlayPosition,
   overlayWidth,
   prefersReducedMotion,
   queryCardRects,
   rectFrom,
+  scrollViewport,
   type FlightRect,
   type SourceRects,
 } from "./overlayMotion";
@@ -167,9 +169,10 @@ type ExpandedItemOverlayProps = {
   actions: ExpandedOverlayActions;
   originRectsRef: RefObject<SourceRects | null>;
   contentAreaRef: RefObject<HTMLElement | null>;
+  selectionScrollRef: RefObject<boolean>;
 };
 
-export function ExpandedItemOverlay({ item, actions, originRectsRef, contentAreaRef }: ExpandedItemOverlayProps) {
+export function ExpandedItemOverlay({ item, actions, originRectsRef, contentAreaRef, selectionScrollRef }: ExpandedItemOverlayProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
@@ -189,6 +192,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   const [pendingOpen, setPendingOpen] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
+  itemIdRef.current = item.id;
   itemRef.current = item;
   flightRef.current = flight;
 
@@ -393,10 +397,6 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    itemIdRef.current = item.id;
-  }, [item.id]);
-
   // Switching items while the overlay is open runs sequentially: the open
   // overlay first animates closed into the card it was showing, and only
   // after it lands does the newly selected item animate open from its own
@@ -544,6 +544,26 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   };
 
   useEffect(() => {
+    const checkSourceVisibility = () => {
+      if (selectionScrollRef.current) return;
+      const contentArea = contentAreaRef.current;
+      const viewport = scrollViewport(contentArea);
+      const rects = queryCardRects(itemIdRef.current);
+      if (!viewport || !rects || isCardTooFarOffscreen(rects.card, rectFrom(viewport.getBoundingClientRect()))) {
+        requestClose();
+      }
+    };
+
+    document.addEventListener("scroll", checkSourceVisibility, true);
+    window.addEventListener("resize", checkSourceVisibility);
+    return () => {
+      document.removeEventListener("scroll", checkSourceVisibility, true);
+      window.removeEventListener("resize", checkSourceVisibility);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionScrollRef]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.stopPropagation();
@@ -600,18 +620,15 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
         aria-label={shownItem.title}
         style={dialogFlying ? undefined : placedStyle}
       >
-        <header className="expanded-overlay-header">
-          <span className="expanded-overlay-kicker"><KindIcon kind={shownItem.kind} />{shownItem.kind}</span>
-          <button
-            type="button"
-            ref={closeButtonRef}
-            className="expanded-overlay-close"
-            onClick={requestClose}
-            aria-label="Close details"
-          >
-            <X size={16} />
-          </button>
-        </header>
+        <button
+          type="button"
+          ref={closeButtonRef}
+          className="expanded-overlay-close"
+          onClick={requestClose}
+          aria-label="Close details"
+        >
+          <X size={16} />
+        </button>
 
         <div
           className="expanded-overlay-media"
