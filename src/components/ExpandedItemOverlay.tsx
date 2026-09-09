@@ -148,7 +148,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
       onClick: (event) => actions.onOpenReader(item, clickOrigin(event)),
     });
   }
-  if (list.length === 0 || item.sourceUrl) list.push(openOriginal);
+  if (item.sourceUrl) list.push(openOriginal);
   if (item.kind === "Image" && isTauriRuntime()) {
     list.push({
       key: "find-similar",
@@ -267,10 +267,16 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   const [flight, setFlight] = useState<Flight | null>(null);
   const [pendingOpen, setPendingOpen] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [linkCopyFailed, setLinkCopyFailed] = useState(false);
 
-  itemIdRef.current = item.id;
-  itemRef.current = item;
-  flightRef.current = flight;
+  // Mirror props into refs inside an effect, never during render, so a
+  // concurrent render cannot publish a half-updated set. This runs before
+  // the flight effects below, which read these refs.
+  useLayoutEffect(() => {
+    itemIdRef.current = item.id;
+    itemRef.current = item;
+    flightRef.current = flight;
+  }, [item, flight]);
 
   // The item whose content the dialog shows. During a closing flight that was
   // triggered by switching items, the dialog flies back displaying the item it
@@ -677,10 +683,20 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
 
   function copySourceLink() {
     if (!shownItem.sourceUrl) return;
+    const resetCopyFeedback = () => {
+      setLinkCopied(false);
+      setLinkCopyFailed(false);
+    };
     void navigator.clipboard.writeText(shownItem.sourceUrl).then(() => {
       setLinkCopied(true);
+      setLinkCopyFailed(false);
       if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = window.setTimeout(() => setLinkCopied(false), 2000);
+      copyTimerRef.current = window.setTimeout(resetCopyFeedback, 2000);
+    }).catch(() => {
+      setLinkCopied(false);
+      setLinkCopyFailed(true);
+      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = window.setTimeout(resetCopyFeedback, 2000);
     });
   }
 
@@ -840,7 +856,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
                   className="toolbar-icon"
                   onClick={copySourceLink}
                   aria-label="Copy link to original"
-                  title={linkCopied ? "Copied" : "Copy link"}
+                  title={linkCopied ? "Copied" : linkCopyFailed ? "Copy failed" : "Copy link"}
                 >
                   {linkCopied ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} /> : <HugeiconsIcon icon={Copy01Icon} size={14} />}
                 </button>
@@ -892,7 +908,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
                     className="toolbar-icon"
                     onClick={copySourceLink}
                     aria-label="Copy link to original"
-                    title={linkCopied ? "Copied" : "Copy link"}
+                    title={linkCopied ? "Copied" : linkCopyFailed ? "Copy failed" : "Copy link"}
                   >
                     {linkCopied ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} /> : <HugeiconsIcon icon={Copy01Icon} size={14} />}
                   </button>

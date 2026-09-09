@@ -723,6 +723,17 @@ impl LibraryStorage {
     }
 
     fn delete_item(&self, id: &str) -> Result<(), StorageError> {
+        // Item files live under assets/items/<id>. Remove them first so a
+        // failed delete leaves the row and its files together. Ids are
+        // restricted to ascii alphanumeric plus - and _, so the join below
+        // cannot escape the assets directory.
+        if validate_item_id(id.to_owned()).is_ok() {
+            let directory = self.assets_directory().join(id);
+            if directory.is_dir() {
+                fs::remove_dir_all(&directory)?;
+            }
+        }
+
         let deleted = self.connection.execute(
             "DELETE FROM items WHERE id = ?1 AND archived = 1",
             params![id],
@@ -2214,6 +2225,35 @@ mod tests {
         let items = storage.list_space_items(&article_space.id, 50).unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].kind, "url");
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn delete_item_removes_item_files() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let database_path = directory.join("library.sqlite3");
+        let storage = LibraryStorage::open(database_path).unwrap();
+        let item = storage
+            .save_file(SaveFileInput {
+                id: None,
+                file_name: "notes.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"archived bytes".to_vec(),
+            })
+            .unwrap();
+        let item_directory = directory.join("assets").join("items").join(&item.id);
+        assert!(item_directory.is_dir());
+
+        storage.archive_item(&item.id, true).unwrap();
+        storage.delete_item(&item.id).unwrap();
+
+        assert!(!item_directory.exists());
+        assert!(storage.get_item(&item.id).unwrap().is_none());
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();

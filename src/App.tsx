@@ -2075,6 +2075,14 @@ function App() {
     });
   }, [activeSpace, activeView, items, query, similaritySource]);
 
+  // VirtuosoMasonry keys rows by position, so a new result set must remount
+  // the grid. Otherwise card state (video playback, embeds) sticks to the
+  // wrong item after a filter change.
+  const libraryGridKey = useMemo(
+    () => filteredItems.map((item) => String(item.id)).join("|"),
+    [filteredItems],
+  );
+
   async function saveCapture(event: React.FormEvent) {
     event.preventDefault();
     setCaptureError(null);
@@ -2214,12 +2222,14 @@ function App() {
     if (selectedItems.length === 0) return;
     setCaptureError(null);
     try {
-      const restoredItems = await Promise.all(selectedItems.map(async (item) => {
+      const results = await Promise.allSettled(selectedItems.map(async (item) => {
         if (!isTauriRuntime()) return item;
         const restoredItem = await archiveItem(String(item.id), false);
         const jobs = await getJobStatus(restoredItem.id);
         return storedItemToLibraryItem(restoredItem, summarizeProcessingJobs(jobs));
       }));
+      const restoredItems = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      const failures = results.filter((result) => result.status === "rejected").length;
       const restoredIds = new Set(restoredItems.map((item) => String(item.id)));
       setItems((current) => [
         ...restoredItems.filter((item) => !current.some((candidate) => String(candidate.id) === String(item.id))),
@@ -2228,7 +2238,8 @@ function App() {
       setArchivedItems((current) => current.filter((item) => !restoredIds.has(String(item.id))));
       setSelectedArchivedIds(new Set());
       setIsArchiveSelectionMode(false);
-      toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`, { duration: 3000 });
+      if (restoredItems.length > 0) toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`, { duration: 3000 });
+      if (failures > 0) setCaptureError(`${failures} ${failures === 1 ? "item" : "items"} could not be recovered. They are still in the archive.`);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
@@ -2239,13 +2250,18 @@ function App() {
     if (selectedItems.length === 0) return;
     setCaptureError(null);
     try {
-      if (isTauriRuntime()) await Promise.all(selectedItems.map((item) => deleteItem(String(item.id))));
-      const deletedIds = new Set(selectedItems.map((item) => String(item.id)));
+      const results = await Promise.allSettled(selectedItems.map(async (item) => {
+        if (isTauriRuntime()) await deleteItem(String(item.id));
+        return String(item.id);
+      }));
+      const deletedIds = new Set(results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
+      const failures = results.filter((result) => result.status === "rejected").length;
       setArchivedItems((current) => current.filter((item) => !deletedIds.has(String(item.id))));
       if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
       setSelectedArchivedIds(new Set());
       setIsArchiveSelectionMode(false);
-      toast.success(`${selectedItems.length} ${selectedItems.length === 1 ? "item" : "items"} deleted permanently`, { duration: 3000 });
+      if (deletedIds.size > 0) toast.success(`${deletedIds.size} ${deletedIds.size === 1 ? "item" : "items"} deleted permanently`, { duration: 3000 });
+      if (failures > 0) setCaptureError(`${failures} ${failures === 1 ? "item" : "items"} could not be deleted. They are still in the archive.`);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
@@ -2701,6 +2717,7 @@ function App() {
         <div className="library-scroll" ref={libraryScrollRef}>
         {filteredItems.length > 0 && (
           <VirtuosoMasonry
+            key={libraryGridKey}
             className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
             columnCount={listMode ? 1 : gridColumnCount}
             data={filteredItems}
