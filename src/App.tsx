@@ -26,8 +26,10 @@ import {
   Settings01Icon,
   SidebarLeftIcon,
   SparklesIcon,
+  Delete02Icon,
   ViewSidebarLeftIcon,
   Cancel01Icon,
+  CheckListIcon,
   FileTextIcon,
 } from "@hugeicons/core-free-icons";
 import {
@@ -42,11 +44,13 @@ import {
   initializeStorage,
   isTauriRuntime,
   listActiveItems,
+  listArchivedItems,
   listSpaceItems,
   listSpaces,
   getJobStatus,
   retryProcessingJob,
   saveFile,
+  deleteItem,
   searchItems,
   searchSimilarImages,
   summarizeProcessingJobs,
@@ -60,10 +64,9 @@ import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./li
 import PdfViewer from "./components/PdfViewer";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
-import { KindIcon, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
+import { KindIcon, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
-import pdfPointillismOptionB from "./assets/pdf-pointillism-option-b.png";
 import "./App.css";
 
 export type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
@@ -98,6 +101,7 @@ export type LibraryItem = {
   accent?: string;
   featured?: boolean;
   favorite?: boolean;
+  archived?: boolean;
   processing?: ProcessingSummary;
    articleHtml?: string;
    articleAuthor?: string;
@@ -259,6 +263,7 @@ async function storedItemToLibraryItem(
     post: social ? postFallbackFromMetadata(social) : undefined,
     accent: isQuote ? "paper-yellow" : undefined,
     favorite: item.favorite,
+    archived: item.archived,
     processing,
     articleHtml: metadataHtml && metadataHtml.trim() ? metadataHtml : undefined,
     articleAuthor: metadataAuthor,
@@ -536,6 +541,11 @@ const seedItems: LibraryItem[] = [
   },
 ];
 
+const previewArchivedItems: LibraryItem[] = seedItems
+  .filter((item) => [3, 10, 12, 5].includes(Number(item.id)))
+  .map((item) => ({ ...item, id: `archive-${item.id}`, archived: true }));
+const browserArchivedItems = import.meta.env.DEV ? previewArchivedItems : [];
+
 const seedSpaces: StoredSpace[] = [
   {
     id: "seed-design-references",
@@ -646,18 +656,14 @@ function cardPreviewText(value: string | undefined, fallback: string): string {
   return text.length > 72 ? `${text.slice(0, 69)}…` : text;
 }
 
-function pdfPreviewTitle(value: string): string {
-  return value
-    .replace(/\.[^.]+$/u, "")
-    .replace(/[-_]+/gu, " ")
-    .replace(/\s+/gu, " ")
-    .trim();
-}
-
 type LibraryCardContext = {
   onSelectItem: (item: LibraryItem, rects?: SourceRects) => void;
   onOpenReader: (item: LibraryItem, origin?: ReaderOrigin) => void;
   onRetryJob: (jobId: string) => void | Promise<void>;
+  onDeleteArchivedItem?: (item: LibraryItem) => void | Promise<void>;
+  archiveSelectionMode?: boolean;
+  isArchivedItemSelected?: (item: LibraryItem) => boolean;
+  onToggleArchivedItem?: (item: LibraryItem) => void;
 };
 
 // Captures the card and its media box before selection state changes, so the
@@ -684,20 +690,54 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
   index,
   context,
 }: VirtualizedLibraryItemProps) {
+  const archiveSelectionMode = context.archiveSelectionMode === true;
+  const isArchivedItemSelected = context.isArchivedItemSelected?.(item) ?? false;
+  const handleCardSelect = (event: React.MouseEvent<HTMLElement>) => {
+    if (archiveSelectionMode) {
+      event.preventDefault();
+      context.onToggleArchivedItem?.(item);
+      return;
+    }
+    context.onSelectItem(item, cardRectsFor(event.currentTarget));
+  };
+
   return (
     <div className="library-card-slot" data-library-index={index}>
       <article
-        className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""}`}
+        className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? "archive-card-selected" : ""}`}
         data-library-item-id={String(item.id)}
         style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
-        onClick={(event) => context.onSelectItem(item, cardRectsFor(event.currentTarget))}
+        onClick={handleCardSelect}
         tabIndex={0}
         onKeyDown={(event) => {
           if (event.key !== "Enter" && event.key !== " ") return;
           event.preventDefault();
-          context.onSelectItem(item, cardRectsFor(event.currentTarget));
+          if (archiveSelectionMode) {
+            context.onToggleArchivedItem?.(item);
+          } else {
+            context.onSelectItem(item, cardRectsFor(event.currentTarget));
+          }
         }}
       >
+        {context.onDeleteArchivedItem && (
+          <button
+            type="button"
+            className={`archive-card-delete ${archiveSelectionMode ? "archive-card-select" : ""} ${isArchivedItemSelected ? "is-selected" : ""}`}
+            aria-label={archiveSelectionMode ? `${isArchivedItemSelected ? "Deselect" : "Select"} ${item.title}` : `Delete ${item.title}`}
+            aria-pressed={archiveSelectionMode ? isArchivedItemSelected : undefined}
+            title={archiveSelectionMode ? (isArchivedItemSelected ? "Deselect item" : "Select item") : "Delete permanently"}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (archiveSelectionMode) {
+                context.onToggleArchivedItem?.(item);
+              } else {
+                void context.onDeleteArchivedItem?.(item);
+              }
+            }}
+          >
+            <HugeiconsIcon icon={archiveSelectionMode ? CheckListIcon : Delete02Icon} size={15} />
+          </button>
+        )}
         <div className="library-card-media">
           {item.social?.provider === "x" ? (
             <div className="x-post-art">
@@ -718,7 +758,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
             <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.kind === "Note" ? "note-art" : item.accent ?? ""}`} aria-hidden="true">
               {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
               {item.kind === "Note" && <><span className="note-pin" /><span className="note-label">QUICK THOUGHT</span><span className="note-scribble">{cardPreviewText(item.description, item.title || "Saved note")}</span><span className="note-rule note-rule-one" /><span className="note-rule note-rule-two" /><span className="note-star">✳</span></>}
-              {item.kind === "PDF" && <div className="pdf-artwork"><img src={pdfPointillismOptionB} alt="" className="pdf-shader" /><span className="pdf-label">PDF</span><span className="pdf-mark" aria-hidden="true" /><span className="pdf-title">{pdfPreviewTitle(item.title) || "Document"}</span><div className="pdf-legend" aria-hidden="true"><span /><span /><span /></div><span className="pdf-page-count">{item.pdfPageCount ? `${item.pdfPageCount} PAGES` : "PDF"}</span></div>}
+              {item.kind === "PDF" && <PdfArtwork item={item} />}
               {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-preview">{cardPreviewText(item.title, "Saved quote")}</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
             </div>
           )}
@@ -856,6 +896,10 @@ function App() {
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(isTauriRuntime() ? [] : browserArchivedItems);
+  const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
+  const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
   const [isAdding, setIsAdding] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -876,6 +920,8 @@ function App() {
   const [isFindingSimilar, setIsFindingSimilar] = useState(false);
   const [similaritySource, setSimilaritySource] = useState<{ id: string; title: string } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  const settingsCloseRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const libraryTransitionOverlayRef = useRef<HTMLDivElement>(null);
@@ -1810,13 +1856,47 @@ function App() {
         searchRef.current?.focus();
       }
       if (event.key === "Escape") {
+        if (isSettingsOpen) setIsSettingsOpen(false);
         setIsAdding(false);
         setCaptureMode(null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [readingItem]);
+  }, [isSettingsOpen, readingItem]);
+
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusTimer = window.setTimeout(() => settingsCloseRef.current?.focus(), 0);
+
+    const onSettingsKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const modal = document.querySelector<HTMLElement>(".settings-modal");
+      if (!modal) return;
+      const focusable = Array.from(modal.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex=\"-1\"])",
+      ));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onSettingsKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onSettingsKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [isSettingsOpen]);
 
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
@@ -1925,6 +2005,44 @@ function App() {
       window.clearInterval(refreshTimer);
     };
   }, [query, similaritySource?.id, activeSpaceId]);
+
+  useEffect(() => {
+    if (!isSettingsOpen || !isTauriRuntime()) return;
+    let cancelled = false;
+
+    async function loadArchivedItems() {
+      try {
+        await initializeStorage();
+        const storedItems = await listArchivedItems();
+        const nextItems = await Promise.all(storedItems.map(async (item) => {
+          const jobs = await getJobStatus(item.id);
+          return storedItemToLibraryItem(item, summarizeProcessingJobs(jobs));
+        }));
+        if (!cancelled) setArchivedItems(nextItems);
+      } catch (error) {
+        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    void loadArchivedItems();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSettingsOpen]);
+
+  useEffect(() => {
+    if (isSettingsOpen) return;
+    setIsArchiveSelectionMode(false);
+    setSelectedArchivedIds(new Set());
+  }, [isSettingsOpen]);
+
+  useEffect(() => {
+    const archivedIds = new Set(archivedItems.map((item) => String(item.id)));
+    setSelectedArchivedIds((current) => {
+      const next = new Set(Array.from(current).filter((id) => archivedIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [archivedItems]);
 
   const activeSpace = useMemo(
     () => spaces.find((space) => space.id === activeSpaceId) ?? null,
@@ -2052,6 +2170,98 @@ function App() {
     onRetryJob: retryJob,
   }), [openReader, retryJob, selectLibraryItem]);
 
+  const deleteArchivedLibraryItem = useCallback(async (item: LibraryItem) => {
+    setCaptureError(null);
+    try {
+      if (isTauriRuntime()) await deleteItem(String(item.id));
+      setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== String(item.id)));
+      if (selectedItem && String(selectedItem.id) === String(item.id)) setSelectedItem(null);
+      toast.success("Deleted permanently", { description: item.title, duration: 3000 });
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, [selectedItem]);
+
+  const toggleArchiveSelectionMode = useCallback(() => {
+    setIsArchiveSelectionMode((current) => {
+      if (current) setSelectedArchivedIds(new Set());
+      return !current;
+    });
+  }, []);
+
+  const toggleArchivedLibraryItem = useCallback((item: LibraryItem) => {
+    setSelectedArchivedIds((current) => {
+      const next = new Set(current);
+      const id = String(item.id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const isArchivedLibraryItemSelected = useCallback(
+    (item: LibraryItem) => selectedArchivedIds.has(String(item.id)),
+    [selectedArchivedIds],
+  );
+
+  const recoverSelectedArchivedItems = useCallback(async () => {
+    const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
+    if (selectedItems.length === 0) return;
+    setCaptureError(null);
+    try {
+      const restoredItems = await Promise.all(selectedItems.map(async (item) => {
+        if (!isTauriRuntime()) return item;
+        const restoredItem = await archiveItem(String(item.id), false);
+        const jobs = await getJobStatus(restoredItem.id);
+        return storedItemToLibraryItem(restoredItem, summarizeProcessingJobs(jobs));
+      }));
+      const restoredIds = new Set(restoredItems.map((item) => String(item.id)));
+      setItems((current) => [
+        ...restoredItems.filter((item) => !current.some((candidate) => String(candidate.id) === String(item.id))),
+        ...current,
+      ]);
+      setArchivedItems((current) => current.filter((item) => !restoredIds.has(String(item.id))));
+      setSelectedArchivedIds(new Set());
+      setIsArchiveSelectionMode(false);
+      toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`, { duration: 3000 });
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, [archivedItems, selectedArchivedIds]);
+
+  const deleteSelectedArchivedItems = useCallback(async () => {
+    const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
+    if (selectedItems.length === 0) return;
+    setCaptureError(null);
+    try {
+      if (isTauriRuntime()) await Promise.all(selectedItems.map((item) => deleteItem(String(item.id))));
+      const deletedIds = new Set(selectedItems.map((item) => String(item.id)));
+      setArchivedItems((current) => current.filter((item) => !deletedIds.has(String(item.id))));
+      if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
+      setSelectedArchivedIds(new Set());
+      setIsArchiveSelectionMode(false);
+      toast.success(`${selectedItems.length} ${selectedItems.length === 1 ? "item" : "items"} deleted permanently`, { duration: 3000 });
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, [archivedItems, selectedArchivedIds, selectedItem]);
+
+  const selectArchivedLibraryItem = useCallback((item: LibraryItem, rects?: SourceRects) => {
+    selectionScrollRef.current = false;
+    selectionRectsRef.current = rects ?? null;
+    setSelectedItem(item);
+  }, []);
+
+  const archivedCardContext = useMemo<LibraryCardContext>(() => ({
+    onSelectItem: selectArchivedLibraryItem,
+    onOpenReader: openReader,
+    onRetryJob: retryJob,
+    onDeleteArchivedItem: deleteArchivedLibraryItem,
+    archiveSelectionMode: isArchiveSelectionMode,
+    isArchivedItemSelected: isArchivedLibraryItemSelected,
+    onToggleArchivedItem: toggleArchivedLibraryItem,
+  }), [deleteArchivedLibraryItem, isArchiveSelectionMode, isArchivedLibraryItemSelected, openReader, retryJob, selectArchivedLibraryItem, toggleArchivedLibraryItem]);
+
   const expandedOverlayActions = useMemo<ExpandedOverlayActions>(() => ({
     onClose: () => setSelectedItem(null),
     onOpenPdf: setPdfViewerItem,
@@ -2079,7 +2289,7 @@ function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className={`app-shell ${isDragActive ? "drag-active" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+      <div className={`app-shell ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
         <AnimatePresence>
           {isSidebarOpen && (
             <motion.button
@@ -2148,7 +2358,12 @@ function App() {
             <HugeiconsIcon icon={Clock01Icon} size={17} />
             <span>Serendipity</span>
           </button>
-          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Archive"); }}>
+          <button
+            className={`nav-item ${isSettingsOpen ? "active" : ""}`}
+            aria-haspopup="dialog"
+            aria-controls="settings-modal"
+            onClick={() => setIsSettingsOpen(true)}
+          >
             <HugeiconsIcon icon={Archive01Icon} size={17} />
             <span>Archive</span>
           </button>
@@ -2240,7 +2455,16 @@ function App() {
         </div>
 
         <div className="sidebar-footer">
-          <button className="nav-item footer-item" aria-label="Settings" title="Settings">
+          <button
+            ref={settingsButtonRef}
+            type="button"
+            className={`nav-item footer-item ${isSettingsOpen ? "active" : ""}`}
+            aria-label="Settings"
+            aria-expanded={isSettingsOpen}
+            aria-controls="settings-modal"
+            title="Settings"
+            onClick={() => setIsSettingsOpen(true)}
+          >
             <HugeiconsIcon icon={Settings01Icon} size={17} />
             <span>Settings</span>
           </button>
@@ -2494,6 +2718,125 @@ function App() {
 
         </div>
       </main>
+
+      <AnimatePresence>
+        {isSettingsOpen && (
+          <motion.div
+            key="settings-modal-backdrop"
+            className="settings-modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setIsSettingsOpen(false);
+            }}
+          >
+            <motion.section
+              id="settings-modal"
+              className="settings-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="settings-modal-title"
+              initial={{ opacity: 0, transform: "translateY(10px) scale(0.98)" }}
+              animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
+              exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
+              transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
+            >
+              <aside className="settings-modal-sidebar" aria-label="Settings sections">
+                <header className="settings-sidebar-header">
+                  <h2>Settings</h2>
+                </header>
+                <div className="settings-sidebar-content">
+                  <button type="button" className="settings-tab active" aria-current="page">
+                    <HugeiconsIcon icon={Archive01Icon} size={16} />
+                    <span>Archive</span>
+                    <span className="settings-tab-count">{archivedItems.length}</span>
+                  </button>
+                </div>
+              </aside>
+
+              <section className="settings-panel" aria-labelledby="archive-panel-title">
+                <header className="settings-panel-header">
+                  <div className="settings-panel-header-content">
+                    <div className="settings-panel-heading">
+                      <h2 id="archive-panel-title">Archived items</h2>
+                    </div>
+                    <div className="settings-panel-count-row">
+                      <span className="settings-panel-count">{archivedItems.length} {archivedItems.length === 1 ? "item" : "items"} in archive</span>
+                      <div className="settings-archive-actions" aria-label="Archive actions">
+                        {isArchiveSelectionMode && (
+                          <>
+                            <span className="settings-selected-count" role="status" aria-live="polite">
+                              {selectedArchivedIds.size} selected
+                            </span>
+                            <button
+                              type="button"
+                              className="settings-batch-button settings-batch-recover"
+                              disabled={selectedArchivedIds.size === 0}
+                              onClick={() => void recoverSelectedArchivedItems()}
+                            >
+                              Recover
+                            </button>
+                            <button
+                              type="button"
+                              className="settings-batch-button settings-batch-delete"
+                              disabled={selectedArchivedIds.size === 0}
+                              onClick={() => void deleteSelectedArchivedItems()}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          className={`settings-select-button ${isArchiveSelectionMode ? "is-active" : ""}`}
+                          aria-pressed={isArchiveSelectionMode}
+                          aria-label={isArchiveSelectionMode ? "Exit multi-select mode" : "Select archived items"}
+                          onClick={toggleArchiveSelectionMode}
+                        >
+                          <HugeiconsIcon icon={CheckListIcon} size={15} />
+                          <span>Select</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    ref={settingsCloseRef}
+                    type="button"
+                    className="icon-button small settings-close"
+                    onClick={() => setIsSettingsOpen(false)}
+                    aria-label="Close settings"
+                  >
+                    <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                  </button>
+                </header>
+
+                <div className="settings-archive-scroll">
+                  {archivedItems.length > 0 ? (
+                    <div className="settings-archive-grid">
+                      {archivedItems.map((item, index) => (
+                        <VirtualizedLibraryItem
+                          key={String(item.id)}
+                          data={item}
+                          index={index}
+                          context={archivedCardContext}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="settings-empty-state">
+                      <div className="settings-empty-icon"><HugeiconsIcon icon={Archive01Icon} size={19} /></div>
+                      <h4>Your archive is empty.</h4>
+                      <p>Items you forget from the library will appear here.</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {selectedItem && (
         <ExpandedItemOverlay

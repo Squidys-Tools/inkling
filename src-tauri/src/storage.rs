@@ -352,6 +352,23 @@ impl LibraryStorage {
         Ok(items)
     }
 
+    fn list_archived_items(&self) -> Result<Vec<ItemDto>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, kind, title, description, source_url, source_label,
+                    local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
+                    updated_at, archived, favorite
+             FROM items
+             WHERE archived = 1
+             ORDER BY updated_at DESC, created_at DESC",
+        )?;
+
+        let items = statement
+            .query_map([], item_from_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(items)
+    }
+
     fn create_note(&self, input: CreateNoteInput) -> Result<ItemDto, StorageError> {
         let body = input.body.trim().to_owned();
         if body.is_empty() {
@@ -703,6 +720,19 @@ impl LibraryStorage {
 
         self.get_item(id)?
             .ok_or_else(|| StorageError::NotFound(id.to_owned()))
+    }
+
+    fn delete_item(&self, id: &str) -> Result<(), StorageError> {
+        let deleted = self.connection.execute(
+            "DELETE FROM items WHERE id = ?1 AND archived = 1",
+            params![id],
+        )?;
+
+        if deleted == 0 {
+            return Err(StorageError::NotFound(id.to_owned()));
+        }
+
+        Ok(())
     }
 
     pub(crate) fn update_item_ocr_text(
@@ -1287,6 +1317,16 @@ pub fn list_active_items(state: State<'_, StorageState>) -> Result<Vec<ItemDto>,
 }
 
 #[tauri::command]
+pub fn list_archived_items(state: State<'_, StorageState>) -> Result<Vec<ItemDto>, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .list_archived_items()
+        .map_err(String::from)
+}
+
+#[tauri::command]
 pub fn create_note(
     input: CreateNoteInput,
     state: State<'_, StorageState>,
@@ -1457,6 +1497,16 @@ pub fn archive_item(
         .as_ref()
         .expect("require_storage guarantees initialization")
         .archive_item(&id, archived.unwrap_or(true))
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn delete_item(id: String, state: State<'_, StorageState>) -> Result<(), String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .delete_item(&id)
         .map_err(String::from)
 }
 

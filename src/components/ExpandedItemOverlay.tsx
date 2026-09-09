@@ -19,7 +19,7 @@ import {
 import type { LibraryItem } from "../App";
 import { isTauriRuntime } from "../lib/libraryApi";
 import type { ReaderOrigin } from "../ReaderView";
-import { KindIcon, PostArtwork, XPostEmbed, DetailVideoMedia } from "./ItemMedia";
+import { KindIcon, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
 import {
   OVERLAY_EASE,
   OVERLAY_FLIGHT_MS,
@@ -191,6 +191,14 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
     );
   }
 
+  if (item.kind === "PDF") {
+    return (
+      <div className="expanded-overlay-media">
+        <PdfArtwork item={item} />
+      </div>
+    );
+  }
+
   if (item.image) {
     return (
       <div className="expanded-overlay-media">
@@ -226,6 +234,10 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
       </div>
     </div>
   );
+}
+
+function detailTitleFor(item: LibraryItem): string {
+  return item.kind === "PDF" ? pdfPreviewTitle(item.title) || item.title : item.title;
 }
 
 type ExpandedItemOverlayProps = {
@@ -712,7 +724,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
         className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""}`}
         role="dialog"
         aria-modal={false}
-        aria-label={shownItem.title}
+        aria-label={detailTitleFor(shownItem)}
         style={dialogFlying ? undefined : placedStyle}
       >
         <button
@@ -745,7 +757,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
             </>
           ) : (
             <>
-              <h2 className="expanded-overlay-title">{shownItem.title}</h2>
+              <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
               {shownItem.description && <p className="expanded-overlay-description">{shownItem.description}</p>}
             </>
           )}

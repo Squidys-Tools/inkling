@@ -18,6 +18,7 @@ import { autoplayEmbedUrl, providerLabel } from "../lib/ingestion/video-links";
 import { normalizeXPostOEmbed, xPostOEmbedUrl } from "../lib/ingestion/x-post";
 import type { XPostMetadata } from "../lib/ingestion/types";
 import type { ItemKind, LibraryItem } from "../App";
+import pdfPointillismOptionB from "../assets/pdf-pointillism-option-b.png";
 
 export function mediaAspectRatioFor(item: LibraryItem): number {
   if (item.mediaAspectRatio && Number.isFinite(item.mediaAspectRatio) && item.mediaAspectRatio > 0) {
@@ -65,6 +66,28 @@ export function KindIcon({ kind }: { kind: ItemKind }) {
                 ? PlayIcon
                 : SparklesIcon;
   return <HugeiconsIcon icon={icon} size={13} />;
+}
+
+export function pdfPreviewTitle(value: string): string {
+  return value
+    .replace(/\uFFFD/gu, "’")
+    .replace(/\.[^.]+$/u, "")
+    .replace(/[-_]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+export function PdfArtwork({ item }: { item: LibraryItem }) {
+  return (
+    <div className="pdf-artwork">
+      <img src={pdfPointillismOptionB} alt="" className="pdf-shader" />
+      <span className="pdf-label">PDF</span>
+      <span className="pdf-mark" aria-hidden="true" />
+      <span className="pdf-title">{pdfPreviewTitle(item.title) || "Document"}</span>
+      <div className="pdf-legend" aria-hidden="true"><span /><span /><span /></div>
+      <span className="pdf-page-count">{item.pdfPageCount ? `${item.pdfPageCount} PAGES` : "PDF"}</span>
+    </div>
+  );
 }
 
 export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }) {

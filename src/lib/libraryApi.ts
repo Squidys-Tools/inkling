@@ -152,6 +152,10 @@ export async function listActiveItems() {
   return invoke<StoredLibraryItem[]>("list_active_items");
 }
 
+export async function listArchivedItems() {
+  return invoke<StoredLibraryItem[]>("list_archived_items");
+}
+
 export async function searchItems(query: string) {
   return invoke<StoredLibraryItem[]>("search_items", { query, limit: 100 });
 }
@@ -207,6 +211,10 @@ export async function assetUrl(path: string | null) {
 
 export async function archiveItem(id: string, archived = true) {
   return invoke<StoredLibraryItem>("archive_item", { id, archived });
+}
+
+export async function deleteItem(id: string) {
+  await invoke<void>("delete_item", { id });
 }
 
 export async function enqueueOcrJob(itemId: string) {

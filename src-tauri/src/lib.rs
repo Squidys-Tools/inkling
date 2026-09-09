@@ -54,6 +54,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             storage::initialize_storage,
             storage::list_active_items,
+            storage::list_archived_items,
             storage::create_note,
             storage::create_quote,
             storage::create_url,
@@ -61,6 +62,7 @@ pub fn run() {
             storage::resolve_asset_path,
             storage::update_item,
             storage::archive_item,
+            storage::delete_item,
             storage::search_items,
             storage::search_similar_images,
             storage::list_spaces,
