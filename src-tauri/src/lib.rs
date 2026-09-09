@@ -31,10 +31,9 @@ fn configure_ort_dylib() {
 pub fn run() {
     configure_ort_dylib();
     let mut builder = tauri::Builder::default();
-    #[cfg(debug_assertions)]
-    {
-        builder = builder.plugin(tauri_plugin_mcp_bridge::init());
-    }
+    // Always registered: the default capability grants mcp-bridge:default,
+    // and an unregistered permission can break release startup.
+    builder = builder.plugin(tauri_plugin_mcp_bridge::init());
 
     builder
         .manage(storage::StorageState::default())

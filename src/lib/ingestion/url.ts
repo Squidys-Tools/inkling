@@ -99,11 +99,11 @@ function isPrivateNetworkHostname(hostname: string): boolean {
 
 const SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/u;
 // A schemeless bare hostname like `example.com`, `x.com`, or
-// `sub.example.com/path?query` — labels with a dot, an optional port, and an
-// optional path. Matches on a leading dot so full URLs (which have a scheme)
-// and bare words (no dot) are left untouched.
+// `sub.example.com/path?query` — labels with a dot, an optional port, an
+// optional trailing root dot, and an optional path. Matches on a leading dot
+// so full URLs (which have a scheme) and bare words (no dot) are left untouched.
 const BARE_HOST_RE =
-  /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u;
+  /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\.?(?::\d+)?(?:\/[^\s]*)?$/u;
 
 // Accepts both full URLs and bare hostnames (`example.com`, `x.com`), which
 // are upgraded to `https://` before parsing.

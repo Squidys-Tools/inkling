@@ -723,6 +723,17 @@ impl LibraryStorage {
     }
 
     fn delete_item(&self, id: &str) -> Result<(), StorageError> {
+        // Item files live under assets/items/<id>. Remove them first so a
+        // failed delete leaves the row and its files together. Ids are
+        // restricted to ascii alphanumeric plus - and _, so the join below
+        // cannot escape the assets directory.
+        if validate_item_id(id.to_owned()).is_ok() {
+            let directory = self.assets_directory().join(id);
+            if directory.is_dir() {
+                fs::remove_dir_all(&directory)?;
+            }
+        }
+
         let deleted = self.connection.execute(
             "DELETE FROM items WHERE id = ?1 AND archived = 1",
             params![id],
