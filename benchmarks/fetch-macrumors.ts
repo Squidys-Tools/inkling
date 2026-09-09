@@ -14,7 +14,7 @@ const corpusDir = join(benchmarksRoot, "corpus", "live", "macrumors");
 const expectedDir = join(benchmarksRoot, "expected", "extraction");
 const manifestPath = join(benchmarksRoot, "manifest.json");
 const HOMEPAGE = "https://www.macrumors.com/";
-const USER_AGENT = "mymind-library/0.1 (+local article capture)";
+const USER_AGENT = "inkling/0.1 (+local article capture)";
 const COUNT = Number(process.argv[2] ?? 6);
 
 const STOPWORDS = new Set([

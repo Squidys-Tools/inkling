@@ -39,7 +39,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: mymind library ${{ github.ref_name }}
+          releaseName: inkling ${{ github.ref_name }}
           releaseBody: Download the Windows installer from the release assets below.
           generateReleaseNotes: true
           releaseDraft: true

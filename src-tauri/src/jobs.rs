@@ -1062,7 +1062,7 @@ mod tests {
             for (file_name, expected_terms) in cases {
                 eprintln!("benchmark PDF start: {file_name}");
                 let database_directory =
-                    std::env::temp_dir().join(format!("mymind-benchmark-{}", Uuid::new_v4()));
+                    std::env::temp_dir().join(format!("inkling-benchmark-{}", Uuid::new_v4()));
                 fs::create_dir_all(&database_directory).unwrap();
                 let database_path = database_directory.join("library.sqlite3");
                 let storage = crate::storage::LibraryStorage::open(database_path.clone()).unwrap();

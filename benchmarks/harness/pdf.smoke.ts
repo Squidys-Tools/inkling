@@ -7,7 +7,7 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error("PDF smoke assertion failed: " + message);
 }
 
-const directory = mkdtempSync(join(tmpdir(), "mymind-pdf-smoke-"));
+const directory = mkdtempSync(join(tmpdir(), "inkling-pdf-smoke-"));
 try {
   const filePath = join(directory, "regex.pdf");
   const malformedArray = "[" + "()".repeat(2_000) + "x";

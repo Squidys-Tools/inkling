@@ -40,7 +40,7 @@ The primary experience is a Windows desktop application used during browsing, re
 
 ## Brand Commitments
 
-- Product name: mymind library.
+- Product name: inkling.
 - Quiet, visual, private, and low-maintenance experience.
 - Inspired by the product behavior and experience of mymind, while using original implementation and assets.
 

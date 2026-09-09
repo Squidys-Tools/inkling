@@ -11,7 +11,7 @@ Local library with capture, extraction, and text search.
 - [x] Project scaffold (Tauri 2, React, TypeScript, Vite, SQLite)
 - [x] URL capture with Defuddle article extraction + fallback metadata
 - [x] File picker, drag-and-drop, clipboard, screenshot capture
-- [x] Browser-extension deep link (`mymind://capture?url=...`)
+- [x] Browser-extension deep link (`inkling://capture?url=...`; `mymind://` remains supported for existing links)
 - [x] SQLite storage with FTS5 full-text search
 - [x] Thumbnail generation and content-addressed asset storage
 - [x] Background job queue with lease management and recovery

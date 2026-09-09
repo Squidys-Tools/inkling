@@ -1,6 +1,6 @@
-# mymind library
+# inkling
 
-Save anything worth remembering and find it later. mymind library is a Windows desktop app that keeps articles, images, screenshots, PDFs, notes, quotes, and video links in one private visual library stored on your own machine.
+Save anything worth remembering and find it later. inkling is a Windows desktop app that keeps articles, images, screenshots, PDFs, notes, quotes, and video links in one private visual library stored on your own machine.
 
 There is nothing to organize. Saving takes a couple of seconds, then the app reads what you saved in the background so you can find it later by searching for any word in it, including words inside images and scanned documents.
 

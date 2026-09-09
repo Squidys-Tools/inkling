@@ -1,4 +1,4 @@
-# mymind library visual direction
+# inkling visual direction
 
 ## Direction
 

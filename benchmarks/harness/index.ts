@@ -262,7 +262,7 @@ async function runItem(
     if (!naive.text && exp.ocr_text_file) {
       const jpeg = extractFirstEmbeddedJpeg(filePath);
       if (jpeg) {
-        const tmpFile = join(tmpdir(), `mymind-ocr-${item.id}.jpg`);
+        const tmpFile = join(tmpdir(), `inkling-ocr-${item.id}.jpg`);
         writeFileSync(tmpFile, jpeg);
         try {
           const expectedText = readFileSync(corpusPath(exp.ocr_text_file), "utf8");
