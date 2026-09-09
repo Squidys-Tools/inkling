@@ -24,7 +24,7 @@ Early development. The core capture, storage, and keyword search work well enoug
 
 ## Running it from source
 
-You need [Bun](https://bun.sh) and the Rust toolchain installed.
+You need [Bun](https://bun.sh) 1.4.0 and the Rust toolchain installed. The required Bun version is recorded in `.bun-version`; Bun is the project's package manager, so use `bun.lock` and Bun commands when installing dependencies or running scripts.
 
 ```powershell
 bun install
@@ -39,6 +39,12 @@ bun run tauri dev
 ```
 
 This starts the Windows desktop app.
+
+Before pushing frontend changes, run the same checks used by CI:
+
+```powershell
+bun run check:frontend
+```
 
 
 ## More documentation

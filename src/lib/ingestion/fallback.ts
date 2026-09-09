@@ -1,6 +1,6 @@
 import { extractJsonLdMetadata } from "./json-ld";
 import { normalizeHttpUrl, normalizePublishedDate, normalizeText, uniqueStrings } from "./url";
-import type { RawArticleExtraction } from "./types";
+import type { ImageDimensions, RawArticleExtraction } from "./types";
 
 const META_DESCRIPTION_NAMES = ["description", "og:description", "twitter:description"];
 const META_AUTHOR_NAMES = ["author", "article:author", "byl", "byline"];
@@ -54,6 +54,37 @@ function extractImageUrls(document: Document, baseUrl: string): string[] {
   }
 
   return uniqueStrings(values);
+}
+
+function positiveDimension(value: string | null): number | undefined {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function extractImageDimensions(document: Document, baseUrl: string): ImageDimensions[] {
+  const values: ImageDimensions[] = [];
+
+  for (const element of document.querySelectorAll("img[src], source[src], video[poster]")) {
+    const raw = element.getAttribute("src") ?? element.getAttribute("poster");
+    const url = normalizeHttpUrl(raw, baseUrl);
+    const width = positiveDimension(element.getAttribute("width"));
+    const height = positiveDimension(element.getAttribute("height"));
+    if (url && width && height) values.push({ url, width, height });
+  }
+
+  const openGraphUrl = normalizeHttpUrl(metaContent(document, ["og:image"]), baseUrl);
+  const openGraphWidth = positiveDimension(metaContent(document, ["og:image:width", "twitter:image:width"]));
+  const openGraphHeight = positiveDimension(metaContent(document, ["og:image:height", "twitter:image:height"]));
+  if (openGraphUrl && openGraphWidth && openGraphHeight) {
+    values.push({ url: openGraphUrl, width: openGraphWidth, height: openGraphHeight });
+  }
+
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    if (seen.has(value.url)) return false;
+    seen.add(value.url);
+    return true;
+  });
 }
 
 function contentRoot(document: Document): Element | null {
@@ -180,5 +211,6 @@ export function extractFallback(document: Document, url: string): RawArticleExtr
       ...(structured.imageUrls ?? []),
       ...extractImageUrls(document, url),
     ]),
+    imageDimensions: extractImageDimensions(document, url),
   };
 }

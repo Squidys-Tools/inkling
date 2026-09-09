@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowUpRight, X } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import "./reader.css";
 
 export type ReaderOrigin = { x: number; y: number };
@@ -55,27 +56,7 @@ type ReaderViewProps = {
 
 export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
   const [fontSet, setFontSet] = useState<ReaderFontSet>(loadFontSet);
-  const [closing, setClosing] = useState(false);
-  const closeTimer = useRef<number | null>(null);
-
-  const prefersReducedMotion =
-    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  function handleClose() {
-    if (closing) return;
-    if (prefersReducedMotion) {
-      onRequestClose();
-      return;
-    }
-    setClosing(true);
-    closeTimer.current = window.setTimeout(onRequestClose, 580);
-  }
-
-  useEffect(() => {
-    return () => {
-      if (closeTimer.current != null) window.clearTimeout(closeTimer.current);
-    };
-  }, []);
+  const shouldReduceMotion = useReducedMotion() ?? false;
 
   useEffect(() => {
     try {
@@ -89,25 +70,33 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.stopPropagation();
-        handleClose();
+        onRequestClose();
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  });
+  }, [onRequestClose]);
 
   const bylineParts = [item.author, item.publishedDate ?? item.savedDate].filter(Boolean);
   const host = hostnameOf(item.sourceUrl);
 
+  const readerOrigin = "var(--reader-origin-x) var(--reader-origin-y)";
+  const readerOpenClip = `circle(150% at ${readerOrigin})`;
+  const readerClosedClip = `circle(0% at ${readerOrigin})`;
+
   return (
-    <div
-      className={`reader-overlay reader-font-${fontSet} ${closing ? "closing" : ""}`}
+    <motion.div
+      className={`reader-overlay reader-font-${fontSet}`}
       role="dialog"
       aria-modal="true"
       aria-label={item.title}
       style={{ "--reader-origin-x": `${origin.x}px`, "--reader-origin-y": `${origin.y}px` } as React.CSSProperties}
+      initial={{ opacity: 0, clipPath: shouldReduceMotion ? readerOpenClip : readerClosedClip }}
+      animate={{ opacity: 1, clipPath: readerOpenClip }}
+      exit={{ opacity: 0, clipPath: shouldReduceMotion ? readerOpenClip : readerClosedClip }}
+      transition={{ duration: shouldReduceMotion ? 0.18 : 0.55, ease: [0.4, 0, 0.2, 1] }}
     >
-      <button type="button" className="reader-close" onClick={handleClose} title="Close reader" aria-label="Close reader (Escape)">
+      <button type="button" className="reader-close" onClick={onRequestClose} title="Close reader" aria-label="Close reader (Escape)">
         <span className="reader-close-esc">Esc</span>
         <X size={16} />
       </button>
@@ -147,6 +136,6 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
           </select>
         </label>
       </div>
-    </div>
+    </motion.div>
   );
 }

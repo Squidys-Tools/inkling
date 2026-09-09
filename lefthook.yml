@@ -4,3 +4,8 @@ pre-commit:
       glob: "src-tauri/*.rs"
       run: cargo fmt --manifest-path src-tauri/Cargo.toml
       stage_fixed: true
+
+pre-push:
+  commands:
+    frontend-checks:
+      run: bun run check:frontend

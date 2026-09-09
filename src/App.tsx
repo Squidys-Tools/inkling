@@ -1,5 +1,8 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
+import { gsap } from "gsap";
 import {
   Archive,
   AlertCircle,
@@ -21,7 +24,6 @@ import {
   AtSign,
   Heart,
   MessageCircle,
-  Menu,
   PanelLeftClose,
   PanelLeftOpen,
   Play,
@@ -79,6 +81,9 @@ export type LibraryItem = {
   tags: string[];
   ocrText?: string;
   image?: string;
+  mediaWidth?: number;
+  mediaHeight?: number;
+  mediaAspectRatio?: number;
   fileUrl?: string;
   imageAlt?: string;
   sourceUrl?: string;
@@ -168,6 +173,53 @@ function postFallbackFromMetadata(social: XPostMetadata): NonNullable<LibraryIte
   };
 }
 
+function positiveNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function mediaAspectRatioFor(item: LibraryItem): number {
+  if (item.mediaAspectRatio && Number.isFinite(item.mediaAspectRatio) && item.mediaAspectRatio > 0) {
+    return item.mediaAspectRatio;
+  }
+  if (item.mediaWidth && item.mediaHeight && item.mediaWidth > 0 && item.mediaHeight > 0) {
+    return item.mediaWidth / item.mediaHeight;
+  }
+
+  // Keep native X posts compact enough to read as a card while leaving the
+  // full-height version available in the inspector.
+  if (item.social?.provider === "x") return 1.6;
+
+  switch (item.kind) {
+    case "Video":
+      return 16 / 9;
+    case "Article":
+      return 16 / 10;
+    case "Image":
+      return 4 / 3;
+    case "Post":
+      return 1.45;
+    case "PDF":
+      return 4 / 3;
+    case "Quote":
+      return 1.4;
+    default:
+      return 1.45;
+  }
+}
+
+function readImageDimensions(src: string): Promise<{ width: number; height: number } | undefined> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const width = image.naturalWidth;
+      const height = image.naturalHeight;
+      resolve(width > 0 && height > 0 ? { width, height } : undefined);
+    };
+    image.onerror = () => resolve(undefined);
+    image.src = src;
+  });
+}
+
 async function storedItemToLibraryItem(
   item: StoredLibraryItem,
   processing?: ProcessingSummary,
@@ -188,6 +240,16 @@ async function storedItemToLibraryItem(
   const remoteImage = Array.isArray(item.metadata.imageUrls)
     ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")
     : undefined;
+  const indexedImageDimensions = Array.isArray(item.metadata.imageDimensions)
+    ? item.metadata.imageDimensions.find((value): value is Record<string, unknown> => {
+      if (!value || typeof value !== "object") return false;
+      const record = value as Record<string, unknown>;
+      return (!remoteImage || record.url === remoteImage) && positiveNumber(record.width) !== undefined && positiveNumber(record.height) !== undefined;
+    })
+    : undefined;
+  const mediaWidth = positiveNumber(item.metadata.mediaWidth) ?? positiveNumber(indexedImageDimensions?.width);
+  const mediaHeight = positiveNumber(item.metadata.mediaHeight) ?? positiveNumber(indexedImageDimensions?.height);
+  const storedAspectRatio = positiveNumber(item.metadata.mediaAspectRatio);
   const image =
     (await assetUrl(item.thumbnailPath ?? (kind === "Image" ? item.localAssetPath : null))) ??
     remoteImage ??
@@ -215,6 +277,9 @@ async function storedItemToLibraryItem(
     tags,
     ocrText: item.ocrText,
     image,
+    mediaWidth,
+    mediaHeight,
+    mediaAspectRatio: storedAspectRatio ?? (mediaWidth && mediaHeight ? mediaWidth / mediaHeight : undefined),
     fileUrl,
     imageAlt: item.title?.trim() || undefined,
     social,
@@ -242,6 +307,8 @@ const seedItems: LibraryItem[] = [
     author: "Vannevar Bush",
     image:
       "https://cdn.theatlantic.com/thumbor/p3pkh2RYR4qWpQk3qC6zhJpPd9Y=/0x350:2994x1909/1200x625/media/img/2018/03/AP_413517775098/original.jpg",
+    mediaWidth: 1200,
+    mediaHeight: 625,
     imageAlt: "A historical photograph from The Atlantic's archive accompanying As We May Think",
     date: "Saved today",
     tags: ["essay", "memory"],
@@ -260,6 +327,7 @@ const seedItems: LibraryItem[] = [
     tags: ["landscape", "reference"],
     image:
       "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1000&q=85",
+    mediaAspectRatio: 3 / 2,
     imageAlt: "A wooden boat house beside a clear alpine lake with mountains behind it",
     favorite: true,
   },
@@ -273,6 +341,7 @@ const seedItems: LibraryItem[] = [
     sourceUrl: "https://paulgraham.com/greatwork.html",
     author: "Paul Graham",
     image: "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1000&q=85",
+    mediaAspectRatio: 3 / 2,
     imageAlt: "A notebook and coffee on a desk, a quiet setting for doing great work",
     date: "Aug 20",
     tags: ["essay", "work"],
@@ -289,6 +358,7 @@ const seedItems: LibraryItem[] = [
     tags: ["ui", "reference"],
     image:
       "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?auto=format&fit=crop&w=1000&q=85",
+    mediaAspectRatio: 3 / 2,
     imageAlt: "A designer sketching interface wireframes on paper beside a laptop",
   },
   {
@@ -326,6 +396,7 @@ const seedItems: LibraryItem[] = [
     tags: ["ui", "reference"],
     image:
       "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1000&q=85",
+    mediaAspectRatio: 3 / 2,
     imageAlt: "A dark analytics dashboard with charts and colorful data visualizations",
   },
   {
@@ -338,6 +409,8 @@ const seedItems: LibraryItem[] = [
     sourceUrl: "https://www.nngroup.com/articles/ten-usability-heuristics/",
     author: "Jakob Nielsen",
     image: "https://media.nngroup.com/media/articles/opengraph_images/Updated10HeuristicSocialCard-36.png",
+    mediaWidth: 1200,
+    mediaHeight: 630,
     imageAlt: "Nielsen Norman Group social card for the ten usability heuristics",
     date: "Aug 08",
     tags: ["ui", "ux", "heuristics"],
@@ -352,7 +425,14 @@ const seedItems: LibraryItem[] = [
     sourceUrl: "https://worrydream.com/#!/InventingOnPrinciple",
     author: "Bret Victor",
     image: "https://i.ytimg.com/vi/PUv66718DII/hqdefault.jpg",
+    mediaAspectRatio: 16 / 9,
     imageAlt: "Bret Victor presenting Inventing on Principle",
+    video: {
+      provider: "youtube",
+      embedUrl: "https://www.youtube-nocookie.com/embed/PUv66718DII",
+      sourceUrl: "https://worrydream.com/#!/InventingOnPrinciple",
+      posterUrl: "https://i.ytimg.com/vi/PUv66718DII/hqdefault.jpg",
+    },
     date: "Aug 05",
     tags: ["talks", "design"],
   },
@@ -367,6 +447,7 @@ const seedItems: LibraryItem[] = [
     tags: ["landscape", "color"],
     image:
       "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1000&q=85",
+    mediaAspectRatio: 3 / 2,
     imageAlt: "Snowy mountain peaks glowing above a sea of clouds at sunset",
   },
   {
@@ -378,6 +459,7 @@ const seedItems: LibraryItem[] = [
     source: "arXiv",
     sourceUrl: "https://arxiv.org/abs/1706.03762",
     image: "https://arxiv.org/html/1706.03762/x1.png",
+    mediaAspectRatio: 4 / 3,
     imageAlt: "The transformer architecture diagram from Attention Is All You Need",
     date: "Jul 29",
     tags: ["research", "ml"],
@@ -394,6 +476,7 @@ const seedItems: LibraryItem[] = [
     tags: ["web", "ui", "reference"],
     image:
       "https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?auto=format&fit=crop&w=1000&q=85",
+    mediaAspectRatio: 3 / 2,
     imageAlt: "A laptop displaying a colorful web page on a wooden desk",
   },
   {
@@ -451,6 +534,9 @@ const seedSpaces: StoredSpace[] = [
 ];
 
 const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
+
+const LIBRARY_VIEW_TRANSITION_MS = 440;
+const LIBRARY_VIEW_EASE = "circ.inOut";
 
 const KIND_ALIASES: Record<string, string> = {
   article: "article",
@@ -538,6 +624,53 @@ function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }) {
 
 const VIDEO_IFRAME_ALLOW =
   "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+
+function LibraryVideoMedia({ item }: { item: LibraryItem }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  useEffect(() => setIsPlaying(false), [item.id]);
+
+  if (!item.video && !item.fileUrl) {
+    return item.image
+      ? <div className="card-image-wrap"><img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" /></div>
+      : <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><Play size={20} /></span></div>;
+  }
+
+  if (isPlaying) {
+    return (
+      <div className="card-image-wrap card-video-playing" onClick={(event) => event.stopPropagation()}>
+        {item.video ? (
+          <iframe
+            src={autoplayEmbedUrl(item.video.embedUrl)}
+            title={item.title}
+            allow={VIDEO_IFRAME_ALLOW}
+            allowFullScreen
+          />
+        ) : (
+          <video className="card-video-player" src={item.fileUrl} controls autoPlay playsInline preload="metadata" />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="card-image-wrap">
+      <button
+        type="button"
+        className="card-video-poster"
+        onClick={(event) => {
+          event.stopPropagation();
+          setIsPlaying(true);
+        }}
+        aria-label={`Play video: ${item.title}`}
+      >
+        {item.image && <img src={item.image} alt="" className="card-image" loading="lazy" decoding="async" />}
+        <span className="card-video-scrim" aria-hidden="true" />
+        <span className="card-play" aria-hidden="true"><Play size={16} /></span>
+        <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
+      </button>
+    </div>
+  );
+}
 
 function InspectorVideoMedia({ item }: { item: LibraryItem }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -824,6 +957,178 @@ function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallback: Rea
   );
 }
 
+type LibraryCardContext = {
+  onSelectItem: (item: LibraryItem) => void;
+  onOpenReader: (item: LibraryItem, origin?: ReaderOrigin) => void;
+  onRetryJob: (jobId: string) => void | Promise<void>;
+};
+
+type VirtualizedLibraryItemProps = {
+  data: LibraryItem;
+  index: number;
+  context: LibraryCardContext;
+};
+
+const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
+  data: item,
+  index,
+  context,
+}: VirtualizedLibraryItemProps) {
+  return (
+    <div className="library-card-slot" data-library-index={index}>
+      <article
+        className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""}`}
+        data-library-item-id={String(item.id)}
+        style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
+        onClick={() => context.onSelectItem(item)}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          context.onSelectItem(item);
+        }}
+      >
+        <div className="library-card-media">
+          {item.social?.provider === "x" ? (
+            <div className="x-post-art">
+              <XPostEmbed
+                social={item.social}
+                fallback={item.post ? <PostArtwork post={item.post} /> : <div className="post-art">Post preview unavailable.</div>}
+              />
+            </div>
+          ) : item.kind === "Video" ? (
+            <LibraryVideoMedia item={item} />
+          ) : item.image ? (
+            <div className="card-image-wrap">
+              <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />
+            </div>
+          ) : item.kind === "Post" && item.post ? (
+            <PostArtwork post={item.post} />
+          ) : (
+            <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.kind === "Note" ? "note-art" : item.accent ?? ""}`} aria-hidden="true">
+              {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
+              {item.kind === "Note" && <><span className="note-pin" /><span className="note-label">QUICK THOUGHT</span><span className="note-scribble">remember<br />the shape<br />of a day</span><span className="note-rule note-rule-one" /><span className="note-rule note-rule-two" /><span className="note-star">✳</span></>}
+              {item.kind === "PDF" && <><span className="pdf-label">FIELD<br />NOTES</span><span className="pdf-rule" /></>}
+              {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
+            </div>
+          )}
+        </div>
+        <div className={`card-content ${item.kind === "Quote" ? "quote-content" : item.kind === "Note" ? "note-content" : ""}`}>
+          <div className="card-kicker"><span><KindIcon kind={item.kind} />{item.kind}</span><span>{item.date}</span></div>
+          <h2 className={item.kind === "Quote" ? "quote-title" : ""}>{item.kind === "Quote" ? (/^["“]/u.test(item.title.trim()) ? item.title : `“${item.title}”`) : item.title}</h2>
+          <p className={item.kind === "Quote" ? "quote-attribution" : ""}>{item.description ? (item.kind === "Quote" && !item.description.trim().startsWith("—") ? `— ${item.description}` : item.description) : (item.kind === "Quote" ? "" : item.description)}</p>
+          {item.processing?.active && (
+            <div className="card-processing" role="status">
+              <LoaderCircle size={13} />
+              <span>{item.processing.message ?? "Processing"}</span>
+              {item.processing.progressTotal != null && <span>{item.processing.progressCurrent}/{item.processing.progressTotal}</span>}
+            </div>
+          )}
+          {item.processing?.failedJob && (
+            <div className="card-processing failed" role="alert">
+              <AlertCircle size={13} />
+              <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
+              <button
+                type="button"
+                className="retry-button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void context.onRetryJob(item.processing?.failedJob?.id ?? "");
+                }}
+              >
+                <RotateCw size={12} /> Try again
+              </button>
+            </div>
+          )}
+          <div className="card-footer">
+            <span className="card-source">{item.source}</span>
+            {item.kind === "Article" && (
+              <button
+                type="button"
+                className="card-read"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  context.onOpenReader(item, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+                }}
+                onKeyDown={(event) => {
+                  event.stopPropagation();
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    context.onOpenReader(item);
+                  }
+                }}
+                disabled={!item.articleHtml}
+                title={item.articleHtml ? "Open reader" : "No saved article text"}
+              >
+                Read <ArrowUpRight size={13} />
+              </button>
+            )}
+            {item.kind === "Video" && item.video && (
+              <button
+                type="button"
+                className="card-read"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  context.onSelectItem(item);
+                }}
+              >
+                Watch <Play size={11} />
+              </button>
+            )}
+            {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && <ArrowUpRight size={15} />}
+          </div>
+        </div>
+      </article>
+    </div>
+  );
+});
+
+function masonryColumnCount(width: number): number {
+  if (width < 560) return 1;
+  if (width < 900) return 2;
+  if (width < 1220) return 3;
+  if (width < 1540) return 4;
+  if (width < 1900) return 5;
+  return 6;
+}
+
+type LibraryCardPosition = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+const LIBRARY_TRANSITION_TARGET_SELECTOR =
+  ".library-card-media > .card-image-wrap, .library-card-media > .card-paper-art, .library-card-media > .post-art, .library-card-media > .x-post-art, .card-content";
+
+function clearLibraryTransitionTargetStyle(target: HTMLElement) {
+  for (const property of ["position", "box-sizing", "left", "top", "width", "height", "min-width", "min-height", "max-width", "max-height", "aspect-ratio"]) {
+    target.style.removeProperty(property);
+  }
+}
+
+function setLibraryTransitionTargetStyle(target: HTMLElement, left: number, top: number, width: number, height: number) {
+  target.style.position = "absolute";
+  target.style.boxSizing = "border-box";
+  target.style.left = `${left}px`;
+  target.style.top = `${top}px`;
+  target.style.width = `${width}px`;
+  target.style.height = `${height}px`;
+  target.style.minWidth = "0px";
+  target.style.minHeight = "0px";
+  target.style.maxWidth = "none";
+  target.style.maxHeight = "none";
+  target.style.aspectRatio = "auto";
+}
+
+function clearLibraryTransitionMediaStyle(clone: HTMLElement) {
+  const mediaFrame = clone.querySelector<HTMLElement>(".library-card-media");
+  mediaFrame?.style.removeProperty("height");
+  mediaFrame?.style.removeProperty("min-height");
+}
+
 function App() {
   const [items, setItems] = useState<LibraryItem[]>(isTauriRuntime() ? [] : seedItems);
   const [spaces, setSpaces] = useState<StoredSpace[]>(isTauriRuntime() ? [] : seedSpaces);
@@ -832,7 +1137,7 @@ function App() {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -845,6 +1150,8 @@ function App() {
   const [pdfViewerItem, setPdfViewerItem] = useState<LibraryItem | null>(null);
   const [readingItem, setReadingItem] = useState<{ item: LibraryItem; origin: ReaderOrigin } | null>(null);
   const [listMode, setListMode] = useState(false);
+  const [isLibraryViewTransitioning, setIsLibraryViewTransitioning] = useState(false);
+  const [viewSelectionListMode, setViewSelectionListMode] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
@@ -852,6 +1159,439 @@ function App() {
   const [similaritySource, setSimilaritySource] = useState<{ id: string; title: string } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const libraryScrollRef = useRef<HTMLDivElement>(null);
+  const libraryTransitionOverlayRef = useRef<HTMLDivElement>(null);
+  const pendingLibraryViewPositionsRef = useRef<Map<string, LibraryCardPosition> | null>(null);
+  const libraryViewAnimationsRef = useRef<Array<ReturnType<typeof gsap.timeline>>>([]);
+  const libraryViewPreparationTimerRef = useRef<number | null>(null);
+  const libraryViewTransitionRunRef = useRef(0);
+  const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
+    typeof window === "undefined" ? 960 : window.innerWidth,
+  );
+
+  const selectLibraryItem = useCallback((item: LibraryItem) => {
+    setSelectedItem(item);
+  }, []);
+
+  const retryJob = useCallback(async (jobId: string) => {
+    setCaptureError(null);
+    try {
+      const retried = await retryProcessingJob(jobId);
+      if (!retried) setCaptureError("That processing job is no longer available to retry.");
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, []);
+
+  const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
+    if (!item.articleHtml) return;
+    setReadingItem({ item, origin });
+  }, []);
+
+  const measureLibraryCards = useCallback(() => {
+    const root = libraryScrollRef.current;
+    if (!root) return new Map<string, LibraryCardPosition>();
+
+    return new Map(
+      Array.from(root.querySelectorAll<HTMLElement>(".library-grid .library-card[data-library-item-id]"))
+        .map((card) => {
+          const id = card.dataset.libraryItemId;
+          if (!id) return null;
+          const rect = card.getBoundingClientRect();
+          return [id, { left: rect.left, top: rect.top, width: rect.width, height: rect.height }] as const;
+        })
+        .filter((entry): entry is readonly [string, LibraryCardPosition] => entry !== null),
+    );
+  }, []);
+
+  const measureLibraryTransitionCards = useCallback(() => {
+    const overlay = libraryTransitionOverlayRef.current;
+    if (!overlay) return new Map<string, LibraryCardPosition>();
+
+    return new Map(
+      Array.from(overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]"))
+        .map((card) => {
+          const id = card.dataset.libraryItemId;
+          if (!id) return null;
+          const rect = card.getBoundingClientRect();
+          return [id, { left: rect.left, top: rect.top, width: rect.width, height: rect.height }] as const;
+        })
+        .filter((entry): entry is readonly [string, LibraryCardPosition] => entry !== null),
+    );
+  }, []);
+
+  const clearLibraryTransitionOverlay = useCallback(() => {
+    const overlay = libraryTransitionOverlayRef.current;
+    if (!overlay) return;
+    overlay.replaceChildren();
+    overlay.classList.remove("is-visible", "is-list");
+  }, []);
+
+  const buildLibraryTransitionOverlay = useCallback((sourcePositions: Map<string, LibraryCardPosition>, sourceListMode: boolean) => {
+    const root = libraryScrollRef.current;
+    const overlay = libraryTransitionOverlayRef.current;
+    if (!root || !overlay || sourcePositions.size === 0) return false;
+
+    const rootRect = root.getBoundingClientRect();
+    overlay.replaceChildren();
+    overlay.classList.toggle("is-list", sourceListMode);
+
+    for (const card of root.querySelectorAll<HTMLElement>(".library-grid .library-card[data-library-item-id]")) {
+      const id = card.dataset.libraryItemId;
+      const source = id ? sourcePositions.get(id) : undefined;
+      if (!id || !source) continue;
+      if (source.top >= rootRect.bottom || source.top + source.height <= rootRect.top) continue;
+
+      const clone = card.cloneNode(true) as HTMLElement;
+      clone.classList.add("library-transition-card");
+      clone.dataset.flipId = `library-card-${id}`;
+      clone.removeAttribute("tabindex");
+      clone.inert = true;
+      clone.setAttribute("aria-hidden", "true");
+      clone.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
+      clone.querySelectorAll("iframe").forEach((iframe) => {
+        const placeholder = document.createElement("div");
+        placeholder.className = "library-transition-embed-placeholder";
+        iframe.replaceWith(placeholder);
+      });
+      clone.style.left = `${source.left - rootRect.left}px`;
+      clone.style.top = `${source.top - rootRect.top}px`;
+      clone.style.width = `${source.width}px`;
+      clone.style.height = `${source.height}px`;
+      clone.style.margin = "0";
+      clone.style.transform = "none";
+      clone.style.translate = "none";
+      clone.style.willChange = "transform, opacity";
+      overlay.appendChild(clone);
+
+      const cloneRect = clone.getBoundingClientRect();
+      const transitionTargets = Array.from(clone.querySelectorAll<HTMLElement>(LIBRARY_TRANSITION_TARGET_SELECTOR));
+      const mediaTarget = clone.querySelector<HTMLElement>(
+        ".library-card-media > .card-image-wrap, .library-card-media > .card-paper-art, .library-card-media > .post-art, .library-card-media > .x-post-art",
+      );
+      const mediaFrame = mediaTarget?.parentElement;
+      for (const target of transitionTargets) {
+        if (target !== mediaTarget) continue;
+        const rect = target.getBoundingClientRect();
+        setLibraryTransitionTargetStyle(target, rect.left - cloneRect.left, rect.top - cloneRect.top, rect.width, rect.height);
+        if (mediaFrame) {
+          mediaFrame.style.height = `${rect.height}px`;
+          mediaFrame.style.minHeight = "0px";
+        }
+      }
+      for (const target of transitionTargets) {
+        if (target === mediaTarget) continue;
+        const rect = target.getBoundingClientRect();
+        setLibraryTransitionTargetStyle(target, rect.left - cloneRect.left, rect.top - cloneRect.top, rect.width, rect.height);
+      }
+    }
+
+    return overlay.childElementCount > 0;
+  }, []);
+
+  const normalizeLibraryTransitionOverlay = useCallback(() => {
+    const overlay = libraryTransitionOverlayRef.current;
+    const root = libraryScrollRef.current;
+    if (!overlay || !root || overlay.childElementCount === 0) return;
+
+    const rootRect = root.getBoundingClientRect();
+    for (const card of overlay.querySelectorAll<HTMLElement>(".library-transition-card")) {
+      const rect = card.getBoundingClientRect();
+      card.style.left = `${rect.left - rootRect.left}px`;
+      card.style.top = `${rect.top - rootRect.top}px`;
+      card.style.width = `${rect.width}px`;
+      card.style.height = `${rect.height}px`;
+      card.style.transform = "none";
+      card.style.opacity = "1";
+    }
+  }, []);
+
+  const cancelLibraryViewAnimations = useCallback(() => {
+    for (const animation of libraryViewAnimationsRef.current) animation.kill();
+    libraryViewAnimationsRef.current = [];
+  }, []);
+
+  const switchLibraryView = useCallback((nextListMode: boolean) => {
+    if (nextListMode === listMode) return;
+
+    if (libraryViewPreparationTimerRef.current !== null) {
+      window.clearTimeout(libraryViewPreparationTimerRef.current);
+      libraryViewPreparationTimerRef.current = null;
+    }
+    libraryViewTransitionRunRef.current += 1;
+
+    const transitionIsActive = (libraryTransitionOverlayRef.current?.childElementCount ?? 0) > 0;
+    const currentPositions = transitionIsActive ? measureLibraryTransitionCards() : measureLibraryCards();
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    cancelLibraryViewAnimations();
+    if (transitionIsActive && !prefersReducedMotion) normalizeLibraryTransitionOverlay();
+
+    if (prefersReducedMotion || currentPositions.size === 0) {
+      pendingLibraryViewPositionsRef.current = null;
+      clearLibraryTransitionOverlay();
+      setIsLibraryViewTransitioning(false);
+      setViewSelectionListMode(nextListMode);
+      setListMode(nextListMode);
+      return;
+    }
+
+    if (!transitionIsActive) buildLibraryTransitionOverlay(currentPositions, listMode);
+    pendingLibraryViewPositionsRef.current = currentPositions;
+    setViewSelectionListMode(listMode);
+    setIsLibraryViewTransitioning(true);
+    setListMode(nextListMode);
+  }, [buildLibraryTransitionOverlay, cancelLibraryViewAnimations, clearLibraryTransitionOverlay, listMode, measureLibraryCards, measureLibraryTransitionCards, normalizeLibraryTransitionOverlay]);
+
+  useEffect(() => {
+    const element = libraryScrollRef.current;
+    if (!element) return;
+
+    const updateWidth = () => {
+      const nextWidth = element.clientWidth;
+      if (nextWidth > 0) setLibraryViewportWidth((current) => current === nextWidth ? current : nextWidth);
+    };
+    updateWidth();
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(updateWidth);
+      observer.observe(element);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
+  }, []);
+
+  useLayoutEffect(() => {
+    const firstPositions = pendingLibraryViewPositionsRef.current;
+    pendingLibraryViewPositionsRef.current = null;
+    if (!firstPositions || firstPositions.size === 0) {
+      setIsLibraryViewTransitioning(false);
+      setViewSelectionListMode(listMode);
+      return;
+    }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      clearLibraryTransitionOverlay();
+      setIsLibraryViewTransitioning(false);
+      setViewSelectionListMode(listMode);
+      return;
+    }
+
+    const root = libraryScrollRef.current;
+    const overlay = libraryTransitionOverlayRef.current;
+    if (!root || !overlay || overlay.childElementCount === 0) {
+      clearLibraryTransitionOverlay();
+      setIsLibraryViewTransitioning(false);
+      setViewSelectionListMode(listMode);
+      return;
+    }
+
+    overlay.classList.add("is-visible");
+
+    const run = libraryViewTransitionRunRef.current;
+    const startedAt = performance.now();
+    const quietPeriod = 64;
+    const maxPreparationTime = 800;
+    const columnCount = listMode ? 1 : gridColumnCount;
+    const minimumMountedCards = Math.min(firstPositions.size, 5);
+    let stableSignature = "";
+    let stableSince = startedAt;
+    let cancelled = false;
+
+    const positionSignature = (positions: Map<string, LibraryCardPosition>) =>
+      Array.from(positions.entries())
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([id, position]) => `${id}:${Math.round(position.left)}:${Math.round(position.top)}:${Math.round(position.width)}:${Math.round(position.height)}`)
+        .join("|");
+
+    const finishTransition = (animations: Array<ReturnType<typeof gsap.timeline>>) => {
+      if (libraryViewAnimationsRef.current !== animations || run !== libraryViewTransitionRunRef.current) return;
+      for (const animation of animations) animation.kill();
+      libraryViewAnimationsRef.current = [];
+      setIsLibraryViewTransitioning(false);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (run === libraryViewTransitionRunRef.current) clearLibraryTransitionOverlay();
+        });
+      });
+    };
+
+    const animateSettledLayout = (lastPositions: Map<string, LibraryCardPosition>) => {
+      if (cancelled || run !== libraryViewTransitionRunRef.current) return;
+
+      const rootRect = root.getBoundingClientRect();
+      const clones = Array.from(overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]"));
+      const leavingTargets: HTMLElement[] = [];
+      const layoutTargets: Array<{
+        clone: HTMLElement;
+        source: LibraryCardPosition;
+        position: LibraryCardPosition;
+        sourceBoxes: Array<{ target: HTMLElement; left: number; top: number; width: number; height: number }>;
+      }> = [];
+
+      for (const clone of clones) {
+        const id = clone.dataset.libraryItemId;
+        const first = id ? firstPositions.get(id) : undefined;
+        const last = id ? lastPositions.get(id) : undefined;
+        if (!id || !first) continue;
+
+        clone.style.willChange = "transform, opacity";
+        if (!last) {
+          leavingTargets.push(clone);
+          continue;
+        }
+
+        const sourceCardRect = clone.getBoundingClientRect();
+        const sourceTargets = Array.from(clone.querySelectorAll<HTMLElement>(LIBRARY_TRANSITION_TARGET_SELECTOR));
+        const sourceBoxes = sourceTargets.map((target) => {
+          const rect = target.getBoundingClientRect();
+          return {
+            target,
+            left: rect.left - sourceCardRect.left,
+            top: rect.top - sourceCardRect.top,
+            width: rect.width,
+            height: rect.height,
+          };
+        });
+        layoutTargets.push({ clone, source: first, position: last, sourceBoxes });
+      }
+
+      if (layoutTargets.length === 0 && leavingTargets.length === 0) {
+        const noAnimations: Array<ReturnType<typeof gsap.timeline>> = [];
+        libraryViewAnimationsRef.current = noAnimations;
+        finishTransition(noAnimations);
+        return;
+      }
+
+      for (const { sourceBoxes } of layoutTargets) {
+        for (const { target } of sourceBoxes) clearLibraryTransitionTargetStyle(target);
+      }
+      for (const { clone } of layoutTargets) clearLibraryTransitionMediaStyle(clone);
+      overlay.classList.toggle("is-list", listMode);
+      for (const { clone, position } of layoutTargets) {
+        clone.style.left = `${position.left - rootRect.left}px`;
+        clone.style.top = `${position.top - rootRect.top}px`;
+        clone.style.width = `${position.width}px`;
+        clone.style.height = `${position.height}px`;
+      }
+
+      const layoutAnimation = gsap.timeline({ paused: true });
+      for (const { clone, source, position, sourceBoxes } of layoutTargets) {
+        const destinationCardRect = clone.getBoundingClientRect();
+
+        for (const sourceBox of sourceBoxes) {
+          const destinationRect = sourceBox.target.getBoundingClientRect();
+          const destinationBox = {
+            left: destinationRect.left - destinationCardRect.left,
+            top: destinationRect.top - destinationCardRect.top,
+            width: destinationRect.width,
+            height: destinationRect.height,
+          };
+          setLibraryTransitionTargetStyle(sourceBox.target, sourceBox.left, sourceBox.top, sourceBox.width, sourceBox.height);
+          layoutAnimation.fromTo(sourceBox.target, {
+            left: sourceBox.left,
+            top: sourceBox.top,
+            width: sourceBox.width,
+            height: sourceBox.height,
+          }, {
+            left: destinationBox.left,
+            top: destinationBox.top,
+            width: destinationBox.width,
+            height: destinationBox.height,
+            duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
+            ease: LIBRARY_VIEW_EASE,
+            autoRound: false,
+          }, 0);
+        }
+
+        clone.style.left = `${source.left - rootRect.left}px`;
+        clone.style.top = `${source.top - rootRect.top}px`;
+        clone.style.width = `${source.width}px`;
+        clone.style.height = `${source.height}px`;
+        layoutAnimation.fromTo(clone, {
+          left: source.left - rootRect.left,
+          top: source.top - rootRect.top,
+          width: source.width,
+          height: source.height,
+        }, {
+          left: position.left - rootRect.left,
+          top: position.top - rootRect.top,
+          width: position.width,
+          height: position.height,
+          duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
+          ease: LIBRARY_VIEW_EASE,
+          autoRound: false,
+        }, 0);
+      }
+
+      const animations: Array<ReturnType<typeof gsap.timeline>> = [layoutAnimation];
+      if (leavingTargets.length > 0) {
+        animations.push(gsap.timeline({ paused: true }).to(leavingTargets, {
+            opacity: 0,
+            duration: 0.22,
+            ease: "power1.out",
+          }));
+      }
+
+      libraryViewAnimationsRef.current = animations;
+      setViewSelectionListMode(listMode);
+      let completedAnimations = 0;
+      const finishWhenReady = () => {
+        completedAnimations += 1;
+        if (completedAnimations === animations.length) finishTransition(animations);
+      };
+      for (const animation of animations) {
+        animation.eventCallback("onComplete", finishWhenReady);
+        animation.play(0);
+      }
+    };
+
+    const waitForSettledLayout = () => {
+      if (cancelled || run !== libraryViewTransitionRunRef.current) return;
+      const positions = measureLibraryCards();
+      const signature = positionSignature(positions);
+      const now = performance.now();
+
+      const rootWidth = root.clientWidth;
+      const gridGap = Number.parseFloat(getComputedStyle(root).gap) || 14;
+      const expectedCardWidth = columnCount > 0
+        ? (rootWidth - gridGap * Math.max(0, columnCount - 1)) / columnCount
+        : 0;
+      const layoutIsReady = positions.size >= minimumMountedCards && Array.from(positions.values()).every((position) =>
+        rootWidth > 0 && Math.abs(position.width - expectedCardWidth) < 2,
+      );
+      if (!layoutIsReady) {
+        stableSignature = signature;
+        stableSince = now;
+      } else if (signature !== stableSignature) {
+        stableSignature = signature;
+        stableSince = now;
+      }
+      if ((layoutIsReady && now - stableSince >= quietPeriod) || now - startedAt >= maxPreparationTime) {
+        animateSettledLayout(positions);
+        return;
+      }
+      libraryViewPreparationTimerRef.current = window.setTimeout(waitForSettledLayout, 16);
+    };
+
+    libraryViewPreparationTimerRef.current = window.setTimeout(waitForSettledLayout, 16);
+    return () => {
+      cancelled = true;
+      if (libraryViewPreparationTimerRef.current !== null) {
+        window.clearTimeout(libraryViewPreparationTimerRef.current);
+        libraryViewPreparationTimerRef.current = null;
+      }
+    };
+  }, [clearLibraryTransitionOverlay, listMode, measureLibraryCards]);
+
+  useEffect(() => () => {
+    if (libraryViewPreparationTimerRef.current !== null) {
+      window.clearTimeout(libraryViewPreparationTimerRef.current);
+      libraryViewPreparationTimerRef.current = null;
+    }
+    cancelLibraryViewAnimations();
+    clearLibraryTransitionOverlay();
+  }, [cancelLibraryViewAnimations, clearLibraryTransitionOverlay]);
 
   async function persistFile(file: File, captureSource: string) {
     const kind = classifyFile(file);
@@ -868,6 +1608,9 @@ function App() {
       return;
     }
 
+    const image = kind === "image" ? URL.createObjectURL(file) : undefined;
+    const mediaDimensions = image ? await readImageDimensions(image) : undefined;
+
     const item: LibraryItem = {
       id: Date.now(),
       kind: kind === "image" ? "Image" : kind === "pdf" ? "PDF" : kind === "video" ? "Video" : "File",
@@ -876,7 +1619,9 @@ function App() {
       source: captureSource,
       date: "Just now",
       tags: [],
-      image: kind === "image" ? URL.createObjectURL(file) : undefined,
+      image,
+      mediaWidth: mediaDimensions?.width,
+      mediaHeight: mediaDimensions?.height,
     };
     setItems((current) => [item, ...current]);
   }
@@ -905,6 +1650,7 @@ function App() {
       extractedText: article.text,
       html: article.html,
       imageUrls: article.imageUrls,
+      imageDimensions: article.imageDimensions,
       safeEmbeds: article.safeEmbeds,
       extractor: article.extractor,
       social: article.social,
@@ -926,6 +1672,7 @@ function App() {
 
     const social = article.social;
     const videoLink = social ? null : videoLinkFromSourceUrl(article.canonicalUrl);
+    const firstImageDimensions = article.imageDimensions.find((value) => value.url === article.imageUrls[0]);
     const item: LibraryItem = {
       id: Date.now(),
       kind: social ? "Post" : videoLink ? "Video" : "Article",
@@ -939,6 +1686,11 @@ function App() {
       date: "Just now",
       tags: [],
       image: article.imageUrls[0],
+      mediaWidth: firstImageDimensions?.width,
+      mediaHeight: firstImageDimensions?.height,
+      mediaAspectRatio: firstImageDimensions
+        ? firstImageDimensions.width / firstImageDimensions.height
+        : undefined,
       articleAuthor: article.author || undefined,
       publishedDate: article.publishedDate ?? undefined,
       articleHtml: article.html,
@@ -1128,29 +1880,17 @@ function App() {
     }
   }
 
-  async function retryJob(jobId: string) {
-    setCaptureError(null);
-    try {
-      const retried = await retryProcessingJob(jobId);
-      if (!retried) setCaptureError("That processing job is no longer available to retry.");
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    }
-  }
-
   function selectSpace(space: StoredSpace) {
     setActiveSpaceId(space.id);
     setActiveView(space.name);
     setQuery("");
     setSimilaritySource(null);
     setSelectedItem(null);
-    setIsSidebarOpen(false);
   }
 
   function clearToDefaultView() {
     setActiveSpaceId(null);
     setActiveView("Everything");
-    setIsSidebarOpen(false);
   }
 
   function beginSaveSearch() {
@@ -1222,17 +1962,11 @@ function App() {
         setSelectedItem(null);
         setIsAdding(false);
         setCaptureMode(null);
-        setIsSidebarOpen(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [readingItem]);
-
-  function openReader(item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) {
-    if (!item.articleHtml) return;
-    setReadingItem({ item, origin });
-  }
 
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
@@ -1411,7 +2145,6 @@ function App() {
     setCaptureError(null);
     setSelectedFile(null);
     setCaptureMode(mode);
-    setIsSidebarOpen(false);
     setIsAdding(true);
   }
 
@@ -1463,9 +2196,32 @@ function App() {
     }
   }
 
+  const libraryCardContext = useMemo<LibraryCardContext>(() => ({
+    onSelectItem: selectLibraryItem,
+    onOpenReader: openReader,
+    onRetryJob: retryJob,
+  }), [openReader, retryJob, selectLibraryItem]);
+
+  const gridColumnCount = masonryColumnCount(libraryViewportWidth);
+
   return (
-    <div className={`app-shell ${isDragActive ? "drag-active" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-      {isSidebarOpen && <button type="button" className="sidebar-scrim" aria-label="Close navigation" onClick={() => setIsSidebarOpen(false)} />}
+    <MotionConfig reducedMotion="user">
+      <div className={`app-shell ${isDragActive ? "drag-active" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+        <AnimatePresence>
+          {isSidebarOpen && (
+            <motion.button
+              key="sidebar-scrim"
+              type="button"
+              className="sidebar-scrim"
+              aria-label="Close navigation"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+              onClick={() => setIsSidebarOpen(false)}
+            />
+          )}
+        </AnimatePresence>
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup" data-tauri-drag-region>
           <div className="brand-mark" aria-hidden="true">
@@ -1490,7 +2246,6 @@ function App() {
             type="button"
             className="sidebar-close"
             aria-label="Close panel"
-            title="Close panel"
             onClick={() => setIsSidebarOpen(false)}
           >
             <PanelLeftClose size={16} />
@@ -1511,17 +2266,16 @@ function App() {
             onClick={() => {
               setActiveSpaceId(null);
               setActiveView("Top of mind");
-              setIsSidebarOpen(false);
             }}
           >
             <Sparkles size={17} />
             <span>Top of mind</span>
           </button>
-          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Serendipity"); setIsSidebarOpen(false); }}>
+          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Serendipity"); }}>
             <Clock3 size={17} />
             <span>Serendipity</span>
           </button>
-          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Archive"); setIsSidebarOpen(false); }}>
+          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Archive"); }}>
             <Archive size={17} />
             <span>Archive</span>
           </button>
@@ -1570,8 +2324,17 @@ function App() {
               </div>
             ))}
           </div>
-          {isCreatingSpace && (
-            <form className="space-form" onSubmit={handleCreateSpace}>
+          <AnimatePresence mode="wait">
+            {isCreatingSpace && (
+              <motion.form
+                key="space-form"
+                className="space-form"
+                initial={{ opacity: 0, transform: "translateY(-6px)" }}
+                animate={{ opacity: 1, transform: "translateY(0)" }}
+                exit={{ opacity: 0, transform: "translateY(-4px)" }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                onSubmit={handleCreateSpace}
+              >
               <input
                 autoFocus
                 value={newSpaceName}
@@ -1598,8 +2361,9 @@ function App() {
                 </button>
                 <button type="submit" className="capture-save">Create Space</button>
               </div>
-            </form>
-          )}
+              </motion.form>
+            )}
+          </AnimatePresence>
         </div>
 
         <div className="sidebar-footer">
@@ -1614,34 +2378,18 @@ function App() {
         </div>
       </aside>
 
-      <main className="main-content">
-        <header className="topbar" data-tauri-drag-region>
-          <button
-            type="button"
-            className="mobile-menu"
-            aria-label={isSidebarOpen ? "Close navigation" : "Open navigation"}
-            aria-expanded={isSidebarOpen}
-            aria-controls="library-navigation"
-            onClick={() => setIsSidebarOpen((current) => !current)}
-          >
-            <Menu size={19} />
-          </button>
-          <div className="topbar-left">
-            <button
-              type="button"
-              className="sidebar-toggle"
-              aria-label="Open panel"
-              title="Open panel"
-              onClick={() => setIsSidebarOpen(true)}
-            >
-              <PanelLeftOpen size={16} />
-            </button>
-            <div className="topbar-title">
-              <span>{activeView}</span>
-            </div>
-          </div>
-        </header>
+      <button
+        type="button"
+        className="sidebar-toggle"
+        aria-label={isSidebarOpen ? "Close navigation" : "Open navigation"}
+        aria-expanded={isSidebarOpen}
+        aria-controls="library-navigation"
+        onClick={() => setIsSidebarOpen((current) => !current)}
+      >
+        {isSidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+      </button>
 
+      <main className="main-content">
         <section className="library-header">
         </section>
 
@@ -1668,9 +2416,27 @@ function App() {
           </button>
         </section>
 
-        {isAdding && (
-          <div className="capture-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && closeCaptureModal()}>
-            <section className="capture-modal" role="dialog" aria-modal="true" aria-labelledby="capture-modal-title">
+        <AnimatePresence>
+          {isAdding && (
+            <motion.div
+              key="capture-modal"
+              className="capture-modal-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+              onMouseDown={(event) => event.target === event.currentTarget && closeCaptureModal()}
+            >
+              <motion.section
+                className="capture-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="capture-modal-title"
+                initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
+                animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
+                exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+              >
               <header className="capture-modal-header">
                 <div>
                   <h2 id="capture-modal-title">Add to your library</h2>
@@ -1702,8 +2468,17 @@ function App() {
                 </button>
               </div>
 
-              {captureMode && (
-                <form className="capture-editor" onSubmit={saveCapture}>
+              <AnimatePresence mode="wait">
+                {captureMode && (
+                  <motion.form
+                    key={captureMode}
+                    className="capture-editor"
+                    initial={{ opacity: 0, transform: "translateY(6px)" }}
+                    animate={{ opacity: 1, transform: "translateY(0)" }}
+                    exit={{ opacity: 0, transform: "translateY(-4px)" }}
+                    transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                    onSubmit={saveCapture}
+                  >
                   <div className="capture-editor-heading">
                     <strong>{captureMode === "note" ? "New note" : captureMode === "quote" ? "New quote" : captureMode === "url" ? "Save a link" : "Upload a file"}</strong>
                   </div>
@@ -1766,13 +2541,15 @@ function App() {
                     <button className="capture-cancel" type="button" onClick={() => setCaptureMode(null)}>Back</button>
                     <button className="capture-save" type="submit" disabled={isCapturing}>{isCapturing ? "Saving…" : "Save to library"}</button>
                   </div>
-                </form>
-              )}
+                  </motion.form>
+                )}
+              </AnimatePresence>
 
               {captureError && <p className="capture-error" role="alert">Couldn’t save this yet: {captureError}</p>}
-            </section>
-          </div>
-        )}
+              </motion.section>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {captureError && !isAdding && <p className="capture-error">Couldn’t save this yet: {captureError}</p>}
 
@@ -1792,121 +2569,32 @@ function App() {
           </div>
           <div className="toolbar-actions">
             <div className="view-controls" aria-label="View options">
-              <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => setListMode(false)} aria-label="Grid view" title="Grid view"><Grid2X2 size={16} /></button>
-              <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => setListMode(true)} aria-label="List view" title="List view"><List size={16} /></button>
+              <motion.span
+                className="view-selection"
+                aria-hidden="true"
+                initial={false}
+                animate={{ transform: viewSelectionListMode ? "translateX(30px)" : "translateX(0px)" }}
+                transition={{ duration: LIBRARY_VIEW_TRANSITION_MS / 1000, ease: [0.77, 0, 0.175, 1] }}
+              />
+              <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><Grid2X2 size={16} /></button>
+              <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><List size={16} /></button>
             </div>
           </div>
         </div>
 
-        <div className="library-scroll">
-        <div className={`library-grid ${listMode ? "list-mode" : ""}`}>
-          {filteredItems.map((item, index) => (
-            <article
-              className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""}`}
-              key={item.id}
-              style={{ "--card-index": index } as React.CSSProperties}
-              onClick={() => setSelectedItem(item)}
-              tabIndex={0}
-              onKeyDown={(event) => event.key === "Enter" && setSelectedItem(item)}
-            >
-              {item.social?.provider === "x" ? (
-                <div className="x-post-art">
-                  <XPostEmbed
-                    social={item.social}
-                    fallback={item.post ? <PostArtwork post={item.post} /> : <div className="post-art">Post preview unavailable.</div>}
-                  />
-                </div>
-              ) : item.image ? (
-                <div className="card-image-wrap">
-                  <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />
-                  {item.kind === "Video" && (
-                    <>
-                      <span className="card-video-scrim" aria-hidden="true" />
-                      <span className="card-play" aria-hidden="true"><Play size={16} /></span>
-                      <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
-                    </>
-                  )}
-                </div>
-              ) : item.kind === "Post" && item.post ? (
-                <PostArtwork post={item.post} />
-              ) : (
-                <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.kind === "Note" ? "note-art" : item.accent ?? ""}`} aria-hidden="true">
-                  {item.kind === "Video" && <span className="video-paper-play"><Play size={20} /></span>}
-                  {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
-                  {item.kind === "Note" && <><span className="note-pin" /><span className="note-label">QUICK THOUGHT</span><span className="note-scribble">remember<br />the shape<br />of a day</span><span className="note-rule note-rule-one" /><span className="note-rule note-rule-two" /><span className="note-star">✳</span></>}
-                  {item.kind === "PDF" && <><span className="pdf-label">FIELD<br />NOTES</span><span className="pdf-rule" /></>}
-                  {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
-                </div>
-              )}
-              <div className={`card-content ${item.kind === "Quote" ? "quote-content" : item.kind === "Note" ? "note-content" : ""}`}>
-                <div className="card-kicker"><span><KindIcon kind={item.kind} />{item.kind}</span><span>{item.date}</span></div>
-                <h2 className={item.kind === "Quote" ? "quote-title" : ""}>{item.kind === "Quote" ? (/^["“]/u.test(item.title.trim()) ? item.title : `“${item.title}”`) : item.title}</h2>
-                <p className={item.kind === "Quote" ? "quote-attribution" : ""}>{item.description ? (item.kind === "Quote" && !item.description.trim().startsWith("—") ? `— ${item.description}` : item.description) : (item.kind === "Quote" ? "" : item.description)}</p>
-                {item.processing?.active && (
-                  <div className="card-processing" role="status">
-                    <LoaderCircle size={13} />
-                    <span>{item.processing.message ?? "Processing"}</span>
-                    {item.processing.progressTotal != null && <span>{item.processing.progressCurrent}/{item.processing.progressTotal}</span>}
-                  </div>
-                )}
-                {item.processing?.failedJob && (
-                  <div className="card-processing failed" role="alert">
-                    <AlertCircle size={13} />
-                    <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
-                    <button
-                      type="button"
-                      className="retry-button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void retryJob(item.processing?.failedJob?.id ?? "");
-                      }}
-                    >
-                      <RotateCw size={12} /> Try again
-                    </button>
-                  </div>
-                )}
-                <div className="card-footer">
-                  <span className="card-source">{item.source}</span>
-                  {item.kind === "Article" && (
-                    <button
-                      type="button"
-                      className="card-read"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        const rect = event.currentTarget.getBoundingClientRect();
-                        openReader(item, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
-                      }}
-                      onKeyDown={(event) => {
-                        event.stopPropagation();
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          openReader(item);
-                        }
-                      }}
-                      disabled={!item.articleHtml}
-                      title={item.articleHtml ? "Open reader" : "No saved article text"}
-                    >
-                      Read <ArrowUpRight size={13} />
-                    </button>
-                  )}
-                  {item.kind === "Video" && item.video && (
-                    <button
-                      type="button"
-                      className="card-read"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setSelectedItem(item);
-                      }}
-                    >
-                      Watch <Play size={11} />
-                    </button>
-                  )}
-                  {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && <ArrowUpRight size={15} />}
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
+        <div className="library-scroll" ref={libraryScrollRef}>
+        {filteredItems.length > 0 && (
+          <VirtuosoMasonry
+            className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
+            columnCount={listMode ? 1 : gridColumnCount}
+            data={filteredItems}
+            context={libraryCardContext}
+            ItemContent={VirtualizedLibraryItem}
+            style={{ height: "100%", width: "100%" }}
+          />
+        )}
+
+        <div ref={libraryTransitionOverlayRef} className="library-transition-overlay" aria-hidden="true" />
 
         {filteredItems.length === 0 && (
           <div className="empty-state">
@@ -1920,9 +2608,18 @@ function App() {
         </div>
       </main>
 
-      {selectedItem && (
-        <aside className="item-inspector" aria-label="Selected item">
-          <div className="inspector-top"><span>Item details</span><button className="icon-button small" onClick={() => setSelectedItem(null)} aria-label="Close details"><X size={16} /></button></div>
+      <AnimatePresence>
+        {selectedItem && (
+          <motion.aside
+            key="inspector"
+            className="item-inspector"
+            aria-label="Selected item"
+            initial={{ opacity: 0, transform: "translateX(12px)" }}
+            animate={{ opacity: 1, transform: "translateX(0)" }}
+            exit={{ opacity: 0, transform: "translateX(12px)" }}
+            transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
+          >
+          <button type="button" className="inspector-close icon-button small" onClick={() => setSelectedItem(null)} aria-label="Close details"><X size={16} /></button>
           {selectedItem.social?.provider === "x" ? (
             <div className="x-post-inspector">
               <XPostEmbed
@@ -2005,34 +2702,49 @@ function App() {
               <ExternalLink size={15} /> Open original
             </button>
           </div>
-        </aside>
-      )}
-      {pdfViewerItem?.fileUrl && (
-        <PdfViewer
-          url={pdfViewerItem.fileUrl}
-          title={pdfViewerItem.title}
-          onClose={() => setPdfViewerItem(null)}
-        />
-      )}
-      {readingItem?.item.articleHtml && (
-        <ReaderView
-          item={
-            {
-              id: readingItem.item.id,
-              title: readingItem.item.title,
-              author: readingItem.item.articleAuthor,
-              publishedDate: readingItem.item.publishedDate,
-              savedDate: readingItem.item.date,
-              sourceLabel: readingItem.item.source,
-              sourceUrl: readingItem.item.sourceUrl ?? "",
-              html: readingItem.item.articleHtml,
-            } satisfies ReaderItem
-          }
-          origin={readingItem.origin}
-          onRequestClose={() => setReadingItem(null)}
-        />
-      )}
-    </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {pdfViewerItem?.fileUrl && (
+          <motion.div
+            key="pdf-viewer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+          >
+            <PdfViewer
+              url={pdfViewerItem.fileUrl}
+              title={pdfViewerItem.title}
+              onClose={() => setPdfViewerItem(null)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {readingItem?.item.articleHtml && (
+          <ReaderView
+            key={readingItem.item.id}
+            item={
+              {
+                id: readingItem.item.id,
+                title: readingItem.item.title,
+                author: readingItem.item.articleAuthor,
+                publishedDate: readingItem.item.publishedDate,
+                savedDate: readingItem.item.date,
+                sourceLabel: readingItem.item.source,
+                sourceUrl: readingItem.item.sourceUrl ?? "",
+                html: readingItem.item.articleHtml,
+              } satisfies ReaderItem
+            }
+            origin={readingItem.origin}
+            onRequestClose={() => setReadingItem(null)}
+          />
+        )}
+      </AnimatePresence>
+      </div>
+    </MotionConfig>
   );
 }
 

@@ -7,7 +7,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use image::{ImageFormat, ImageReader};
+use image::{GenericImageView, ImageFormat, ImageReader};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -530,9 +530,9 @@ impl LibraryStorage {
         let original_path = item_directory.join(&file_name);
         fs::write(&original_path, &input.bytes)?;
 
-        let thumbnail_path = if let Some(thumbnail_bytes) = thumbnail {
+        let thumbnail_path = if let Some(thumbnail_data) = thumbnail.as_ref() {
             let path = item_directory.join("thumbnail.webp");
-            fs::write(&path, thumbnail_bytes)?;
+            fs::write(&path, &thumbnail_data.bytes)?;
             Some(path)
         } else {
             None
@@ -543,7 +543,15 @@ impl LibraryStorage {
             .as_ref()
             .map(|path| relative_asset_path(path, &self.assets_root()))
             .transpose()?;
-        let metadata = file_metadata(&file_name, mime_type.as_deref(), input.bytes.len());
+        let image_dimensions = thumbnail
+            .as_ref()
+            .map(|thumbnail_data| (thumbnail_data.width, thumbnail_data.height));
+        let metadata = file_metadata(
+            &file_name,
+            mime_type.as_deref(),
+            input.bytes.len(),
+            image_dimensions,
+        );
         let metadata_json = serde_json::to_string(&metadata)?;
         let timestamp = now_millis()?;
         let title = Some(file_name.clone());
@@ -1663,6 +1671,7 @@ fn article_metadata(
         .entry("text")
         .or_insert_with(|| Value::String(body.to_owned()));
     ensure_array_metadata(&mut metadata, "imageUrls")?;
+    ensure_array_metadata(&mut metadata, "imageDimensions")?;
     ensure_array_metadata(&mut metadata, "safeEmbeds")?;
     metadata
         .entry("html")
@@ -1817,7 +1826,13 @@ fn is_video_extension(extension: &str) -> bool {
     )
 }
 
-fn make_image_thumbnail(bytes: &[u8]) -> Result<Vec<u8>, StorageError> {
+struct ImageThumbnail {
+    bytes: Vec<u8>,
+    width: u32,
+    height: u32,
+}
+
+fn make_image_thumbnail(bytes: &[u8]) -> Result<ImageThumbnail, StorageError> {
     let mut reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
     let mut limits = image::Limits::default();
     limits.max_image_width = Some(MAX_IMAGE_DIMENSION);
@@ -1825,13 +1840,23 @@ fn make_image_thumbnail(bytes: &[u8]) -> Result<Vec<u8>, StorageError> {
     limits.max_alloc = Some(MAX_IMAGE_ALLOC_BYTES);
     reader.limits(limits);
     let image = reader.decode()?;
+    let (width, height) = image.dimensions();
     let thumbnail = image.thumbnail(THUMBNAIL_EDGE, THUMBNAIL_EDGE);
     let mut output = Cursor::new(Vec::new());
     thumbnail.write_to(&mut output, ImageFormat::WebP)?;
-    Ok(output.into_inner())
+    Ok(ImageThumbnail {
+        bytes: output.into_inner(),
+        width,
+        height,
+    })
 }
 
-fn file_metadata(file_name: &str, mime_type: Option<&str>, byte_length: usize) -> Value {
+fn file_metadata(
+    file_name: &str,
+    mime_type: Option<&str>,
+    byte_length: usize,
+    image_dimensions: Option<(u32, u32)>,
+) -> Value {
     let mut metadata = Map::new();
     metadata.insert("fileName".into(), Value::String(file_name.to_owned()));
     metadata.insert(
@@ -1844,6 +1869,16 @@ fn file_metadata(file_name: &str, mime_type: Option<&str>, byte_length: usize) -
         "byteLength".into(),
         Value::Number(serde_json::Number::from(byte_length as u64)),
     );
+    if let Some((width, height)) = image_dimensions {
+        metadata.insert(
+            "mediaWidth".into(),
+            Value::Number(serde_json::Number::from(width)),
+        );
+        metadata.insert(
+            "mediaHeight".into(),
+            Value::Number(serde_json::Number::from(height)),
+        );
+    }
     Value::Object(metadata)
 }
 

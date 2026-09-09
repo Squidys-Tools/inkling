@@ -17,29 +17,6 @@
   z-index: 80;
   background: var(--reader-bg);
   color: var(--reader-ink);
-  animation: reader-reveal 0.72s cubic-bezier(0.25, 0.8, 0.25, 1) both;
-}
-
-.reader-overlay.closing {
-  animation: reader-collapse 0.55s cubic-bezier(0.6, 0, 0.8, 0.4) both;
-}
-
-@keyframes reader-reveal {
-  from {
-    clip-path: circle(0px at var(--reader-origin-x, 50%) var(--reader-origin-y, 50%));
-  }
-  to {
-    clip-path: circle(142vmax at var(--reader-origin-x, 50%) var(--reader-origin-y, 50%));
-  }
-}
-
-@keyframes reader-collapse {
-  from {
-    clip-path: circle(142vmax at var(--reader-origin-x, 50%) var(--reader-origin-y, 50%));
-  }
-  to {
-    clip-path: circle(0px at var(--reader-origin-x, 50%) var(--reader-origin-y, 50%));
-  }
 }
 
 .reader-overlay::before {
@@ -54,11 +31,6 @@
     transparent 70%
   );
   animation: reader-wash 1.2s ease-out both;
-}
-
-.reader-overlay.closing::before {
-  animation: none;
-  opacity: 0;
 }
 
 @keyframes reader-wash {
@@ -121,10 +93,6 @@
   border-color: var(--reader-faint);
 }
 
-.reader-overlay.closing .reader-close {
-  animation: none;
-}
-
 .reader-close-esc {
   padding: 3px 7px;
   border-radius: 5px;
@@ -143,10 +111,6 @@
   margin: 0 auto;
   padding: clamp(30px, 6vh, 56px) clamp(20px, 5vw, 44px) 120px;
   animation: reader-rise 0.85s cubic-bezier(0.2, 0.75, 0.25, 1) 0.3s both;
-}
-
-.reader-overlay.closing .reader-page {
-  animation: none;
 }
 
 @keyframes reader-fade {
@@ -171,7 +135,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .reader-overlay,
-  .reader-overlay.closing,
   .reader-overlay::before,
   .reader-close,
   .reader-page {

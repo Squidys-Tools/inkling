@@ -19,6 +19,12 @@ export interface SafeEmbedCandidate {
   title?: string;
 }
 
+export interface ImageDimensions {
+  url: string;
+  width: number;
+  height: number;
+}
+
 export interface XPostMetadata {
   provider: "x";
   postUrl: string;
@@ -43,6 +49,7 @@ export interface NormalizedArticle {
   html: string;
   text: string;
   imageUrls: string[];
+  imageDimensions: ImageDimensions[];
   safeEmbeds: SafeEmbedCandidate[];
   extractor: IngestionExtractor;
   social?: XPostMetadata;
@@ -56,6 +63,7 @@ export interface RawArticleExtraction {
   canonicalUrl?: string;
   contentHtml?: string;
   imageUrls?: string[];
+  imageDimensions?: ImageDimensions[];
 }
 
 export interface DefuddleAdapter {
