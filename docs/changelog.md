@@ -24,6 +24,15 @@ Guardrails:
 
 
 
+## Unreleased
+
+### Fixed
+
+- Pre-push frontend check installs dependencies with lifecycle scripts skipped, so pushing no longer triggers a nested `lefthook install` that clashed with the Entire hook wrapper and blocked `git push`
+- Hook setup is now idempotent (`scripts/setup-hooks.ts` via `prepare`): routine installs leave Entire-wrapped lefthook hooks untouched, and linked worktrees share the main checkout's hooks so they need no setup
+
+---
+
 ## Phase 5 -- Reading and Writing (Aug 25, 2026)
 
 ### Added
