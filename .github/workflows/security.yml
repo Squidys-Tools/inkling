@@ -4,7 +4,22 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      # Docs / design assets carry no executable code — skip security checks
+      # entirely when a push only touches these (mixed code+docs still runs).
+      # The weekly schedule always runs regardless of paths.
+      - "**/*.md"
+      - "docs/**"
+      - "AGENTS.md"
+      - "pen/**"
+      - ".entire/**"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "AGENTS.md"
+      - "pen/**"
+      - ".entire/**"
   schedule:
     - cron: "30 3 * * 1"
 
@@ -12,8 +27,62 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect changes
+    # Scheduled scans always run the full matrix, so this is only a
+    # cost-saving gate for push / pull_request events.
+    if: github.event_name != 'schedule'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      native: ${{ steps.filter.outputs.native }}
+      deps: ${{ steps.filter.outputs.deps }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            frontend:
+              - 'src/**'
+              - 'public/**'
+              - 'benchmarks/**'
+              - 'index.html'
+              - 'package.json'
+              - 'bun.lock'
+              - '.bun-version'
+              - 'vite.config.ts'
+              - 'tsconfig.json'
+              - 'tsconfig.node.json'
+              - '.github/workflows/security.yml'
+            native:
+              - 'src-tauri/**'
+              - '.github/workflows/security.yml'
+            deps:
+              - 'package.json'
+              - 'bun.lock'
+              - 'src-tauri/Cargo.toml'
+              - 'src-tauri/Cargo.lock'
+              - '.github/dependabot.yml'
+              - '.github/workflows/security.yml'
+
   codeql:
     name: CodeQL (${{ matrix.language }})
+    needs: changes
+    # Scheduled scans always run both languages. On push/PR only run the
+    # language whose paths changed. needs.* is 'skipped' on schedule, so
+    # check the event first (skipped outputs read as empty, not 'true').
+    if: >-
+      github.event_name == 'schedule' ||
+      needs.changes.result == 'skipped' ||
+      (matrix.language == 'javascript-typescript' && needs.changes.outputs.frontend == 'true') ||
+      (matrix.language == 'rust' && needs.changes.outputs.native == 'true')
     runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       actions: read
@@ -46,7 +115,8 @@ jobs:
 
   dependency-review:
     name: Dependency review
-    if: github.event_name == 'pull_request'
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.deps == 'true'
     runs-on: blacksmith-2vcpu-ubuntu-2404
 
     steps:
