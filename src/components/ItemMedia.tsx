@@ -90,6 +90,30 @@ export function PdfArtwork({ item }: { item: LibraryItem }) {
   );
 }
 
+export function noteWordCount(description: string | undefined): number {
+  const text = description?.replace(/\s+/gu, " ").trim() ?? "";
+  if (!text) return 0;
+  return text.split(" ").length;
+}
+
+// Notes reuse the PDF thumbnail artwork verbatim — same shader texture and
+// label/mark/title/legend geometry — with only the copy swapped to the
+// note's own indexed content: the pipeline title and the description's word
+// count in place of the PDF page count.
+export function NoteArtwork({ item }: { item: LibraryItem }) {
+  const words = noteWordCount(item.description);
+  return (
+    <div className="pdf-artwork">
+      <img src={pdfPointillismOptionB} alt="" className="pdf-shader" />
+      <span className="pdf-label">NOTE</span>
+      <span className="pdf-mark" aria-hidden="true" />
+      <span className="pdf-title">{item.title?.trim() || "Untitled note"}</span>
+      <div className="pdf-legend" aria-hidden="true"><span /><span /><span /></div>
+      <span className="pdf-page-count">{words > 0 ? `${words} WORDS` : "NOTE"}</span>
+    </div>
+  );
+}
+
 export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }) {
   return (
     <div className="post-art" aria-hidden="true">

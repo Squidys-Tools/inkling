@@ -4,7 +4,22 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      # Docs / design assets carry no executable code — skip security checks
+      # entirely when a push only touches these (mixed code+docs still runs).
+      # Automation config (.entire/) is deliberately NOT ignored: runner
+      # prompts execute in automation, so those changes must be scanned.
+      # The weekly schedule always runs regardless of paths.
+      - "**/*.md"
+      - "docs/**"
+      - "AGENTS.md"
+      - "pen/**"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "AGENTS.md"
+      - "pen/**"
   schedule:
     - cron: "30 3 * * 1"
 
@@ -12,8 +27,94 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect changes
+    # Push-to-main gate only. PRs and scheduled scans always run the full
+    # matrix, so no filter outputs are needed for those events.
+    if: github.event_name == 'push'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      native: ${{ steps.filter.outputs.native }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          # Full history so the path filter diffs the real change set.
+          # A shallow checkout can yield an empty diff and silently skip jobs.
+          fetch-depth: 0
+
+      - name: Filter changed paths
+        id: filter
+        # Pinned to the v3 tag commit: this job gates security checks, so a
+        # hijacked floating tag must not be able to falsify filter outputs.
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
+        with:
+          filters: |
+            frontend:
+              - 'src/**'
+              - 'public/**'
+              - 'benchmarks/**'
+              - 'index.html'
+              - 'package.json'
+              - 'bun.lock'
+              - '.bun-version'
+              - 'vite.config.ts'
+              - 'tsconfig.json'
+              - 'tsconfig.node.json'
+              - '.github/workflows/security.yml'
+            native:
+              - 'src-tauri/**'
+              - '.github/workflows/security.yml'
+
+  gate:
+    name: PR scan gate
+    # Decides whether this PR event gets a full CodeQL matrix run: always on
+    # open/reopen, otherwise roughly every 4th push (by total commit count).
+    if: github.event_name == 'pull_request'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      scan: ${{ steps.decide.outputs.scan }}
+    steps:
+      - name: Decide whether to run the full matrix
+        id: decide
+        # Pinned to the v7 tag commit, like the path filter above.
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            if (context.payload.action === 'opened' || context.payload.action === 'reopened') {
+              core.setOutput('scan', 'true');
+              core.info('PR opened/reopened: running full scan.');
+              return;
+            }
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100,
+            });
+            const scan = commits.length % 4 === 1 ? 'true' : 'false';
+            core.setOutput('scan', scan);
+            core.info(`PR has ${commits.length} commits; full scan=${scan}.`);
+
   codeql:
     name: CodeQL (${{ matrix.language }})
+    needs: [changes, gate]
+    # Schedule always runs the full matrix. PRs scan on open/reopen and
+    # roughly every 4th push (see the gate). Push-to-main is path-gated:
+    # the PR already passed full scans. Skipped needs read as empty, not 'true'.
+    if: >-
+      github.event_name == 'schedule' ||
+      needs.gate.outputs.scan == 'true' ||
+      (github.event_name == 'push' &&
+        ((matrix.language == 'javascript-typescript' && needs.changes.outputs.frontend == 'true') ||
+         (matrix.language == 'rust' && needs.changes.outputs.native == 'true')))
     runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       actions: read
@@ -46,6 +147,8 @@ jobs:
 
   dependency-review:
     name: Dependency review
+    # Runs on every PR with no path gate: dependency changes are exactly what
+    # this job exists to catch, and a filter failure must never skip it.
     if: github.event_name == 'pull_request'
     runs-on: blacksmith-2vcpu-ubuntu-2404
 

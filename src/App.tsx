@@ -66,7 +66,7 @@ import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./li
 import PdfViewer from "./components/PdfViewer";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
-import { KindIcon, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
+import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import "./App.css";
@@ -760,9 +760,9 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
           ) : item.kind === "Post" && item.post ? (
             <PostArtwork post={item.post} />
           ) : (
-            <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.kind === "Note" ? "note-art" : item.accent ?? ""}`} aria-hidden="true">
+            <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.accent ?? ""}`} aria-hidden="true">
               {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
-              {item.kind === "Note" && <><span className="note-pin" /><span className="note-label">QUICK THOUGHT</span><span className="note-scribble">{cardPreviewText(item.description, item.title || "Saved note")}</span><span className="note-rule note-rule-one" /><span className="note-rule note-rule-two" /><span className="note-star">✳</span></>}
+              {item.kind === "Note" && <NoteArtwork item={item} />}
               {item.kind === "PDF" && <PdfArtwork item={item} />}
               {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-preview">{cardPreviewText(item.title, "Saved quote")}</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
             </div>
