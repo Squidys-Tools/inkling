@@ -7,19 +7,19 @@ on:
     paths-ignore:
       # Docs / design assets carry no executable code — skip security checks
       # entirely when a push only touches these (mixed code+docs still runs).
+      # Automation config (.entire/) is deliberately NOT ignored: runner
+      # prompts execute in automation, so those changes must be scanned.
       # The weekly schedule always runs regardless of paths.
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
       - "pen/**"
-      - ".entire/**"
   pull_request:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
       - "pen/**"
-      - ".entire/**"
   schedule:
     - cron: "30 3 * * 1"
 
@@ -29,9 +29,9 @@ permissions:
 jobs:
   changes:
     name: Detect changes
-    # Scheduled scans always run the full matrix, so this is only a
-    # cost-saving gate for push / pull_request events.
-    if: github.event_name != 'schedule'
+    # Push-to-main gate only. PRs and scheduled scans always run the full
+    # matrix, so no filter outputs are needed for those events.
+    if: github.event_name == 'push'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -39,14 +39,19 @@ jobs:
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       native: ${{ steps.filter.outputs.native }}
-      deps: ${{ steps.filter.outputs.deps }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          # Full history so the path filter diffs the real change set.
+          # A shallow checkout can yield an empty diff and silently skip jobs.
+          fetch-depth: 0
 
       - name: Filter changed paths
         id: filter
-        uses: dorny/paths-filter@v3
+        # Pinned to the v3 tag commit: this job gates security checks, so a
+        # hijacked floating tag must not be able to falsify filter outputs.
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         with:
           filters: |
             frontend:
@@ -64,22 +69,16 @@ jobs:
             native:
               - 'src-tauri/**'
               - '.github/workflows/security.yml'
-            deps:
-              - 'package.json'
-              - 'bun.lock'
-              - 'src-tauri/Cargo.toml'
-              - 'src-tauri/Cargo.lock'
-              - '.github/dependabot.yml'
-              - '.github/workflows/security.yml'
 
   codeql:
     name: CodeQL (${{ matrix.language }})
     needs: changes
-    # Scheduled scans always run both languages. On push/PR only run the
-    # language whose paths changed. needs.* is 'skipped' on schedule, so
+    # Pull requests are the untrusted boundary (forks), so they always run
+    # the full matrix. Path gating applies to push-to-main only, where the
+    # PR already passed full scans. needs.* is 'skipped' on schedule, so
     # check the event first (skipped outputs read as empty, not 'true').
     if: >-
-      github.event_name == 'schedule' ||
+      github.event_name != 'push' ||
       needs.changes.result == 'skipped' ||
       (matrix.language == 'javascript-typescript' && needs.changes.outputs.frontend == 'true') ||
       (matrix.language == 'rust' && needs.changes.outputs.native == 'true')
@@ -115,8 +114,9 @@ jobs:
 
   dependency-review:
     name: Dependency review
-    needs: changes
-    if: github.event_name == 'pull_request' && needs.changes.outputs.deps == 'true'
+    # Runs on every PR with no path gate: dependency changes are exactly what
+    # this job exists to catch, and a filter failure must never skip it.
+    if: github.event_name == 'pull_request'
     runs-on: blacksmith-2vcpu-ubuntu-2404
 
     steps:
