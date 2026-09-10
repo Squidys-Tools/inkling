@@ -70,18 +70,51 @@ jobs:
               - 'src-tauri/**'
               - '.github/workflows/security.yml'
 
+  gate:
+    name: PR scan gate
+    # Decides whether this PR event gets a full CodeQL matrix run: always on
+    # open/reopen, otherwise roughly every 4th push (by total commit count).
+    if: github.event_name == 'pull_request'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      scan: ${{ steps.decide.outputs.scan }}
+    steps:
+      - name: Decide whether to run the full matrix
+        id: decide
+        # Pinned to the v7 tag commit, like the path filter above.
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            if (context.payload.action === 'opened' || context.payload.action === 'reopened') {
+              core.setOutput('scan', 'true');
+              core.info('PR opened/reopened: running full scan.');
+              return;
+            }
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100,
+            });
+            const scan = commits.length % 4 === 1 ? 'true' : 'false';
+            core.setOutput('scan', scan);
+            core.info(`PR has ${commits.length} commits; full scan=${scan}.`);
+
   codeql:
     name: CodeQL (${{ matrix.language }})
-    needs: changes
-    # Pull requests are the untrusted boundary (forks), so they always run
-    # the full matrix. Path gating applies to push-to-main only, where the
-    # PR already passed full scans. needs.* is 'skipped' on schedule, so
-    # check the event first (skipped outputs read as empty, not 'true').
+    needs: [changes, gate]
+    # Schedule always runs the full matrix. PRs scan on open/reopen and
+    # roughly every 4th push (see the gate). Push-to-main is path-gated:
+    # the PR already passed full scans. Skipped needs read as empty, not 'true'.
     if: >-
-      github.event_name != 'push' ||
-      needs.changes.result == 'skipped' ||
-      (matrix.language == 'javascript-typescript' && needs.changes.outputs.frontend == 'true') ||
-      (matrix.language == 'rust' && needs.changes.outputs.native == 'true')
+      github.event_name == 'schedule' ||
+      needs.gate.outputs.scan == 'true' ||
+      (github.event_name == 'push' &&
+        ((matrix.language == 'javascript-typescript' && needs.changes.outputs.frontend == 'true') ||
+         (matrix.language == 'rust' && needs.changes.outputs.native == 'true')))
     runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       actions: read
