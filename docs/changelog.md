@@ -24,6 +24,14 @@ Guardrails:
 
 
 
+## Unreleased
+
+### Changed
+
+- Note cards reuse the PDF thumbnail artwork (pointillism texture, label/mark/title/legend geometry), showing the note title and description word count where PDFs show the document title and page count (`src/components/ItemMedia.tsx`, `src/App.tsx`)
+
+---
+
 ## Phase 5 -- Reading and Writing (Aug 25, 2026)
 
 ### Added
