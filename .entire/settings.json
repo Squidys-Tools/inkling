@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "telemetry": false,
+  "telemetry": true,
   "checkpoints": {
     "primary": {
       "type": "git-refs"
