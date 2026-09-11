@@ -26,6 +26,11 @@ Early development. The core capture, storage, and keyword search work well enoug
 
 You need [Bun](https://bun.sh) 1.4.0 and the Rust toolchain installed. The required Bun version is recorded in `.bun-version`; Bun is the project's package manager, so use `bun.lock` and Bun commands when installing dependencies or running scripts.
 
+On Windows, pick one Rust toolchain (per machine — the repo builds with both):
+
+- MSVC (recommended when you have admin rights): install the [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the C++ workload, then `rustup default stable-x86_64-pc-windows-msvc`.
+- GNU (no admin rights needed): `scoop install gcc`, then `rustup toolchain install stable-x86_64-pc-windows-gnu` and, inside the repo checkout, `rustup override set stable-x86_64-pc-windows-gnu` so `bun run tauri dev` uses it. The `export ordinal too large` linker failure this toolchain used to hit is already worked around in the repo (`src-tauri/.cargo/config.toml`).
+
 ```powershell
 bun install
 bun run preview

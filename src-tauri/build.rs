@@ -1,17 +1,15 @@
 use std::{env, path::PathBuf};
 
 fn main() {
-    // Workarounds for building/running with the windows-gnu toolchain (MSVC is
-    // unaffected; see docs/tech-stack.md).
+    // Workarounds for building/running with the windows-gnu toolchain (MSVC
+    // needs none of this; see README "Running it from source").
+    // NOTE: the GNU ld export-ordinal workaround (tauri-apps/tauri#10843)
+    // lives in `.cargo/config.toml` as target-gated rustflags on purpose:
+    // build-script `rustc-link-arg`s only apply to this crate, while the
+    // failure hits dependency cdylibs such as tauri-plugin-mcp-bridge.
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
         && env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("gnu")
     {
-        // tauri-apps/tauri#10843: GNU ld exports every symbol from every linked
-        // rlib into the cdylib, overflowing the PE/COFF 65535 export ordinal
-        // limit ("export ordinal too large"). The desktop exe links the rlib
-        // directly, so the dll's export table can be empty.
-        println!("cargo::rustc-link-arg=-Wl,--exclude-libs=ALL,--exclude-all-symbols");
-
         // webview2-com-sys links WebView2Loader.dll dynamically on windows-gnu,
         // so it must sit next to every binary the loader might launch.
         let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
@@ -40,7 +38,11 @@ fn main() {
         // manifest only into the main binary (`rustc-link-arg-bins`), so test
         // binaries bind to comctl32 5.82 and die at load with
         // STATUS_ENTRYPOINT_NOT_FOUND (TaskDialogIndirect). Compile a manifest
-        // resource ourselves and link it into every artifact.
+        // resource ourselves and link it globally: cargo rejects the narrower
+        // `rustc-link-arg-tests` here ("package does not have a test target").
+        // The main binary ends up with two equivalent v6 manifests, which GNU
+        // ld reports as `.rsrc merge failure` but keeps working themed
+        // controls; MSVC links both without a peep.
         let rc = manifest_dir.join("common-controls.rc");
         let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
         let object = out_dir.join("common-controls.o");

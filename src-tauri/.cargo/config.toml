@@ -1,0 +1,14 @@
+# Windows GNU toolchain workaround (MSVC is unaffected and remains the
+# supported toolchain; see README "Running it from source").
+#
+# tauri-apps/tauri#10843: GNU ld re-exports every symbol from every linked
+# rlib into each cdylib, overflowing the PE/COFF 65535 export ordinal limit
+# ("export ordinal too large"). The desktop exe links the rlib directly, so
+# the dlls' export tables can stay empty.
+#
+# This must live here — not as `cargo::rustc-link-arg` in build.rs — because
+# build-script link args only apply to the top crate, while the failure hits
+# dependency cdylibs such as tauri-plugin-mcp-bridge. Target-gated rustflags
+# apply to every crate in the graph.
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "link-args=-Wl,--exclude-libs=ALL,--exclude-all-symbols"]
