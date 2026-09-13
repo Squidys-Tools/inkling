@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import { closedPath, type Point } from "./bot/shape";
 
 export interface WaveOpts {
@@ -10,8 +10,8 @@ export interface WaveOpts {
   speed2: number;
 }
 
-export const CALM_WAVE: WaveOpts = { amp1: 1.6, wave1: 320, amp2: 0.7, wave2: 130, speed1: 0.7, speed2: 1.1 };
-export const LIVE_WAVE: WaveOpts = { amp1: 2.8, wave1: 300, amp2: 1.0, wave2: 120, speed1: 1.8, speed2: 2.6 };
+export const CALM_WAVE: WaveOpts = { amp1: 1.2, wave1: 320, amp2: 0.5, wave2: 130, speed1: 0.7, speed2: 1.1 };
+export const LIVE_WAVE: WaveOpts = { amp1: 2.0, wave1: 300, amp2: 0.8, wave2: 120, speed1: 1.8, speed2: 2.6 };
 
 const TAU = Math.PI * 2;
 const SAMPLES = 160;
@@ -72,72 +72,86 @@ function walkRoundedRect(w: number, h: number, r: number): Walked[] {
   return out;
 }
 
-/** Wavy outline path in pixel space. Pure — two summed sines along the perimeter. */
-export function wavyOutlinePath(w: number, h: number, r: number, t: number, o: WaveOpts): string {
+/**
+ * Wavy outline path in pixel space. Pure — two summed sines along the
+ * perimeter. `gain` eases the whole wave 0 (straight) to 1 (full).
+ */
+export function wavyOutlinePath(w: number, h: number, r: number, t: number, o: WaveOpts, gain = 1): string {
   const moved: Point[] = walkRoundedRect(w, h, r).map(({ x, y, nx, ny, s }) => {
     const off =
-      o.amp1 * Math.sin(TAU * (s / o.wave1) + t * o.speed1) +
-      o.amp2 * Math.sin(TAU * (s / o.wave2) - t * o.speed2);
+      gain *
+      (o.amp1 * Math.sin(TAU * (s / o.wave1) + t * o.speed1) +
+        o.amp2 * Math.sin(TAU * (s / o.wave2) - t * o.speed2));
     return { x: x + nx * off, y: y + ny * off };
   });
   return closedPath(moved);
 }
 
 /**
- * Live wavy outline for the search field, drawn on all four edges. Updates one
- * path attribute per frame via ref (no React re-renders); loop lives only
- * while mounted (i.e. while search is focused). Reduced motion draws one
- * frozen wave.
+ * Morphs the search field's own shape: clips the field element into the live
+ * wave via clip-path, so its background and border follow — no extra layer.
+ * Always mounted; amplitude eases toward 0 when blurred (never snaps) and the
+ * clip is removed at rest. Reduced motion clips nothing, ever.
  */
-export function SearchOutline({ lively }: { lively: boolean }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const pathRef = useRef<SVGPathElement>(null);
+export function SearchOutline({
+  target,
+  active,
+  lively,
+}: {
+  target: RefObject<HTMLDivElement | null>;
+  active: boolean;
+  lively: boolean;
+}) {
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const livelyRef = useRef(lively);
   livelyRef.current = lively;
 
   useEffect(() => {
-    const svg = svgRef.current;
-    const path = pathRef.current;
-    if (!svg || !path) return;
-    const reduced =
+    const el = target.current;
+    if (!el) return;
+    if (
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
 
     let w = 0;
     let h = 0;
-    const draw = (t: number, o: WaveOpts) => {
-      if (w < 10 || h < 10) return;
-      path.setAttribute("d", wavyOutlinePath(w, h, 20, t, o));
-    };
     const measure = () => {
-      const rect = svg.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
       w = rect.width;
       h = rect.height;
-      svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-      if (reduced) draw(0, CALM_WAVE);
     };
     measure();
     const ro = new ResizeObserver(measure);
-    ro.observe(svg);
-    if (reduced) return () => ro.disconnect();
+    ro.observe(el);
 
     let raf = 0;
-    const t0 = performance.now();
+    let amp = 0;
+    let last = performance.now();
+    const t0 = last;
     const frame = (ms: number) => {
       raf = requestAnimationFrame(frame);
-      draw((ms - t0) / 1000, livelyRef.current ? LIVE_WAVE : CALM_WAVE);
+      const dt = Math.min((ms - last) / 1000, 0.1);
+      last = ms;
+      amp += ((activeRef.current ? 1 : 0) - amp) * Math.min(1, dt * 6);
+      if (amp < 0.002) {
+        if (el.style.clipPath) el.style.clipPath = "";
+        return;
+      }
+      if (w < 10 || h < 10) return;
+      el.style.clipPath = `path("${wavyOutlinePath(w, h, 20, (ms - t0) / 1000, livelyRef.current ? LIVE_WAVE : CALM_WAVE, amp)}")`;
     };
     raf = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      el.style.clipPath = "";
     };
-  }, []);
+  }, [target]);
 
-  return (
-    <svg ref={svgRef} className="field-outline" aria-hidden="true" focusable="false">
-      <path ref={pathRef} d="" />
-    </svg>
-  );
+  return null;
 }

@@ -969,6 +969,7 @@ function App() {
   const [isFindingSimilar, setIsFindingSimilar] = useState(false);
   const [similaritySource, setSimilaritySource] = useState<{ id: string; title: string } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const searchFieldRef = useRef<HTMLDivElement | null>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const settingsCloseRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2562,6 +2563,7 @@ function App() {
             </button>
           )}
           <div
+            ref={searchFieldRef}
             className={`search-field${isSearchFocused ? " is-mascot" : ""}${query ? " is-typing" : ""}${isMascotBusy ? " is-busy" : ""}`}
             onMouseDown={(event) => {
               if (event.target !== searchRef.current) {
@@ -2570,7 +2572,7 @@ function App() {
               }
             }}
           >
-            {isSearchFocused && <SearchOutline lively={!!query || isMascotBusy} />}
+            <SearchOutline target={searchFieldRef} active={isSearchFocused} lively={!!query || isMascotBusy} />
             <span className="field-mascot" aria-hidden="true">
               {isSearchFocused ? (
                 <LiveMascotEyes size={40} className={query ? "is-typing" : undefined} />
