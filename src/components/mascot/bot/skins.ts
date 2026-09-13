@@ -33,12 +33,11 @@ export type ShapeId =
   | 'hexagone'
   | 'nuage'
   | 'goutte'
-  // INKLING EXTENSION: organic ink-blot shapes for the inkling mascot, drawn
-  // from the "Inkling mascots" frame in Paper. They are analytical like the
-  // shapes above (not measured profiles): exact Paper-path extraction via
-  // profileFromPolygon is a follow-up. See src/components/mascot/bot/README.md.
-  | 'inkling-blot'
-  | 'inkling-wobble'
+  // INKLING EXTENSION: organic ink-blot shape for the inkling mascot, drawn
+  // from the "Inkling mascots" frame in Paper (node 3WH-0 "Organic body shape").
+  // Analytical like the shapes above (not a measured profile): exact Paper-path
+  // extraction via profileFromPolygon is a follow-up. See
+  // src/components/mascot/bot/README.md.
   | 'inkling-splash'
 
 export interface BotShape {
@@ -84,32 +83,13 @@ const droplet = normalize(
 const capsule = profileFromPolygon(hullOfCircles(-0.42, 0, 0.62, 0.42, 0, 0.62), 0, 0)
 
 /*
- * INKLING EXTENSION — approximations of the three Paper "Inkling mascots"
- * blot variants (Paper nodes 3VG-0 "Black ink blot mascot", 3WG-0 and 3WH-0
- * "Organic body shape"). Same conventions as above: 64 radial samples,
- * peak-normalized so every shape weighs the same next to the circle.
- * Adding them here (rather than a side list) registers them in the eyefit
- * table built at import, so the eyes get the same edge-margin correction as
- * the built-in shapes on baseBody states.
+ * INKLING EXTENSION — approximation of the Paper "Inkling mascots" splatter
+ * variant (node 3WH-0 "Organic body shape"). Same conventions as above:
+ * 64 radial samples, peak-normalized so the shape weighs the same next to
+ * the circle. Kept in this list (rather than a side list) so it registers
+ * in the eyefit table built at import, giving the eyes the same edge-margin
+ * correction as the built-in shapes on baseBody states.
  */
-/** Roundish blot with a soft lean, after 3VG-0. */
-const inklingBlot = normalize(
-  ANGLES.map((a) => 1 + 0.06 * Math.cos(2 * a + 1.2) + 0.04 * Math.cos(3 * a + 0.4)),
-  1.02
-)
-
-/** Asymmetric wobble with uneven lobes, after 3WG-0. */
-const inklingWobble = normalize(
-  unionOfCirclesProfile([
-    { x: -0.4, y: 0.24, r: 0.56 },
-    { x: 0.44, y: 0.18, r: 0.52 },
-    { x: 0.04, y: -0.28, r: 0.5 },
-    { x: -0.3, y: -0.3, r: 0.42 },
-    { x: 0.34, y: -0.3, r: 0.4 }
-  ]),
-  1.04
-)
-
 /** Five-lobed splatter wobble, after 3WH-0. True drip spikes are not
  * star-shaped and will need profileFromPolygon extraction — follow-up. */
 const inklingSplash = normalize(
@@ -130,9 +110,7 @@ export const SHAPES: BotShape[] = [
   { id: 'hexagone', radii: regularPolygonProfile(6, 1.04, 0.26, 0) },
   { id: 'nuage', radii: cloud },
   { id: 'goutte', radii: droplet },
-  // INKLING EXTENSION — see builders above.
-  { id: 'inkling-blot', radii: inklingBlot },
-  { id: 'inkling-wobble', radii: inklingWobble },
+  // INKLING EXTENSION — see builder above.
   { id: 'inkling-splash', radii: inklingSplash }
 ]
 

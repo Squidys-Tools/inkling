@@ -5,10 +5,10 @@ import { SHAPE_BY_ID, COLOR_BY_ID } from "./bot/skins";
 import { PROFILE_SAMPLES } from "./bot/profiles";
 import { RAYON } from "./bot/repere";
 
-const INKLING_SHAPES = ["inkling-blot", "inkling-wobble", "inkling-splash"];
+const INKLING_SHAPES = ["inkling-splash"];
 
 describe("inkling skins", () => {
-  test("all three Paper blot shapes are registered with 64 finite samples", () => {
+  test("the Paper blot shape is registered with 64 finite samples", () => {
     for (const id of INKLING_SHAPES) {
       const shape = SHAPE_BY_ID.get(id);
       expect(shape).toBeDefined();

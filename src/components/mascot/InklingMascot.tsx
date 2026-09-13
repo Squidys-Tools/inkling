@@ -36,7 +36,7 @@ function dotFill(
  */
 export function InklingMascot({
   size = 80,
-  shape = "inkling-blot",
+  shape = "inkling-splash",
   color = "inkling",
   expression = DEFAULT_EXPRESSION,
   paper = "#faf9f6",

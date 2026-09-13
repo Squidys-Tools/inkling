@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { InklingMascot, isKnownMascotState, type StateId } from "./InklingMascot";
 
-const SHAPES = ["inkling-blot", "inkling-wobble", "inkling-splash", "cercle"];
+const SHAPES = ["inkling-splash", "cercle"];
 const STATES: StateId[] = ["idle", "wink", "wide", "notify", "thinking", "sleep"];
 
 /** Dev-only board. Open with ?mascot in the URL. Not linked from the app UI. */
 export function MascotBoard() {
-  const [shape, setShape] = useState("inkling-blot");
+  const [shape, setShape] = useState("inkling-splash");
   const [state, setState] = useState<StateId>("idle");
   const [frozen, setFrozen] = useState(false);
 

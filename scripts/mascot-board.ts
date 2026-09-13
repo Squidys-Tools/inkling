@@ -41,7 +41,7 @@ export function frameToSvgString(frame: BotFrame, ink: string, paper: string): s
   );
 }
 
-const SHAPES = ["inkling-blot", "inkling-wobble", "inkling-splash"];
+const SHAPES = ["inkling-splash"];
 const STATES: Array<{ state: StateId; at: number }> = [
   { state: "idle", at: 1.0 },
   { state: "wink", at: 0.8 },
