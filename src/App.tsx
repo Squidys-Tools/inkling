@@ -66,6 +66,7 @@ import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./li
 import PdfViewer from "./components/PdfViewer";
 import { LiveMascotFigure, LiveMascotEyes, pushMascotParams } from "./components/mascot/mascotStore";
 import { MascotBoard } from "./components/mascot/MascotBoard";
+import { SearchOutline } from "./components/mascot/SearchOutline";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
 import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
@@ -2569,6 +2570,7 @@ function App() {
               }
             }}
           >
+            {isSearchFocused && <SearchOutline lively={!!query || isMascotBusy} />}
             <span className="field-mascot" aria-hidden="true">
               {isSearchFocused ? (
                 <LiveMascotEyes size={40} className={query ? "is-typing" : undefined} />
