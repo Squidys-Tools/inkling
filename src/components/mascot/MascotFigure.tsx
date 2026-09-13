@@ -11,7 +11,6 @@ export interface MascotFigureProps {
   paper?: string;
   className?: string;
 }
-
 /**
  * Pure SVG renderer for a sampled bot frame. Same recipe as bloub's
  * BloubBot.vue: eyes are holes cut in a <mask> (never white shapes on top),
@@ -159,6 +158,38 @@ export function MascotFigure({ frame, size, ink = "#1a1a1a", paper = "#faf9f6", 
           />
         ))}
       </g>
+    </svg>
+  );
+}
+
+/**
+ * Eyes only: the frame's eye capsules drawn as solid shapes in the same
+ * viewBox, no body. For slots where just the gaze should float (search field).
+ */
+export function MascotEyes({
+  frame,
+  size,
+  ink = "#e5ddd2",
+  className,
+}: {
+  frame: BotFrame;
+  size: number;
+  ink?: string;
+  className?: string;
+}) {
+  const VB = DEMI_VIEWBOX;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`${-VB} ${-VB} ${VB * 2} ${VB * 2}`}
+      role="img"
+      aria-label="inkling mascot eyes"
+      className={className}
+    >
+      {frame.eyes.map((eye, i) => (
+        <path key={i} d={eye.d} transform={eye.matrix} opacity={eye.alpha} fill={ink} />
+      ))}
     </svg>
   );
 }

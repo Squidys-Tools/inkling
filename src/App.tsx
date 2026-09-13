@@ -64,7 +64,7 @@ import {
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 import PdfViewer from "./components/PdfViewer";
-import { LiveMascotFigure, pushMascotParams } from "./components/mascot/mascotStore";
+import { LiveMascotFigure, LiveMascotEyes, pushMascotParams } from "./components/mascot/mascotStore";
 import { MascotBoard } from "./components/mascot/MascotBoard";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
@@ -2563,16 +2563,16 @@ function App() {
           <svg aria-hidden="true" focusable="false" style={{ position: "absolute", width: 0, height: 0 }}>
             <defs>
               <filter id="waver-calm" x="-20%" y="-20%" width="140%" height="140%">
-                <feTurbulence type="fractalNoise" baseFrequency="0.012 0.1" numOctaves="2" seed="8" result="n">
-                  <animate attributeName="baseFrequency" values="0.012 0.1;0.018 0.07;0.012 0.1" dur="8s" repeatCount="indefinite" />
+                <feTurbulence type="fractalNoise" baseFrequency="0.010 0.075" numOctaves="2" seed="8" result="n">
+                  <animate attributeName="baseFrequency" values="0.010 0.075;0.015 0.05;0.010 0.075" dur="8s" repeatCount="indefinite" />
                 </feTurbulence>
-                <feDisplacementMap in="SourceGraphic" in2="n" scale="5" xChannelSelector="R" yChannelSelector="G" />
+                <feDisplacementMap in="SourceGraphic" in2="n" scale="8" xChannelSelector="R" yChannelSelector="G" />
               </filter>
               <filter id="waver-live" x="-20%" y="-20%" width="140%" height="140%">
-                <feTurbulence type="fractalNoise" baseFrequency="0.02 0.14" numOctaves="2" seed="8" result="n">
-                  <animate attributeName="baseFrequency" values="0.02 0.14;0.028 0.09;0.02 0.14" dur="3.5s" repeatCount="indefinite" />
+                <feTurbulence type="fractalNoise" baseFrequency="0.014 0.10" numOctaves="2" seed="8" result="n">
+                  <animate attributeName="baseFrequency" values="0.014 0.10;0.022 0.065;0.014 0.10" dur="3.5s" repeatCount="indefinite" />
                 </feTurbulence>
-                <feDisplacementMap in="SourceGraphic" in2="n" scale="9" xChannelSelector="R" yChannelSelector="G" />
+                <feDisplacementMap in="SourceGraphic" in2="n" scale="14" xChannelSelector="R" yChannelSelector="G" />
               </filter>
             </defs>
           </svg>
@@ -2588,7 +2588,7 @@ function App() {
             <span className="field-waver" aria-hidden="true" />
             <span className="field-mascot" aria-hidden="true">
               {isSearchFocused ? (
-                <LiveMascotFigure size={28} className={query ? "is-typing" : undefined} />
+                <LiveMascotEyes size={28} className={query ? "is-typing" : undefined} />
               ) : (
                 <svg width="20" height="14" viewBox="0 0 20 14" focusable="false"><rect x="4" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /><rect x="13" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /></svg>
               )}
