@@ -2560,22 +2560,6 @@ function App() {
               <HugeiconsIcon icon={ViewSidebarLeftIcon} size={17} />
             </button>
           )}
-          <svg aria-hidden="true" focusable="false" style={{ position: "absolute", width: 0, height: 0 }}>
-            <defs>
-              <filter id="waver-calm" x="-20%" y="-20%" width="140%" height="140%">
-                <feTurbulence type="fractalNoise" baseFrequency="0.008 0.045" numOctaves="1" seed="8" result="n">
-                  <animate attributeName="baseFrequency" values="0.008 0.045;0.011 0.032;0.008 0.045" dur="9s" repeatCount="indefinite" />
-                </feTurbulence>
-                <feDisplacementMap in="SourceGraphic" in2="n" scale="10" xChannelSelector="R" yChannelSelector="G" />
-              </filter>
-              <filter id="waver-live" x="-20%" y="-20%" width="140%" height="140%">
-                <feTurbulence type="fractalNoise" baseFrequency="0.011 0.06" numOctaves="1" seed="8" result="n">
-                  <animate attributeName="baseFrequency" values="0.011 0.06;0.016 0.042;0.011 0.06" dur="4s" repeatCount="indefinite" />
-                </feTurbulence>
-                <feDisplacementMap in="SourceGraphic" in2="n" scale="16" xChannelSelector="R" yChannelSelector="G" />
-              </filter>
-            </defs>
-          </svg>
           <div
             className={`search-field${isSearchFocused ? " is-mascot" : ""}${query ? " is-typing" : ""}${isMascotBusy ? " is-busy" : ""}`}
             onMouseDown={(event) => {
@@ -2585,7 +2569,6 @@ function App() {
               }
             }}
           >
-            <span className="field-waver" aria-hidden="true" />
             <span className="field-mascot" aria-hidden="true">
               {isSearchFocused ? (
                 <LiveMascotEyes size={40} className={query ? "is-typing" : undefined} />
