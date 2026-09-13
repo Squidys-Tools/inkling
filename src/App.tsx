@@ -66,7 +66,7 @@ import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./li
 import PdfViewer from "./components/PdfViewer";
 import { LiveMascotFigure, pushMascotParams } from "./components/mascot/mascotStore";
 import { MascotBoard } from "./components/mascot/MascotBoard";
-import { MiniWobble } from "./components/mascot/MiniWobble";
+import { SidebarResting } from "./components/mascot/SidebarResting";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
 import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
@@ -2389,7 +2389,7 @@ function App() {
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup" data-tauri-drag-region>
           <div className={`brand-mark${isSearchFocused ? " is-mini" : ""}`} aria-hidden="true">
-            {isSearchFocused ? <MiniWobble /> : <LiveMascotFigure size={44} />}
+            {isSearchFocused ? <SidebarResting /> : <LiveMascotFigure size={44} />}
           </div>
           <div>
             <strong>inkling</strong>
