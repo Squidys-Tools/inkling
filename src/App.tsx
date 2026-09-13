@@ -66,7 +66,6 @@ import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./li
 import PdfViewer from "./components/PdfViewer";
 import { LiveMascotFigure, LiveMascotEyes, pushMascotParams } from "./components/mascot/mascotStore";
 import { MascotBoard } from "./components/mascot/MascotBoard";
-import { SearchOutline } from "./components/mascot/SearchOutline";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
 import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
@@ -969,7 +968,6 @@ function App() {
   const [isFindingSimilar, setIsFindingSimilar] = useState(false);
   const [similaritySource, setSimilaritySource] = useState<{ id: string; title: string } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const searchFieldRef = useRef<HTMLDivElement | null>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const settingsCloseRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2563,8 +2561,7 @@ function App() {
             </button>
           )}
           <div
-            ref={searchFieldRef}
-            className={`search-field${isSearchFocused ? " is-mascot" : ""}${query ? " is-typing" : ""}${isMascotBusy ? " is-busy" : ""}`}
+            className={`search-field${isSearchFocused ? " is-mascot" : ""}`}
             onMouseDown={(event) => {
               if (event.target !== searchRef.current) {
                 event.preventDefault();
@@ -2572,7 +2569,6 @@ function App() {
               }
             }}
           >
-            <SearchOutline target={searchFieldRef} active={isSearchFocused} lively={!!query || isMascotBusy} />
             <span className="field-mascot" aria-hidden="true">
               {isSearchFocused ? (
                 <LiveMascotEyes size={40} className={query ? "is-typing" : undefined} />

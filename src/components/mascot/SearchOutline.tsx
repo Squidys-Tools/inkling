@@ -92,6 +92,9 @@ export function wavyOutlinePath(w: number, h: number, r: number, t: number, o: W
  * wave via clip-path, so its background and border follow — no extra layer.
  * Always mounted; amplitude eases toward 0 when blurred (never snaps) and the
  * clip is removed at rest. Reduced motion clips nothing, ever.
+ *
+ * Currently UNWIRED (kept with tests for a later pass): the wave read as too
+ * strong in place, and clip-path rendering varied across webviews.
  */
 export function SearchOutline({
   target,
