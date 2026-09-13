@@ -163,8 +163,10 @@ export function MascotFigure({ frame, size, ink = "#1a1a1a", paper = "#faf9f6", 
 }
 
 /**
- * Eyes only: the frame's eye capsules drawn as solid shapes in the same
- * viewBox, no body. For slots where just the gaze should float (search field).
+ * Eyes only: the frame's eye capsules drawn as solid shapes in a tight crop
+ * around their full range of motion (measured across rest expressions, idle
+ * and notify, -60 -80 150 135), no body. For slots where just the gaze should
+ * float (search field).
  */
 export function MascotEyes({
   frame,
@@ -177,12 +179,11 @@ export function MascotEyes({
   ink?: string;
   className?: string;
 }) {
-  const VB = DEMI_VIEWBOX;
   return (
     <svg
       width={size}
-      height={size}
-      viewBox={`${-VB} ${-VB} ${VB * 2} ${VB * 2}`}
+      height={(size * 135) / 150}
+      viewBox="-60 -80 150 135"
       role="img"
       aria-label="inkling mascot eyes"
       className={className}

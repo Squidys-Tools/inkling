@@ -2563,16 +2563,16 @@ function App() {
           <svg aria-hidden="true" focusable="false" style={{ position: "absolute", width: 0, height: 0 }}>
             <defs>
               <filter id="waver-calm" x="-20%" y="-20%" width="140%" height="140%">
-                <feTurbulence type="fractalNoise" baseFrequency="0.010 0.075" numOctaves="2" seed="8" result="n">
-                  <animate attributeName="baseFrequency" values="0.010 0.075;0.015 0.05;0.010 0.075" dur="8s" repeatCount="indefinite" />
+                <feTurbulence type="fractalNoise" baseFrequency="0.008 0.045" numOctaves="1" seed="8" result="n">
+                  <animate attributeName="baseFrequency" values="0.008 0.045;0.011 0.032;0.008 0.045" dur="9s" repeatCount="indefinite" />
                 </feTurbulence>
-                <feDisplacementMap in="SourceGraphic" in2="n" scale="8" xChannelSelector="R" yChannelSelector="G" />
+                <feDisplacementMap in="SourceGraphic" in2="n" scale="10" xChannelSelector="R" yChannelSelector="G" />
               </filter>
               <filter id="waver-live" x="-20%" y="-20%" width="140%" height="140%">
-                <feTurbulence type="fractalNoise" baseFrequency="0.014 0.10" numOctaves="2" seed="8" result="n">
-                  <animate attributeName="baseFrequency" values="0.014 0.10;0.022 0.065;0.014 0.10" dur="3.5s" repeatCount="indefinite" />
+                <feTurbulence type="fractalNoise" baseFrequency="0.011 0.06" numOctaves="1" seed="8" result="n">
+                  <animate attributeName="baseFrequency" values="0.011 0.06;0.016 0.042;0.011 0.06" dur="4s" repeatCount="indefinite" />
                 </feTurbulence>
-                <feDisplacementMap in="SourceGraphic" in2="n" scale="14" xChannelSelector="R" yChannelSelector="G" />
+                <feDisplacementMap in="SourceGraphic" in2="n" scale="16" xChannelSelector="R" yChannelSelector="G" />
               </filter>
             </defs>
           </svg>
@@ -2588,7 +2588,7 @@ function App() {
             <span className="field-waver" aria-hidden="true" />
             <span className="field-mascot" aria-hidden="true">
               {isSearchFocused ? (
-                <LiveMascotEyes size={28} className={query ? "is-typing" : undefined} />
+                <LiveMascotEyes size={40} className={query ? "is-typing" : undefined} />
               ) : (
                 <svg width="20" height="14" viewBox="0 0 20 14" focusable="false"><rect x="4" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /><rect x="13" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /></svg>
               )}
