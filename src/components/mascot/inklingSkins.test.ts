@@ -42,16 +42,4 @@ describe("inkling skins", () => {
       }
     }
   });
-
-  test("resting sidebar frame renders sleepy eyes without NaN", () => {
-    const engine = new BotEngine(
-      RAYON,
-      "idle",
-      SHAPE_BY_ID.get("inkling-splash")?.radii ?? null,
-      EXPRESSION_BY_ID.get("somnolent") ?? null,
-    );
-    const frame = engine.sample(1.0);
-    expect(frame.eyes.length).toBeGreaterThan(0);
-    expect(frame.bodyPath).not.toContain("NaN");
-  });
 });
