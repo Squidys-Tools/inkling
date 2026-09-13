@@ -39,6 +39,10 @@ export type ShapeId =
   // extraction via profileFromPolygon is a follow-up. See
   // src/components/mascot/bot/README.md.
   | 'inkling-splash'
+  // INKLING EXTENSION: phase-shifted twin of the splash, for the slow
+  // shape-drift variation (morphing between the two reads as the blot
+  // stirring). Registered here so the eyefit table covers it too.
+  | 'inkling-splash-b'
 
 export interface BotShape {
   id: ShapeId
@@ -97,6 +101,12 @@ const inklingSplash = normalize(
   1.06
 )
 
+/** Phase-shifted twin of the splash, for shape-drift morphing. */
+const inklingSplashB = normalize(
+  ANGLES.map((a) => 1 + 0.09 * Math.cos(5 * a + 0.8 + 2.1) + 0.05 * Math.cos(2 * a + 2.0 + 1.3)),
+  1.06
+)
+
 export const SHAPES: BotShape[] = [
   { id: 'cercle', radii: new Array(PROFILE_SAMPLES).fill(1) },
   { id: 'galet', radii: pebble },
@@ -110,8 +120,9 @@ export const SHAPES: BotShape[] = [
   { id: 'hexagone', radii: regularPolygonProfile(6, 1.04, 0.26, 0) },
   { id: 'nuage', radii: cloud },
   { id: 'goutte', radii: droplet },
-  // INKLING EXTENSION — see builder above.
-  { id: 'inkling-splash', radii: inklingSplash }
+  // INKLING EXTENSION — see builders above.
+  { id: 'inkling-splash', radii: inklingSplash },
+  { id: 'inkling-splash-b', radii: inklingSplashB }
 ]
 
 // Map indexee par `string` et non par `ShapeId` : les appelants interrogent avec

@@ -164,6 +164,10 @@ export type StateId =
   | 'comet'
   /** transition d'interface, pas une animation du catalogue : hors `SEQUENCE` */
   | 'swirl'
+  // INKLING EXTENSION: looping body-motion states for the sidebar mascot.
+  // Hors `SEQUENCE` like `swirl`: they never enter the reference montage.
+  | 'inkling-sway'
+  | 'inkling-jelly'
 
 export interface StateDef {
   id: StateId
@@ -569,6 +573,42 @@ export const STATES: StateDef[] = [
         arcs: COMET_RIBBONS.map((s, i) => ({ id: `cm${i}`, seed: s, t, opacity: fade }))
       })
     }
+  },
+
+  // INKLING EXTENSION — see StateId above. Both loop (no minDuration, like
+  // `idle`), keep the chosen shape (baseBody) and the rest expression
+  // (baseFace) so error/attention faces keep working on top of the motion.
+  {
+    // Slow rotation + breath. Visible only on non-circular skins, which is
+    // exactly what the inkling splash is: ±6deg over 6s, ±1.5% vertical breath.
+    id: 'inkling-sway',
+    duration: 6,
+    morph: 0.6,
+    blinkIn: false,
+    baseFace: true,
+    baseBody: true,
+    pose: (t) => base({
+      sil: circle(1, {
+        rot: 0.1 * Math.sin((t * TAU) / 6),
+        sy: 1 + 0.015 * Math.sin((t * TAU) / 3)
+      })
+    })
+  },
+  {
+    // Jelly squash & stretch, peaking every 2.4s. Volume-preserving-ish:
+    // what the height loses the width gains.
+    id: 'inkling-jelly',
+    duration: 2.4,
+    morph: 0.45,
+    blinkIn: false,
+    baseFace: true,
+    baseBody: true,
+    pose: (t) => {
+      const k = Math.pow(Math.max(0, Math.sin((t * TAU) / 2.4)), 2)
+      return base({
+        sil: circle(1, { sx: 1 + 0.05 * k, sy: 1 - 0.05 * k })
+      })
+    }
   }
 ]
 
@@ -595,7 +635,10 @@ export const POSES: Record<StateId, number> = {
   orbit: 1.2,
   swirl: 0.5,
   burst: 0.45,
-  comet: 1.15
+  comet: 1.15,
+  // INKLING EXTENSION: looping states read well mid-cycle.
+  'inkling-sway': 3,
+  'inkling-jelly': 1.2
 }
 
 export const SEQUENCE: StateId[] = [
