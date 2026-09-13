@@ -64,8 +64,9 @@ import {
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 import PdfViewer from "./components/PdfViewer";
-import { InklingMascot } from "./components/mascot/InklingMascot";
+import { LiveMascotFigure, pushMascotParams } from "./components/mascot/mascotStore";
 import { MascotBoard } from "./components/mascot/MascotBoard";
+import { MiniWobble } from "./components/mascot/MiniWobble";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
 import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
@@ -2349,11 +2350,15 @@ function App() {
     source?.classList.add("is-selected");
   }, [selectedItem]);
 
-  // Sidebar mascot: idle splash by default, notification pastille (which keeps
-  // the splash body: notify is a baseBody state) while background work runs,
-  // sad eyes when a capture error is showing.
-  const mascotState = items.some((item) => item.processing?.active) ? "notify" : "idle";
-  const mascotExpression = captureError ? "triste" : "neutre";
+  // Live mascot: commutes to the search field while it is focused, leaving a
+  // wavy mini behind in the sidebar. Error beats busyness beats attention.
+  const isMascotBusy = items.some((item) => item.processing?.active);
+  useEffect(() => {
+    pushMascotParams({
+      state: isMascotBusy ? "notify" : "idle",
+      expression: captureError ? "triste" : isSearchFocused ? (query ? "curieux" : "attentif") : "neutre",
+    });
+  }, [isMascotBusy, captureError, isSearchFocused, query]);
 
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);
 
@@ -2383,8 +2388,8 @@ function App() {
         </AnimatePresence>
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup" data-tauri-drag-region>
-          <div className={`brand-mark${isSearchFocused ? " is-away" : ""}`} aria-hidden="true">
-            <InklingMascot size={44} shape="inkling-splash" state={mascotState} expression={mascotExpression} />
+          <div className={`brand-mark${isSearchFocused ? " is-mini" : ""}`} aria-hidden="true">
+            {isSearchFocused ? <MiniWobble /> : <LiveMascotFigure size={44} />}
           </div>
           <div>
             <strong>inkling</strong>
@@ -2566,7 +2571,11 @@ function App() {
             }}
           >
             <span className="field-mascot" aria-hidden="true">
-              <svg width="20" height="14" viewBox="0 0 20 14" focusable="false"><rect x="4" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /><rect x="13" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /></svg>
+              {isSearchFocused ? (
+                <LiveMascotFigure size={28} className={query ? "is-typing" : undefined} />
+              ) : (
+                <svg width="20" height="14" viewBox="0 0 20 14" focusable="false"><rect x="4" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /><rect x="13" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /></svg>
+              )}
             </span>
             <input
               ref={searchRef}
