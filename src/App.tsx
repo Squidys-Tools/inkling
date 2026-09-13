@@ -64,6 +64,7 @@ import {
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 import PdfViewer from "./components/PdfViewer";
+import { MascotBoard } from "./components/mascot/MascotBoard";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
 import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
@@ -2348,6 +2349,12 @@ function App() {
   }, [selectedItem]);
 
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);
+
+  // Dev-only mascot board (vendored bloub engine + inkling skins). Not linked
+  // from the UI; open with ?mascot. Placed after all hooks.
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mascot")) {
+    return <MascotBoard />;
+  }
 
   return (
     <MotionConfig reducedMotion="user">

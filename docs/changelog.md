@@ -29,6 +29,7 @@ Guardrails:
 ### Added
 
 - Unit tests for the note card word-count logic, run via `bun test` in CI and the local frontend check (`src/components/ItemMedia.test.ts`)
+- Inkling mascot engine vendored from the MIT-licensed bloub avatar project (framework-free SVG morph engine only, no Vue shell) with three Paper-derived ink-blot shapes (`inkling-blot`, `inkling-wobble`, `inkling-splash`), a React mascot component, a dev-only board at `?mascot`, and frozen-frame SVGs under `docs/assets/mascots/` (`src/components/mascot/`, `scripts/mascot-board.ts`)
 - Scheduled unused-code cleanup: `knip --fix` runs every other day on GitHub runners and opens a PR when it strips exports or prunes dependencies (file deletion stays manual, `knip.json` holds entry/project patterns) (`.github/workflows/knip.yml`, `knip.json`)
 - Weekly markdown link check on GitHub runners, opening an issue on broken links (local dev hosts and `inkling://` / `mymind://` schemes excluded) (`.github/workflows/links.yml`, `.lycheeignore`)
 - Committed web-preview demo library: 24 personal items (photos, art, UI references, one clip) plus four keepers from the original set, shuffled with a fixed seed so the order is mixed but stable; images live compressed by hand in `public/seed-demo/` with titles in `src/seedPersonal.ts` (`src/seedPersonal.ts`, `src/App.tsx`, `public/seed-demo/`)
