@@ -41,7 +41,7 @@
 import { EXPRESSIONS, type BotExpression } from './expressions'
 import { eyePoses } from './face'
 import { radiusAtAngle, toPoints, type Point } from './shape'
-import { SHAPES } from './skins'
+import { SHAPES, SHAPE_BY_ID } from './skins'
 import { STATES, type Pose, type StateDef, type StateId } from './states'
 
 /** Rayon de reference du solveur. Le decalage rendu est en unites de ce rayon. */
@@ -239,7 +239,22 @@ const DICHOTOMIE = 8
  * reapparaitre 34 debordements. Ici le resultat ne depend pas d'une convergence : chaque
  * direction est resolue exactement, au pas de dichotomie pres.
  */
-function resous(epreuves: Epreuve[]): { x: number; y: number } {
+/**
+ * INKLING EXTENSION: le splash demande plus de marge que le frolement du
+ * cercle vise ci-dessus — a marge "suffisante" au sens du solveur, ses yeux
+ * paraissent encore au bord (mesure : -6 unites sur idle/neutre). Ce bonus
+ * releve l'exigence pour les seuls profils splash ; les formes mesurees et
+ * les autres skins gardent un bonus nul et un comportement inchange.
+ */
+const BONUS_MARGE_SPLASH = 10
+
+function bonusPour(radii: number[]): number {
+  if (radii === SHAPE_BY_ID.get('inkling-splash')?.radii) return BONUS_MARGE_SPLASH
+  if (radii === SHAPE_BY_ID.get('inkling-splash-b')?.radii) return BONUS_MARGE_SPLASH
+  return 0
+}
+
+function resous(epreuves: Epreuve[], bonus = 0): { x: number; y: number } {
   if (!epreuves.length) return { x: 0, y: 0 }
 
   /** La marge la plus serree sur toutes les epreuves, pour une translation donnee. */
@@ -256,6 +271,7 @@ function resous(epreuves: Epreuve[]): { x: number; y: number } {
   for (const ep of epreuves) {
     requis = Math.min(requis, pire(ep.calContour, ep.reference, 0, 0).marge)
   }
+  requis += bonus
   /*
    * La course doit pouvoir atteindre le centre du corps : `wide` a des gelules de 87
    * unites de long, et sur un triangle elles ne tiennent que vers le milieu, a une
@@ -391,7 +407,7 @@ function decalagePour(
       })
     }
   }
-  return resous(epreuves)
+  return resous(epreuves, bonusPour(radii))
 }
 
 /** Zero, la valeur commune a tout ce qui n'a rien a corriger. */

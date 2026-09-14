@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { BotEngine, type BotFrame } from "./bot/engine";
 import { EXPRESSION_BY_ID } from "./bot/expressions";
 import { SHAPE_BY_ID } from "./bot/skins";
-import { SEQUENCE, STATE_BY_ID } from "./bot/states";
+import { SEQUENCE, STATE_BY_ID, type StateId } from "./bot/states";
+import { toPoints } from "./bot/shape";
 import { RAYON } from "./bot/repere";
 
 function eyeSpread(frame: BotFrame): number {
@@ -69,5 +70,27 @@ describe("inkling alive states", () => {
     const spreads = frames.map(eyeSpread);
     expect(Math.min(...spreads)).toBeGreaterThan(10);
     expect(Math.max(...spreads) - Math.min(...spreads)).toBeLessThan(8);
+  });
+
+  test("splash faces keep breathing room around the eyes", () => {
+    // Conservative blanket eye radius: real margins read higher. Catches a
+    // removed splash bonus (idle drops to -6) or a reverted drift face (-15).
+    const radii = SHAPE_BY_ID.get("inkling-splash")?.radii ?? null;
+    const contour = toPoints({ radii: radii!, rot: 0, cx: 0, cy: 0, sx: 1, sy: 1 }, RAYON);
+    const margin = (state: StateId, t: number): number => {
+      const frame = new BotEngine(RAYON, state, radii, EXPRESSION_BY_ID.get("neutre") ?? null).sample(t);
+      let m = Infinity;
+      for (const eye of frame.eyes) {
+        const p = eye.matrix.match(/matrix\(([^)]+)\)/)![1]!.split(",").map(Number);
+        for (const q of contour) {
+          const d = Math.hypot(q.x - p[4]!, q.y - p[5]!) - 22;
+          if (d < m) m = d;
+        }
+      }
+      return m;
+    };
+    expect(margin("idle", 1.0)).toBeGreaterThan(2);
+    expect(margin("inkling-sway", 1.0)).toBeGreaterThan(2);
+    expect(margin("inkling-drift", 4.0)).toBeGreaterThan(0);
   });
 });

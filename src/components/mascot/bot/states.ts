@@ -620,16 +620,15 @@ export const STATES: StateDef[] = [
     }
   },
   {
-    // Le splash comme cercle + ondes independantes : quatre harmoniques qui
-    // enflent et s'effacent chacune a son rythme (periodes incommensurables),
-    // avec des lobes qui voyagent au lieu de juste gonfler. La rotation lente
-    // (un tour / 24s) s'ajoute par-dessus. Le visage reste fixe (steadyFace)
-    // pendant que la chair stir en dessous.
+    // Visage propre a la derive (comme wink/wide portent le leur) : meme
+    // regard et memes gelules que le repos, mais resserre (split 10.5 contre
+    // 15.46) et recentre (yaw 15 contre 28.49) pour rendre aux yeux la marge
+    // que la rotation leur reprendrait au bord droit.
     id: 'inkling-drift',
     duration: 24,
     morph: 0.8,
     blinkIn: false,
-    baseFace: true,
+    baseFace: false,
     baseBody: false,
     steadyFace: true,
     pose: (t) => {
@@ -660,7 +659,10 @@ export const STATES: StateDef[] = [
       const peak = Math.max(...raw)
       const radii = raw.map((r) => (r * 1.06) / peak)
       return base({
-        sil: { radii, rot: (t * TAU) / 24, cx: 0, cy: 0, sx: 1, sy: 1 }
+        sil: { radii, rot: (t * TAU) / 24, cx: 0, cy: 0, sx: 1, sy: 1 },
+        gaze: { ...REST_GAZE, yaw: 15 },
+        split: 10.5,
+        eyes: pair(EYE_W, EYE_H)
       })
     }
   }
