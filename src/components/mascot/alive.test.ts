@@ -1,9 +1,17 @@
 import { describe, expect, test } from "bun:test";
-import { BotEngine } from "./bot/engine";
+import { BotEngine, type BotFrame } from "./bot/engine";
 import { EXPRESSION_BY_ID } from "./bot/expressions";
 import { SHAPE_BY_ID } from "./bot/skins";
 import { SEQUENCE, STATE_BY_ID } from "./bot/states";
 import { RAYON } from "./bot/repere";
+
+function eyeSpread(frame: BotFrame): number {
+  const [a, b] = frame.eyes.map((e) => {
+    const m = e.matrix.match(/matrix\(([^)]+)\)/)![1]!.split(",").map(Number);
+    return { x: m[4]!, y: m[5]! };
+  });
+  return Math.hypot(a!.x - b!.x, a!.y - b!.y);
+}
 
 describe("inkling alive states", () => {
   test("sway, jelly and drift are registered but kept out of the reference montage", () => {
@@ -39,7 +47,7 @@ describe("inkling alive states", () => {
     expect(b).toHaveLength(a!.length);
   });
 
-  test("drift rotates a full turn without NaN", () => {
+  test("drift rotates a full turn without NaN and holds eye spacing", () => {
     const engine = new BotEngine(
       RAYON,
       "inkling-drift",
@@ -47,11 +55,16 @@ describe("inkling alive states", () => {
       EXPRESSION_BY_ID.get("neutre") ?? null,
     );
     expect(SEQUENCE).not.toContain("inkling-drift");
-    const frames = [0, 6, 12, 18].map((t) => engine.sample(t));
+    const frames = [0, 2, 4, 6, 8, 10, 12].map((t) => engine.sample(t));
     for (const frame of frames) {
       expect(frame.bodyPath).not.toContain("NaN");
-      expect(frame.eyes.length).toBeGreaterThan(0);
+      expect(frame.eyes.length).toBe(2);
     }
     expect(new Set(frames.map((f) => f.bodyPath)).size).toBeGreaterThan(1);
+    // steadyFace: lobes turning underneath must not pump the gaze apart.
+    // Natural drift wobble accounts for a few units; the old fit swung ~10+.
+    const spreads = frames.map(eyeSpread);
+    expect(Math.min(...spreads)).toBeGreaterThan(10);
+    expect(Math.max(...spreads) - Math.min(...spreads)).toBeLessThan(8);
   });
 });

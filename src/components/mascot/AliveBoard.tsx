@@ -120,7 +120,7 @@ export function AliveBoard() {
         </Tile>
         <Tile
           title="5 · Slow spin"
-          body="New inkling-drift state: one full turn every 24s under a still face. Ink stirring, not mascot spinning."
+          body="New inkling-drift state: circle plus live wave amplitudes over a 24s turn, face held still. Ink stirring, not mascot spinning."
         >
           <MorphTile />
         </Tile>

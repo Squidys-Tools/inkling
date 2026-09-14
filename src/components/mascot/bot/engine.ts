@@ -495,8 +495,11 @@ export class BotEngine {
     // Les yeux vivent sur une sphere de rayon 1 ; des que la silhouette n'est
     // plus un cercle, on les ramene au prorata du rayon reel dans leur
     // direction, sinon ils debordent et le masque les coupe.
+    // INKLING EXTENSION (`steadyFace`) : sur un corps qui tourne sous un visage
+    // fixe, ce prorata pomperait l'ecart des yeux au passage des lobes — on le
+    // saute et les yeux restent a leur pose dessinee.
     const bodyRadius = (x: number, y: number) =>
-      radiusAtAngle(pose.sil.radii, Math.atan2(y, x) - pose.sil.rot)
+      def.steadyFace ? 1 : radiusAtAngle(pose.sil.radii, Math.atan2(y, x) - pose.sil.rot)
 
     const eyes: RenderedEye[] = []
     if (pose.eyeAlpha > 0.01) {

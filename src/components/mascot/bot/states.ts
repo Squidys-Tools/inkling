@@ -17,6 +17,7 @@ import {
 } from './decor'
 import { EYE_H, EYE_SPLIT, EYE_W, REST_GAZE, type HeadGaze } from './face'
 import { TAU, clamp, easings } from './math'
+import { PROFILE_SAMPLES } from './profiles'
 import {
   circle,
   hullOfCircles,
@@ -198,6 +199,13 @@ export interface StateDef {
    * sur la video, c'est precisement ce qu'on reproduit.
    */
   baseFace: boolean
+  /**
+   * INKLING EXTENSION, optional: true = le visage reste pose pendant que la
+   * chair bouge. Le moteur saute alors la remise au prorata du rayon corporel
+   * (`radiusAtAngle`), qui pomperait l'ecart des yeux chaque fois qu'un lobe
+   * passerait dessous. Absent = comportement d'origine, inchange.
+   */
+  steadyFace?: boolean
   pose(local: number): Pose
 }
 
@@ -612,18 +620,30 @@ export const STATES: StateDef[] = [
     }
   },
   {
-    // Slow continuous spin: one full turn every 24s. The silhouette turns
-    // under a still face (eyes are posed independently), so it reads as ink
-    // stirring rather than the mascot spinning.
+    // Le splash comme cercle + ondes : deux harmoniques dont les amplitudes
+    // (et phases) derivent lentement sur des periodes incommensurables, sous
+    // une rotation complete toutes les 24s. Le visage reste fixe (steadyFace)
+    // pendant que la chair tourne et stir en dessous.
     id: 'inkling-drift',
     duration: 24,
     morph: 0.8,
     blinkIn: false,
     baseFace: true,
-    baseBody: true,
-    pose: (t) => base({
-      sil: circle(1, { rot: (t * TAU) / 24 })
-    })
+    baseBody: false,
+    steadyFace: true,
+    pose: (t) => {
+      const a5 = 0.09 + 0.03 * Math.sin((t * TAU) / 11 + 1) + 0.012 * Math.sin((t * TAU) / 5.3)
+      const a2 = 0.05 + 0.02 * Math.sin((t * TAU) / 7 + 3)
+      const p5 = 0.8 + 0.3 * Math.sin((t * TAU) / 13 + 2)
+      const p2 = 2.0 + 0.3 * Math.sin((t * TAU) / 9)
+      const radii = Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
+        const a = (i / PROFILE_SAMPLES) * TAU
+        return 1 + a5 * Math.cos(5 * a + p5) + a2 * Math.cos(2 * a + p2)
+      })
+      return base({
+        sil: { radii, rot: (t * TAU) / 24, cx: 0, cy: 0, sx: 1, sy: 1 }
+      })
+    }
   }
 ]
 

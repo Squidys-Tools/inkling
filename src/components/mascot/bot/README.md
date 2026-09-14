@@ -20,5 +20,8 @@ re-implemented in React as `../InklingMascot.tsx`.
   `eyefit.ts` correction table built at import.
 - New animations go in `states.ts` as new `StateDef` entries; never rewrite
   measured states. Blocks hold or cut time, never scale it (`cycles.ts`).
+- The engine (`engine.ts`) may gain small declarative, default-off state flags
+  (like `steadyFace`); never per-frame behavior changes that could disturb the
+  measured states.
 - Test files (`*.test.ts`) were not vendored (vitest + happy-dom); equivalent
   coverage for inkling shapes lives in `../inklingSkins.test.ts` (bun:test).
