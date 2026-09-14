@@ -29,12 +29,19 @@ Guardrails:
 ### Added
 
 - Unit tests for the note card word-count logic, run via `bun test` in CI and the local frontend check (`src/components/ItemMedia.test.ts`)
+- Contributor documentation: `CONTRIBUTING.md` entry point, `docs/operations/development.md` setup/commands/checks/troubleshooting reference, and a `docs/README.md` index mapping product, architecture, and operations docs
+- Unified check scripts: `bun run check` (typecheck + unit tests), plus standalone `bun run typecheck` and `bun run knip:check`
+- GitHub issue templates for bug reports and feature requests (`.github/ISSUE_TEMPLATE/`)
+- Advisory unused-code step in the CI frontend job (`continue-on-error` until the `knip --fix` backlog is cleared)
 - Scheduled unused-code cleanup: `knip --fix` runs every other day on GitHub runners and opens a PR when it strips exports or prunes dependencies (file deletion stays manual, `knip.json` holds entry/project patterns) (`.github/workflows/knip.yml`, `knip.json`)
 - Weekly markdown link check on GitHub runners, opening an issue on broken links (local dev hosts and `inkling://` / `mymind://` schemes excluded) (`.github/workflows/links.yml`, `.lycheeignore`)
 
 ### Changed
 
 - CI and security workflows skip docs-only changes and run only the jobs whose paths changed (frontend vs. native vs. dependencies), cutting redundant check runs on documentation pushes (`.github/workflows/ci.yml`, `.github/workflows/security.yml`)
+- `AGENTS.md` expanded with project snapshot, command/check reference, docs taxonomy, Windows toolchain notes, and working conventions
+- Pull request template checklist now asks for checks run and a changelog entry alongside UI screenshots/video
+- README documentation links point at the docs index, contributing guide, and development reference
 - Security scans stay fail-closed on pull requests: CodeQL runs on open/reopen and roughly every 4th push, dependency review on every PR; path gating applies to push-to-main only; the path-filter action is pinned to a commit SHA and automation config (`.entire/`) never skips checks (`.github/workflows/security.yml`)
 - Note cards reuse the PDF thumbnail artwork (pointillism texture, label/mark/title/legend geometry), showing the note title and description word count where PDFs show the document title and page count (`src/components/ItemMedia.tsx`, `src/App.tsx`)
 

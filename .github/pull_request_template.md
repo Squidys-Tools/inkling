@@ -27,5 +27,7 @@ we may close it without merging it, or never review it.
 
 ## Checklist
 
+- [ ] `bun run check:frontend` passes (frontend) / `cargo check --locked` + `cargo test --locked` pass (native)
+- [ ] Changelog entry added under `Unreleased` (skip for trivial typo/format-only changes)
 - [ ] Before/after screenshots for any UI changes
 - [ ] Video for animation/interaction changes

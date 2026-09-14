@@ -54,6 +54,8 @@ bun run check:frontend
 
 ## More documentation
 
+- [Docs index](docs/README.md): full map of product, architecture, and operations docs
+- [Contributing](CONTRIBUTING.md) and [development guide](docs/operations/development.md): setup, commands, checks, troubleshooting
 - [Product definition](docs/product.md): who it's for and why it exists
 - [Behavior specification](docs/product-behavior.md): how each feature should behave
 - [Tech stack](docs/tech-stack.md): architecture choices and reasoning
