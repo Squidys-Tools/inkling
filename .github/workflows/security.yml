@@ -103,47 +103,57 @@ jobs:
             core.setOutput('scan', scan);
             core.info(`PR has ${commits.length} commits; full scan=${scan}.`);
 
-  codeql:
-    name: CodeQL (${{ matrix.language }})
+  codeql-javascript:
+    name: CodeQL (javascript-typescript)
     needs: [changes, gate]
-    # Schedule always runs the full matrix. PRs scan on open/reopen and
-    # roughly every 4th push (see the gate). Push-to-main is path-gated:
-    # the PR already passed full scans. Skipped needs read as empty, not 'true'.
     if: >-
-      github.event_name == 'schedule' ||
-      needs.gate.outputs.scan == 'true' ||
-      (github.event_name == 'push' &&
-        ((matrix.language == 'javascript-typescript' && needs.changes.outputs.frontend == 'true') ||
-         (matrix.language == 'rust' && needs.changes.outputs.native == 'true')))
+      always() && !cancelled() &&
+      (github.event_name == 'schedule' ||
+       needs.gate.outputs.scan == 'true' ||
+       (github.event_name == 'push' && needs.changes.outputs.frontend == 'true'))
     runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       actions: read
       contents: read
       security-events: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - language: javascript-typescript
-            build-mode: none
-          - language: rust
-            build-mode: none
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
-
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
-
+          languages: javascript-typescript
+          build-mode: none
       - name: Analyze with CodeQL
         uses: github/codeql-action/analyze@v4
         with:
-          category: /language:${{ matrix.language }}
+          category: /language:javascript-typescript
+
+  codeql-rust:
+    name: CodeQL (rust)
+    needs: [changes, gate]
+    if: >-
+      always() && !cancelled() &&
+      (github.event_name == 'schedule' ||
+       needs.gate.outputs.scan == 'true' ||
+       (github.event_name == 'push' && needs.changes.outputs.native == 'true'))
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: rust
+          build-mode: none
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:rust
 
   dependency-review:
     name: Dependency review
