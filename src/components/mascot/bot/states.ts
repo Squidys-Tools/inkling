@@ -636,16 +636,16 @@ export const STATES: StateDef[] = [
       const wave = (base: number, depth: number, period: number, phase: number) =>
         base + depth * Math.sin((t * TAU) / period + phase)
       // Amplitudes : chacune s'eteint presque puis revient, a son heure.
-      const a5 = wave(0.055, 0.05, 9.1, 0)
-      const a3 = wave(0.04, 0.035, 6.3, 2.1)
-      const a2 = wave(0.03, 0.025, 13.7, 4.2)
-      const a7 = wave(0.012, 0.01, 3.7, 1.3)
+      const a5 = wave(0.055, 0.032, 14, 0)
+      const a3 = wave(0.04, 0.022, 10, 2.1)
+      const a2 = wave(0.03, 0.016, 21, 4.2)
+      const a7 = wave(0.012, 0.006, 6, 1.3)
       // Phases : les lobes 5 et 3 circulent en sens inverse, les autres
       // glissent lentement — la figure ne repasse jamais deux fois pareille.
-      const p5 = 0.8 + (t * TAU) / 17
-      const p3 = 2.0 - (t * TAU) / 11
-      const p2 = 2.0 + 0.3 * Math.sin((t * TAU) / 9)
-      const p7 = (t * TAU) / 5
+      const p5 = 0.8 + (t * TAU) / 26
+      const p3 = 2.0 - (t * TAU) / 17
+      const p2 = 2.0 + 0.3 * Math.sin((t * TAU) / 15)
+      const p7 = (t * TAU) / 8
       const raw = Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
         const a = (i / PROFILE_SAMPLES) * TAU
         return (
