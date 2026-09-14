@@ -43,6 +43,9 @@ Guardrails:
 - README rewritten as a user-facing overview (tour, screenshots, demo/mascot placeholders, FAQ) with the developer setup and docs index moved to a short section at the end (`README.md`)
 - CI and security workflows skip docs-only changes and run only the jobs whose paths changed (frontend vs. native vs. dependencies), cutting redundant check runs on documentation pushes (`.github/workflows/ci.yml`, `.github/workflows/security.yml`)
 - `AGENTS.md` expanded with project snapshot, command/check reference, docs taxonomy, Windows toolchain notes, and working conventions
+- `bun run check:frontend` now includes `knip:check` (same order as the CI frontend job), so unused-code failures surface locally before push
+- Local check/test hooks removed by policy: the pre-push `check:frontend` hook is gone and CI owns all gates; the instant pre-commit `cargo fmt` fixer stays (`lefthook.yml`, `scripts/setup-hooks.ts`)
+- Roadmap Milestone 3 notes the already-registered `update_space`, `enqueue_ocr_job`, and `count_active_jobs` Tauri commands waiting for UI
 - Pull request template checklist now asks for checks run and a changelog entry alongside UI screenshots/video
 - README documentation links point at the docs index, contributing guide, and development reference
 - Security scans stay fail-closed on pull requests: CodeQL runs on open/reopen and roughly every 4th push, dependency review on every PR; path gating applies to push-to-main only; the path-filter action is pinned to a commit SHA and automation config (`.entire/`) never skips checks (`.github/workflows/security.yml`)

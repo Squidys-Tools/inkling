@@ -21,21 +21,22 @@ How to set up, run, check, and troubleshoot inkling. Short version lives in `CON
 
 ## Checks
 
+CI owns all check/test gates — there are deliberately no local check hooks (see `lefthook.yml`). Run these locally only when you want early signal; pushing without running them is fine.
+
 | Goal | Command | Notes |
 |---|---|---|
 | Fast local gate | `bun run check` | `typecheck` + `bun test` |
-| CI parity (frontend) | `bun run check:frontend` | Version pin + locked install + tests + build + ingestion smoke. Same as CI and the pre-push hook |
+| CI parity (frontend) | `bun run check:frontend` | Version pin + locked install + tests + knip + build + ingestion smoke — exactly what the CI frontend job runs |
 | Typecheck only | `bun run typecheck` | App + benchmark harness |
 | Unused code | `bun run knip:check` | Hard gate in CI; `knip.json` owns entry/project patterns. To clean up locally, run `bunx knip --fix` then `bun install --ignore-scripts` (re-syncs the lockfile if deps were pruned), fix any `noUnusedLocals` fallout, and re-run `bun run check:frontend` |
 | Bun pin | `bun run check:bun-version` | `.bun-version` vs `packageManager` vs running Bun must agree |
 | Native | `cargo fmt` / `cargo check --locked` / `cargo test --locked` | Run from `src-tauri/` |
 
-Before pushing frontend changes, run `bun run check:frontend`. Before pushing Rust changes, run the native checks. `noUnusedLocals` / `noUnusedParameters` are on — the compiler will catch dead locals; Knip catches dead exports and dependencies.
+Before pushing, nothing is required locally — CI runs every gate. For early signal, run `bun run check:frontend` for frontend changes or the native checks for Rust changes. `noUnusedLocals` / `noUnusedParameters` are on — the compiler will catch dead locals; Knip catches dead exports and dependencies.
 
 ## Git hooks
 
-- Pre-commit: `cargo fmt` on `src-tauri/*.rs` (staged fixes are re-staged).
-- Pre-push: `bun run check:frontend`.
+- Pre-commit: `cargo fmt` on `src-tauri/*.rs` (staged fixes are re-staged). This instant formatter is the only local hook — checks and tests live in CI by policy.
 - Hook installs happen through `bun install` / `scripts/setup-hooks.ts`. Linked worktrees share the main checkout's hooks directory and need no setup; if a worktree complains about damaged hooks, repair from the main checkout.
 
 ## CI behavior (what runs where)

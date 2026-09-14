@@ -23,8 +23,8 @@ Docs taxonomy, `docs/user|operations|internals` split:
 - Install: `bun install` (runs `scripts/setup-hooks.ts` via `prepare`; idempotent, worktree-safe — never run bare `lefthook install`)
 - Web preview (no Rust compile): `bun run preview`
 - Desktop app: `bun run tauri dev`
-- Fast local gate: `bun run check` (typecheck + unit tests)
-- CI parity before pushing frontend changes: `bun run check:frontend` (also runs build + ingestion smoke; this is what the pre-push hook and CI run)
+- Fast local gate (optional): `bun run check` (typecheck + unit tests)
+- CI parity: `bun run check:frontend` (also runs knip, build + ingestion smoke; this is what CI runs — no local check/test hooks exist by policy, CI owns all gates)
 - Native checks (needs Rust toolchain): `cargo fmt`, `cargo check --locked`, `cargo test --locked` from `src-tauri/`
 - Single-purpose: `bun test`, `bun run build`, `bun run ingest:smoke`, `bun run typecheck`, `bun run knip:check`
 
