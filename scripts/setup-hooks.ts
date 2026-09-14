@@ -1,11 +1,14 @@
 // Idempotent installer for this repo's git hooks (lefthook + Entire).
 //
-// Why this exists: Entire wraps lefthook's hooks -- `.git/hooks/pre-push` is
-// Entire's wrapper, which chains to `pre-push.pre-entire` (the lefthook shim).
+// Why this exists: Entire wraps lefthook's hooks -- `.git/hooks/pre-commit` is
+// Entire's wrapper, which chains to `pre-commit.pre-entire` (the lefthook shim).
 // A bare `lefthook install` replaces Entire's wrapper, so after installing
 // lefthook hooks the Entire wrapper must be restored. This script performs
 // that repair, but only when something is actually missing, so a routine
 // `bun install` stays a no-op instead of churning hook files on every run.
+//
+// Policy: lefthook owns only the instant pre-commit cargo-fmt fixer. There is
+// deliberately no pre-push hook — CI owns all check/test gates (see lefthook.yml).
 //
 // Run automatically via the `prepare` lifecycle script (`bun install`), which
 // also covers fresh clones. Linked git worktrees share the main checkout's
@@ -88,10 +91,11 @@ const inLinkedWorktree =
   path.resolve(gitDir).toLowerCase() !== path.resolve(commonDir).toLowerCase();
 
 const prePush = path.join(dir, "pre-push");
+const preCommit = path.join(dir, "pre-commit");
 const entireWrapped = contains(prePush, "Entire CLI hooks");
 const lefthookShim =
-  contains(prePush, "call_lefthook") ||
-  contains(path.join(dir, "pre-push.pre-entire"), "call_lefthook");
+  contains(preCommit, "call_lefthook") ||
+  contains(path.join(dir, "pre-commit.pre-entire"), "call_lefthook");
 
 if (entireEnabled()) {
   removeManagedBackup(path.join(dir, "pre-push.old"));
