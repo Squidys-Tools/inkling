@@ -1,7 +1,7 @@
 # AGENTS.md
 
 T3 Code instructions:
-- Screenshots the user must SEE: tool-result images never render in chat — always save via `screenshot_out_file` to `C:\Users\$USER$\AppData\Local\Temp\$HARNESS$\chat-images\` (create it if missing) and embed with `![what](C:\...\chat-images\name.png)`; only that subfolder may ever be wiped. Fullscreen screenshots or full desktop screenshots are preferred unless the user asks to only see a specific app, window, or specified section.
+- Screenshots the user must SEE: tool-result images never render in chat — always save via `screenshot_out_file` to `C:\Users\$USER$\AppData\Local\Temp\$HARNESS$\chat-images\` (create it if missing) and embed with `![what](C:\...\chat-images\name.png)`; only that subfolder may ever be wiped. Fullscreen screenshots or full desktop screenshots are preferred unless the user asks to only see a specific app, window, or specified section of ui.
 - You have the tauri-plugin-mcp-bridge as an option to control the native desktop app alongide any other computer use tools you have access too.
 - When in T3 Code you will most likely have browser use tools available to you to control the web ui counter part of the app.
 - While completing work you are required to continually update the changelog file in the docs/ for transparency on the progression of the app.
@@ -10,7 +10,7 @@ T3 Code instructions:
 
 inkling is a Windows-first Tauri 2 desktop app (React + TypeScript + Vite frontend, Rust native core, SQLite storage). Bun 1.4.0 is the package manager — the pinned version lives in `.bun-version` and `package.json#packageManager`. Never use npm/pnpm/yarn here; use `bun.lock` and Bun commands.
 
-Docs taxonomy (inspired by t3code's `docs/user|operations|internals` split):
+Docs taxonomy, `docs/user|operations|internals` split:
 
 - Product and behavior: `docs/product.md`, `docs/product-behavior.md`, `docs/design.md`, `docs/expanded-item-overlay.md`, `docs/models.md`
 - Architecture: `docs/tech-stack.md`
