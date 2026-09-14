@@ -1,0 +1,54 @@
+name: Knip
+
+on:
+  schedule:
+    # Every other day at 04:30 UTC. Tune to daily (`30 4 * * *`) if PRs are small.
+    - cron: "30 4 */2 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Unused code cleanup
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Run Knip autofix
+        # No --allow-remove-files: only strips unused `export` keywords and
+        # prunes unused deps in package.json. Deleted files stay human-reviewed.
+        run: bunx knip --fix
+
+      - name: Sync lockfile after dependency pruning
+        # Knip --fix can remove entries from package.json; re-resolve so
+        # bun.lock stays in sync for the PR. No-op when nothing changed.
+        run: bun install --ignore-scripts
+
+      - name: Open cleanup PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/knip-cleanup
+          delete-branch: true
+          title: "chore: knip unused-code cleanup"
+          body: |
+            Automated `knip --fix` run (every other day).
+
+            - Strips unused `export` keywords, prunes unused dependencies.
+            - Never deletes files (`--allow-remove-files` is off); review the diff before merging.
+            - If this PR is empty or noisy, tune `knip.json` entry/project patterns.
+          commit-message: "chore: knip unused-code cleanup"
+          labels: chore, automated
