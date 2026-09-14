@@ -2350,15 +2350,36 @@ function App() {
     source?.classList.add("is-selected");
   }, [selectedItem]);
 
-  // Live mascot: commutes to the search field while it is focused, leaving a
-  // wavy mini behind in the sidebar. Error beats busyness beats attention.
+  // Live mascot: slow drift by default (gentler sway under reduced motion),
+  // commuting to the search field while it is focused. Busy shows the
+  // notification pastille; errors drop to idle so the sad face can show
+  // (drift carries its own fixed face). Error beats busyness beats attention.
   const isMascotBusy = items.some((item) => item.processing?.active);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = (event: MediaQueryListEvent) => setPrefersReducedMotion(event.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
   useEffect(() => {
     pushMascotParams({
-      state: isMascotBusy ? "notify" : "idle",
+      state: isMascotBusy
+        ? "notify"
+        : captureError
+          ? "idle"
+          : prefersReducedMotion
+            ? "inkling-sway"
+            : "inkling-drift",
       expression: captureError ? "triste" : isSearchFocused ? (query ? "curieux" : "attentif") : "neutre",
     });
-  }, [isMascotBusy, captureError, isSearchFocused, query]);
+  }, [isMascotBusy, captureError, isSearchFocused, query, prefersReducedMotion]);
 
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);
 

@@ -22,7 +22,7 @@ export interface MascotParams {
  */
 const engine = new BotEngine(
   RAYON,
-  "idle",
+  "inkling-drift",
   SHAPE_BY_ID.get("inkling-splash")?.radii ?? null,
   EXPRESSION_BY_ID.get(DEFAULT_EXPRESSION) ?? null,
 );
