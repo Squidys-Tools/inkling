@@ -69,6 +69,16 @@ import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type S
 import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
+// DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
+// the repo so the web preview shows a real library out of the box. The eager
+// glob below resolves to an empty map when that file is absent, so clones
+// still fall back to the original 17-item demo library below.
+const personalSeedModules = import.meta.glob<{ personalSeedItems?: LibraryItem[] }>(
+  "./seedPersonal.ts",
+  { eager: true },
+);
+const localSeedItems: LibraryItem[] =
+  Object.values(personalSeedModules)[0]?.personalSeedItems ?? [];
 import "./App.css";
 
 export type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
@@ -543,8 +553,39 @@ const seedItems: LibraryItem[] = [
   },
 ];
 
-const previewArchivedItems: LibraryItem[] = seedItems
-  .filter((item) => [3, 10, 12, 5].includes(Number(item.id)))
+// DEMO seed swap. With the personal files present, your items plus
+// the four keepers are shuffled together (shuffledDemo is just below). Without
+// them this is just the original demo library again — to restore that
+// permanently, point the useState initializers below back at `seedItems`
+// and delete seedPersonal.ts + public/seed-demo/.
+const demoSeedItems: LibraryItem[] =
+  localSeedItems.length > 0
+    ? shuffledDemo([
+        ...localSeedItems,
+        // Kept from the original set: the X post (5), the PDF document (10),
+        // the note (12), and the quote (13) — shuffled in with everything else.
+        ...seedItems.filter((item) => [5, 10, 12, 13].includes(Number(item.id))),
+      ])
+    : seedItems;
+// DEMO shuffle (fixed seed) so the demo order looks
+// mixed but stays stable across reloads. Delete with the rest of the demo
+// swap above.
+function shuffledDemo<T>(input: T[]): T[] {
+  const array = [...input];
+  let seed = 0x9e3779b9;
+  const random = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0xffffffff;
+  };
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+const previewArchivedItems: LibraryItem[] = demoSeedItems
+  .filter((item) => [10, 12, 5].includes(Number(item.id)))
   .map((item) => ({ ...item, id: `archive-${item.id}`, archived: true }));
 const browserArchivedItems = import.meta.env.DEV ? previewArchivedItems : [];
 
@@ -892,7 +933,7 @@ function clearLibraryTransitionMediaStyle(clone: HTMLElement) {
 }
 
 function App() {
-  const [items, setItems] = useState<LibraryItem[]>(isTauriRuntime() ? [] : seedItems);
+  const [items, setItems] = useState<LibraryItem[]>(isTauriRuntime() ? [] : demoSeedItems);
   const [spaces, setSpaces] = useState<StoredSpace[]>(isTauriRuntime() ? [] : seedSpaces);
   const [query, setQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
