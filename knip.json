@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/main.tsx",
+    "src/**/*.test.ts",
+    "src/lib/ingestion/ingestion.smoke.ts",
+    "benchmarks/harness/index.ts",
+    "benchmarks/**/*.smoke.ts",
+    "benchmarks/fetch-macrumors.ts",
+    "scripts/**/*.ts"
+  ],
+  "project": ["src/**/*", "benchmarks/harness/**/*", "benchmarks/fetch-macrumors.ts", "scripts/**/*"],
+  "ignore": ["src/bun-test.d.ts", "src/vite-env.d.ts"],
+  "ignoreFiles": ["benchmarks/corpus/**", "benchmarks/expected/**", "benchmarks/results/**", "public/**"]
+}

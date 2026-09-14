@@ -82,6 +82,7 @@ Production readiness and first release.
 - [ ] Accessibility audit (contrast, focus indicators, screen readers)
 - [ ] Windows installer and update mechanism
 - [ ] Web version portability (frontend + domain boundaries)
+- [ ] Performance and refactoring pass, then establish the frontend bundle-size baseline and add a bundle-size PR comment check (deferred until the bundle is feature-complete; `pdfjs-dist` / `tesseract.js` chunking is the main risk)
 
 ## TBD
 

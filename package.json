@@ -43,6 +43,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "knip": "^6.35.1",
     "lefthook": "^2.1.12",
     "tesseract.js": "^7.0.0",
     "typescript": "^7.0.2",
