@@ -1,6 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 
-export type StoredItemKind = "note" | "article" | "image" | "pdf" | "video" | "file" | "embed";
+type StoredItemKind = "note" | "article" | "image" | "pdf" | "video" | "file" | "embed";
 
 export type StoredLibraryItem = {
   id: string;
@@ -47,8 +47,8 @@ export type SaveFileInput = {
   bytes: number[];
 };
 
-export type ProcessingJobKind = "ocr_image" | "ocr_pdf_page" | "generate_embedding";
-export type ProcessingJobStatus = "pending" | "processing" | "completed" | "failed";
+type ProcessingJobKind = "ocr_image" | "ocr_pdf_page" | "generate_embedding";
+type ProcessingJobStatus = "pending" | "processing" | "completed" | "failed";
 
 export type ProcessingJob = {
   id: string;
@@ -95,13 +95,6 @@ export type StoredSpace = {
 
 export type CreateSpaceInput = {
   name: string;
-  color?: string;
-  query?: SmartSpaceQuery;
-};
-
-export type UpdateSpaceInput = {
-  id: string;
-  name?: string;
   color?: string;
   query?: SmartSpaceQuery;
 };
@@ -173,10 +166,6 @@ export async function createSpace(input: CreateSpaceInput) {
   return invoke<StoredSpace>("create_space", { input });
 }
 
-export async function updateSpace(input: UpdateSpaceInput) {
-  return invoke<StoredSpace>("update_space", { input });
-}
-
 export async function deleteSpace(id: string) {
   await invoke<void>("delete_space", { id });
 }
@@ -217,16 +206,8 @@ export async function deleteItem(id: string) {
   await invoke<void>("delete_item", { id });
 }
 
-export async function enqueueOcrJob(itemId: string) {
-  return invoke<string>("enqueue_ocr_job", { itemId });
-}
-
 export async function getJobStatus(itemId: string) {
   return invoke<ProcessingJob[]>("get_job_status", { itemId });
-}
-
-export async function countActiveJobs() {
-  return invoke<number>("count_active_jobs");
 }
 
 export async function retryProcessingJob(jobId: string) {

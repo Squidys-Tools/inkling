@@ -31,7 +31,7 @@ Docs taxonomy (inspired by t3code's `docs/user|operations|internals` split):
 ## Checks and quality gates
 
 - `bun run check:bun-version` fails when `.bun-version`, `packageManager`, or the running Bun disagree — fix the version, don't delete the check.
-- `noUnusedLocals` / `noUnusedParameters` are on (`tsconfig.json`); `knip.json` entry/project patterns plus the scheduled `knip --fix` workflow own unused-export/dependency cleanup. `bun run knip:check` is currently advisory (unused-export backlog still being cleared — CI runs it with `continue-on-error`); keep `knip.json` accurate when adding entry points so the scheduled cleanup stays quiet.
+- `noUnusedLocals` / `noUnusedParameters` are on (`tsconfig.json`); `knip.json` entry/project patterns plus the scheduled `knip --fix` workflow own unused-export/dependency cleanup. `bun run knip:check` is a hard gate in CI — keep `knip.json` accurate when adding entry points.
 - CI (`ci.yml`) and Security (`security.yml`) skip docs-only pushes and path-gate frontend vs. native jobs. Automation config (`.entire/`) never skips checks. Match that behavior when touching workflows.
 - Markdown link checks run weekly (`links.yml`, `.lycheeignore`). Add new custom schemes or local hosts to `.lycheeignore`.
 
