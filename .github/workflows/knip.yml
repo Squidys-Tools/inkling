@@ -29,6 +29,8 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Run Knip autofix
+        # Knip is pinned in devDependencies (Dependabot-managed), so bunx
+        # resolves the local install — no unpinned registry fetch.
         # No --allow-remove-files: only strips unused `export` keywords and
         # prunes unused deps in package.json. Deleted files stay human-reviewed.
         run: bunx knip --fix
