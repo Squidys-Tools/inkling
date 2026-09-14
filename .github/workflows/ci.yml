@@ -89,11 +89,7 @@ jobs:
       - name: Run unit tests
         run: bun test
 
-      - name: Check for unused code (advisory)
-        # Advisory until the knip --fix backlog is merged: the tree currently
-        # reports unused exports, so this must not fail the build yet. Flip to
-        # a hard gate once `knip:check` is clean locally.
-        continue-on-error: true
+      - name: Check for unused code
         run: bun run knip:check
 
       - name: Build frontend

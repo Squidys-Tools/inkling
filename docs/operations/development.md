@@ -26,7 +26,7 @@ How to set up, run, check, and troubleshoot inkling. Short version lives in `CON
 | Fast local gate | `bun run check` | `typecheck` + `bun test` |
 | CI parity (frontend) | `bun run check:frontend` | Version pin + locked install + tests + build + ingestion smoke. Same as CI and the pre-push hook |
 | Typecheck only | `bun run typecheck` | App + benchmark harness |
-| Unused code (advisory) | `bun run knip:check` | `knip.json` owns entry/project patterns; currently reports a backlog, so CI treats it as advisory until the scheduled `knip --fix` PRs clear it |
+| Unused code | `bun run knip:check` | Hard gate in CI; `knip.json` owns entry/project patterns. To clean up locally, run `bunx knip --fix` then `bun install --ignore-scripts` (re-syncs the lockfile if deps were pruned), fix any `noUnusedLocals` fallout, and re-run `bun run check:frontend` |
 | Bun pin | `bun run check:bun-version` | `.bun-version` vs `packageManager` vs running Bun must agree |
 | Native | `cargo fmt` / `cargo check --locked` / `cargo test --locked` | Run from `src-tauri/` |
 

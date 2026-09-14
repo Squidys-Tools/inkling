@@ -32,7 +32,7 @@ Guardrails:
 - Contributor documentation: `CONTRIBUTING.md` entry point, `docs/operations/development.md` setup/commands/checks/troubleshooting reference, and a `docs/README.md` index mapping product, architecture, and operations docs
 - Unified check scripts: `bun run check` (typecheck + unit tests), plus standalone `bun run typecheck` and `bun run knip:check`
 - GitHub issue templates for bug reports and feature requests (`.github/ISSUE_TEMPLATE/`)
-- Advisory unused-code step in the CI frontend job (`continue-on-error` until the `knip --fix` backlog is cleared)
+- Unused-code backlog cleared and gated: dead exports stripped, unused `plugin-opener`/`regenerator-runtime` frontend dependencies pruned, orphaned helpers removed, and `knip:check` promoted to a hard gate in the CI frontend job
 - Scheduled unused-code cleanup: `knip --fix` runs every other day on GitHub runners and opens a PR when it strips exports or prunes dependencies (file deletion stays manual, `knip.json` holds entry/project patterns) (`.github/workflows/knip.yml`, `knip.json`)
 - Weekly markdown link check on GitHub runners, opening an issue on broken links (local dev hosts and `inkling://` / `mymind://` schemes excluded) (`.github/workflows/links.yml`, `.lycheeignore`)
 
