@@ -134,6 +134,8 @@ This part is for people who want to build, tinker, or contribute. Everyone else 
 
 **Start here:**
 
+- [Docs index](docs/README.md) — full map of product, architecture, and operations docs
+- [Contributing](CONTRIBUTING.md) and [development guide](docs/operations/development.md) — setup, commands, checks, troubleshooting
 - [docs/product.md](docs/product.md) — who it's for and why it exists
 - [docs/product-behavior.md](docs/product-behavior.md) — how each feature should behave
 - [docs/tech-stack.md](docs/tech-stack.md) — architecture choices and reasoning
