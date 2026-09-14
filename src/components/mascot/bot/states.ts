@@ -620,10 +620,11 @@ export const STATES: StateDef[] = [
     }
   },
   {
-    // Le splash comme cercle + ondes : deux harmoniques dont les amplitudes
-    // (et phases) derivent lentement sur des periodes incommensurables, sous
-    // une rotation complete toutes les 24s. Le visage reste fixe (steadyFace)
-    // pendant que la chair tourne et stir en dessous.
+    // Le splash comme cercle + ondes independantes : quatre harmoniques qui
+    // enflent et s'effacent chacune a son rythme (periodes incommensurables),
+    // avec des lobes qui voyagent au lieu de juste gonfler. La rotation lente
+    // (un tour / 24s) s'ajoute par-dessus. Le visage reste fixe (steadyFace)
+    // pendant que la chair stir en dessous.
     id: 'inkling-drift',
     duration: 24,
     morph: 0.8,
@@ -632,14 +633,32 @@ export const STATES: StateDef[] = [
     baseBody: false,
     steadyFace: true,
     pose: (t) => {
-      const a5 = 0.09 + 0.03 * Math.sin((t * TAU) / 11 + 1) + 0.012 * Math.sin((t * TAU) / 5.3)
-      const a2 = 0.05 + 0.02 * Math.sin((t * TAU) / 7 + 3)
-      const p5 = 0.8 + 0.3 * Math.sin((t * TAU) / 13 + 2)
+      const wave = (base: number, depth: number, period: number, phase: number) =>
+        base + depth * Math.sin((t * TAU) / period + phase)
+      // Amplitudes : chacune s'eteint presque puis revient, a son heure.
+      const a5 = wave(0.055, 0.05, 9.1, 0)
+      const a3 = wave(0.04, 0.035, 6.3, 2.1)
+      const a2 = wave(0.03, 0.025, 13.7, 4.2)
+      const a7 = wave(0.012, 0.01, 3.7, 1.3)
+      // Phases : les lobes 5 et 3 circulent en sens inverse, les autres
+      // glissent lentement — la figure ne repasse jamais deux fois pareille.
+      const p5 = 0.8 + (t * TAU) / 17
+      const p3 = 2.0 - (t * TAU) / 11
       const p2 = 2.0 + 0.3 * Math.sin((t * TAU) / 9)
-      const radii = Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
+      const p7 = (t * TAU) / 5
+      const raw = Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
         const a = (i / PROFILE_SAMPLES) * TAU
-        return 1 + a5 * Math.cos(5 * a + p5) + a2 * Math.cos(2 * a + p2)
+        return (
+          1 +
+          a5 * Math.cos(5 * a + p5) +
+          a3 * Math.cos(3 * a + p3) +
+          a2 * Math.cos(2 * a + p2) +
+          a7 * Math.cos(7 * a + p7)
+        )
       })
+      // Poids visuel constant : seule la forme change, jamais la taille.
+      const peak = Math.max(...raw)
+      const radii = raw.map((r) => (r * 1.06) / peak)
       return base({
         sil: { radii, rot: (t * TAU) / 24, cx: 0, cy: 0, sx: 1, sy: 1 }
       })

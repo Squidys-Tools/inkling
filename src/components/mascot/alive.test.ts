@@ -59,6 +59,9 @@ describe("inkling alive states", () => {
     for (const frame of frames) {
       expect(frame.bodyPath).not.toContain("NaN");
       expect(frame.eyes.length).toBe(2);
+      // Peak-normalized silhouette: constant visual weight at any instant.
+      const nums = frame.bodyPath.match(/-?\d+(\.\d+)?/g)!.map(Number);
+      for (const n of nums) expect(Math.abs(n)).toBeLessThan(120);
     }
     expect(new Set(frames.map((f) => f.bodyPath)).size).toBeGreaterThan(1);
     // steadyFace: lobes turning underneath must not pump the gaze apart.
