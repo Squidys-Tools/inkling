@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BotEngine, type BotFrame } from "./bot/engine";
 import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION } from "./bot/expressions";
 import { COLOR_BY_ID, SHAPE_BY_ID, DEFAULT_SHAPE } from "./bot/skins";
@@ -48,15 +48,19 @@ export function InklingMascot({
     [],
   );
   const [frame, setFrame] = useState<BotFrame>(() => engine.sample(frozenAt ?? 0));
+  // Running clock, shared with the transition setters below. Dating a change
+  // at a stale time (e.g. always 0) completes its morph instantly and reads
+  // as a hard cut — this ref is what keeps shape/state/expression gliding.
+  const clockRef = useRef(0);
 
   useEffect(() => {
-    engine.setShape(shapeRadii, 0);
-    engine.setExpression(expr, 0);
+    engine.setShape(shapeRadii, clockRef.current);
+    engine.setExpression(expr, clockRef.current);
     if (frozenAt !== undefined) setFrame(engine.sample(frozenAt));
   }, [engine, shapeRadii, expr, frozenAt]);
 
   useEffect(() => {
-    if (engine.state !== state) engine.setState(state, 0);
+    if (engine.state !== state) engine.setState(state, clockRef.current);
     if (frozenAt !== undefined) setFrame(engine.sample(frozenAt));
   }, [engine, state, frozenAt]);
 
@@ -70,6 +74,7 @@ export function InklingMascot({
       const dt = last ? Math.min((ms - last) / 1000, 0.064) : 0;
       last = ms;
       clock += dt;
+      clockRef.current = clock;
       setFrame(engine.sample(clock));
     };
     raf = requestAnimationFrame(tick);
