@@ -6,11 +6,13 @@ import { SEQUENCE, STATE_BY_ID } from "./bot/states";
 import { RAYON } from "./bot/repere";
 
 describe("inkling alive states", () => {
-  test("sway and jelly are registered but kept out of the reference montage", () => {
+  test("sway, jelly and drift are registered but kept out of the reference montage", () => {
     expect(STATE_BY_ID.has("inkling-sway")).toBe(true);
     expect(STATE_BY_ID.has("inkling-jelly")).toBe(true);
+    expect(STATE_BY_ID.has("inkling-drift")).toBe(true);
     expect(SEQUENCE).not.toContain("inkling-sway");
     expect(SEQUENCE).not.toContain("inkling-jelly");
+    expect(SEQUENCE).not.toContain("inkling-drift");
   });
 
   test("sway and jelly visibly move the splash body without NaN", () => {
@@ -28,17 +30,28 @@ describe("inkling alive states", () => {
     }
   });
 
-  test("splash-b twin is registered and morphs smoothly from splash", () => {
+  test("splash-b twin is registered with matching samples", () => {
     const a = SHAPE_BY_ID.get("inkling-splash")?.radii;
     const b = SHAPE_BY_ID.get("inkling-splash-b")?.radii;
     expect(a).toBeDefined();
     expect(b).toBeDefined();
     expect(a).not.toBe(b);
     expect(b).toHaveLength(a!.length);
-    const engine = new BotEngine(RAYON, "idle", a ?? null, EXPRESSION_BY_ID.get("neutre") ?? null);
-    engine.setShape(b ?? null, 0);
-    const mid = engine.sample(0.2);
-    expect(mid.bodyPath).not.toContain("NaN");
-    expect(mid.bodyPath).not.toBe(engine.sample(5.0).bodyPath);
+  });
+
+  test("drift rotates a full turn without NaN", () => {
+    const engine = new BotEngine(
+      RAYON,
+      "inkling-drift",
+      SHAPE_BY_ID.get("inkling-splash")?.radii ?? null,
+      EXPRESSION_BY_ID.get("neutre") ?? null,
+    );
+    expect(SEQUENCE).not.toContain("inkling-drift");
+    const frames = [0, 6, 12, 18].map((t) => engine.sample(t));
+    for (const frame of frames) {
+      expect(frame.bodyPath).not.toContain("NaN");
+      expect(frame.eyes.length).toBeGreaterThan(0);
+    }
+    expect(new Set(frames.map((f) => f.bodyPath)).size).toBeGreaterThan(1);
   });
 });

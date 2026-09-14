@@ -168,6 +168,7 @@ export type StateId =
   // Hors `SEQUENCE` like `swirl`: they never enter the reference montage.
   | 'inkling-sway'
   | 'inkling-jelly'
+  | 'inkling-drift'
 
 export interface StateDef {
   id: StateId
@@ -609,6 +610,20 @@ export const STATES: StateDef[] = [
         sil: circle(1, { sx: 1 + 0.05 * k, sy: 1 - 0.05 * k })
       })
     }
+  },
+  {
+    // Slow continuous spin: one full turn every 24s. The silhouette turns
+    // under a still face (eyes are posed independently), so it reads as ink
+    // stirring rather than the mascot spinning.
+    id: 'inkling-drift',
+    duration: 24,
+    morph: 0.8,
+    blinkIn: false,
+    baseFace: true,
+    baseBody: true,
+    pose: (t) => base({
+      sil: circle(1, { rot: (t * TAU) / 24 })
+    })
   }
 ]
 
@@ -638,7 +653,8 @@ export const POSES: Record<StateId, number> = {
   comet: 1.15,
   // INKLING EXTENSION: looping states read well mid-cycle.
   'inkling-sway': 3,
-  'inkling-jelly': 1.2
+  'inkling-jelly': 1.2,
+  'inkling-drift': 6
 }
 
 export const SEQUENCE: StateId[] = [

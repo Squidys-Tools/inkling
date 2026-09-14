@@ -28,12 +28,7 @@ function SocialTile() {
 }
 
 function MorphTile() {
-  const [alt, setAlt] = useState(false);
-  useEffect(() => {
-    const id = window.setInterval(() => setAlt((v) => !v), 2500);
-    return () => window.clearInterval(id);
-  }, []);
-  return <InklingMascot size={160} shape={alt ? "inkling-splash-b" : "inkling-splash"} />;
+  return <InklingMascot size={160} state="inkling-drift" />;
 }
 
 function WatcherTile() {
@@ -124,8 +119,8 @@ export function AliveBoard() {
           <WatcherTile />
         </Tile>
         <Tile
-          title="5 · Shape drift"
-          body="New inkling-splash-b twin skin; the body slowly morphs between the two every 2.5s. The blot looks like it's stirring."
+          title="5 · Slow spin"
+          body="New inkling-drift state: one full turn every 24s under a still face. Ink stirring, not mascot spinning."
         >
           <MorphTile />
         </Tile>
