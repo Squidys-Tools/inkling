@@ -5,20 +5,18 @@ on:
     branches:
       - main
     paths-ignore:
-      # Docs / design assets carry no executable code — skip CI entirely
+      # Docs carry no executable code — skip CI entirely
       # when a push only touches these (mixed code+docs pushes still run).
       # Automation config (.entire/) is deliberately NOT ignored: runner
       # prompts execute in automation, so those changes must run checks.
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
-      - "pen/**"
   pull_request:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
-      - "pen/**"
 
 permissions:
   contents: read

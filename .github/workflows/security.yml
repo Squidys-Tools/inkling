@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths-ignore:
-      # Docs / design assets carry no executable code — skip security checks
+      # Docs carry no executable code — skip security checks
       # entirely when a push only touches these (mixed code+docs still runs).
       # Automation config (.entire/) is deliberately NOT ignored: runner
       # prompts execute in automation, so those changes must be scanned.
@@ -13,13 +13,11 @@ on:
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
-      - "pen/**"
   pull_request:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
-      - "pen/**"
   schedule:
     - cron: "30 3 * * 1"
 

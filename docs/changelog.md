@@ -50,6 +50,7 @@ Guardrails:
 
 ### Removed
 
+- Unused Penpot design folder (`pen/`); CI/security path filters no longer ignore it
 - Dead `note-art` / `note-pin` / `note-scribble` card styles left over from the note thumbnail reuse (`src/App.css`)
 ### Fixed
 
