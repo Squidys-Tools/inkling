@@ -78,6 +78,23 @@ if (typeof document !== "undefined") {
   });
 }
 
+// The OS reduced-motion setting can flip while the app is open. Without this
+// the loop would keep running after opting into reduced motion, and never
+// restart after opting out (subscribers stay mounted, so ensureLoop would not
+// run again on its own). App.tsx already swaps the drift/sway state on the
+// same change; this restarts or freezes the clock to match.
+if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+  window.matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", (event) => {
+    if (event.matches) {
+      haltLoop();
+      frame = engine.sample(clock);
+      emit();
+    } else if (subs.size > 0) {
+      ensureLoop();
+    }
+  });
+}
+
 export function subscribeMascot(fn: () => void): () => void {
   subs.add(fn);
   ensureLoop();
