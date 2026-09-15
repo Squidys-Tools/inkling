@@ -73,8 +73,8 @@ describe("inkling alive states", () => {
   });
 
   test("splash faces keep breathing room around the eyes", () => {
-    // Conservative blanket eye radius: real margins read higher. Catches a
-    // removed splash bonus (idle drops to -6) or a reverted drift face (-15).
+    // Conservative blanket eye radius (tracks EYE_H x RAYON / 2): real margins
+    // read higher. Catches a removed splash bonus or a reverted drift face.
     const radii = SHAPE_BY_ID.get("inkling-splash")?.radii ?? null;
     const contour = toPoints({ radii: radii!, rot: 0, cx: 0, cy: 0, sx: 1, sy: 1 }, RAYON);
     const margin = (state: StateId, t: number): number => {
@@ -83,7 +83,7 @@ describe("inkling alive states", () => {
       for (const eye of frame.eyes) {
         const p = eye.matrix.match(/matrix\(([^)]+)\)/)![1]!.split(",").map(Number);
         for (const q of contour) {
-          const d = Math.hypot(q.x - p[4]!, q.y - p[5]!) - 22;
+          const d = Math.hypot(q.x - p[4]!, q.y - p[5]!) - 25;
           if (d < m) m = d;
         }
       }

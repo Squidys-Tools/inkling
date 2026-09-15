@@ -2595,7 +2595,7 @@ function App() {
             }}
           >
             <span className="field-mascot" aria-hidden="true">
-              <LiveMascotSearchEyes size={28} className={query ? "is-typing" : undefined} />
+              <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />
             </span>
             <input
               ref={searchRef}

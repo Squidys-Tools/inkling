@@ -245,8 +245,8 @@ const DICHOTOMIE = 8
  * paraissent encore au bord (mesure : -6 unites sur idle/neutre). Ce bonus
  * releve l'exigence pour les seuls profils splash ; les formes mesurees et
  * les autres skins gardent un bonus nul et un comportement inchange.
- */
-const BONUS_MARGE_SPLASH = 10
+ * Releve a 12 pour assoir les yeux agrandis (EYE x1.2) sans toucher au corps. */
+const BONUS_MARGE_SPLASH = 12
 
 function bonusPour(radii: number[]): number {
   if (radii === SHAPE_BY_ID.get('inkling-splash')?.radii) return BONUS_MARGE_SPLASH
