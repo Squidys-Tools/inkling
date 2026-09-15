@@ -69,6 +69,7 @@ import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type S
 import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
+import { shouldUseSeedLibrary } from "./lib/previewMode";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
 // the repo so the web preview shows a real library out of the box. The eager
 // glob below resolves to an empty map when that file is absent, so clones
@@ -933,8 +934,8 @@ function clearLibraryTransitionMediaStyle(clone: HTMLElement) {
 }
 
 function App() {
-  const [items, setItems] = useState<LibraryItem[]>(isTauriRuntime() ? [] : demoSeedItems);
-  const [spaces, setSpaces] = useState<StoredSpace[]>(isTauriRuntime() ? [] : seedSpaces);
+  const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
+  const [spaces, setSpaces] = useState<StoredSpace[]>(shouldUseSeedLibrary() ? seedSpaces : []);
   const [query, setQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeView, setActiveView] = useState("Everything");
@@ -943,7 +944,7 @@ function App() {
   const [newSpaceName, setNewSpaceName] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(isTauriRuntime() ? [] : browserArchivedItems);
+  const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? browserArchivedItems : []);
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
   const [isAdding, setIsAdding] = useState(false);
@@ -1970,7 +1971,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!isTauriRuntime()) return;
+    if (shouldUseSeedLibrary()) return;
     let cancelled = false;
     const unlisten: Array<() => void> = [];
 
@@ -2000,7 +2001,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!isTauriRuntime()) return;
+    if (shouldUseSeedLibrary()) return;
     let cancelled = false;
     listSpaces()
       .then((storedSpaces) => {
@@ -2013,7 +2014,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!isTauriRuntime()) return;
+    if (shouldUseSeedLibrary()) return;
     let cancelled = false;
     let loading = false;
 
@@ -2053,7 +2054,7 @@ function App() {
   }, [query, similaritySource?.id, activeSpaceId]);
 
   useEffect(() => {
-    if (!isSettingsOpen || !isTauriRuntime()) return;
+    if (!isSettingsOpen || shouldUseSeedLibrary()) return;
     let cancelled = false;
 
     async function loadArchivedItems() {
@@ -2368,6 +2369,15 @@ function App() {
           )}
         </AnimatePresence>
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
+        {shouldUseSeedLibrary() && (
+          <div
+            data-testid="web-preview-badge"
+            title="Web preview shows deterministic sample data. No Tauri backend is connected."
+            style={{ margin: "8px 12px 0", padding: "4px 8px", fontSize: 12, borderRadius: 6, background: "#f5f0dc", color: "#5c4a12" }}
+          >
+            Web preview — sample data
+          </div>
+        )}
           <div className="brand-lockup" data-tauri-drag-region>
           <div className={`brand-mark${isSearchFocused ? " is-away" : ""}`} aria-hidden="true">
             <svg viewBox="-125 -125 250 250" xmlns="http://www.w3.org/2000/svg">
