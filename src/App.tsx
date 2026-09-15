@@ -937,6 +937,7 @@ function clearLibraryTransitionMediaStyle(clone: HTMLElement) {
 }
 
 function App() {
+  const canUseTauriBackend = isTauriRuntime() && !shouldUseSeedLibrary();
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
   const [spaces, setSpaces] = useState<StoredSpace[]>(shouldUseSeedLibrary() ? seedSpaces : []);
   const [query, setQuery] = useState("");
@@ -1038,7 +1039,7 @@ function App() {
 
   const restoreForgottenItem = useCallback(async (item: LibraryItem, toastId: string) => {
     try {
-      const restoredItem = isTauriRuntime()
+      const restoredItem = canUseTauriBackend
         ? await archiveItem(String(item.id), false).then(async (storedItem) => {
             const jobs = await getJobStatus(storedItem.id);
             return storedItemToLibraryItem(storedItem, summarizeProcessingJobs(jobs));
@@ -1057,7 +1058,7 @@ function App() {
   const forgetItem = useCallback(async (item: LibraryItem) => {
     setCaptureError(null);
     try {
-      if (isTauriRuntime()) await archiveItem(String(item.id));
+      if (canUseTauriBackend) await archiveItem(String(item.id));
       setItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
       setSelectedItem(null);
 
@@ -1542,7 +1543,7 @@ function App() {
   async function persistFile(file: File, captureSource: string) {
     const kind = classifyFile(file);
     const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
-    if (isTauriRuntime()) {
+    if (canUseTauriBackend) {
       const storedItem = await saveFile({
         fileName: file.name,
         mimeType: file.type,
@@ -1604,7 +1605,7 @@ function App() {
       captureSource,
     };
 
-    if (isTauriRuntime()) {
+    if (canUseTauriBackend) {
       const storedItem = await createUrl({
         sourceUrl: article.canonicalUrl,
         title: article.title,
@@ -1683,7 +1684,7 @@ function App() {
       return;
     }
 
-    if (isTauriRuntime()) {
+    if (canUseTauriBackend) {
       const storedItem = await createNote({
         body: value,
         metadata: { captureSource },
@@ -1720,7 +1721,7 @@ function App() {
       ? `https://${rawSource}`
       : rawSource;
 
-    if (isTauriRuntime()) {
+    if (canUseTauriBackend) {
       const storedItem = await createQuote({
         body,
         attribution: trimmedAttribution || undefined,
@@ -1803,7 +1804,7 @@ function App() {
   }
 
   async function findSimilarImages(item: LibraryItem) {
-    if (!isTauriRuntime()) {
+    if (!canUseTauriBackend) {
       setCaptureError("Image similarity is available in the Windows app.");
       return;
     }
@@ -1855,7 +1856,7 @@ function App() {
     setCaptureError(null);
 
     try {
-      const created = isTauriRuntime()
+      const created = canUseTauriBackend
         ? await createSpace({ name, color, query: spaceQuery })
         : {
             id: `local-space-${Date.now()}`,
@@ -1878,7 +1879,7 @@ function App() {
   async function handleDeleteSpace(space: StoredSpace) {
     setCaptureError(null);
     try {
-      if (isTauriRuntime()) await deleteSpace(space.id);
+      if (canUseTauriBackend) await deleteSpace(space.id);
       setSpaces((current) => current.filter((candidate) => candidate.id !== space.id));
       if (activeSpaceId === space.id) clearToDefaultView();
     } catch (error) {
@@ -2104,7 +2105,7 @@ function App() {
     return items.filter((item) => {
       const matchesQuery = !normalizedQuery
         ? true
-        : isTauriRuntime() || similaritySource || activeSpace
+        : canUseTauriBackend || similaritySource || activeSpace
           ? true
           : [item.title, item.description, item.source, item.kind, ...item.tags]
             .join(" ")
@@ -2114,7 +2115,7 @@ function App() {
         activeView === "Everything" ||
         (activeView === "Top of mind" && item.favorite) ||
         (activeSpace
-          ? isTauriRuntime() || itemMatchesSmartQuery(item, activeSpace.query)
+          ? canUseTauriBackend || itemMatchesSmartQuery(item, activeSpace.query)
           : false);
       return matchesQuery && matchesView;
     });
@@ -2231,7 +2232,7 @@ function App() {
   const deleteArchivedLibraryItem = useCallback(async (item: LibraryItem) => {
     setCaptureError(null);
     try {
-      if (isTauriRuntime()) await deleteItem(String(item.id));
+      if (canUseTauriBackend) await deleteItem(String(item.id));
       setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== String(item.id)));
       if (selectedItem && String(selectedItem.id) === String(item.id)) setSelectedItem(null);
       toast.success("Deleted permanently", { description: item.title, duration: 3000 });
@@ -2268,7 +2269,7 @@ function App() {
     setCaptureError(null);
     try {
       const results = await Promise.allSettled(selectedItems.map(async (item) => {
-        if (!isTauriRuntime()) return item;
+        if (!canUseTauriBackend) return item;
         const restoredItem = await archiveItem(String(item.id), false);
         const jobs = await getJobStatus(restoredItem.id);
         return storedItemToLibraryItem(restoredItem, summarizeProcessingJobs(jobs));
@@ -2296,7 +2297,7 @@ function App() {
     setCaptureError(null);
     try {
       const results = await Promise.allSettled(selectedItems.map(async (item) => {
-        if (isTauriRuntime()) await deleteItem(String(item.id));
+        if (canUseTauriBackend) await deleteItem(String(item.id));
         return String(item.id);
       }));
       const deletedIds = new Set(results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
