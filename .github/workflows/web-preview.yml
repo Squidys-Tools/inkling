@@ -71,7 +71,7 @@ jobs:
               `${process.env.DEPLOYMENT_URL} (for ${process.env.HEAD_SHA.slice(0, 7)})`,
               "",
               "This preview is created because this PR has the `preview:web` label.",
-            ].join("\\n");
+            ].join("\n");
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
