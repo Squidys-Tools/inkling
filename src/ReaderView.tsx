@@ -17,7 +17,7 @@ export type ReaderItem = {
   html: string;
 };
 
-export const READER_FONT_SETS = [
+const READER_FONT_SETS = [
   { id: "quiet-classic", label: "Quiet Classic" },
   { id: "bookplate", label: "Bookplate" },
   { id: "print-shop", label: "Print Shop" },

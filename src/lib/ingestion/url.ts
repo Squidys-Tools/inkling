@@ -107,7 +107,7 @@ const BARE_HOST_RE =
 
 // Accepts both full URLs and bare hostnames (`example.com`, `x.com`), which
 // are upgraded to `https://` before parsing.
-export function normalizeHttpInput(value: string): string {
+function normalizeHttpInput(value: string): string {
   const trimmed = value.trim();
   if (SCHEME_RE.test(trimmed)) return trimmed;
   return BARE_HOST_RE.test(trimmed) ? `https://${trimmed}` : trimmed;

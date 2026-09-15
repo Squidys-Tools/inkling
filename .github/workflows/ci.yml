@@ -5,20 +5,18 @@ on:
     branches:
       - main
     paths-ignore:
-      # Docs / design assets carry no executable code — skip CI entirely
+      # Docs carry no executable code — skip CI entirely
       # when a push only touches these (mixed code+docs pushes still run).
       # Automation config (.entire/) is deliberately NOT ignored: runner
       # prompts execute in automation, so those changes must run checks.
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
-      - "pen/**"
   pull_request:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
-      - "pen/**"
 
 permissions:
   contents: read
@@ -47,7 +45,7 @@ jobs:
 
       - name: Filter changed paths
         id: filter
-        # Pinned to the v3 tag commit: this job gates security checks, so a
+        # Pinned to the v4 tag commit: this job gates security checks, so a
         # hijacked floating tag must not be able to falsify filter outputs.
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
@@ -88,6 +86,9 @@ jobs:
 
       - name: Run unit tests
         run: bun test
+
+      - name: Check for unused code
+        run: bun run knip:check
 
       - name: Build frontend
         run: bun run build

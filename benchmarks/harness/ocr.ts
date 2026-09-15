@@ -102,17 +102,6 @@ export class TesseractJsEngine implements OcrEngine {
   }
 }
 
-export async function pickOcrEngine(engines: OcrEngine[]): Promise<OcrEngine | null> {
-  for (const engine of engines) {
-    try {
-      if (await engine.available()) return engine;
-    } catch {
-      // keep probing
-    }
-  }
-  return null;
-}
-
 export async function availableOcrEngines(engines: OcrEngine[]): Promise<OcrEngine[]> {
   const ready: OcrEngine[] = [];
   for (const engine of engines) {

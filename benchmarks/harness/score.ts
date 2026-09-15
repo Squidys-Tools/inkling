@@ -1,4 +1,4 @@
-export function normalizeForMatch(value: string): string {
+function normalizeForMatch(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
