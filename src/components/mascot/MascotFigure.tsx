@@ -170,7 +170,7 @@ export function MascotFigure({ frame, size, ink = "#1a1a1a", paper = "#faf9f6", 
  * space below. This uses a tight crop around the drift + attentif/curieux
  * eye centroid (about 25, -50) so the gaze sits optically centered.
  */
-export const SEARCH_EYES_VIEWBOX = "-18 -82 85 62";
+export const SEARCH_EYES_VIEWBOX = "-20 -84 88 70";
 
 export function MascotSearchEyes({
   frame,
@@ -186,7 +186,7 @@ export function MascotSearchEyes({
   return (
     <svg
       width={size}
-      height={(size * 62) / 85}
+      height={(size * 70) / 88}
       viewBox={SEARCH_EYES_VIEWBOX}
       preserveAspectRatio="xMidYMid meet"
       role="img"
