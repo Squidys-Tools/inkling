@@ -1,6 +1,6 @@
 # Development
 
-How to set up, run, check, and troubleshoot inkling. Short version lives in `CONTRIBUTING.md`; this is the full reference.
+How to set up, run, check, and troubleshoot inkling. Contribution scope and PR expectations live in `CONTRIBUTING.md`; this is the command and check reference.
 
 ## First-time setup
 

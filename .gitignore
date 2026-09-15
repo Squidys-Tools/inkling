@@ -19,6 +19,9 @@ benchmarks/results/results-*.json
 # tesseract.js language data cache (regenerated at runtime in the working dir)
 eng.traineddata
 
+# Agent scratch and implementation plans stay out of the repo
+.plans/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

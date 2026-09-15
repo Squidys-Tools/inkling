@@ -21,7 +21,7 @@ Index of project documentation. Product docs describe what inkling is; operation
 ## Contributor operations
 
 - [operations/development.md](operations/development.md) — setup, commands, checks, CI behavior, troubleshooting (full reference).
-- `CONTRIBUTING.md` (repo root) — short entry point that links here.
+- `CONTRIBUTING.md` (repo root) — contribution scope and PR expectations.
 
 ## Where new docs go
 

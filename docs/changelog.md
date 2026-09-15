@@ -29,7 +29,7 @@ Guardrails:
 ### Added
 
 - Unit tests for the note card word-count logic, run via `bun test` in CI and the local frontend check (`src/components/ItemMedia.test.ts`)
-- Contributor documentation: `CONTRIBUTING.md` entry point, `docs/operations/development.md` setup/commands/checks/troubleshooting reference, and a `docs/README.md` index mapping product, architecture, and operations docs
+- Contributor reference: `docs/operations/development.md` setup/checks/troubleshooting guide and a `docs/README.md` index mapping product, architecture, and operations docs
 - Unified check scripts: `bun run check` (typecheck + unit tests), plus standalone `bun run typecheck` and `bun run knip:check`
 - GitHub issue templates for bug reports and feature requests (`.github/ISSUE_TEMPLATE/`)
 - Unused-code backlog cleared and gated: dead exports stripped, unused `plugin-opener`/`regenerator-runtime` frontend dependencies pruned, orphaned helpers removed, and `knip:check` promoted to a hard gate in the CI frontend job
@@ -42,7 +42,6 @@ Guardrails:
 
 - README rewritten as a user-facing overview (tour, screenshots, demo/mascot placeholders, FAQ) with the developer setup and docs index moved to a short section at the end (`README.md`)
 - CI and security workflows skip docs-only changes and run only the jobs whose paths changed (frontend vs. native vs. dependencies), cutting redundant check runs on documentation pushes (`.github/workflows/ci.yml`, `.github/workflows/security.yml`)
-- `AGENTS.md` expanded with project snapshot, command/check reference, docs taxonomy, Windows toolchain notes, and working conventions
 - `bun run check:frontend` now includes `knip:check` (same order as the CI frontend job), so unused-code failures surface locally before push
 - Local hooks removed by policy: `lefthook.yml`, the `lefthook` dependency, `scripts/setup-hooks.ts`, and the dead `.githooks/` shims are gone — `bun install` is hook- and script-free, and CI (including `cargo fmt --check`) owns all gates
 - Roadmap Milestone 3 notes the already-registered `update_space`, `enqueue_ocr_job`, and `count_active_jobs` Tauri commands waiting for UI
