@@ -2370,10 +2370,10 @@ function App() {
   }, []);
   useEffect(() => {
     pushMascotParams({
-      state: isMascotBusy
-        ? "notify"
-        : captureError
-          ? "idle"
+      state: captureError
+        ? "idle"
+        : isMascotBusy
+          ? "notify"
           : prefersReducedMotion
             ? "inkling-sway"
             : "inkling-drift",
