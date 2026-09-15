@@ -163,10 +163,46 @@ export function MascotFigure({ frame, size, ink = "#1a1a1a", paper = "#faf9f6", 
 }
 
 /**
- * Eyes only: the frame's eye capsules drawn as solid shapes in a tight crop
- * around their full range of motion (measured across rest expressions, idle
- * and notify, -60 -80 150 135), no body. For slots where just the gaze should
- * float (search field).
+ * Eyes only, custom fit for the search field.
+ * The generic MascotEyes uses a tall crop (-60 -80 150 135) that reserves
+ * room for the full motion range across all states. In a 50px search bar
+ * that empty space reads as a vertical offset, eyes pinned high with dead
+ * space below. This uses a tight crop around the drift + attentif/curieux
+ * eye centroid (about 25, -50) so the gaze sits optically centered.
+ */
+export const SEARCH_EYES_VIEWBOX = "-18 -82 85 62";
+
+export function MascotSearchEyes({
+  frame,
+  size,
+  ink = "#e5ddd2",
+  className,
+}: {
+  frame: BotFrame;
+  size: number;
+  ink?: string;
+  className?: string;
+}) {
+  return (
+    <svg
+      width={size}
+      height={(size * 62) / 85}
+      viewBox={SEARCH_EYES_VIEWBOX}
+      preserveAspectRatio="xMidYMid meet"
+      role="img"
+      aria-label="inkling mascot eyes"
+      className={className}
+    >
+      {frame.eyes.map((eye, i) => (
+        <path key={i} d={eye.d} transform={eye.matrix} opacity={eye.alpha} fill={ink} />
+      ))}
+    </svg>
+  );
+}
+
+/**
+ * Generic eyes-only crop covering the full motion range. Kept for dev
+ * previews. The search field uses MascotSearchEyes instead.
  */
 export function MascotEyes({
   frame,

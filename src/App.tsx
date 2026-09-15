@@ -64,7 +64,7 @@ import {
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 import PdfViewer from "./components/PdfViewer";
-import { LiveMascotFigure, LiveMascotEyes, pushMascotParams } from "./components/mascot/mascotStore";
+import { LiveMascotFigure, LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
 import { MascotBoard } from "./components/mascot/MascotBoard";
 import { AliveBoard } from "./components/mascot/AliveBoard";
 import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
@@ -2596,7 +2596,7 @@ function App() {
           >
             <span className="field-mascot" aria-hidden="true">
               {isSearchFocused ? (
-                <LiveMascotEyes size={40} className={query ? "is-typing" : undefined} />
+                <LiveMascotSearchEyes size={36} className={query ? "is-typing" : undefined} />
               ) : (
                 <svg width="20" height="14" viewBox="0 0 20 14" focusable="false"><rect x="4" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /><rect x="13" y="2.5" width="5" height="9" rx="2.5" fill="currentColor" /></svg>
               )}

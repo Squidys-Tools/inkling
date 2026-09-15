@@ -103,6 +103,7 @@ An empty library is a bad test. Seed your run with a copy of real data instead o
 ## Pull requests
 
 - Never open a PR unless asked.
+- Squash commits by default when merging branches. Keep one commit per PR unless the user asks to keep separate commits.
 - Keep it small. One concern per PR. If the description says also, split it.
 - Title in plain language with a scope. `fix(reader): code blocks keep line breaks`.
 - Body states the problem in a sentence or two, then how you fixed it. End with the model and harness that did the work.
