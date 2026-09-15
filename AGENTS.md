@@ -10,7 +10,7 @@ T3 Code instructions:
 
 inkling is a Windows-first Tauri 2 desktop app (React + TypeScript + Vite frontend, Rust native core, SQLite storage). Bun 1.4.0 is the package manager — the pinned version lives in `.bun-version` and `package.json#packageManager`. Never use npm/pnpm/yarn here; use `bun.lock` and Bun commands.
 
-Docs taxonomy, `docs/user|operations|internals` split:
+Docs layout (t3code-inspired split: product docs, operations, planning):
 
 - Product and behavior: `docs/product.md`, `docs/product-behavior.md`, `docs/design.md`, `docs/expanded-item-overlay.md`, `docs/models.md`
 - Architecture: `docs/tech-stack.md`
@@ -42,7 +42,7 @@ Docs taxonomy, `docs/user|operations|internals` split:
 
 ## Working conventions
 
-- Small, focused diffs. Match existing style; run `cargo fmt` for Rust (pre-commit hook covers `src-tauri/*.rs`).
+- Small, focused diffs. Match existing style; run `cargo fmt` for Rust (CI enforces `cargo fmt --check`).
 - Never commit secrets, local model caches, databases, or build output. Check `git status` before committing.
 - PRs: fill in `What Changed` / `Why`, add before/after screenshots or video for UI changes, tick the checklist (checks run + changelog entry where applicable).
 - Changelog (`docs/changelog.md`): append under `Unreleased` grouped as `Added`/`Changed`/`Fixed`/`Removed`; one human-readable line per entry, no AI-agent mentions, skip trivial typo/format-only changes. See the header of that file for the full format.
