@@ -98,7 +98,7 @@ An empty library is a bad test. Seed your run with a copy of real data instead o
 - Ingestion and background changes ship with focused tests for that behavior. Extraction, OCR scoring, queue leases, recovery. A behavior change with no test is unfinished.
 - Background work is async. Wait on real completion, job drains and lease states, never on fixed sleeps. A test that needs a timeout to pass is wrong.
 - UI changes need one real pass in the running app before you call them done. Preview for layout, full app for anything native. Take a screenshot through the harness so the user can see it. Ask permission before driving a browser or the desktop on your own.
-- Rust changes get `cargo fmt` and the focused test for the module. The pre commit hook runs fmt on staged Rust files. The pre push hook runs the frontend check.
+- Rust changes get `cargo fmt` and the focused test for the module. There are no local hooks — CI runs `cargo fmt --check` and the frontend check.
 
 ## Pull requests
 
@@ -145,7 +145,6 @@ Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behav
 - `src/components/` holds cards, grid, reader, and Spaces UI. Shared card art lives with the media component.
 - `src-tauri/src/` is the Rust core. Storage, jobs, PDF, OCR bridges, embeddings, assets.
 - `benchmarks/` holds the 48 item corpus, the harness, expected outputs, and results. Only `results-latest.json` and `summary.md` are tracked.
-- `scripts/` holds repo tooling, including the idempotent hook installer.
 - `public/seed-demo/` plus `src/seedPersonal.ts` is the committed demo library for UI work.
 - `docs/` holds product, behavior, stack, roadmap, and changelog. No other docs home exists yet.
 

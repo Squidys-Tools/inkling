@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Development guide
+    url: https://github.com/Squidys-Tools/inkling/blob/main/docs/operations/development.md
+    about: Setup, commands, checks, and troubleshooting for contributors

@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths-ignore:
-      # Docs / design assets carry no executable code — skip security checks
+      # Docs carry no executable code — skip security checks
       # entirely when a push only touches these (mixed code+docs still runs).
       # Automation config (.entire/) is deliberately NOT ignored: runner
       # prompts execute in automation, so those changes must be scanned.
@@ -13,13 +13,11 @@ on:
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
-      - "pen/**"
   pull_request:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
-      - "pen/**"
   schedule:
     - cron: "30 3 * * 1"
 
@@ -49,7 +47,7 @@ jobs:
 
       - name: Filter changed paths
         id: filter
-        # Pinned to the v3 tag commit: this job gates security checks, so a
+        # Pinned to the v4 tag commit: this job gates security checks, so a
         # hijacked floating tag must not be able to falsify filter outputs.
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
@@ -84,7 +82,7 @@ jobs:
     steps:
       - name: Decide whether to run the full matrix
         id: decide
-        # Pinned to the v7 tag commit, like the path filter above.
+        # Pinned to the v9 tag commit, like the path filter above.
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |

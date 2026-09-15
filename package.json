@@ -5,11 +5,13 @@
   "type": "module",
   "packageManager": "bun@1.4.0",
   "scripts": {
-    "prepare": "bun scripts/setup-hooks.ts",
     "dev": "vite",
     "build": "tsc -p benchmarks/harness/tsconfig.json && tsc && vite build",
     "check:bun-version": "bun -e \"const pkg = await Bun.file('package.json').json(); const fileVersion = (await Bun.file('.bun-version').text()).trim(); const expected = pkg.packageManager.replace('bun@', ''); if (fileVersion !== expected || Bun.version !== expected) { console.error('Expected Bun ' + expected + ', found ' + Bun.version); process.exit(1); }\"",
-    "check:frontend": "bun run check:bun-version && bun install --frozen-lockfile --ignore-scripts && bun run test && bun run build && bun run ingest:smoke",
+    "check": "bun run typecheck && bun test",
+    "typecheck": "tsc --noEmit && tsc -p benchmarks/harness/tsconfig.json --noEmit",
+    "knip:check": "knip --no-progress",
+    "check:frontend": "bun run check:bun-version && bun install --frozen-lockfile --ignore-scripts && bun run test && bun run knip:check && bun run build && bun run ingest:smoke",
     "preview": "vite preview",
     "tauri": "tauri",
     "ingest:smoke": "bun src/lib/ingestion/ingestion.smoke.ts",
@@ -33,7 +35,6 @@
     "pdfjs-dist": "^6.3.289",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "regenerator-runtime": "^0.14.1",
     "sonner": "^2.0.8"
   },
   "devDependencies": {
@@ -43,7 +44,6 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "knip": "^6.35.1",
-    "lefthook": "^2.1.12",
     "tesseract.js": "^7.0.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0"
