@@ -25,7 +25,6 @@
     "@hugeicons/core-free-icons": "^4.3.2",
     "@hugeicons/react": "^1.1.10",
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2",
     "@virtuoso.dev/masonry": "^1.4.3",
     "defuddle": "^0.19.3",
     "gsap": "^3.15.0",

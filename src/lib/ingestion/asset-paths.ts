@@ -1,12 +1,12 @@
 import type { LibraryFileKind } from "./file-classification";
 
-export type ThumbnailMode =
+type ThumbnailMode =
   | "image-raster"
   | "pdf-first-page"
   | "video-first-frame"
   | "none";
 
-export interface ThumbnailPolicy {
+interface ThumbnailPolicy {
   kind: LibraryFileKind;
   generate: boolean;
   mode: ThumbnailMode;
@@ -19,7 +19,7 @@ export interface ThumbnailPolicy {
  * The thumbnail policy is intentionally a deterministic mapping from file kind
  * to work. It does not inspect content or invoke an AI model.
  */
-export function thumbnailPolicyFor(kind: LibraryFileKind): ThumbnailPolicy {
+function thumbnailPolicyFor(kind: LibraryFileKind): ThumbnailPolicy {
   switch (kind) {
     case "image":
       return {
@@ -60,7 +60,7 @@ export function thumbnailPolicyFor(kind: LibraryFileKind): ThumbnailPolicy {
   }
 }
 
-export type AssetVariant = "original" | "thumbnail" | "preview";
+type AssetVariant = "original" | "thumbnail" | "preview";
 
 export interface AssetPathOptions {
   itemId: string;
@@ -93,7 +93,7 @@ function safeExtension(extension: string): string {
 }
 
 /** Returns a stable relative filename with no user-controlled path separators. */
-export function assetFileName(options: Omit<AssetPathOptions, "itemId">): string {
+function assetFileName(options: Omit<AssetPathOptions, "itemId">): string {
   return `${sanitizeAssetSegment(options.variant)}.${safeExtension(options.extension)}`;
 }
 
@@ -114,17 +114,4 @@ export function thumbnailRelativePath(
         extension: policy.outputExtension,
       })
     : null;
-}
-
-/**
- * Small deterministic non-cryptographic key for generated asset folders.
- * It is for stable naming, not identity verification or security.
- */
-export function deterministicAssetKey(seed: string): string {
-  let hash = 2166136261;
-  for (const character of seed.normalize("NFKC")) {
-    hash ^= character.codePointAt(0) ?? 0;
-    hash = Math.imul(hash, 16777619);
-  }
-  return `asset-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }

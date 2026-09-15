@@ -14,7 +14,7 @@ import {
 } from './shape'
 import { STATE_BY_ID, type Pose, type StateDef, type StateId } from './states'
 
-export interface RenderedEye {
+interface RenderedEye {
   d: string
   matrix: string
   alpha: number

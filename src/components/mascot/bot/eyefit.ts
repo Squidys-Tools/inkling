@@ -465,7 +465,3 @@ export function decalageDesYeux(
   // un etat sans visage de repos n'a qu'une entree, quelle que soit l'expression
   return par.get(clef(state, expr)) ?? par.get(clef(state, null)) ?? NUL
 }
-
-/** Pour les tests : de quoi verifier la table sans refaire la geometrie. */
-/** Pour les tests : de quoi chronometrer la construction de la table. */
-export const POUR_TESTS = { batir }

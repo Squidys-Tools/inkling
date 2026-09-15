@@ -670,34 +670,6 @@ export const STATES: StateDef[] = [
 
 export const STATE_BY_ID = new Map(STATES.map((s) => [s.id, s]))
 
-/** Ordre de lecture de la sequence complete, calque sur la video de reference. */
-/**
- * Date, en temps local, ou chaque etat est le plus lisible : c'est la pose que
- * montrent les vignettes et la planche. Rendu deterministe, donc comparable
- * d'une execution a l'autre. Le type force a couvrir tout nouvel etat.
- */
-export const POSES: Record<StateId, number> = {
-  idle: 1,
-  thinking: 1.1,
-  wink: 0.8,
-  wide: 0.8,
-  alert: 0.75,
-  notify: 0.9,
-  exclaim: 0.8,
-  sleep: 0.45,
-  egg: 0.8,
-  hexagon: 0.8,
-  play: 0.9,
-  orbit: 1.2,
-  swirl: 0.5,
-  burst: 0.45,
-  comet: 1.15,
-  // INKLING EXTENSION: looping states read well mid-cycle.
-  'inkling-sway': 3,
-  'inkling-jelly': 1.2,
-  'inkling-drift': 6
-}
-
 export const SEQUENCE: StateId[] = [
   'idle',
   'thinking',

@@ -1,4 +1,3 @@
-import { useEffect, useRef, type RefObject } from "react";
 import { closedPath, type Point } from "./bot/shape";
 
 export interface WaveOpts {
@@ -85,76 +84,4 @@ export function wavyOutlinePath(w: number, h: number, r: number, t: number, o: W
     return { x: x + nx * off, y: y + ny * off };
   });
   return closedPath(moved);
-}
-
-/**
- * Morphs the search field's own shape: clips the field element into the live
- * wave via clip-path, so its background and border follow — no extra layer.
- * Always mounted; amplitude eases toward 0 when blurred (never snaps) and the
- * clip is removed at rest. Reduced motion clips nothing, ever.
- *
- * Currently UNWIRED (kept with tests for a later pass): the wave read as too
- * strong in place, and clip-path rendering varied across webviews.
- */
-export function SearchOutline({
-  target,
-  active,
-  lively,
-}: {
-  target: RefObject<HTMLDivElement | null>;
-  active: boolean;
-  lively: boolean;
-}) {
-  const activeRef = useRef(active);
-  activeRef.current = active;
-  const livelyRef = useRef(lively);
-  livelyRef.current = lively;
-
-  useEffect(() => {
-    const el = target.current;
-    if (!el) return;
-    if (
-      typeof window !== "undefined" &&
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
-      return;
-    }
-
-    let w = 0;
-    let h = 0;
-    const measure = () => {
-      const rect = el.getBoundingClientRect();
-      w = rect.width;
-      h = rect.height;
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-
-    let raf = 0;
-    let amp = 0;
-    let last = performance.now();
-    const t0 = last;
-    const frame = (ms: number) => {
-      raf = requestAnimationFrame(frame);
-      const dt = Math.min((ms - last) / 1000, 0.1);
-      last = ms;
-      amp += ((activeRef.current ? 1 : 0) - amp) * Math.min(1, dt * 6);
-      if (amp < 0.002) {
-        if (el.style.clipPath) el.style.clipPath = "";
-        return;
-      }
-      if (w < 10 || h < 10) return;
-      el.style.clipPath = `path("${wavyOutlinePath(w, h, 20, (ms - t0) / 1000, livelyRef.current ? LIVE_WAVE : CALM_WAVE, amp)}")`;
-    };
-    raf = requestAnimationFrame(frame);
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-      el.style.clipPath = "";
-    };
-  }, [target]);
-
-  return null;
 }

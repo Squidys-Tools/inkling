@@ -24,7 +24,7 @@ import {
  * la cle existe). Un `as const` sur le tableau aurait le meme effet mais
  * rendrait `radii` en lecture seule, alors que le moteur le passe tel quel.
  */
-export type ShapeId =
+type ShapeId =
   | 'cercle'
   | 'galet'
   | 'squircle'
@@ -130,7 +130,7 @@ export const SHAPES: BotShape[] = [
 export const SHAPE_BY_ID = new Map<string, BotShape>(SHAPES.map((s) => [s.id, s]))
 export const DEFAULT_SHAPE = 'cercle'
 
-export type ColorId =
+type ColorId =
   | 'encre'
   | 'creme'
   | 'brun'
@@ -152,7 +152,7 @@ export interface BotColor {
 }
 
 /** Palette du personnalisateur d'origine. */
-export const COLORS: BotColor[] = [
+const COLORS: BotColor[] = [
   { id: 'encre', hex: '#0a0a0c' },
   { id: 'brun', hex: '#8b5e3c' },
   { id: 'rouge', hex: '#e8483f' },
@@ -170,7 +170,6 @@ export const COLORS: BotColor[] = [
 ]
 
 export const COLOR_BY_ID = new Map<string, BotColor>(COLORS.map((c) => [c.id, c]))
-export const DEFAULT_COLOR = 'encre'
 
 /** Melange deux couleurs hex. Sert a la brume de profondeur des particules. */
 export function mixHex(from: string, to: string, t: number): string {

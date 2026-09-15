@@ -4,7 +4,7 @@ import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION } from "./bot/expressions";
 import { SHAPE_BY_ID } from "./bot/skins";
 import { RAYON } from "./bot/repere";
 import type { StateId } from "./bot/states";
-import { MascotFigure, MascotEyes, MascotSearchEyes } from "./MascotFigure";
+import { MascotFigure, MascotSearchEyes } from "./MascotFigure";
 
 export interface MascotParams {
   state: StateId;
@@ -123,20 +123,6 @@ export function LiveMascotFigure({
 }) {
   const liveFrame = useMascotFrame();
   return <MascotFigure frame={liveFrame} size={size} ink={ink} paper={paper} className={className} />;
-}
-
-/** Live eyes only, bound to the shared store. For the search field slot. */
-export function LiveMascotEyes({
-  size,
-  ink = "#e5ddd2",
-  className,
-}: {
-  size: number;
-  ink?: string;
-  className?: string;
-}) {
-  const liveFrame = useMascotFrame();
-  return <MascotEyes frame={liveFrame} size={size} ink={ink} className={className} />;
 }
 
 /** Search-bar fit. Tight crop around the drift gaze so it sits centered in 50px. */

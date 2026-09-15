@@ -170,7 +170,7 @@ export function MascotFigure({ frame, size, ink = "#1a1a1a", paper = "#faf9f6", 
  * space below. This uses a tight crop around the drift + attentif/curieux
  * eye centroid (about 25, -50) so the gaze sits optically centered.
  */
-export const SEARCH_EYES_VIEWBOX = "-14 -88 78 80";
+const SEARCH_EYES_VIEWBOX = "-14 -88 78 80";
 
 export function MascotSearchEyes({
   frame,
@@ -189,37 +189,6 @@ export function MascotSearchEyes({
       height={(size * 80) / 78}
       viewBox={SEARCH_EYES_VIEWBOX}
       preserveAspectRatio="xMidYMid meet"
-      role="img"
-      aria-label="inkling mascot eyes"
-      className={className}
-    >
-      {frame.eyes.map((eye, i) => (
-        <path key={i} d={eye.d} transform={eye.matrix} opacity={eye.alpha} fill={ink} />
-      ))}
-    </svg>
-  );
-}
-
-/**
- * Generic eyes-only crop covering the full motion range. Kept for dev
- * previews. The search field uses MascotSearchEyes instead.
- */
-export function MascotEyes({
-  frame,
-  size,
-  ink = "#e5ddd2",
-  className,
-}: {
-  frame: BotFrame;
-  size: number;
-  ink?: string;
-  className?: string;
-}) {
-  return (
-    <svg
-      width={size}
-      height={(size * 135) / 150}
-      viewBox="-60 -80 150 135"
       role="img"
       aria-label="inkling mascot eyes"
       className={className}

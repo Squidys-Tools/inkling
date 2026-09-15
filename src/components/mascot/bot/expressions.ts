@@ -22,7 +22,7 @@ import type { EyeCfg } from './states'
  * les angles jusqu'à ±80°. On reste dans cette enveloppe.
  */
 /** Enumeres pour que la couche i18n verifie leurs traductions a la compilation. */
-export type ExpressionId =
+type ExpressionId =
   | 'neutre'
   | 'attentif'
   | 'surpris'
