@@ -47,9 +47,9 @@ jobs:
 
       - name: Filter changed paths
         id: filter
-        # Pinned to the v3 tag commit: this job gates security checks, so a
+        # Pinned to the v4 tag commit: this job gates security checks, so a
         # hijacked floating tag must not be able to falsify filter outputs.
-        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
             frontend:
@@ -82,8 +82,8 @@ jobs:
     steps:
       - name: Decide whether to run the full matrix
         id: decide
-        # Pinned to the v7 tag commit, like the path filter above.
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        # Pinned to the v9 tag commit, like the path filter above.
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             if (context.payload.action === 'opened' || context.payload.action === 'reopened') {
