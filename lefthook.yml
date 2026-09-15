@@ -1,9 +1,0 @@
-# Policy: no local check/test hooks. CI owns all gates (GitHub runners for
-# slow or low-importance checks, Blacksmith runners where speed matters).
-# The only local hook is the instant cargo-fmt fixer below — not a gate.
-pre-commit:
-  commands:
-    cargo-fmt:
-      glob: "src-tauri/*.rs"
-      run: cargo fmt --manifest-path src-tauri/Cargo.toml
-      stage_fixed: true

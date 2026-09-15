@@ -8,7 +8,7 @@ How to set up, run, check, and troubleshoot inkling. Short version lives in `CON
 2. On Windows, pick one Rust toolchain per machine:
    - MSVC (admin rights): VS Build Tools with the C++ workload, then `rustup default stable-x86_64-pc-windows-msvc`.
    - GNU (no admin): `scoop install gcc`, then `rustup toolchain install stable-x86_64-pc-windows-gnu` and `rustup override set stable-x86_64-pc-windows-gnu` inside the checkout.
-3. `bun install` — the `prepare` script runs `scripts/setup-hooks.ts`, which installs lefthook hooks idempotently and preserves the Entire wrapper. Never run bare `lefthook install`.
+3. `bun install` — plain install, no hooks and no lifecycle scripts.
 
 ## Running
 
@@ -21,8 +21,6 @@ How to set up, run, check, and troubleshoot inkling. Short version lives in `CON
 
 ## Checks
 
-CI owns all check/test gates — there are deliberately no local check hooks (see `lefthook.yml`). Run these locally only when you want early signal; pushing without running them is fine.
-
 | Goal | Command | Notes |
 |---|---|---|
 | Fast local gate | `bun run check` | `typecheck` + `bun test` |
@@ -32,12 +30,11 @@ CI owns all check/test gates — there are deliberately no local check hooks (se
 | Bun pin | `bun run check:bun-version` | `.bun-version` vs `packageManager` vs running Bun must agree |
 | Native | `cargo fmt` / `cargo check --locked` / `cargo test --locked` | Run from `src-tauri/` |
 
-Before pushing, nothing is required locally — CI runs every gate. For early signal, run `bun run check:frontend` for frontend changes or the native checks for Rust changes. `noUnusedLocals` / `noUnusedParameters` are on — the compiler will catch dead locals; Knip catches dead exports and dependencies.
+For early signal, run `bun run check:frontend` for frontend changes or the native checks for Rust changes. `noUnusedLocals` / `noUnusedParameters` are on — the compiler will catch dead locals; Knip catches dead exports and dependencies.
 
 ## Git hooks
 
-- Pre-commit: `cargo fmt` on `src-tauri/*.rs` (staged fixes are re-staged). This instant formatter is the only local hook — checks and tests live in CI by policy.
-- Hook installs happen through `bun install` / `scripts/setup-hooks.ts`. Linked worktrees share the main checkout's hooks directory and need no setup; if a worktree complains about damaged hooks, repair from the main checkout.
+None — there are no local hooks by policy. Formatting (`cargo fmt --check`) and all other gates run in CI.
 
 ## CI behavior (what runs where)
 
@@ -52,5 +49,4 @@ Before pushing, nothing is required locally — CI runs every gate. For early si
 - `Expected Bun X, found Y`: install the pinned Bun from `.bun-version`; don't edit the check to match your install.
 - `export ordinal too large` (GNU toolchain): the workaround is target-gated rustflags in `src-tauri/.cargo/config.toml`. Don't move it back into `build.rs`.
 - `WebView2Loader.dll` / blank window on GNU builds: do a full `cargo build` so the DLL is placed beside the exe, and confirm the Common-Controls v6 manifest is embedded.
-- Push blocked by a nested `lefthook install`: update and use `bun install --frozen-lockfile --ignore-scripts` semantics from `check:frontend` — lifecycle scripts are skipped there on purpose.
 - `knip --fix` PR is noisy: tune `knip.json` entry/project patterns instead of disabling the workflow.

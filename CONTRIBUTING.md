@@ -13,7 +13,7 @@ bun run preview
 
 ## Before you push
 
-Nothing is required locally — CI runs every gate (checks, tests, Knip, CodeQL). For early signal:
+For early signal:
 
 ```powershell
 bun run check:frontend

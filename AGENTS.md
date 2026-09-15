@@ -20,7 +20,7 @@ Docs taxonomy, `docs/user|operations|internals` split:
 
 ## Commands
 
-- Install: `bun install` (runs `scripts/setup-hooks.ts` via `prepare`; idempotent, worktree-safe — never run bare `lefthook install`)
+- Install: `bun install` (no hooks, no lifecycle scripts — CI owns all gates)
 - Web preview (no Rust compile): `bun run preview`
 - Desktop app: `bun run tauri dev`
 - Fast local gate (optional): `bun run check` (typecheck + unit tests)
