@@ -141,7 +141,7 @@ export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }
   );
 }
 
-export const VIDEO_IFRAME_ALLOW =
+const VIDEO_IFRAME_ALLOW =
   "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
 
 export function DetailVideoMedia({ item }: { item: LibraryItem }) {

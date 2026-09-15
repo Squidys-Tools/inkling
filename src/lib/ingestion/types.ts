@@ -1,4 +1,4 @@
-export type IngestionExtractor = "defuddle" | "fallback";
+type IngestionExtractor = "defuddle" | "fallback";
 
 export type SafeEmbedKind = "iframe" | "video" | "audio";
 

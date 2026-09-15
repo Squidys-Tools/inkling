@@ -65,8 +65,3 @@ export function classifyFile(input: FileClassificationInput): LibraryFileKind {
 
   return "other";
 }
-
-export function extensionForFile(input: FileClassificationInput): string | null {
-  const extension = fileExtension(input.name);
-  return extension.length > 0 ? extension : null;
-}

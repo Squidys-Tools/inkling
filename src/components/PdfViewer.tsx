@@ -31,7 +31,7 @@ const ZOOM_STEP = 0.25;
 
 const clampZoom = (value: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 
-export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
+function PdfViewer({ url, title, onClose }: PdfViewerProps) {
   const [state, setState] = useState<ViewerState>({ phase: "loading", percent: null });
   const [pageNumber, setPageNumber] = useState(1);
   const [zoom, setZoom] = useState<number | null>(null);

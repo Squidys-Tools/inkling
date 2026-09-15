@@ -134,6 +134,8 @@ This part is for people who want to build, tinker, or contribute. Everyone else 
 
 **Start here:**
 
+- [docs/README.md](docs/README.md) — index of all project docs
+- [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/operations/development.md](docs/operations/development.md) — setup, commands, checks, troubleshooting
 - [docs/product.md](docs/product.md) — who it's for and why it exists
 - [docs/product-behavior.md](docs/product-behavior.md) — how each feature should behave
 - [docs/tech-stack.md](docs/tech-stack.md) — architecture choices and reasoning

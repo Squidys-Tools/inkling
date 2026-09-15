@@ -38,6 +38,8 @@ jobs:
       - name: Sync lockfile after dependency pruning
         # Knip --fix can remove entries from package.json; re-resolve so
         # bun.lock stays in sync for the PR. No-op when nothing changed.
+        # --ignore-scripts also neuters dependency postinstall scripts, which
+        # matters here: this job carries a write-scoped GITHUB_TOKEN.
         run: bun install --ignore-scripts
 
       - name: Open cleanup PR

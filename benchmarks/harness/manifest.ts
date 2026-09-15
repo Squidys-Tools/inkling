@@ -35,10 +35,6 @@ export function corpusPath(relative: string): string {
   return resolve(benchmarksRoot, relative);
 }
 
-export function expectedPath(relative: string): string {
-  return resolve(benchmarksRoot, relative);
-}
-
 export function loadManifest(): Manifest {
   const manifestPath = resolve(benchmarksRoot, "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Manifest;
