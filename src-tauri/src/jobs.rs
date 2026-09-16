@@ -33,6 +33,13 @@ fn notify_job_updated(app: Option<&AppHandle>, item_id: &str) {
     }
 }
 
+/// Best-effort nudge to the forwarder thread that an item's jobs advanced.
+/// The worker core only ever touches std channels here, so no Tauri types
+/// leak into code paths the unit tests exercise.
+fn ping_job_updated(notify: &Sender<String>, item_id: &str) {
+    let _ = notify.send(item_id.to_owned());
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum JobKind {
@@ -402,9 +409,20 @@ impl ProcessingState {
         let db_path = db_path.to_path_buf();
         let worker_id = self.worker_id.clone();
         let app = self.app_handle.lock().unwrap().clone();
+        let (notify_tx, notify_rx) = mpsc::channel::<String>();
+        // Forwarder owns the only AppHandle in the background: it turns worker
+        // pings into Tauri events. The worker itself never touches Tauri types.
+        thread::Builder::new()
+            .name("job-event-forwarder".into())
+            .spawn(move || {
+                for item_id in notify_rx {
+                    notify_job_updated(app.as_ref(), &item_id);
+                }
+            })
+            .expect("failed to spawn job event forwarder thread");
         let handle = thread::Builder::new()
             .name("job-worker".into())
-            .spawn(move || worker_loop(&db_path, &worker_id, rx, app))
+            .spawn(move || worker_loop(&db_path, &worker_id, rx, notify_tx))
             .expect("failed to spawn job worker thread");
         *handle_guard = Some(handle);
     }
@@ -416,7 +434,7 @@ impl ProcessingState {
     }
 }
 
-fn worker_loop(db_path: &PathBuf, worker_id: &str, rx: Receiver<()>, app: Option<AppHandle>) {
+fn worker_loop(db_path: &PathBuf, worker_id: &str, rx: Receiver<()>, notify: Sender<String>) {
     loop {
         match rx.recv_timeout(Duration::from_secs(5)) {
             Ok(()) => {}
@@ -424,11 +442,11 @@ fn worker_loop(db_path: &PathBuf, worker_id: &str, rx: Receiver<()>, app: Option
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         }
 
-        process_pending_jobs(db_path, worker_id, app.clone());
+        process_pending_jobs(db_path, worker_id, &notify);
     }
 }
 
-fn process_pending_jobs(db_path: &PathBuf, worker_id: &str, app: Option<AppHandle>) {
+fn process_pending_jobs(db_path: &PathBuf, worker_id: &str, notify: &Sender<String>) {
     let storage = match crate::storage::LibraryStorage::open(db_path.clone()) {
         Ok(s) => s,
         Err(_) => return,
@@ -446,10 +464,10 @@ fn process_pending_jobs(db_path: &PathBuf, worker_id: &str, app: Option<AppHandl
             _ => break,
         };
 
-        notify_job_updated(app.as_ref(), &job.item_id);
+        ping_job_updated(notify, &job.item_id);
         let finished_item_id = job.item_id.clone();
-        process_job(&storage, job, worker_id, db_path, app.clone());
-        notify_job_updated(app.as_ref(), &finished_item_id);
+        process_job(&storage, job, worker_id, db_path, notify);
+        ping_job_updated(notify, &finished_item_id);
     }
 }
 
@@ -458,7 +476,7 @@ fn process_job(
     job: JobDto,
     worker_id: &str,
     db_path: &PathBuf,
-    app: Option<AppHandle>,
+    notify: &Sender<String>,
 ) {
     let item = match storage.get_item(&job.item_id) {
         Ok(Some(item)) => item,
@@ -487,10 +505,10 @@ fn process_job(
                     return;
                 }
             };
-            process_pdf_ocr(storage, &item, &job, worker_id, db_path, &bytes, app);
+            process_pdf_ocr(storage, &item, &job, worker_id, db_path, &bytes, notify);
         }
         JobKind::GenerateEmbedding => {
-            process_embeddings(storage, &item, &job, worker_id, db_path, app);
+            process_embeddings(storage, &item, &job, worker_id, db_path, notify);
         }
     }
 }
@@ -590,7 +608,7 @@ fn process_pdf_ocr(
     worker_id: &str,
     db_path: &PathBuf,
     bytes: &[u8],
-    app: Option<AppHandle>,
+    notify: &Sender<String>,
 ) {
     let backend = crate::ocr::create_ocr_backend();
     let _ = JobQueue::update_progress(
@@ -602,7 +620,6 @@ fn process_pdf_ocr(
         Some("Reading PDF pages"),
     );
     let (stop_heartbeat, heartbeat_handle) = start_job_lease_heartbeat(db_path, &job.id, worker_id);
-    let notify_app = app.clone();
     let notify_item = item.id.clone();
     let extraction =
         extract_pdf_text_with_progress(backend.as_ref(), bytes, &mut |current, total, message| {
@@ -614,7 +631,7 @@ fn process_pdf_ocr(
                 Some(total as i64),
                 Some(message),
             );
-            notify_job_updated(notify_app.as_ref(), &notify_item);
+            ping_job_updated(notify, &notify_item);
         });
     let _ = stop_heartbeat.send(());
     let _ = heartbeat_handle.join();
@@ -732,7 +749,7 @@ fn process_embeddings(
     job: &JobDto,
     worker_id: &str,
     db_path: &PathBuf,
-    app: Option<AppHandle>,
+    notify: &Sender<String>,
 ) {
     let model_cache = db_path
         .parent()
@@ -753,7 +770,7 @@ fn process_embeddings(
                 Some(total as i64),
                 Some(message),
             );
-            notify_job_updated(app.as_ref(), &notify_item);
+            ping_job_updated(notify, &notify_item);
         },
     );
     let _ = stop_heartbeat.send(());
@@ -1125,10 +1142,12 @@ mod tests {
                 enqueue_embedding_for_item(&storage.connection, &item.id).unwrap();
 
                 let worker_id = format!("benchmark-{}", Uuid::new_v4());
+                let (notify_tx, notify_rx) = mpsc::channel::<String>();
+                drop(notify_rx);
                 while let Some(job) =
                     JobQueue::claim_next_job(&storage.connection, &worker_id).unwrap()
                 {
-                    process_job(&storage, job, &worker_id, &database_path, None);
+                    process_job(&storage, job, &worker_id, &database_path, &notify_tx);
                 }
 
                 let stored = storage.get_item(&item.id).unwrap().unwrap();
