@@ -1024,6 +1024,9 @@ function App() {
   // Latest loadItems, assigned by the data effect. Job-event callbacks and
   // post-mutation refreshes call through here so they never go stale.
   const loadItemsRef = useRef<() => void>(() => {});
+  // Generation counter for space moves: only the latest move may apply its
+  // backend result; older ones resync, so rapid clicks cannot overwrite newer state.
+  const spaceMoveSeqRef = useRef(0);
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
     typeof window === "undefined" ? 960 : window.innerWidth,
   );
@@ -1964,18 +1967,40 @@ function App() {
     const other = ordered[index + direction];
     if (index < 0 || !other) return;
     setCaptureError(null);
-    try {
-      if (canUseTauriBackend) {
-        // One atomic backend swap: the two positions can never half-apply.
-        // Neighbor identity comes from stable ids; even against a stale list
-        // the backend swaps two existing rows or reports NotFound, and the UI
-        // renders the returned order, so the list converges instead of corrupting.
-        setSpaces(await swapSpacePositions(space.id, other.id));
-        return;
+    // Optimistic swap so rapid clicks chain off fresh rendered state instead
+    // of recomputing the same neighbor pair from a stale render.
+    const locallySwapped = ordered
+      .map((candidate) =>
+        candidate.id === space.id
+          ? { ...candidate, position: other.position }
+          : candidate.id === other.id
+            ? { ...candidate, position: space.position }
+            : candidate,
+      )
+      .sort((a, b) => a.position - b.position);
+    if (canUseTauriBackend) {
+      const seq = ++spaceMoveSeqRef.current;
+      setSpaces(locallySwapped);
+      try {
+        const confirmed = await swapSpacePositions(space.id, other.id);
+        if (spaceMoveSeqRef.current === seq) {
+          setSpaces(confirmed);
+        } else {
+          setSpaces(await listSpaces());
+        }
+      } catch (error) {
+        try {
+          setSpaces(await listSpaces());
+        } catch {
+          // Keep the optimistic view; the error below explains the state.
+        }
+        setCaptureError(error instanceof Error ? error.message : String(error));
       }
-      // Seed path: derive the swap from fresh state inside the updater so a
-      // concurrent space operation cannot leave stale positions behind.
-      setSpaces((current) => {
+      return;
+    }
+    // Seed path: derive the swap from fresh state inside the updater so a
+    // concurrent space operation cannot leave stale positions behind.
+    setSpaces((current) => {
         const fresh = [...current].sort((a, b) => a.position - b.position);
         const at = fresh.findIndex((candidate) => candidate.id === space.id);
         const neighbor = fresh[at + direction];
@@ -1991,9 +2016,6 @@ function App() {
           )
           .sort((a, b) => a.position - b.position);
       });
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    }
   }
 
   async function handleDeepLinkPayload(payload: unknown) {
