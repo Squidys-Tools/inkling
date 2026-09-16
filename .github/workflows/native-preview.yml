@@ -67,7 +67,7 @@ jobs:
               `[Download the portable folder](${process.env.ARTIFACT_URL})` +
                 ` (for \`${process.env.HEAD_SHA.slice(0, 7)}\`)`,
               "",
-              `[Build details](${process.env.RUN_URL}) · Add the \`preview:win\` label to refresh it.",
+              `[Build details](${process.env.RUN_URL}) · Add the \`preview:win\` label to refresh it.`,
               "The folder includes the pinned embedding models and stores review data under its own `data\\` directory.",
             ].join("\n");
 
