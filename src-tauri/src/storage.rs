@@ -1145,6 +1145,64 @@ impl LibraryStorage {
         Ok(())
     }
 
+    /// Swap two Spaces' positions in a single statement so a reorder can never
+    /// half-apply. Returns the freshly ordered list for the caller to render.
+    fn swap_space_positions(
+        &self,
+        first_id: &str,
+        second_id: &str,
+    ) -> Result<Vec<SpaceDto>, StorageError> {
+        if first_id == second_id {
+            let space = self
+                .get_space(first_id)?
+                .ok_or(StorageError::NotFound(first_id.to_owned()))?;
+            return Ok(vec![space]);
+        }
+        let mut statement = self
+            .connection
+            .prepare("SELECT id, position FROM spaces WHERE id IN (?1, ?2)")?;
+        let positions = statement
+            .query_map(params![first_id, second_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        if positions.len() != 2 {
+            let missing = if positions.iter().any(|(id, _)| id == first_id) {
+                second_id
+            } else {
+                first_id
+            };
+            return Err(StorageError::NotFound(missing.to_owned()));
+        }
+        let first_position = positions
+            .iter()
+            .find(|(id, _)| id == first_id)
+            .map(|(_, position)| *position)
+            .expect("existence checked above");
+        let second_position = positions
+            .iter()
+            .find(|(id, _)| id == second_id)
+            .map(|(_, position)| *position)
+            .expect("existence checked above");
+        let updated = self.connection.execute(
+            "UPDATE spaces
+             SET position = CASE id WHEN ?1 THEN ?3 WHEN ?2 THEN ?4 ELSE position END,
+                 updated_at = ?5
+             WHERE id IN (?1, ?2)",
+            params![
+                first_id,
+                second_id,
+                second_position,
+                first_position,
+                now_millis()?
+            ],
+        )?;
+        if updated != 2 {
+            return Err(StorageError::NotFound(format!("{first_id} / {second_id}")));
+        }
+        self.list_spaces()
+    }
+
     /// Lazy evaluation of a Smart Space: re-run the stored query on demand.
     fn list_space_items(&self, id: &str, limit: u32) -> Result<Vec<ItemDto>, StorageError> {
         let limit = usize::try_from(limit.clamp(1, 200)).unwrap_or(100);
@@ -1601,6 +1659,20 @@ pub fn delete_space(id: String, state: State<'_, StorageState>) -> Result<(), St
         .as_ref()
         .expect("require_storage guarantees initialization")
         .delete_space(&id)
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn swap_space_positions(
+    first_id: String,
+    second_id: String,
+    state: State<'_, StorageState>,
+) -> Result<Vec<SpaceDto>, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .swap_space_positions(&first_id, &second_id)
         .map_err(String::from)
 }
 
@@ -2185,34 +2257,18 @@ mod tests {
             .unwrap();
         assert_eq!(updated.name, "Renamed space");
 
-        // Reorder round-trip: swapping positions swaps list order.
+        // Reorder round-trip: the atomic swap exchanges list order.
         let listed = storage.list_spaces().unwrap();
         assert_eq!(listed.len(), 4);
         let first_id = listed[0].id.clone();
         let second_id = listed[1].id.clone();
-        let first_position = listed[0].position;
-        let second_position = listed[1].position;
-        storage
-            .update_space(UpdateSpaceInput {
-                id: first_id.clone(),
-                name: None,
-                color: None,
-                query: None,
-                position: Some(second_position),
-            })
-            .unwrap();
-        storage
-            .update_space(UpdateSpaceInput {
-                id: second_id.clone(),
-                name: None,
-                color: None,
-                query: None,
-                position: Some(first_position),
-            })
-            .unwrap();
-        let reordered = storage.list_spaces().unwrap();
+        let reordered = storage.swap_space_positions(&first_id, &second_id).unwrap();
         assert_eq!(reordered[0].id, second_id);
         assert_eq!(reordered[1].id, first_id);
+        // Swapping back restores the original order.
+        let restored = storage.swap_space_positions(&first_id, &second_id).unwrap();
+        assert_eq!(restored[0].id, first_id);
+        assert_eq!(restored[1].id, second_id);
 
         let listed = storage.list_spaces().unwrap();
         assert_eq!(listed.len(), 4);

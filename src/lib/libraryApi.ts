@@ -182,6 +182,10 @@ export async function updateSpace(input: UpdateSpaceInput) {
   return invoke<StoredSpace>("update_space", { input });
 }
 
+export async function swapSpacePositions(firstId: string, secondId: string) {
+  return invoke<StoredSpace[]>("swap_space_positions", { firstId, secondId });
+}
+
 // Smart Spaces evaluate lazily: the backend re-runs the saved query on every call.
 export async function listSpaceItems(id: string) {
   return invoke<StoredLibraryItem[]>("list_space_items", { id, limit: 100 });

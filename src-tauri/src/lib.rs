@@ -72,6 +72,7 @@ pub fn run() {
             storage::create_space,
             storage::update_space,
             storage::delete_space,
+            storage::swap_space_positions,
             storage::list_space_items,
             jobs::enqueue_ocr_job,
             jobs::get_job_status,

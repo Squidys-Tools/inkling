@@ -43,6 +43,7 @@ import {
   createQuote,
   createSpace,
   createUrl,
+  swapSpacePositions,
   updateSpace,
   currentDeepLinks,
   createNote,
@@ -1965,8 +1966,9 @@ function App() {
     setCaptureError(null);
     try {
       if (canUseTauriBackend) {
-        await updateSpace({ id: space.id, position: other.position });
-        await updateSpace({ id: other.id, position: space.position });
+        // One atomic backend swap: the two positions can never half-apply.
+        setSpaces(await swapSpacePositions(space.id, other.id));
+        return;
       }
       setSpaces((current) =>
         current
