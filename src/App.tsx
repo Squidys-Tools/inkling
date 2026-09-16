@@ -3198,21 +3198,21 @@ function App() {
         {readingItem?.item.articleHtml && (
           <Suspense key={readingItem.item.id} fallback={null}>
             <ReaderView
-            item={
-              {
-                id: readingItem.item.id,
-                title: readingItem.item.title,
-                author: readingItem.item.articleAuthor,
-                publishedDate: readingItem.item.publishedDate,
-                savedDate: readingItem.item.date,
-                sourceLabel: readingItem.item.source,
-                sourceUrl: readingItem.item.sourceUrl ?? "",
-                html: readingItem.item.articleHtml,
-              } satisfies ReaderItem
-            }
-            origin={readingItem.origin}
-            onRequestClose={() => setReadingItem(null)}
-          />
+              item={
+                {
+                  id: readingItem.item.id,
+                  title: readingItem.item.title,
+                  author: readingItem.item.articleAuthor,
+                  publishedDate: readingItem.item.publishedDate,
+                  savedDate: readingItem.item.date,
+                  sourceLabel: readingItem.item.source,
+                  sourceUrl: readingItem.item.sourceUrl ?? "",
+                  html: readingItem.item.articleHtml,
+                } satisfies ReaderItem
+              }
+              origin={readingItem.origin}
+              onRequestClose={() => setReadingItem(null)}
+            />
           </Suspense>
         )}
       </AnimatePresence>
