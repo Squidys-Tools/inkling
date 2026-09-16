@@ -2130,9 +2130,15 @@ function App() {
     if (shouldUseSeedLibrary()) return;
     let cancelled = false;
     let loading = false;
+    let queued = false;
 
     async function loadItems() {
-      if (loading) return;
+      // A refresh requested mid-flight is requeued instead of dropped, so a
+      // job event landing during a slow load still resolves promptly.
+      if (loading) {
+        queued = true;
+        return;
+      }
       loading = true;
       try {
         await initializeStorage();
@@ -2155,6 +2161,10 @@ function App() {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
       } finally {
         loading = false;
+        if (queued && !cancelled) {
+          queued = false;
+          await loadItems();
+        }
       }
     }
 
