@@ -6,7 +6,7 @@ inkling is a quiet little home for everything you want to keep: articles, images
 
 Everything lives on your own computer. Nothing leaves ever leaves.
 
-<!-- Mascots live here once they're ready: docs/assets/mascots/mascot-1.png, mascot-2.png, ... -->
+<img src="docs/assets/mascots/inkling-splash-idle.svg" alt="inkling mascot, a small ink blot with eyes" width="160">
 
 ![Your inkling library — a visual grid of saved articles, images, quotes, and videos](docs/assets/screenshots/library.png)
 
@@ -63,14 +63,16 @@ Short clips say more than paragraphs. (Placeholders for now, real ones soon.)
 - *Coming soon:* save a page, then find it by a word inside it.
 - *Coming soon:* slow scroll through the visual library + opening the reader.
 
-## Meet the mascots
+## Meet the mascot
 
-inkling's mascots aren't quite ready — they're being drawn right now. This is where they'll live:
+A small ink blot lives in the sidebar and pops into the search bar while you type. It drifts when idle, perks up when there's background work, and looks sad when a save fails. It's also the app icon.
 
-- `docs/assets/mascots/mascot-1.png`
-- `docs/assets/mascots/mascot-2.png`
-
-Once they land, one will greet you at the top of this README and the other will pop up in various areas of the ui and library while also reflecting its state.
+<p>
+  <img src="docs/assets/mascots/inkling-splash-idle.svg" alt="inkling mascot idling" width="120">
+  <img src="docs/assets/mascots/inkling-splash-wink.svg" alt="inkling mascot winking" width="120">
+  <img src="docs/assets/mascots/inkling-splash-wide.svg" alt="inkling mascot surprised" width="120">
+  <img src="docs/assets/mascots/inkling-splash-notify.svg" alt="inkling mascot with a notification dot" width="120">
+</p>
 
 ## What's next
 

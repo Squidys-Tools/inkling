@@ -40,6 +40,19 @@ export type CreateUrlInput = {
   metadata?: Record<string, unknown>;
 };
 
+type UpdateItemInput = {
+  id: string;
+  title?: string;
+  description?: string;
+  sourceUrl?: string;
+  sourceLabel?: string;
+  localAssetPath?: string;
+  thumbnailPath?: string;
+  metadata?: StoredLibraryItem["metadata"];
+  favorite?: boolean;
+  addTag?: string;
+};
+
 export type SaveFileInput = {
   fileName: string;
   mimeType: string;
@@ -196,6 +209,10 @@ export async function assetUrl(path: string | null) {
   if (!runtimeIsTauri) return path;
   const absolutePath = await invoke<string>("resolve_asset_path", { path });
   return convertFileSrc(absolutePath);
+}
+
+export async function updateItem(input: UpdateItemInput) {
+  return invoke<StoredLibraryItem>("update_item", { input });
 }
 
 export async function archiveItem(id: string, archived = true) {
