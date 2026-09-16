@@ -61,6 +61,7 @@ import {
   searchItems,
   searchSimilarImages,
   summarizeProcessingJobs,
+  updateItem,
   type ProcessingSummary,
   type SmartSpaceQuery,
   type StoredLibraryItem,
@@ -93,6 +94,7 @@ const ReaderView = lazy(() =>
 import type { ReaderItem, ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
+import { serendipityItems } from "./lib/serendipity";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
 // the repo so the web preview shows a real library out of the box. The eager
 // glob below resolves to an empty map when that file is absent, so clones
@@ -115,6 +117,7 @@ export type LibraryItem = {
   description: string;
   source: string;
   date: string;
+  createdAt?: number;
   tags: string[];
   ocrText?: string;
   image?: string;
@@ -286,6 +289,7 @@ async function storedItemToLibraryItem(
     source,
     sourceUrl: item.sourceUrl ?? undefined,
     date: formatItemDate(item.createdAt),
+    createdAt: item.createdAt,
     tags,
     ocrText: item.ocrText,
     image,
@@ -1123,18 +1127,29 @@ function App() {
     }
   }, [restoreForgottenItem]);
 
-  const addTagToItem = useCallback((item: LibraryItem, tag: string) => {
-    const clean = tag.trim().replace(/^#+/u, "").toLowerCase();
+  const addTagToItem = useCallback(async (item: LibraryItem, tag: string) => {
+    const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
     if (!clean) return;
-    const apply = (current: LibraryItem) =>
-      current.tags.some((existing) => existing.toLowerCase() === clean)
-        ? current
-        : { ...current, tags: [...current.tags, clean] };
-    setItems((current) =>
-      current.map((currentItem) => (String(currentItem.id) === String(item.id) ? apply(currentItem) : currentItem)),
-    );
-    setSelectedItem((current) => (current && String(current.id) === String(item.id) ? apply(current) : current));
-  }, []);
+    try {
+      let tags = canUseTauriBackend ? [] : [...item.tags, clean];
+      if (canUseTauriBackend) {
+        const storedItem = await updateItem({ id: String(item.id), addTag: clean });
+        tags = Array.isArray(storedItem.metadata.tags)
+          ? storedItem.metadata.tags.filter((value): value is string => typeof value === "string")
+          : [];
+      }
+      const apply = (current: LibraryItem) => ({
+        ...current,
+        tags,
+      });
+      setItems((current) =>
+        current.map((currentItem) => (String(currentItem.id) === String(item.id) ? apply(currentItem) : currentItem)),
+      );
+      setSelectedItem((current) => (current && String(current.id) === String(item.id) ? apply(current) : current));
+    } catch (error) {
+      toast.error("Unable to save this tag");
+    }
+  }, [canUseTauriBackend]);
 
   const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
     if (!item.articleHtml) return;
@@ -1880,6 +1895,14 @@ function App() {
     setSelectedItem(null);
   }
 
+  function selectSerendipityView() {
+    setActiveSpaceId(null);
+    setActiveView("Serendipity");
+    setQuery("");
+    setSimilaritySource(null);
+    setSelectedItem(null);
+  }
+
   function clearToDefaultView() {
     setActiveSpaceId(null);
     setActiveView("Everything");
@@ -2279,6 +2302,7 @@ function App() {
   );
 
   const filteredItems = useMemo(() => {
+    if (activeView === "Serendipity" && !activeSpaceId) return serendipityItems(items);
     const normalizedQuery = query.trim().toLowerCase();
     return items.filter((item) => {
       const matchesQuery = !normalizedQuery
@@ -2297,7 +2321,7 @@ function App() {
           : false);
       return matchesQuery && matchesView;
     });
-  }, [activeSpace, activeView, items, query, similaritySource]);
+  }, [activeSpace, activeSpaceId, activeView, items, query, similaritySource]);
 
   // VirtuosoMasonry keys rows by position, so a new result set must remount
   // the grid. Otherwise card state (video playback, embeds) sticks to the
@@ -2644,7 +2668,10 @@ function App() {
             <HugeiconsIcon icon={SparklesIcon} size={17} />
             <span>Top of mind</span>
           </button>
-          <button className="nav-item" onClick={() => { setActiveSpaceId(null); setActiveView("Serendipity"); }}>
+          <button
+            className={`nav-item ${activeView === "Serendipity" && !activeSpaceId ? "active" : ""}`}
+            onClick={selectSerendipityView}
+          >
             <HugeiconsIcon icon={Clock01Icon} size={17} />
             <span>Serendipity</span>
           </button>
