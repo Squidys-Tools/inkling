@@ -2688,7 +2688,10 @@ function App() {
                       if (event.key === "Enter") void handleRenameSpace(space, renameDraft);
                       else if (event.key === "Escape") setRenamingSpaceId(null);
                     }}
-                    onBlur={() => setRenamingSpaceId(null)}
+                    // Blur commits, matching Finder/Explorer/VS Code rename fields:
+                    // silently discarding typed text loses work, while an
+                    // accidental save is one rename away from fixed.
+                    onBlur={() => void handleRenameSpace(space, renameDraft)}
                   />
                 ) : (
                   <span>{space.name}</span>
