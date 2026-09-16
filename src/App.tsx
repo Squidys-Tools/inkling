@@ -1967,20 +1967,30 @@ function App() {
     try {
       if (canUseTauriBackend) {
         // One atomic backend swap: the two positions can never half-apply.
+        // Neighbor identity comes from stable ids; even against a stale list
+        // the backend swaps two existing rows or reports NotFound, and the UI
+        // renders the returned order, so the list converges instead of corrupting.
         setSpaces(await swapSpacePositions(space.id, other.id));
         return;
       }
-      setSpaces((current) =>
-        current
+      // Seed path: derive the swap from fresh state inside the updater so a
+      // concurrent space operation cannot leave stale positions behind.
+      setSpaces((current) => {
+        const fresh = [...current].sort((a, b) => a.position - b.position);
+        const at = fresh.findIndex((candidate) => candidate.id === space.id);
+        const neighbor = fresh[at + direction];
+        if (at < 0 || !neighbor) return current;
+        const freshPosition = fresh[at].position;
+        return fresh
           .map((candidate) =>
             candidate.id === space.id
-              ? { ...candidate, position: other.position }
-              : candidate.id === other.id
-                ? { ...candidate, position: space.position }
+              ? { ...candidate, position: neighbor.position }
+              : candidate.id === neighbor.id
+                ? { ...candidate, position: freshPosition }
                 : candidate,
           )
-          .sort((a, b) => a.position - b.position),
-      );
+          .sort((a, b) => a.position - b.position);
+      });
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
