@@ -24,7 +24,7 @@
     "security": {
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPDATA/assets/**", "$EXE/data/assets/**"]
+        "scope": ["$APPDATA/assets/**"]
       },
       "csp": null
     }
