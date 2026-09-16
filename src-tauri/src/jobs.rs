@@ -366,6 +366,7 @@ pub struct ProcessingState {
     pub wake_tx: std::sync::Mutex<Option<Sender<()>>>,
     pub database_path: std::sync::Mutex<Option<PathBuf>>,
     pub worker_handle: std::sync::Mutex<Option<thread::JoinHandle<()>>>,
+    forwarder_handle: std::sync::Mutex<Option<thread::JoinHandle<()>>>,
     app_handle: std::sync::Mutex<Option<AppHandle>>,
     worker_id: String,
 }
@@ -376,6 +377,7 @@ impl Default for ProcessingState {
             wake_tx: std::sync::Mutex::new(None),
             database_path: std::sync::Mutex::new(None),
             worker_handle: std::sync::Mutex::new(None),
+            forwarder_handle: std::sync::Mutex::new(None),
             app_handle: std::sync::Mutex::new(None),
             worker_id: Uuid::new_v4().to_string(),
         }
@@ -412,7 +414,10 @@ impl ProcessingState {
         let (notify_tx, notify_rx) = mpsc::channel::<String>();
         // Forwarder owns the only AppHandle in the background: it turns worker
         // pings into Tauri events. The worker itself never touches Tauri types.
-        thread::Builder::new()
+        // Its handle is retained like the worker's; both threads live for the
+        // app lifetime (the worker starts once and is never restarted) and the
+        // OS reclaims them at process exit.
+        let forwarder = thread::Builder::new()
             .name("job-event-forwarder".into())
             .spawn(move || {
                 for item_id in notify_rx {
@@ -420,6 +425,7 @@ impl ProcessingState {
                 }
             })
             .expect("failed to spawn job event forwarder thread");
+        *self.forwarder_handle.lock().unwrap() = Some(forwarder);
         let handle = thread::Builder::new()
             .name("job-worker".into())
             .spawn(move || worker_loop(&db_path, &worker_id, rx, notify_tx))
