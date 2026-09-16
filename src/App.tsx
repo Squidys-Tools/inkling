@@ -56,6 +56,7 @@ import {
   searchItems,
   searchSimilarImages,
   summarizeProcessingJobs,
+  updateItem,
   type ProcessingSummary,
   type SmartSpaceQuery,
   type StoredLibraryItem,
@@ -1079,18 +1080,29 @@ function App() {
     }
   }, [restoreForgottenItem]);
 
-  const addTagToItem = useCallback((item: LibraryItem, tag: string) => {
-    const clean = tag.trim().replace(/^#+/u, "").toLowerCase();
+  const addTagToItem = useCallback(async (item: LibraryItem, tag: string) => {
+    const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
     if (!clean) return;
-    const apply = (current: LibraryItem) =>
-      current.tags.some((existing) => existing.toLowerCase() === clean)
-        ? current
-        : { ...current, tags: [...current.tags, clean] };
-    setItems((current) =>
-      current.map((currentItem) => (String(currentItem.id) === String(item.id) ? apply(currentItem) : currentItem)),
-    );
-    setSelectedItem((current) => (current && String(current.id) === String(item.id) ? apply(current) : current));
-  }, []);
+    try {
+      let tags = [clean];
+      if (canUseTauriBackend) {
+        const storedItem = await updateItem({ id: String(item.id), addTag: clean });
+        tags = Array.isArray(storedItem.metadata.tags)
+          ? storedItem.metadata.tags.filter((value): value is string => typeof value === "string")
+          : [];
+      }
+      const apply = (current: LibraryItem) => ({
+        ...current,
+        tags,
+      });
+      setItems((current) =>
+        current.map((currentItem) => (String(currentItem.id) === String(item.id) ? apply(currentItem) : currentItem)),
+      );
+      setSelectedItem((current) => (current && String(current.id) === String(item.id) ? apply(current) : current));
+    } catch (error) {
+      toast.error("Unable to save this tag");
+    }
+  }, [canUseTauriBackend]);
 
   const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
     if (!item.articleHtml) return;

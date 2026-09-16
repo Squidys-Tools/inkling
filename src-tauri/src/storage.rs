@@ -221,6 +221,7 @@ pub struct UpdateItemInput {
     pub local_asset_path: Option<String>,
     pub thumbnail_path: Option<String>,
     pub metadata: Option<Value>,
+    pub add_tag: Option<String>,
     pub favorite: Option<bool>,
 }
 
@@ -666,8 +667,45 @@ impl LibraryStorage {
     }
 
     fn update_item(&self, input: UpdateItemInput) -> Result<ItemDto, StorageError> {
-        let metadata_json = input
-            .metadata
+        let mut metadata = input.metadata;
+        if let Some(tag) = input.add_tag {
+            let tag = tag.trim().trim_start_matches('#').trim().to_lowercase();
+            if tag.is_empty() {
+                return Err(StorageError::InvalidInput("tag cannot be empty".into()));
+            }
+            let mut current = match metadata {
+                Some(metadata) => metadata,
+                None => {
+                    self.get_item(&input.id)?
+                        .ok_or_else(|| StorageError::NotFound(input.id.clone()))?
+                        .metadata
+                }
+            };
+            if current.is_null() {
+                current = serde_json::json!({});
+            }
+            let object = current.as_object_mut().ok_or_else(|| {
+                StorageError::InvalidInput("metadata must be an object to add a tag".into())
+            })?;
+            let tags = object
+                .entry("tags")
+                .or_insert_with(|| Value::Array(Vec::new()));
+            if tags.is_null() {
+                *tags = Value::Array(Vec::new());
+            }
+            let tags = tags.as_array_mut().ok_or_else(|| {
+                StorageError::InvalidInput("metadata tags must be an array to add a tag".into())
+            })?;
+            if !tags
+                .iter()
+                .filter_map(Value::as_str)
+                .any(|existing| existing.to_lowercase() == tag)
+            {
+                tags.push(Value::String(tag));
+            }
+            metadata = Some(current);
+        }
+        let metadata_json = metadata
             .map(|metadata| serde_json::to_string(&metadata))
             .transpose()?;
         let title = input.title.as_deref().map(str::trim);
@@ -1473,6 +1511,7 @@ pub fn update_item(
     let should_reembed = input.title.is_some()
         || input.description.is_some()
         || input.metadata.is_some()
+        || input.add_tag.is_some()
         || input.local_asset_path.is_some();
     let database = state.require_storage().map_err(String::from)?;
     let item = database
@@ -2225,6 +2264,97 @@ mod tests {
         let items = storage.list_space_items(&article_space.id, 50).unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].kind, "url");
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn tag_update_persists_after_reopen() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let database_path = directory.join("library.sqlite3");
+        let storage = LibraryStorage::open(database_path).unwrap();
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Archive pick".into()),
+                body: "kept for later".into(),
+                metadata: Some(serde_json::json!({ "tags": ["reference"], "origin": "demo" })),
+            })
+            .unwrap();
+        storage
+            .update_item(UpdateItemInput {
+                id: item.id.clone(),
+                add_tag: Some("keep me".into()),
+                ..Default::default()
+            })
+            .unwrap();
+
+        drop(storage);
+        let reopened = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let reopened_item = reopened.get_item(&item.id).unwrap().unwrap();
+        assert_eq!(
+            reopened_item.metadata["tags"],
+            serde_json::json!(["reference", "keep me"])
+        );
+        assert_eq!(reopened_item.metadata["origin"], "demo");
+
+        drop(reopened);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn tag_update_preserves_metadata_without_stale_frontend_copy() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Url pickup".into()),
+                body: "carried over".into(),
+                metadata: Some(serde_json::json!({ "tags": ["a"], "text": "body", "x": 1 })),
+            })
+            .unwrap();
+        let updated = storage
+            .update_item(UpdateItemInput {
+                id: item.id.clone(),
+                add_tag: Some("B".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(updated.metadata["tags"], serde_json::json!(["a", "b"]));
+        assert_eq!(updated.metadata["text"], "body");
+        assert_eq!(updated.metadata["x"], 1);
+        for tag in [" ## B ", "C", "c"] {
+            storage
+                .update_item(UpdateItemInput {
+                    id: item.id.clone(),
+                    add_tag: Some(tag.into()),
+                    ..Default::default()
+                })
+                .unwrap();
+        }
+        let stored = storage.get_item(&item.id).unwrap().unwrap();
+        assert_eq!(stored.metadata["tags"], serde_json::json!(["a", "b", "c"]));
+        assert_eq!(stored.title, item.title);
+        assert_eq!(stored.description, item.description);
+        assert!(storage
+            .update_item(UpdateItemInput {
+                id: item.id.clone(),
+                add_tag: Some(" ### ".into()),
+                ..Default::default()
+            })
+            .is_err());
+        assert!(matches!(
+            storage.update_item(UpdateItemInput {
+                id: "missing-item".into(),
+                add_tag: Some("reference".into()),
+                ..Default::default()
+            }),
+            Err(StorageError::NotFound(_))
+        ));
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();
