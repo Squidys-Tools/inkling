@@ -166,7 +166,7 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
             onClick={() => setIsPlaying(true)}
             aria-label={`Play video: ${item.title}`}
           >
-            {poster && <img src={poster} alt="" loading="lazy" />}
+            {poster && <img src={poster} alt="" loading="lazy" decoding="async" />}
             <span className="video-poster-play" aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={21} /></span>
             <span className="video-provider">{providerLabel(item.video.provider)}</span>
           </button>

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
@@ -63,14 +63,29 @@ import {
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
-import PdfViewer from "./components/PdfViewer";
+// Below-the-fold / on-demand surfaces stay off the boot bundle and load from
+// local disk on first open (Suspense fallback null: no spinner, no layout
+// shift — the chunk resolves in milliseconds).
+const PdfViewer = lazy(() => import("./components/PdfViewer"));
+const MascotBoard = lazy(() =>
+  import("./components/mascot/MascotBoard").then((module) => ({ default: module.MascotBoard })),
+);
+const AliveBoard = lazy(() =>
+  import("./components/mascot/AliveBoard").then((module) => ({ default: module.AliveBoard })),
+);
+const ExpandedItemOverlay = lazy(() =>
+  import("./components/ExpandedItemOverlay").then((module) => ({
+    default: module.ExpandedItemOverlay,
+  })),
+);
 import { LiveMascotFigure, LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
-import { MascotBoard } from "./components/mascot/MascotBoard";
-import { AliveBoard } from "./components/mascot/AliveBoard";
-import { ExpandedItemOverlay, type ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
+import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
 import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
-import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
+const ReaderView = lazy(() =>
+  import("./ReaderView").then((module) => ({ default: module.ReaderView })),
+);
+import type { ReaderItem, ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
@@ -667,7 +682,7 @@ function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
   return true;
 }
 
-function LibraryVideoMedia({ item }: { item: LibraryItem }) {
+function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }) {
   if (!item.video && !item.fileUrl && !item.image) {
     return <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><HugeiconsIcon icon={PlayIcon} size={20} /></span></div>;
   }
@@ -677,7 +692,7 @@ function LibraryVideoMedia({ item }: { item: LibraryItem }) {
   return (
     <div className="card-image-wrap">
       {item.image ? (
-        <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />
+        <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" fetchPriority={index < 6 ? "high" : undefined} />
       ) : item.fileUrl ? (
         <video
           className="card-image"
@@ -797,10 +812,10 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
               />
             </div>
           ) : item.kind === "Video" ? (
-            <LibraryVideoMedia item={item} />
+            <LibraryVideoMedia item={item} index={index} />
           ) : item.image ? (
             <div className="card-image-wrap">
-              <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" />
+              <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" fetchPriority={index < 6 ? "high" : undefined} />
             </div>
           ) : item.kind === "Post" && item.post ? (
             <PostArtwork post={item.post} />
@@ -941,6 +956,14 @@ function App() {
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
   const [spaces, setSpaces] = useState<StoredSpace[]>(shouldUseSeedLibrary() ? seedSpaces : []);
   const [query, setQuery] = useState("");
+  // Debounced copy of the search box. The input stays instant; only the
+  // backend round trip waits, so typing "design" issues one search instead
+  // of six full reloads (search + N x job status + N x asset URL).
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 200);
+    return () => window.clearTimeout(timer);
+  }, [query]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeView, setActiveView] = useState("Everything");
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
@@ -962,6 +985,14 @@ function App() {
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
   const [pdfViewerItem, setPdfViewerItem] = useState<LibraryItem | null>(null);
   const [readingItem, setReadingItem] = useState<{ item: LibraryItem; origin: ReaderOrigin } | null>(null);
+  // Warm the PDF viewer chunk while a PDF's overlay is open, so the first
+  // open fades together with the backdrop instead of popping in after it.
+  // Same chunk the lazy viewer resolves; this only moves the fetch earlier.
+  useEffect(() => {
+    if (selectedItem?.kind === "PDF" && selectedItem.fileUrl) {
+      void import("./components/PdfViewer");
+    }
+  }, [selectedItem]);
   const [listMode, setListMode] = useState(false);
   const [isLibraryViewTransitioning, setIsLibraryViewTransitioning] = useState(false);
   const [viewSelectionListMode, setViewSelectionListMode] = useState(false);
@@ -2031,8 +2062,8 @@ function App() {
           ? searchSimilarImages(similaritySource.id)
           : activeSpaceId
             ? listSpaceItems(activeSpaceId)
-            : query.trim()
-              ? searchItems(query)
+            : debouncedQuery.trim()
+              ? searchItems(debouncedQuery)
               : listActiveItems();
         const storedItems = await storedItemsPromise;
         const libraryItems = await Promise.all(storedItems.map(async (item) => {
@@ -2050,12 +2081,24 @@ function App() {
     }
 
     void loadItems();
-    const refreshTimer = window.setInterval(() => void loadItems(), 1000);
+    // The poll is load-bearing: captures and deep-link arrivals have no other
+    // refresh signal, so it stays at 1s. It only skips ticks while the window
+    // is hidden, where nobody can see the update anyway, and refreshes once
+    // on restore so a hidden deep-link capture appears promptly.
+    const refreshTimer = window.setInterval(() => {
+      if (document.hidden) return;
+      void loadItems();
+    }, 1000);
+    const handleVisibility = () => {
+      if (!document.hidden) void loadItems();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       cancelled = true;
       window.clearInterval(refreshTimer);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [query, similaritySource?.id, activeSpaceId]);
+  }, [debouncedQuery, similaritySource?.id, activeSpaceId]);
 
   useEffect(() => {
     if (!isSettingsOpen || shouldUseSeedLibrary()) return;
@@ -2388,10 +2431,18 @@ function App() {
   // Dev-only mascot board (vendored bloub engine + inkling skins). Not linked
   // from the UI; open with ?mascot. Placed after all hooks.
   if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mascot-alive")) {
-    return <AliveBoard />;
+    return (
+      <Suspense fallback={null}>
+        <AliveBoard />
+      </Suspense>
+    );
   }
   if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mascot")) {
-    return <MascotBoard />;
+    return (
+      <Suspense fallback={null}>
+        <MascotBoard />
+      </Suspense>
+    );
   }
 
   return (
@@ -2944,14 +2995,16 @@ function App() {
       </AnimatePresence>
 
       {selectedItem && (
-        <ExpandedItemOverlay
-          key="expanded-item-overlay"
-          item={selectedItem}
-          actions={expandedOverlayActions}
-          originRectsRef={selectionRectsRef}
-          contentAreaRef={libraryScrollRef}
-          selectionScrollRef={selectionScrollRef}
-        />
+        <Suspense fallback={null}>
+          <ExpandedItemOverlay
+            key="expanded-item-overlay"
+            item={selectedItem}
+            actions={expandedOverlayActions}
+            originRectsRef={selectionRectsRef}
+            contentAreaRef={libraryScrollRef}
+            selectionScrollRef={selectionScrollRef}
+          />
+        </Suspense>
       )}
       <AnimatePresence>
         {pdfViewerItem?.fileUrl && (
@@ -2962,18 +3015,20 @@ function App() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
           >
-            <PdfViewer
-              url={pdfViewerItem.fileUrl}
-              title={pdfViewerItem.title}
-              onClose={() => setPdfViewerItem(null)}
-            />
+            <Suspense fallback={null}>
+              <PdfViewer
+                url={pdfViewerItem.fileUrl}
+                title={pdfViewerItem.title}
+                onClose={() => setPdfViewerItem(null)}
+              />
+            </Suspense>
           </motion.div>
         )}
       </AnimatePresence>
       <AnimatePresence>
         {readingItem?.item.articleHtml && (
-          <ReaderView
-            key={readingItem.item.id}
+          <Suspense key={readingItem.item.id} fallback={null}>
+            <ReaderView
             item={
               {
                 id: readingItem.item.id,
@@ -2989,6 +3044,7 @@ function App() {
             origin={readingItem.origin}
             onRequestClose={() => setReadingItem(null)}
           />
+          </Suspense>
         )}
       </AnimatePresence>
       </div>

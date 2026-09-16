@@ -79,6 +79,7 @@ The common defect here is a change that works on the path tested and is missing 
 - `bun run tauri dev` is the full Windows desktop app. Needs the Rust toolchain. One toolchain per machine. MSVC when you have admin rights, GNU via scoop when you do not. The README has the exact commands.
 - Ports and state come from the dev setup, not from memory. Read the actual terminal output. Do not assume a port.
 - Stop what you started, by the handle you tracked. See rule 1.
+- Never `Start-Sleep` (or any blocking wait) after launching a server. Start it detached, do other work, then poll its log or port. A sleep blocks the agent from doing anything else while it waits.
 
 ## Test data
 
