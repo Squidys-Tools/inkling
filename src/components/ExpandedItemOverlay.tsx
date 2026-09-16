@@ -42,7 +42,7 @@ export type ExpandedOverlayActions = {
   onFindSimilar: (item: LibraryItem) => void;
   onForget: (item: LibraryItem) => void | Promise<void>;
   onRetryJob: (jobId: string) => void | Promise<void>;
-  onAddTag?: (item: LibraryItem, tag: string) => void;
+  onAddTag?: (item: LibraryItem, tag: string) => void | Promise<void>;
   isFindingSimilar: boolean;
 };
 
@@ -711,23 +711,20 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   );
   const isReadRow = Boolean(readAction);
 
-  const [extraTags, setExtraTags] = useState<string[]>([]);
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
 
   useEffect(() => {
-    setExtraTags([]);
     setIsAddingTag(false);
     setTagDraft("");
   }, [shownItem.id]);
 
-  const allTags = [...shownItem.tags, ...extraTags];
+  const allTags = shownItem.tags;
 
   function submitTag() {
     const clean = tagDraft.trim().replace(/^#+/u, "").toLowerCase();
     if (clean && !allTags.some((tag) => tag.toLowerCase() === clean)) {
-      setExtraTags((current) => [...current, clean]);
-      actions.onAddTag?.(shownItem, clean);
+      void actions.onAddTag?.(shownItem, clean);
     }
     setTagDraft("");
     setIsAddingTag(false);
