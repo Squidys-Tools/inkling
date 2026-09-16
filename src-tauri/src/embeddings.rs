@@ -7,6 +7,7 @@ use std::{
 
 use image::{imageops::FilterType, ImageReader};
 use ort::{session::Session, value::Tensor};
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use tokenizers::{tokenizer::Tokenizer, utils::truncation::TruncationParams};
 
@@ -19,22 +20,34 @@ const TEXT_MAX_TOKENS: usize = 8192;
 const IMAGE_EDGE: u32 = 224;
 const IMAGE_MEAN: [f32; 3] = [0.48145466, 0.4578275, 0.40821073];
 const IMAGE_STD: [f32; 3] = [0.26862954, 0.26130258, 0.27577711];
-const ONNX_FILE: &str = "onnx/model_int8.onnx";
-const TEXT_TOKENIZER_FILE: &str = "tokenizer.json";
 
-// Pin the exact published artifacts so a future change to a repository's
-// default branch cannot silently change the embedding space.
-const TEXT_MODEL_URL: &str =
-    "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5/resolve/e9b6763023c676ca8431644204f50c2b100d9aab/onnx/model_int8.onnx";
-const TEXT_TOKENIZER_URL: &str =
-    "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5/resolve/e9b6763023c676ca8431644204f50c2b100d9aab/tokenizer.json";
-const IMAGE_MODEL_URL: &str =
-    "https://huggingface.co/nomic-ai/nomic-embed-vision-v1.5/resolve/e3a725bce72db07ca4adb1d83da08903f3ee02f8/onnx/model_int8.onnx";
+#[derive(Debug, Deserialize)]
+struct ModelManifest {
+    text: ModelDefinition,
+    image: ModelDefinition,
+}
 
-const TEXT_MODEL_SHA256: &str = "b4342336debaea79de872370664b0aaeb67dea4605513d00ee236ea871a81f27";
-const TEXT_TOKENIZER_SHA256: &str =
-    "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66";
-const IMAGE_MODEL_SHA256: &str = "ba9107df6e412828dae8c675096209aa39f6536de8ec8d9a872665b54dc750c3";
+#[derive(Debug, Deserialize)]
+struct ModelDefinition {
+    name: String,
+    model: ModelAsset,
+    tokenizer: Option<ModelAsset>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModelAsset {
+    path: String,
+    url: String,
+    sha256: String,
+}
+
+fn model_manifest() -> &'static ModelManifest {
+    static MANIFEST: OnceLock<ModelManifest> = OnceLock::new();
+    MANIFEST.get_or_init(|| {
+        serde_json::from_str(include_str!("../model-manifest.json"))
+            .expect("model-manifest.json must contain valid embedding metadata")
+    })
+}
 
 /// huggingface.co is unreachable from some networks; `HF_ENDPOINT` accepts a
 /// mirror host (same layout, e.g. https://hf-mirror.com) without changing the
@@ -203,19 +216,24 @@ fn with_image_runtime<T>(
 
 impl TextRuntime {
     fn load(model_cache: &Path, allow_download: bool) -> Result<Self, String> {
-        let model_root = model_cache.join(TEXT_MODEL);
-        let model_path = model_root.join(ONNX_FILE);
-        let tokenizer_path = model_root.join(TEXT_TOKENIZER_FILE);
+        let model = &model_manifest().text;
+        let tokenizer = model
+            .tokenizer
+            .as_ref()
+            .expect("text model manifest must include a tokenizer");
+        let model_root = model_cache.join(&model.name);
+        let model_path = model_root.join(&model.model.path);
+        let tokenizer_path = model_root.join(&tokenizer.path);
         prepare_asset(
             &model_path,
-            TEXT_MODEL_URL,
-            TEXT_MODEL_SHA256,
+            &model.model.url,
+            &model.model.sha256,
             allow_download,
         )?;
         prepare_asset(
             &tokenizer_path,
-            TEXT_TOKENIZER_URL,
-            TEXT_TOKENIZER_SHA256,
+            &tokenizer.url,
+            &tokenizer.sha256,
             allow_download,
         )?;
 
@@ -318,12 +336,13 @@ impl TextRuntime {
 
 impl ImageRuntime {
     fn load(model_cache: &Path, allow_download: bool) -> Result<Self, String> {
-        let model_root = model_cache.join(IMAGE_MODEL);
-        let model_path = model_root.join(ONNX_FILE);
+        let model = &model_manifest().image;
+        let model_root = model_cache.join(&model.name);
+        let model_path = model_root.join(&model.model.path);
         prepare_asset(
             &model_path,
-            IMAGE_MODEL_URL,
-            IMAGE_MODEL_SHA256,
+            &model.model.url,
+            &model.model.sha256,
             allow_download,
         )?;
 
