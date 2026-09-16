@@ -5,6 +5,10 @@ description = "A private visual library for saving and rediscovering ideas"
 authors = ["you"]
 edition = "2021"
 
+[features]
+default = []
+portable-preview = []
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]

@@ -109,7 +109,7 @@ jobs:
       (github.event_name == 'schedule' ||
        needs.gate.outputs.scan == 'true' ||
        (github.event_name == 'push' && needs.changes.outputs.frontend == 'true'))
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       actions: read
       contents: read
@@ -135,7 +135,7 @@ jobs:
       (github.event_name == 'schedule' ||
        needs.gate.outputs.scan == 'true' ||
        (github.event_name == 'push' && needs.changes.outputs.native == 'true'))
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       actions: read
       contents: read

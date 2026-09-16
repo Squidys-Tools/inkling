@@ -107,7 +107,7 @@ try {
         $temporaryBuildOrt = $true
     }
     try {
-        & bun tauri build --no-bundle --config src-tauri\tauri.preview.conf.json
+        & bun tauri build --no-bundle --features portable-preview --config src-tauri\tauri.preview.conf.json
         if ($LASTEXITCODE -ne 0) {
             throw "Tauri preview build failed with exit code $LASTEXITCODE"
         }
@@ -130,7 +130,6 @@ try {
         Copy-Item -LiteralPath $webViewLoader -Destination (Join-Path $outputDirectory 'WebView2Loader.dll') -Force
     }
 
-    Set-Content -LiteralPath (Join-Path $outputDirectory 'portable.flag') -Value 'inkling portable preview' -NoNewline
     Set-Content -LiteralPath (Join-Path $outputDirectory 'README.txt') -Value @'
 inkling Windows preview
 

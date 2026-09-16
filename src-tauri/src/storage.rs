@@ -1989,19 +1989,25 @@ fn now_millis() -> Result<i64, StorageError> {
 }
 
 fn portable_data_directory(executable: &Path) -> Option<PathBuf> {
-    let directory = executable.parent()?;
-    directory
-        .join("portable.flag")
-        .is_file()
-        .then(|| directory.join("data"))
+    #[cfg(feature = "portable-preview")]
+    {
+        return executable.parent().map(|directory| directory.join("data"));
+    }
+
+    #[cfg(not(feature = "portable-preview"))]
+    {
+        let _ = executable;
+        None
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[cfg(not(feature = "portable-preview"))]
     #[test]
-    fn portable_marker_selects_data_beside_executable() {
+    fn normal_build_never_trusts_a_portable_marker() {
         let directory =
             std::env::temp_dir().join(format!("inkling-portable-test-{}", Uuid::new_v4()));
         fs::create_dir_all(&directory).unwrap();
@@ -2009,6 +2015,19 @@ mod tests {
 
         assert_eq!(portable_data_directory(&executable), None);
         fs::write(directory.join("portable.flag"), "preview").unwrap();
+        assert_eq!(portable_data_directory(&executable), None);
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(feature = "portable-preview")]
+    #[test]
+    fn portable_preview_uses_data_beside_executable() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-portable-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let executable = directory.join("inkling.exe");
+
         assert_eq!(
             portable_data_directory(&executable),
             Some(directory.join("data"))
