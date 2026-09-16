@@ -8,11 +8,14 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   AlertCircleIcon,
   Archive01Icon,
+  ArrowDown01Icon,
+  ArrowUp01Icon,
   ArrowUpRight01Icon,
   Bookmark01Icon,
   Camera01Icon,
   Clock01Icon,
   Grid2X2Icon,
+  Edit01Icon,
   HelpCircleIcon,
   Image01Icon,
   Layers01Icon,
@@ -40,6 +43,7 @@ import {
   createQuote,
   createSpace,
   createUrl,
+  updateSpace,
   currentDeepLinks,
   createNote,
   deleteSpace,
@@ -969,6 +973,8 @@ function App() {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
+  const [renamingSpaceId, setRenamingSpaceId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? browserArchivedItems : []);
@@ -1014,6 +1020,9 @@ function App() {
   const selectionRectsRef = useRef<SourceRects | null>(null);
   const selectionRunRef = useRef(0);
   const selectionScrollRef = useRef(false);
+  // Latest loadItems, assigned by the data effect. Job-event callbacks and
+  // post-mutation refreshes call through here so they never go stale.
+  const loadItemsRef = useRef<() => void>(() => {});
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
     typeof window === "undefined" ? 960 : window.innerWidth,
   );
@@ -1918,6 +1927,63 @@ function App() {
     }
   }
 
+  async function handleRenameSpace(space: StoredSpace, name: string) {
+    const trimmed = name.trim().slice(0, 80);
+    setRenamingSpaceId(null);
+    if (!trimmed || trimmed === space.name) return;
+    setCaptureError(null);
+    try {
+      const updated = canUseTauriBackend
+        ? await updateSpace({ id: space.id, name: trimmed })
+        : { ...space, name: trimmed, updatedAt: Date.now() };
+      setSpaces((current) => current.map((candidate) => candidate.id === space.id ? updated : candidate));
+      if (activeSpaceId === space.id) setActiveView(updated.name);
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function handleCycleSpaceColor(space: StoredSpace) {
+    const next = SPACE_COLORS[(SPACE_COLORS.indexOf(space.color) + 1) % SPACE_COLORS.length];
+    if (next === space.color) return;
+    setCaptureError(null);
+    try {
+      const updated = canUseTauriBackend
+        ? await updateSpace({ id: space.id, color: next })
+        : { ...space, color: next, updatedAt: Date.now() };
+      setSpaces((current) => current.map((candidate) => candidate.id === space.id ? updated : candidate));
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function handleMoveSpace(space: StoredSpace, direction: -1 | 1) {
+    const ordered = [...spaces].sort((a, b) => a.position - b.position);
+    const index = ordered.findIndex((candidate) => candidate.id === space.id);
+    const other = ordered[index + direction];
+    if (index < 0 || !other) return;
+    setCaptureError(null);
+    try {
+      if (canUseTauriBackend) {
+        await updateSpace({ id: space.id, position: other.position });
+        await updateSpace({ id: other.id, position: space.position });
+      }
+      setSpaces((current) =>
+        current
+          .map((candidate) =>
+            candidate.id === space.id
+              ? { ...candidate, position: other.position }
+              : candidate.id === other.id
+                ? { ...candidate, position: space.position }
+                : candidate,
+          )
+          .sort((a, b) => a.position - b.position),
+      );
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   async function handleDeepLinkPayload(payload: unknown) {
     const values: string[] = Array.isArray(payload)
       ? payload.filter((value): value is string => typeof value === "string")
@@ -2081,20 +2147,34 @@ function App() {
     }
 
     void loadItems();
-    // The poll is load-bearing: captures and deep-link arrivals have no other
-    // refresh signal, so it stays at 1s. It only skips ticks while the window
-    // is hidden, where nobody can see the update anyway, and refreshes once
-    // on restore so a hidden deep-link capture appears promptly.
+    // The worker pushes job events (see jobs.rs JOB_UPDATED_EVENT), so the
+    // library refreshes when background work actually advances instead of
+    // every second. Events are coalesced: a burst of progress ticks becomes
+    // one trailing refresh. The slow fallback survives missed events (a
+    // dropped listener must never mean a stale library), and restores still
+    // refresh immediately.
+    loadItemsRef.current = loadItems;
+    let coalesceTimer = 0;
+    let removeJobListener: (() => void) | null = null;
+    void listen<{ itemId: string }>("inkling://job-updated", () => {
+      window.clearTimeout(coalesceTimer);
+      coalesceTimer = window.setTimeout(() => loadItemsRef.current(), 400);
+    }).then((removeListener) => {
+      if (cancelled) removeListener();
+      else removeJobListener = removeListener;
+    }).catch(() => {});
     const refreshTimer = window.setInterval(() => {
       if (document.hidden) return;
       void loadItems();
-    }, 1000);
+    }, 30000);
     const handleVisibility = () => {
       if (!document.hidden) void loadItems();
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       cancelled = true;
+      window.clearTimeout(coalesceTimer);
+      removeJobListener?.();
       window.clearInterval(refreshTimer);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
@@ -2546,12 +2626,89 @@ function App() {
                 key={space.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => selectSpace(space)}
-                onKeyDown={(event) => event.key === "Enter" && selectSpace(space)}
+                onClick={() => {
+                  if (renamingSpaceId !== space.id) selectSpace(space);
+                }}
+                onKeyDown={(event) => {
+                  if (renamingSpaceId === space.id) return;
+                  if (event.key === "Enter") selectSpace(space);
+                }}
               >
-                <span className={`space-dot ${space.color}`} />
-                <span>{space.name}</span>
+                <span
+                  className={`space-dot ${space.color}`}
+                  role="button"
+                  tabIndex={0}
+                  title={`Change color (now ${space.color})`}
+                  aria-label={`Change color of ${space.name}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleCycleSpaceColor(space);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void handleCycleSpaceColor(space);
+                    }
+                  }}
+                />
+                {renamingSpaceId === space.id ? (
+                  <input
+                    autoFocus
+                    className="space-rename-input"
+                    value={renameDraft}
+                    aria-label={`Rename ${space.name}`}
+                    maxLength={80}
+                    onChange={(event) => setRenameDraft(event.target.value)}
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      event.stopPropagation();
+                      if (event.key === "Enter") void handleRenameSpace(space, renameDraft);
+                      else if (event.key === "Escape") setRenamingSpaceId(null);
+                    }}
+                    onBlur={() => void handleRenameSpace(space, renameDraft)}
+                  />
+                ) : (
+                  <span>{space.name}</span>
+                )}
                 <span className="space-count">{activeSpaceId === space.id ? filteredItems.length : ""}</span>
+                <button
+                  type="button"
+                  className="space-delete space-tool"
+                  aria-label={`Move ${space.name} up`}
+                  title="Move Space up"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleMoveSpace(space, -1);
+                  }}
+                >
+                  <HugeiconsIcon icon={ArrowUp01Icon} size={12} />
+                </button>
+                <button
+                  type="button"
+                  className="space-delete space-tool"
+                  aria-label={`Move ${space.name} down`}
+                  title="Move Space down"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleMoveSpace(space, 1);
+                  }}
+                >
+                  <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
+                </button>
+                <button
+                  type="button"
+                  className="space-delete space-tool"
+                  aria-label={`Rename ${space.name}`}
+                  title="Rename Space"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setRenamingSpaceId(space.id);
+                    setRenameDraft(space.name);
+                  }}
+                >
+                  <HugeiconsIcon icon={Edit01Icon} size={12} />
+                </button>
                 <button
                   type="button"
                   className="space-delete"

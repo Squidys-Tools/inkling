@@ -264,6 +264,7 @@ pub struct UpdateSpaceInput {
     pub name: Option<String>,
     pub color: Option<String>,
     pub query: Option<SmartSpaceQuery>,
+    pub position: Option<i64>,
 }
 
 impl StorageState {
@@ -1112,9 +1113,17 @@ impl LibraryStorage {
              SET name = COALESCE(?2, name),
                  color = COALESCE(?3, color),
                  query = COALESCE(?4, query),
+                 position = COALESCE(?6, position),
                  updated_at = ?5
              WHERE id = ?1",
-            params![input.id, name, color, query_json, now_millis()?],
+            params![
+                input.id,
+                name,
+                color,
+                query_json,
+                now_millis()?,
+                input.position
+            ],
         )?;
 
         if updated == 0 {
@@ -2171,9 +2180,39 @@ mod tests {
                 name: Some("Renamed space".into()),
                 color: None,
                 query: None,
+                position: None,
             })
             .unwrap();
         assert_eq!(updated.name, "Renamed space");
+
+        // Reorder round-trip: swapping positions swaps list order.
+        let listed = storage.list_spaces().unwrap();
+        assert_eq!(listed.len(), 4);
+        let first_id = listed[0].id.clone();
+        let second_id = listed[1].id.clone();
+        let first_position = listed[0].position;
+        let second_position = listed[1].position;
+        storage
+            .update_space(UpdateSpaceInput {
+                id: first_id.clone(),
+                name: None,
+                color: None,
+                query: None,
+                position: Some(second_position),
+            })
+            .unwrap();
+        storage
+            .update_space(UpdateSpaceInput {
+                id: second_id.clone(),
+                name: None,
+                color: None,
+                query: None,
+                position: Some(first_position),
+            })
+            .unwrap();
+        let reordered = storage.list_spaces().unwrap();
+        assert_eq!(reordered[0].id, second_id);
+        assert_eq!(reordered[1].id, first_id);
 
         let listed = storage.list_spaces().unwrap();
         assert_eq!(listed.len(), 4);
