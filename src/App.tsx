@@ -1943,6 +1943,10 @@ function App() {
       setSpaces((current) => current.map((candidate) => candidate.id === space.id ? updated : candidate));
       if (activeSpaceId === space.id) setActiveView(updated.name);
     } catch (error) {
+      // Reopen the rename input with the draft preserved: the name visibly
+      // didn't stick, so the user can retry or Escape instead of wondering.
+      setRenamingSpaceId(space.id);
+      setRenameDraft(trimmed);
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }
@@ -1989,12 +1993,19 @@ function App() {
           setSpaces(await listSpaces());
         }
       } catch (error) {
+        let resynced = true;
         try {
           setSpaces(await listSpaces());
         } catch {
-          // Keep the optimistic view; the error below explains the state.
+          // Keep the optimistic view, but say so: the sidebar may not match
+          // the backend until the window reloads.
+          resynced = false;
         }
-        setCaptureError(error instanceof Error ? error.message : String(error));
+        setCaptureError(
+          resynced
+            ? error instanceof Error ? error.message : String(error)
+            : "Couldn't confirm the new Space order. Reload the window and check the sidebar.",
+        );
       }
       return;
     }
