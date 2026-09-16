@@ -2688,7 +2688,7 @@ function App() {
                       if (event.key === "Enter") void handleRenameSpace(space, renameDraft);
                       else if (event.key === "Escape") setRenamingSpaceId(null);
                     }}
-                    onBlur={() => void handleRenameSpace(space, renameDraft)}
+                    onBlur={() => setRenamingSpaceId(null)}
                   />
                 ) : (
                   <span>{space.name}</span>

@@ -1153,10 +1153,9 @@ impl LibraryStorage {
         second_id: &str,
     ) -> Result<Vec<SpaceDto>, StorageError> {
         if first_id == second_id {
-            let space = self
-                .get_space(first_id)?
+            self.get_space(first_id)?
                 .ok_or(StorageError::NotFound(first_id.to_owned()))?;
-            return Ok(vec![space]);
+            return self.list_spaces();
         }
         let mut statement = self
             .connection
