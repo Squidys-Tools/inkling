@@ -1087,7 +1087,7 @@ function App() {
     const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
     if (!clean) return;
     try {
-      let tags = [clean];
+      let tags = canUseTauriBackend ? [] : [...item.tags, clean];
       if (canUseTauriBackend) {
         const storedItem = await updateItem({ id: String(item.id), addTag: clean });
         tags = Array.isArray(storedItem.metadata.tags)
