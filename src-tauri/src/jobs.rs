@@ -5,9 +5,40 @@ use std::time::Duration;
 
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 const JOB_LEASE_MILLIS: i64 = 5 * 60 * 1000;
+
+/// Event the job worker emits whenever an item's background work advances
+/// (claimed, progressed, finished). The frontend coalesces these into a
+/// refresh instead of polling the whole library every second.
+pub const JOB_UPDATED_EVENT: &str = "inkling://job-updated";
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobUpdatedPayload {
+    pub item_id: String,
+}
+
+fn notify_job_updated(app: Option<&AppHandle>, item_id: &str) {
+    if let Some(app) = app {
+        // The frontend may not be listening (tests, headless runs); never fail the job for that.
+        let _ = app.emit(
+            JOB_UPDATED_EVENT,
+            &JobUpdatedPayload {
+                item_id: item_id.to_owned(),
+            },
+        );
+    }
+}
+
+/// Best-effort nudge to the forwarder thread that an item's jobs advanced.
+/// The worker core only ever touches std channels here, so no Tauri types
+/// leak into code paths the unit tests exercise.
+fn ping_job_updated(notify: &Sender<String>, item_id: &str) {
+    let _ = notify.send(item_id.to_owned());
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -335,6 +366,8 @@ pub struct ProcessingState {
     pub wake_tx: std::sync::Mutex<Option<Sender<()>>>,
     pub database_path: std::sync::Mutex<Option<PathBuf>>,
     pub worker_handle: std::sync::Mutex<Option<thread::JoinHandle<()>>>,
+    forwarder_handle: std::sync::Mutex<Option<thread::JoinHandle<()>>>,
+    app_handle: std::sync::Mutex<Option<AppHandle>>,
     worker_id: String,
 }
 
@@ -344,6 +377,8 @@ impl Default for ProcessingState {
             wake_tx: std::sync::Mutex::new(None),
             database_path: std::sync::Mutex::new(None),
             worker_handle: std::sync::Mutex::new(None),
+            forwarder_handle: std::sync::Mutex::new(None),
+            app_handle: std::sync::Mutex::new(None),
             worker_id: Uuid::new_v4().to_string(),
         }
     }
@@ -358,6 +393,12 @@ impl ProcessingState {
         self.start_worker_if_needed(&path);
     }
 
+    /// Hand the worker a cloneable app handle once, during setup, so the
+    /// background thread can push job events instead of making the frontend poll.
+    pub fn set_app_handle(&self, app: AppHandle) {
+        *self.app_handle.lock().unwrap() = Some(app);
+    }
+
     fn start_worker_if_needed(&self, db_path: &PathBuf) {
         let mut handle_guard = self.worker_handle.lock().unwrap();
         if handle_guard.is_some() {
@@ -369,9 +410,25 @@ impl ProcessingState {
 
         let db_path = db_path.to_path_buf();
         let worker_id = self.worker_id.clone();
+        let app = self.app_handle.lock().unwrap().clone();
+        let (notify_tx, notify_rx) = mpsc::channel::<String>();
+        // Forwarder owns the only AppHandle in the background: it turns worker
+        // pings into Tauri events. The worker itself never touches Tauri types.
+        // Its handle is retained like the worker's; both threads live for the
+        // app lifetime (the worker starts once and is never restarted) and the
+        // OS reclaims them at process exit.
+        let forwarder = thread::Builder::new()
+            .name("job-event-forwarder".into())
+            .spawn(move || {
+                for item_id in notify_rx {
+                    notify_job_updated(app.as_ref(), &item_id);
+                }
+            })
+            .expect("failed to spawn job event forwarder thread");
+        *self.forwarder_handle.lock().unwrap() = Some(forwarder);
         let handle = thread::Builder::new()
             .name("job-worker".into())
-            .spawn(move || worker_loop(&db_path, &worker_id, rx))
+            .spawn(move || worker_loop(&db_path, &worker_id, rx, notify_tx))
             .expect("failed to spawn job worker thread");
         *handle_guard = Some(handle);
     }
@@ -383,7 +440,7 @@ impl ProcessingState {
     }
 }
 
-fn worker_loop(db_path: &PathBuf, worker_id: &str, rx: Receiver<()>) {
+fn worker_loop(db_path: &PathBuf, worker_id: &str, rx: Receiver<()>, notify: Sender<String>) {
     loop {
         match rx.recv_timeout(Duration::from_secs(5)) {
             Ok(()) => {}
@@ -391,11 +448,11 @@ fn worker_loop(db_path: &PathBuf, worker_id: &str, rx: Receiver<()>) {
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         }
 
-        process_pending_jobs(db_path, worker_id);
+        process_pending_jobs(db_path, worker_id, &notify);
     }
 }
 
-fn process_pending_jobs(db_path: &PathBuf, worker_id: &str) {
+fn process_pending_jobs(db_path: &PathBuf, worker_id: &str, notify: &Sender<String>) {
     let storage = match crate::storage::LibraryStorage::open(db_path.clone()) {
         Ok(s) => s,
         Err(_) => return,
@@ -413,7 +470,10 @@ fn process_pending_jobs(db_path: &PathBuf, worker_id: &str) {
             _ => break,
         };
 
-        process_job(&storage, job, worker_id, db_path);
+        ping_job_updated(notify, &job.item_id);
+        let finished_item_id = job.item_id.clone();
+        process_job(&storage, job, worker_id, db_path, notify);
+        ping_job_updated(notify, &finished_item_id);
     }
 }
 
@@ -422,6 +482,7 @@ fn process_job(
     job: JobDto,
     worker_id: &str,
     db_path: &PathBuf,
+    notify: &Sender<String>,
 ) {
     let item = match storage.get_item(&job.item_id) {
         Ok(Some(item)) => item,
@@ -450,10 +511,10 @@ fn process_job(
                     return;
                 }
             };
-            process_pdf_ocr(storage, &item, &job, worker_id, db_path, &bytes);
+            process_pdf_ocr(storage, &item, &job, worker_id, db_path, &bytes, notify);
         }
         JobKind::GenerateEmbedding => {
-            process_embeddings(storage, &item, &job, worker_id, db_path);
+            process_embeddings(storage, &item, &job, worker_id, db_path, notify);
         }
     }
 }
@@ -553,6 +614,7 @@ fn process_pdf_ocr(
     worker_id: &str,
     db_path: &PathBuf,
     bytes: &[u8],
+    notify: &Sender<String>,
 ) {
     let backend = crate::ocr::create_ocr_backend();
     let _ = JobQueue::update_progress(
@@ -564,6 +626,7 @@ fn process_pdf_ocr(
         Some("Reading PDF pages"),
     );
     let (stop_heartbeat, heartbeat_handle) = start_job_lease_heartbeat(db_path, &job.id, worker_id);
+    let notify_item = item.id.clone();
     let extraction =
         extract_pdf_text_with_progress(backend.as_ref(), bytes, &mut |current, total, message| {
             let _ = JobQueue::update_progress(
@@ -574,6 +637,7 @@ fn process_pdf_ocr(
                 Some(total as i64),
                 Some(message),
             );
+            ping_job_updated(notify, &notify_item);
         });
     let _ = stop_heartbeat.send(());
     let _ = heartbeat_handle.join();
@@ -691,12 +755,14 @@ fn process_embeddings(
     job: &JobDto,
     worker_id: &str,
     db_path: &PathBuf,
+    notify: &Sender<String>,
 ) {
     let model_cache = db_path
         .parent()
         .map(|path| path.join("models"))
         .unwrap_or_else(|| PathBuf::from("models"));
     let (stop_heartbeat, heartbeat_handle) = start_job_lease_heartbeat(db_path, &job.id, worker_id);
+    let notify_item = item.id.clone();
     let result = generate_embeddings(
         storage,
         item,
@@ -710,6 +776,7 @@ fn process_embeddings(
                 Some(total as i64),
                 Some(message),
             );
+            ping_job_updated(notify, &notify_item);
         },
     );
     let _ = stop_heartbeat.send(());
@@ -1081,10 +1148,12 @@ mod tests {
                 enqueue_embedding_for_item(&storage.connection, &item.id).unwrap();
 
                 let worker_id = format!("benchmark-{}", Uuid::new_v4());
+                let (notify_tx, notify_rx) = mpsc::channel::<String>();
+                drop(notify_rx);
                 while let Some(job) =
                     JobQueue::claim_next_job(&storage.connection, &worker_id).unwrap()
                 {
-                    process_job(&storage, job, &worker_id, &database_path);
+                    process_job(&storage, job, &worker_id, &database_path, &notify_tx);
                 }
 
                 let stored = storage.get_item(&item.id).unwrap().unwrap();

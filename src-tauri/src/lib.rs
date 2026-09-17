@@ -48,6 +48,10 @@ pub fn run() {
             app.get_webview_window("main")
                 .expect("main window must be defined in tauri.conf.json")
                 .create_overlay_titlebar()?;
+            // Hand the background job worker an app handle so it can push
+            // job events instead of making the frontend poll for them.
+            app.state::<jobs::ProcessingState>()
+                .set_app_handle(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -68,6 +72,7 @@ pub fn run() {
             storage::create_space,
             storage::update_space,
             storage::delete_space,
+            storage::swap_space_positions,
             storage::list_space_items,
             jobs::enqueue_ocr_job,
             jobs::get_job_status,

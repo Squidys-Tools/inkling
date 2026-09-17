@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Gloria+Hallelujah&family=Libre+Baskerville:wght@400;700&display=swap");
-
 :root {
   font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
   color: #e5ddd2;
@@ -62,6 +60,8 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .space-delete { border: 0; background: transparent; color: #8d867c; cursor: pointer; padding: 3px; border-radius: 5px; opacity: 0; display: grid; place-items: center; transition: opacity .15s ease, color .15s ease, background .15s ease; flex: 0 0 auto; }
 .space-item:hover .space-delete, .space-item:focus-within .space-delete { opacity: 1; }
 .space-delete:hover { color: #e08a5e; }
+.space-delete.space-tool:hover { color: var(--ink); }
+.space-rename-input { border: 1px solid var(--orange); background: #161412; border-radius: 8px; min-height: 26px; padding: 0 8px; font-size: 13px; color: var(--ink); outline: none; width: 100%; min-width: 0; flex: 1; }
 .space-form { padding: 6px 11px 10px; display: grid; gap: 8px; }
 .space-form input { border: 1px solid var(--rule); background: #161412; border-radius: 8px; min-height: 33px; padding: 0 10px; font-size: 13px; color: var(--ink); outline: none; width: 100%; }
 .space-form input:focus { border-color: var(--orange); }
