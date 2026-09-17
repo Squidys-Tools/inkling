@@ -1,4 +1,5 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { createAssetUrlResolver } from "./assetUrlCache";
 
 type StoredItemKind = "note" | "article" | "image" | "pdf" | "video" | "file" | "embed";
 
@@ -129,7 +130,7 @@ function latestJobsByKind(jobs: ProcessingJob[]) {
   return [...latest.values()];
 }
 
-export function summarizeProcessingJobs(jobs: ProcessingJob[]): ProcessingSummary {
+function summarizeProcessingJobs(jobs: ProcessingJob[]): ProcessingSummary {
   const latestJobs = latestJobsByKind(jobs);
   const failedJob = latestJobs.find((job) => job.status === "failed") ?? null;
   const activeJobs = latestJobs.filter((job) => job.status === "pending" || job.status === "processing");
@@ -220,11 +221,15 @@ export async function saveFile(input: SaveFileInput) {
   return invoke<StoredLibraryItem>("save_file", { input });
 }
 
+const resolveAssetUrl = createAssetUrlResolver(async (path) => {
+  const absolutePath = await invoke<string>("resolve_asset_path", { path });
+  return convertFileSrc(absolutePath);
+});
+
 export async function assetUrl(path: string | null) {
   if (!path) return undefined;
   if (!runtimeIsTauri) return path;
-  const absolutePath = await invoke<string>("resolve_asset_path", { path });
-  return convertFileSrc(absolutePath);
+  return resolveAssetUrl(path);
 }
 
 export async function updateItem(input: UpdateItemInput) {
@@ -239,8 +244,21 @@ export async function deleteItem(id: string) {
   await invoke<void>("delete_item", { id });
 }
 
-export async function getJobStatus(itemId: string) {
-  return invoke<ProcessingJob[]>("get_job_status", { itemId });
+export function summariesFromJobs(itemIds: string[], jobs: ProcessingJob[]) {
+  const grouped = new Map<string, ProcessingJob[]>();
+  for (const job of jobs) {
+    const group = grouped.get(job.itemId) ?? [];
+    group.push(job);
+    grouped.set(job.itemId, group);
+  }
+  return new Map(itemIds.map((id) => [id, summarizeProcessingJobs(grouped.get(id) ?? [])]));
+}
+
+export async function getProcessingSummaries(itemIds: string[]) {
+  const jobs = itemIds.length
+    ? await invoke<ProcessingJob[]>("get_jobs_for_items", { itemIds })
+    : [];
+  return summariesFromJobs(itemIds, jobs);
 }
 
 export async function retryProcessingJob(jobId: string) {
