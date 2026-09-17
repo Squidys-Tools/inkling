@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "inkling preview",
+  "identifier": "com.inkling.library.preview",
+  "app": {
+    "security": {
+      "assetProtocol": {
+        "scope": ["$APPDATA/assets/**", "$EXE/data/assets/**"]
+      }
+    }
+  }
+}

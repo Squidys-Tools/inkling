@@ -1397,10 +1397,13 @@ pub fn initialize_storage(
     state: State<'_, StorageState>,
     processing: State<'_, crate::jobs::ProcessingState>,
 ) -> Result<StorageStatus, String> {
-    let database_directory = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| StorageError::InvalidInput(error.to_string()))?;
+    let database_directory = std::env::current_exe()
+        .ok()
+        .and_then(|executable| portable_data_directory(&executable))
+        .or_else(|| app.path().app_data_dir().ok())
+        .ok_or_else(|| {
+            StorageError::InvalidInput("cannot determine the library directory".into())
+        })?;
     fs::create_dir_all(&database_directory).map_err(StorageError::from)?;
 
     let database_path = database_directory.join("library.sqlite3");
@@ -2104,9 +2107,53 @@ fn now_millis() -> Result<i64, StorageError> {
     })
 }
 
+fn portable_data_directory(executable: &Path) -> Option<PathBuf> {
+    #[cfg(feature = "portable-preview")]
+    {
+        return executable.parent().map(|directory| directory.join("data"));
+    }
+
+    #[cfg(not(feature = "portable-preview"))]
+    {
+        let _ = executable;
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(feature = "portable-preview"))]
+    #[test]
+    fn normal_build_never_trusts_a_portable_marker() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-portable-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let executable = directory.join("inkling.exe");
+
+        assert_eq!(portable_data_directory(&executable), None);
+        fs::write(directory.join("portable.flag"), "preview").unwrap();
+        assert_eq!(portable_data_directory(&executable), None);
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(feature = "portable-preview")]
+    #[test]
+    fn portable_preview_uses_data_beside_executable() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-portable-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let executable = directory.join("inkling.exe");
+
+        assert_eq!(
+            portable_data_directory(&executable),
+            Some(directory.join("data"))
+        );
+
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn semantic_search_reads_stored_text_embeddings() {

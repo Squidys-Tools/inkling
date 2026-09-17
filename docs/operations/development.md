@@ -16,8 +16,15 @@ How to set up, run, check, and troubleshoot inkling. Contribution scope and PR e
 |---|---|
 | Web preview (no Rust compile, fastest UI loop) | `bun run preview` |
 | Desktop app | `bun run tauri dev` |
+| Portable Windows review build | `bun run preview:win` |
 | Production frontend build | `bun run build` |
 | Ingestion smoke | `bun run ingest:smoke` |
+
+`bun run preview:win` builds a self-contained review folder under
+`.artifacts/inkling-preview-win`. It downloads and verifies the pinned ONNX
+Runtime DLL and embedding models, then places the database, assets, and models
+under that folder's `data\` directory. Run `inkling.exe` there; deleting the
+folder deletes the preview library. Windows WebView2 is assumed to be installed.
 
 ## Checks
 
@@ -42,6 +49,7 @@ None — there are no local hooks by policy. Formatting (`cargo fmt --check`) an
 - `security.yml`: CodeQL (JS/TS + Rust) on open/reopen and roughly every 4th push, dependency review on every PR; path gating applies to push-to-main only.
 - `knip.yml`: scheduled `knip --fix` (every other day) opens a cleanup PR. It strips unused `export` keywords and prunes dependencies; it never deletes files.
 - `links.yml`: weekly markdown link check, opens an issue on failures. New custom schemes (`inkling://`, `mymind://`) or local hosts go in `.lycheeignore`.
+- `native-preview.yml`: when a same-repository PR has the `preview:win` label, builds the portable folder and uploads it as a three-day artifact. Model files are downloaded for the build but are not stored in GitHub Actions cache. It does not launch the app in CI; verify the downloaded folder locally.
 - Automation config (`.entire/`) never skips checks.
 
 ## Troubleshooting

@@ -1,0 +1,23 @@
+{
+  "text": {
+    "name": "nomic-embed-text-v1.5",
+    "model": {
+      "path": "onnx/model_int8.onnx",
+      "url": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5/resolve/e9b6763023c676ca8431644204f50c2b100d9aab/onnx/model_int8.onnx",
+      "sha256": "b4342336debaea79de872370664b0aaeb67dea4605513d00ee236ea871a81f27"
+    },
+    "tokenizer": {
+      "path": "tokenizer.json",
+      "url": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5/resolve/e9b6763023c676ca8431644204f50c2b100d9aab/tokenizer.json",
+      "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+    }
+  },
+  "image": {
+    "name": "nomic-embed-vision-v1.5",
+    "model": {
+      "path": "onnx/model_int8.onnx",
+      "url": "https://huggingface.co/nomic-ai/nomic-embed-vision-v1.5/resolve/e3a725bce72db07ca4adb1d83da08903f3ee02f8/onnx/model_int8.onnx",
+      "sha256": "ba9107df6e412828dae8c675096209aa39f6536de8ec8d9a872665b54dc750c3"
+    }
+  }
+}
