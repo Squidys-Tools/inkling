@@ -68,6 +68,7 @@ import {
   type StoredSpace,
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
+import { parseDeepLinkCapture } from "./lib/deepLink";
 import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
 // local disk on first open (Suspense fallback null: no spinner, no layout
@@ -1851,14 +1852,22 @@ function App() {
     }
   }
 
-  function extensionCaptureTarget(value: string): string | null {
-    try {
-      const parsed = new URL(value);
-      if (!["inkling:", "mymind:"].includes(parsed.protocol) || parsed.hostname !== "capture") return null;
-      const target = parsed.searchParams.get("url") ?? parsed.searchParams.get("source");
-      return target && /^https?:\/\//iu.test(target) ? target : null;
-    } catch {
-      return null;
+  async function handleDeepLinkPayload(payload: unknown) {
+    const values: string[] = Array.isArray(payload)
+      ? payload.filter((value): value is string => typeof value === "string")
+      : typeof payload === "string"
+        ? [payload]
+        : [];
+    for (const value of values) {
+      const capture = parseDeepLinkCapture(value);
+      if (!capture) continue;
+      // Both paths create the provisional card immediately; extraction,
+      // embeddings, and indexing run as background jobs from there.
+      if (capture.kind === "quote") {
+        await persistQuote(capture.selection, capture.attribution, capture.url, "browser extension");
+      } else {
+        await captureArticle(capture.url, "browser extension");
+      }
     }
   }
 
@@ -2050,18 +2059,6 @@ function App() {
           )
           .sort((a, b) => a.position - b.position);
       });
-  }
-
-  async function handleDeepLinkPayload(payload: unknown) {
-    const values: string[] = Array.isArray(payload)
-      ? payload.filter((value): value is string => typeof value === "string")
-      : typeof payload === "string"
-        ? [payload]
-        : [];
-    for (const value of values) {
-      const target = extensionCaptureTarget(value);
-      if (target) await captureArticle(target, "browser extension");
-    }
   }
 
   useEffect(() => {
