@@ -1877,7 +1877,7 @@ function App() {
         storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
       ));
       setQuery("");
-      if (kind === "text") clearToDefaultView();
+      clearToDefaultView();
       setSimilaritySource({ id: String(item.id), title: item.title, kind });
       setItems(libraryItems);
       setSelectedItem(null);
