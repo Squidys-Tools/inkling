@@ -149,7 +149,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
     });
   }
   if (item.sourceUrl) list.push(openOriginal);
-  if (item.kind === "Image" && isTauriRuntime()) {
+  if (isTauriRuntime() && ["Image", "Article", "Note", "Quote"].includes(item.kind)) {
     list.push({
       key: "find-similar",
       label: actions.isFindingSimilar ? "Finding similar…" : "Find similar",
@@ -824,6 +824,22 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
               )}
             </div>
           </div>
+
+          {isReadRow && otherActions.some((action) => action.key === "find-similar") && (
+            <div className="expanded-overlay-actions">
+              {otherActions.filter((action) => action.key === "find-similar").map((action) => (
+                <button
+                  type="button"
+                  key={action.key}
+                  className="overlay-action-secondary"
+                  onClick={action.onClick}
+                  disabled={action.disabled}
+                >
+                  {action.icon} {action.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {isReadRow && readAction ? (
             <div className="expanded-overlay-toolbar is-read-row">

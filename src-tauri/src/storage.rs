@@ -983,12 +983,26 @@ impl LibraryStorage {
         item_id: &str,
         limit: u32,
     ) -> Result<Vec<ItemDto>, StorageError> {
+        self.search_similar(item_id, limit, "image", crate::embeddings::IMAGE_MODEL)
+    }
+
+    fn search_similar_text(&self, item_id: &str, limit: u32) -> Result<Vec<ItemDto>, StorageError> {
+        self.search_similar(item_id, limit, "text", crate::embeddings::TEXT_MODEL)
+    }
+
+    fn search_similar(
+        &self,
+        item_id: &str,
+        limit: u32,
+        kind: &str,
+        model: &str,
+    ) -> Result<Vec<ItemDto>, StorageError> {
         let source = self
             .connection
             .query_row(
                 "SELECT dimension, vector FROM item_embeddings
-                 WHERE item_id = ?1 AND kind = 'image' AND model = ?2",
-                params![item_id, crate::embeddings::IMAGE_MODEL],
+                 WHERE item_id = ?1 AND kind = ?2 AND model = ?3",
+                params![item_id, kind, model],
                 |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?)),
             )
             .optional()?;
@@ -998,9 +1012,9 @@ impl LibraryStorage {
         let source_vector =
             crate::embeddings::decode_f32(&bytes).map_err(StorageError::InvalidInput)?;
         if source_vector.len() != usize::try_from(dimension).unwrap_or(0) {
-            return Err(StorageError::InvalidInput(
-                "stored image embedding dimension does not match its vector".into(),
-            ));
+            return Err(StorageError::InvalidInput(format!(
+                "stored {kind} embedding dimension does not match its vector"
+            )));
         }
 
         let mut statement = self.connection.prepare(
@@ -1010,10 +1024,12 @@ impl LibraryStorage {
                     i.favorite, e.dimension, e.vector
              FROM item_embeddings e
              JOIN items i ON i.id = e.item_id
-             WHERE i.archived = 0 AND i.kind = 'image' AND i.id != ?1
-               AND e.kind = 'image' AND e.model = ?2",
+             WHERE i.archived = 0 AND i.id != ?1
+               AND ((?2 = 'image' AND i.kind = 'image')
+                    OR (?2 = 'text' AND i.kind IN ('article', 'url', 'note', 'quote')))
+               AND e.kind = ?2 AND e.model = ?3",
         )?;
-        let mut rows = statement.query(params![item_id, crate::embeddings::IMAGE_MODEL])?;
+        let mut rows = statement.query(params![item_id, kind, model])?;
         let mut ranked = Vec::new();
         while let Some(row) = rows.next()? {
             let item = item_from_row(row)?;
@@ -1654,6 +1670,20 @@ pub fn search_similar_images(
         .as_ref()
         .expect("require_storage guarantees initialization")
         .search_similar_images(&item_id, limit.unwrap_or(12))
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn search_similar_text(
+    item_id: String,
+    limit: Option<u32>,
+    state: State<'_, StorageState>,
+) -> Result<Vec<ItemDto>, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .search_similar_text(&item_id, limit.unwrap_or(12))
         .map_err(String::from)
 }
 
@@ -2525,6 +2555,209 @@ mod tests {
 
         assert!(!item_directory.exists());
         assert!(storage.get_item(&item.id).unwrap().is_none());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn text_similarity_ranks_across_kinds_and_excludes_source_and_archived() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-similar-text-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let note = storage
+            .create_note(CreateNoteInput {
+                title: Some("Source note".into()),
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let article = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://example.com/warm-light".into(),
+                title: Some("Article on warm light".into()),
+                description: None,
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let quote = storage
+            .create_quote(CreateQuoteInput {
+                body: "a quote about warm light".into(),
+                attribution: None,
+                source_url: None,
+                metadata: None,
+            })
+            .unwrap();
+        let archived = storage
+            .create_note(CreateNoteInput {
+                title: Some("Archived note".into()),
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+        storage.archive_item(&archived.id, true).unwrap();
+        storage
+            .connection
+            .execute(
+                "INSERT INTO items (id, kind, title, metadata, ocr_text, created_at, updated_at)
+                 VALUES ('image-item', 'image', 'image-item', '{}', '', 1, 1)",
+                params![],
+            )
+            .unwrap();
+
+        for (item, vector) in [
+            (&note, vec![1.0, 0.0]),
+            (&article, vec![0.8, 0.6]),
+            (&quote, vec![0.6, 0.8]),
+            (&archived, vec![0.99, 0.1]),
+        ] {
+            storage
+                .store_embedding(
+                    &item.id,
+                    "text",
+                    crate::embeddings::TEXT_MODEL,
+                    &crate::embeddings::encode_f32(&vector),
+                    vector.len(),
+                )
+                .unwrap();
+        }
+
+        let results = storage.search_similar_text(&note.id, 10).unwrap();
+        assert_eq!(
+            results
+                .iter()
+                .map(|result| result.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![article.id.as_str(), quote.id.as_str()]
+        );
+        assert!(!results.iter().any(|result| result.id == "image-item"));
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn text_similarity_returns_empty_without_source_embedding() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-similar-pending-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let note = storage
+            .create_note(CreateNoteInput {
+                title: Some("Pending note".into()),
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let other = storage
+            .create_note(CreateNoteInput {
+                title: Some("Embedded note".into()),
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let vector = vec![1.0_f32, 0.0];
+        storage
+            .store_embedding(
+                &other.id,
+                "text",
+                crate::embeddings::TEXT_MODEL,
+                &crate::embeddings::encode_f32(&vector),
+                vector.len(),
+            )
+            .unwrap();
+
+        assert!(storage
+            .search_similar_text(&note.id, 10)
+            .unwrap()
+            .is_empty());
+        assert!(storage
+            .search_similar_text("missing-id", 10)
+            .unwrap()
+            .is_empty());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn text_similarity_ignores_other_models_and_dimensions() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-similar-model-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let note = storage
+            .create_note(CreateNoteInput {
+                title: Some("Source note".into()),
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+        storage
+            .store_embedding(
+                &note.id,
+                "text",
+                crate::embeddings::TEXT_MODEL,
+                &crate::embeddings::encode_f32(&[1.0, 0.0]),
+                2,
+            )
+            .unwrap();
+        let other_model = storage
+            .create_note(CreateNoteInput {
+                title: Some("Other model".into()),
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+        storage
+            .store_embedding(
+                &other_model.id,
+                "text",
+                "legacy-model",
+                &crate::embeddings::encode_f32(&[1.0, 0.0]),
+                2,
+            )
+            .unwrap();
+        let image_model = storage
+            .create_note(CreateNoteInput {
+                title: Some("Image model".into()),
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+        storage
+            .store_embedding(
+                &image_model.id,
+                "text",
+                crate::embeddings::IMAGE_MODEL,
+                &crate::embeddings::encode_f32(&[1.0, 0.0]),
+                2,
+            )
+            .unwrap();
+        let other_dimension = storage
+            .create_note(CreateNoteInput {
+                title: Some("Other dimension".into()),
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+        storage
+            .store_embedding(
+                &other_dimension.id,
+                "text",
+                crate::embeddings::TEXT_MODEL,
+                &crate::embeddings::encode_f32(&[1.0, 0.0, 0.0]),
+                3,
+            )
+            .unwrap();
+
+        let results = storage.search_similar_text(&note.id, 10).unwrap();
+        assert!(results.is_empty());
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();
