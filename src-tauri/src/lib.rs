@@ -76,6 +76,7 @@ pub fn run() {
             storage::list_space_items,
             jobs::enqueue_ocr_job,
             jobs::get_job_status,
+            jobs::get_jobs_for_items,
             jobs::count_active_jobs,
             jobs::retry_processing_job,
         ])
