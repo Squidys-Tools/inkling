@@ -1734,7 +1734,17 @@ pub fn list_space_items(
 }
 
 fn setup_fts5(connection: &Connection) -> bool {
-    let result = connection.execute_batch(
+    let result = (|| -> rusqlite::Result<()> {
+        let transaction = rusqlite::Transaction::new_unchecked(
+            connection,
+            rusqlite::TransactionBehavior::Immediate,
+        )?;
+        let exists: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'items_fts')",
+            [],
+            |row| row.get(0),
+        )?;
+        transaction.execute_batch(
         r#"
         CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
             item_id UNINDEXED,
@@ -1763,11 +1773,16 @@ fn setup_fts5(connection: &Connection) -> bool {
             VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata);
         END;
 
-        DELETE FROM items_fts;
-        INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
-        SELECT id, title, description, source_label, ocr_text, metadata FROM items;
         "#,
-    );
+        )?;
+        if !exists {
+            transaction.execute_batch(
+                "INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
+                 SELECT id, title, description, source_label, ocr_text, metadata FROM items;",
+            )?;
+        }
+        transaction.commit()
+    })();
 
     if let Err(error) = result {
         eprintln!("FTS5 unavailable; using LIKE search fallback: {error}");
@@ -2152,6 +2167,149 @@ mod tests {
             Some(directory.join("data"))
         );
 
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn existing_fts_index_is_not_rebuilt() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(ITEMS_SCHEMA).unwrap();
+        connection.execute_batch("BEGIN").unwrap();
+        for index in 0..1000 {
+            connection.execute(
+                "INSERT INTO items (id, kind, title, description, metadata, ocr_text, created_at, updated_at)
+                 VALUES (?1, 'note', 'orchard', 'A saved reference', '{}', '', 1, 1)",
+                params![format!("item-{index}")],
+            ).unwrap();
+        }
+        connection.execute_batch("COMMIT").unwrap();
+        assert!(setup_fts5(&connection));
+        let before: i64 = connection
+            .query_row("SELECT total_changes()", [], |row| row.get(0))
+            .unwrap();
+        assert!(setup_fts5(&connection));
+        let after: i64 = connection
+            .query_row("SELECT total_changes()", [], |row| row.get(0))
+            .unwrap();
+        let matches: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM items_fts WHERE items_fts MATCH 'orchard'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(matches, 1000);
+        assert_eq!(
+            after - before,
+            0,
+            "reopening an existing FTS index must not write rows"
+        );
+    }
+
+    #[test]
+    fn fts_backfill_and_triggers_preserve_search_after_reopen() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(ITEMS_SCHEMA).unwrap();
+        connection
+            .execute_batch(
+                "INSERT INTO items (id, kind, title, metadata, ocr_text, created_at, updated_at)
+             VALUES ('old', 'note', 'orchard', '{}', '', 1, 1);",
+            )
+            .unwrap();
+        for _ in 0..2 {
+            assert!(setup_fts5(&connection));
+        }
+        connection
+            .execute_batch(
+                "UPDATE items SET title = 'meadow' WHERE id = 'old';
+             INSERT INTO items (id, kind, title, metadata, ocr_text, created_at, updated_at)
+             VALUES ('new', 'note', 'orchard', '{}', '', 2, 2);",
+            )
+            .unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT item_id FROM items_fts WHERE items_fts MATCH 'orchard'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "new"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT item_id FROM items_fts WHERE items_fts MATCH 'meadow'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "old"
+        );
+        connection
+            .execute("DELETE FROM items WHERE id = 'new'", [])
+            .unwrap();
+        assert!(setup_fts5(&connection));
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM items_fts WHERE items_fts MATCH 'orchard'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn benchmark_library_refresh() {
+        let directory = std::env::temp_dir().join(format!("inkling-perf-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("library.sqlite3");
+        let storage = LibraryStorage::open(path.clone()).unwrap();
+        let html = format!(
+            "<p>{}</p>",
+            "A saved article about gardens and architecture. ".repeat(400)
+        );
+        let metadata = serde_json::json!({"html": html, "tags": ["reference"]}).to_string();
+        storage.connection.execute_batch("BEGIN").unwrap();
+        for index in 0..1000 {
+            let id = format!("perf-{index}");
+            storage.connection.execute(
+                "INSERT INTO items (id, kind, title, description, metadata, ocr_text, created_at, updated_at)
+                 VALUES (?1, 'article', ?1, 'A saved reference', ?2, '', 1, 1)",
+                params![id, metadata],
+            ).unwrap();
+            crate::jobs::JobQueue::enqueue_job(
+                &storage.connection,
+                &id,
+                crate::jobs::JobKind::GenerateEmbedding,
+            )
+            .unwrap();
+        }
+        storage.connection.execute_batch("COMMIT").unwrap();
+        drop(storage);
+        let mut samples = Vec::new();
+        for _ in 0..7 {
+            let start = std::time::Instant::now();
+            let storage = LibraryStorage::open(path.clone()).unwrap();
+            let open_ms = start.elapsed().as_secs_f64() * 1000.0;
+            let start = std::time::Instant::now();
+            let items = storage.list_active_items().unwrap();
+            for item in &items {
+                crate::jobs::JobQueue::get_jobs_for_item(&storage.connection, &item.id).unwrap();
+            }
+            let bytes = serde_json::to_vec(&items).unwrap().len();
+            samples.push(serde_json::json!({
+                "open_ms": open_ms,
+                "list_and_jobs_ms": start.elapsed().as_secs_f64() * 1000.0,
+                "list_bytes": bytes,
+                "items": items.len(),
+            }));
+        }
+        println!("INKLING_PERF={}", serde_json::to_string(&samples).unwrap());
         fs::remove_dir_all(directory).unwrap();
     }
 

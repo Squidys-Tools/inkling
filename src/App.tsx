@@ -54,13 +54,12 @@ import {
   listArchivedItems,
   listSpaceItems,
   listSpaces,
-  getJobStatus,
+  getProcessingSummaries,
   retryProcessingJob,
   saveFile,
   deleteItem,
   searchItems,
   searchSimilarImages,
-  summarizeProcessingJobs,
   updateItem,
   type ProcessingSummary,
   type SmartSpaceQuery,
@@ -1089,8 +1088,8 @@ function App() {
     try {
       const restoredItem = canUseTauriBackend
         ? await archiveItem(String(item.id), false).then(async (storedItem) => {
-            const jobs = await getJobStatus(storedItem.id);
-            return storedItemToLibraryItem(storedItem, summarizeProcessingJobs(jobs));
+            const summary = (await getProcessingSummaries([storedItem.id])).get(storedItem.id);
+            return storedItemToLibraryItem(storedItem, summary);
           })
         : item;
       setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
@@ -1872,10 +1871,10 @@ function App() {
     setIsFindingSimilar(true);
     try {
       const storedItems = await searchSimilarImages(String(item.id));
-      const libraryItems = await Promise.all(storedItems.map(async (storedItem) => {
-        const jobs = await getJobStatus(storedItem.id);
-        return storedItemToLibraryItem(storedItem, summarizeProcessingJobs(jobs));
-      }));
+      const summaries = await getProcessingSummaries(storedItems.map((storedItem) => storedItem.id));
+      const libraryItems = await Promise.all(storedItems.map((storedItem) =>
+        storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
+      ));
       setQuery("");
       setSimilaritySource({ id: String(item.id), title: item.title });
       setItems(libraryItems);
@@ -2206,10 +2205,10 @@ function App() {
               ? searchItems(debouncedQuery)
               : listActiveItems();
         const storedItems = await storedItemsPromise;
-        const libraryItems = await Promise.all(storedItems.map(async (item) => {
-          const jobs = await getJobStatus(item.id);
-          return storedItemToLibraryItem(item, summarizeProcessingJobs(jobs));
-        }));
+        const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
+        const libraryItems = await Promise.all(storedItems.map((item) =>
+          storedItemToLibraryItem(item, summaries.get(item.id)),
+        ));
         if (!cancelled) {
           setItems(libraryItems);
         }
@@ -2266,10 +2265,10 @@ function App() {
       try {
         await initializeStorage();
         const storedItems = await listArchivedItems();
-        const nextItems = await Promise.all(storedItems.map(async (item) => {
-          const jobs = await getJobStatus(item.id);
-          return storedItemToLibraryItem(item, summarizeProcessingJobs(jobs));
-        }));
+        const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
+        const nextItems = await Promise.all(storedItems.map((item) =>
+          storedItemToLibraryItem(item, summaries.get(item.id)),
+        ));
         if (!cancelled) setArchivedItems(nextItems);
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -2473,8 +2472,8 @@ function App() {
       const results = await Promise.allSettled(selectedItems.map(async (item) => {
         if (!canUseTauriBackend) return item;
         const restoredItem = await archiveItem(String(item.id), false);
-        const jobs = await getJobStatus(restoredItem.id);
-        return storedItemToLibraryItem(restoredItem, summarizeProcessingJobs(jobs));
+        const summary = (await getProcessingSummaries([restoredItem.id])).get(restoredItem.id);
+        return storedItemToLibraryItem(restoredItem, summary);
       }));
       const restoredItems = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
       const failures = results.filter((result) => result.status === "rejected").length;
