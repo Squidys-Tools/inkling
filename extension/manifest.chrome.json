@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "inkling — save to your library",
+  "version": "0.1.0",
+  "description": "Save the current page to your local inkling library in one keystroke.",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "Save to inkling",
+    "default_icon": {
+      "16": "icons/inkling.svg",
+      "48": "icons/inkling.svg",
+      "128": "icons/inkling.svg"
+    }
+  },
+  "background": {
+    "service_worker": "src/background.ts",
+    "type": "module"
+  },
+  "options_page": "options.html",
+  "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
+  "commands": {
+    "_execute_action": {
+      "description": "Open the inkling save popup"
+    },
+    "inkling-save-page": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Save the current page to inkling without opening the popup"
+    }
+  },
+  "icons": {
+    "16": "icons/inkling.svg",
+    "48": "icons/inkling.svg",
+    "128": "icons/inkling.svg"
+  }
+}

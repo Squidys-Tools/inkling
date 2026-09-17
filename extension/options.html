@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font: 13px/1.4 system-ui, sans-serif; margin: 16px; max-width: 480px; }
+      label { display: block; margin-bottom: 4px; }
+      input { width: 100%; box-sizing: border-box; }
+      #saved { color: green; }
+    </style>
+  </head>
+  <body>
+    <h1>inkling options</h1>
+    <label for="token">Local token (stays on this machine)</label>
+    <input id="token" type="password" autocomplete="off" />
+    <p><button id="save" type="button">Save</button> <span id="saved" role="status"></span></p>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -28,6 +28,7 @@ Guardrails:
 
 ### Added
 
+- Browser extension store prep: Firefox MV3 manifest, local mascot icons, options token field, and store copy draft (`extension/`).
 - Portable Windows PR previews build a self-contained review folder with pinned ONNX Runtime and embedding models, isolated database/assets/models, and a `preview:win` artifact link.
 - Serendipity now shows up to 12 saved items, oldest first, in the existing library grid and clears search when opened.
 - Unit tests for the note card word-count logic, run via `bun test` in CI and the local frontend check (`src/components/ItemMedia.test.ts`)
