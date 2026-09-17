@@ -8,6 +8,14 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [react()],
 
+  build: {
+    // Tauri ships an evergreen Chromium webview (WebView2), so build for
+    // modern syntax: smaller output, no transpilation helpers, no
+    // modulepreload polyfill. No visual or behavioral effect.
+    target: "chrome120",
+    modulePreload: { polyfill: false },
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

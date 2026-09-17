@@ -112,6 +112,14 @@ export type CreateSpaceInput = {
   query?: SmartSpaceQuery;
 };
 
+export type UpdateSpaceInput = {
+  id: string;
+  name?: string;
+  color?: string;
+  query?: SmartSpaceQuery;
+  position?: number;
+};
+
 function latestJobsByKind(jobs: ProcessingJob[]) {
   const latest = new Map<ProcessingJobKind, ProcessingJob>();
   for (const job of jobs) {
@@ -181,6 +189,14 @@ export async function createSpace(input: CreateSpaceInput) {
 
 export async function deleteSpace(id: string) {
   await invoke<void>("delete_space", { id });
+}
+
+export async function updateSpace(input: UpdateSpaceInput) {
+  return invoke<StoredSpace>("update_space", { input });
+}
+
+export async function swapSpacePositions(firstId: string, secondId: string) {
+  return invoke<StoredSpace[]>("swap_space_positions", { firstId, secondId });
 }
 
 // Smart Spaces evaluate lazily: the backend re-runs the saved query on every call.
