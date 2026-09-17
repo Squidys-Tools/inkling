@@ -106,26 +106,31 @@ try {
         Copy-Item -LiteralPath $runtimeDll -Destination $buildOrt
         $temporaryBuildOrt = $true
     }
+    $targetDirectory = Join-Path $repoRoot 'src-tauri\target'
+    $releaseDirectory = Join-Path $targetDirectory 'release'
+    $previousTargetDirectory = $env:CARGO_TARGET_DIR
     try {
+        $env:CARGO_TARGET_DIR = $targetDirectory
         & bun tauri build --no-bundle --features portable-preview --config src-tauri\tauri.preview.conf.json
         if ($LASTEXITCODE -ne 0) {
             throw "Tauri preview build failed with exit code $LASTEXITCODE"
         }
     }
     finally {
+        $env:CARGO_TARGET_DIR = $previousTargetDirectory
         if ($temporaryBuildOrt -and (Test-Path -LiteralPath $buildOrt)) {
             Remove-Item -LiteralPath $buildOrt -Force
         }
     }
 
-    $builtExecutable = Join-Path $repoRoot 'src-tauri\target\release\inkling.exe'
+    $builtExecutable = Join-Path $releaseDirectory 'inkling.exe'
     if (-not (Test-Path -LiteralPath $builtExecutable)) {
         throw "Expected native executable was not produced: $builtExecutable"
     }
     Copy-Item -LiteralPath $builtExecutable -Destination (Join-Path $outputDirectory 'inkling.exe')
     Copy-Item -LiteralPath $runtimeDll -Destination (Join-Path $outputDirectory 'onnxruntime.dll') -Force
 
-    $webViewLoader = Join-Path $repoRoot 'src-tauri\target\release\WebView2Loader.dll'
+    $webViewLoader = Join-Path $releaseDirectory 'WebView2Loader.dll'
     if (Test-Path -LiteralPath $webViewLoader) {
         Copy-Item -LiteralPath $webViewLoader -Destination (Join-Path $outputDirectory 'WebView2Loader.dll') -Force
     }
