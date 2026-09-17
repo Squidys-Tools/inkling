@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+.artifacts/
 
 # Benchmark run artifacts (only results-latest.json and summary.md are tracked)
 benchmarks/results/results-*.json

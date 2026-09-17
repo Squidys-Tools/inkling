@@ -13,6 +13,7 @@
     "knip:check": "knip --no-progress",
     "check:frontend": "bun run check:bun-version && bun install --frozen-lockfile --ignore-scripts && bun run test && bun run knip:check && bun run build && bun run ingest:smoke",
     "preview": "vite preview",
+    "preview:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native-preview.ps1",
     "tauri": "tauri",
     "ingest:smoke": "bun src/lib/ingestion/ingestion.smoke.ts",
     "test": "bun test",

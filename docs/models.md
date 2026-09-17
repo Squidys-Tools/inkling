@@ -19,6 +19,11 @@ hashes. The first indexing job downloads the model files into:
 <app data directory>\models\nomic-embed-vision-v1.5\
 ```
 
+Portable Windows preview folders keep the same layout under `data\models\`
+beside `inkling.exe`. The preview build downloads and verifies those files
+before packaging, so the folder can be copied for review and deleted to remove
+its model cache and library data.
+
 Text documents use the `search_document:` prefix. User queries use the
 `search_query:` prefix. Vision preprocessing follows the model's 224px RGB
 normalization and uses the CLS token from the vision output.
