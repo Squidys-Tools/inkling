@@ -19,6 +19,7 @@
   },
   "options_page": "options.html",
   "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
+  "host_permissions": ["http://127.0.0.1/*"],
   "commands": {
     "_execute_action": {
       "description": "Open the inkling save popup"

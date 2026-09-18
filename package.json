@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "packageManager": "bun@1.4.0",
+  "workspaces": ["extension", "packages/*"],
   "scripts": {
     "dev": "vite",
     "build": "tsc -p benchmarks/harness/tsconfig.json && tsc && vite build",
