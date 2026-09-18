@@ -40,7 +40,7 @@ Guardrails:
 - GitHub issue templates for bug reports and feature requests (`.github/ISSUE_TEMPLATE/`)
 - Unused-code backlog cleared and gated: dead exports stripped, unused `plugin-opener`/`regenerator-runtime` frontend dependencies pruned, orphaned helpers removed, and `knip:check` promoted to a hard gate in the CI frontend job
 - Scheduled unused-code cleanup: `knip --fix` runs every other day on GitHub runners and opens a PR when it strips exports or prunes dependencies (file deletion stays manual, `knip.json` holds entry/project patterns) (`.github/workflows/knip.yml`, `knip.json`)
-- Weekly markdown link check on GitHub runners, opening an issue on broken links (local dev hosts and `inkling://` / `mymind://` schemes excluded) (`.github/workflows/links.yml`, `.lycheeignore`)
+- Weekly markdown link check on GitHub runners, opening an issue on broken links (local dev hosts and the `inkling://` scheme excluded) (`.github/workflows/links.yml`, `.lycheeignore`)
 - Committed web-preview demo library: 24 personal items (photos, art, UI references, one clip) plus four keepers from the original set, shuffled with a fixed seed so the order is mixed but stable; images live compressed by hand in `public/seed-demo/` with titles in `src/seedPersonal.ts` (`src/seedPersonal.ts`, `src/App.tsx`, `public/seed-demo/`)
 - README screenshots of the visual library grid and the expanded item detail view (`docs/assets/screenshots/library.png`, `docs/assets/screenshots/detail.png`), plus reserved slots for demo clips (`docs/assets/demo/`) and upcoming mascots (`docs/assets/mascots/`)
 - README shows the inkling mascot (idle, wink, wide, notify states sampled from the live engine via `bun scripts/mascot-board.ts`), and the desktop app icon is the idle mascot (`README.md`, `src-tauri/icons/`)
@@ -163,7 +163,7 @@ Guardrails:
 - SQLite storage with FTS5 full-text search (`src-tauri/src/storage.rs`)
 - URL and file capture pipeline with article extraction (Defuddle + fallback)
 - File picker, drag-and-drop, clipboard, and screenshot capture
-- Browser-extension deep link (`inkling://capture?url=<url>`; earlier `mymind://` links remain supported)
+- Browser-extension deep link (`inkling://capture?url=<url>`)
 - Background job queue for async processing (`src-tauri/src/jobs.rs`)
 - Thumbnail generation and content-addressed asset storage
 - Safe embed allowlists (YouTube, Vimeo, direct media)

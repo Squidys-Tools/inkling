@@ -7,7 +7,8 @@ export const DEEP_LINK_ATTRIBUTION_MAX_LENGTH = 240;
 
 export type DeepLinkCapture =
   | { kind: "url"; url: string }
-  | { kind: "quote"; url: string; selection: string; attribution: string };
+  | { kind: "quote"; url: string; selection: string; attribution: string }
+  | { kind: "image"; pageUrl: string; imageUrl: string; alt: string };
 
 function hostnameOf(url: string): string {
   try {
@@ -18,10 +19,11 @@ function hostnameOf(url: string): string {
 }
 
 // Parses an extension fallback link: inkling://capture?url=&title=&selection=
-// plus legacy mymind:// links. URLSearchParams.get already URL-decodes every
-// value. The target URL is validated http(s)-only through parseHttpUrl. The
-// selection is never rewritten: outer whitespace is trimmed and overlong
-// selections are truncated, nothing else.
+// (quote), or inkling://capture?url=&image=&alt= (image). URLSearchParams.get
+// already URL-decodes every value. The target URL is validated http(s)-only
+// through parseHttpUrl. The selection is never rewritten: outer whitespace is
+// trimmed and overlong selections are truncated, nothing else. `via` is a
+// provenance marker from the extension and carries no semantics here.
 export function parseDeepLinkCapture(value: string): DeepLinkCapture | null {
   let parsed: URL;
   try {
@@ -29,11 +31,9 @@ export function parseDeepLinkCapture(value: string): DeepLinkCapture | null {
   } catch {
     return null;
   }
-  // The desktop app registers only `inkling`; `mymind` keeps working for links
-  // saved before the rename.
-  if (!["inkling:", "mymind:"].includes(parsed.protocol) || parsed.hostname !== "capture") return null;
+  if (parsed.protocol !== "inkling:" || parsed.hostname !== "capture") return null;
 
-  const rawTarget = parsed.searchParams.get("url") ?? parsed.searchParams.get("source");
+  const rawTarget = parsed.searchParams.get("url");
   if (!rawTarget) return null;
 
   let url: string;
@@ -44,9 +44,23 @@ export function parseDeepLinkCapture(value: string): DeepLinkCapture | null {
   }
 
   const selection = parsed.searchParams.get("selection")?.trim().slice(0, DEEP_LINK_SELECTION_MAX_LENGTH) ?? "";
-  if (!selection) return { kind: "url", url };
+  if (selection) {
+    const title = parsed.searchParams.get("title")?.trim() ?? "";
+    const attribution = (title || hostnameOf(url)).slice(0, DEEP_LINK_ATTRIBUTION_MAX_LENGTH);
+    return { kind: "quote", url, selection, attribution };
+  }
 
-  const title = parsed.searchParams.get("title")?.trim() ?? "";
-  const attribution = (title || hostnameOf(url)).slice(0, DEEP_LINK_ATTRIBUTION_MAX_LENGTH);
-  return { kind: "quote", url, selection, attribution };
+  const rawImage = parsed.searchParams.get("image")?.trim() ?? "";
+  if (rawImage) {
+    let imageUrl: string;
+    try {
+      imageUrl = parseHttpUrl(rawImage).toString();
+    } catch {
+      return null;
+    }
+    const alt = parsed.searchParams.get("alt")?.trim().slice(0, DEEP_LINK_ATTRIBUTION_MAX_LENGTH) ?? "";
+    return { kind: "image", pageUrl: url, imageUrl, alt };
+  }
+
+  return { kind: "url", url };
 }

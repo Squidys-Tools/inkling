@@ -13,18 +13,41 @@ describe("parseDeepLinkCapture", () => {
     });
   });
 
-  test("legacy mymind links keep working", () => {
-    expect(parseDeepLinkCapture("mymind://capture?url=https%3A%2F%2Fexample.com%2F")).toEqual({
+  test("ignores the via provenance marker", () => {
+    expect(
+      parseDeepLinkCapture("inkling://capture?url=https%3A%2F%2Fexample.com%2F&via=extension"),
+    ).toEqual({
       kind: "url",
       url: "https://example.com/",
     });
   });
 
-  test("supports the legacy source param", () => {
-    expect(parseDeepLinkCapture("inkling://capture?source=https%3A%2F%2Fexample.com%2F")).toEqual({
-      kind: "url",
-      url: "https://example.com/",
+  test("image param captures an image with alt text", () => {
+    expect(
+      parseDeepLinkCapture(
+        "inkling://capture?url=https%3A%2F%2Fexample.com%2Fpost&image=https%3A%2F%2Fexample.com%2Fphoto.jpg&alt=A%20sunset",
+      ),
+    ).toEqual({
+      kind: "image",
+      pageUrl: "https://example.com/post",
+      imageUrl: "https://example.com/photo.jpg",
+      alt: "A sunset",
     });
+  });
+
+  test("selection wins over image when both are present", () => {
+    const parsed = parseDeepLinkCapture(
+      "inkling://capture?url=https%3A%2F%2Fexample.com%2F&selection=keep&image=https%3A%2F%2Fexample.com%2Fphoto.jpg",
+    );
+    expect(parsed?.kind).toBe("quote");
+  });
+
+  test("rejects non-http image targets", () => {
+    expect(
+      parseDeepLinkCapture(
+        "inkling://capture?url=https%3A%2F%2Fexample.com%2F&image=javascript%3Aalert(1)",
+      ),
+    ).toBeNull();
   });
 
   test("selection creates a quote with the title as attribution", () => {
@@ -98,6 +121,7 @@ describe("parseDeepLinkCapture", () => {
     expect(parseDeepLinkCapture("https://example.com/?url=https%3A%2F%2Fexample.com%2F")).toBeNull();
     expect(parseDeepLinkCapture("inkling://open?url=https%3A%2F%2Fexample.com%2F")).toBeNull();
     expect(parseDeepLinkCapture("inkling://capture?title=No%20url")).toBeNull();
+    expect(parseDeepLinkCapture("inkling://capture?image=https%3A%2F%2Fexample.com%2Fphoto.jpg")).toBeNull();
     expect(parseDeepLinkCapture("not a url")).toBeNull();
   });
 });

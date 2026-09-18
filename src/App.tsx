@@ -1983,6 +1983,25 @@ function App() {
     }
   }
 
+  async function captureImageUrl(pageUrl: string, imageUrl: string, captureSource: string) {
+    setCaptureError(null);
+    setIsCapturing(true);
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error(`The image returned HTTP ${response.status}.`);
+      const blob = await response.blob();
+      const segment = imageUrl.split("?")[0].split("#")[0].split("/").filter(Boolean).pop() || "image";
+      const file = new File([blob], segment.slice(0, 80), { type: blob.type || "image/png" });
+      await persistFile(file, captureSource);
+    } catch {
+      // A direct download can fail on hotlink protection or CORS; the page
+      // itself is still worth keeping.
+      await persistArticle(pageUrl, captureSource);
+    } finally {
+      setIsCapturing(false);
+    }
+  }
+
   async function handleDeepLinkPayload(payload: unknown) {
     const values: string[] = Array.isArray(payload)
       ? payload.filter((value): value is string => typeof value === "string")
@@ -1992,10 +2011,12 @@ function App() {
     for (const value of values) {
       const capture = parseDeepLinkCapture(value);
       if (!capture) continue;
-      // Both paths create the provisional card immediately; extraction,
+      // Every path creates the provisional card immediately; extraction,
       // embeddings, and indexing run as background jobs from there.
       if (capture.kind === "quote") {
         await persistQuote(capture.selection, capture.attribution, capture.url, "browser extension");
+      } else if (capture.kind === "image") {
+        await captureImageUrl(capture.pageUrl, capture.imageUrl, "browser extension");
       } else {
         await captureArticle(capture.url, "browser extension");
       }

@@ -48,7 +48,7 @@ Use these words when you talk about the work.
 - job means one unit of background work. OCR, extraction, embeddings, indexing. Jobs run on a persisted queue with leases.
 - embedding means the local vector for text or image search. Nomic text and vision share one 768 dimension space.
 - library means the SQLite database plus the asset store on disk.
-- deep link means the companion path into the app, `inkling://capture?url=...`. Older `mymind://` links still work.
+- deep link means the companion path into the app, `inkling://capture?url=...`.
 - preview means `bun run preview`, the web only look at the UI without the Rust build.
 - full app means `bun run tauri dev`, the real Windows desktop app.
 

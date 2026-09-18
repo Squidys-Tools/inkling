@@ -11,7 +11,11 @@
   </head>
   <body>
     <h1>inkling options</h1>
-    <label for="token">Local token (stays on this machine)</label>
+    <p>Pairing connects the extension to the inkling app on this machine only.
+    Find both values in inkling under Settings → Extension.</p>
+    <label for="base-url">App address (from inkling Settings → Extension)</label>
+    <input id="base-url" type="text" inputmode="url" autocomplete="off" placeholder="http://127.0.0.1:PORT" />
+    <label for="token" style="margin-top: 8px;">Local token (stays on this machine)</label>
     <input id="token" type="password" autocomplete="off" />
     <p><button id="save" type="button">Save</button> <span id="saved" role="status"></span></p>
     <script src="options.js"></script>

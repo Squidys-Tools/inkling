@@ -10,7 +10,14 @@ import {
   isPageCapturePayload,
   type PageCapturePayloadV1,
 } from "@inkling/ingestion-shared";
-import { buildCaptureDeepLink } from "./transport";
+import { buildCaptureDeepLink, postPayloadToLoopback } from "./transport";
+import {
+  INKLING_MENU_SAVE_IMAGE,
+  INKLING_MENU_SAVE_SELECTION,
+  INKLING_MENU_SAVE_VIDEO,
+  isCaptureMessage,
+  payloadToDeepLink,
+} from "./payload";
 
 // Emitted at dist/ root by vite.content-main/isolated.config.ts — keep in sync.
 const CONTENT_MAIN_FILE = "content-main.js";
@@ -19,6 +26,10 @@ const CONTENT_ISOLATED_FILE = "content-isolated.js";
 const QUEUE_KEY = "inkling:pending-captures-v1";
 const MAX_QUEUED = 50;
 const LAST_STATUS_KEY = "inkling:last-save-status";
+// Same keys the options page writes; the token never leaves the machine
+// except to the app on loopback.
+const TOKEN_KEY = "inkling.token";
+const BASE_URL_KEY = "inkling.base-url";
 
 export interface SaveStatus {
   state: "saved" | "queued" | "failed";
@@ -60,6 +71,50 @@ async function injectExtractor(tabId: number): Promise<unknown> {
   return results[0]?.result;
 }
 
+async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } | null> {
+  const stored = await browser.storage.local.get([BASE_URL_KEY, TOKEN_KEY]);
+  const baseUrl = stored[BASE_URL_KEY];
+  const token = stored[TOKEN_KEY];
+  if (typeof baseUrl !== "string" || !baseUrl || typeof token !== "string" || !token) return null;
+  return { baseUrl, token };
+}
+
+/**
+ * Loopback-first delivery: POST the v1 payload to the app's capture server
+ * (`POST {baseUrl}/v1/captures`, per-install bearer). Returns true on 201.
+ * Any failure (unpaired, app closed, network) falls through to the deep-link
+ * path so capture never depends on pairing.
+ */
+async function tryLoopback(payload: PageCapturePayloadV1): Promise<boolean> {
+  const config = await readLoopbackConfig();
+  if (!config) return false;
+  try {
+    await postPayloadToLoopback(config.baseUrl, config.token, payload);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Retry queued payloads against the loopback server; keeps what still fails. */
+export async function flushQueue(): Promise<{ delivered: number; pending: number }> {
+  const config = await readLoopbackConfig();
+  if (!config) return { delivered: 0, pending: (await readQueue()).length };
+  const queue = await readQueue();
+  const remaining: PageCapturePayloadV1[] = [];
+  let delivered = 0;
+  for (const payload of queue) {
+    try {
+      await postPayloadToLoopback(config.baseUrl, config.token, payload);
+      delivered += 1;
+    } catch {
+      remaining.push(payload);
+    }
+  }
+  await browser.storage.local.set({ [QUEUE_KEY]: remaining });
+  return { delivered, pending: remaining.length };
+}
+
 export async function saveTab(tabId: number): Promise<SaveStatus> {
   let raw: unknown;
   try {
@@ -77,6 +132,17 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
     const status: SaveStatus = {
       state: "failed",
       detail: "page extraction produced no usable content",
+      at: new Date().toISOString(),
+    };
+    await writeStatus(status);
+    return status;
+  }
+  // Loopback first (rich payload, 201 + id); deep link stays the fallback so
+  // an unpaired or closed app still captures.
+  if (await tryLoopback(raw)) {
+    const status: SaveStatus = {
+      state: "saved",
+      title: raw.title,
       at: new Date().toISOString(),
     };
     await writeStatus(status);
@@ -120,16 +186,105 @@ async function saveActiveTab(): Promise<SaveStatus> {
   return saveTab(tab.id);
 }
 
+/** Selection/image/video dispatch: the loopback server only takes page
+ * payloads, so these travel by deep link (dataUrl never fits a URL and is
+ * reported instead of silently dropped). */
+async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<SaveStatus> {
+  void tabId;
+  const message = { type: "inkling/capture", payload };
+  if (!isCaptureMessage(message)) {
+    const status: SaveStatus = {
+      state: "failed",
+      detail: "unrecognized capture payload",
+      at: new Date().toISOString(),
+    };
+    await writeStatus(status);
+    return status;
+  }
+  const deepLink = payloadToDeepLink(message.payload);
+  if (!deepLink) {
+    const status: SaveStatus = {
+      state: "failed",
+      detail: "this capture needs the paired app (open inkling once, then retry)",
+      at: new Date().toISOString(),
+    };
+    await writeStatus(status);
+    return status;
+  }
+  try {
+    await browser.tabs.create({ url: deepLink });
+    const status: SaveStatus = { state: "saved", at: new Date().toISOString() };
+    await writeStatus(status);
+    return status;
+  } catch (error) {
+    const status: SaveStatus = {
+      state: "failed",
+      detail: error instanceof Error ? error.message : "deep link refused",
+      at: new Date().toISOString(),
+    };
+    await writeStatus(status);
+    return status;
+  }
+}
+
+async function collectFromTab(tabId: number, collect: "selection" | "image" | "video", srcUrl?: string) {
+  try {
+    const response = await browser.tabs.sendMessage(tabId, {
+      type: "inkling/collect",
+      collect,
+      ...(srcUrl ? { srcUrl } : {}),
+    });
+    if (response && typeof response === "object" && "payload" in response) {
+      await dispatchCapturePayload((response as { payload: unknown }).payload, tabId);
+    }
+  } catch {
+    // No content script on this page (or it refused): status already reflects
+    // the failure via the collect path; stay quiet here.
+  }
+}
+
 browser.runtime.onInstalled.addListener(() => {
   void browser.contextMenus.create({
     id: "inkling-save-page",
     title: "Save page to inkling",
     contexts: ["page"],
   });
+  void browser.contextMenus.create({
+    id: INKLING_MENU_SAVE_SELECTION,
+    title: "Save selection as quote",
+    contexts: ["selection"],
+  });
+  void browser.contextMenus.create({
+    id: INKLING_MENU_SAVE_IMAGE,
+    title: "Save image to inkling",
+    contexts: ["image"],
+  });
+  void browser.contextMenus.create({
+    id: INKLING_MENU_SAVE_VIDEO,
+    title: "Save video to inkling",
+    contexts: ["page", "video"],
+  });
+  // Opportunistic drain: a previously queued save may now be deliverable.
+  void flushQueue();
 });
 
-browser.contextMenus.onClicked.addListener((info) => {
-  if (info.menuItemId === "inkling-save-page") void saveActiveTab();
+browser.runtime.onStartup.addListener(() => {
+  void flushQueue();
+});
+
+browser.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "inkling-save-page") {
+    void saveActiveTab();
+    return;
+  }
+  if (tab?.id === undefined) return;
+  if (info.menuItemId === INKLING_MENU_SAVE_SELECTION) {
+    void collectFromTab(tab.id, "selection");
+  } else if (info.menuItemId === INKLING_MENU_SAVE_IMAGE) {
+    void collectFromTab(tab.id, "image", typeof info.srcUrl === "string" ? info.srcUrl : undefined);
+  } else if (info.menuItemId === INKLING_MENU_SAVE_VIDEO) {
+    void collectFromTab(tab.id, "video");
+  }
 });
 
 browser.commands.onCommand.addListener((command) => {
@@ -138,8 +293,12 @@ browser.commands.onCommand.addListener((command) => {
 
 browser.runtime.onMessage.addListener((message: unknown) => {
   if (typeof message === "object" && message !== null && "type" in message) {
-    if ((message as { type: string }).type === "inkling:save-page") {
+    const type = (message as { type: string }).type;
+    if (type === "inkling:save-page") {
       return saveActiveTab();
+    }
+    if (type === "inkling:flush-queue") {
+      return flushQueue();
     }
   }
   return undefined;
