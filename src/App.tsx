@@ -2674,15 +2674,6 @@ function App() {
             <HugeiconsIcon icon={Clock01Icon} size={17} />
             <span>Serendipity</span>
           </button>
-          <button
-            className={`nav-item ${isSettingsOpen ? "active" : ""}`}
-            aria-haspopup="dialog"
-            aria-controls="settings-modal"
-            onClick={() => setIsSettingsOpen(true)}
-          >
-            <HugeiconsIcon icon={Archive01Icon} size={17} />
-            <span>Archive</span>
-          </button>
         </nav>
 
         <div className="sidebar-section">
