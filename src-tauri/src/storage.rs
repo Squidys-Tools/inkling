@@ -479,7 +479,7 @@ impl LibraryStorage {
         self.get_item(&id)?.ok_or(StorageError::NotFound(id))
     }
 
-    fn create_url(&self, input: CreateUrlInput) -> Result<ItemDto, StorageError> {
+    pub(crate) fn create_url(&self, input: CreateUrlInput) -> Result<ItemDto, StorageError> {
         let source_url = normalize_http_url(&input.source_url)?;
         let source_label = Url::parse(&source_url)
             .ok()

@@ -56,12 +56,16 @@ import {
   listSpaces,
   getJobStatus,
   retryProcessingJob,
+  getCaptureStatus,
+  getPairingToken,
+  regeneratePairingToken,
   saveFile,
   deleteItem,
   searchItems,
   searchSimilarImages,
   summarizeProcessingJobs,
   updateItem,
+  type CaptureStatus,
   type ProcessingSummary,
   type SmartSpaceQuery,
   type StoredLibraryItem,
@@ -961,6 +965,132 @@ function clearLibraryTransitionMediaStyle(clone: HTMLElement) {
   mediaFrame?.style.removeProperty("min-height");
 }
 
+// Pairing panel inside the existing Settings modal. Shows the per-install
+// pairing token for the browser extension (reveal-on-click, never rendered
+// by default) with copy, renew, and a live check against /v1/health.
+function ExtensionPairing() {
+  const [status, setStatus] = useState<CaptureStatus | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isRevealed, setIsRevealed] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    void getCaptureStatus()
+      .then(setStatus)
+      .catch(() => setStatus(null));
+  }, []);
+
+  if (!isTauriRuntime()) {
+    return (
+      <div className="settings-empty-state">
+        <div className="settings-empty-icon"><HugeiconsIcon icon={Link01Icon} size={19} /></div>
+        <h4>Pairing needs the desktop app.</h4>
+        <p>Open Settings in the installed app to pair the browser extension.</p>
+      </div>
+    );
+  }
+
+  const revealToken = () => {
+    if (isRevealed) {
+      setIsRevealed(false);
+      setToken(null);
+      return;
+    }
+    void getPairingToken()
+      .then((value) => {
+        setToken(value);
+        setIsRevealed(true);
+      })
+      .catch(() => toast.error("Could not load the pairing token."));
+  };
+
+  const copyToken = () => {
+    if (!token) return;
+    void navigator.clipboard.writeText(token)
+      .then(() => toast.success("Pairing token copied. Paste it into the extension."))
+      .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand."));
+  };
+
+  const renewToken = () => {
+    if (!window.confirm("Renew the pairing token? The extension will need the new token.")) return;
+    void regeneratePairingToken()
+      .then((value) => {
+        setToken(value);
+        setIsRevealed(true);
+        toast.success("New pairing token issued. Update the extension.");
+      })
+      .catch(() => toast.error("Could not renew the pairing token."));
+  };
+
+  const testConnection = () => {
+    if (!status?.healthUrl || isTesting) return;
+    setIsTesting(true);
+    const check = async () => {
+      const bearer = token ?? await getPairingToken();
+      const response = await fetch(status.healthUrl as string, {
+        headers: { Authorization: `Bearer ${bearer}` },
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    };
+    void check()
+      .then(() => toast.success("Extension receiver is reachable."))
+      .catch(() => toast.error("No answer from the receiver. Is the app running?"))
+      .finally(() => setIsTesting(false));
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "22px 2px" }}>
+      <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, lineHeight: 1.6, maxWidth: "52ch" }}>
+        Paste this token into the browser extension once. Saves go straight to this library
+        over a local connection; nothing leaves the machine.
+      </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span className="settings-panel-count" role="status">
+          {status ? (status.running ? `Listening on 127.0.0.1:${status.port}` : "Receiver not running") : "Checking receiver…"}
+        </span>
+        <button
+          type="button"
+          className="settings-batch-button"
+          disabled={!status?.healthUrl || isTesting}
+          onClick={testConnection}
+        >
+          {isTesting ? "Testing…" : "Test connection"}
+        </button>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <code
+          aria-label={isRevealed ? "Pairing token" : "Pairing token hidden"}
+          style={{
+            flex: "1 1 220px",
+            padding: "9px 12px",
+            border: "1px solid var(--rule)",
+            borderRadius: 10,
+            background: "var(--surface-strong)",
+            color: "var(--ink)",
+            font: "12px 'DM Mono', monospace",
+            letterSpacing: "0.02em",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {isRevealed && token ? token : "••••••••••••••••••••••••"}
+        </code>
+        <button type="button" className="settings-batch-button" onClick={revealToken}>
+          {isRevealed ? "Hide" : "Reveal"}
+        </button>
+        <button type="button" className="settings-batch-button" disabled={!isRevealed || !token} onClick={copyToken}>
+          Copy
+        </button>
+        <button type="button" className="settings-batch-button settings-batch-delete" onClick={renewToken}>
+          Renew
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const canUseTauriBackend = isTauriRuntime() && !shouldUseSeedLibrary();
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
@@ -983,6 +1113,7 @@ function App() {
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"archive" | "extension">("archive");
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? browserArchivedItems : []);
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
@@ -3143,14 +3274,29 @@ function App() {
                   <h2>Settings</h2>
                 </header>
                 <div className="settings-sidebar-content">
-                  <button type="button" className="settings-tab active" aria-current="page">
+                  <button
+                    type="button"
+                    className={`settings-tab ${settingsTab === "archive" ? "active" : ""}`}
+                    aria-current={settingsTab === "archive" ? "page" : undefined}
+                    onClick={() => setSettingsTab("archive")}
+                  >
                     <HugeiconsIcon icon={Archive01Icon} size={16} />
                     <span>Archive</span>
                     <span className="settings-tab-count">{archivedItems.length}</span>
                   </button>
+                  <button
+                    type="button"
+                    className={`settings-tab ${settingsTab === "extension" ? "active" : ""}`}
+                    aria-current={settingsTab === "extension" ? "page" : undefined}
+                    onClick={() => setSettingsTab("extension")}
+                  >
+                    <HugeiconsIcon icon={Link01Icon} size={16} />
+                    <span>Extension</span>
+                  </button>
                 </div>
               </aside>
 
+              {settingsTab === "archive" ? (
               <section className="settings-panel" aria-labelledby="archive-panel-title">
                 <header className="settings-panel-header">
                   <div className="settings-panel-header-content">
@@ -3228,6 +3374,33 @@ function App() {
                   )}
                 </div>
               </section>
+              ) : (
+              <section className="settings-panel" aria-labelledby="extension-panel-title">
+                <header className="settings-panel-header">
+                  <div className="settings-panel-header-content">
+                    <div className="settings-panel-heading">
+                      <h2 id="extension-panel-title">Browser extension</h2>
+                    </div>
+                    <div className="settings-panel-count-row">
+                      <span className="settings-panel-count">Save pages without leaving the browser</span>
+                    </div>
+                  </div>
+                  <button
+                    ref={settingsCloseRef}
+                    type="button"
+                    className="icon-button small settings-close"
+                    onClick={() => setIsSettingsOpen(false)}
+                    aria-label="Close settings"
+                  >
+                    <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                  </button>
+                </header>
+
+                <div className="settings-archive-scroll">
+                  <ExtensionPairing />
+                </div>
+              </section>
+              )}
             </motion.section>
           </motion.div>
         )}

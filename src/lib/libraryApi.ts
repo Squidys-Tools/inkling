@@ -247,6 +247,25 @@ export async function retryProcessingJob(jobId: string) {
   return invoke<boolean>("retry_processing_job", { jobId });
 }
 
+export type CaptureStatus = {
+  running: boolean;
+  port: number | null;
+  healthUrl: string | null;
+};
+
+export async function getCaptureStatus() {
+  if (!runtimeIsTauri) return null;
+  return invoke<CaptureStatus>("get_capture_status");
+}
+
+export async function getPairingToken() {
+  return invoke<string>("get_pairing_token");
+}
+
+export async function regeneratePairingToken() {
+  return invoke<string>("regenerate_pairing_token");
+}
+
 export async function currentDeepLinks() {
   if (!runtimeIsTauri) return [] satisfies string[];
   return invoke<string[] | null>("plugin:deep-link|get_current");
