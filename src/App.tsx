@@ -14,6 +14,7 @@ import {
   Bookmark01Icon,
   Camera01Icon,
   Clock01Icon,
+  Database02Icon,
   Grid2X2Icon,
   Edit01Icon,
   HelpCircleIcon,
@@ -58,9 +59,11 @@ import {
   retryProcessingJob,
   saveFile,
   deleteItem,
+  exportLibrary,
   searchItems,
   searchSimilarItems,
   updateItem,
+  type LibraryExportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
   type StoredLibraryItem,
@@ -179,6 +182,18 @@ function formatItemDate(timestamp: number) {
   if (age < 60 * 60 * 1000) return "Just now";
   if (age < 24 * 60 * 60 * 1000) return "Today";
   return date.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+}
+
+function formatByteSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`;
 }
 
 function readXPostMetadata(value: unknown): XPostMetadata | undefined {
@@ -983,6 +998,9 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? browserArchivedItems : []);
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<"archive" | "library">("archive");
+  const [isExportingLibrary, setIsExportingLibrary] = useState(false);
+  const [lastExport, setLastExport] = useState<LibraryExportReport | null>(null);
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
   const [isAdding, setIsAdding] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
@@ -1125,6 +1143,47 @@ function App() {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }, [restoreForgottenItem]);
+
+  // Export is desktop only: it needs the native folder picker, and the Rust
+  // core writes the snapshot so it stays consistent while the app is running.
+  const exportLibraryToFolder = useCallback(async () => {
+    if (!canUseTauriBackend || isExportingLibrary) return;
+    let destination: string | null = null;
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selection = await open({ directory: true, multiple: false, title: "Choose where to save the export" });
+      destination = typeof selection === "string" ? selection : null;
+    } catch (error) {
+      toast.error("Could not open the folder picker", {
+        description: error instanceof Error ? error.message : String(error),
+        closeButton: true,
+      });
+      return;
+    }
+    if (!destination) return;
+
+    setIsExportingLibrary(true);
+    const toastId = toast.loading("Exporting library…", { description: "Copying the database and its files" });
+    try {
+      const report = await exportLibrary(destination);
+      setLastExport(report);
+      toast.success("Library exported", {
+        id: toastId,
+        description: `${report.items} items · ${formatByteSize(report.databaseBytes + report.assetsBytes)}`,
+        duration: 4000,
+        closeButton: true,
+      });
+    } catch (error) {
+      toast.error("Export failed", {
+        id: toastId,
+        description: error instanceof Error ? error.message : String(error),
+        duration: Infinity,
+        closeButton: true,
+      });
+    } finally {
+      setIsExportingLibrary(false);
+    }
+  }, [canUseTauriBackend, isExportingLibrary]);
 
   const addTagToItem = useCallback(async (item: LibraryItem, tag: string) => {
     const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
@@ -2113,6 +2172,11 @@ function App() {
       document.removeEventListener("keydown", onSettingsKeyDown);
       previouslyFocused?.focus();
     };
+  }, [isSettingsOpen]);
+
+  // Settings reopens on Archive, the way it behaved while that was the only tab.
+  useEffect(() => {
+    if (!isSettingsOpen) setSettingsSection("archive");
   }, [isSettingsOpen]);
 
   useEffect(() => {
@@ -3147,14 +3211,29 @@ function App() {
                   <h2>Settings</h2>
                 </header>
                 <div className="settings-sidebar-content">
-                  <button type="button" className="settings-tab active" aria-current="page">
+                  <button
+                    type="button"
+                    className={`settings-tab ${settingsSection === "archive" ? "active" : ""}`}
+                    aria-current={settingsSection === "archive" ? "page" : undefined}
+                    onClick={() => setSettingsSection("archive")}
+                  >
                     <HugeiconsIcon icon={Archive01Icon} size={16} />
                     <span>Archive</span>
                     <span className="settings-tab-count">{archivedItems.length}</span>
                   </button>
+                  <button
+                    type="button"
+                    className={`settings-tab ${settingsSection === "library" ? "active" : ""}`}
+                    aria-current={settingsSection === "library" ? "page" : undefined}
+                    onClick={() => setSettingsSection("library")}
+                  >
+                    <HugeiconsIcon icon={Database02Icon} size={16} />
+                    <span>Data</span>
+                  </button>
                 </div>
               </aside>
 
+              {settingsSection === "archive" ? (
               <section className="settings-panel" aria-labelledby="archive-panel-title">
                 <header className="settings-panel-header">
                   <div className="settings-panel-header-content">
@@ -3232,6 +3311,62 @@ function App() {
                   )}
                 </div>
               </section>
+              ) : (
+                <section className="settings-panel" aria-labelledby="data-panel-title">
+                  <header className="settings-panel-header">
+                    <div className="settings-panel-header-content">
+                      <div className="settings-panel-heading">
+                        <h2 id="data-panel-title">Your library</h2>
+                      </div>
+                      <p className="settings-panel-note">
+                        Everything inkling saves stays on this machine. An export writes a copy you can keep somewhere else.
+                      </p>
+                    </div>
+                    <button
+                      ref={settingsCloseRef}
+                      type="button"
+                      className="icon-button small settings-close"
+                      onClick={() => setIsSettingsOpen(false)}
+                      aria-label="Close settings"
+                    >
+                      <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                    </button>
+                  </header>
+
+                  <div className="settings-data-scroll">
+                    <div className="settings-data-card">
+                      <div className="settings-data-heading">
+                        <HugeiconsIcon icon={Database02Icon} size={17} />
+                        <h3>Export a copy</h3>
+                      </div>
+                      <p>
+                        Writes a dated folder holding a snapshot of the database, the files your items point at, and a manifest
+                        describing both. Keep it on another drive to back the library up.
+                      </p>
+                      <button
+                        type="button"
+                        className={`settings-data-button ${isExportingLibrary ? "is-busy" : ""}`}
+                        disabled={!canUseTauriBackend || isExportingLibrary}
+                        onClick={() => void exportLibraryToFolder()}
+                      >
+                        <HugeiconsIcon icon={isExportingLibrary ? Loading01Icon : ArrowDown01Icon} size={15} />
+                        <span>{isExportingLibrary ? "Exporting…" : "Choose folder and export"}</span>
+                      </button>
+                      {!canUseTauriBackend ? (
+                        <p className="settings-data-hint">Export runs in the desktop app.</p>
+                      ) : null}
+                      {lastExport ? (
+                        <div className="settings-data-result" role="status" aria-live="polite">
+                          <span className="settings-data-summary">
+                            {lastExport.items} items · {lastExport.assetFiles} files · {formatByteSize(lastExport.databaseBytes + lastExport.assetsBytes)}
+                          </span>
+                          <span className="settings-data-path">{lastExport.directory}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </section>
+              )}
             </motion.section>
           </motion.div>
         )}

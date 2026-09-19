@@ -153,6 +153,32 @@ pub struct StorageStatus {
     pub schema_version: i64,
 }
 
+/// One export is a folder the user keeps: a consistent database snapshot, the
+/// asset files that snapshot references, and a manifest describing both.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportReport {
+    pub directory: String,
+    pub items: i64,
+    pub archived_items: i64,
+    pub spaces: i64,
+    pub asset_files: u64,
+    pub database_bytes: u64,
+    pub assets_bytes: u64,
+}
+
+/// What the database phase of an export hands to the file phase: paths and
+/// counts only, so the asset copy needs no database access.
+struct ExportPlan {
+    directory: PathBuf,
+    exported_at: i64,
+    assets_directory: PathBuf,
+    item_ids: Vec<String>,
+    archived_items: i64,
+    spaces: i64,
+    database_bytes: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ItemDto {
@@ -783,6 +809,88 @@ impl LibraryStorage {
         }
 
         Ok(())
+    }
+
+    /// First phase of an export: everything that needs the database. It returns
+    /// paths and counts only, so the slow asset copy in [`finish_export`] can
+    /// run with the storage lock released and captures stay responsive.
+    ///
+    /// `timezone_offset_minutes` is the webview's `Date.getTimezoneOffset()`, so
+    /// the folder is named in the user's wall clock.
+    fn begin_export(
+        &self,
+        destination: &Path,
+        timezone_offset_minutes: i32,
+    ) -> Result<ExportPlan, StorageError> {
+        if !destination.is_dir() {
+            return Err(StorageError::InvalidInput(
+                "choose an existing folder to export into".into(),
+            ));
+        }
+        // An export written inside the asset store would be walked by its own
+        // copy, so that destination is refused before anything is created.
+        if path_is_inside(destination, &self.assets_root()) {
+            return Err(StorageError::InvalidInput(
+                "choose a folder outside inkling's own asset store".into(),
+            ));
+        }
+
+        let exported_at = now_millis()?;
+        let local_millis = exported_at - i64::from(timezone_offset_minutes) * 60_000;
+        let directory = unique_export_directory(destination, &export_date_stamp(local_millis));
+        match self.write_snapshot(&directory, exported_at) {
+            Ok(plan) => Ok(plan),
+            Err(error) => {
+                let _ = fs::remove_dir_all(&directory);
+                Err(error)
+            }
+        }
+    }
+
+    /// Snapshot phase. The export lands in a fresh dated subfolder so an earlier
+    /// one is never overwritten, and a failure here removes the folder instead
+    /// of leaving it half done.
+    fn write_snapshot(
+        &self,
+        directory: &Path,
+        exported_at: i64,
+    ) -> Result<ExportPlan, StorageError> {
+        fs::create_dir_all(directory)?;
+
+        // VACUUM INTO takes a consistent snapshot while the app keeps writing.
+        // A raw file copy of a live SQLite database can be corrupt.
+        let database_path = directory.join("library.sqlite3");
+        let database_target = database_path.to_string_lossy().into_owned();
+        self.connection
+            .execute("VACUUM INTO ?1", params![database_target])?;
+
+        let item_ids = {
+            let mut statement = self.connection.prepare("SELECT id FROM items")?;
+            let ids = statement
+                .query_map([], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            ids
+        };
+        let archived_items: i64 = self.connection.query_row(
+            "SELECT COUNT(*) FROM items WHERE archived = 1",
+            [],
+            |row| row.get(0),
+        )?;
+        let spaces: i64 = self
+            .connection
+            .query_row("SELECT COUNT(*) FROM spaces", [], |row| row.get(0))?;
+
+        let database_bytes = fs::metadata(&database_path)?.len();
+
+        Ok(ExportPlan {
+            directory: directory.to_path_buf(),
+            exported_at,
+            assets_directory: self.assets_directory(),
+            item_ids,
+            archived_items,
+            spaces,
+            database_bytes,
+        })
     }
 
     pub(crate) fn update_item_ocr_text(
@@ -1645,6 +1753,37 @@ pub fn delete_item(id: String, state: State<'_, StorageState>) -> Result<(), Str
         .map_err(String::from)
 }
 
+/// Copies the library into the folder the user picked in the native picker.
+/// Async on purpose: the snapshot and the asset copy take as long as they take,
+/// and a synchronous command would run on the main thread and freeze the window
+/// for the whole export.
+#[tauri::command(async)]
+pub fn export_library(
+    destination: String,
+    timezone_offset_minutes: Option<i32>,
+    state: State<'_, StorageState>,
+) -> Result<ExportReport, String> {
+    let destination = Path::new(&destination);
+    let timezone_offset_minutes = timezone_offset_minutes.unwrap_or(0);
+    let storage = state.require_storage().map_err(String::from)?;
+    let plan = storage
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .begin_export(destination, timezone_offset_minutes)
+        .map_err(String::from)?;
+    // The lock is released here on purpose: a capture during a multi-gigabyte
+    // copy would otherwise wait for the whole export to finish.
+    drop(storage);
+
+    match finish_export(&plan) {
+        Ok(report) => Ok(report),
+        Err(error) => {
+            let _ = fs::remove_dir_all(&plan.directory);
+            Err(String::from(error))
+        }
+    }
+}
+
 #[tauri::command]
 pub fn search_items(
     query: String,
@@ -1928,6 +2067,148 @@ fn ensure_array_metadata(metadata: &mut Map<String, Value>, key: &str) -> Result
         serde_json::map::Entry::Occupied(_) => {}
     }
     Ok(())
+}
+
+const EXPORT_FORMAT_VERSION: i64 = 1;
+
+/// Names the export folder after the moment it was written, in the wall clock
+/// the caller handed over: the core itself has no timezone database.
+fn export_date_stamp(millis: i64) -> String {
+    let (year, month, day) = civil_from_days(millis.div_euclid(86_400_000));
+    let seconds = millis.rem_euclid(86_400_000) / 1_000;
+    format!(
+        "{year:04}-{month:02}-{day:02}-{:02}{:02}{:02}",
+        seconds / 3_600,
+        (seconds % 3_600) / 60,
+        seconds % 60
+    )
+}
+
+/// Days since the Unix epoch to a calendar date (Howard Hinnant's algorithm).
+fn civil_from_days(days: i64) -> (i64, i64, i64) {
+    let shifted = days + 719_468;
+    let era = shifted.div_euclid(146_097);
+    let day_of_era = shifted.rem_euclid(146_097);
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_prime = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_prime + 2) / 5 + 1;
+    let month = if month_prime < 10 {
+        month_prime + 3
+    } else {
+        month_prime - 9
+    };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+    (year, month, day)
+}
+
+/// A second export in the same second lands beside the first, never on top.
+fn unique_export_directory(destination: &Path, stamp: &str) -> PathBuf {
+    let base = destination.join(format!("inkling-export-{stamp}"));
+    if !base.exists() {
+        return base;
+    }
+    for index in 2..1_000 {
+        let candidate = destination.join(format!("inkling-export-{stamp}-{index}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    base
+}
+
+/// Second phase of an export: the asset copy and the manifest. It touches no
+/// database state, which is what lets the command drop the storage lock first.
+fn finish_export(plan: &ExportPlan) -> Result<ExportReport, StorageError> {
+    // Only the assets the snapshot points at travel with it. Ids come from the
+    // database, but they are validated before they reach a path join.
+    let exported_assets = plan.directory.join("assets").join("items");
+    let mut asset_files = 0_u64;
+    let mut assets_bytes = 0_u64;
+    for id in &plan.item_ids {
+        if validate_item_id(id.clone()).is_err() {
+            continue;
+        }
+        let source = plan.assets_directory.join(id);
+        if !source.is_dir() {
+            continue;
+        }
+        let (files, bytes) = copy_directory(&source, &exported_assets.join(id))?;
+        asset_files += files;
+        assets_bytes += bytes;
+    }
+
+    let manifest = serde_json::json!({
+        "format": "inkling-export",
+        "formatVersion": EXPORT_FORMAT_VERSION,
+        "appVersion": env!("CARGO_PKG_VERSION"),
+        "schemaVersion": SCHEMA_VERSION,
+        "exportedAt": plan.exported_at,
+        "counts": {
+            "items": plan.item_ids.len(),
+            "archivedItems": plan.archived_items,
+            "spaces": plan.spaces,
+            "assetFiles": asset_files,
+        },
+        "bytes": {
+            "database": plan.database_bytes,
+            "assets": assets_bytes,
+        },
+        // Derived data rides along inside the snapshot but can be rebuilt, so a
+        // future importer knows what it is allowed to discard.
+        "regenerable": {
+            "tables": ["item_embeddings", "items_fts"],
+            "columns": ["items.ocr_text"],
+        },
+    });
+    fs::write(
+        plan.directory.join("manifest.json"),
+        serde_json::to_vec_pretty(&manifest)?,
+    )?;
+
+    Ok(ExportReport {
+        directory: plan.directory.to_string_lossy().into_owned(),
+        items: plan.item_ids.len() as i64,
+        archived_items: plan.archived_items,
+        spaces: plan.spaces,
+        asset_files,
+        database_bytes: plan.database_bytes,
+        assets_bytes,
+    })
+}
+
+/// True when `candidate` is `root` or lives under it, compared on canonical
+/// paths so a symlinked or `..`-laden choice cannot slip past. Unresolvable
+/// paths answer false: only the library's own asset store is unsafe to copy
+/// into, and a store that is not there has nothing to protect.
+fn path_is_inside(candidate: &Path, root: &Path) -> bool {
+    match (fs::canonicalize(candidate), fs::canonicalize(root)) {
+        (Ok(candidate), Ok(root)) => candidate.starts_with(root),
+        _ => false,
+    }
+}
+
+/// Copies one asset directory tree and reports how much moved.
+fn copy_directory(source: &Path, destination: &Path) -> Result<(u64, u64), StorageError> {
+    fs::create_dir_all(destination)?;
+    let mut files = 0_u64;
+    let mut bytes = 0_u64;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let metadata = entry.metadata()?;
+        let target = destination.join(entry.file_name());
+        if metadata.is_dir() {
+            let (nested_files, nested_bytes) = copy_directory(&entry.path(), &target)?;
+            files += nested_files;
+            bytes += nested_bytes;
+        } else if metadata.is_file() {
+            fs::copy(entry.path(), &target)?;
+            files += 1;
+            bytes += metadata.len();
+        }
+    }
+    Ok((files, bytes))
 }
 
 fn validate_item_id(id: String) -> Result<String, StorageError> {
@@ -2919,5 +3200,115 @@ mod tests {
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn export_writes_a_readable_snapshot_with_assets_and_a_manifest() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-export-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let saved = storage
+            .save_file(SaveFileInput {
+                id: None,
+                file_name: "notes.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"exported bytes".to_vec(),
+            })
+            .unwrap();
+        let archived = storage
+            .create_note(CreateNoteInput {
+                title: Some("Forgotten".into()),
+                body: "kept in the archive".into(),
+                metadata: None,
+            })
+            .unwrap();
+        storage.archive_item(&archived.id, true).unwrap();
+        storage
+            .create_space(CreateSpaceInput {
+                name: "Reading".into(),
+                color: None,
+                query: SmartSpaceQuery::default(),
+            })
+            .unwrap();
+
+        let destination = directory.join("chosen");
+        fs::create_dir_all(&destination).unwrap();
+        let report = finish_export(&storage.begin_export(&destination, 0).unwrap()).unwrap();
+
+        let export_directory = PathBuf::from(&report.directory);
+        assert!(export_directory.starts_with(&destination));
+        assert_eq!(report.items, 2);
+        assert_eq!(report.archived_items, 1);
+        assert_eq!(report.spaces, 1);
+        assert_eq!(report.asset_files, 1);
+        assert!(report.database_bytes > 0);
+        assert!(report.assets_bytes > 0);
+
+        // The snapshot opens on its own and carries archived rows with it.
+        let snapshot = LibraryStorage::open(export_directory.join("library.sqlite3")).unwrap();
+        assert_eq!(snapshot.list_active_items().unwrap().len(), 1);
+        assert_eq!(snapshot.list_archived_items().unwrap().len(), 1);
+        assert_eq!(snapshot.list_spaces().unwrap().len(), 1);
+        drop(snapshot);
+
+        assert!(export_directory
+            .join("assets")
+            .join("items")
+            .join(&saved.id)
+            .is_dir());
+
+        // An export written inside the asset store would copy itself as it runs.
+        assert!(storage
+            .begin_export(&directory.join("assets").join("items").join(&saved.id), 0)
+            .is_err());
+
+        let manifest: Value =
+            serde_json::from_slice(&fs::read(export_directory.join("manifest.json")).unwrap())
+                .unwrap();
+        assert_eq!(manifest["format"], "inkling-export");
+        assert_eq!(manifest["schemaVersion"], SCHEMA_VERSION);
+        assert_eq!(manifest["counts"]["items"], 2);
+        assert_eq!(manifest["counts"]["assetFiles"], 1);
+        assert_eq!(manifest["regenerable"]["tables"][0], "item_embeddings");
+        assert_eq!(manifest["regenerable"]["columns"][0], "items.ocr_text");
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn export_keeps_earlier_runs_and_refuses_a_missing_destination() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-export-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let destination = directory.join("chosen");
+        fs::create_dir_all(&destination).unwrap();
+        let first = finish_export(&storage.begin_export(&destination, 0).unwrap()).unwrap();
+        let second = finish_export(&storage.begin_export(&destination, 0).unwrap()).unwrap();
+
+        assert_ne!(first.directory, second.directory);
+        assert!(Path::new(&first.directory).is_dir());
+        assert!(Path::new(&second.directory).is_dir());
+        assert!(storage
+            .begin_export(&destination.join("missing"), 0)
+            .is_err());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn export_folder_stamp_is_a_sortable_calendar_timestamp() {
+        assert_eq!(export_date_stamp(0), "1970-01-01-000000");
+        assert_eq!(export_date_stamp(1_709_164_800_000), "2024-02-29-000000");
+        assert_eq!(export_date_stamp(1_752_800_000_000), "2025-07-18-005320");
+        // The webview's offset moves the name into the user's local wall clock.
+        assert_eq!(
+            export_date_stamp(1_752_800_000_000 - 240 * 60_000),
+            "2025-07-17-205320"
+        );
     }
 }
