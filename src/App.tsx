@@ -1102,7 +1102,7 @@ function App() {
     }
   }, []);
 
-  const restoreForgottenItem = useCallback(async (item: LibraryItem, toastId: string) => {
+  const restoreForgottenItem = useCallback(async (item: LibraryItem) => {
     try {
       const restoredItem = canUseTauriBackend
         ? await archiveItem(String(item.id), false).then(async (storedItem) => {
@@ -1113,9 +1113,12 @@ function App() {
       setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
         ? current
         : [restoredItem, ...current]);
-      toast.success("Restored to your library", { id: toastId, duration: 3000, closeButton: true });
+      // The confirmation needs a toast of its own. Sonner dismisses the forget toast the
+      // moment its action is clicked, and a later toast raised under that same id inherits
+      // the dismissed toast's `delete` flag, so it never reaches the screen.
+      toast.success("Restored to your library", { duration: 3000, closeButton: true });
     } catch (error) {
-      toast.error("Unable to restore this item", { id: toastId, duration: Infinity, closeButton: true });
+      toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }, []);
@@ -1136,7 +1139,7 @@ function App() {
         className: "library-toast",
         action: {
           label: "Undo",
-          onClick: () => void restoreForgottenItem(item, toastId),
+          onClick: () => void restoreForgottenItem(item),
         },
       });
     } catch (error) {
