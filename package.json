@@ -25,14 +25,14 @@
     "fmt:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check"
   },
   "dependencies": {
-    "@hugeicons/core-free-icons": "^4.3.2",
+    "@hugeicons/core-free-icons": "^4.3.4",
     "@hugeicons/react": "^1.1.10",
     "@tauri-apps/api": "^2",
     "@virtuoso.dev/masonry": "^1.4.3",
-    "defuddle": "^0.19.3",
+    "defuddle": "^0.19.4",
     "gsap": "^3.15.0",
     "linkedom": "^0.18.13",
-    "motion": "^13.2.0",
+    "motion": "^13.4.0",
     "pdfjs-dist": "^6.3.289",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -44,7 +44,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
-    "knip": "^6.35.1",
+    "knip": "^6.37.0",
     "tesseract.js": "^7.0.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0"
