@@ -18,7 +18,8 @@ Subagents never start their own dev servers. Only the main agent starts a run, t
    - Use `bun run preview` for UI only layout work. It skips the Rust build and it has no native OCR, embeddings, or file access.
    - Use `bun run tauri dev` for anything native, such as OCR, embeddings, file access, capture, jobs, or SQLite behavior. It needs the Rust toolchain. The README lists the MSVC and GNU paths.
 5. Read the actual terminal output for the URL or window state. Do not assume a port. Vite uses port 1420 with strict port mode for `tauri dev`, so it fails instead of moving when the port is busy.
-6. Never point a run at the developer live library. Keep test state isolated from real data.
+6. Confirm the server is yours. This machine runs several dev servers at once, and another worktree can already own the port you asked for. Start preview with `bun run preview -- --port <free-port> --strictPort`, then check the listener's command line mentions your worktree before trusting anything it serves. A 200 from the wrong server proves nothing.
+7. Never point a run at the developer live library. Keep test state isolated from real data.
 
 Treat the run as disposable unless you created it for the current test. Prefer a fresh isolated run over clearing state of unclear ownership.
 
@@ -66,10 +67,22 @@ When teardown fits:
 
 When unsure, keep the run alive and say that it stays ready for more checks.
 
+## Prove library and perf changes
+
+For storage, jobs, or refresh work, run this set before calling it done. Each one covers a layer the others cannot see.
+
+1. `bun run typecheck` for the frontend scope you touched.
+2. `bun test <files>` for the tests you touched, then the full `bun test` when the change is broad.
+3. `cargo test --manifest-path src-tauri/Cargo.toml storage::` and `jobs::` for Rust changes, plus `cargo fmt` when you edited Rust.
+4. When you claim a speedup, run the benchmark that measures the changed path (`benchmark_library_refresh` needs `-- --ignored --nocapture`) and report the raw numbers with the build type. An ignored test that never runs proves nothing.
+5. Serve your built output and check it answers, following step 6 above so you know it is your server. Serving proves the bundle loads. It does not prove rendering. Open it in a browser and look at the changed flow at least once.
+
 ## Fix common problems
 
 | Symptom | What to do |
 | --- | --- |
+| Preview answers but shows the wrong build | Another worktree owns that port. Pick a free port, restart with `--strictPort`, and check the listener command line before trusting the page. |
+| `tauri dev` opens the real library | The dev app uses the same data folder as the shipped app. Label test items clearly, remove exactly what you created when done, and confirm the counts are back to what you found. |
 | Library looks blank | Confirm the demo seed loads, or confirm your copied database and assets reached the sandbox. Check that you seeded the run you actually opened. |
 | Native features do nothing in preview | Move the check to `bun run tauri dev`. Preview has no OCR, embeddings, or file access. |
 | Port already in use | Read the terminal output. Do not hardcode a localhost port. Stop only your tracked process, then restart. Never stop a process you found by name. |

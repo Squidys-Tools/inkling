@@ -1744,6 +1744,9 @@ fn setup_fts5(connection: &Connection) -> bool {
             [],
             |row| row.get(0),
         )?;
+        // Drop and recreate the triggers every open so a missing trigger is
+        // restored and a stale definition can never linger. DDL only: this
+        // writes no index rows, so a healthy reopen stays a no-op below.
         transaction.execute_batch(
         r#"
         CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
@@ -1755,18 +1758,21 @@ fn setup_fts5(connection: &Connection) -> bool {
             metadata
         );
 
-        CREATE TRIGGER IF NOT EXISTS items_fts_after_insert
+        DROP TRIGGER IF EXISTS items_fts_after_insert;
+        CREATE TRIGGER items_fts_after_insert
         AFTER INSERT ON items BEGIN
             INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
             VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata);
         END;
 
-        CREATE TRIGGER IF NOT EXISTS items_fts_after_delete
+        DROP TRIGGER IF EXISTS items_fts_after_delete;
+        CREATE TRIGGER items_fts_after_delete
         AFTER DELETE ON items BEGIN
             DELETE FROM items_fts WHERE item_id = old.id;
         END;
 
-        CREATE TRIGGER IF NOT EXISTS items_fts_after_update
+        DROP TRIGGER IF EXISTS items_fts_after_update;
+        CREATE TRIGGER items_fts_after_update
         AFTER UPDATE ON items BEGIN
             DELETE FROM items_fts WHERE item_id = old.id;
             INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
@@ -1775,9 +1781,19 @@ fn setup_fts5(connection: &Connection) -> bool {
 
         "#,
         )?;
-        if !exists {
+        // A present table is not proof of a healthy index: a crash between
+        // the table create and the backfill leaves a partial index behind.
+        // Repair past content by comparing row counts and rebuilding only on
+        // mismatch. This catches missing or extra rows, not same-count
+        // staleness; triggers above keep all future writes covered.
+        let item_count: i64 =
+            transaction.query_row("SELECT COUNT(*) FROM items", [], |row| row.get(0))?;
+        let indexed_count: i64 =
+            transaction.query_row("SELECT COUNT(*) FROM items_fts", [], |row| row.get(0))?;
+        if !exists || item_count != indexed_count {
             transaction.execute_batch(
-                "INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
+                "DELETE FROM items_fts;
+                 INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
                  SELECT id, title, description, source_label, ocr_text, metadata FROM items;",
             )?;
         }
@@ -2263,6 +2279,112 @@ mod tests {
     }
 
     #[test]
+    fn partial_fts_index_is_rebuilt_on_reopen() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(ITEMS_SCHEMA).unwrap();
+        connection.execute_batch("BEGIN").unwrap();
+        for index in 0..10 {
+            connection
+                .execute(
+                    "INSERT INTO items (id, kind, title, metadata, ocr_text, created_at, updated_at)
+                     VALUES (?1, 'note', 'orchard', '{}', '', 1, 1)",
+                    params![format!("item-{index}")],
+                )
+                .unwrap();
+        }
+        connection.execute_batch("COMMIT").unwrap();
+        assert!(setup_fts5(&connection));
+        // Simulate a crash between the table create and the backfill: half
+        // the rows never made it into the index.
+        connection
+            .execute(
+                "DELETE FROM items_fts WHERE rowid IN
+                 (SELECT rowid FROM items_fts LIMIT 5)",
+                [],
+            )
+            .unwrap();
+        let indexed: i64 = connection
+            .query_row("SELECT COUNT(*) FROM items_fts", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(indexed, 5);
+
+        assert!(setup_fts5(&connection));
+        let matches: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM items_fts WHERE items_fts MATCH 'orchard'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(matches, 10);
+        // A healthy reopen after the repair writes nothing again.
+        let before: i64 = connection
+            .query_row("SELECT total_changes()", [], |row| row.get(0))
+            .unwrap();
+        assert!(setup_fts5(&connection));
+        let after: i64 = connection
+            .query_row("SELECT total_changes()", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(after - before, 0);
+    }
+
+    #[test]
+    fn missing_fts_triggers_are_recreated_without_reindex() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(ITEMS_SCHEMA).unwrap();
+        connection
+            .execute_batch(
+                "INSERT INTO items (id, kind, title, metadata, ocr_text, created_at, updated_at)
+                 VALUES ('old', 'note', 'orchard', '{}', '', 1, 1);",
+            )
+            .unwrap();
+        assert!(setup_fts5(&connection));
+        connection
+            .execute_batch(
+                "DROP TRIGGER items_fts_after_insert;
+                 DROP TRIGGER items_fts_after_update;
+                 DROP TRIGGER items_fts_after_delete;",
+            )
+            .unwrap();
+
+        assert!(setup_fts5(&connection));
+        let triggers: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_schema
+                 WHERE type = 'trigger' AND name IN
+                 ('items_fts_after_insert', 'items_fts_after_update', 'items_fts_after_delete')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(triggers, 3);
+        // Counts still match, so the repair must not have rewritten the index.
+        let matches: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM items_fts WHERE items_fts MATCH 'orchard'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(matches, 1);
+        // And future writes stay covered by the recreated triggers.
+        connection
+            .execute_batch(
+                "INSERT INTO items (id, kind, title, metadata, ocr_text, created_at, updated_at)
+                 VALUES ('new', 'note', 'meadow', '{}', '', 2, 2);",
+            )
+            .unwrap();
+        let meadow: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM items_fts WHERE items_fts MATCH 'meadow'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(meadow, 1);
+    }
+
+    #[test]
     #[ignore]
     fn benchmark_library_refresh() {
         let directory = std::env::temp_dir().join(format!("inkling-perf-{}", Uuid::new_v4()));
@@ -2296,17 +2418,25 @@ mod tests {
             let start = std::time::Instant::now();
             let storage = LibraryStorage::open(path.clone()).unwrap();
             let open_ms = start.elapsed().as_secs_f64() * 1000.0;
+            // Measure the path the UI actually takes: one list query plus one
+            // batched job query (two round trips), not one query per item.
             let start = std::time::Instant::now();
             let items = storage.list_active_items().unwrap();
-            for item in &items {
-                crate::jobs::JobQueue::get_jobs_for_item(&storage.connection, &item.id).unwrap();
-            }
+            let list_ms = start.elapsed().as_secs_f64() * 1000.0;
+            let ids = items.iter().map(|item| item.id.clone()).collect::<Vec<_>>();
+            let start = std::time::Instant::now();
+            let jobs =
+                crate::jobs::JobQueue::get_jobs_for_items(&storage.connection, &ids).unwrap();
+            let batch_jobs_ms = start.elapsed().as_secs_f64() * 1000.0;
             let bytes = serde_json::to_vec(&items).unwrap().len();
             samples.push(serde_json::json!({
                 "open_ms": open_ms,
-                "list_and_jobs_ms": start.elapsed().as_secs_f64() * 1000.0,
+                "list_ms": list_ms,
+                "batch_jobs_ms": batch_jobs_ms,
+                "list_and_jobs_ms": list_ms + batch_jobs_ms,
                 "list_bytes": bytes,
                 "items": items.len(),
+                "jobs": jobs.len(),
             }));
         }
         println!("INKLING_PERF={}", serde_json::to_string(&samples).unwrap());
