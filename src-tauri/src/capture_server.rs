@@ -121,16 +121,11 @@ fn token_looks_valid(token: &str) -> bool {
 }
 
 fn token_file_path(app: &AppHandle) -> Option<PathBuf> {
-    // Same directory family `initialize_storage` uses for the library, so a
-    // fresh clone on another Windows machine just works. The app-data dir is
-    // user-private on Windows, which is the right home for a secret.
-    let exe_dir = std::env::current_exe()
+    // Sibling of library.sqlite3 via the same resolver storage uses. Never
+    // probes for the database file: if the library is moved or deleted the
+    // token must stay in the same directory family or pairing silently flips.
+    crate::storage::library_directory(app)
         .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.join("data")));
-    let app_dir = app.path().app_data_dir().ok();
-    exe_dir
-        .filter(|dir| dir.join("library.sqlite3").is_file())
-        .or(app_dir)
         .map(|dir| dir.join(TOKEN_FILE_NAME))
 }
 
@@ -154,6 +149,8 @@ fn load_or_generate_token(app: &AppHandle) -> String {
 }
 
 fn persist_token(app: &AppHandle, token: &str) -> Result<(), String> {
+    // Same resolver as load: a successful persist always writes beside the
+    // library, never into a one-off fallback directory.
     let path =
         token_file_path(app).ok_or_else(|| "cannot determine the library directory".to_string())?;
     if let Some(parent) = path.parent() {

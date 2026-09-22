@@ -78,6 +78,7 @@ Guardrails:
 - Hook setup is now idempotent (`scripts/setup-hooks.ts` via `prepare`): routine installs leave Entire-wrapped lefthook hooks untouched, and linked worktrees share the main checkout's hooks so they need no setup
 - Browser extension parses untrusted extraction HTML with `DOMParser` instead of `innerHTML`, and the pending-capture queue is bounded by both entry count and byte budget so it cannot exhaust the browser storage quota
 - Browser extension page save no longer fails with "page extraction produced no usable content": the isolated-world extractor parks its payload promise where the background can await it, so a successful extraction surfaces the page instead of `undefined` (#60)
+- Pairing token now lives beside the library via the same directory resolver as `initialize_storage`, instead of only when `library.sqlite3` already exists — moving or deleting the database no longer silently regenerates the token in a different folder
 - Library reopen now detects and rebuilds a partial full-text index and recreates missing search triggers instead of trusting table existence; a healthy reopen still writes nothing (`src-tauri/src/storage.rs`)
 - Bulk archive restore fetches processing summaries in one batched query instead of one per item, and the asset URL cache now evicts least-recently-used entries so frequently viewed covers survive large imports (`src/App.tsx`, `src/lib/assetUrlCache.ts`)
 

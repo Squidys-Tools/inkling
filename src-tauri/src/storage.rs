@@ -1407,19 +1407,26 @@ fn ensure_job_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
+/// Single source of truth for where the library (and its sibling files, such
+/// as the pairing token) live. Portable-preview builds use `data/` beside the
+/// executable; every other build uses the Tauri app-data dir. Never gates on
+/// whether `library.sqlite3` already exists — that would flip the directory
+/// after a move/delete and strand the pairing token in the wrong home.
+pub(crate) fn library_directory(app: &AppHandle) -> Result<PathBuf, StorageError> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|executable| portable_data_directory(&executable))
+        .or_else(|| app.path().app_data_dir().ok())
+        .ok_or_else(|| StorageError::InvalidInput("cannot determine the library directory".into()))
+}
+
 #[tauri::command]
 pub fn initialize_storage(
     app: AppHandle,
     state: State<'_, StorageState>,
     processing: State<'_, crate::jobs::ProcessingState>,
 ) -> Result<StorageStatus, String> {
-    let database_directory = std::env::current_exe()
-        .ok()
-        .and_then(|executable| portable_data_directory(&executable))
-        .or_else(|| app.path().app_data_dir().ok())
-        .ok_or_else(|| {
-            StorageError::InvalidInput("cannot determine the library directory".into())
-        })?;
+    let database_directory = library_directory(&app).map_err(String::from)?;
     fs::create_dir_all(&database_directory).map_err(StorageError::from)?;
 
     let database_path = database_directory.join("library.sqlite3");
