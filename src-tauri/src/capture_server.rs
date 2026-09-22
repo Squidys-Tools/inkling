@@ -1,9 +1,11 @@
 //! Loopback capture receiver for the browser extension (Option B transport).
 //!
-//! The app binds `127.0.0.1` on an ephemeral port (no hardcoded ports) and
-//! exposes `POST /v1/captures` plus `GET /v1/health` to the local browser
-//! extension. Authentication is a per-install bearer token generated with the
-//! OS RNG and persisted beside the library; the token is never logged.
+//! The app binds `127.0.0.1` (ephemeral unless the last successful port is
+//! free) and exposes `POST /v1/captures` plus `GET /v1/health` to the local
+//! browser extension. Authentication is a per-install bearer token generated
+//! with the OS RNG and persisted beside the library; the token is never
+//! logged. The last bound port is also persisted beside the library so the
+//! extension's stored base URL survives restarts.
 //!
 //! Security posture, in one place:
 //! - Loopback only. The socket binds `127.0.0.1` explicitly, so no LAN peer
@@ -50,6 +52,9 @@ const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
 const TOKEN_FILE_NAME: &str = "pairing_token";
+/// Last successful loopback port, beside the library. Rebinding it on boot
+/// keeps the extension's stored `inkling.base-url` valid across restarts.
+const PORT_FILE_NAME: &str = "capture_port";
 
 /// Request pairs (method, path) served by the receiver.
 const HEALTH_PATH: &str = "/v1/health";
@@ -68,6 +73,8 @@ pub struct CaptureStatus {
     pub running: bool,
     pub port: Option<u16>,
     pub health_url: Option<String>,
+    /// `http://127.0.0.1:{port}` for the extension options "App address" field.
+    pub base_url: Option<String>,
 }
 
 /// Request body: `PageCapturePayloadV1` from `packages/ingestion-shared`
@@ -158,6 +165,29 @@ fn persist_token(app: &AppHandle, token: &str) -> Result<(), String> {
     }
     fs::write(&path, token).map_err(|e| format!("cannot persist pairing token: {e}"))?;
     Ok(())
+}
+
+fn port_file_path(app: &AppHandle) -> Option<PathBuf> {
+    crate::storage::library_directory(app)
+        .ok()
+        .map(|dir| dir.join(PORT_FILE_NAME))
+}
+
+/// Last successful port from a previous run, if it is still a usable number.
+fn load_preferred_port(app: &AppHandle) -> Option<u16> {
+    let path = port_file_path(app)?;
+    let raw = fs::read_to_string(path).ok()?;
+    raw.trim().parse::<u16>().ok().filter(|port| *port != 0)
+}
+
+/// Best-effort: a failed write only means the next launch may pick a new port.
+fn persist_port(app: &AppHandle, port: u16) {
+    if let Some(path) = port_file_path(app) {
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = fs::write(path, port.to_string());
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1064,12 +1094,18 @@ pub fn start_capture_server(app: &AppHandle) {
         .lock()
         .unwrap_or_else(|e| e.into_inner()) = token;
 
-    let listener = match TcpListener::bind(("127.0.0.1", 0)) {
-        Ok(listener) => listener,
-        Err(error) => {
-            eprintln!("capture server unavailable: {error}");
-            return;
-        }
+    // Prefer the last successful port so the extension's stored base URL
+    // survives restarts; fall back to ephemeral if that port is taken.
+    let preferred = load_preferred_port(app);
+    let listener = match preferred.and_then(|port| TcpListener::bind(("127.0.0.1", port)).ok()) {
+        Some(listener) => listener,
+        None => match TcpListener::bind(("127.0.0.1", 0)) {
+            Ok(listener) => listener,
+            Err(error) => {
+                eprintln!("capture server unavailable: {error}");
+                return;
+            }
+        },
     };
     let port = listener.local_addr().map(|addr| addr.port()).unwrap_or(0);
     if port == 0 {
@@ -1077,6 +1113,7 @@ pub fn start_capture_server(app: &AppHandle) {
         return;
     }
     *state.port.lock().unwrap_or_else(|e| e.into_inner()) = Some(port);
+    persist_port(app, port);
 
     let app = app.clone();
     let _ = std::thread::Builder::new()
@@ -1117,6 +1154,7 @@ pub fn get_capture_status(state: State<'_, CaptureServerState>) -> CaptureStatus
         running: port.is_some(),
         port: *port,
         health_url: port.map(|port| format!("http://127.0.0.1:{port}{HEALTH_PATH}")),
+        base_url: port.map(|port| format!("http://127.0.0.1:{port}")),
     }
 }
 
@@ -1357,6 +1395,19 @@ mod tests {
         }
         assert!(!token_looks_valid("short"));
         assert!(!token_looks_valid("has spaces in it yes indeed 1234567890"));
+    }
+
+    #[test]
+    fn preferred_port_parses_only_nonzero_u16() {
+        // Mirrors load_preferred_port's parse rules without touching the disk.
+        let parse = |raw: &str| raw.trim().parse::<u16>().ok().filter(|port| *port != 0);
+        assert_eq!(parse("53176"), Some(53176));
+        assert_eq!(parse(" 53176\n"), Some(53176));
+        assert_eq!(parse("0"), None);
+        assert_eq!(parse(""), None);
+        assert_eq!(parse("not-a-port"), None);
+        assert_eq!(parse("65536"), None);
+        assert_eq!(parse("-1"), None);
     }
 
     #[test]

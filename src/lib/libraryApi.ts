@@ -269,6 +269,8 @@ export type CaptureStatus = {
   running: boolean;
   port: number | null;
   healthUrl: string | null;
+  /** http://127.0.0.1:{port} for the extension options "App address" field. */
+  baseUrl: string | null;
 };
 
 export async function getCaptureStatus() {

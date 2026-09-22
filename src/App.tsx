@@ -1011,6 +1011,13 @@ function ExtensionPairing() {
       .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand."));
   };
 
+  const copyBaseUrl = () => {
+    if (!status?.baseUrl) return;
+    void navigator.clipboard.writeText(status.baseUrl)
+      .then(() => toast.success("App address copied. Paste it into the extension."))
+      .catch(() => toast.error("Copy failed. Select the address and copy it by hand."));
+  };
+
   const renewToken = () => {
     if (!window.confirm("Renew the pairing token? The extension will need the new token.")) return;
     void regeneratePairingToken()
@@ -1041,12 +1048,12 @@ function ExtensionPairing() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "22px 2px" }}>
       <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, lineHeight: 1.6, maxWidth: "52ch" }}>
-        Paste this token into the browser extension once. Saves go straight to this library
-        over a local connection; nothing leaves the machine.
+        Paste this address and token into the browser extension once. Saves go straight to this
+        library over a local connection; nothing leaves the machine.
       </p>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span className="settings-panel-count" role="status">
-          {status ? (status.running ? `Listening on 127.0.0.1:${status.port}` : "Receiver not running") : "Checking receiver…"}
+          {status ? (status.running ? "Receiver running" : "Receiver not running") : "Checking receiver…"}
         </span>
         <button
           type="button"
@@ -1055,6 +1062,29 @@ function ExtensionPairing() {
           onClick={testConnection}
         >
           {isTesting ? "Testing…" : "Test connection"}
+        </button>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <code
+          aria-label="App address"
+          style={{
+            flex: "1 1 220px",
+            padding: "9px 12px",
+            border: "1px solid var(--rule)",
+            borderRadius: 10,
+            background: "var(--surface-strong)",
+            color: "var(--ink)",
+            font: "12px 'DM Mono', monospace",
+            letterSpacing: "0.02em",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {status?.baseUrl ?? "http://127.0.0.1:PORT"}
+        </code>
+        <button type="button" className="settings-batch-button" disabled={!status?.baseUrl} onClick={copyBaseUrl}>
+          Copy address
         </button>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
