@@ -11,7 +11,7 @@ import type { PageCapturePayloadV1 } from "@inkling/ingestion-shared";
 // vector for smuggling markup through a URL handler. The provenance marker is
 // `via`, NOT `source` — the app's deep-link parser reads `source` as a legacy
 // alias for the target URL, so reusing that name would corrupt parsing.
-export const CAPTURE_VIA = "extension" as const;
+const CAPTURE_VIA = "extension" as const;
 
 export function buildCaptureDeepLink(
   payload: Pick<PageCapturePayloadV1, "url" | "title">,
@@ -22,11 +22,6 @@ export function buildCaptureDeepLink(
     via: CAPTURE_VIA,
   });
   return `inkling://capture?${params.toString()}`;
-}
-
-export interface DeepLinkDispatch {
-  method: "deep-link";
-  deepLink: string;
 }
 
 /**

@@ -12,8 +12,8 @@ import { normalizeHttpUrl, normalizeText, parseHttpUrl } from "./url";
 // downloadUrl through the asset pipeline), and the video-links.ts path — so
 // extension items get instant provisional cards exactly like other entries.
 
-export const EXTENSION_SELECTION_TEXT_MAX_CHARS = 1500;
-export const EXTENSION_ATTRIBUTION_MAX_CHARS = 240;
+const EXTENSION_SELECTION_TEXT_MAX_CHARS = 1500;
+const EXTENSION_ATTRIBUTION_MAX_CHARS = 240;
 export const EXTENSION_IMAGE_DATA_URL_MAX_BYTES = 5 * 1024 * 1024;
 
 export type ExtensionSelectionInput = {

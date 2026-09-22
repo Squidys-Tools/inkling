@@ -7,7 +7,7 @@ import type { PageCapturePayloadV1 } from "@inkling/ingestion-shared";
 export const MAX_CAPTURE_QUEUE_ITEMS = 50;
 export const MAX_CAPTURE_QUEUE_BYTES = 4 * 1024 * 1024;
 
-export function capturePayloadBytes(payload: PageCapturePayloadV1): number {
+function capturePayloadBytes(payload: PageCapturePayloadV1): number {
   try {
     return new TextEncoder().encode(JSON.stringify(payload)).byteLength;
   } catch {
