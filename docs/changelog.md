@@ -45,6 +45,8 @@ Guardrails:
 - README screenshots of the visual library grid and the expanded item detail view (`docs/assets/screenshots/library.png`, `docs/assets/screenshots/detail.png`), plus reserved slots for demo clips (`docs/assets/demo/`) and upcoming mascots (`docs/assets/mascots/`)
 - README shows the inkling mascot (idle, wink, wide, notify states sampled from the live engine via `bun scripts/mascot-board.ts`), and the desktop app icon is the idle mascot (`README.md`, `src-tauri/icons/`)
 
+- "Find similar" now works for text items, not just images: notes, quotes, articles, and saved links rank by their text embeddings across kinds, with the button offered in the expanded item view and a dedicated empty state while indexing finishes (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`, `src/lib/libraryApi.ts`, `src-tauri/src/storage.rs`) (#55)
+
 ### Changed
 
 - README rewritten as a user-facing overview (tour, screenshots, demo/mascot placeholders, FAQ) with the developer setup and docs index moved to a short section at the end (`README.md`)
@@ -59,6 +61,9 @@ Guardrails:
 - Faster cold boot with no visual changes: the PDF viewer, reader, item overlay, and dev-only mascot boards now load on first open instead of at startup (boot JavaScript down from ~1269 kB to ~808 kB), shell fonts load via parallel stylesheet links instead of a render-blocking import, search waits 200 ms after typing before querying, and background refresh pauses while the window is hidden (`src/App.tsx`, `src/App.css`, `index.html`, `vite.config.ts`)
 - Library refresh is now push-driven: the background job worker emits a job event when work starts, progresses, or finishes, and the UI refreshes on those events instead of re-fetching the whole library every second (a 30-second fallback and refresh-on-restore survive a missed event); captures, deletes, and archive actions already updated instantly from local state (`src-tauri/src/jobs.rs`, `src-tauri/src/lib.rs`, `src/App.tsx`)
 - Spaces can be renamed (inline), recolored (click the dot to cycle), and reordered (hover up/down controls), closing the one-way door on a misspelled Space name; reorder runs through a new atomic `swap_space_positions` command so it can never half-apply (`src/App.tsx`, `src/App.css`, `src/lib/libraryApi.ts`, `src-tauri/src/storage.rs`)
+- Library opens faster on large libraries: the full-text index is built once on first run instead of being wiped and rebuilt every launch, and background job restarts no longer pay a reindex on their 5-second wake cycle (measured ~655 ms to ~16 ms to reopen a 1,000-item database) (`src-tauri/src/storage.rs`)
+- Library refresh costs two backend round trips instead of one per item: a new `get_jobs_for_items` command returns every item's processing jobs in a single query, and resolved asset URLs are cached so unchanged paths skip the repeat resolve (`src-tauri/src/jobs.rs`, `src/lib/libraryApi.ts`, `src/lib/assetUrlCache.ts`, `src/App.tsx`)
+- Archive now lives in Settings instead of the sidebar, and the settings modal uses theme variables instead of hardcoded colors (`src/App.tsx`, `src/App.css`)
 
 ### Removed
 

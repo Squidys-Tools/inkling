@@ -306,6 +306,25 @@ impl JobQueue {
         Ok(jobs)
     }
 
+    pub fn get_jobs_for_items(
+        conn: &Connection,
+        item_ids: &[String],
+    ) -> rusqlite::Result<Vec<JobDto>> {
+        let ids = serde_json::to_string(item_ids)
+            .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
+        let mut statement = conn.prepare(
+            "SELECT id, item_id, kind, status, retry_count, max_retries,
+                    error_message, created_at, started_at, completed_at,
+                    progress_current, progress_total, progress_message
+             FROM jobs WHERE item_id IN (SELECT value FROM json_each(?1))
+             ORDER BY created_at DESC",
+        )?;
+        let jobs = statement
+            .query_map(params![ids], job_from_row)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(jobs)
+    }
+
     pub fn update_progress(
         conn: &Connection,
         job_id: &str,
@@ -955,6 +974,18 @@ pub fn get_job_status(
 }
 
 #[tauri::command]
+pub fn get_jobs_for_items(
+    item_ids: Vec<String>,
+    storage_state: tauri::State<'_, crate::storage::StorageState>,
+) -> Result<Vec<JobDto>, String> {
+    let guard = storage_state.lock().map_err(|error| error.to_string())?;
+    let storage = guard
+        .as_ref()
+        .ok_or_else(|| "storage not initialized".to_string())?;
+    JobQueue::get_jobs_for_items(&storage.connection, &item_ids).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn count_active_jobs(
     storage_state: tauri::State<'_, crate::storage::StorageState>,
 ) -> Result<i64, String> {
@@ -1018,6 +1049,43 @@ mod tests {
             )
             .unwrap();
         connection
+    }
+
+    #[test]
+    fn batch_jobs_match_individual_queries_and_exclude_other_items() {
+        let connection = test_connection();
+        for id in ["first", "second", "other"] {
+            connection
+                .execute("INSERT INTO items (id) VALUES (?1)", params![id])
+                .unwrap();
+            JobQueue::enqueue_job(&connection, id, JobKind::OcrImage).unwrap();
+            JobQueue::enqueue_job(&connection, id, JobKind::GenerateEmbedding).unwrap();
+        }
+        let ids = vec![
+            "first".to_string(),
+            "second".to_string(),
+            "missing".to_string(),
+        ];
+        let batch = JobQueue::get_jobs_for_items(&connection, &ids).unwrap();
+        assert_eq!(batch.len(), 4);
+        for id in ids {
+            let mut expected: Vec<_> = JobQueue::get_jobs_for_item(&connection, &id)
+                .unwrap()
+                .into_iter()
+                .map(|job| serde_json::to_string(&job).unwrap())
+                .collect();
+            let mut actual: Vec<_> = batch
+                .iter()
+                .filter(|job| job.item_id == id)
+                .map(|job| serde_json::to_string(job).unwrap())
+                .collect();
+            expected.sort();
+            actual.sort();
+            assert_eq!(actual, expected);
+        }
+        assert!(JobQueue::get_jobs_for_items(&connection, &[])
+            .unwrap()
+            .is_empty());
     }
 
     #[test]

@@ -4,7 +4,7 @@ How to set up, run, check, and troubleshoot inkling. Contribution scope and PR e
 
 ## First-time setup
 
-1. Install Bun 1.4.0 (pinned in `.bun-version` and `package.json#packageManager`) and the Rust toolchain.
+1. Install Bun 1.4.2 (pinned in `.bun-version` and `package.json#packageManager`) and the Rust toolchain.
 2. On Windows, pick one Rust toolchain per machine:
    - MSVC (admin rights): VS Build Tools with the C++ workload, then `rustup default stable-x86_64-pc-windows-msvc`.
    - GNU (no admin): `scoop install gcc`, then `rustup toolchain install stable-x86_64-pc-windows-gnu` and `rustup override set stable-x86_64-pc-windows-gnu` inside the checkout.

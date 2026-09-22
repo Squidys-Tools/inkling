@@ -12,7 +12,7 @@ Subagents never start their own dev servers. Only the main agent starts a run, t
 ## Start an isolated run
 
 1. Run commands from the repository root.
-2. Check Bun first. It must match `.bun-version` (1.4.0). Run `bun run check:bun-version` and fix the install before you continue.
+2. Check Bun first. It must match `.bun-version` (1.4.2). Run `bun run check:bun-version` and fix the install before you continue.
 3. Run `bun install` if module resolution looks stale.
 4. Pick one run type for the task at hand.
    - Use `bun run preview` for UI only layout work. It skips the Rust build and it has no native OCR, embeddings, or file access.

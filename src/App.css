@@ -240,17 +240,16 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .card-processing.failed, .detail-processing.failed { color: #d07055; align-items: flex-start; }
 .retry-button { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
 
-/* Settings / Archive — kept in lockstep with the Paper settings frame. */
 .settings-modal-backdrop { position: fixed; inset: 0; z-index: 110; display: grid; place-items: center; padding: clamp(16px, 4vh, 40px) clamp(16px, 3vw, 48px); background: rgba(10, 10, 9, .76); }
-.settings-modal { display: flex; width: min(1180px, 100%); height: min(760px, 100%); min-height: 0; overflow: hidden; border: 1px solid #4a4842; border-radius: 24px; background: #161412; box-shadow: 0 30px 80px rgba(0,0,0,.55); }
-.settings-modal-sidebar { width: 224px; min-width: 224px; min-height: 0; display: flex; flex-direction: column; flex-shrink: 0; padding: 26px 16px 22px; border-right: 1px solid var(--rule); background: #121210; }
+.settings-modal { display: flex; width: min(1180px, 100%); height: min(760px, 100%); min-height: 0; overflow: hidden; border: 1px solid var(--rule); border-radius: 24px; background: var(--paper); color: var(--ink); box-shadow: 0 30px 80px rgba(0,0,0,.55); }
+.settings-modal-sidebar { width: 224px; min-width: 224px; min-height: 0; display: flex; flex-direction: column; flex-shrink: 0; padding: 26px 16px 22px; border-right: 1px solid var(--rule); background: var(--paper); }
 .settings-sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 10px 26px; }
 .settings-sidebar-header h2 { margin: 0; color: var(--ink); font: 600 16px/1.2 "DM Sans", ui-sans-serif, sans-serif; letter-spacing: -.02em; }
 .settings-sidebar-content { padding: 0; }
 .settings-tab { width: 100%; min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 13px; border: 0; border-radius: var(--sidebar-radius); background: transparent; color: var(--muted); cursor: pointer; text-align: left; font-size: 13px; transition: color .18s ease, background .18s ease, transform .18s ease; }
 .settings-tab:hover { background: rgba(255,255,255,.06); color: var(--ink); }
 .settings-tab:active { transform: scale(.98); }
-.settings-tab.active { background: #161412; color: var(--ink); font-weight: 600; }
+.settings-tab.active { background: var(--surface); color: var(--ink); font-weight: 600; }
 .settings-tab span:nth-child(2) { flex: 1; }
 .settings-tab-count, .settings-panel-count { color: var(--muted); font: 10px "DM Mono", monospace; }
 .settings-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; flex: 1 1 auto; padding: 28px 30px; }
@@ -261,18 +260,17 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .settings-panel-count-row { min-height: 27px; display: flex; align-items: center; justify-content: space-between; gap: 14px; align-self: stretch; }
 .settings-archive-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .settings-selected-count, .settings-batch-button, .settings-select-button { height: 27px; display: inline-flex; align-items: center; justify-content: center; border-radius: 20px; white-space: nowrap; }
-.settings-selected-count { padding: 0; border: 0; background: transparent; color: #e5ddd2; font: 500 10px "DM Mono", monospace; }
-.settings-batch-button, .settings-select-button { padding: 0 10px; border: 1px solid rgba(91,88,83,.28); cursor: pointer; font: 500 11px "DM Sans", ui-sans-serif, sans-serif; transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease, opacity .18s ease; }
+.settings-selected-count { padding: 0; border: 0; background: transparent; color: var(--ink); font: 500 10px "DM Mono", monospace; }
+.settings-batch-button, .settings-select-button { padding: 0 10px; border: 1px solid var(--rule); cursor: pointer; font: 500 11px "DM Sans", ui-sans-serif, sans-serif; transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease, opacity .18s ease; }
 .settings-batch-button:active:not(:disabled), .settings-select-button:active { transform: scale(.96); }
 .settings-batch-button:disabled { cursor: not-allowed; opacity: .42; }
-.settings-selected-count:hover { color: #f2ece1; }
-.settings-batch-recover { background: #adce80; color: #000; }
-.settings-batch-recover:hover:not(:disabled) { border-color: rgba(91,88,83,.45); background: #bddd92; color: #000; }
-.settings-batch-delete { background: #b0714f; color: #0c0c0b; }
-.settings-batch-delete:hover:not(:disabled) { border-color: rgba(91,88,83,.45); background: #c0805e; color: #0c0c0b; }
-.settings-select-button { gap: 6px; background: #b3ad8d; color: #0c0c0b; }
-.settings-select-button:hover, .settings-select-button.is-active { border-color: rgba(91,88,83,.45); background: #c1bb9a; color: #0c0c0b; }
-.settings-close { width: 30px; height: 30px; border-color: #4a4842; border-radius: 7px; background: #262221; }
+.settings-batch-recover { background: var(--green-soft); color: var(--green); }
+.settings-batch-recover:hover:not(:disabled) { border-color: var(--green); }
+.settings-batch-delete { background: var(--orange-soft); color: var(--orange); }
+.settings-batch-delete:hover:not(:disabled) { border-color: var(--orange); }
+.settings-select-button { gap: 6px; border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.settings-select-button:hover, .settings-select-button.is-active { background: #f2ece1; }
+.settings-close { width: 30px; height: 30px; border-color: var(--rule); border-radius: 7px; background: var(--surface); }
 .settings-archive-scroll { min-height: 0; flex: 1 1 auto; overflow-y: auto; padding: 18px 3px 5px 0; scrollbar-width: thin; scrollbar-color: #4a4842 transparent; }
 .settings-archive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: 14px; align-items: start; }
 .settings-archive-grid .library-card-slot { min-width: 0; padding-bottom: 0; }
