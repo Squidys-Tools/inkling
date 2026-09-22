@@ -7,6 +7,8 @@ mod storage;
 
 use tauri::Manager;
 use tauri_plugin_decorum::WebviewWindowExt;
+#[cfg(desktop)]
+use tauri_plugin_deep_link::DeepLinkExt;
 
 // ort is built with `load-dynamic`, so it loads onnxruntime.dll at runtime.
 fn configure_ort_dylib() {
@@ -45,6 +47,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_decorum::init())
         .setup(|app| {
+            // Register inkling:// with the OS pointing at this exe. Installer
+            // builds do this via NSIS; a dev build never installs, so without
+            // this the extension's deep-link tab has no protocol handler.
+            #[cfg(desktop)]
+            if let Err(error) = app.deep_link().register_all() {
+                eprintln!("deep-link registration failed: {error}");
+            }
             // Replaces the native titlebar with an overlay: the webview fills
             // the window and decorum injects a drag strip plus window controls.
             app.get_webview_window("main")
