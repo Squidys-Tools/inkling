@@ -84,16 +84,31 @@ async function dequeue(payload: PageCapturePayloadV1): Promise<void> {
   await browser.storage.local.set({ [QUEUE_KEY]: queue });
 }
 
-async function injectExtractor(tabId: number): Promise<unknown> {
+export async function injectExtractor(tabId: number): Promise<unknown> {
   await browser.scripting.executeScript({
     target: { tabId },
     files: [CONTENT_MAIN_FILE],
     world: "MAIN",
   });
-  const results = await browser.scripting.executeScript({
+  await browser.scripting.executeScript({
     target: { tabId },
     files: [CONTENT_ISOLATED_FILE],
     world: "ISOLATED",
+  });
+  // The isolated bundle's IIFE discards the async extractor's return value,
+  // so the file injection above surfaces nothing useful. The content script
+  // parks its Promise on globalThis; a func injection can return that
+  // Promise, which executeScript awaits (func is stringified into the page —
+  // the key must be a literal, kept in sync with extract-promise-key.ts).
+  const results = await browser.scripting.executeScript({
+    target: { tabId },
+    world: "ISOLATED",
+    func: () => {
+      const host = globalThis as { __inklingExtractPayloadPromise?: Promise<unknown> };
+      const pending = host.__inklingExtractPayloadPromise;
+      delete host.__inklingExtractPayloadPromise;
+      return pending;
+    },
   });
   return results[0]?.result;
 }
@@ -158,7 +173,10 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
   if (!isPageCapturePayload(raw)) {
     const status: SaveStatus = {
       state: "failed",
-      detail: "page extraction produced no usable content",
+      detail:
+        raw === undefined
+          ? "extractor returned no result"
+          : "page extraction produced no usable content",
       at: new Date().toISOString(),
     };
     await writeStatus(status);
