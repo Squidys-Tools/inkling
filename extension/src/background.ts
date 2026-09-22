@@ -1,10 +1,12 @@
 // Ephemeral dispatcher: no module-level mutable state (the service worker may
 // be killed between invocations). Every save re-resolves the tab, injects on
-// invoke (activeTab only — no <all_urls>, no persistent content scripts), and
-// persists before navigating: the full v1 payload goes to chrome.storage.local
-// FIRST, then the deep link fires. If the app is closed the tab navigation
-// fails but nothing is lost — the queue survives for the Phase 2 loopback
-// flush (see transport.ts postPayloadToLoopback).
+// invoke (activeTab only for the on-demand extractors; content.js is a
+// declarative content script required by context-menu collect), and persists
+// before navigating: the full v1 payload goes to chrome.storage.local FIRST,
+// then the deep link fires. If the app is closed the tab navigation fails but
+// nothing is lost — the queue survives for the Phase 2 loopback flush (see
+// transport.ts postPayloadToLoopback). On deep-link success the queue entry is
+// removed so a later flush cannot re-POST a capture the app already accepted.
 import browser from "webextension-polyfill";
 import {
   isPageCapturePayload,
@@ -65,6 +67,21 @@ async function enqueue(payload: PageCapturePayloadV1): Promise<number> {
 
 async function writeStatus(status: SaveStatus): Promise<void> {
   await browser.storage.local.set({ [LAST_STATUS_KEY]: status });
+}
+
+/**
+ * Remove one exact payload from the pending queue. Used after a successful
+ * deep-link hand-off: the payload was enqueued first so a crash cannot lose
+ * it, but once the app receives the deep link a later flushQueue must not
+ * re-POST it and create a duplicate library item.
+ */
+async function dequeue(payload: PageCapturePayloadV1): Promise<void> {
+  const queue = await readQueue();
+  const key = JSON.stringify(payload);
+  const index = queue.findIndex((item) => JSON.stringify(item) === key);
+  if (index === -1) return;
+  queue.splice(index, 1);
+  await browser.storage.local.set({ [QUEUE_KEY]: queue });
 }
 
 async function injectExtractor(tabId: number): Promise<unknown> {
@@ -158,10 +175,15 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
     await writeStatus(status);
     return status;
   }
+  // Enqueue first (crash safety), dequeue after a successful deep link so a
+  // later flush cannot re-POST a capture the app already accepted.
   const queued = await enqueue(raw);
   const deepLink = buildCaptureDeepLink(raw);
   try {
     await browser.tabs.create({ url: deepLink });
+    // Deep link succeeded: drop the crash-safety queue entry so a later
+    // flushQueue cannot re-deliver the same capture as a duplicate item.
+    await dequeue(raw);
     const status: SaveStatus = {
       state: "saved",
       title: raw.title,
@@ -221,12 +243,16 @@ async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<
     await writeStatus(status);
     return status;
   }
+  // Deep-link-only payloads never enter the queue: the queue is for
+  // loopback re-POST of page payloads, and readQueue drops anything that
+  // fails isPageCapturePayload.
   try {
     await browser.tabs.create({ url: deepLink });
     const status: SaveStatus = { state: "saved", at: new Date().toISOString() };
     await writeStatus(status);
     return status;
   } catch (error) {
+    // App closed or no protocol handler: payload stays queued for later flush.
     const status: SaveStatus = {
       state: "failed",
       detail: error instanceof Error ? error.message : "deep link refused",

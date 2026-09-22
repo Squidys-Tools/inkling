@@ -200,17 +200,31 @@ fn origin_allowed(origin: Option<&str>) -> bool {
     if origin == "null" {
         return true;
     }
-    [
+    // Extension and app custom schemes: scheme prefix is sufficient.
+    if [
         "chrome-extension://",
         "moz-extension://",
         "safari-web-extension://",
         "tauri://",
-        "https://tauri.localhost",
-        "http://tauri.localhost",
         "inkling://",
     ]
     .iter()
     .any(|prefix| origin.starts_with(prefix))
+    {
+        return true;
+    }
+    // Tauri webview http(s) origin: exact scheme+host (optional :port digits).
+    // A starts_with check would also accept https://tauri.localhost.evil.com.
+    fn tauri_localhost_http(origin: &str, scheme: &str) -> bool {
+        let Some(rest) = origin.strip_prefix(scheme) else {
+            return false;
+        };
+        rest == "tauri.localhost"
+            || rest
+                .strip_prefix("tauri.localhost:")
+                .is_some_and(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
+    }
+    tauri_localhost_http(origin, "https://") || tauri_localhost_http(origin, "http://")
 }
 
 fn check_rate_limit(state: &CaptureServerState) -> bool {
@@ -1197,9 +1211,19 @@ mod tests {
             Some("file://"),
             Some("nullified"),
             Some("chrome-extension-fake://x"),
+            Some("https://tauri.localhost.evil.com"),
+            Some("http://tauri.localhost.evil.com"),
+            Some("https://tauri.localhost.evil.com/path"),
+            Some("https://not-tauri.localhost"),
         ] {
             assert!(!origin_allowed(denied), "should deny {denied:?}");
         }
+        // Non-default port on the real host is still the Tauri origin.
+        assert!(origin_allowed(Some("https://tauri.localhost:4433")));
+        assert!(origin_allowed(Some("http://tauri.localhost:8080")));
+        // Scheme-relative / userinfo tricks must not pass.
+        assert!(!origin_allowed(Some("https://tauri.localhost:4433x")));
+        assert!(!origin_allowed(Some("https://user:pass@tauri.localhost")));
     }
 
     #[test]
