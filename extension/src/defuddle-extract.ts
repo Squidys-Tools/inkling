@@ -15,10 +15,14 @@ function collapseWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+// Inert parse of untrusted extraction HTML: DOMParser's document never runs
+// scripts and does not fetch subresources, unlike assigning to innerHTML.
+function parseUntrustedHtml(html: string): HTMLElement {
+  return new DOMParser().parseFromString(html, "text/html").body;
+}
+
 function textFromHtml(html: string): string {
-  const container = document.createElement("div");
-  container.innerHTML = html;
-  return collapseWhitespace(container.textContent ?? "");
+  return collapseWhitespace(parseUntrustedHtml(html).textContent ?? "");
 }
 
 function absoluteUrl(value: string | null | undefined, base: string): string | null {
@@ -33,8 +37,7 @@ function absoluteUrl(value: string | null | undefined, base: string): string | n
 }
 
 function imageUrlsFromContent(contentHtml: string, pageUrl: string, limit = 40): string[] {
-  const container = document.createElement("div");
-  container.innerHTML = contentHtml;
+  const container = parseUntrustedHtml(contentHtml);
   const urls: string[] = [];
   for (const img of container.querySelectorAll("img")) {
     const direct = absoluteUrl(img.getAttribute("src"), pageUrl);

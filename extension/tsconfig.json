@@ -11,7 +11,8 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "types": ["bun"]
   },
   "include": ["src", "vite.config.ts", "vite.content-base.ts", "vite.content-main.config.ts", "vite.content-isolated.config.ts", "manifest.chrome.json"]
 }

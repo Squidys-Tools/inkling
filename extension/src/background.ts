@@ -10,6 +10,7 @@ import {
   isPageCapturePayload,
   type PageCapturePayloadV1,
 } from "@inkling/ingestion-shared";
+import { trimCaptureQueue } from "./capture-queue";
 import { buildCaptureDeepLink, postPayloadToLoopback } from "./transport";
 import {
   INKLING_MENU_SAVE_IMAGE,
@@ -24,7 +25,6 @@ const CONTENT_MAIN_FILE = "content-main.js";
 const CONTENT_ISOLATED_FILE = "content-isolated.js";
 
 const QUEUE_KEY = "inkling:pending-captures-v1";
-const MAX_QUEUED = 50;
 const LAST_STATUS_KEY = "inkling:last-save-status";
 // Same keys the options page writes; the token never leaves the machine
 // except to the app on loopback.
@@ -48,9 +48,19 @@ async function readQueue(): Promise<PageCapturePayloadV1[]> {
 async function enqueue(payload: PageCapturePayloadV1): Promise<number> {
   const queue = await readQueue();
   queue.push(payload);
-  while (queue.length > MAX_QUEUED) queue.shift();
-  await browser.storage.local.set({ [QUEUE_KEY]: queue });
-  return queue.length;
+  // Count + byte budget first so a full queue cannot blow the ~10MB local
+  // quota; if other keys still push the write over, drop oldest until it fits.
+  trimCaptureQueue(queue);
+  for (;;) {
+    try {
+      await browser.storage.local.set({ [QUEUE_KEY]: queue });
+      return queue.length;
+    } catch {
+      if (queue.length <= 1) return queue.length;
+      queue.shift();
+      trimCaptureQueue(queue);
+    }
+  }
 }
 
 async function writeStatus(status: SaveStatus): Promise<void> {
