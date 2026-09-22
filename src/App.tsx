@@ -2620,14 +2620,34 @@ function App() {
     if (selectedItems.length === 0) return;
     setCaptureError(null);
     try {
+      // Restore every item first, then fetch all processing summaries in one
+      // batched call instead of one round trip per restored item.
       const results = await Promise.allSettled(selectedItems.map(async (item) => {
-        if (!canUseTauriBackend) return item;
-        const restoredItem = await archiveItem(String(item.id), false);
-        const summary = (await getProcessingSummaries([restoredItem.id])).get(restoredItem.id);
-        return storedItemToLibraryItem(restoredItem, summary);
+        if (!canUseTauriBackend) return null;
+        return archiveItem(String(item.id), false);
       }));
-      const restoredItems = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
-      const failures = results.filter((result) => result.status === "rejected").length;
+      const restoredStored = results.flatMap((result) => result.status === "fulfilled" && result.value ? [result.value] : []);
+      let failures = results.filter((result) => result.status === "rejected").length;
+      // One batched summaries call for the whole restore. If it fails, the
+      // items are still restored; only their processing badges fall back.
+      let summaries = new Map<string, ProcessingSummary>();
+      try {
+        if (canUseTauriBackend && restoredStored.length > 0) {
+          summaries = await getProcessingSummaries(restoredStored.map((storedItem) => storedItem.id));
+        }
+      } catch {
+        summaries = new Map<string, ProcessingSummary>();
+      }
+      // Convert per item so one unreadable item cannot sink the whole batch.
+      const settled = await Promise.allSettled(restoredStored.map((storedItem) =>
+        storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
+      ));
+      failures += settled.filter((result) => result.status === "rejected").length;
+      const converted = settled.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      const restoredItems: LibraryItem[] = [
+        ...selectedItems.filter(() => !canUseTauriBackend),
+        ...converted,
+      ];
       const restoredIds = new Set(restoredItems.map((item) => String(item.id)));
       setItems((current) => [
         ...restoredItems.filter((item) => !current.some((candidate) => String(candidate.id) === String(item.id))),
