@@ -20,7 +20,7 @@ hashes. The first indexing job downloads the model files into:
 ```
 
 Portable Windows preview folders keep the same layout under `data\models\`
-beside `inkling.exe`. The preview build downloads and verifies those files
+beside `inkling.exe`. The preview build downloads and verifies those files in the CI environment
 before packaging, so the folder can be copied for review and deleted to remove
 its model cache and library data.
 
