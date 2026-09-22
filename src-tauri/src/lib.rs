@@ -1,3 +1,4 @@
+mod capture_server;
 mod embeddings;
 mod jobs;
 mod ocr;
@@ -38,6 +39,7 @@ pub fn run() {
     builder
         .manage(storage::StorageState::default())
         .manage(jobs::ProcessingState::default())
+        .manage(capture_server::CaptureServerState::default())
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
@@ -52,6 +54,9 @@ pub fn run() {
             // job events instead of making the frontend poll for them.
             app.state::<jobs::ProcessingState>()
                 .set_app_handle(app.handle().clone());
+            // Loopback receiver for the browser extension: ephemeral 127.0.0.1
+            // port, per-install bearer token. Never blocks boot on failure.
+            capture_server::start_capture_server(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -80,6 +85,9 @@ pub fn run() {
             jobs::get_jobs_for_items,
             jobs::count_active_jobs,
             jobs::retry_processing_job,
+            capture_server::get_capture_status,
+            capture_server::get_pairing_token,
+            capture_server::regenerate_pairing_token,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

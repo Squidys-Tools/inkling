@@ -48,7 +48,7 @@ None — there are no local hooks by policy. Formatting (`cargo fmt --check`) an
 - `ci.yml`: docs-only pushes skip; otherwise path-gated `frontend` vs `native` jobs. `frontend` runs tests, `knip:check`, build, and ingestion smoke.
 - `security.yml`: CodeQL (JS/TS + Rust) on open/reopen and roughly every 4th push, dependency review on every PR; path gating applies to push-to-main only.
 - `knip.yml`: scheduled `knip --fix` (every other day) opens a cleanup PR. It strips unused `export` keywords and prunes dependencies; it never deletes files.
-- `links.yml`: weekly markdown link check, opens an issue on failures. New custom schemes (`inkling://`, `mymind://`) or local hosts go in `.lycheeignore`.
+- `links.yml`: weekly markdown link check, opens an issue on failures. New custom schemes (`inkling://`) or local hosts go in `.lycheeignore`.
 - `native-preview.yml`: when a same-repository PR has the `preview:win` label, builds the portable folder and uploads it as a three-day artifact. Model files are downloaded for the build but are not stored in GitHub Actions cache. It does not launch the app in CI; verify the downloaded folder locally.
 - Automation config (`.entire/`) never skips checks.
 
