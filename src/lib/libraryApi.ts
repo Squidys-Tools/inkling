@@ -175,8 +175,8 @@ export async function searchItems(query: string) {
   return invoke<StoredLibraryItem[]>("search_items", { query, limit: 100 });
 }
 
-export async function searchSimilarImages(itemId: string) {
-  return invoke<StoredLibraryItem[]>("search_similar_images", { itemId, limit: 12 });
+export async function searchSimilarItems(itemId: string, kind: "image" | "text") {
+  return invoke<StoredLibraryItem[]>(kind === "image" ? "search_similar_images" : "search_similar_text", { itemId, limit: 12 });
 }
 
 export async function listSpaces() {

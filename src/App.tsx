@@ -59,7 +59,7 @@ import {
   saveFile,
   deleteItem,
   searchItems,
-  searchSimilarImages,
+  searchSimilarItems,
   updateItem,
   type ProcessingSummary,
   type SmartSpaceQuery,
@@ -1010,7 +1010,7 @@ function App() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [isFindingSimilar, setIsFindingSimilar] = useState(false);
-  const [similaritySource, setSimilaritySource] = useState<{ id: string; title: string } | null>(null);
+  const [similaritySource, setSimilaritySource] = useState<{ id: string; title: string; kind: "image" | "text" } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const settingsCloseRef = useRef<HTMLButtonElement>(null);
@@ -1861,22 +1861,24 @@ function App() {
     }
   }
 
-  async function findSimilarImages(item: LibraryItem) {
+  async function findSimilarItems(item: LibraryItem) {
+    const kind = item.kind === "Image" ? "image" : "text";
     if (!canUseTauriBackend) {
-      setCaptureError("Image similarity is available in the Windows app.");
+      setCaptureError("Similarity is available in the Windows app.");
       return;
     }
 
     setCaptureError(null);
     setIsFindingSimilar(true);
     try {
-      const storedItems = await searchSimilarImages(String(item.id));
+      const storedItems = await searchSimilarItems(String(item.id), kind);
       const summaries = await getProcessingSummaries(storedItems.map((storedItem) => storedItem.id));
       const libraryItems = await Promise.all(storedItems.map((storedItem) =>
         storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
       ));
       setQuery("");
-      setSimilaritySource({ id: String(item.id), title: item.title });
+      clearToDefaultView();
+      setSimilaritySource({ id: String(item.id), title: item.title, kind });
       setItems(libraryItems);
       setSelectedItem(null);
     } catch (error) {
@@ -2198,7 +2200,7 @@ function App() {
       try {
         await initializeStorage();
         const storedItemsPromise = similaritySource
-          ? searchSimilarImages(similaritySource.id)
+          ? searchSimilarItems(similaritySource.id, similaritySource.kind)
           : activeSpaceId
             ? listSpaceItems(activeSpaceId)
             : debouncedQuery.trim()
@@ -2255,7 +2257,7 @@ function App() {
       window.clearInterval(refreshTimer);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [debouncedQuery, similaritySource?.id, activeSpaceId]);
+  }, [debouncedQuery, similaritySource?.id, similaritySource?.kind, activeSpaceId]);
 
   useEffect(() => {
     if (!isSettingsOpen || shouldUseSeedLibrary()) return;
@@ -2554,7 +2556,7 @@ function App() {
     onClose: () => setSelectedItem(null),
     onOpenPdf: setPdfViewerItem,
     onOpenReader: openReader,
-    onFindSimilar: (item) => void findSimilarImages(item),
+    onFindSimilar: (item) => void findSimilarItems(item),
     onForget: forgetItem,
     onRetryJob: retryJob,
     onAddTag: addTagToItem,
@@ -2693,15 +2695,6 @@ function App() {
           >
             <HugeiconsIcon icon={Clock01Icon} size={17} />
             <span>Serendipity</span>
-          </button>
-          <button
-            className={`nav-item ${isSettingsOpen ? "active" : ""}`}
-            aria-haspopup="dialog"
-            aria-controls="settings-modal"
-            onClick={() => setIsSettingsOpen(true)}
-          >
-            <HugeiconsIcon icon={Archive01Icon} size={17} />
-            <span>Archive</span>
           </button>
         </nav>
 
@@ -3127,8 +3120,17 @@ function App() {
         {filteredItems.length === 0 && (
           <div className="empty-state">
             <div className="empty-icon"><HugeiconsIcon icon={Search01Icon} size={20} /></div>
-            <h2>Nothing surfaced yet.</h2>
-            <p>Try another word, or save something new to your mind.</p>
+            {similaritySource ? (
+              <>
+                <h2>Nothing similar yet.</h2>
+                <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
+              </>
+            ) : (
+              <>
+                <h2>Nothing surfaced yet.</h2>
+                <p>Try another word, or save something new to your mind.</p>
+              </>
+            )}
             <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
           </div>
         )}

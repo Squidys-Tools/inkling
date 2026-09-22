@@ -68,6 +68,7 @@ pub fn run() {
             storage::delete_item,
             storage::search_items,
             storage::search_similar_images,
+            storage::search_similar_text,
             storage::list_spaces,
             storage::create_space,
             storage::update_space,

@@ -113,7 +113,7 @@ Well no duh. Saving a fresh URL needs internet though, obviously.
 
 **Windows** (that's the only platform for now).
 
-1. Install [Bun](https://bun.sh) 1.4.0 (the version in `.bun-version`) and a Rust toolchain.
+1. Install [Bun](https://bun.sh) 1.4.2 (the version in `.bun-version`) and a Rust toolchain.
 2. Clone this repo, then:
 
 ```powershell
@@ -145,7 +145,7 @@ This part is for people who want to build, tinker, or contribute. Everyone else 
 - [docs/changelog.md](docs/changelog.md) — what changed recently
 - `benchmarks/` — 48-item corpus + harness for extraction/OCR quality
 
-**Prereqs:** Bun 1.4.0 (see `.bun-version`) + Rust. 
+**Prereqs:** Bun 1.4.2 (see `.bun-version`) + Rust. 
 
 On Windows pick one toolchain per machine:
 

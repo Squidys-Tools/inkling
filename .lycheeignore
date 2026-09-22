@@ -1,6 +1,5 @@
 # Custom schemes and local dev hosts are not real web links.
 inkling://.*
-mymind://.*
 http://localhost.*
 http://127\.0\.0\.1.*
 https://localhost.*
