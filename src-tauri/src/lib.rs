@@ -1,5 +1,6 @@
 mod capture_server;
 mod embeddings;
+mod http_fetch;
 mod jobs;
 mod ocr;
 pub(crate) mod pdf;
@@ -97,6 +98,7 @@ pub fn run() {
             capture_server::get_capture_status,
             capture_server::get_pairing_token,
             capture_server::regenerate_pairing_token,
+            http_fetch::fetch_http,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1809,9 +1809,26 @@ function App() {
     }
   }
 
-  async function persistArticle(sourceUrl: string, captureSource: string) {
-    const { ingestUrl } = await import("./lib/ingestion");
-    const article = await ingestUrl(sourceUrl);
+  async function persistArticle(sourceUrl: string, captureSource: string, knownTitle?: string) {
+    const { ingestUrl, isUrlIngestionError } = await import("./lib/ingestion");
+    const titleHint = knownTitle?.trim() || undefined;
+    let article;
+    try {
+      let fetchImpl: typeof globalThis.fetch | undefined;
+      if (canUseTauriBackend) {
+        const { tauriFetch } = await import("./lib/tauriFetch");
+        fetchImpl = tauriFetch;
+      }
+      article = await ingestUrl(sourceUrl, fetchImpl ? { fetch: fetchImpl } : {});
+    } catch (error) {
+      // Product contract: retain the URL (and known title/domain) when the
+      // download or extraction fails so the capture is never a dead end.
+      if (isUrlIngestionError(error) && error.code !== "invalid-url") {
+        await persistProvisionalArticle(sourceUrl, captureSource, titleHint);
+        return;
+      }
+      throw error;
+    }
     const metadata = {
       author: article.author,
       publishedDate: article.publishedDate,
@@ -1824,11 +1841,12 @@ function App() {
       social: article.social,
       captureSource,
     };
+    const articleTitle = article.title || titleHint || new URL(article.canonicalUrl).hostname;
 
     if (canUseTauriBackend) {
       const storedItem = await createUrl({
         sourceUrl: article.canonicalUrl,
-        title: article.title,
+        title: articleTitle,
         description: article.description,
         body: article.text,
         metadata,
@@ -1844,7 +1862,7 @@ function App() {
     const item: LibraryItem = {
       id: Date.now(),
       kind: social ? "Post" : embeddedVideoLink ? "Video" : "Article",
-      title: article.title,
+      title: articleTitle,
       description: article.description || article.text.slice(0, 180),
       source: social
         ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
@@ -1869,11 +1887,46 @@ function App() {
     setItems((current) => [item, ...current]);
   }
 
-  async function captureArticle(sourceUrl: string, captureSource: string) {
+  async function persistProvisionalArticle(sourceUrl: string, captureSource: string, knownTitle?: string) {
+    let hostname = sourceUrl;
+    try {
+      hostname = new URL(sourceUrl).hostname.replace(/^www\./u, "");
+    } catch {
+      // Keep the raw source as the domain label when parsing fails.
+    }
+    const title = knownTitle || hostname;
+
+    if (canUseTauriBackend) {
+      const storedItem = await createUrl({
+        sourceUrl,
+        title,
+        description: "",
+        body: "",
+        metadata: { captureSource, provisional: true },
+      });
+      const libraryItem = await storedItemToLibraryItem(storedItem);
+      setItems((current) => [libraryItem, ...current]);
+      return;
+    }
+
+    const item: LibraryItem = {
+      id: Date.now(),
+      kind: "Article",
+      title,
+      description: "",
+      source: hostname,
+      sourceUrl,
+      date: "Just now",
+      tags: [],
+    };
+    setItems((current) => [item, ...current]);
+  }
+
+  async function captureArticle(sourceUrl: string, captureSource: string, knownTitle?: string) {
     setCaptureError(null);
     setIsCapturing(true);
     try {
-      await persistArticle(sourceUrl, captureSource);
+      await persistArticle(sourceUrl, captureSource, knownTitle);
       setCaptureUrl("");
       setIsAdding(false);
       setCaptureMode(null);
@@ -2047,7 +2100,7 @@ function App() {
       } else if (capture.kind === "image") {
         await captureImageUrl(capture.pageUrl, capture.imageUrl, "browser extension");
       } else {
-        await captureArticle(capture.url, "browser extension");
+        await captureArticle(capture.url, "browser extension", capture.title);
       }
     }
   }
