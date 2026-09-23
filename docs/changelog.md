@@ -68,6 +68,7 @@ Guardrails:
 ### Removed
 
 - Unused Penpot design folder (`pen/`); CI/security path filters no longer ignore it
+- Lefthook dependency, hook installer, and local formatting and frontend-check Git hooks. Entire continues to manage its own hooks.
 - Dead `note-art` / `note-pin` / `note-scribble` card styles left over from the note thumbnail reuse (`src/App.css`)
 ### Fixed
 
