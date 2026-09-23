@@ -1248,7 +1248,7 @@ function App() {
       toast("Forgotten from your library", {
         id: toastId,
         description: item.title,
-        duration: Infinity,
+        duration: 5000,
         closeButton: true,
         className: "library-toast",
         icon: <HugeiconsIcon icon={Undo02Icon} size={13} color="#b0714f" />,
@@ -3513,7 +3513,7 @@ function App() {
         theme="dark"
         richColors={false}
         closeButton
-        duration={2500}
+        duration={5000}
         icons={{
           success: <HugeiconsIcon icon={CheckIcon} size={15} color="#0c0c0b" />,
           error: <HugeiconsIcon icon={Alert01Icon} size={15} color="#0c0c0b" />,

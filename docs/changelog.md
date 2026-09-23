@@ -49,7 +49,7 @@ Guardrails:
 
 ### Changed
 
-- Toasts restyled as a catalog drawer slip for Undo actions and a compact ink-slip chip for success/error (shared palette, HugeIcons glyphs, top-right entry/exit, 2.5s success and 5s error auto-dismiss) (`src/App.tsx`, `src/App.css`)
+- Toasts restyled as a catalog drawer slip for Undo actions and a compact ink-slip chip for success/error (shared palette, HugeIcons glyphs, top-right entry/exit, 5s auto-dismiss) (`src/App.tsx`, `src/App.css`)
 - README rewritten as a user-facing overview (tour, screenshots, demo/mascot placeholders, FAQ) with the developer setup and docs index moved to a short section at the end (`README.md`)
 - CI and security workflows skip docs-only changes and run only the jobs whose paths changed (frontend vs. native vs. dependencies), cutting redundant check runs on documentation pushes (`.github/workflows/ci.yml`, `.github/workflows/security.yml`)
 - `bun run check:frontend` now includes `knip:check` (same order as the CI frontend job), so unused-code failures surface locally before push
