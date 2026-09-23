@@ -18,6 +18,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import type { LibraryItem } from "../App";
 import { isTauriRuntime } from "../lib/libraryApi";
+import { openExternalUrl } from "../lib/openExternalUrl";
 import type { ReaderOrigin } from "../ReaderView";
 import { KindIcon, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
 import {
@@ -133,7 +134,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
     icon: sourceHost
       ? <HugeiconsIcon icon={Globe02Icon} size={15} />
       : <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />,
-    onClick: () => item.sourceUrl && window.open(item.sourceUrl, "_blank", "noopener,noreferrer"),
+    onClick: () => item.sourceUrl && openExternalUrl(item.sourceUrl),
     disabled: !item.sourceUrl,
   };
 
