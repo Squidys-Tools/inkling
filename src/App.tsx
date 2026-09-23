@@ -1004,14 +1004,14 @@ function ExtensionPairing() {
         setToken(value);
         setIsRevealed(true);
       })
-      .catch(() => toast.error("Could not load the pairing token."));
+      .catch(() => toast.error("Could not load the pairing token.", { duration: 5000 }));
   };
 
   const copyToken = () => {
     if (!token) return;
     void navigator.clipboard.writeText(token)
       .then(() => toast.success("Pairing token copied. Paste it into the extension."))
-      .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand."));
+      .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand.", { duration: 5000 }));
   };
 
   const renewToken = () => {
@@ -1022,7 +1022,7 @@ function ExtensionPairing() {
         setIsRevealed(true);
         toast.success("New pairing token issued. Update the extension.");
       })
-      .catch(() => toast.error("Could not renew the pairing token."));
+      .catch(() => toast.error("Could not renew the pairing token.", { duration: 5000 }));
   };
 
   const testConnection = () => {
@@ -1037,7 +1037,7 @@ function ExtensionPairing() {
     };
     void check()
       .then(() => toast.success("Extension receiver is reachable."))
-      .catch(() => toast.error("No answer from the receiver. Is the app running?"))
+      .catch(() => toast.error("No answer from the receiver. Is the app running?", { duration: 5000 }))
       .finally(() => setIsTesting(false));
   };
 
@@ -1232,7 +1232,7 @@ function App() {
         : [restoredItem, ...current]);
       toast.success("Restored to your library", { id: toastId, closeButton: true });
     } catch (error) {
-      toast.error("Unable to restore this item", { id: toastId, closeButton: true });
+      toast.error("Unable to restore this item", { id: toastId, duration: 5000, closeButton: true });
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }, []);
@@ -1282,7 +1282,7 @@ function App() {
       );
       setSelectedItem((current) => (current && String(current.id) === String(item.id) ? apply(current) : current));
     } catch (error) {
-      toast.error("Unable to save this tag");
+      toast.error("Unable to save this tag", { duration: 5000 });
     }
   }, [canUseTauriBackend]);
 
