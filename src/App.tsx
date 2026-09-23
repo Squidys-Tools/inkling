@@ -6,6 +6,7 @@ import { gsap } from "gsap";
 import { Toaster, toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  Alert01Icon,
   AlertCircleIcon,
   Archive01Icon,
   ArrowDown01Icon,
@@ -34,8 +35,10 @@ import {
   Cancel01Icon,
   CircleCheckIcon,
   CircleIcon,
+  CheckIcon,
   CheckListIcon,
   FileTextIcon,
+  Undo02Icon,
 } from "@hugeicons/core-free-icons";
 import {
   assetUrl,
@@ -1227,9 +1230,9 @@ function App() {
       setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
         ? current
         : [restoredItem, ...current]);
-      toast.success("Restored to your library", { id: toastId, duration: 3000, closeButton: true });
+      toast.success("Restored to your library", { id: toastId, closeButton: true });
     } catch (error) {
-      toast.error("Unable to restore this item", { id: toastId, duration: Infinity, closeButton: true });
+      toast.error("Unable to restore this item", { id: toastId, closeButton: true });
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }, []);
@@ -1248,6 +1251,7 @@ function App() {
         duration: Infinity,
         closeButton: true,
         className: "library-toast",
+        icon: <HugeiconsIcon icon={Undo02Icon} size={13} color="#b0714f" />,
         action: {
           label: "Undo",
           onClick: () => void restoreForgottenItem(item, toastId),
@@ -2587,7 +2591,7 @@ function App() {
       if (canUseTauriBackend) await deleteItem(String(item.id));
       setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== String(item.id)));
       if (selectedItem && String(selectedItem.id) === String(item.id)) setSelectedItem(null);
-      toast.success("Deleted permanently", { description: item.title, duration: 3000 });
+      toast.success("Deleted permanently", { description: item.title });
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
@@ -2656,7 +2660,7 @@ function App() {
       setArchivedItems((current) => current.filter((item) => !restoredIds.has(String(item.id))));
       setSelectedArchivedIds(new Set());
       setIsArchiveSelectionMode(false);
-      if (restoredItems.length > 0) toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`, { duration: 3000 });
+      if (restoredItems.length > 0) toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`);
       if (failures > 0) setCaptureError(`${failures} ${failures === 1 ? "item" : "items"} could not be recovered. They are still in the archive.`);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
@@ -2678,7 +2682,7 @@ function App() {
       if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
       setSelectedArchivedIds(new Set());
       setIsArchiveSelectionMode(false);
-      if (deletedIds.size > 0) toast.success(`${deletedIds.size} ${deletedIds.size === 1 ? "item" : "items"} deleted permanently`, { duration: 3000 });
+      if (deletedIds.size > 0) toast.success(`${deletedIds.size} ${deletedIds.size === 1 ? "item" : "items"} deleted permanently`);
       if (failures > 0) setCaptureError(`${failures} ${failures === 1 ? "item" : "items"} could not be deleted. They are still in the archive.`);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
@@ -3503,12 +3507,17 @@ function App() {
       </AnimatePresence>
       </div>
       <Toaster
-        position="top-center"
-        offset={{ top: 48, left: 16, right: 16 }}
-        mobileOffset={{ top: 16, left: 12, right: 12 }}
+        position="top-right"
+        offset={{ top: 48, right: 16 }}
+        mobileOffset={{ top: 16, right: 12 }}
         theme="dark"
         richColors={false}
         closeButton
+        duration={2500}
+        icons={{
+          success: <HugeiconsIcon icon={CheckIcon} size={15} color="#0c0c0b" />,
+          error: <HugeiconsIcon icon={Alert01Icon} size={15} color="#0c0c0b" />,
+        }}
         containerAriaLabel="Notifications"
       />
     </MotionConfig>
