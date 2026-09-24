@@ -10,7 +10,8 @@ The library is a virtualized card grid with kind-aware artwork and a single-colu
 - `browse-overlay-actions` shows available actions, including a disabled `Read` action when an Article has no saved text.
 - `browse-switch` can retarget a settled overlay to another mounted card.
 - `browse-top-of-mind` filters to favorite items.
-- `browse-serendipity` shows the first 12 non-archived items in the discovery order.
+- `browse-serendipity` walks through one unseen older item at a time from a capped discovery batch, with Keep and Forget actions.
+- `browse-serendipity-complete` explains when the walk has no unseen items left.
 - `browse-reader` opens a reader for an Article with `articleHtml`.
 - `browse-pdf` opens the PDF viewer for a PDF with a local `fileUrl`.
 - `browse-similar` is a desktop-only action that replaces the library with semantic results.
@@ -21,6 +22,7 @@ The library is a virtualized card grid with kind-aware artwork and a single-colu
 - Choose `Grid view` or `List view` in the toolbar.
 - Click a card, or focus it and press Enter.
 - Choose `Top of mind` or `Serendipity` in the main navigation.
+- In Serendipity, choose `Keep` to advance or `Forget` to archive the current item.
 - Choose `Read` in the overlay for an Article with saved text, or `Open PDF` for a PDF with a local file.
 - In the desktop app, choose `Find similar` on an eligible item.
 
@@ -38,7 +40,10 @@ Preconditions:
 - **Check a PDF boundary.** Open `[data-library-item-id="10"]` after resetting the scroller. Read the overlay actions and assert that `Open PDF` is absent. Close it with Escape.
 - **Switch cards.** Open item `12`, choose another card that is mounted and hit-testable, and wait until the overlay title changes. If the second card is not mounted, reset the scroller first; a missing virtualized card is not a failed switch.
 - **Open Top of mind.** Click `Top of mind` within `nav[aria-label="Main navigation"]` and wait for `.result-count` to equal `3`. Return to `Everything` and wait for `28`.
-- **Open Serendipity.** Click `Serendipity` within the main navigation and wait for `.result-count` to equal `12`. Return to `Everything` and wait for `28`.
+- **Open Serendipity.** Click `Serendipity` within the main navigation and wait for `.result-count` to equal `12`. Assert `[data-testid="serendipity-view"]` and `[data-testid="serendipity-item"]` are visible, then read the current title and Keep/Forget labels.
+- **Keep one item.** Read the current item ID from `.serendipity-art .library-card`, click `[data-testid="serendipity-keep"]`, and wait for the title to change. The kept item should remain active in Everything.
+- **Forget one item.** Read the next item ID, click `[data-testid="serendipity-forget"]`, and wait for the title to change plus the `Forgotten from your library` toast. Use its `Undo` action and confirm the item is active again. Return to `Everything` and wait for `28`.
+- **Finish the walk.** When no unseen active items remain, assert `[data-testid="serendipity-complete"]` and use `Back to Everything`.
 - **Native reader and PDF paths.** In an isolated desktop app, open an Article with saved text and choose `Read`, or a PDF with a local `fileUrl` and choose `Open PDF`. Wait for `[aria-label="Close reader (Escape)"]` or `[aria-label="Next page"]`. The preview cannot prove either path.
 - **Native similar path.** In the desktop app, choose `Find similar` on an eligible card and verify that the overlay closes and the library changes to semantic results. The preview has no such button.
 
