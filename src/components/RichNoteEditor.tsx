@@ -23,6 +23,7 @@ export function RichNoteEditor({ body, title, onSave }: RichNoteEditorProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const saveRef = useRef(onSave);
+  const editorRootRef = useRef<HTMLDivElement>(null);
   const editor = useEditor({
     extensions: noteEditorExtensions,
     content: "",
@@ -47,6 +48,11 @@ export function RichNoteEditor({ body, title, onSave }: RichNoteEditorProps) {
     setIsEditing(false);
     setError(null);
   }, [body, editor]);
+
+  useEffect(() => {
+    if (!isEditing || !editor) return;
+    editorRootRef.current?.scrollIntoView({ block: "start" });
+  }, [editor, isEditing]);
 
   const previewHtml = useMemo(
     () => (body === undefined ? "" : renderNoteMarkdown(noteBodyForPreview(body, title))),
@@ -114,7 +120,7 @@ export function RichNoteEditor({ body, title, onSave }: RichNoteEditorProps) {
   };
 
   return (
-    <div className="note-editor is-editing" data-testid="rich-note-editor">
+    <div ref={editorRootRef} className="note-editor is-editing" data-testid="rich-note-editor">
       <div className="note-editor-toolbar" role="toolbar" aria-label="Note formatting">
         <button type="button" aria-label="Heading 1" aria-pressed={editor.isActive("heading", { level: 1 })} onClick={() => run(() => editor.chain().toggleHeading({ level: 1 }).run())}>H1</button>
         <button type="button" aria-label="Heading 2" aria-pressed={editor.isActive("heading", { level: 2 })} onClick={() => run(() => editor.chain().toggleHeading({ level: 2 }).run())}>H2</button>
