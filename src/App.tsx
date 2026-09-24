@@ -3024,58 +3024,60 @@ function App() {
                     onBlur={() => void handleRenameSpace(space, renameDraft)}
                   />
                 ) : (
-                  <span>{space.name}</span>
+                  <span className="space-name">{space.name}</span>
                 )}
                 <span className="space-count">{activeSpaceId === space.id ? filteredItems.length : ""}</span>
-                <button
-                  type="button"
-                  className="space-delete space-tool"
-                  aria-label={`Move ${space.name} up`}
-                  title="Move Space up"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void handleMoveSpace(space, -1);
-                  }}
-                >
-                  <HugeiconsIcon icon={ArrowUp01Icon} size={12} />
-                </button>
-                <button
-                  type="button"
-                  className="space-delete space-tool"
-                  aria-label={`Move ${space.name} down`}
-                  title="Move Space down"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void handleMoveSpace(space, 1);
-                  }}
-                >
-                  <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
-                </button>
-                <button
-                  type="button"
-                  className="space-delete space-tool"
-                  aria-label={`Rename ${space.name}`}
-                  title="Rename Space"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setRenamingSpaceId(space.id);
-                    setRenameDraft(space.name);
-                  }}
-                >
-                  <HugeiconsIcon icon={Edit01Icon} size={12} />
-                </button>
-                <button
-                  type="button"
-                  className="space-delete"
-                  aria-label={`Delete ${space.name}`}
-                  title="Delete Space"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void handleDeleteSpace(space);
-                  }}
-                >
-                  <HugeiconsIcon icon={Cancel01Icon} size={12} />
-                </button>
+                <span className="space-actions">
+                  <button
+                    type="button"
+                    className="space-delete space-tool"
+                    aria-label={`Move ${space.name} up`}
+                    title="Move Space up"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleMoveSpace(space, -1);
+                    }}
+                  >
+                    <HugeiconsIcon icon={ArrowUp01Icon} size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    className="space-delete space-tool"
+                    aria-label={`Move ${space.name} down`}
+                    title="Move Space down"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleMoveSpace(space, 1);
+                    }}
+                  >
+                    <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    className="space-delete space-tool"
+                    aria-label={`Rename ${space.name}`}
+                    title="Rename Space"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setRenamingSpaceId(space.id);
+                      setRenameDraft(space.name);
+                    }}
+                  >
+                    <HugeiconsIcon icon={Edit01Icon} size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    className="space-delete"
+                    aria-label={`Delete ${space.name}`}
+                    title="Delete Space"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleDeleteSpace(space);
+                    }}
+                  >
+                    <HugeiconsIcon icon={Cancel01Icon} size={12} />
+                  </button>
+                </span>
               </div>
             ))}
           </div>
