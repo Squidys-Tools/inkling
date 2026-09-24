@@ -346,8 +346,8 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .library-toast[data-sonner-toast] [data-button] { height: 30px; padding: 0 11px; border-radius: 7px; background: var(--orange); color: #0c0c0b; font-size: 12px; font-weight: 600; transition: background .18s ease, transform .16s cubic-bezier(.23, 1, .32, 1); }
 .library-toast[data-sonner-toast] [data-button]:hover { background: #d28a60; }
 .library-toast[data-sonner-toast] [data-button]:active { transform: scale(.96); }
-.library-toast[data-sonner-toast] [data-close-button] { background: var(--surface-strong); border-color: var(--surface-strong); color: var(--muted); }
-.library-toast[data-sonner-toast] [data-close-button]:hover { background: #34312d; border-color: #5a5750; color: var(--ink); }
+.library-toast[data-sonner-toast] [data-close-button] { background: var(--surface-strong) !important; border-color: var(--surface-strong) !important; color: var(--muted); }
+.library-toast[data-sonner-toast] [data-close-button]:hover { background: #34312d !important; border-color: #5a5750 !important; color: var(--ink); }
 
 /* Ink slip — success/error status. Compact chip, unified palette, plain HugeIcons glyphs. */
 [data-sonner-toast][data-type="success"],
@@ -361,9 +361,9 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 [data-sonner-toast][data-type="success"] [data-icon] svg,
 [data-sonner-toast][data-type="error"] [data-icon] svg { margin: 0; }
 [data-sonner-toast][data-type="success"] [data-close-button],
-[data-sonner-toast][data-type="error"] [data-close-button] { background: var(--surface-strong); border-color: var(--surface-strong); color: var(--muted); }
+[data-sonner-toast][data-type="error"] [data-close-button] { background: var(--surface-strong) !important; border-color: var(--surface-strong) !important; color: var(--muted); }
 [data-sonner-toast][data-type="success"] [data-close-button]:hover,
-[data-sonner-toast][data-type="error"] [data-close-button]:hover { background: #34312d; border-color: #5a5750; color: var(--ink); }
+[data-sonner-toast][data-type="error"] [data-close-button]:hover { background: #34312d !important; border-color: #5a5750 !important; color: var(--ink); }
 
 /* Toast motion — enter and exit from the right edge. */
 [data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-y-position="top"]:not([data-mounted="true"]) { transform: translateX(100%) !important; }
