@@ -1251,7 +1251,7 @@ function App() {
         duration: 5000,
         closeButton: true,
         className: "library-toast",
-        icon: <HugeiconsIcon icon={Undo02Icon} size={13} color="#b0714f" />,
+        icon: <HugeiconsIcon icon={Undo02Icon} size={13} color="var(--orange)" />,
         action: {
           label: "Undo",
           onClick: () => void restoreForgottenItem(item, toastId),
@@ -3515,8 +3515,9 @@ function App() {
         closeButton
         duration={5000}
         icons={{
-          success: <HugeiconsIcon icon={CheckIcon} size={15} color="#0c0c0b" />,
-          error: <HugeiconsIcon icon={Alert01Icon} size={15} color="#0c0c0b" />,
+          success: <HugeiconsIcon icon={CheckIcon} size={15} color="var(--orange)" />,
+          error: <HugeiconsIcon icon={Alert01Icon} size={15} color="var(--orange)" />,
+          close: <HugeiconsIcon icon={Cancel01Icon} size={12} color="currentColor" />,
         }}
         containerAriaLabel="Notifications"
       />
