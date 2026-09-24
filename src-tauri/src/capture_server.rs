@@ -34,7 +34,10 @@ use std::{
     io::{BufReader, Read, Write},
     net::{TcpListener, TcpStream},
     path::PathBuf,
-    sync::Mutex,
+    sync::{
+        mpsc::{sync_channel, SyncSender},
+        Arc, Mutex, OnceLock,
+    },
     time::{Duration, Instant},
 };
 
@@ -59,6 +62,16 @@ const PORT_FILE_NAME: &str = "capture_port";
 /// Request pairs (method, path) served by the receiver.
 const HEALTH_PATH: &str = "/v1/health";
 const CAPTURES_PATH: &str = "/v1/captures";
+const FAVICON_QUEUE_CAPACITY: usize = 32;
+const FAVICON_WORKERS: usize = 2;
+
+struct FaviconJob {
+    app: AppHandle,
+    item_id: String,
+    url: String,
+}
+
+static FAVICON_QUEUE: OnceLock<SyncSender<FaviconJob>> = OnceLock::new();
 
 #[derive(Default)]
 pub struct CaptureServerState {
@@ -1085,6 +1098,39 @@ fn handle_connection(stream: TcpStream, app: AppHandle) {
     }
 }
 
+fn favicon_queue() -> &'static SyncSender<FaviconJob> {
+    FAVICON_QUEUE.get_or_init(|| {
+        let (sender, receiver) = sync_channel::<FaviconJob>(FAVICON_QUEUE_CAPACITY);
+        let receiver = Arc::new(Mutex::new(receiver));
+        for _ in 0..FAVICON_WORKERS {
+            let receiver = Arc::clone(&receiver);
+            let _ = std::thread::Builder::new()
+                .name("favicon-cache".into())
+                .spawn(move || loop {
+                    let job = {
+                        let receiver = receiver.lock().unwrap_or_else(|error| error.into_inner());
+                        receiver.recv()
+                    };
+                    let Ok(job) = job else { break };
+                    let _ = crate::storage::cache_favicon_in_background(
+                        &job.app,
+                        &job.item_id,
+                        &job.url,
+                    );
+                });
+        }
+        sender
+    })
+}
+
+fn enqueue_favicon_cache(app: &AppHandle, item_id: &str, url: String) {
+    let _ = favicon_queue().try_send(FaviconJob {
+        app: app.clone(),
+        item_id: item_id.to_owned(),
+        url,
+    });
+}
+
 /// Capture creates the item immediately (same rule as every other capture
 /// path); embeddings and indexing follow on the persisted job queue.
 fn store_capture(app: &AppHandle, input: crate::storage::CreateUrlInput) -> Result<String, u16> {
@@ -1103,11 +1149,7 @@ fn store_capture(app: &AppHandle, input: crate::storage::CreateUrlInput) -> Resu
     drop(guard);
     processing.enqueue_and_wake(&id, crate::jobs::JobKind::GenerateEmbedding);
     if let Some(url) = favicon {
-        let app = app.clone();
-        let item_id = id.clone();
-        std::thread::spawn(move || {
-            let _ = crate::storage::cache_favicon_in_background(&app, &item_id, &url);
-        });
+        enqueue_favicon_cache(app, &id, url);
     }
     Ok(id)
 }
