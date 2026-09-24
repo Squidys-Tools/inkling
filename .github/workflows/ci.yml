@@ -39,6 +39,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           # Full history so the path filter diffs the real change set.
           # A shallow checkout can yield an empty diff and silently skip jobs.
           fetch-depth: 0
@@ -49,10 +50,18 @@ jobs:
         # hijacked floating tag must not be able to falsify filter outputs.
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
+          # For PR synchronize events, compare only the newest push with the
+          # previous head. The default PR diff compares the whole PR to main,
+          # which makes a docs-only follow-up rerun code checks.
+          token: ''
+          base: ${{ github.event.before || github.event.pull_request.base.sha }}
+          predicate-quantifier: some-with-excludes
           filters: |
             frontend:
               - 'src/**'
               - 'public/**'
+              - '!src/seedPersonal.ts'
+              - '!public/seed-demo/**'
               - 'benchmarks/**'
               - 'index.html'
               - 'package.json'
