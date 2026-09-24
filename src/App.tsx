@@ -98,7 +98,7 @@ const ReaderView = lazy(() =>
 import type { ReaderItem, ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
-import { serendipityItems } from "./lib/serendipity";
+import { nextSerendipityItem, serendipityItems } from "./lib/serendipity";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
 // the repo so the web preview shows a real library out of the box. The eager
 // glob below resolves to an empty map when that file is absent, so clones
@@ -1125,6 +1125,8 @@ function App() {
   const [newQuoteAttribution, setNewQuoteAttribution] = useState("");
   const [newQuoteSourceUrl, setNewQuoteSourceUrl] = useState("");
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
+  const [serendipityBatchIds, setSerendipityBatchIds] = useState<string[]>([]);
+  const [serendipityTotal, setSerendipityTotal] = useState(0);
   const [pdfViewerItem, setPdfViewerItem] = useState<LibraryItem | null>(null);
   const [readingItem, setReadingItem] = useState<{ item: LibraryItem; origin: ReaderOrigin } | null>(null);
   // Warm the PDF viewer chunk while a PDF's overlay is open, so the first
@@ -1227,6 +1229,7 @@ function App() {
       setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
         ? current
         : [restoredItem, ...current]);
+      setArchivedItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
       toast.success("Restored to your library", { id: toastId, duration: 3000, closeButton: true });
     } catch (error) {
       toast.error("Unable to restore this item", { id: toastId, duration: Infinity, closeButton: true });
@@ -1239,6 +1242,9 @@ function App() {
     try {
       if (canUseTauriBackend) await archiveItem(String(item.id));
       setItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
+      if (!canUseTauriBackend) {
+        setArchivedItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id)) ? current : [item, ...current]);
+      }
       setSelectedItem(null);
 
       const toastId = `forgot-${String(item.id)}-${Date.now()}`;
@@ -1257,6 +1263,49 @@ function App() {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }, [restoreForgottenItem]);
+
+  const serendipityQueue = useMemo(
+    () => serendipityBatchIds
+      .map((id) => items.find((item) => String(item.id) === id))
+      .filter((item): item is LibraryItem => item !== undefined && !item.archived),
+    [items, serendipityBatchIds],
+  );
+
+  const advanceSerendipity = useCallback((item: LibraryItem) => {
+    setSerendipityBatchIds((current) => current.filter((id) => id !== String(item.id)));
+    setSelectedItem(nextSerendipityItem(serendipityQueue, item.id));
+  }, [serendipityQueue]);
+
+  const keepSerendipityItem = useCallback((item: LibraryItem) => {
+    advanceSerendipity(item);
+  }, [advanceSerendipity]);
+
+  const forgetSerendipityItem = useCallback(async (item: LibraryItem) => {
+    setCaptureError(null);
+    try {
+      if (canUseTauriBackend) await archiveItem(String(item.id));
+      setItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
+      if (!canUseTauriBackend) {
+        setArchivedItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id)) ? current : [item, ...current]);
+      }
+      advanceSerendipity(item);
+
+      const toastId = `forgot-${String(item.id)}-${Date.now()}`;
+      toast("Forgotten from your library", {
+        id: toastId,
+        description: item.title,
+        duration: Infinity,
+        closeButton: true,
+        className: "library-toast",
+        action: {
+          label: "Undo",
+          onClick: () => void restoreForgottenItem(item, toastId),
+        },
+      });
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, [advanceSerendipity, canUseTauriBackend, restoreForgottenItem]);
 
   const addTagToItem = useCallback(async (item: LibraryItem, tag: string) => {
     const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
@@ -2058,10 +2107,13 @@ function App() {
   }
 
   function selectSerendipityView() {
+    const nextItems = serendipityItems(items);
     setActiveSpaceId(null);
     setActiveView("Serendipity");
     setQuery("");
     setSimilaritySource(null);
+    setSerendipityBatchIds(nextItems.map((item) => String(item.id)));
+    setSerendipityTotal(nextItems.length);
     setSelectedItem(null);
   }
 
@@ -2069,6 +2121,22 @@ function App() {
     setActiveSpaceId(null);
     setActiveView("Everything");
   }
+
+  useEffect(() => {
+    if (activeView !== "Serendipity" || activeSpaceId) return;
+    if (serendipityTotal === 0) {
+      const nextItems = serendipityItems(items);
+      if (nextItems.length > 0) {
+        setSerendipityBatchIds(nextItems.map((item) => String(item.id)));
+        setSerendipityTotal(nextItems.length);
+        setSelectedItem(nextItems[0]);
+      }
+      return;
+    }
+    if (serendipityBatchIds.length === 0 || selectedItem) return;
+    const nextItem = serendipityQueue[0];
+    if (nextItem) setSelectedItem(nextItem);
+  }, [activeSpaceId, activeView, items, selectedItem, serendipityBatchIds.length, serendipityQueue, serendipityTotal]);
 
   function beginSaveSearch() {
     setIsCreatingSpace(true);
@@ -2452,7 +2520,7 @@ function App() {
   );
 
   const filteredItems = useMemo(() => {
-    if (activeView === "Serendipity" && !activeSpaceId) return serendipityItems(items);
+    if (activeView === "Serendipity" && !activeSpaceId) return serendipityQueue;
     const normalizedQuery = query.trim().toLowerCase();
     return items.filter((item) => {
       const matchesQuery = !normalizedQuery
@@ -2471,7 +2539,7 @@ function App() {
           : false);
       return matchesQuery && matchesView;
     });
-  }, [activeSpace, activeSpaceId, activeView, items, query, similaritySource]);
+  }, [activeSpace, activeSpaceId, activeView, query, serendipityQueue, similaritySource]);
 
   // VirtuosoMasonry keys rows by position, so a new result set must remount
   // the grid. Otherwise card state (video playback, embeds) sticks to the
@@ -2706,11 +2774,18 @@ function App() {
     onOpenPdf: setPdfViewerItem,
     onOpenReader: openReader,
     onFindSimilar: (item) => void findSimilarItems(item),
-    onForget: forgetItem,
+    onForget: activeView === "Serendipity" && !activeSpaceId ? forgetSerendipityItem : forgetItem,
+    onKeep: keepSerendipityItem,
     onRetryJob: retryJob,
     onAddTag: addTagToItem,
     isFindingSimilar,
-  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob]);
+    serendipity: activeView === "Serendipity" && !activeSpaceId
+      ? {
+          current: Math.min(serendipityTotal, Math.max(1, serendipityTotal - serendipityQueue.length + 1)),
+          total: serendipityTotal,
+        }
+      : undefined,
+  }), [activeSpaceId, activeView, addTagToItem, forgetItem, forgetSerendipityItem, isFindingSimilar, keepSerendipityItem, openReader, retryJob, serendipityQueue.length, serendipityTotal]);
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
@@ -3269,7 +3344,12 @@ function App() {
         {filteredItems.length === 0 && (
           <div className="empty-state">
             <div className="empty-icon"><HugeiconsIcon icon={Search01Icon} size={20} /></div>
-            {similaritySource ? (
+            {activeView === "Serendipity" && !activeSpaceId ? (
+              <>
+                <h2>You’ve reached the end.</h2>
+                <p>Keep browsing your library, or come back when you’ve saved something new.</p>
+              </>
+            ) : similaritySource ? (
               <>
                 <h2>Nothing similar yet.</h2>
                 <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
@@ -3280,7 +3360,11 @@ function App() {
                 <p>Try another word, or save something new to your mind.</p>
               </>
             )}
-            <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
+            {activeView === "Serendipity" && !activeSpaceId ? (
+              <button className="text-button" onClick={clearToDefaultView}>Back to library</button>
+            ) : (
+              <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
+            )}
           </div>
         )}
 

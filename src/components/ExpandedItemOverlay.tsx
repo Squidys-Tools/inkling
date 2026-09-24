@@ -41,9 +41,14 @@ export type ExpandedOverlayActions = {
   onOpenReader: (item: LibraryItem, origin: ReaderOrigin) => void;
   onFindSimilar: (item: LibraryItem) => void;
   onForget: (item: LibraryItem) => void | Promise<void>;
+  onKeep?: (item: LibraryItem) => void;
   onRetryJob: (jobId: string) => void | Promise<void>;
   onAddTag?: (item: LibraryItem, tag: string) => void | Promise<void>;
   isFindingSimilar: boolean;
+  serendipity?: {
+    current: number;
+    total: number;
+  };
 };
 
 type OverlayAction = {
@@ -825,6 +830,29 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
             </div>
           </div>
 
+          {actions.serendipity && (
+            <div className="serendipity-triage">
+              <span className="serendipity-progress">Old find {actions.serendipity.current} of {actions.serendipity.total}</span>
+              <div className="serendipity-actions">
+                <button
+                  type="button"
+                  className="serendipity-keep"
+                  onClick={() => actions.onKeep?.(shownItem)}
+                  disabled={!actions.onKeep}
+                >
+                  <HugeiconsIcon icon={CheckmarkCircle01Icon} size={15} /> Keep
+                </button>
+                <button
+                  type="button"
+                  className="serendipity-forget"
+                  onClick={() => void actions.onForget(shownItem)}
+                >
+                  <HugeiconsIcon icon={Archive01Icon} size={15} /> Forget
+                </button>
+              </div>
+            </div>
+          )}
+
           {isReadRow && otherActions.some((action) => action.key === "find-similar") && (
             <div className="expanded-overlay-actions">
               {otherActions.filter((action) => action.key === "find-similar").map((action) => (
@@ -874,15 +902,17 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
                   {linkCopied ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} /> : <HugeiconsIcon icon={Copy01Icon} size={14} />}
                 </button>
               )}
-              <button
-                type="button"
-                className="toolbar-icon toolbar-icon-muted"
-                onClick={() => void actions.onForget(shownItem)}
-                aria-label="Forget this item"
-                title="Forget"
-              >
-                <HugeiconsIcon icon={Archive01Icon} size={14} />
-              </button>
+              {!actions.serendipity && (
+                <button
+                  type="button"
+                  className="toolbar-icon toolbar-icon-muted"
+                  onClick={() => void actions.onForget(shownItem)}
+                  aria-label="Forget this item"
+                  title="Forget"
+                >
+                  <HugeiconsIcon icon={Archive01Icon} size={14} />
+                </button>
+              )}
             </div>
           ) : (
             <>

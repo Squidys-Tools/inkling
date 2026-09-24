@@ -214,6 +214,15 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .detail-tag-add:hover { color: var(--ink); }
 .detail-tag-input { width: 110px; padding: 4px 8px; border: 1px solid var(--rule); border-radius: 6px; outline: none; background: #0c0c0b; color: var(--ink); font: 10px "DM Mono", monospace; }
 .detail-tag-input:focus { border-color: var(--orange); }
+.serendipity-triage { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding: 10px; border: 1px solid #4a4842; border-radius: 10px; background: #1b1917; }
+.serendipity-progress { color: #8d867c; font: 10px "DM Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+.serendipity-actions { display: flex; gap: 6px; }
+.serendipity-keep, .serendipity-forget { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; border-radius: 7px; cursor: pointer; font: 600 11px "DM Sans", sans-serif; }
+.serendipity-keep { border: 1px solid #3a4a40; background: #222a26; color: #a8bfb0; }
+.serendipity-keep:hover:not(:disabled) { border-color: #4a5c50; background: #2b382f; }
+.serendipity-keep:disabled { opacity: .5; cursor: default; }
+.serendipity-forget { border: 1px solid #654233; background: #33231d; color: #e0a084; }
+.serendipity-forget:hover { border-color: #8b5b45; background: #432b22; }
 .expanded-overlay-toolbar { display: flex; gap: 8px; width: 100%; margin-top: 16px; }
 .toolbar-primary { display: flex; align-items: center; justify-content: center; gap: 8px; flex: 1 1 0%; min-width: 0; overflow: hidden; padding: 13px 16px; border: 1px solid #35443c; border-radius: 9px; background: var(--green-soft); color: #9dbfa9; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .toolbar-primary:hover:not(:disabled) { border-color: #4a5c50; background: #2b382f; }

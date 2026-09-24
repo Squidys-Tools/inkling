@@ -13,3 +13,10 @@ export function serendipityItems<T extends RediscoveryItem>(items: readonly T[])
     })
     .slice(0, 12);
 }
+
+export function nextSerendipityItem<T extends RediscoveryItem>(
+  items: readonly T[],
+  currentId: string | number,
+) {
+  return serendipityItems(items.filter((item) => String(item.id) !== String(currentId)))[0] ?? null;
+}

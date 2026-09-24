@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { serendipityItems } from "./serendipity";
+import { nextSerendipityItem, serendipityItems } from "./serendipity";
 
 type Row = { id: string; createdAt?: number; archived?: boolean; title?: string };
 
@@ -30,5 +30,15 @@ describe("serendipityItems", () => {
   test("falls back to a stable order when createdAt is missing", () => {
     const rows: Row[] = [{ id: "b" }, { id: "a" }, { id: "c", createdAt: 1 }];
     expect(serendipityItems(rows).map((row) => row.id)).toEqual(["c", "a", "b"]);
+  });
+
+  test("advances past the current item without dropping kept items", () => {
+    const rows: Row[] = [
+      { id: "old", createdAt: 1 },
+      { id: "mid", createdAt: 2 },
+      { id: "new", createdAt: 3 },
+    ];
+    expect(nextSerendipityItem(rows, "old")?.id).toBe("mid");
+    expect(nextSerendipityItem(rows, "mid")?.id).toBe("old");
   });
 });
