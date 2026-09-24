@@ -152,7 +152,9 @@ function summarizeProcessingJobs(jobs: ProcessingJob[]): ProcessingSummary {
   };
 }
 
-const runtimeIsTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+export function isTauriRuntime() {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
 
 type StorageStatus = {
   databasePath: string;
@@ -160,16 +162,12 @@ type StorageStatus = {
   schemaVersion: number;
 };
 
-let storageInitialization: Promise<StorageStatus | null> | null = null;
-
-export function isTauriRuntime() {
-  return runtimeIsTauri;
-}
+let storageInitialization: Promise<StorageStatus | null> | undefined;
 
 export async function initializeStorage() {
-  if (!runtimeIsTauri) return null;
+  if (!isTauriRuntime()) return null;
   storageInitialization ??= invoke<StorageStatus>("initialize_storage").catch((error: unknown) => {
-    storageInitialization = null;
+    storageInitialization = undefined;
     throw error;
   });
   return storageInitialization;
@@ -197,7 +195,7 @@ export async function searchSimilarItems(itemId: string, kind: "image" | "text")
 }
 
 export async function listSpaces() {
-  if (!runtimeIsTauri) return [] satisfies StoredSpace[];
+  if (!isTauriRuntime()) return [] satisfies StoredSpace[];
   return withInitializedStorage(() => invoke<StoredSpace[]>("list_spaces"));
 }
 
@@ -245,7 +243,7 @@ const resolveAssetUrl = createAssetUrlResolver(async (path) => {
 
 export async function assetUrl(path: string | null) {
   if (!path) return undefined;
-  if (!runtimeIsTauri) return path;
+  if (!isTauriRuntime()) return path;
   return resolveAssetUrl(path);
 }
 
@@ -289,7 +287,7 @@ export type CaptureStatus = {
 };
 
 export async function getCaptureStatus() {
-  if (!runtimeIsTauri) return null;
+  if (!isTauriRuntime()) return null;
   return invoke<CaptureStatus>("get_capture_status");
 }
 
@@ -302,6 +300,6 @@ export async function regeneratePairingToken() {
 }
 
 export async function currentDeepLinks() {
-  if (!runtimeIsTauri) return [] satisfies string[];
+  if (!isTauriRuntime()) return [] satisfies string[];
   return invoke<string[] | null>("plugin:deep-link|get_current");
 }
