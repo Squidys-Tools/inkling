@@ -2,18 +2,15 @@
 // be killed between invocations). Every save re-resolves the tab, injects on
 // invoke (activeTab only for the on-demand extractors; content.js is a
 // declarative content script required by context-menu collect), and persists
-// before navigating: the full v1 payload goes to chrome.storage.local FIRST,
-// then the deep link fires. If the app is closed the tab navigation fails but
-// nothing is lost — the queue survives for the Phase 2 loopback flush (see
-// transport.ts postPayloadToLoopback). On deep-link success the queue entry is
-// removed so a later flush cannot re-POST a capture the app already accepted.
+// the full v1 payload before delivering it over loopback. If the app is closed
+// or not paired, the payload remains queued for a later flush.
 import browser from "webextension-polyfill";
 import {
   isPageCapturePayload,
   type PageCapturePayloadV1,
 } from "@inkling/ingestion-shared";
 import { trimCaptureQueue } from "./capture-queue";
-import { buildCaptureDeepLink, postPayloadToLoopback } from "./transport";
+import { postPayloadToLoopback } from "./transport";
 import {
   INKLING_MENU_SAVE_IMAGE,
   INKLING_MENU_SAVE_SELECTION,
@@ -69,21 +66,6 @@ async function writeStatus(status: SaveStatus): Promise<void> {
   await browser.storage.local.set({ [LAST_STATUS_KEY]: status });
 }
 
-/**
- * Remove one exact payload from the pending queue. Used after a successful
- * deep-link hand-off: the payload was enqueued first so a crash cannot lose
- * it, but once the app receives the deep link a later flushQueue must not
- * re-POST it and create a duplicate library item.
- */
-async function dequeue(payload: PageCapturePayloadV1): Promise<void> {
-  const queue = await readQueue();
-  const key = JSON.stringify(payload);
-  const index = queue.findIndex((item) => JSON.stringify(item) === key);
-  if (index === -1) return;
-  queue.splice(index, 1);
-  await browser.storage.local.set({ [QUEUE_KEY]: queue });
-}
-
 export async function injectExtractor(tabId: number): Promise<unknown> {
   await browser.scripting.executeScript({
     target: { tabId },
@@ -124,8 +106,7 @@ async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } 
 /**
  * Loopback-first delivery: POST the v1 payload to the app's capture server
  * (`POST {baseUrl}/v1/captures`, per-install bearer). Returns true on 201.
- * Any failure (unpaired, app closed, network) falls through to the deep-link
- * path so capture never depends on pairing.
+ * Any failure (unpaired, app closed, network) leaves the payload queued.
  */
 async function tryLoopback(payload: PageCapturePayloadV1): Promise<boolean> {
   const config = await readLoopbackConfig();
@@ -158,6 +139,7 @@ export async function flushQueue(): Promise<{ delivered: number; pending: number
 }
 
 export async function saveTab(tabId: number): Promise<SaveStatus> {
+  void flushQueue();
   let raw: unknown;
   try {
     raw = await injectExtractor(tabId);
@@ -182,8 +164,6 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
     await writeStatus(status);
     return status;
   }
-  // Loopback first (rich payload, 201 + id); deep link stays the fallback so
-  // an unpaired or closed app still captures.
   if (await tryLoopback(raw)) {
     const status: SaveStatus = {
       state: "saved",
@@ -193,33 +173,15 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
     await writeStatus(status);
     return status;
   }
-  // Enqueue first (crash safety), dequeue after a successful deep link so a
-  // later flush cannot re-POST a capture the app already accepted.
   const queued = await enqueue(raw);
-  const deepLink = buildCaptureDeepLink(raw);
-  try {
-    await browser.tabs.create({ url: deepLink });
-    // Deep link succeeded: drop the crash-safety queue entry so a later
-    // flushQueue cannot re-deliver the same capture as a duplicate item.
-    await dequeue(raw);
-    const status: SaveStatus = {
-      state: "saved",
-      title: raw.title,
-      at: new Date().toISOString(),
-    };
-    await writeStatus(status);
-    return status;
-  } catch (error) {
-    // App closed or no protocol handler: payload stays queued for later flush.
-    const status: SaveStatus = {
-      state: "queued",
-      title: raw.title,
-      detail: `${queued} pending (${error instanceof Error ? error.message : "deep link refused"})`,
-      at: new Date().toISOString(),
-    };
-    await writeStatus(status);
-    return status;
-  }
+  const status: SaveStatus = {
+    state: "queued",
+    title: raw.title,
+    detail: `${queued} pending — Inkling is unavailable`,
+    at: new Date().toISOString(),
+  };
+  await writeStatus(status);
+  return status;
 }
 
 async function saveActiveTab(): Promise<SaveStatus> {
