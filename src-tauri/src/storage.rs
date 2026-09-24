@@ -163,6 +163,7 @@ pub struct ExportReport {
     pub archived_items: i64,
     pub spaces: i64,
     pub asset_files: u64,
+    pub skipped_assets: u64,
     pub database_bytes: u64,
     pub assets_bytes: u64,
 }
@@ -177,6 +178,20 @@ struct ExportPlan {
     archived_items: i64,
     spaces: i64,
     database_bytes: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SkippedAsset {
+    path: String,
+    error: String,
+}
+
+#[derive(Debug, Default)]
+struct AssetCopySummary {
+    files: u64,
+    bytes: u64,
+    skipped: Vec<SkippedAsset>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2137,23 +2152,51 @@ fn unique_export_directory(destination: &Path, stamp: &str) -> PathBuf {
 /// Second phase of an export: the asset copy and the manifest. It touches no
 /// database state, which is what lets the command drop the storage lock first.
 fn finish_export(plan: &ExportPlan) -> Result<ExportReport, StorageError> {
-    // Only the assets the snapshot points at travel with it. Ids come from the
-    // database, but they are validated before they reach a path join.
+    finish_export_with(plan, |source, destination| fs::copy(source, destination))
+}
+
+fn finish_export_with<F>(plan: &ExportPlan, mut copy_file: F) -> Result<ExportReport, StorageError>
+where
+    F: FnMut(&Path, &Path) -> std::io::Result<u64>,
+{
     let exported_assets = plan.directory.join("assets").join("items");
     let mut asset_files = 0_u64;
     let mut assets_bytes = 0_u64;
+    let mut skipped_assets = Vec::new();
     for id in &plan.item_ids {
         if validate_item_id(id.clone()).is_err() {
             continue;
         }
         let source = plan.assets_directory.join(id);
-        if !source.is_dir() {
-            continue;
+        match fs::metadata(&source) {
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) => {
+                skipped_assets.push(SkippedAsset {
+                    path: export_relative_path(&Path::new("assets/items").join(id)),
+                    error: "asset path is not a directory".into(),
+                });
+                continue;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                skipped_assets.push(SkippedAsset {
+                    path: export_relative_path(&Path::new("assets/items").join(id)),
+                    error: error.to_string(),
+                });
+                continue;
+            }
         }
-        let (files, bytes) = copy_directory(&source, &exported_assets.join(id))?;
-        asset_files += files;
-        assets_bytes += bytes;
+        let summary = copy_directory_with(
+            &source,
+            &exported_assets.join(id),
+            &Path::new("assets/items").join(id),
+            &mut copy_file,
+        );
+        asset_files += summary.files;
+        assets_bytes += summary.bytes;
+        skipped_assets.extend(summary.skipped);
     }
+    let skipped_asset_count = skipped_assets.len() as u64;
 
     let manifest = serde_json::json!({
         "format": "inkling-export",
@@ -2166,13 +2209,13 @@ fn finish_export(plan: &ExportPlan) -> Result<ExportReport, StorageError> {
             "archivedItems": plan.archived_items,
             "spaces": plan.spaces,
             "assetFiles": asset_files,
+            "skippedAssets": skipped_asset_count,
         },
         "bytes": {
             "database": plan.database_bytes,
             "assets": assets_bytes,
         },
-        // Derived data rides along inside the snapshot but can be rebuilt, so a
-        // future importer knows what it is allowed to discard.
+        "skippedAssets": &skipped_assets,
         "regenerable": {
             "tables": ["item_embeddings", "items_fts"],
             "columns": ["items.ocr_text"],
@@ -2189,6 +2232,7 @@ fn finish_export(plan: &ExportPlan) -> Result<ExportReport, StorageError> {
         archived_items: plan.archived_items,
         spaces: plan.spaces,
         asset_files,
+        skipped_assets: skipped_asset_count,
         database_bytes: plan.database_bytes,
         assets_bytes,
     })
@@ -2206,25 +2250,116 @@ fn path_is_inside(candidate: &Path, root: &Path) -> bool {
 }
 
 /// Copies one asset directory tree and reports how much moved.
-fn copy_directory(source: &Path, destination: &Path) -> Result<(u64, u64), StorageError> {
-    fs::create_dir_all(destination)?;
-    let mut files = 0_u64;
-    let mut bytes = 0_u64;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let metadata = entry.metadata()?;
+fn copy_directory_with<F>(
+    source: &Path,
+    destination: &Path,
+    relative_path: &Path,
+    copy_file: &mut F,
+) -> AssetCopySummary
+where
+    F: FnMut(&Path, &Path) -> std::io::Result<u64>,
+{
+    let mut summary = AssetCopySummary::default();
+    if let Err(error) = fs::create_dir_all(destination) {
+        summary.skipped.push(SkippedAsset {
+            path: export_relative_path(relative_path),
+            error: error.to_string(),
+        });
+        return summary;
+    }
+
+    let entries = match fs::read_dir(source) {
+        Ok(entries) => entries,
+        Err(error) => {
+            summary.skipped.push(SkippedAsset {
+                path: export_relative_path(relative_path),
+                error: error.to_string(),
+            });
+            return summary;
+        }
+    };
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                summary.skipped.push(SkippedAsset {
+                    path: export_relative_path(relative_path),
+                    error: error.to_string(),
+                });
+                continue;
+            }
+        };
+        let entry_relative_path = relative_path.join(entry.file_name());
+        let metadata = match entry.metadata() {
+            Ok(metadata) => metadata,
+            Err(error) => {
+                summary.skipped.push(SkippedAsset {
+                    path: export_relative_path(&entry_relative_path),
+                    error: error.to_string(),
+                });
+                continue;
+            }
+        };
         let target = destination.join(entry.file_name());
         if metadata.is_dir() {
-            let (nested_files, nested_bytes) = copy_directory(&entry.path(), &target)?;
-            files += nested_files;
-            bytes += nested_bytes;
+            let nested =
+                copy_directory_with(&entry.path(), &target, &entry_relative_path, copy_file);
+            summary.files += nested.files;
+            summary.bytes += nested.bytes;
+            summary.skipped.extend(nested.skipped);
         } else if metadata.is_file() {
-            fs::copy(entry.path(), &target)?;
-            files += 1;
-            bytes += metadata.len();
+            match copy_file_atomically(&entry.path(), &target, copy_file) {
+                Ok(_) => {
+                    summary.files += 1;
+                    summary.bytes += metadata.len();
+                }
+                Err(error) => {
+                    summary.skipped.push(SkippedAsset {
+                        path: export_relative_path(&entry_relative_path),
+                        error: error.to_string(),
+                    });
+                }
+            }
         }
     }
-    Ok((files, bytes))
+    summary
+}
+
+fn copy_file_atomically<F>(
+    source: &Path,
+    destination: &Path,
+    copy_file: &mut F,
+) -> std::io::Result<u64>
+where
+    F: FnMut(&Path, &Path) -> std::io::Result<u64>,
+{
+    let mut partial_name = destination.as_os_str().to_os_string();
+    partial_name.push(".inkling-export-part");
+    let partial = PathBuf::from(partial_name);
+    let result = copy_file(source, &partial).and_then(|bytes| {
+        fs::rename(&partial, destination)?;
+        Ok(bytes)
+    });
+    match result {
+        Ok(bytes) => Ok(bytes),
+        Err(error) => match fs::remove_file(&partial) {
+            Ok(()) => Err(error),
+            Err(cleanup_error) if cleanup_error.kind() == std::io::ErrorKind::NotFound => {
+                Err(error)
+            }
+            Err(cleanup_error) => Err(std::io::Error::new(
+                error.kind(),
+                format!(
+                    "{error}; partial file {} could not be removed: {cleanup_error}",
+                    partial.display()
+                ),
+            )),
+        },
+    }
+}
+
+fn export_relative_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 fn validate_item_id(id: String) -> Result<String, StorageError> {
@@ -3333,6 +3468,88 @@ mod tests {
     }
 
     #[test]
+    fn export_skips_unreadable_assets_and_records_them_in_the_manifest() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-export-test-{}", Uuid::new_v4()));
+        let source = directory.join("assets").join("items").join("item-1");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("available.txt"), b"copied").unwrap();
+        fs::write(source.join("locked.txt"), b"unavailable").unwrap();
+        fs::write(source.join("not-created.txt"), b"unavailable").unwrap();
+
+        let export_directory = directory.join("export");
+        fs::create_dir_all(&export_directory).unwrap();
+        fs::write(export_directory.join("library.sqlite3"), b"snapshot").unwrap();
+        let plan = ExportPlan {
+            directory: export_directory.clone(),
+            exported_at: 0,
+            assets_directory: directory.join("assets").join("items"),
+            item_ids: vec!["item-1".into()],
+            archived_items: 0,
+            spaces: 0,
+            database_bytes: 8,
+        };
+
+        let report = finish_export_with(&plan, |source, destination| {
+            if source.ends_with("locked.txt") {
+                fs::write(destination, b"partial")?;
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "locked by test",
+                ))
+            } else if source.ends_with("not-created.txt") {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "not created by test",
+                ))
+            } else {
+                fs::copy(source, destination)
+            }
+        })
+        .unwrap();
+
+        assert_eq!(report.asset_files, 1);
+        assert_eq!(report.skipped_assets, 2);
+        assert!(export_directory.join("library.sqlite3").is_file());
+        assert!(export_directory
+            .join("assets/items/item-1/available.txt")
+            .is_file());
+        assert!(!export_directory
+            .join("assets/items/item-1/locked.txt")
+            .exists());
+        assert!(!export_directory
+            .join("assets/items/item-1/locked.txt.inkling-export-part")
+            .exists());
+        assert!(!export_directory
+            .join("assets/items/item-1/not-created.txt.inkling-export-part")
+            .exists());
+
+        let manifest: Value =
+            serde_json::from_slice(&fs::read(export_directory.join("manifest.json")).unwrap())
+                .unwrap();
+        assert_eq!(manifest["counts"]["assetFiles"], 1);
+        assert_eq!(manifest["counts"]["skippedAssets"], 2);
+        let skipped = manifest["skippedAssets"].as_array().unwrap();
+        assert_eq!(skipped.len(), 2);
+        let locked = skipped
+            .iter()
+            .find(|entry| entry["path"] == "assets/items/item-1/locked.txt")
+            .unwrap();
+        assert_eq!(locked["error"], "locked by test");
+        let not_created = skipped
+            .iter()
+            .find(|entry| entry["path"] == "assets/items/item-1/not-created.txt")
+            .unwrap();
+        assert_eq!(not_created["error"], "not created by test");
+        assert!(!not_created["error"]
+            .as_str()
+            .unwrap()
+            .contains("partial file"));
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn export_writes_a_readable_snapshot_with_assets_and_a_manifest() {
         let directory =
             std::env::temp_dir().join(format!("inkling-export-test-{}", Uuid::new_v4()));
@@ -3373,6 +3590,7 @@ mod tests {
         assert_eq!(report.archived_items, 1);
         assert_eq!(report.spaces, 1);
         assert_eq!(report.asset_files, 1);
+        assert_eq!(report.skipped_assets, 0);
         assert!(report.database_bytes > 0);
         assert!(report.assets_bytes > 0);
 

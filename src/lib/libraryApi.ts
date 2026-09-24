@@ -250,6 +250,7 @@ export type LibraryExportReport = {
   archivedItems: number;
   spaces: number;
   assetFiles: number;
+  skippedAssets: number;
   databaseBytes: number;
   assetsBytes: number;
 };

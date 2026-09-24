@@ -16,14 +16,6 @@ Nothing critical is open right now.
 
 ## Open
 
-### Medium — one unreadable asset file throws away the whole export
-
-**Where.** `finish_export` in `src-tauri/src/storage.rs`, with the cleanup in the `export_library` command.
-
-**What goes wrong.** `copy_directory` stops at the first error and the command then deletes the half-written export folder, so a single file that cannot be read — locked by a virus scanner, open in another program, odd permissions — costs the user the entire export after however long it has been copying. The toast shows the OS message alone, because `StorageError::Io` forwards only that, so it does not even name the file that failed.
-
-**Fix.** Add the path to the error at each `fs::copy` and `read_dir` call. Then decide what a partial export should do: keep what did copy and list the skipped item ids in the manifest, or fail only after walking everything so the message at least names every problem. Keeping partial results matches how capture treats a failed extraction.
-
 ### Low — the export name fallback can delete an earlier export
 
 **Where.** `unique_export_directory` in `src-tauri/src/storage.rs`.

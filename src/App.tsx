@@ -201,6 +201,13 @@ function formatByteSize(bytes: number) {
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`;
 }
 
+function formatExportSummary(report: LibraryExportReport) {
+  const summary = `${report.items} items · ${report.assetFiles} files · ${formatByteSize(report.databaseBytes + report.assetsBytes)}`;
+  if (report.skippedAssets === 0) return summary;
+  const assets = report.skippedAssets === 1 ? "asset" : "assets";
+  return `${summary} · ${report.skippedAssets} ${assets} skipped`;
+}
+
 function readXPostMetadata(value: unknown): XPostMetadata | undefined {
   if (!value || typeof value !== "object") return undefined;
   const record = value as Record<string, unknown>;
@@ -1302,9 +1309,9 @@ function App() {
     try {
       const report = await exportLibrary(destination);
       setLastExport(report);
-      toast.success("Library exported", {
+      toast.success(report.skippedAssets > 0 ? "Library exported with skipped assets" : "Library exported", {
         id: toastId,
-        description: `${report.items} items · ${formatByteSize(report.databaseBytes + report.assetsBytes)}`,
+        description: formatExportSummary(report),
         duration: 4000,
         closeButton: true,
       });
@@ -3539,7 +3546,7 @@ function App() {
                       {lastExport ? (
                         <div className="settings-data-result" role="status" aria-live="polite">
                           <span className="settings-data-summary">
-                            {lastExport.items} items · {lastExport.assetFiles} files · {formatByteSize(lastExport.databaseBytes + lastExport.assetsBytes)}
+                            {formatExportSummary(lastExport)}
                           </span>
                           <span className="settings-data-path">{lastExport.directory}</span>
                         </div>
