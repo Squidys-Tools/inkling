@@ -154,13 +154,30 @@ function summarizeProcessingJobs(jobs: ProcessingJob[]): ProcessingSummary {
 
 const runtimeIsTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
+type StorageStatus = {
+  databasePath: string;
+  fts5Enabled: boolean;
+  schemaVersion: number;
+};
+
+let storageInitialization: Promise<StorageStatus | null> | null = null;
+
 export function isTauriRuntime() {
   return runtimeIsTauri;
 }
 
 export async function initializeStorage() {
   if (!runtimeIsTauri) return null;
-  return invoke<{ databasePath: string; fts5Enabled: boolean; schemaVersion: number }>("initialize_storage");
+  storageInitialization ??= invoke<StorageStatus>("initialize_storage").catch((error: unknown) => {
+    storageInitialization = null;
+    throw error;
+  });
+  return storageInitialization;
+}
+
+async function withInitializedStorage<T>(operation: () => Promise<T>) {
+  await initializeStorage();
+  return operation();
 }
 
 export async function listActiveItems() {
@@ -181,28 +198,28 @@ export async function searchSimilarItems(itemId: string, kind: "image" | "text")
 
 export async function listSpaces() {
   if (!runtimeIsTauri) return [] satisfies StoredSpace[];
-  return invoke<StoredSpace[]>("list_spaces");
+  return withInitializedStorage(() => invoke<StoredSpace[]>("list_spaces"));
 }
 
 export async function createSpace(input: CreateSpaceInput) {
-  return invoke<StoredSpace>("create_space", { input });
+  return withInitializedStorage(() => invoke<StoredSpace>("create_space", { input }));
 }
 
 export async function deleteSpace(id: string) {
-  await invoke<void>("delete_space", { id });
+  await withInitializedStorage(() => invoke<void>("delete_space", { id }));
 }
 
 export async function updateSpace(input: UpdateSpaceInput) {
-  return invoke<StoredSpace>("update_space", { input });
+  return withInitializedStorage(() => invoke<StoredSpace>("update_space", { input }));
 }
 
 export async function swapSpacePositions(firstId: string, secondId: string) {
-  return invoke<StoredSpace[]>("swap_space_positions", { firstId, secondId });
+  return withInitializedStorage(() => invoke<StoredSpace[]>("swap_space_positions", { firstId, secondId }));
 }
 
 // Smart Spaces evaluate lazily: the backend re-runs the saved query on every call.
 export async function listSpaceItems(id: string) {
-  return invoke<StoredLibraryItem[]>("list_space_items", { id, limit: 100 });
+  return withInitializedStorage(() => invoke<StoredLibraryItem[]>("list_space_items", { id, limit: 100 }));
 }
 
 export async function createNote(input: CreateNoteInput) {
