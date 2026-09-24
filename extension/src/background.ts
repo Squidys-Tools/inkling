@@ -105,17 +105,17 @@ async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } 
 
 /**
  * Loopback-first delivery: POST the v1 payload to the app's capture server
- * (`POST {baseUrl}/v1/captures`, per-install bearer). Returns true on 201.
- * Any failure (unpaired, app closed, network) leaves the payload queued.
+ * (`POST {baseUrl}/v1/captures`, per-install bearer). Returns null on success
+ * or a delivery error to show in the popup.
  */
-async function tryLoopback(payload: PageCapturePayloadV1): Promise<boolean> {
+async function tryLoopback(payload: PageCapturePayloadV1): Promise<string | null> {
   const config = await readLoopbackConfig();
-  if (!config) return false;
+  if (!config) return "pairing is not configured";
   try {
     await postPayloadToLoopback(config.baseUrl, config.token, payload);
-    return true;
-  } catch {
-    return false;
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
   }
 }
 
@@ -164,7 +164,8 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
     await writeStatus(status);
     return status;
   }
-  if (await tryLoopback(raw)) {
+  const deliveryError = await tryLoopback(raw);
+  if (deliveryError === null) {
     const status: SaveStatus = {
       state: "saved",
       title: raw.title,
@@ -177,7 +178,7 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
   const status: SaveStatus = {
     state: "queued",
     title: raw.title,
-    detail: `${queued} pending — Inkling is unavailable`,
+    detail: `${queued} pending — ${deliveryError}`,
     at: new Date().toISOString(),
   };
   await writeStatus(status);

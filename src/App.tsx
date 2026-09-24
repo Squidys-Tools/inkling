@@ -1057,7 +1057,9 @@ function ExtensionPairing() {
     };
     void check()
       .then(() => toast.success("Extension receiver is reachable."))
-      .catch(() => toast.error("No answer from the receiver. Is the app running?"))
+      .catch((error: unknown) =>
+        toast.error(`Receiver unavailable: ${error instanceof Error ? error.message : "unknown error"}`),
+      )
       .finally(() => setIsTesting(false));
   };
 

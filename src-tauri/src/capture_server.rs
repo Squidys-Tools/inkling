@@ -254,7 +254,19 @@ fn origin_allowed(origin: Option<&str>) -> bool {
                 .strip_prefix("tauri.localhost:")
                 .is_some_and(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
     }
-    tauri_localhost_http(origin, "https://") || tauri_localhost_http(origin, "http://")
+    fn localhost_http(origin: &str, scheme: &str) -> bool {
+        let Some(rest) = origin.strip_prefix(scheme) else {
+            return false;
+        };
+        rest == "localhost"
+            || rest
+                .strip_prefix("localhost:")
+                .is_some_and(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
+    }
+    tauri_localhost_http(origin, "https://")
+        || tauri_localhost_http(origin, "http://")
+        || localhost_http(origin, "https://")
+        || localhost_http(origin, "http://")
 }
 
 fn check_rate_limit(state: &CaptureServerState) -> bool {
@@ -856,6 +868,21 @@ fn cors_headers(origin: Option<&str>) -> Vec<(&'static str, String)> {
     out
 }
 
+fn preflight_cors_headers(origin: Option<&str>) -> Vec<(&'static str, String)> {
+    let mut headers = cors_headers(origin);
+    headers.push((
+        "Access-Control-Allow-Methods".into(),
+        "GET, POST, OPTIONS".into(),
+    ));
+    headers.push((
+        "Access-Control-Allow-Headers".into(),
+        "Authorization, Content-Type".into(),
+    ));
+    headers.push(("Access-Control-Max-Age".into(), "600".into()));
+    headers.push(("Access-Control-Allow-Private-Network".into(), "true".into()));
+    headers
+}
+
 fn write_response(
     stream: &mut TcpStream,
     status: u16,
@@ -936,13 +963,7 @@ fn handle_connection(stream: TcpStream, app: AppHandle) {
     // CORS preflight never carries Authorization; answer the handshake and
     // let the real request authenticate itself.
     if head.method == "OPTIONS" {
-        let mut extra: Vec<(&str, String)> = cors.iter().map(|(k, v)| (*k, v.clone())).collect();
-        extra.push(("Access-Control-Allow-Methods", "GET, POST, OPTIONS".into()));
-        extra.push((
-            "Access-Control-Allow-Headers",
-            "Authorization, Content-Type".into(),
-        ));
-        extra.push(("Access-Control-Max-Age", "600".into()));
+        let extra = preflight_cors_headers(origin);
         write_response(&mut stream, 204, "No Content", &extra, "");
         return;
     }
@@ -1257,7 +1278,7 @@ mod tests {
     }
 
     #[test]
-    fn only_extension_null_and_tauri_origins_pass() {
+    fn extension_null_tauri_and_dev_origins_pass() {
         for allowed in [
             None,
             Some("null"),
@@ -1267,13 +1288,13 @@ mod tests {
             Some("tauri://localhost"),
             Some("https://tauri.localhost"),
             Some("http://tauri.localhost"),
+            Some("http://localhost:3000"),
             Some("inkling://capture?url=https://example.com"),
         ] {
             assert!(origin_allowed(allowed), "should allow {allowed:?}");
         }
         for denied in [
             Some("https://example.com"),
-            Some("http://localhost:3000"),
             Some("http://127.0.0.1:1420"),
             Some("file://"),
             Some("nullified"),
@@ -1476,6 +1497,21 @@ mod tests {
             .iter_mut()
             .for_each(|t| *t -= RATE_LIMIT_WINDOW + Duration::from_secs(1));
         assert!(check_rate_limit(&state));
+    }
+
+    #[test]
+    fn allows_local_tauri_dev_origins() {
+        assert!(origin_allowed(Some("http://localhost:43210")));
+        assert!(origin_allowed(Some("https://localhost")));
+        assert!(!origin_allowed(Some("http://example.com")));
+    }
+
+    #[test]
+    fn preflight_allows_private_network_requests() {
+        let headers = preflight_cors_headers(Some("chrome-extension://abc"));
+        assert!(headers.iter().any(|(name, value)| {
+            *name == "Access-Control-Allow-Private-Network" && value == "true"
+        }));
     }
 
     #[test]
