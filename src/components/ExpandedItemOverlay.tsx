@@ -126,6 +126,10 @@ function savedLabelFor(date: string): string {
   return `SAVED ${date.replace(/^saved\s+/iu, "").toUpperCase()}`;
 }
 
+function wordCountFor(body: string | undefined): number {
+  return body?.trim().match(/\S+/gu)?.length ?? 0;
+}
+
 // The overlay keeps two triage actions in view: a primary (read / play / open)
 // and secondary (open original / find similar). Everything after the first
 // entry renders in the secondary slot.
@@ -177,6 +181,18 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
 }
 
 function OverlayMedia({ item }: { item: LibraryItem }) {
+  if (item.kind === "Note" && !item.image) {
+    return (
+      <div className="expanded-overlay-media note-detail-media">
+        <div className="note-detail-art">
+          <span className="note-detail-art-label">INKLING / FIELD NOTE</span>
+          <strong aria-hidden="true">N</strong>
+          <span className="note-detail-art-caption">A page for what stays.</span>
+        </div>
+      </div>
+    );
+  }
+
   if (item.social?.provider === "x") {
     return (
       <div className="expanded-overlay-media detail-x-post">
@@ -268,11 +284,15 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   const destinationRef = useRef<OverlayDestination | null>(null);
   const cancelPendingOpenRef = useRef(false);
   const hasSettledOnceRef = useRef(false);
+  const actionsRef = useRef(actions);
   const [destination, setDestination] = useState<OverlayDestination | null>(null);
   const [flight, setFlight] = useState<Flight | null>(null);
   const [pendingOpen, setPendingOpen] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkCopyFailed, setLinkCopyFailed] = useState(false);
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const isEditingNoteRef = useRef(false);
+  const studioRef = useRef<HTMLDivElement>(null);
 
   // Mirror props into refs inside an effect, never during render, so a
   // concurrent render cannot publish a half-updated set. This runs before
@@ -282,6 +302,10 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     itemRef.current = item;
     flightRef.current = flight;
   }, [item, flight]);
+
+  useLayoutEffect(() => {
+    isEditingNoteRef.current = isEditingNote;
+  }, [isEditingNote]);
 
   // The item whose content the dialog shows. During a closing flight that was
   // triggered by switching items, the dialog flies back displaying the item it
@@ -457,6 +481,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   // Re-clamps and re-measures the settled overlay when the window resizes.
   useEffect(() => {
     const onResize = () => {
+      if (isEditingNoteRef.current) return;
       const dialog = dialogRef.current;
       if (!dialog || !destinationRef.current) return;
       const content = contentAreaRect();
@@ -493,6 +518,11 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     const previous = previousItemRef.current;
     if (previous.id === item.id) return;
     previousItemRef.current = item;
+    if (isEditingNoteRef.current) {
+      setIsEditingNote(false);
+      actionsRef.current.onClose();
+      return;
+    }
 
     const activeFlight = flightRef.current;
     if (activeFlight?.kind === "close") return;
@@ -555,7 +585,6 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     closeButtonRef.current?.focus({ preventScroll: true });
   }, [flight, destination]);
 
-  const actionsRef = useRef(actions);
   actionsRef.current = actions;
 
   const beginCloseFlight = (closingItem: LibraryItem, toRects: SourceRects | null, thenOpen: boolean) => {
@@ -615,6 +644,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   // the overlay unmounts. Cards that are no longer mounted fall back to a
   // short opacity fade.
   const requestClose = () => {
+    if (isEditingNoteRef.current) return;
     const activeFlight = flightRef.current;
     if (activeFlight?.kind === "close") {
       if (activeFlight.thenOpen) cancelPendingOpenRef.current = true;
@@ -654,6 +684,10 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.stopPropagation();
+      if (isEditingNoteRef.current) {
+        setIsEditingNote(false);
+        return;
+      }
       requestClose();
     };
     window.addEventListener("keydown", onKeyDown, true);
@@ -668,7 +702,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (dialogRef.current?.contains(target)) return;
+      if (studioRef.current?.contains(target) || dialogRef.current?.contains(target)) return;
       if (target instanceof Element && target.closest(".library-card")) return;
       requestClose();
     };
@@ -735,6 +769,63 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     setIsAddingTag(false);
   }
 
+  if (isEditingNote && shownItem.kind === "Note") {
+    const wordCount = wordCountFor(shownItem.noteBody);
+    return (
+      <div className="note-studio-layer" ref={studioRef}>
+        <section className="note-studio" role="dialog" aria-modal="true" aria-label={`Edit ${detailTitleFor(shownItem)}`}>
+          <header className="note-studio-header">
+            <button type="button" className="note-studio-back" onClick={() => setIsEditingNote(false)}>
+              <span aria-hidden="true">←</span> Back to note
+            </button>
+            <div className="note-studio-heading" aria-label="Writing desk">
+              <span>INKLING</span>
+              <strong>WRITING DESK</strong>
+            </div>
+            <div className="note-studio-header-actions">
+              <span className="note-studio-shortcut">ESC TO EXIT</span>
+              <button type="button" className="note-studio-close" onClick={() => setIsEditingNote(false)} aria-label="Close note editor">
+                <HugeiconsIcon icon={Cancel01Icon} size={16} />
+              </button>
+            </div>
+          </header>
+          <div className="note-studio-stage">
+            <aside className="note-studio-rail note-studio-rail-left" aria-hidden="true">
+              <span className="note-studio-rail-label">01</span>
+              <span className="note-studio-rail-line" />
+              <span className="note-studio-rail-copy">A quiet place<br />for the next thought.</span>
+            </aside>
+            <div className="note-studio-paper">
+              <div className="note-studio-paper-topline">
+                <span>NOTE / {fileTypeFor(shownItem)}</span>
+                <span>{savedLabelFor(shownItem.date)}</span>
+              </div>
+              <Suspense fallback={<p className="note-studio-loading" role="status">Loading note…</p>}>
+                <RichNoteEditor
+                  key={`studio-${shownItem.id}`}
+                  studio
+                  body={shownItem.noteBody}
+                  title={shownItem.title}
+                  onSave={(body) => actions.onUpdateNote(shownItem, body)}
+                  onEditingChange={setIsEditingNote}
+                />
+              </Suspense>
+            </div>
+            <aside className="note-studio-rail note-studio-rail-right">
+              <div className="note-studio-metric">
+                <span>WORDS</span>
+                <strong>{wordCount}</strong>
+              </div>
+              <div className="note-studio-rail-rule" />
+              <p>{shownItem.noteBody ? "The page is yours." : "An open page."}</p>
+              <span className="note-studio-rail-mark" aria-hidden="true" />
+            </aside>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="expanded-overlay-layer" ref={layerRef}>
       <section
@@ -756,7 +847,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
         </button>
 
         <div
-          className="expanded-overlay-media"
+          className={`expanded-overlay-media ${shownItem.kind === "Note" && !shownItem.image ? "note-detail-media-band" : ""}`}
           ref={mediaRef}
           style={dialogFlying ? undefined : ({ height: destination ? overlayMediaHeight(shownItem, destination.frame.width, window.innerHeight) : undefined } as CSSProperties)}
         >
@@ -782,6 +873,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
                   body={shownItem.noteBody}
                   title={shownItem.title}
                   onSave={(body) => actions.onUpdateNote(shownItem, body)}
+                  onEditingChange={setIsEditingNote}
                 />
               </Suspense>
             </>

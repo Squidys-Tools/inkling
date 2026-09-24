@@ -32,7 +32,7 @@ Guardrails:
 - Browser extension store prep: Firefox MV3 manifest, local mascot icons, options token field, and store copy draft (`extension/`).
 - Portable Windows PR previews build a self-contained review folder with pinned ONNX Runtime and embedding models, isolated database/assets/models, and a `preview:win` artifact link.
 - Serendipity now shows up to 12 saved items, oldest first, in the existing library grid and clears search when opened.
-- Rich note editing with a lazy-loaded Tiptap Markdown editor, plain-text search projection, body-aware FTS, and background re-embedding (SQU-1)
+- Rich note editing with a lazy-loaded Tiptap Markdown editor, a focused full-height writing desk for long-form edits, plain-text search projection, body-aware FTS, and background re-embedding (SQU-1)
 - Unit tests for the note card word-count logic, run via `bun test` in CI and the local frontend check (`src/components/ItemMedia.test.ts`)
 - Inkling mascot engine vendored from the MIT-licensed bloub avatar project (framework-free SVG morph engine only, no Vue shell) with a Paper-derived ink-blot shape (`inkling-splash`), a React mascot component wired into the sidebar brand mark (slow drift live, gentle sway under reduced motion, notification pastille while background work runs, sad eyes on capture errors), a dev-only board at `?mascot`, and frozen-frame SVGs under `docs/assets/mascots/` (`src/components/mascot/`, `scripts/mascot-board.ts`)
 - Sidebar mascot now commutes into the search field on focus (attentive, curious with a bob while typing) through one shared engine while the sidebar slot collapses so the wordmark slides over; the focused field shows only the mascot's eyes and the old static field equalizer is retired (`src/App.tsx`, `src/App.css`)

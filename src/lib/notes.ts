@@ -39,6 +39,20 @@ export function noteBodyForPreview(markdown: string, title: string): string {
   return firstLineEnd === -1 ? "" : markdown.slice(firstLineEnd).replace(/^\n+/u, "");
 }
 
+export function noteBodyForEditor(markdown: string | undefined, title: string): string {
+  return markdown === undefined ? "" : noteBodyForPreview(markdown, title);
+}
+
+export function noteBodyForStorage(markdown: string | undefined, title: string, editedBody: string): string {
+  const normalizedBody = normalizeNoteBody(editedBody);
+  if (markdown === undefined) return normalizedBody;
+  const firstLineEnd = markdown.indexOf("\n");
+  const firstLine = (firstLineEnd === -1 ? markdown : markdown.slice(0, firstLineEnd)).trim();
+  const heading = firstLine.replace(/^#{1,6}\s+/u, "").trim();
+  if (heading.toLocaleLowerCase() !== title.trim().toLocaleLowerCase()) return normalizedBody;
+  return normalizeNoteBody(`${firstLine}\n\n${normalizedBody}`);
+}
+
 export function noteDescription(value: string | undefined): string {
   return markdownToPlainText(value ?? "");
 }

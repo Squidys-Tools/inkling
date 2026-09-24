@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { markdownToPlainText, normalizeNoteBody, noteBodyForPreview } from "./notes";
+import { markdownToPlainText, normalizeNoteBody, noteBodyForEditor, noteBodyForPreview, noteBodyForStorage } from "./notes";
 
 describe("markdownToPlainText", () => {
   test("removes common note formatting while keeping readable text", () => {
@@ -28,6 +28,24 @@ describe("noteBodyForPreview", () => {
 
   test("keeps a distinct leading heading", () => {
     expect(noteBodyForPreview("# Notes\n\nBody", "Reading list")).toBe("# Notes\n\nBody");
+  });
+});
+
+describe("noteBodyForEditor", () => {
+  test("removes the duplicated title before editing", () => {
+    expect(noteBodyForEditor("# Reading list\n\n- [ ] One", "Reading list")).toBe("- [ ] One");
+  });
+});
+
+describe("noteBodyForStorage", () => {
+  test("restores the original title heading after editing", () => {
+    expect(noteBodyForStorage("# Reading list\n\n- [ ] One", "Reading list", "- [ ] Two")).toBe(
+      "# Reading list\n\n- [ ] Two",
+    );
+  });
+
+  test("does not add a title heading when the source did not have one", () => {
+    expect(noteBodyForStorage("Plain body", "Reading list", "Updated body")).toBe("Updated body");
   });
 });
 
