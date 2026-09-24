@@ -14,6 +14,7 @@ import {
   Bookmark01Icon,
   Camera01Icon,
   Clock01Icon,
+  Database02Icon,
   Grid2X2Icon,
   Edit01Icon,
   HelpCircleIcon,
@@ -61,10 +62,12 @@ import {
   regeneratePairingToken,
   saveFile,
   deleteItem,
+  exportLibrary,
   searchItems,
   searchSimilarItems,
   updateItem,
   type CaptureStatus,
+  type LibraryExportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
   type StoredLibraryItem,
@@ -184,6 +187,25 @@ function formatItemDate(timestamp: number) {
   if (age < 60 * 60 * 1000) return "Just now";
   if (age < 24 * 60 * 60 * 1000) return "Today";
   return date.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+}
+
+function formatByteSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`;
+}
+
+function formatExportSummary(report: LibraryExportReport) {
+  const summary = `${report.items} items · ${report.assetFiles} files · ${formatByteSize(report.databaseBytes + report.assetsBytes)}`;
+  if (report.skippedAssets === 0) return summary;
+  const assets = report.skippedAssets === 1 ? "asset" : "assets";
+  return `${summary} · ${report.skippedAssets} ${assets} skipped`;
 }
 
 function readXPostMetadata(value: unknown): XPostMetadata | undefined {
@@ -655,6 +677,7 @@ const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
 
 const LIBRARY_VIEW_TRANSITION_MS = 440;
 const LIBRARY_VIEW_EASE = "circ.inOut";
+const SERENDIPITY_BATCH_SIZE = 12;
 
 const KIND_ALIASES: Record<string, string> = {
   article: "article",
@@ -1023,11 +1046,12 @@ function ExtensionPairing() {
   };
 
   const testConnection = () => {
-    if (!status?.healthUrl || isTesting) return;
+    const healthUrl = status?.healthUrl;
+    if (!healthUrl || isTesting) return;
     setIsTesting(true);
     const check = async () => {
       const bearer = token ?? await getPairingToken();
-      const response = await fetch(status.healthUrl as string, {
+      const response = await fetch(healthUrl, {
         headers: { Authorization: `Bearer ${bearer}` },
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1105,6 +1129,7 @@ function App() {
   }, [query]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeView, setActiveView] = useState("Everything");
+  const [serendipityKeptIds, setSerendipityKeptIds] = useState<Set<string>>(() => new Set());
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
@@ -1112,9 +1137,11 @@ function App() {
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<"archive" | "extension">("archive");
+  const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("archive");
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? browserArchivedItems : []);
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
+  const [isExportingLibrary, setIsExportingLibrary] = useState(false);
+  const [lastExport, setLastExport] = useState<LibraryExportReport | null>(null);
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
   const [isAdding, setIsAdding] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
@@ -1216,28 +1243,35 @@ function App() {
     }
   }, []);
 
-  const restoreForgottenItem = useCallback(async (item: LibraryItem, toastId: string) => {
+  const restoreForgottenItem = useCallback(async (item: LibraryItem) => {
     try {
       const restoredItem = canUseTauriBackend
         ? await archiveItem(String(item.id), false).then(async (storedItem) => {
             const summary = (await getProcessingSummaries([storedItem.id])).get(storedItem.id);
             return storedItemToLibraryItem(storedItem, summary);
           })
-        : item;
+        : { ...item, archived: false };
       setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
         ? current
         : [restoredItem, ...current]);
-      toast.success("Restored to your library", { id: toastId, closeButton: true });
+      setArchivedItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
+      toast.success("Restored to your library", { duration: 5000, closeButton: true });
     } catch (error) {
-      toast.error("Unable to restore this item", { id: toastId, duration: 5000, closeButton: true });
+      toast.error("Unable to restore this item", { duration: 5000, closeButton: true });
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
-  }, []);
+  }, [canUseTauriBackend]);
 
   const forgetItem = useCallback(async (item: LibraryItem) => {
     setCaptureError(null);
     try {
-      if (canUseTauriBackend) await archiveItem(String(item.id));
+      if (canUseTauriBackend) {
+        await archiveItem(String(item.id));
+      } else {
+        setArchivedItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
+          ? current
+          : [{ ...item, archived: true }, ...current]);
+      }
       setItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
       setSelectedItem(null);
 
@@ -1250,13 +1284,65 @@ function App() {
         className: "library-toast",
         action: {
           label: "Undo",
-          onClick: () => void restoreForgottenItem(item, toastId),
+          onClick: () => void restoreForgottenItem(item),
         },
       });
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
-  }, [restoreForgottenItem]);
+  }, [canUseTauriBackend, restoreForgottenItem]);
+
+  const keepSerendipityItem = useCallback((item: LibraryItem) => {
+    setSerendipityKeptIds((current) => {
+      const id = String(item.id);
+      if (current.has(id)) return current;
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+    setSelectedItem(null);
+  }, []);
+
+  // Export is desktop only: it needs the native folder picker, and the Rust
+  // core writes the snapshot so it stays consistent while the app is running.
+  const exportLibraryToFolder = useCallback(async () => {
+    if (!canUseTauriBackend || isExportingLibrary) return;
+    let destination: string | null = null;
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selection = await open({ directory: true, multiple: false, title: "Choose where to save the export" });
+      destination = typeof selection === "string" ? selection : null;
+    } catch (error) {
+      toast.error("Could not open the folder picker", {
+        description: error instanceof Error ? error.message : String(error),
+        closeButton: true,
+      });
+      return;
+    }
+    if (!destination) return;
+
+    setIsExportingLibrary(true);
+    const toastId = toast.loading("Exporting library…", { description: "Copying the database and its files" });
+    try {
+      const report = await exportLibrary(destination);
+      setLastExport(report);
+      toast.success(report.skippedAssets > 0 ? "Library exported with skipped assets" : "Library exported", {
+        id: toastId,
+        description: formatExportSummary(report),
+        duration: 4000,
+        closeButton: true,
+      });
+    } catch (error) {
+      toast.error("Export failed", {
+        id: toastId,
+        description: error instanceof Error ? error.message : String(error),
+        duration: Infinity,
+        closeButton: true,
+      });
+    } finally {
+      setIsExportingLibrary(false);
+    }
+  }, [canUseTauriBackend, isExportingLibrary]);
 
   const addTagToItem = useCallback(async (item: LibraryItem, tag: string) => {
     const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
@@ -2264,6 +2350,11 @@ function App() {
     };
   }, [isSettingsOpen]);
 
+  // Settings reopens on Archive, the way it behaved while that was the only tab.
+  useEffect(() => {
+    if (!isSettingsOpen) setSettingsTab("archive");
+  }, [isSettingsOpen]);
+
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target;
@@ -2326,7 +2417,9 @@ function App() {
       .then((storedSpaces) => {
         if (!cancelled) setSpaces(storedSpaces);
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+      });
     return () => {
       cancelled = true;
     };
@@ -2450,9 +2543,22 @@ function App() {
     () => spaces.find((space) => space.id === activeSpaceId) ?? null,
     [spaces, activeSpaceId],
   );
+  const isSerendipityView = activeView === "Serendipity" && !activeSpaceId;
+  const serendipityCandidates = useMemo(
+    () => isSerendipityView
+      ? serendipityItems(items, { excludedIds: serendipityKeptIds, limit: items.length })
+      : [],
+    [isSerendipityView, items, serendipityKeptIds],
+  );
+  const serendipityBatch = useMemo(
+    () => serendipityCandidates.slice(0, SERENDIPITY_BATCH_SIZE),
+    [serendipityCandidates],
+  );
+  const serendipityItem = serendipityBatch[0] ?? null;
+  const serendipityRemainingCount = serendipityCandidates.length;
 
   const filteredItems = useMemo(() => {
-    if (activeView === "Serendipity" && !activeSpaceId) return serendipityItems(items);
+    if (isSerendipityView) return serendipityBatch;
     const normalizedQuery = query.trim().toLowerCase();
     return items.filter((item) => {
       const matchesQuery = !normalizedQuery
@@ -2471,7 +2577,7 @@ function App() {
           : false);
       return matchesQuery && matchesView;
     });
-  }, [activeSpace, activeSpaceId, activeView, items, query, similaritySource]);
+  }, [activeSpace, activeSpaceId, activeView, canUseTauriBackend, isSerendipityView, items, query, serendipityBatch, similaritySource]);
 
   // VirtuosoMasonry keys rows by position, so a new result set must remount
   // the grid. Otherwise card state (video playback, embeds) sticks to the
@@ -3224,66 +3330,151 @@ function App() {
 
         <div className="library-toolbar">
           <div className="result-context">
-            <span className="result-count">{filteredItems.length}</span> items in library
-            {similaritySource ? (
-              <span className="search-context">similar to “{similaritySource.title}”</span>
-            ) : query.trim() ? (
+            {isSerendipityView ? (
               <>
-                <span className="search-context">for “{query}”</span>
-                <button type="button" className="quiet-link save-space-link" onClick={beginSaveSearch}>
-                  <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
-                </button>
-              </>
-            ) : null}
-          </div>
-          <div className="toolbar-actions">
-            <div className="view-controls" aria-label="View options">
-              <motion.span
-                className="view-selection"
-                aria-hidden="true"
-                initial={false}
-                animate={{ transform: viewSelectionListMode ? "translateX(30px)" : "translateX(0px)" }}
-                transition={{ duration: LIBRARY_VIEW_TRANSITION_MS / 1000, ease: [0.77, 0, 0.175, 1] }}
-              />
-              <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><HugeiconsIcon icon={Grid2X2Icon} size={16} /></button>
-              <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><HugeiconsIcon icon={ListViewIcon} size={16} /></button>
-            </div>
-          </div>
-        </div>
-
-        <div className="library-scroll" ref={libraryScrollRef}>
-        {filteredItems.length > 0 && (
-          <VirtuosoMasonry
-            key={libraryGridKey}
-            className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
-            columnCount={listMode ? 1 : gridColumnCount}
-            data={filteredItems}
-            context={libraryCardContext}
-            ItemContent={VirtualizedLibraryItem}
-            style={{ height: "100%", width: "100%" }}
-          />
-        )}
-
-        <div ref={libraryTransitionOverlayRef} className="library-transition-overlay" aria-hidden="true" />
-
-        {filteredItems.length === 0 && (
-          <div className="empty-state">
-            <div className="empty-icon"><HugeiconsIcon icon={Search01Icon} size={20} /></div>
-            {similaritySource ? (
-              <>
-                <h2>Nothing similar yet.</h2>
-                <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
+                <span className="result-count">{filteredItems.length}</span> older {filteredItems.length === 1 ? "save" : "saves"} in this walk
               </>
             ) : (
               <>
-                <h2>Nothing surfaced yet.</h2>
-                <p>Try another word, or save something new to your mind.</p>
+                <span className="result-count">{filteredItems.length}</span> items in library
+                {similaritySource ? (
+                  <span className="search-context">similar to “{similaritySource.title}”</span>
+                ) : query.trim() ? (
+                  <>
+                    <span className="search-context">for “{query}”</span>
+                    <button type="button" className="quiet-link save-space-link" onClick={beginSaveSearch}>
+                      <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
+                    </button>
+                  </>
+                ) : null}
               </>
             )}
-            <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
           </div>
+          {!isSerendipityView && (
+            <div className="toolbar-actions">
+              <div className="view-controls" aria-label="View options">
+                <motion.span
+                  className="view-selection"
+                  aria-hidden="true"
+                  initial={false}
+                  animate={{ transform: viewSelectionListMode ? "translateX(30px)" : "translateX(0px)" }}
+                  transition={{ duration: LIBRARY_VIEW_TRANSITION_MS / 1000, ease: [0.77, 0, 0.175, 1] }}
+                />
+                <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><HugeiconsIcon icon={Grid2X2Icon} size={16} /></button>
+                <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><HugeiconsIcon icon={ListViewIcon} size={16} /></button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="library-scroll" ref={libraryScrollRef}>
+        {isSerendipityView ? (
+          <section className="serendipity-stage" aria-labelledby="serendipity-title" data-testid="serendipity-view">
+            <div className="serendipity-intro">
+              <div className="serendipity-intro-copy">
+                <p className="serendipity-eyebrow">A slower look through your library</p>
+                <h1 id="serendipity-title">Something worth finding again?</h1>
+                <p>Keep what still feels useful. Forget what you do not need to carry.</p>
+              </div>
+              <p className="serendipity-progress" role="status" aria-live="polite">
+                {serendipityRemainingCount === 1 ? "1 older item left" : `${serendipityRemainingCount} older items left`}
+              </p>
+            </div>
+
+            {serendipityItem ? (
+              <div className="serendipity-browse">
+                <div className="serendipity-art" data-testid="serendipity-item">
+                  <AnimatePresence initial={false} mode="wait">
+                    <motion.div
+                      key={String(serendipityItem.id)}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+                    >
+                      <VirtualizedLibraryItem data={serendipityItem} index={0} context={libraryCardContext} />
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+                <div className="serendipity-copy">
+                  <div className="serendipity-kicker">
+                    <span><KindIcon kind={serendipityItem.kind} />{serendipityItem.kind}</span>
+                    <span>{serendipityItem.date}</span>
+                  </div>
+                  <h2>{serendipityItem.title}</h2>
+                  {serendipityItem.description && <p className="serendipity-description">{serendipityItem.description}</p>}
+                  {serendipityItem.tags.length > 0 && (
+                    <div className="serendipity-tags" aria-label="Tags">
+                      {serendipityItem.tags.slice(0, 5).map((tag) => <span key={tag}>#{tag}</span>)}
+                    </div>
+                  )}
+                  <div className="serendipity-actions">
+                    <button
+                      type="button"
+                      className="serendipity-keep"
+                      onClick={() => keepSerendipityItem(serendipityItem)}
+                      data-testid="serendipity-keep"
+                    >
+                      <HugeiconsIcon icon={CircleCheckIcon} size={16} /> Keep
+                    </button>
+                    <button
+                      type="button"
+                      className="serendipity-forget"
+                      onClick={() => void forgetItem(serendipityItem)}
+                      data-testid="serendipity-forget"
+                    >
+                      <HugeiconsIcon icon={Archive01Icon} size={16} /> Forget
+                    </button>
+                  </div>
+                  <button type="button" className="serendipity-details" onClick={() => selectLibraryItem(serendipityItem)}>
+                    Open details <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="serendipity-complete" data-testid="serendipity-complete">
+                <div className="empty-icon"><HugeiconsIcon icon={Clock01Icon} size={20} /></div>
+                <h2>That is the whole walk.</h2>
+                <p>You have seen every older item still in your library. Save something new, or come back later.</p>
+                <button type="button" className="text-button" onClick={clearToDefaultView}>Back to Everything</button>
+              </div>
+            )}
+          </section>
+        ) : (
+          <>
+            {filteredItems.length > 0 && (
+              <VirtuosoMasonry
+                key={libraryGridKey}
+                className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
+                columnCount={listMode ? 1 : gridColumnCount}
+                data={filteredItems}
+                context={libraryCardContext}
+                ItemContent={VirtualizedLibraryItem}
+                style={{ height: "100%", width: "100%" }}
+              />
+            )}
+
+            {filteredItems.length === 0 && (
+              <div className="empty-state">
+                <div className="empty-icon"><HugeiconsIcon icon={Search01Icon} size={20} /></div>
+                {similaritySource ? (
+                  <>
+                    <h2>Nothing similar yet.</h2>
+                    <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
+                  </>
+                ) : (
+                  <>
+                    <h2>Nothing surfaced yet.</h2>
+                    <p>Try another word, or save something new to your mind.</p>
+                  </>
+                )}
+                <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
+              </div>
+            )}
+          </>
         )}
 
+        <div ref={libraryTransitionOverlayRef} className="library-transition-overlay" aria-hidden="true" />
         </div>
       </main>
 
@@ -3325,6 +3516,15 @@ function App() {
                     <HugeiconsIcon icon={Archive01Icon} size={16} />
                     <span>Archive</span>
                     <span className="settings-tab-count">{archivedItems.length}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`settings-tab ${settingsTab === "data" ? "active" : ""}`}
+                    aria-current={settingsTab === "data" ? "page" : undefined}
+                    onClick={() => setSettingsTab("data")}
+                  >
+                    <HugeiconsIcon icon={Database02Icon} size={16} />
+                    <span>Data</span>
                   </button>
                   <button
                     type="button"
@@ -3416,6 +3616,61 @@ function App() {
                   )}
                 </div>
               </section>
+              ) : settingsTab === "data" ? (
+                <section className="settings-panel" aria-labelledby="data-panel-title">
+                  <header className="settings-panel-header">
+                    <div className="settings-panel-header-content">
+                      <div className="settings-panel-heading">
+                        <h2 id="data-panel-title">Your library</h2>
+                      </div>
+                      <p className="settings-panel-note">
+                        Everything inkling saves stays on this machine. An export writes a copy you can keep somewhere else.
+                      </p>
+                    </div>
+                    <button
+                      ref={settingsCloseRef}
+                      type="button"
+                      className="icon-button small settings-close"
+                      onClick={() => setIsSettingsOpen(false)}
+                      aria-label="Close settings"
+                    >
+                      <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                    </button>
+                  </header>
+
+                  <div className="settings-data-scroll">
+                    <div className="settings-data-card">
+                      <div className="settings-data-heading">
+                        <HugeiconsIcon icon={Database02Icon} size={17} />
+                        <h3>Export a copy</h3>
+                      </div>
+                      <p>
+                        Writes a dated folder holding a snapshot of the database, the files your items point at, and a manifest
+                        describing both. Keep it on another drive to back the library up.
+                      </p>
+                      <button
+                        type="button"
+                        className={`settings-data-button ${isExportingLibrary ? "is-busy" : ""}`}
+                        disabled={!canUseTauriBackend || isExportingLibrary}
+                        onClick={() => void exportLibraryToFolder()}
+                      >
+                        <HugeiconsIcon icon={isExportingLibrary ? Loading01Icon : ArrowDown01Icon} size={15} />
+                        <span>{isExportingLibrary ? "Exporting…" : "Choose folder and export"}</span>
+                      </button>
+                      {!canUseTauriBackend ? (
+                        <p className="settings-data-hint">Export runs in the desktop app.</p>
+                      ) : null}
+                      {lastExport ? (
+                        <div className="settings-data-result" role="status" aria-live="polite">
+                          <span className="settings-data-summary">
+                            {formatExportSummary(lastExport)}
+                          </span>
+                          <span className="settings-data-path">{lastExport.directory}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </section>
               ) : (
               <section className="settings-panel" aria-labelledby="extension-panel-title">
                 <header className="settings-panel-header">
