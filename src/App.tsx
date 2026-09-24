@@ -57,12 +57,16 @@ import {
   listSpaces,
   getProcessingSummaries,
   retryProcessingJob,
+  getCaptureStatus,
+  getPairingToken,
+  regeneratePairingToken,
   saveFile,
   deleteItem,
   exportLibrary,
   searchItems,
   searchSimilarItems,
   updateItem,
+  type CaptureStatus,
   type LibraryExportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
@@ -70,6 +74,7 @@ import {
   type StoredSpace,
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
+import { parseDeepLinkCapture } from "./lib/deepLink";
 import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
 // local disk on first open (Suspense fallback null: no spinner, no layout
@@ -974,6 +979,133 @@ function clearLibraryTransitionMediaStyle(clone: HTMLElement) {
   mediaFrame?.style.removeProperty("min-height");
 }
 
+// Pairing panel inside the existing Settings modal. Shows the per-install
+// pairing token for the browser extension (reveal-on-click, never rendered
+// by default) with copy, renew, and a live check against /v1/health.
+function ExtensionPairing() {
+  const [status, setStatus] = useState<CaptureStatus | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isRevealed, setIsRevealed] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    void getCaptureStatus()
+      .then(setStatus)
+      .catch(() => setStatus(null));
+  }, []);
+
+  if (!isTauriRuntime()) {
+    return (
+      <div className="settings-empty-state">
+        <div className="settings-empty-icon"><HugeiconsIcon icon={Link01Icon} size={19} /></div>
+        <h4>Pairing needs the desktop app.</h4>
+        <p>Open Settings in the installed app to pair the browser extension.</p>
+      </div>
+    );
+  }
+
+  const revealToken = () => {
+    if (isRevealed) {
+      setIsRevealed(false);
+      setToken(null);
+      return;
+    }
+    void getPairingToken()
+      .then((value) => {
+        setToken(value);
+        setIsRevealed(true);
+      })
+      .catch(() => toast.error("Could not load the pairing token."));
+  };
+
+  const copyToken = () => {
+    if (!token) return;
+    void navigator.clipboard.writeText(token)
+      .then(() => toast.success("Pairing token copied. Paste it into the extension."))
+      .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand."));
+  };
+
+  const renewToken = () => {
+    if (!window.confirm("Renew the pairing token? The extension will need the new token.")) return;
+    void regeneratePairingToken()
+      .then((value) => {
+        setToken(value);
+        setIsRevealed(true);
+        toast.success("New pairing token issued. Update the extension.");
+      })
+      .catch(() => toast.error("Could not renew the pairing token."));
+  };
+
+  const testConnection = () => {
+    const healthUrl = status?.healthUrl;
+    if (!healthUrl || isTesting) return;
+    setIsTesting(true);
+    const check = async () => {
+      const bearer = token ?? await getPairingToken();
+      const response = await fetch(healthUrl, {
+        headers: { Authorization: `Bearer ${bearer}` },
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    };
+    void check()
+      .then(() => toast.success("Extension receiver is reachable."))
+      .catch(() => toast.error("No answer from the receiver. Is the app running?"))
+      .finally(() => setIsTesting(false));
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "22px 2px" }}>
+      <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, lineHeight: 1.6, maxWidth: "52ch" }}>
+        Paste this token into the browser extension once. Saves go straight to this library
+        over a local connection; nothing leaves the machine.
+      </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span className="settings-panel-count" role="status">
+          {status ? (status.running ? `Listening on 127.0.0.1:${status.port}` : "Receiver not running") : "Checking receiver…"}
+        </span>
+        <button
+          type="button"
+          className="settings-batch-button"
+          disabled={!status?.healthUrl || isTesting}
+          onClick={testConnection}
+        >
+          {isTesting ? "Testing…" : "Test connection"}
+        </button>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <code
+          aria-label={isRevealed ? "Pairing token" : "Pairing token hidden"}
+          style={{
+            flex: "1 1 220px",
+            padding: "9px 12px",
+            border: "1px solid var(--rule)",
+            borderRadius: 10,
+            background: "var(--surface-strong)",
+            color: "var(--ink)",
+            font: "12px 'DM Mono', monospace",
+            letterSpacing: "0.02em",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {isRevealed && token ? token : "••••••••••••••••••••••••"}
+        </code>
+        <button type="button" className="settings-batch-button" onClick={revealToken}>
+          {isRevealed ? "Hide" : "Reveal"}
+        </button>
+        <button type="button" className="settings-batch-button" disabled={!isRevealed || !token} onClick={copyToken}>
+          Copy
+        </button>
+        <button type="button" className="settings-batch-button settings-batch-delete" onClick={renewToken}>
+          Renew
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const canUseTauriBackend = isTauriRuntime() && !shouldUseSeedLibrary();
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
@@ -996,9 +1128,9 @@ function App() {
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("archive");
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? browserArchivedItems : []);
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<"archive" | "library">("archive");
   const [isExportingLibrary, setIsExportingLibrary] = useState(false);
   const [lastExport, setLastExport] = useState<LibraryExportReport | null>(null);
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
@@ -1912,14 +2044,43 @@ function App() {
     }
   }
 
-  function extensionCaptureTarget(value: string): string | null {
+  async function captureImageUrl(pageUrl: string, imageUrl: string, captureSource: string) {
+    setCaptureError(null);
+    setIsCapturing(true);
     try {
-      const parsed = new URL(value);
-      if (!["inkling:", "mymind:"].includes(parsed.protocol) || parsed.hostname !== "capture") return null;
-      const target = parsed.searchParams.get("url") ?? parsed.searchParams.get("source");
-      return target && /^https?:\/\//iu.test(target) ? target : null;
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error(`The image returned HTTP ${response.status}.`);
+      const blob = await response.blob();
+      const segment = imageUrl.split("?")[0].split("#")[0].split("/").filter(Boolean).pop() || "image";
+      const file = new File([blob], segment.slice(0, 80), { type: blob.type || "image/png" });
+      await persistFile(file, captureSource);
     } catch {
-      return null;
+      // A direct download can fail on hotlink protection or CORS; the page
+      // itself is still worth keeping.
+      await persistArticle(pageUrl, captureSource);
+    } finally {
+      setIsCapturing(false);
+    }
+  }
+
+  async function handleDeepLinkPayload(payload: unknown) {
+    const values: string[] = Array.isArray(payload)
+      ? payload.filter((value): value is string => typeof value === "string")
+      : typeof payload === "string"
+        ? [payload]
+        : [];
+    for (const value of values) {
+      const capture = parseDeepLinkCapture(value);
+      if (!capture) continue;
+      // Every path creates the provisional card immediately; extraction,
+      // embeddings, and indexing run as background jobs from there.
+      if (capture.kind === "quote") {
+        await persistQuote(capture.selection, capture.attribution, capture.url, "browser extension");
+      } else if (capture.kind === "image") {
+        await captureImageUrl(capture.pageUrl, capture.imageUrl, "browser extension");
+      } else {
+        await captureArticle(capture.url, "browser extension");
+      }
     }
   }
 
@@ -2115,18 +2276,6 @@ function App() {
       });
   }
 
-  async function handleDeepLinkPayload(payload: unknown) {
-    const values: string[] = Array.isArray(payload)
-      ? payload.filter((value): value is string => typeof value === "string")
-      : typeof payload === "string"
-        ? [payload]
-        : [];
-    for (const value of values) {
-      const target = extensionCaptureTarget(value);
-      if (target) await captureArticle(target, "browser extension");
-    }
-  }
-
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (readingItem) return;
@@ -2179,7 +2328,7 @@ function App() {
 
   // Settings reopens on Archive, the way it behaved while that was the only tab.
   useEffect(() => {
-    if (!isSettingsOpen) setSettingsSection("archive");
+    if (!isSettingsOpen) setSettingsTab("archive");
   }, [isSettingsOpen]);
 
   useEffect(() => {
@@ -2538,14 +2687,34 @@ function App() {
     if (selectedItems.length === 0) return;
     setCaptureError(null);
     try {
+      // Restore every item first, then fetch all processing summaries in one
+      // batched call instead of one round trip per restored item.
       const results = await Promise.allSettled(selectedItems.map(async (item) => {
-        if (!canUseTauriBackend) return item;
-        const restoredItem = await archiveItem(String(item.id), false);
-        const summary = (await getProcessingSummaries([restoredItem.id])).get(restoredItem.id);
-        return storedItemToLibraryItem(restoredItem, summary);
+        if (!canUseTauriBackend) return null;
+        return archiveItem(String(item.id), false);
       }));
-      const restoredItems = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
-      const failures = results.filter((result) => result.status === "rejected").length;
+      const restoredStored = results.flatMap((result) => result.status === "fulfilled" && result.value ? [result.value] : []);
+      let failures = results.filter((result) => result.status === "rejected").length;
+      // One batched summaries call for the whole restore. If it fails, the
+      // items are still restored; only their processing badges fall back.
+      let summaries = new Map<string, ProcessingSummary>();
+      try {
+        if (canUseTauriBackend && restoredStored.length > 0) {
+          summaries = await getProcessingSummaries(restoredStored.map((storedItem) => storedItem.id));
+        }
+      } catch {
+        summaries = new Map<string, ProcessingSummary>();
+      }
+      // Convert per item so one unreadable item cannot sink the whole batch.
+      const settled = await Promise.allSettled(restoredStored.map((storedItem) =>
+        storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
+      ));
+      failures += settled.filter((result) => result.status === "rejected").length;
+      const converted = settled.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      const restoredItems: LibraryItem[] = [
+        ...selectedItems.filter(() => !canUseTauriBackend),
+        ...converted,
+      ];
       const restoredIds = new Set(restoredItems.map((item) => String(item.id)));
       setItems((current) => [
         ...restoredItems.filter((item) => !current.some((candidate) => String(candidate.id) === String(item.id))),
@@ -3216,9 +3385,9 @@ function App() {
                 <div className="settings-sidebar-content">
                   <button
                     type="button"
-                    className={`settings-tab ${settingsSection === "archive" ? "active" : ""}`}
-                    aria-current={settingsSection === "archive" ? "page" : undefined}
-                    onClick={() => setSettingsSection("archive")}
+                    className={`settings-tab ${settingsTab === "archive" ? "active" : ""}`}
+                    aria-current={settingsTab === "archive" ? "page" : undefined}
+                    onClick={() => setSettingsTab("archive")}
                   >
                     <HugeiconsIcon icon={Archive01Icon} size={16} />
                     <span>Archive</span>
@@ -3226,17 +3395,26 @@ function App() {
                   </button>
                   <button
                     type="button"
-                    className={`settings-tab ${settingsSection === "library" ? "active" : ""}`}
-                    aria-current={settingsSection === "library" ? "page" : undefined}
-                    onClick={() => setSettingsSection("library")}
+                    className={`settings-tab ${settingsTab === "data" ? "active" : ""}`}
+                    aria-current={settingsTab === "data" ? "page" : undefined}
+                    onClick={() => setSettingsTab("data")}
                   >
                     <HugeiconsIcon icon={Database02Icon} size={16} />
                     <span>Data</span>
                   </button>
+                  <button
+                    type="button"
+                    className={`settings-tab ${settingsTab === "extension" ? "active" : ""}`}
+                    aria-current={settingsTab === "extension" ? "page" : undefined}
+                    onClick={() => setSettingsTab("extension")}
+                  >
+                    <HugeiconsIcon icon={Link01Icon} size={16} />
+                    <span>Extension</span>
+                  </button>
                 </div>
               </aside>
 
-              {settingsSection === "archive" ? (
+              {settingsTab === "archive" ? (
               <section className="settings-panel" aria-labelledby="archive-panel-title">
                 <header className="settings-panel-header">
                   <div className="settings-panel-header-content">
@@ -3314,7 +3492,7 @@ function App() {
                   )}
                 </div>
               </section>
-              ) : (
+              ) : settingsTab === "data" ? (
                 <section className="settings-panel" aria-labelledby="data-panel-title">
                   <header className="settings-panel-header">
                     <div className="settings-panel-header-content">
@@ -3369,6 +3547,32 @@ function App() {
                     </div>
                   </div>
                 </section>
+              ) : (
+              <section className="settings-panel" aria-labelledby="extension-panel-title">
+                <header className="settings-panel-header">
+                  <div className="settings-panel-header-content">
+                    <div className="settings-panel-heading">
+                      <h2 id="extension-panel-title">Browser extension</h2>
+                    </div>
+                    <div className="settings-panel-count-row">
+                      <span className="settings-panel-count">Save pages without leaving the browser</span>
+                    </div>
+                  </div>
+                  <button
+                    ref={settingsCloseRef}
+                    type="button"
+                    className="icon-button small settings-close"
+                    onClick={() => setIsSettingsOpen(false)}
+                    aria-label="Close settings"
+                  >
+                    <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                  </button>
+                </header>
+
+                <div className="settings-archive-scroll">
+                  <ExtensionPairing />
+                </div>
+              </section>
               )}
             </motion.section>
           </motion.div>

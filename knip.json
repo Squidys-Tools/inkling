@@ -1,14 +1,14 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": [
-    "src/main.tsx",
-    "src/**/*.test.ts",
-    "src/lib/ingestion/ingestion.smoke.ts",
-    "benchmarks/harness/index.ts",
-    "benchmarks/**/*.smoke.ts",
-    "benchmarks/fetch-macrumors.ts"
-  ],
-  "project": ["src/**/*", "benchmarks/harness/**/*", "benchmarks/fetch-macrumors.ts"],
-  "ignore": ["src/bun-test.d.ts", "src/vite-env.d.ts"],
-  "ignoreFiles": ["benchmarks/corpus/**", "benchmarks/expected/**", "benchmarks/results/**", "public/**"]
+  "workspaces": {
+    ".": {
+      "entry": ["src/**/*.test.ts", "benchmarks/**/*.smoke.ts"],
+      "project": ["src/**/*", "benchmarks/harness/**/*"],
+      "ignore": ["src/bun-test.d.ts"]
+    },
+    "extension": {
+      "entry": ["content.js", "options.js", "src/background.ts", "src/popup.ts", "src/**/*.test.ts"]
+    },
+    "packages/*": {}
+  }
 }

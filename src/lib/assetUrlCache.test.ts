@@ -38,3 +38,23 @@ test("evicts old entries at the size limit", async () => {
   await resolve("0");
   expect(calls).toBe(4098);
 });
+
+test("recently used entries survive bulk inserts", async () => {
+  const calls: string[] = [];
+  const resolve = createAssetUrlResolver(async (path) => {
+    calls.push(path);
+    return path;
+  }, 4);
+  await resolve("hot");
+  await resolve("a");
+  await resolve("b");
+  await resolve("hot");
+  await resolve("c");
+  await resolve("d");
+  const before = calls.length;
+  expect(await resolve("hot")).toBe("hot");
+  expect(calls.length).toBe(before);
+  await resolve("a");
+  expect(calls.filter((path) => path === "hot")).toHaveLength(1);
+  expect(calls.filter((path) => path === "a")).toHaveLength(2);
+});

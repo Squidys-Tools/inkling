@@ -2,7 +2,7 @@
 
 ## Developer setup
 
-See the "For developers" section in README.md for install steps and commands. You need Bun 1.4.0 (see .bun-version) and a Rust toolchain on Windows.
+See the "For developers" section in README.md for install steps and commands. You need Bun 1.4.2 (see .bun-version) and a Rust toolchain on Windows.
 
 The usual commands are:
 

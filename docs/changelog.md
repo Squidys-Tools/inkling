@@ -29,6 +29,7 @@ Guardrails:
 ### Added
 
 - Library export from Settings (Data tab): writes a dated folder with a consistent SQLite snapshot, the asset files the saved items reference, and a manifest of counts and sizes, after picking a destination folder in a native dialog.
+- Browser extension store prep: Firefox MV3 manifest, local mascot icons, options token field, and store copy draft (`extension/`).
 - Portable Windows PR previews build a self-contained review folder with pinned ONNX Runtime and embedding models, isolated database/assets/models, and a `preview:win` artifact link.
 - Serendipity now shows up to 12 saved items, oldest first, in the existing library grid and clears search when opened.
 - Unit tests for the note card word-count logic, run via `bun test` in CI and the local frontend check (`src/components/ItemMedia.test.ts`)
@@ -40,7 +41,7 @@ Guardrails:
 - GitHub issue templates for bug reports and feature requests (`.github/ISSUE_TEMPLATE/`)
 - Unused-code backlog cleared and gated: dead exports stripped, unused `plugin-opener`/`regenerator-runtime` frontend dependencies pruned, orphaned helpers removed, and `knip:check` promoted to a hard gate in the CI frontend job
 - Scheduled unused-code cleanup: `knip --fix` runs every other day on GitHub runners and opens a PR when it strips exports or prunes dependencies (file deletion stays manual, `knip.json` holds entry/project patterns) (`.github/workflows/knip.yml`, `knip.json`)
-- Weekly markdown link check on GitHub runners, opening an issue on broken links (local dev hosts and `inkling://` / `mymind://` schemes excluded) (`.github/workflows/links.yml`, `.lycheeignore`)
+- Weekly markdown link check on GitHub runners, opening an issue on broken links (local dev hosts and the `inkling://` scheme excluded) (`.github/workflows/links.yml`, `.lycheeignore`)
 - Committed web-preview demo library: 24 personal items (photos, art, UI references, one clip) plus four keepers from the original set, shuffled with a fixed seed so the order is mixed but stable; images live compressed by hand in `public/seed-demo/` with titles in `src/seedPersonal.ts` (`src/seedPersonal.ts`, `src/App.tsx`, `public/seed-demo/`)
 - README screenshots of the visual library grid and the expanded item detail view (`docs/assets/screenshots/library.png`, `docs/assets/screenshots/detail.png`), plus reserved slots for demo clips (`docs/assets/demo/`) and upcoming mascots (`docs/assets/mascots/`)
 - README shows the inkling mascot (idle, wink, wide, notify states sampled from the live engine via `bun scripts/mascot-board.ts`), and the desktop app icon is the idle mascot (`README.md`, `src-tauri/icons/`)
@@ -51,7 +52,7 @@ Guardrails:
 ### Changed
 
 - CI, CodeQL, dependency review, and labeled preview builds now skip documentation-only and demo-data-only follow-up pushes while still running for mixed changes.
-- Desktop window enforces a 960 × 640 minimum size so the library layout remains usable when resized.
+- Desktop window enforces a 1000 × 800 minimum size so the library layout remains usable when resized.
 - README rewritten as a user-facing overview (tour, screenshots, demo/mascot placeholders, FAQ) with the developer setup and docs index moved to a short section at the end (`README.md`)
 - CI and security workflows skip docs-only changes and run only the jobs whose paths changed (frontend vs. native vs. dependencies), cutting redundant check runs on documentation pushes (`.github/workflows/ci.yml`, `.github/workflows/security.yml`)
 - `bun run check:frontend` now includes `knip:check` (same order as the CI frontend job), so unused-code failures surface locally before push
@@ -71,6 +72,7 @@ Guardrails:
 ### Removed
 
 - Unused Penpot design folder (`pen/`); CI/security path filters no longer ignore it
+- Lefthook dependency, hook installer, and local formatting and frontend-check Git hooks. Entire continues to manage its own hooks.
 - Dead `note-art` / `note-pin` / `note-scribble` card styles left over from the note thumbnail reuse (`src/App.css`)
 ### Fixed
 
@@ -80,6 +82,9 @@ Guardrails:
 - Pre-push frontend check installs dependencies with lifecycle scripts skipped, so pushing no longer triggers a nested `lefthook install` that clashed with the Entire hook wrapper and blocked `git push`
 - Hook setup is now idempotent (`scripts/setup-hooks.ts` via `prepare`): routine installs leave Entire-wrapped lefthook hooks untouched, and linked worktrees share the main checkout's hooks so they need no setup
 - Undoing a forgotten item shows its `Restored to your library` confirmation again: it was raised under the id of the forget toast the same click had dismissed, so it never rendered (`src/App.tsx`)
+- Browser extension parses untrusted extraction HTML with `DOMParser` instead of `innerHTML`, and the pending-capture queue is bounded by both entry count and byte budget so it cannot exhaust the browser storage quota
+- Library reopen now detects and rebuilds a partial full-text index and recreates missing search triggers instead of trusting table existence; a healthy reopen still writes nothing (`src-tauri/src/storage.rs`)
+- Bulk archive restore fetches processing summaries in one batched query instead of one per item, and the asset URL cache now evicts least-recently-used entries so frequently viewed covers survive large imports (`src/App.tsx`, `src/lib/assetUrlCache.ts`)
 
 ---
 
@@ -172,7 +177,7 @@ Guardrails:
 - SQLite storage with FTS5 full-text search (`src-tauri/src/storage.rs`)
 - URL and file capture pipeline with article extraction (Defuddle + fallback)
 - File picker, drag-and-drop, clipboard, and screenshot capture
-- Browser-extension deep link (`inkling://capture?url=<url>`; earlier `mymind://` links remain supported)
+- Browser-extension deep link (`inkling://capture?url=<url>`)
 - Background job queue for async processing (`src-tauri/src/jobs.rs`)
 - Thumbnail generation and content-addressed asset storage
 - Safe embed allowlists (YouTube, Vimeo, direct media)

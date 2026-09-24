@@ -94,6 +94,20 @@ function isAlive(pid) {
   }
 }
 
+function processForPort(port) {
+  if (process.platform !== "win32") return null;
+  const result = spawnSync("netstat", ["-ano", "-p", "tcp"], { encoding: "utf8" });
+  if (result.status !== 0 || !result.stdout) return null;
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const columns = line.trim().split(/\s+/);
+    if (columns.length >= 5 && columns[0].toUpperCase() === "TCP" && columns[1].endsWith(`:${port}`) && columns[3].toUpperCase() === "LISTENING") {
+      const pid = Number(columns[4]);
+      return Number.isInteger(pid) && pid > 0 ? pid : null;
+    }
+  }
+  return null;
+}
+
 function record(dir, command, argv, summary) {
   try {
     mkdirSync(dir, { recursive: true });
@@ -287,13 +301,18 @@ function resolveChrome(explicit) {
     "C:/Program Files/Google/Chrome/Application/chrome.exe",
     "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
     process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, "Google", "Chrome", "Application", "chrome.exe"),
+    "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
+    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+    process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, "Microsoft", "Edge", "Application", "msedge.exe"),
+    "C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe",
+    "C:/Program Files (x86)/BraveSoftware/Brave-Browser/Application/brave.exe",
     "/usr/bin/google-chrome",
     "/usr/bin/chromium",
   ].filter((candidate) => typeof candidate === "string" && candidate.length > 0);
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;
   }
-  fail("Chrome not found. Set CHROME_PATH or pass --chrome <path-to-chrome>.");
+  fail("Chrome, Edge, or Chromium not found. Set CHROME_PATH or pass --chrome <path-to-browser>.");
 }
 
 async function commandServe(args) {
@@ -446,8 +465,9 @@ async function commandStart(args) {
   if (args.headful !== true) chromeArgs.unshift("--headless=new");
   const child = spawn(chrome, chromeArgs, { detached: true, stdio: "ignore" });
   child.unref();
-  writeState(dir, "browser.json", {
+  const browserState = {
     pid: child.pid,
+    launcherPid: child.pid,
     debugPort,
     profileDir,
     chrome,
@@ -455,21 +475,26 @@ async function commandStart(args) {
     headful: args.headful === true,
     url: server.url,
     startedAt: new Date().toISOString(),
-  });
+  };
+  writeState(dir, "browser.json", browserState);
 
-  log(`starting Chrome (pid ${child.pid}) on debug port ${debugPort}`);
+  log(`starting browser (pid ${child.pid}) on debug port ${debugPort}`);
   let url = args.url ?? server.url;
   let target;
   let cdp;
+  let browserPid = child.pid;
   try {
     target = await pollUntil(
       async () => {
-        if (!isAlive(child.pid)) throw new Error("Chrome exited during startup");
+        if (!isAlive(child.pid) && processForPort(debugPort) == null) throw new Error("browser exited during startup");
         const found = pageTarget(await listTargets(debugPort));
         return found ?? null;
       },
-      { label: "a Chrome page target" },
+      { label: "a browser page target" },
     );
+    browserPid = processForPort(debugPort) ?? child.pid;
+    browserState.pid = browserPid;
+    writeState(dir, "browser.json", browserState);
     cdp = await Cdp.connect(target.webSocketDebuggerUrl);
     await cdp.send("Page.enable");
     await cdp.send("Runtime.enable");
@@ -493,11 +518,11 @@ async function commandStart(args) {
     });
   } catch (error) {
     cdp?.close();
-    killTree(child.pid, "browser");
+    killTree(processForPort(debugPort) ?? browserPid, "browser");
     fail(error.message);
   }
   cdp.close();
-  record(dir, "start", args._, { ok: true, pid: child.pid, debugPort, url: target.url });
+  record(dir, "start", args._, { ok: true, pid: browserPid, debugPort, url: target.url });
   log(`ready: ${url}\nrun dir: ${dir}`);
 }
 
@@ -622,7 +647,7 @@ async function commandKey(args) {
   const { cdp } = await connect(args);
   const known = {
     Escape: { key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 },
-    Enter: { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 },
+    Enter: { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: "\r", unmodifiedText: "\r" },
     Tab: { key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 },
     Slash: { key: "/", code: "Slash", windowsVirtualKeyCode: 191, text: "/" },
   };
