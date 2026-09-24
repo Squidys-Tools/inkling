@@ -14,6 +14,7 @@
     "decorum:allow-show-snap-overlay",
     "mcp-bridge:default",
     "opener:default",
+    "dialog:allow-open",
     "deep-link:default"
   ]
 }

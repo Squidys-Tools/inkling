@@ -27,9 +27,10 @@ permissions:
 jobs:
   changes:
     name: Detect changes
-    # Push-to-main gate only. PRs and scheduled scans always run the full
-    # matrix, so no filter outputs are needed for those events.
-    if: github.event_name == 'push'
+    # Detect the files introduced by the current push. For PR synchronize
+    # events, comparing against the previous head prevents a docs-only follow-
+    # up commit from rerunning the full security matrix.
+    if: always() && !cancelled()
     runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -37,10 +38,12 @@ jobs:
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       native: ${{ steps.filter.outputs.native }}
+      relevant: ${{ steps.filter.outputs.relevant }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           # Full history so the path filter diffs the real change set.
           # A shallow checkout can yield an empty diff and silently skip jobs.
           fetch-depth: 0
@@ -51,10 +54,24 @@ jobs:
         # hijacked floating tag must not be able to falsify filter outputs.
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
+          # An empty token makes paths-filter use the checked-out commit range,
+          # so PR synchronize events can inspect only the newest push.
+          token: ''
+          base: ${{ github.event.before || github.event.pull_request.base.sha }}
+          predicate-quantifier: some-with-excludes
           filters: |
+            relevant:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!AGENTS.md'
+              - '!public/seed-demo/**'
+              - '!src/seedPersonal.ts'
             frontend:
               - 'src/**'
               - 'public/**'
+              - '!src/seedPersonal.ts'
+              - '!public/seed-demo/**'
               - 'benchmarks/**'
               - 'index.html'
               - 'package.json'
@@ -107,7 +124,7 @@ jobs:
     if: >-
       always() && !cancelled() &&
       (github.event_name == 'schedule' ||
-       needs.gate.outputs.scan == 'true' ||
+       (needs.gate.outputs.scan == 'true' && needs.changes.outputs.frontend == 'true') ||
        (github.event_name == 'push' && needs.changes.outputs.frontend == 'true'))
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
@@ -133,7 +150,7 @@ jobs:
     if: >-
       always() && !cancelled() &&
       (github.event_name == 'schedule' ||
-       needs.gate.outputs.scan == 'true' ||
+       (needs.gate.outputs.scan == 'true' && needs.changes.outputs.native == 'true') ||
        (github.event_name == 'push' && needs.changes.outputs.native == 'true'))
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
@@ -155,9 +172,12 @@ jobs:
 
   dependency-review:
     name: Dependency review
-    # Runs on every PR with no path gate: dependency changes are exactly what
-    # this job exists to catch, and a filter failure must never skip it.
-    if: github.event_name == 'pull_request'
+    # Dependency review is unnecessary for documentation and demo-data-only
+    # pushes, but remains required for every PR push that changes real files.
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.relevant == 'true'
     runs-on: blacksmith-2vcpu-ubuntu-2404
 
     steps:

@@ -16,6 +16,7 @@ Index of project documentation. Product docs describe what inkling is; operation
 ## Planning
 
 - [roadmap.md](roadmap.md) — milestones and status.
+- [bugs.md](bugs.md) — open defects with severity and where the code is. Start here when picking up unfinished work.
 - [changelog.md](changelog.md) — completed work; append under `Unreleased` (`Added`/`Changed`/`Fixed`/`Removed`). See its header for the format.
 
 ## Contributor operations
