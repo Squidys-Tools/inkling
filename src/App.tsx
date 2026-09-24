@@ -6,7 +6,6 @@ import { gsap } from "gsap";
 import { Toaster, toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Alert01Icon,
   AlertCircleIcon,
   Archive01Icon,
   ArrowDown01Icon,
@@ -35,10 +34,8 @@ import {
   Cancel01Icon,
   CircleCheckIcon,
   CircleIcon,
-  CheckIcon,
   CheckListIcon,
   FileTextIcon,
-  Undo02Icon,
 } from "@hugeicons/core-free-icons";
 import {
   assetUrl,
@@ -1251,7 +1248,6 @@ function App() {
         duration: 5000,
         closeButton: true,
         className: "library-toast",
-        icon: <HugeiconsIcon icon={Undo02Icon} size={13} color="var(--orange)" />,
         action: {
           label: "Undo",
           onClick: () => void restoreForgottenItem(item, toastId),
@@ -3515,8 +3511,8 @@ function App() {
         closeButton
         duration={5000}
         icons={{
-          success: <HugeiconsIcon icon={CheckIcon} size={15} color="var(--orange)" />,
-          error: <HugeiconsIcon icon={Alert01Icon} size={15} color="var(--orange)" />,
+          success: <></>,
+          error: <></>,
           close: <HugeiconsIcon icon={Cancel01Icon} size={12} color="currentColor" />,
         }}
         containerAriaLabel="Notifications"

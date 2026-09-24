@@ -314,6 +314,7 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 [data-sonner-toast][data-styled="true"] [data-close-button] { left: auto; right: 0; width: 22px; height: 22px; transform: translate(35%, -35%); }
+[data-sonner-toast] [data-icon]:empty { display: none !important; }
 
 /* Drawer label — action toasts (Undo, persistent choices). Slim catalog slip. */
 .library-toast[data-sonner-toast] { width: min(420px, calc(100vw - 32px)); padding: 12px 14px; border: 0; border-radius: var(--toggle-radius); background: var(--surface-strong); color: var(--ink); box-shadow: 0 14px 34px rgba(0, 0, 0, .42); font-family: "DM Sans", ui-sans-serif, sans-serif; }
