@@ -2400,7 +2400,9 @@ function App() {
       .then((storedSpaces) => {
         if (!cancelled) setSpaces(storedSpaces);
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+      });
     return () => {
       cancelled = true;
     };
