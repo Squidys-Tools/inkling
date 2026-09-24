@@ -316,7 +316,7 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 [data-sonner-toast][data-styled="true"] [data-close-button] { left: auto; right: 0; width: 22px; height: 22px; transform: translate(35%, -35%); }
 [data-sonner-toast] [data-icon]:empty { display: none !important; }
 [data-sonner-toaster][data-sonner-theme="dark"] [data-sonner-toast][data-styled="true"] { background: var(--surface-strong) !important; color: var(--ink); }
-[data-sonner-toaster][data-sonner-theme="dark"] [data-sonner-toast][data-styled="true"] [data-close-button] { background: var(--surface-strong) !important; border-color: var(--surface-strong) !important; }
+[data-sonner-toaster][data-sonner-theme="dark"] [data-sonner-toast][data-styled="true"] [data-close-button] { background: var(--surface-strong) !important; border: 1px solid var(--rule) !important; }
 
 /* Drawer label — action toasts (Undo, persistent choices). Slim catalog slip. */
 .library-toast[data-sonner-toast] { width: min(420px, calc(100vw - 32px)); padding: 12px 14px; border: 0; border-radius: var(--toggle-radius); background: var(--surface-strong); color: var(--ink); box-shadow: 0 14px 34px rgba(0, 0, 0, .42); font-family: "DM Sans", ui-sans-serif, sans-serif; }
@@ -346,23 +346,10 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 [data-sonner-toast][data-type="success"] [data-close-button]:hover,
 [data-sonner-toast][data-type="error"] [data-close-button]:hover { background: #34312d; border-color: #5a5750; color: var(--ink); }
 
-/* Ink slip motion — enter and exit from the top-right edge. */
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-y-position="top"][data-type="success"],
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-y-position="top"][data-type="error"] { --y: translateX(100%); }
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-mounted="true"][data-expanded="true"][data-type="success"],
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-mounted="true"][data-expanded="true"][data-type="error"],
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-mounted="true"][data-expanded="false"][data-front="true"][data-type="success"],
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-mounted="true"][data-expanded="false"][data-front="true"][data-type="error"] { --y: translateX(0); }
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-removed="true"][data-front="true"][data-swipe-out="false"][data-type="success"],
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-removed="true"][data-front="true"][data-swipe-out="false"][data-type="error"],
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-removed="true"][data-front="false"][data-swipe-out="false"][data-expanded="true"][data-type="success"],
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-removed="true"][data-front="false"][data-swipe-out="false"][data-expanded="true"][data-type="error"] { --y: translateX(100%); }
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-y-position="top"][data-type="success"]:not([data-mounted="true"]),
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-y-position="top"][data-type="error"]:not([data-mounted="true"]) { transform: translateX(100%) !important; }
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-mounted="true"][data-front="true"][data-type="success"],
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-mounted="true"][data-front="true"][data-type="error"] { transform: translateX(0) !important; }
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-removed="true"][data-front="true"][data-swipe-out="false"][data-type="success"],
-[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-removed="true"][data-front="true"][data-swipe-out="false"][data-type="error"] { transform: translateX(100%) !important; }
+/* Toast motion — enter and exit from the right edge. */
+[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-y-position="top"]:not([data-mounted="true"]) { transform: translateX(100%) !important; }
+[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-mounted="true"][data-front="true"] { transform: translateX(0) !important; }
+[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-removed="true"][data-front="true"][data-swipe-out="false"] { transform: translateX(100%) !important; }
 
 .view-controls { position: relative; }
 .view-selection { position: absolute; top: 3px; left: 3px; z-index: 0; width: 28px; height: 25px; border-radius: calc(var(--toggle-radius) - 3px); background: #36363654; pointer-events: none; }
