@@ -74,6 +74,7 @@ Guardrails:
 ### Fixed
 
 - Extension and deep-link URL captures no longer fail with "The page could not be downloaded": the desktop app downloads pages through Rust instead of the webview (avoiding CORS), keeps a provisional URL card when download or extraction still fails, and preserves the extension title on that card (`src-tauri/src/http_fetch.rs`, `src/lib/tauriFetch.ts`, `src/App.tsx`, `src/lib/deepLink.ts`)
+- Captured article favicons are cached as local assets in the background, so the card seal loads reliably without depending on the remote site (`src-tauri/src/http_fetch.rs`, `src-tauri/src/storage.rs`, `src-tauri/src/capture_server.rs`, `src/App.tsx`, `src/lib/libraryApi.ts`)
 - Source links in the expanded item overlay and reader footer open in the system browser again (webview `window.open` was a no-op; now routed through the opener plugin) (`src/lib/openExternalUrl.ts`)
 - Browser extension pairing survives app restarts: the capture server rebinds its last successful loopback port when free (otherwise falls back to ephemeral), and Settings → Extension now shows a copyable app address for the extension's base URL field (`src-tauri/src/capture_server.rs`, `src/App.tsx`, `src/lib/libraryApi.ts`)
 - Portable Windows previews use the same Cargo output directory for building and packaging, even when `CARGO_TARGET_DIR` is set (#53).

@@ -217,6 +217,10 @@ export async function createUrl(input: CreateUrlInput) {
   return invoke<StoredLibraryItem>("create_url", { input });
 }
 
+export async function cacheFavicon(itemId: string, url: string) {
+  return invoke<string>("cache_favicon", { itemId, url });
+}
+
 export async function saveFile(input: SaveFileInput) {
   return invoke<StoredLibraryItem>("save_file", { input });
 }

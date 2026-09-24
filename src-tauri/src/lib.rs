@@ -78,6 +78,7 @@ pub fn run() {
             storage::create_url,
             storage::save_file,
             storage::resolve_asset_path,
+            storage::cache_favicon,
             storage::update_item,
             storage::archive_item,
             storage::delete_item,

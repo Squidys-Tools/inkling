@@ -96,11 +96,13 @@ export function articleHostHue(host: string): number {
 // initial). Sits absolute inside `.card-paper-art` (grid) or the overlay
 // media band — same nesting pattern as NoteArtwork/PdfArtwork.
 export function ArticleArtwork({ item }: { item: LibraryItem }) {
-  const [faviconFailed, setFaviconFailed] = useState(false);
+  // Track the failed src (not a boolean) so a later local-path swap retries.
+  const [failedFavicon, setFailedFavicon] = useState<string | null>(null);
   const host = articleHostLabel(item);
   const hue = articleHostHue(host);
   const initial = (host.replace(/[^a-z0-9]/giu, "")[0] ?? "i").toUpperCase();
-  const showFavicon = Boolean(item.favicon) && !faviconFailed;
+  const favicon = item.favicon;
+  const showFavicon = favicon !== undefined && favicon !== failedFavicon;
   return (
     <div
       className="article-art"
@@ -110,14 +112,14 @@ export function ArticleArtwork({ item }: { item: LibraryItem }) {
       <span className="paper-line line-one" />
       <span className="paper-line line-two" />
       <span className="paper-seal">
-        {showFavicon ? (
+        {favicon !== undefined && showFavicon ? (
           <img
-            src={item.favicon}
+            src={favicon}
             alt=""
             className="paper-seal-icon"
-            loading="lazy"
             decoding="async"
-            onError={() => setFaviconFailed(true)}
+            referrerPolicy="no-referrer"
+            onError={() => setFailedFavicon(favicon ?? null)}
           />
         ) : (
           initial

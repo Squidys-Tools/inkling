@@ -1086,8 +1086,20 @@ fn store_capture(app: &AppHandle, input: crate::storage::CreateUrlInput) -> Resu
     let item = storage.create_url(input).map_err(|_| 503u16)?;
     let _ = crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id);
     let id = item.id.clone();
+    let favicon = item
+        .metadata
+        .get("favicon")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
     drop(guard);
     processing.enqueue_and_wake(&id, crate::jobs::JobKind::GenerateEmbedding);
+    if let Some(url) = favicon {
+        let app = app.clone();
+        let item_id = id.clone();
+        std::thread::spawn(move || {
+            let _ = crate::storage::cache_favicon_in_background(&app, &item_id, &url);
+        });
+    }
     Ok(id)
 }
 

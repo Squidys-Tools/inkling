@@ -43,6 +43,7 @@ import {
   createQuote,
   createSpace,
   createUrl,
+  cacheFavicon,
   swapSpacePositions,
   updateSpace,
   currentDeepLinks,
@@ -260,6 +261,15 @@ async function storedItemToLibraryItem(
     typeof item.metadata.favicon === "string" && /^https?:\/\//iu.test(item.metadata.favicon)
       ? item.metadata.favicon
       : undefined;
+  const metadataFaviconPath =
+    typeof item.metadata.faviconPath === "string" &&
+    item.metadata.faviconPath.startsWith("assets/") &&
+    !item.metadata.faviconPath.includes("..")
+      ? item.metadata.faviconPath
+      : undefined;
+  const localFavicon = metadataFaviconPath
+    ? await assetUrl(metadataFaviconPath).catch(() => undefined)
+    : undefined;
 
   const remoteImage = Array.isArray(item.metadata.imageUrls)
     ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")
@@ -297,7 +307,7 @@ async function storedItemToLibraryItem(
     description: social?.text?.trim() || rawDescription,
     source,
     sourceUrl: item.sourceUrl ?? undefined,
-    favicon: metadataFavicon,
+    favicon: localFavicon ?? metadataFavicon,
     date: formatItemDate(item.createdAt),
     createdAt: item.createdAt,
     tags,
@@ -1860,6 +1870,19 @@ function App() {
       });
       const libraryItem = await storedItemToLibraryItem(storedItem);
       setItems((current) => [libraryItem, ...current]);
+      if (article.favicon) {
+        void cacheFavicon(storedItem.id, article.favicon)
+          .then(async (path) => {
+            const favicon = await assetUrl(path);
+            if (!favicon) return;
+            setItems((current) =>
+              current.map((item) =>
+                String(item.id) === storedItem.id ? { ...item, favicon } : item,
+              ),
+            );
+          })
+          .catch(() => undefined);
+      }
       return;
     }
 

@@ -514,6 +514,51 @@ impl LibraryStorage {
         self.get_item(&id)?.ok_or(StorageError::NotFound(id))
     }
 
+    pub(crate) fn store_favicon(
+        &self,
+        item_id: &str,
+        bytes: &[u8],
+        extension: &str,
+    ) -> Result<String, StorageError> {
+        let item_id = validate_item_id(item_id.to_owned())?;
+        let extension = extension.trim().to_ascii_lowercase();
+        if !matches!(
+            extension.as_str(),
+            "ico" | "png" | "svg" | "jpg" | "webp" | "gif"
+        ) {
+            return Err(StorageError::InvalidInput(
+                "favicon extension is not supported".into(),
+            ));
+        }
+        if bytes.is_empty() {
+            return Err(StorageError::InvalidInput(
+                "favicon bytes cannot be empty".into(),
+            ));
+        }
+
+        let item_directory = self.assets_directory().join(&item_id);
+        fs::create_dir_all(&item_directory)?;
+        let favicon_path = item_directory.join(format!("favicon.{extension}"));
+        fs::write(&favicon_path, bytes)?;
+        let relative_path = relative_asset_path(&favicon_path, &self.assets_root())?;
+
+        let current_metadata: String = self.connection.query_row(
+            "SELECT metadata FROM items WHERE id = ?1",
+            params![item_id],
+            |row| row.get::<_, String>(0),
+        )?;
+        let mut metadata: Map<String, Value> =
+            serde_json::from_str(&current_metadata).unwrap_or_default();
+        metadata.insert("faviconPath".into(), Value::String(relative_path.clone()));
+        let metadata_json = serde_json::to_string(&Value::Object(metadata))?;
+        self.connection.execute(
+            "UPDATE items SET metadata = ?1 WHERE id = ?2",
+            params![metadata_json, item_id],
+        )?;
+
+        Ok(relative_path)
+    }
+
     pub(crate) fn save_file(&self, input: SaveFileInput) -> Result<ItemDto, StorageError> {
         if input.bytes.len() > MAX_FILE_BYTES {
             return Err(StorageError::InvalidInput(format!(
@@ -1595,6 +1640,35 @@ pub fn resolve_asset_path(path: String, state: State<'_, StorageState>) -> Resul
 }
 
 #[tauri::command]
+pub fn cache_favicon(item_id: String, url: String, app: AppHandle) -> Result<String, String> {
+    let (bytes, extension) = crate::http_fetch::download_favicon(&url)?;
+    let state = app.state::<StorageState>();
+    let guard = state.lock().map_err(String::from)?;
+    let storage = guard
+        .as_ref()
+        .ok_or_else(|| StorageError::NotInitialized.to_string())?;
+    storage
+        .store_favicon(&item_id, &bytes, &extension)
+        .map_err(String::from)
+}
+
+pub(crate) fn cache_favicon_in_background(
+    app: &AppHandle,
+    item_id: &str,
+    url: &str,
+) -> Result<String, String> {
+    let (bytes, extension) = crate::http_fetch::download_favicon(url)?;
+    let state = app.state::<StorageState>();
+    let guard = state.lock().map_err(String::from)?;
+    let storage = guard
+        .as_ref()
+        .ok_or_else(|| StorageError::NotInitialized.to_string())?;
+    storage
+        .store_favicon(item_id, &bytes, &extension)
+        .map_err(String::from)
+}
+
+#[tauri::command]
 pub fn update_item(
     input: UpdateItemInput,
     state: State<'_, StorageState>,
@@ -1951,6 +2025,16 @@ fn article_metadata(
         }
     } else {
         metadata.remove("favicon");
+    }
+    if let Some(Value::String(path)) = metadata.get("faviconPath").cloned() {
+        let normalized = path.replace('\\', "/");
+        if normalized.starts_with("assets/") && !normalized.contains("..") {
+            metadata.insert("faviconPath".into(), Value::String(normalized));
+        } else {
+            metadata.remove("faviconPath");
+        }
+    } else {
+        metadata.remove("faviconPath");
     }
 
     Ok(Value::Object(metadata))
@@ -2748,6 +2832,35 @@ mod tests {
         let items = storage.list_space_items(&article_space.id, 50).unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].kind, "url");
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn stores_favicon_asset_without_changing_item_timestamp() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-favicon-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://example.com/article".into(),
+                title: Some("Article".into()),
+                description: None,
+                body: "body".into(),
+                metadata: Some(serde_json::json!({ "favicon": "https://example.com/favicon.png" })),
+            })
+            .unwrap();
+        let path = storage
+            .store_favicon(&item.id, b"favicon-bytes", "png")
+            .unwrap();
+        let stored = storage.get_item(&item.id).unwrap().unwrap();
+
+        assert_eq!(path, format!("assets/items/{}/favicon.png", item.id));
+        assert_eq!(stored.metadata["faviconPath"], path);
+        assert_eq!(stored.updated_at, item.updated_at);
+        assert_eq!(fs::read(directory.join(path)).unwrap(), b"favicon-bytes");
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();

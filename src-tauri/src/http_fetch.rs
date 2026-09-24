@@ -100,6 +100,97 @@ fn validate_fetch_url(input: &str) -> Result<Url, String> {
     Ok(parsed)
 }
 
+const MAX_FAVICON_BYTES: u64 = 128 * 1024;
+const MAX_FAVICON_REDIRECTS: u32 = 5;
+
+fn favicon_extension(content_type: &str, url: &Url) -> &'static str {
+    let mime = content_type
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    match mime.as_str() {
+        "image/x-icon" | "image/vnd.microsoft.icon" => "ico",
+        "image/png" => "png",
+        "image/svg+xml" => "svg",
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        _ => match url
+            .path()
+            .rsplit('.')
+            .next()
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "png" => "png",
+            "svg" => "svg",
+            "jpg" | "jpeg" => "jpg",
+            "webp" => "webp",
+            "gif" => "gif",
+            _ => "ico",
+        },
+    }
+}
+
+pub(crate) fn download_favicon(url: &str) -> Result<(Vec<u8>, String), String> {
+    let mut current = validate_fetch_url(url)?;
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .max_redirects(0)
+        .timeout_global(Some(Duration::from_secs(10)))
+        .build()
+        .into();
+
+    for _ in 0..MAX_FAVICON_REDIRECTS {
+        let mut response = agent
+            .get(current.as_str())
+            .header("User-Agent", "inkling/1.0")
+            .header("Accept", "image/*,*/*;q=0.8")
+            .call()
+            .map_err(|error| match error {
+                ureq::Error::Timeout(_) => format!("timeout: {error}"),
+                other => format!("network-error: {other}"),
+            })?;
+
+        let status = response.status().as_u16();
+        if (300..400).contains(&status) {
+            let location = response
+                .headers()
+                .get("location")
+                .and_then(|value| value.to_str().ok())
+                .ok_or_else(|| "network-error: redirect is missing a location".to_owned())?;
+            let next = current
+                .join(location)
+                .map_err(|_| "invalid-url: Redirect target could not be parsed.".to_owned())?;
+            current = validate_fetch_url(next.as_str())?;
+            continue;
+        }
+        if !(200..300).contains(&status) {
+            return Err(format!("http-status: favicon returned HTTP {status}"));
+        }
+
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("")
+            .to_owned();
+        if content_type.to_ascii_lowercase().contains("text/html") {
+            return Err("invalid-favicon: Response is HTML, not an image.".into());
+        }
+        let bytes = read_limited(response.body_mut(), MAX_FAVICON_BYTES)?;
+        if bytes.is_empty() {
+            return Err("invalid-favicon: Response body is empty.".into());
+        }
+        let ext = favicon_extension(&content_type, &current);
+        return Ok((bytes, ext.to_owned()));
+    }
+
+    Err("network-error: Too many redirects while fetching the favicon.".into())
+}
+
 fn read_limited(body: &mut ureq::Body, max_bytes: u64) -> Result<Vec<u8>, String> {
     let mut reader = body.as_reader().take(max_bytes.saturating_add(1));
     let mut buffer = Vec::new();
@@ -191,5 +282,20 @@ mod tests {
         assert!(validate_fetch_url("http://printer.local/").is_err());
         assert!(validate_fetch_url("http://db.internal/").is_err());
         assert!(validate_fetch_url("http://foo.localhost/").is_err());
+    }
+
+    #[test]
+    fn derives_favicon_extensions_from_content_type_and_url() {
+        let url = Url::parse("https://example.com/assets/logo.svg").unwrap();
+        assert_eq!(favicon_extension("image/png", &url), "png");
+        assert_eq!(favicon_extension("image/svg+xml", &url), "svg");
+        assert_eq!(favicon_extension("application/octet-stream", &url), "svg");
+        assert_eq!(
+            favicon_extension(
+                "application/octet-stream",
+                &Url::parse("https://example.com/favicon").unwrap()
+            ),
+            "ico"
+        );
     }
 }
