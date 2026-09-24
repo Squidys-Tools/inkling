@@ -91,7 +91,7 @@ const ExpandedItemOverlay = lazy(() =>
 import { LiveMascotFigure, LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
-import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
+import { ArticleArtwork, KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
 const ReaderView = lazy(() =>
   import("./ReaderView").then((module) => ({ default: module.ReaderView })),
 );
@@ -132,6 +132,7 @@ export type LibraryItem = {
   fileUrl?: string;
   imageAlt?: string;
   sourceUrl?: string;
+  favicon?: string;
   author?: string;
   social?: XPostMetadata;
   post?: {
@@ -255,6 +256,10 @@ async function storedItemToLibraryItem(
   const pdfPageCount = baseKind === "PDF" && typeof item.metadata.pdfPageCount === "number" && Number.isInteger(item.metadata.pdfPageCount) && item.metadata.pdfPageCount > 0
     ? item.metadata.pdfPageCount
     : undefined;
+  const metadataFavicon =
+    typeof item.metadata.favicon === "string" && /^https?:\/\//iu.test(item.metadata.favicon)
+      ? item.metadata.favicon
+      : undefined;
 
   const remoteImage = Array.isArray(item.metadata.imageUrls)
     ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")
@@ -292,6 +297,7 @@ async function storedItemToLibraryItem(
     description: social?.text?.trim() || rawDescription,
     source,
     sourceUrl: item.sourceUrl ?? undefined,
+    favicon: metadataFavicon,
     date: formatItemDate(item.createdAt),
     createdAt: item.createdAt,
     tags,
@@ -834,7 +840,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
             <PostArtwork post={item.post} />
           ) : (
             <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.accent ?? ""}`} aria-hidden="true">
-              {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
+              {item.kind === "Article" && <ArticleArtwork item={item} />}
               {item.kind === "Note" && <NoteArtwork item={item} />}
               {item.kind === "PDF" && <PdfArtwork item={item} />}
               {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-preview">{cardPreviewText(item.title, "Saved quote")}</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
@@ -1836,6 +1842,7 @@ function App() {
       html: article.html,
       imageUrls: article.imageUrls,
       imageDimensions: article.imageDimensions,
+      favicon: article.favicon,
       safeEmbeds: article.safeEmbeds,
       extractor: article.extractor,
       social: article.social,
@@ -1868,6 +1875,7 @@ function App() {
         ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
         : new URL(article.canonicalUrl).hostname,
       sourceUrl: article.canonicalUrl,
+      favicon: article.favicon,
       author: article.author,
       date: "Just now",
       tags: [],

@@ -20,7 +20,7 @@ import type { LibraryItem } from "../App";
 import { isTauriRuntime } from "../lib/libraryApi";
 import { openExternalUrl } from "../lib/openExternalUrl";
 import type { ReaderOrigin } from "../ReaderView";
-import { KindIcon, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
+import { ArticleArtwork, KindIcon, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
 import {
   OVERLAY_EASE,
   OVERLAY_FLIGHT_MS,
@@ -215,6 +215,14 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
           <span className="detail-quote-mark">“</span>
           <span>{item.kind}</span>
         </div>
+      </div>
+    );
+  }
+
+  if (item.kind === "Article") {
+    return (
+      <div className="expanded-overlay-media">
+        <ArticleArtwork item={item} />
       </div>
     );
   }

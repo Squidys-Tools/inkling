@@ -100,6 +100,9 @@ struct CaptureRequest {
     published_date: Option<String>,
     #[serde(default)]
     image_urls: Vec<String>,
+    /// Absolute http(s) favicon URL for the card seal; stored only when valid.
+    #[serde(default)]
+    favicon: Option<String>,
 }
 
 /// Upper bound from `packages/ingestion-shared` (`MAX_DEFUDDLED_HTML_BYTES`);
@@ -341,6 +344,7 @@ fn validate_capture_payload(body: &[u8]) -> Result<crate::storage::CreateUrlInpu
     let html = scrub_extension_html(&request.defuddled_html, &source_url);
     let text = truncate_chars(request.text.trim(), 200_000);
     let image_urls = clean_image_urls(request.image_urls);
+    let favicon = clean_favicon(request.favicon);
 
     let mut metadata = serde_json::Map::new();
     metadata.insert(
@@ -358,6 +362,9 @@ fn validate_capture_payload(body: &[u8]) -> Result<crate::storage::CreateUrlInpu
                 .collect(),
         ),
     );
+    if let Some(favicon) = favicon {
+        metadata.insert("favicon".into(), serde_json::Value::String(favicon));
+    }
     metadata.insert("safeEmbeds".into(), serde_json::Value::Array(Vec::new()));
     if let Some(author) = author.clone() {
         metadata.insert("author".into(), serde_json::Value::String(author));
@@ -427,6 +434,19 @@ fn clean_image_urls(values: Vec<String>) -> Vec<String> {
         }
     }
     out
+}
+
+/// Forgiving single-URL cleaner for the card seal favicon (http/https only).
+fn clean_favicon(value: Option<String>) -> Option<String> {
+    let entry = value?.trim().to_owned();
+    if entry.is_empty() {
+        return None;
+    }
+    let parsed = url::Url::parse(&entry).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return None;
+    }
+    Some(parsed.to_string())
 }
 
 /// Iframe/embed hosts allowed by `SAFE_IFRAME_HOSTS` in html-safety.ts.
@@ -1336,6 +1356,25 @@ mod tests {
         }
 
         assert!(validate_capture_payload(b"not json").is_err());
+    }
+
+    #[test]
+    fn clean_favicon_keeps_only_absolute_http_urls() {
+        assert_eq!(
+            clean_favicon(Some("  https://example.com/favicon.ico  ".into())),
+            Some("https://example.com/favicon.ico".into())
+        );
+        assert_eq!(
+            clean_favicon(Some("http://example.com/icon.png".into())),
+            Some("http://example.com/icon.png".into())
+        );
+        assert_eq!(clean_favicon(Some("".into())), None);
+        assert_eq!(clean_favicon(Some("   ".into())), None);
+        assert_eq!(clean_favicon(None), None);
+        assert_eq!(clean_favicon(Some("data:image/png;base64,xx".into())), None);
+        assert_eq!(clean_favicon(Some("javascript:alert(1)".into())), None);
+        assert_eq!(clean_favicon(Some("/favicon.ico".into())), None);
+        assert_eq!(clean_favicon(Some("not a url".into())), None);
     }
 
     #[test]

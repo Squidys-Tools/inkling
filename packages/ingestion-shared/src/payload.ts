@@ -22,6 +22,8 @@ export interface PageCapturePayloadV1 {
   author?: string;
   publishedDate?: string | null;
   imageUrls: string[];
+  /** Absolute http(s) favicon for the seal badge; omitted when unknown. */
+  favicon?: string;
 }
 
 /** Upper bound so a single capture cannot exhaust chrome.storage.local quota. */
@@ -125,6 +127,13 @@ export function parsePageCapturePayload(value: unknown): PageCapturePayloadV1 {
   };
   if (value.author !== undefined) payload.author = value.author;
   if (value.publishedDate !== undefined) payload.publishedDate = value.publishedDate;
+  if (value.favicon !== undefined && value.favicon !== null && value.favicon !== "") {
+    try {
+      payload.favicon = httpUrl(value.favicon, "favicon");
+    } catch {
+      // Forgiving like image URLs: a bad favicon never fails the capture.
+    }
+  }
   return payload;
 }
 
@@ -145,6 +154,7 @@ export interface BuildPagePayloadInput {
   author?: string;
   publishedDate?: string | null;
   imageUrls?: string[];
+  favicon?: string;
 }
 
 /**
@@ -165,5 +175,6 @@ export function buildPageCapturePayload(input: BuildPagePayloadInput): PageCaptu
     ...(input.author !== undefined ? { author: input.author } : {}),
     ...(input.publishedDate !== undefined ? { publishedDate: input.publishedDate } : {}),
     imageUrls: input.imageUrls ?? [],
+    ...(input.favicon !== undefined ? { favicon: input.favicon } : {}),
   });
 }

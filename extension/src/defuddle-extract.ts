@@ -94,6 +94,10 @@ export async function extractCurrentPage(): Promise<ExtractResult> {
   const imageFromMeta = absoluteUrl(result.image, pageUrl);
   const imageUrls = imageUrlsFromContent(contentHtml, pageUrl);
   if (imageFromMeta && !imageUrls.includes(imageFromMeta)) imageUrls.unshift(imageFromMeta);
+  const favicon = absoluteUrl(
+    typeof result.favicon === "string" ? result.favicon : null,
+    pageUrl,
+  ) ?? undefined;
 
   const payload = buildPageCapturePayload({
     url: pageUrl,
@@ -103,6 +107,7 @@ export async function extractCurrentPage(): Promise<ExtractResult> {
     author: result.author || undefined,
     publishedDate: result.published || null,
     imageUrls,
+    ...(favicon ? { favicon } : {}),
   });
   return { ok: true, payload };
 }

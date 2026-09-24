@@ -28,6 +28,7 @@ Guardrails:
 
 ### Added
 
+- Article cards without an Open Graph image get a host-derived placeholder: a deterministic hue tinted by the source hostname, and a seal badge that shows the site favicon when the capture pipeline found one (else the host initial) instead of a fixed letter (`src/components/ItemMedia.tsx`, `src/App.css`, `src/App.tsx`, `src/lib/ingestion/`, `packages/ingestion-shared/`, `extension/`, `src-tauri/src/capture_server.rs`, `src-tauri/src/storage.rs`)
 - Browser extension store prep: Firefox MV3 manifest, local mascot icons, options token field, and store copy draft (`extension/`).
 - Portable Windows PR previews build a self-contained review folder with pinned ONNX Runtime and embedding models, isolated database/assets/models, and a `preview:win` artifact link.
 - Serendipity now shows up to 12 saved items, oldest first, in the existing library grid and clears search when opened.

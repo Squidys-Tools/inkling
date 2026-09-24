@@ -1934,6 +1934,24 @@ fn article_metadata(
     metadata
         .entry("html")
         .or_insert_with(|| Value::String(String::new()));
+    // Card seal favicon: keep only an absolute http(s) URL; drop anything else
+    // rather than failing the capture (same forgiving rule as image URLs).
+    if let Some(Value::String(favicon)) = metadata.get("favicon").cloned() {
+        let cleaned = url::Url::parse(favicon.trim())
+            .ok()
+            .filter(|url| matches!(url.scheme(), "http" | "https"))
+            .map(|url| Value::String(url.to_string()));
+        match cleaned {
+            Some(value) => {
+                metadata.insert("favicon".into(), value);
+            }
+            None => {
+                metadata.remove("favicon");
+            }
+        }
+    } else {
+        metadata.remove("favicon");
+    }
 
     Ok(Value::Object(metadata))
 }
