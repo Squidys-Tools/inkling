@@ -42,6 +42,7 @@ pub fn run() {
         .manage(capture_server::CaptureServerState::default())
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_decorum::init())
         .setup(|app| {
@@ -72,6 +73,7 @@ pub fn run() {
             storage::update_item,
             storage::archive_item,
             storage::delete_item,
+            storage::export_library,
             storage::search_items,
             storage::search_similar_images,
             storage::search_similar_text,

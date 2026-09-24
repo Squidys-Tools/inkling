@@ -258,6 +258,28 @@ export async function deleteItem(id: string) {
   await invoke<void>("delete_item", { id });
 }
 
+export type LibraryExportReport = {
+  directory: string;
+  items: number;
+  archivedItems: number;
+  spaces: number;
+  assetFiles: number;
+  skippedAssets: number;
+  databaseBytes: number;
+  assetsBytes: number;
+};
+
+// Desktop only: the export needs the native folder picker and the Rust core
+// that owns the database.
+export async function exportLibrary(destination: string) {
+  // The core has no timezone database, so the folder name gets its wall clock
+  // from here: the browser's own offset at export time.
+  return invoke<LibraryExportReport>("export_library", {
+    destination,
+    timezoneOffsetMinutes: new Date().getTimezoneOffset(),
+  });
+}
+
 export function summariesFromJobs(itemIds: string[], jobs: ProcessingJob[]) {
   const grouped = new Map<string, ProcessingJob[]>();
   for (const job of jobs) {

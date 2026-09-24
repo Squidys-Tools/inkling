@@ -1,6 +1,6 @@
 # Roadmap
 
-Current status as of August 2026. See [changelog.md](changelog.md) for completed work.
+Current status as of August 2026. See [changelog.md](changelog.md) for completed work and [bugs.md](bugs.md) for defects that are still open.
 
 ## Milestone 0 -- Capture and Storage
 
@@ -58,8 +58,9 @@ Surfacing forgotten material through browsing and curation.
 - [ ] Top of Mind (pinned items on library open)
 - [ ] Trash and recoverable archive
 - [ ] Space management (create, rename, reorder, recolor, delete)
-- [ ] Wire the already-registered `update_space`, `enqueue_ocr_job`, and `count_active_jobs` Tauri commands to UI (backend ships them, no frontend caller yet)
-- [ ] Export and backup (database + assets + metadata)
+- [ ] Wire the already-registered `enqueue_ocr_job` and `count_active_jobs` Tauri commands to UI (backend ships them, no frontend caller yet)
+- [x] Export and backup (database snapshot + referenced assets + manifest)
+- [ ] Import and restore from an export
 
 ## Milestone 4 -- Local Intelligence
 
