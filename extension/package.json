@@ -6,6 +6,7 @@
   "description": "inkling browser extension (MV3): save the current page to the local library. Phase 1 is page-save only.",
   "scripts": {
     "build": "vite build --config vite.content-main.config.ts && vite build --config vite.content-isolated.config.ts && vite build",
+    "dev": "bun run build && vite --config vite.config.ts --host 127.0.0.1",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

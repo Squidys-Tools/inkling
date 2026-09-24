@@ -128,7 +128,7 @@ bun install
 bun run preview
 ```
 
-Save from your browser too: the companion extension talks to the app through an `inkling://capture?url=...` deep link.
+Save from your browser too: pair the companion extension once in Settings → Extension, then it talks to the app through a local loopback connection.
 
 This part is for people who want to build, tinker, or contribute. Everyone else can stop here. 🙂
 

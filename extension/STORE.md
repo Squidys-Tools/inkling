@@ -23,8 +23,9 @@ The token never leaves the machine except to the local inkling companion on loop
 
 Chrome / Edge (same build, unchanged):
 
-1. `bun run build` in `extension/` (content scripts first, then the crxjs manifest pipeline into `dist/`).
-2. Open `chrome://extensions` (Edge: `edge://extensions`), enable Developer mode, choose Load unpacked, pick `dist/`.
+1. Run `bun run dev` in `extension/` and leave it running. The first run builds the extension, then CRXJS watches the main extension bundle and reloads it in the browser.
+2. Open `chrome://extensions` (Edge: `edge://extensions`), enable Developer mode, choose Load unpacked, pick `dist/` once.
+3. Keep using the same loaded extension while developing; do not remove and re-import it after each source change. If you change the injected content-script bundles, run `bun run build` once to refresh those files.
 
 Firefox:
 
