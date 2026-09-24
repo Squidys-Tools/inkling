@@ -58,6 +58,7 @@ import {
   getProcessingSummaries,
   retryProcessingJob,
   getCaptureStatus,
+  testCaptureConnection,
   getPairingToken,
   regeneratePairingToken,
   saveFile,
@@ -1046,16 +1047,9 @@ function ExtensionPairing() {
   };
 
   const testConnection = () => {
-    if (!status?.healthUrl || isTesting) return;
+    if (!status?.running || isTesting) return;
     setIsTesting(true);
-    const check = async () => {
-      const bearer = token ?? await getPairingToken();
-      const response = await fetch(status.healthUrl as string, {
-        headers: { Authorization: `Bearer ${bearer}` },
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    };
-    void check()
+    void testCaptureConnection()
       .then(() => toast.success("Extension receiver is reachable."))
       .catch((error: unknown) =>
         toast.error(`Receiver unavailable: ${error instanceof Error ? error.message : "unknown error"}`),

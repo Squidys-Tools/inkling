@@ -254,19 +254,7 @@ fn origin_allowed(origin: Option<&str>) -> bool {
                 .strip_prefix("tauri.localhost:")
                 .is_some_and(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
     }
-    fn localhost_http(origin: &str, scheme: &str) -> bool {
-        let Some(rest) = origin.strip_prefix(scheme) else {
-            return false;
-        };
-        rest == "localhost"
-            || rest
-                .strip_prefix("localhost:")
-                .is_some_and(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
-    }
-    tauri_localhost_http(origin, "https://")
-        || tauri_localhost_http(origin, "http://")
-        || localhost_http(origin, "https://")
-        || localhost_http(origin, "http://")
+    tauri_localhost_http(origin, "https://") || tauri_localhost_http(origin, "http://")
 }
 
 fn check_rate_limit(state: &CaptureServerState) -> bool {
@@ -1212,6 +1200,44 @@ pub fn get_capture_status(state: State<'_, CaptureServerState>) -> CaptureStatus
 }
 
 #[tauri::command]
+pub fn test_capture_connection(state: State<'_, CaptureServerState>) -> Result<(), String> {
+    let port = state
+        .port
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .ok_or_else(|| "capture receiver is not running".to_owned())?;
+    let token = state
+        .pairing_token
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    let mut stream = TcpStream::connect(("127.0.0.1", port))
+        .map_err(|error| format!("receiver connection failed: {error}"))?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .map_err(|error| format!("receiver timeout setup failed: {error}"))?;
+    let request = format!(
+        "GET {HEALTH_PATH} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n"
+    );
+    stream
+        .write_all(request.as_bytes())
+        .map_err(|error| format!("receiver request failed: {error}"))?;
+    let mut response = String::new();
+    stream
+        .read_to_string(&mut response)
+        .map_err(|error| format!("receiver response failed: {error}"))?;
+    if response.starts_with("HTTP/1.1 200") {
+        Ok(())
+    } else {
+        Err(response
+            .lines()
+            .next()
+            .unwrap_or("receiver returned an invalid response")
+            .to_owned())
+    }
+}
+
+#[tauri::command]
 pub fn get_pairing_token(
     app: AppHandle,
     state: State<'_, CaptureServerState>,
@@ -1278,7 +1304,7 @@ mod tests {
     }
 
     #[test]
-    fn extension_null_tauri_and_dev_origins_pass() {
+    fn only_extension_null_and_tauri_origins_pass() {
         for allowed in [
             None,
             Some("null"),
@@ -1288,7 +1314,6 @@ mod tests {
             Some("tauri://localhost"),
             Some("https://tauri.localhost"),
             Some("http://tauri.localhost"),
-            Some("http://localhost:3000"),
             Some("inkling://capture?url=https://example.com"),
         ] {
             assert!(origin_allowed(allowed), "should allow {allowed:?}");
@@ -1497,13 +1522,6 @@ mod tests {
             .iter_mut()
             .for_each(|t| *t -= RATE_LIMIT_WINDOW + Duration::from_secs(1));
         assert!(check_rate_limit(&state));
-    }
-
-    #[test]
-    fn allows_local_tauri_dev_origins() {
-        assert!(origin_allowed(Some("http://localhost:43210")));
-        assert!(origin_allowed(Some("https://localhost")));
-        assert!(!origin_allowed(Some("http://example.com")));
     }
 
     #[test]

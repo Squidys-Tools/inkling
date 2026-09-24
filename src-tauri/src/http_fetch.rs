@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 use std::io::Read;
+use std::net::ToSocketAddrs;
 use std::time::Duration;
 
 use serde::Serialize;
+use ureq::unversioned::resolver::{DefaultResolver, ResolvedSocketAddrs, Resolver};
+use ureq::unversioned::transport::{DefaultConnector, NextTimeout};
 use url::Url;
 
 const MAX_URL_LENGTH: usize = 8_192;
@@ -100,6 +103,62 @@ fn validate_fetch_url(input: &str) -> Result<Url, String> {
     Ok(parsed)
 }
 
+fn validate_public_host(url: &Url) -> Result<(), String> {
+    let host = url
+        .host_str()
+        .ok_or_else(|| "invalid-url: The URL is missing a host.".to_owned())?;
+    let port = url
+        .port_or_known_default()
+        .ok_or_else(|| "invalid-url: The URL is missing a port.".to_owned())?;
+    let addresses = (host, port)
+        .to_socket_addrs()
+        .map_err(|error| format!("network-error: Could not resolve the host: {error}"))?;
+    let mut resolved = false;
+    for address in addresses {
+        resolved = true;
+        if private_hostname(&address.ip().to_string()) {
+            return Err("invalid-url: Private network URLs are not supported.".into());
+        }
+    }
+    if !resolved {
+        return Err("network-error: The host did not resolve to an address.".into());
+    }
+    Ok(())
+}
+
+#[derive(Debug)]
+struct PublicResolver;
+
+impl Resolver for PublicResolver {
+    fn resolve(
+        &self,
+        uri: &ureq::http::Uri,
+        config: &ureq::config::Config,
+        timeout: NextTimeout,
+    ) -> Result<ResolvedSocketAddrs, ureq::Error> {
+        let addresses = DefaultResolver::default().resolve(uri, config, timeout)?;
+        let mut public_addresses = self.empty();
+        for address in addresses.iter() {
+            if !private_hostname(&address.ip().to_string()) {
+                public_addresses.push(*address);
+            }
+        }
+        if public_addresses.is_empty() {
+            Err(ureq::Error::HostNotFound)
+        } else {
+            Ok(public_addresses)
+        }
+    }
+}
+
+fn public_http_agent(timeout: Duration) -> ureq::Agent {
+    let config = ureq::Agent::config_builder()
+        .max_redirects(0)
+        .timeout_global(Some(timeout))
+        .build();
+    ureq::Agent::with_parts(config, DefaultConnector::default(), PublicResolver)
+}
+
 const MAX_FAVICON_BYTES: u64 = 128 * 1024;
 const MAX_FAVICON_REDIRECTS: u32 = 5;
 
@@ -137,13 +196,10 @@ fn favicon_extension(content_type: &str, url: &Url) -> &'static str {
 
 pub(crate) fn download_favicon(url: &str) -> Result<(Vec<u8>, String), String> {
     let mut current = validate_fetch_url(url)?;
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .max_redirects(0)
-        .timeout_global(Some(Duration::from_secs(10)))
-        .build()
-        .into();
+    let agent = public_http_agent(Duration::from_secs(10));
 
     for _ in 0..MAX_FAVICON_REDIRECTS {
+        validate_public_host(&current)?;
         let mut response = agent
             .get(current.as_str())
             .header("User-Agent", "inkling/1.0")
@@ -217,12 +273,9 @@ pub fn fetch_http(
     max_bytes: u64,
 ) -> Result<FetchHttpResult, String> {
     let parsed = validate_fetch_url(&url)?;
+    validate_public_host(&parsed)?;
     let timeout = Duration::from_millis(timeout_ms.clamp(1, 120_000));
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .max_redirects(0)
-        .timeout_global(Some(timeout))
-        .build()
-        .into();
+    let agent = public_http_agent(timeout);
 
     let mut response = agent
         .get(parsed.as_str())
@@ -282,6 +335,18 @@ mod tests {
         assert!(validate_fetch_url("http://printer.local/").is_err());
         assert!(validate_fetch_url("http://db.internal/").is_err());
         assert!(validate_fetch_url("http://foo.localhost/").is_err());
+    }
+
+    #[test]
+    fn public_resolver_rejects_private_dns_results() {
+        let uri: ureq::http::Uri = "http://localhost/".parse().unwrap();
+        let timeout = NextTimeout {
+            after: ureq::unversioned::transport::time::Duration::NotHappening,
+            reason: ureq::Timeout::Resolve,
+        };
+        assert!(PublicResolver
+            .resolve(&uri, &ureq::config::Config::default(), timeout)
+            .is_err());
     }
 
     #[test]

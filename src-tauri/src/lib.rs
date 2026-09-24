@@ -97,6 +97,7 @@ pub fn run() {
             jobs::count_active_jobs,
             jobs::retry_processing_job,
             capture_server::get_capture_status,
+            capture_server::test_capture_connection,
             capture_server::get_pairing_token,
             capture_server::regenerate_pairing_token,
             http_fetch::fetch_http,

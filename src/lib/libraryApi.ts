@@ -282,6 +282,10 @@ export async function getCaptureStatus() {
   return invoke<CaptureStatus>("get_capture_status");
 }
 
+export async function testCaptureConnection() {
+  return invoke<void>("test_capture_connection");
+}
+
 export async function getPairingToken() {
   return invoke<string>("get_pairing_token");
 }
