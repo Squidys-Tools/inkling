@@ -4,6 +4,26 @@ export function normalizeNoteBody(value: string): string {
   return value.replace(/\r\n?/gu, "\n").trim();
 }
 
+function stripHtmlTags(value: string): string {
+  let result = "";
+  let cursor = 0;
+  while (cursor < value.length) {
+    const opening = value.indexOf("<", cursor);
+    if (opening === -1) {
+      result += value.slice(cursor);
+      break;
+    }
+    const closing = value.indexOf(">", opening + 1);
+    if (closing === -1) {
+      result += value.slice(cursor);
+      break;
+    }
+    result += value.slice(cursor, opening);
+    cursor = closing + 1;
+  }
+  return result;
+}
+
 export function markdownToPlainText(markdown: string): string {
   const code: string[] = [];
   const protect = (value: string) => {
@@ -14,18 +34,17 @@ export function markdownToPlainText(markdown: string): string {
     protect(block.replace(/^```[^\n]*\n?|\n?```$/gu, "")),
   );
   source = source.replace(/`([^`]+)`/gu, (_, value: string) => protect(value));
-  source = source
-    .replace(/!\[([^\]]*)\]\([^)]*\)/gu, "$1")
-    .replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1")
-    .replace(/(\*\*\*|___)(.*?)\1/gu, "$2")
-    .replace(/(\*\*|__)(.*?)\1/gu, "$2")
-    .replace(/(\*|_)(.*?)\1/gu, "$2")
-    .replace(/^\s{0,3}#{1,6}\s+/gmu, "")
-    .replace(/^\s*>\s?/gmu, "")
-    .replace(/^\s*(?:[-+*]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/gmu, "")
-    .replace(/<[^>]*>/gu, "")
-    .replace(/\s+/gu, " ")
-    .trim();
+  source = stripHtmlTags(
+    source
+      .replace(/!\[([^\]]*)\]\([^)]*\)/gu, "$1")
+      .replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1")
+      .replace(/(\*\*\*|___)(.*?)\1/gu, "$2")
+      .replace(/(\*\*|__)(.*?)\1/gu, "$2")
+      .replace(/(\*|_)(.*?)\1/gu, "$2")
+      .replace(/^\s{0,3}#{1,6}\s+/gmu, "")
+      .replace(/^\s*>\s?/gmu, "")
+      .replace(/^\s*(?:[-+*]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/gmu, ""),
+  ).replace(/\s+/gu, " ").trim();
   return source.replace(/\u0000(\d+)\u0000/gu, (_, index: string) => code[Number(index)] ?? "");
 }
 
