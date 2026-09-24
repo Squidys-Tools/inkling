@@ -5,7 +5,7 @@ Forgetting an item removes it from the active library and moves it to recoverabl
 ## Sub-features
 
 - `archive-in` removes an item with `Forget this item` in the detail overlay.
-- `archive-undo` restores the forgotten item from its toast.
+- `archive-undo` restores the item from its toast.
 - `archive-list` shows archived items and their total in Settings.
 - `archive-select` enters selection mode and selects archived cards.
 - `archive-recover` returns selected items to the active library.
@@ -15,7 +15,7 @@ Forgetting an item removes it from the active library and moves it to recoverabl
 
 - Open an item and choose `Forget this item`.
 - Choose `Undo` in the `Forgotten from your library` toast.
-- Open `Settings`, then the `Archive` tab.
+- Open `Settings`, then `Archive`.
 - Choose `Select`, choose cards, then choose `Recover` or `Delete`.
 
 ## Driving it with harness.mjs
@@ -23,7 +23,7 @@ Forgetting an item removes it from the active library and moves it to recoverabl
 Preconditions:
 
 - Start a fresh `serve --mode dev` and `start` run, then run `doctor` with `.result-count` reading `28`.
-- A dev preview has 28 active items and 3 archived seeds: `archive-5`, `archive-10`, and `archive-12`. A production preview has no seeded archive.
+- A dev preview has 28 active items and three archived seeds: `archive-5`, `archive-10`, and `archive-12`. A production preview has no seeded archive.
 - The library is virtualized. Search for the note title before addressing item `12` if it is not mounted.
 
 - **Forget and undo.** Search for `Books to reread this fall`, wait for `.result-count` to equal `1`, and click `.library-card[data-library-item-id="12"]`. Wait for `.expanded-overlay`, choose `[aria-label="Forget this item"]`, and wait for the overlay to disappear and `.result-count` to equal `27`. Read the toast text and choose `Undo` within `[data-sonner-toast]`. Wait for `.result-count` to equal `28` and for a `Restored to your library` toast. In preview, the forgotten item also appears in the in-memory Archive until the run ends.
@@ -32,6 +32,7 @@ Preconditions:
 - **Delete one permanently.** Reopen Settings, wait for `2 items in archive`, and click `.settings-panel .library-card[data-library-item-id="archive-5"] [aria-label="Delete The first post on Twitter"]`. Wait for `1 item in archive`, no `archive-5` card, and a `Deleted permanently` toast. There is no confirmation step.
 - **Delete a batch.** Enter selection mode, select `archive-12` with its card's `Select` button, and choose `Delete` within `.settings-archive-actions`. Wait for `.settings-empty-state` and `0 items in archive`. Save a screenshot of the empty archive.
 - **Reset the preview.** Close Settings, run `navigate --url <run url>`, and wait for 28 active items. Reopen Settings and assert the three archive seeds are back.
+- **Check the adjacent panels.** Open `Data` and `Extension` from the Settings sidebar. Return to `Archive`, close Settings, and reopen it. Assert that `Archive` is selected again. [export.md](./export.md) and [extension.md](./extension.md) own those panel recipes.
 
 ## Gotchas
 
@@ -41,4 +42,4 @@ Preconditions:
 - The archive card button changes from `Delete <title>` to `Select <title>` in selection mode. Confirm the mode before clicking.
 - The forget toast has `duration: Infinity`. If Undo is no longer present, recover from the archive and record that route.
 - Native Forget, recovery, and deletion write SQLite and remove assets on permanent deletion. Use an isolated database and asset copy for a desktop destructive check. Reloading a preview is only an in-memory reset.
-- Settings currently has Archive and Extension tabs. It does not have a Data tab or export panel.
+- Settings currently has Archive, Data, and Extension tabs.

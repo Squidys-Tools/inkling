@@ -82,11 +82,11 @@ Little by little, inkling is growing toward:
 - Search that understands meaning even better, and "find more like this image"
 - Focus Mode for long-form writing and a richer note editor
 - Top of Mind pins (will be renamed soon because of copyright worries)
-- Trash with undo, backups and export, first-run onboarding
+- Trash with undo and backups, first-run onboarding, then import and restore from an export
 - A Windows installer with updates
 - Possibly cross platform support in the future if I can get money for a macbook and find some time to test it on linux. Likely distros will be Ubuntu, Arch, and Debain for the widest range of support up-front.
 
-See [the Roadmap](docs/roadmap.md) for the honest, checkbox-level status.
+See [the Roadmap](docs/roadmap.md) for the honest, checkbox-level status, and [open bugs](docs/bugs.md) for what is known to be broken.
 
 ## Status
 
@@ -146,7 +146,7 @@ This part is for people who want to build, tinker, or contribute. Everyone else 
 - [docs/changelog.md](docs/changelog.md) — what changed recently
 - `benchmarks/` — 48-item corpus + harness for extraction/OCR quality
 
-**Prereqs:** Bun 1.4.2 (see `.bun-version`) + Rust. 
+**Prereqs:** Bun 1.4.2 (see `.bun-version`) + Rust.
 
 On Windows pick one toolchain per machine:
 
