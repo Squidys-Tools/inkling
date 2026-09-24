@@ -3,6 +3,12 @@ name: Windows Preview
 on:
   pull_request:
     types: [labeled, synchronize, reopened]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "AGENTS.md"
+      - "public/seed-demo/**"
+      - "src/seedPersonal.ts"
 
 permissions:
   contents: read
@@ -13,9 +19,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect preview changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - name: Check out pull request head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          # Compare a synchronize event with the previous head, not the full
+          # PR diff. This keeps a docs/demo-only follow-up from rebuilding.
+          token: ''
+          base: ${{ github.event.before || github.event.pull_request.base.sha }}
+          predicate-quantifier: some-with-excludes
+          filters: |
+            relevant:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!AGENTS.md'
+              - '!public/seed-demo/**'
+              - '!src/seedPersonal.ts'
+
   build:
     name: Build portable Windows preview
+    needs: changes
     if: >-
+      needs.changes.outputs.relevant == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       contains(github.event.pull_request.labels.*.name, 'preview:win') &&
       (github.event.action != 'labeled' || github.event.label.name == 'preview:win')

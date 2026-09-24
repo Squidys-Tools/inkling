@@ -14,6 +14,7 @@ import {
   Bookmark01Icon,
   Camera01Icon,
   Clock01Icon,
+  Database02Icon,
   Grid2X2Icon,
   Edit01Icon,
   HelpCircleIcon,
@@ -61,10 +62,12 @@ import {
   regeneratePairingToken,
   saveFile,
   deleteItem,
+  exportLibrary,
   searchItems,
   searchSimilarItems,
   updateItem,
   type CaptureStatus,
+  type LibraryExportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
   type StoredLibraryItem,
@@ -184,6 +187,25 @@ function formatItemDate(timestamp: number) {
   if (age < 60 * 60 * 1000) return "Just now";
   if (age < 24 * 60 * 60 * 1000) return "Today";
   return date.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+}
+
+function formatByteSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`;
+}
+
+function formatExportSummary(report: LibraryExportReport) {
+  const summary = `${report.items} items · ${report.assetFiles} files · ${formatByteSize(report.databaseBytes + report.assetsBytes)}`;
+  if (report.skippedAssets === 0) return summary;
+  const assets = report.skippedAssets === 1 ? "asset" : "assets";
+  return `${summary} · ${report.skippedAssets} ${assets} skipped`;
 }
 
 function readXPostMetadata(value: unknown): XPostMetadata | undefined {
@@ -1023,11 +1045,12 @@ function ExtensionPairing() {
   };
 
   const testConnection = () => {
-    if (!status?.healthUrl || isTesting) return;
+    const healthUrl = status?.healthUrl;
+    if (!healthUrl || isTesting) return;
     setIsTesting(true);
     const check = async () => {
       const bearer = token ?? await getPairingToken();
-      const response = await fetch(status.healthUrl as string, {
+      const response = await fetch(healthUrl, {
         headers: { Authorization: `Bearer ${bearer}` },
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1112,9 +1135,11 @@ function App() {
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<"archive" | "extension">("archive");
+  const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("archive");
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? browserArchivedItems : []);
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
+  const [isExportingLibrary, setIsExportingLibrary] = useState(false);
+  const [lastExport, setLastExport] = useState<LibraryExportReport | null>(null);
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
   const [isAdding, setIsAdding] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
@@ -1216,7 +1241,7 @@ function App() {
     }
   }, []);
 
-  const restoreForgottenItem = useCallback(async (item: LibraryItem, toastId: string) => {
+  const restoreForgottenItem = useCallback(async (item: LibraryItem) => {
     try {
       const restoredItem = canUseTauriBackend
         ? await archiveItem(String(item.id), false).then(async (storedItem) => {
@@ -1227,9 +1252,12 @@ function App() {
       setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
         ? current
         : [restoredItem, ...current]);
-      toast.success("Restored to your library", { id: toastId, duration: 3000, closeButton: true });
+      // The confirmation needs a toast of its own. Sonner dismisses the forget toast the
+      // moment its action is clicked, and a later toast raised under that same id inherits
+      // the dismissed toast's `delete` flag, so it never reaches the screen.
+      toast.success("Restored to your library", { duration: 3000, closeButton: true });
     } catch (error) {
-      toast.error("Unable to restore this item", { id: toastId, duration: Infinity, closeButton: true });
+      toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }, []);
@@ -1250,13 +1278,54 @@ function App() {
         className: "library-toast",
         action: {
           label: "Undo",
-          onClick: () => void restoreForgottenItem(item, toastId),
+          onClick: () => void restoreForgottenItem(item),
         },
       });
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }, [restoreForgottenItem]);
+
+  // Export is desktop only: it needs the native folder picker, and the Rust
+  // core writes the snapshot so it stays consistent while the app is running.
+  const exportLibraryToFolder = useCallback(async () => {
+    if (!canUseTauriBackend || isExportingLibrary) return;
+    let destination: string | null = null;
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selection = await open({ directory: true, multiple: false, title: "Choose where to save the export" });
+      destination = typeof selection === "string" ? selection : null;
+    } catch (error) {
+      toast.error("Could not open the folder picker", {
+        description: error instanceof Error ? error.message : String(error),
+        closeButton: true,
+      });
+      return;
+    }
+    if (!destination) return;
+
+    setIsExportingLibrary(true);
+    const toastId = toast.loading("Exporting library…", { description: "Copying the database and its files" });
+    try {
+      const report = await exportLibrary(destination);
+      setLastExport(report);
+      toast.success(report.skippedAssets > 0 ? "Library exported with skipped assets" : "Library exported", {
+        id: toastId,
+        description: formatExportSummary(report),
+        duration: 4000,
+        closeButton: true,
+      });
+    } catch (error) {
+      toast.error("Export failed", {
+        id: toastId,
+        description: error instanceof Error ? error.message : String(error),
+        duration: Infinity,
+        closeButton: true,
+      });
+    } finally {
+      setIsExportingLibrary(false);
+    }
+  }, [canUseTauriBackend, isExportingLibrary]);
 
   const addTagToItem = useCallback(async (item: LibraryItem, tag: string) => {
     const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
@@ -2262,6 +2331,11 @@ function App() {
       document.removeEventListener("keydown", onSettingsKeyDown);
       previouslyFocused?.focus();
     };
+  }, [isSettingsOpen]);
+
+  // Settings reopens on Archive, the way it behaved while that was the only tab.
+  useEffect(() => {
+    if (!isSettingsOpen) setSettingsTab("archive");
   }, [isSettingsOpen]);
 
   useEffect(() => {
@@ -3328,6 +3402,15 @@ function App() {
                   </button>
                   <button
                     type="button"
+                    className={`settings-tab ${settingsTab === "data" ? "active" : ""}`}
+                    aria-current={settingsTab === "data" ? "page" : undefined}
+                    onClick={() => setSettingsTab("data")}
+                  >
+                    <HugeiconsIcon icon={Database02Icon} size={16} />
+                    <span>Data</span>
+                  </button>
+                  <button
+                    type="button"
                     className={`settings-tab ${settingsTab === "extension" ? "active" : ""}`}
                     aria-current={settingsTab === "extension" ? "page" : undefined}
                     onClick={() => setSettingsTab("extension")}
@@ -3416,6 +3499,61 @@ function App() {
                   )}
                 </div>
               </section>
+              ) : settingsTab === "data" ? (
+                <section className="settings-panel" aria-labelledby="data-panel-title">
+                  <header className="settings-panel-header">
+                    <div className="settings-panel-header-content">
+                      <div className="settings-panel-heading">
+                        <h2 id="data-panel-title">Your library</h2>
+                      </div>
+                      <p className="settings-panel-note">
+                        Everything inkling saves stays on this machine. An export writes a copy you can keep somewhere else.
+                      </p>
+                    </div>
+                    <button
+                      ref={settingsCloseRef}
+                      type="button"
+                      className="icon-button small settings-close"
+                      onClick={() => setIsSettingsOpen(false)}
+                      aria-label="Close settings"
+                    >
+                      <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                    </button>
+                  </header>
+
+                  <div className="settings-data-scroll">
+                    <div className="settings-data-card">
+                      <div className="settings-data-heading">
+                        <HugeiconsIcon icon={Database02Icon} size={17} />
+                        <h3>Export a copy</h3>
+                      </div>
+                      <p>
+                        Writes a dated folder holding a snapshot of the database, the files your items point at, and a manifest
+                        describing both. Keep it on another drive to back the library up.
+                      </p>
+                      <button
+                        type="button"
+                        className={`settings-data-button ${isExportingLibrary ? "is-busy" : ""}`}
+                        disabled={!canUseTauriBackend || isExportingLibrary}
+                        onClick={() => void exportLibraryToFolder()}
+                      >
+                        <HugeiconsIcon icon={isExportingLibrary ? Loading01Icon : ArrowDown01Icon} size={15} />
+                        <span>{isExportingLibrary ? "Exporting…" : "Choose folder and export"}</span>
+                      </button>
+                      {!canUseTauriBackend ? (
+                        <p className="settings-data-hint">Export runs in the desktop app.</p>
+                      ) : null}
+                      {lastExport ? (
+                        <div className="settings-data-result" role="status" aria-live="polite">
+                          <span className="settings-data-summary">
+                            {formatExportSummary(lastExport)}
+                          </span>
+                          <span className="settings-data-path">{lastExport.directory}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </section>
               ) : (
               <section className="settings-panel" aria-labelledby="extension-panel-title">
                 <header className="settings-panel-header">
