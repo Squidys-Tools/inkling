@@ -856,10 +856,18 @@ fn generate_embeddings(
 }
 
 fn embedding_text(item: &crate::storage::ItemDto) -> Option<String> {
+    let body = item.body.as_deref().map(|body| {
+        if item.body_format.as_deref() == Some("md") {
+            crate::storage::markdown_to_plain_text(body)
+        } else {
+            body.to_owned()
+        }
+    });
+    let body = body.filter(|value| !value.trim().is_empty());
     let mut parts = Vec::new();
     for value in [
         item.title.as_deref(),
-        item.description.as_deref(),
+        body.as_deref().or(item.description.as_deref()),
         Some(item.ocr_text.as_str()),
     ]
     .into_iter()
@@ -869,11 +877,13 @@ fn embedding_text(item: &crate::storage::ItemDto) -> Option<String> {
     {
         parts.push(value.to_owned());
     }
-    for key in ["text", "extractedText"] {
-        if let Some(value) = item.metadata.get(key).and_then(serde_json::Value::as_str) {
-            let value = value.trim();
-            if !value.is_empty() {
-                parts.push(value.to_owned());
+    if body.is_none() {
+        for key in ["text", "extractedText"] {
+            if let Some(value) = item.metadata.get(key).and_then(serde_json::Value::as_str) {
+                let value = value.trim();
+                if !value.is_empty() {
+                    parts.push(value.to_owned());
+                }
             }
         }
     }
@@ -1049,6 +1059,32 @@ mod tests {
             )
             .unwrap();
         connection
+    }
+
+    #[test]
+    fn embedding_text_prefers_plain_markdown_body_over_legacy_sources() {
+        let item = crate::storage::ItemDto {
+            id: "note".into(),
+            kind: "note".into(),
+            title: Some("Reading list".into()),
+            description: Some("stale description".into()),
+            body: Some("# Heading\n\n**Warm** timber".into()),
+            body_format: Some("md".into()),
+            source_url: None,
+            source_label: None,
+            local_asset_path: None,
+            thumbnail_path: None,
+            ocr_text: String::new(),
+            metadata: serde_json::json!({ "text": "stale metadata" }),
+            created_at: 1,
+            updated_at: 1,
+            archived: false,
+            favorite: false,
+        };
+        assert_eq!(
+            embedding_text(&item),
+            Some("Reading list\n\nHeading Warm timber".into())
+        );
     }
 
     #[test]

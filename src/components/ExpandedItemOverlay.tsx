@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { gsap } from "gsap";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -35,6 +35,10 @@ import {
   type SourceRects,
 } from "./overlayMotion";
 
+const RichNoteEditor = lazy(() =>
+  import("./RichNoteEditor").then((module) => ({ default: module.RichNoteEditor })),
+);
+
 export type ExpandedOverlayActions = {
   onClose: () => void;
   onOpenPdf: (item: LibraryItem) => void;
@@ -43,6 +47,7 @@ export type ExpandedOverlayActions = {
   onForget: (item: LibraryItem) => void | Promise<void>;
   onRetryJob: (jobId: string) => void | Promise<void>;
   onAddTag?: (item: LibraryItem, tag: string) => void | Promise<void>;
+  onUpdateNote: (item: LibraryItem, body: string) => void | Promise<void>;
   isFindingSimilar: boolean;
 };
 
@@ -767,6 +772,18 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
             <>
               <blockquote className="detail-quote">“{shownItem.title}”</blockquote>
               {shownItem.description && <p className="detail-attribution">— {shownItem.description.replace(/^—\s*/u, "")}</p>}
+            </>
+          ) : shownItem.kind === "Note" ? (
+            <>
+              <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
+              <Suspense fallback={<p className="expanded-overlay-description" role="status">Loading note…</p>}>
+                <RichNoteEditor
+                  key={String(shownItem.id)}
+                  body={shownItem.noteBody}
+                  title={shownItem.title}
+                  onSave={(body) => actions.onUpdateNote(shownItem, body)}
+                />
+              </Suspense>
             </>
           ) : (
             <>

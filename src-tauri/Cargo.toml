@@ -45,3 +45,4 @@ tokio = { version = "1", features = ["rt", "net", "time"] }
 ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
 url = "2"
 windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_WinRT", "Foundation", "Foundation_Collections", "Data_Pdf", "Media_Ocr", "Storage_Streams", "Graphics_Imaging"] }
+pulldown-cmark = "0.13.4"
