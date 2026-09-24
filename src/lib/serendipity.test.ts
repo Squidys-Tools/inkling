@@ -31,4 +31,31 @@ describe("serendipityItems", () => {
     const rows: Row[] = [{ id: "b" }, { id: "a" }, { id: "c", createdAt: 1 }];
     expect(serendipityItems(rows).map((row) => row.id)).toEqual(["c", "a", "b"]);
   });
+
+  test("excludes kept items without mutating the source", () => {
+    const rows: Row[] = [
+      { id: "old", createdAt: 1 },
+      { id: "middle", createdAt: 2 },
+      { id: "new", createdAt: 3 },
+    ];
+    const snapshot = [...rows];
+
+    expect(serendipityItems(rows, { excludedIds: new Set(["old"]), limit: 2 }).map((row) => row.id)).toEqual([
+      "middle",
+      "new",
+    ]);
+    expect(rows).toEqual(snapshot);
+  });
+
+  test("refills a capped batch after earlier items are kept", () => {
+    const rows = Array.from({ length: 14 }, (_, index) => ({ id: String(index), createdAt: index + 1 }));
+
+    expect(serendipityItems(rows, { excludedIds: new Set(["0", "1"]), limit: 12 }).map((row) => row.id)).toEqual(
+      Array.from({ length: 12 }, (_, index) => String(index + 2)),
+    );
+  });
+
+  test("supports an empty limit", () => {
+    expect(serendipityItems([{ id: "a", createdAt: 1 }], { limit: 0 })).toEqual([]);
+  });
 });

@@ -10,10 +10,11 @@ The library is a virtualized card grid with kind-aware artwork and a single-colu
 - `browse-overlay-actions` shows available actions, including a disabled `Read` action for an Article without saved text.
 - `browse-switch` retargets a settled overlay to another mounted card.
 - `browse-top-of-mind` filters to favorite items.
-- `browse-serendipity` shows the first 12 non-archived items in discovery order.
-- `browse-reader` opens an Article with `articleHtml`.
-- `browse-pdf` opens a PDF with a local `fileUrl`.
-- `browse-similar` is a desktop action that replaces the library with semantic results.
+- `browse-serendipity` walks through one unseen older item at a time from a capped discovery batch, with Keep and Forget actions.
+- `browse-serendipity-complete` explains when the walk has no unseen items left.
+- `browse-reader` opens a reader for an Article with `articleHtml`.
+- `browse-pdf` opens the PDF viewer for a PDF with a local `fileUrl`.
+- `browse-similar` is a desktop-only action that replaces the library with semantic results.
 
 ## How to get to it (user POV)
 
@@ -21,7 +22,8 @@ The library is a virtualized card grid with kind-aware artwork and a single-colu
 - Choose `Grid view` or `List view`.
 - Click a card, or focus it and press Enter.
 - Choose `Top of mind` or `Serendipity` in the main navigation.
-- Choose `Read` for an Article with saved text, or `Open PDF` for a PDF with a local file.
+- In Serendipity, choose `Keep` to advance or `Forget` to archive the current item.
+- Choose `Read` in the overlay for an Article with saved text, or `Open PDF` for a PDF with a local file.
 - In the desktop app, choose `Find similar` on an eligible item.
 
 ## Driving it with harness.mjs
@@ -32,15 +34,18 @@ Preconditions:
 - The masonry is virtualized. Assert `.result-count` for totals, never `.library-card` count. The real scroll element is `.library-grid[data-testid="virtuoso-scroller"]`.
 - The seed has no Article with `articleHtml`, and its PDF has no `fileUrl`.
 
-- **Switch views.** Click `[aria-label="List view"]` and wait for `.library-grid.list-mode`. Return to `[aria-label="Grid view"]` and wait until that class is absent. Save the list view.
-- **Inspect card art.** Evaluate `[...document.querySelectorAll(".library-card")].map(c => c.querySelector(".card-kicker span")?.textContent.trim())`. The initial window can include Image, Note, PDF, and Video art. Search `The first post on Twitter`, wait for `.result-count` to equal `1`, and read mounted card `data-library-item-id="5"` for the Post. Clear search. Read the kind from the childless `.card-kicker span`; the parent also contains the date.
-- **Open and close an overlay.** Reset the scroller, click `.library-card[data-library-item-id="12"]`, and wait for `.expanded-overlay:not(.is-flying)`. Read the title, tags, and button text. Press `Escape` and wait for the overlay to disappear.
-- **Check the PDF boundary.** Reset the scroller, open `[data-library-item-id="10"]`, read its overlay actions, and assert `Open PDF` is absent. Close it with Escape.
-- **Switch cards.** Open item `12`, choose another mounted and hit-testable card, and wait for the overlay title to change. Reset the scroller first if the second card is not mounted.
-- **Open Top of mind.** Click it within `nav[aria-label="Main navigation"]` and wait for `.result-count` to equal `3`. Return to `Everything` and wait for `28`.
-- **Open Serendipity.** Click it within the main navigation and wait for `.result-count` to equal `12`. Return to `Everything` and wait for `28`.
-- **Native reader and PDF paths.** In an isolated desktop app, open an Article with saved text and choose `Read`, or a PDF with a local `fileUrl` and choose `Open PDF`. Wait for `[aria-label="Close reader (Escape)"]` or `[aria-label="Next page"]`.
-- **Native similar path.** In the desktop app, choose `Find similar` on an eligible card. Assert the overlay closes and the library changes to semantic results.
+- **Switch views.** Click `[aria-label="List view"]` and wait for `.library-grid.list-mode`. Return to `[aria-label="Grid view"]` and wait until `.library-grid.list-mode` is absent. Save a screenshot of the list view.
+- **Inspect card art.** Run `eval --expr '[...document.querySelectorAll(".library-card")].map(c => c.querySelector(".card-kicker span")?.textContent.trim())'`. The initial window can include Image, Note, PDF, and Video art. Quote and Post cards may require scrolling or a direct search. To inspect the seeded Post without guessing masonry positions, search `The first post on Twitter`, wait for `.result-count` to equal `1`, and read the mounted card with `data-library-item-id="5"`. Clear the search before continuing. Read the kind from the childless `.card-kicker span`; the parent also contains the date.
+- **Open and close an overlay.** Reset the scroller with `eval --expr 'document.querySelector(".library-grid[data-testid=\"virtuoso-scroller\"]").scrollTop = 0'`, then click `.library-card[data-library-item-id="12"]` and wait for `.expanded-overlay:not(.is-flying)`. Read its title, tags, and button text, then press `Escape` and wait for the overlay to disappear.
+- **Check a PDF boundary.** Open `[data-library-item-id="10"]` after resetting the scroller. Read the overlay actions and assert that `Open PDF` is absent. Close it with Escape.
+- **Switch cards.** Open item `12`, choose another card that is mounted and hit-testable, and wait until the overlay title changes. If the second card is not mounted, reset the scroller first; a missing virtualized card is not a failed switch.
+- **Open Top of mind.** Click `Top of mind` within `nav[aria-label="Main navigation"]` and wait for `.result-count` to equal `3`. Return to `Everything` and wait for `28`.
+- **Open Serendipity.** Click `Serendipity` within the main navigation and wait for `.result-count` to equal `12`. Assert `[data-testid="serendipity-view"]` and `[data-testid="serendipity-item"]` are visible, then read the current title and Keep/Forget labels.
+- **Keep one item.** Read the current item ID from `.serendipity-art .library-card`, click `[data-testid="serendipity-keep"]`, and wait for the title to change. The kept item should remain active in Everything.
+- **Forget one item.** Read the next item ID, click `[data-testid="serendipity-forget"]`, and wait for the title to change plus the `Forgotten from your library` toast. Use its `Undo` action and confirm the item is active again. Return to `Everything` and wait for `28`.
+- **Finish the walk.** When no unseen active items remain, assert `[data-testid="serendipity-complete"]` and use `Back to Everything`.
+- **Native reader and PDF paths.** In an isolated desktop app, open an Article with saved text and choose `Read`, or a PDF with a local `fileUrl` and choose `Open PDF`. Wait for `[aria-label="Close reader (Escape)"]` or `[aria-label="Next page"]`. The preview cannot prove either path.
+- **Native similar path.** In the desktop app, choose `Find similar` on an eligible card and verify that the overlay closes and the library changes to semantic results. The preview has no such button.
 
 ## Gotchas
 

@@ -162,15 +162,30 @@ function summarizeProcessingJobs(jobs: ProcessingJob[]): ProcessingSummary {
   };
 }
 
-const runtimeIsTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-
 export function isTauriRuntime() {
-  return runtimeIsTauri;
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
+type StorageStatus = {
+  databasePath: string;
+  fts5Enabled: boolean;
+  schemaVersion: number;
+};
+
+let storageInitialization: Promise<StorageStatus | null> | undefined;
+
 export async function initializeStorage() {
-  if (!runtimeIsTauri) return null;
-  return invoke<{ databasePath: string; fts5Enabled: boolean; schemaVersion: number }>("initialize_storage");
+  if (!isTauriRuntime()) return null;
+  storageInitialization ??= invoke<StorageStatus>("initialize_storage").catch((error: unknown) => {
+    storageInitialization = undefined;
+    throw error;
+  });
+  return storageInitialization;
+}
+
+async function withInitializedStorage<T>(operation: () => Promise<T>) {
+  await initializeStorage();
+  return operation();
 }
 
 export async function listActiveItems() {
@@ -194,29 +209,29 @@ export async function searchSimilarItems(itemId: string, kind: "image" | "text")
 }
 
 export async function listSpaces() {
-  if (!runtimeIsTauri) return [] satisfies StoredSpace[];
-  return invoke<StoredSpace[]>("list_spaces");
+  if (!isTauriRuntime()) return [] satisfies StoredSpace[];
+  return withInitializedStorage(() => invoke<StoredSpace[]>("list_spaces"));
 }
 
 export async function createSpace(input: CreateSpaceInput) {
-  return invoke<StoredSpace>("create_space", { input });
+  return withInitializedStorage(() => invoke<StoredSpace>("create_space", { input }));
 }
 
 export async function deleteSpace(id: string) {
-  await invoke<void>("delete_space", { id });
+  await withInitializedStorage(() => invoke<void>("delete_space", { id }));
 }
 
 export async function updateSpace(input: UpdateSpaceInput) {
-  return invoke<StoredSpace>("update_space", { input });
+  return withInitializedStorage(() => invoke<StoredSpace>("update_space", { input }));
 }
 
 export async function swapSpacePositions(firstId: string, secondId: string) {
-  return invoke<StoredSpace[]>("swap_space_positions", { firstId, secondId });
+  return withInitializedStorage(() => invoke<StoredSpace[]>("swap_space_positions", { firstId, secondId }));
 }
 
 // Smart Spaces evaluate lazily: the backend re-runs the saved query on every call.
 export async function listSpaceItems(id: string) {
-  return invoke<StoredLibraryItem[]>("list_space_items", { id, limit: 100 });
+  return withInitializedStorage(() => invoke<StoredLibraryItem[]>("list_space_items", { id, limit: 100 }));
 }
 
 export async function createNote(input: CreateNoteInput) {
@@ -242,7 +257,7 @@ const resolveAssetUrl = createAssetUrlResolver(async (path) => {
 
 export async function assetUrl(path: string | null) {
   if (!path) return undefined;
-  if (!runtimeIsTauri) return path;
+  if (!isTauriRuntime()) return path;
   return resolveAssetUrl(path);
 }
 
@@ -308,7 +323,7 @@ export type CaptureStatus = {
 };
 
 export async function getCaptureStatus() {
-  if (!runtimeIsTauri) return null;
+  if (!isTauriRuntime()) return null;
   return invoke<CaptureStatus>("get_capture_status");
 }
 
@@ -321,6 +336,6 @@ export async function regeneratePairingToken() {
 }
 
 export async function currentDeepLinks() {
-  if (!runtimeIsTauri) return [] satisfies string[];
+  if (!isTauriRuntime()) return [] satisfies string[];
   return invoke<string[] | null>("plugin:deep-link|get_current");
 }

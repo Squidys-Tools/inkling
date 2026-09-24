@@ -1,5 +1,26 @@
-import { expect, test } from "bun:test";
-import { summariesFromJobs, type ProcessingJob } from "./libraryApi";
+import { expect, mock, test } from "bun:test";
+import type { ProcessingJob } from "./libraryApi";
+
+const invokeCalls: string[] = [];
+
+mock.module("@tauri-apps/api/core", () => ({
+  convertFileSrc: (path: string) => path,
+  invoke: async (command: string) => {
+    invokeCalls.push(command);
+    if (command === "initialize_storage") {
+      return { databasePath: "library.sqlite3", fts5Enabled: true, schemaVersion: 1 };
+    }
+    if (command === "list_spaces") return [];
+    throw new Error(`Unexpected command: ${command}`);
+  },
+}));
+
+Object.defineProperty(globalThis, "window", {
+  configurable: true,
+  value: { __TAURI_INTERNALS__: {} },
+});
+
+const { listSpaces, summariesFromJobs } = await import("./libraryApi");
 
 function job(overrides: Partial<ProcessingJob>): ProcessingJob {
   return {
@@ -57,4 +78,12 @@ test("the newest failed job surfaces for its item", () => {
     ],
   );
   expect(summaries.get("a")?.failedJob?.errorMessage).toBe("newest failure");
+});
+
+test("listing Spaces initializes storage before reading persisted Spaces", async () => {
+  invokeCalls.length = 0;
+
+  await listSpaces();
+
+  expect(invokeCalls).toEqual(["initialize_storage", "list_spaces"]);
 });
