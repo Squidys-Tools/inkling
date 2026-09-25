@@ -77,14 +77,15 @@ function requestShadowFlatten(timeoutMs = 600): Promise<void> {
 }
 
 /**
- * Extract the current page into a v1 capture payload. Runs against a CLONE of
- * the live document — Defuddle strips scripts/styles from the document it is
- * handed, and that must never touch the user's open page.
+ * Extract the current page into a v1 capture payload. Runs against an inert
+ * DOMParser snapshot of the live document — Defuddle strips scripts/styles from
+ * the document it is handed, and that must never touch the user's open page.
  */
 export async function extractCurrentPage(): Promise<ExtractResult> {
   const pageUrl = window.location.href;
   await requestShadowFlatten();
-  const clone = document.cloneNode(true) as Document;
+  const snapshot = document.documentElement?.outerHTML ?? "";
+  const clone = new DOMParser().parseFromString(snapshot, "text/html");
   const result = new Defuddle(clone, {
     url: pageUrl,
     ...INKLING_DEFUDDLE_OPTIONS,
