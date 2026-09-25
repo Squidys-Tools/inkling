@@ -8,6 +8,7 @@ type RichNoteEditorProps = {
   title: string;
   onSave: (body: string) => void | Promise<void>;
   onEditingChange?: (editing: boolean) => void;
+  showEditButton?: boolean;
   studio?: boolean;
 };
 
@@ -20,7 +21,7 @@ function isSafeLink(value: string): boolean {
   }
 }
 
-export function RichNoteEditor({ body, title, onSave, onEditingChange, studio = false }: RichNoteEditorProps) {
+export function RichNoteEditor({ body, title, onSave, onEditingChange, showEditButton = true, studio = false }: RichNoteEditorProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,18 +75,20 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, studio = 
         ) : (
           <p className="note-editor-empty">This note is empty.</p>
         )}
-        <button
-          type="button"
-          className="note-editor-edit"
-          aria-label="Edit note"
-          onClick={() => {
-            setError(null);
-            setIsEditing(true);
-            onEditingChange?.(true);
-          }}
-        >
-          Edit note
-        </button>
+        {showEditButton && (
+          <button
+            type="button"
+            className="note-editor-edit"
+            aria-label="Edit note"
+            onClick={() => {
+              setError(null);
+              setIsEditing(true);
+              onEditingChange?.(true);
+            }}
+          >
+            Edit note
+          </button>
+        )}
       </div>
     );
   }

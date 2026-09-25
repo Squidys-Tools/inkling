@@ -867,6 +867,11 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           ) : shownItem.kind === "Note" ? (
             <>
               <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
+              <div className="note-edit-launcher">
+                <button type="button" className="toolbar-primary" onClick={() => setIsEditingNote(true)} aria-label="Edit note">
+                  Edit note
+                </button>
+              </div>
               <Suspense fallback={<p className="expanded-overlay-description" role="status">Loading note…</p>}>
                 <RichNoteEditor
                   key={String(shownItem.id)}
@@ -874,6 +879,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
                   title={shownItem.title}
                   onSave={(body) => actions.onUpdateNote(shownItem, body)}
                   onEditingChange={setIsEditingNote}
+                  showEditButton={false}
                 />
               </Suspense>
             </>

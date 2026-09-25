@@ -466,6 +466,8 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .note-editor-edit, .note-editor-cancel, .note-editor-save { border-radius: 7px; cursor: pointer; font-size: 11px; }
 .note-editor-edit { margin-top: 14px; padding: 7px 10px; border: 1px solid var(--rule); background: transparent; color: var(--muted); }
 .note-editor-edit:hover { border-color: #5a5750; background: #1b1917; color: var(--ink); }
+.note-edit-launcher { display: flex; margin-top: 16px; }
+.note-edit-launcher .toolbar-primary { flex: 0 0 auto; min-width: 132px; }
 .note-editor-toolbar { display: flex; flex-wrap: wrap; gap: 4px; margin: 14px 0 8px; }
 .note-editor-toolbar button { min-width: 30px; height: 28px; padding: 0 7px; border: 1px solid var(--rule); border-radius: 6px; background: #1b1917; color: var(--muted); cursor: pointer; font: 11px "DM Mono", monospace; }
 .note-editor-toolbar button:hover, .note-editor-toolbar button[aria-pressed="true"] { border-color: #5a5750; background: #292622; color: var(--ink); }
@@ -497,10 +499,10 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .note-editor-save:hover:not(:disabled) { border-color: var(--green); background: #2b382f; }
 .note-editor-save:disabled { cursor: wait; opacity: .55; }
 
-.note-studio-layer { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: clamp(14px, 3vw, 34px); background: rgba(10, 9, 8, .8); backdrop-filter: blur(12px) saturate(.8); animation: note-studio-in .28s cubic-bezier(.2,.8,.2,1) both; }
+.note-studio-layer { position: fixed; inset: 0; z-index: 80; display: grid; place-items: stretch; padding: 0; background: #12110f; animation: note-studio-in .28s cubic-bezier(.2,.8,.2,1) both; }
 .app-shell.settings-open .note-studio-layer { z-index: 131; }
-.note-studio { width: min(1220px, 100%); height: min(820px, 100%); min-height: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #514b43; border-radius: 26px; background: #181614; box-shadow: 0 34px 100px rgba(0,0,0,.62), 0 0 0 1px rgba(255,255,255,.03) inset; }
-.note-studio-header { height: 70px; flex: 0 0 70px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; padding: 0 22px; border-bottom: 1px solid #34302b; background: #1b1917; }
+.note-studio { width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border: 0; border-radius: 0; background: #181614; box-shadow: none; }
+.note-studio-header { height: calc(70px + var(--titlebar-height)); flex: 0 0 calc(70px + var(--titlebar-height)); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; padding: var(--titlebar-height) 22px 0; border-bottom: 1px solid #34302b; background: #1b1917; }
 .note-studio-back, .note-studio-close { border: 0; background: transparent; color: #a49b8e; cursor: pointer; transition: color .18s ease, background .18s ease, transform .18s ease; }
 .note-studio-back { justify-self: start; display: inline-flex; align-items: center; gap: 9px; padding: 8px 0; font: 11px "DM Mono", monospace; }
 .note-studio-back span { color: #d18a63; font-size: 17px; line-height: 1; transition: transform .18s cubic-bezier(.2,.8,.2,1); }
@@ -513,7 +515,7 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .note-studio-close { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid #49433c; border-radius: 8px; color: #a49b8e; }
 .note-studio-close:hover { border-color: #756b5e; background: #27221e; color: #f0e6d6; }
 .note-studio-close:active, .note-studio-back:active { transform: scale(.97); }
-.note-studio-stage { min-height: 0; flex: 1 1 auto; display: grid; grid-template-columns: 116px minmax(0, 1fr) 180px; gap: 24px; padding: 32px 30px 34px; background: #1b1917; }
+.note-studio-stage { min-height: 0; flex: 1 1 auto; display: grid; grid-template-columns: 116px minmax(0, 980px) 180px; justify-content: center; gap: 24px; padding: 32px 30px 34px; background: #1b1917; }
 .note-studio-rail { min-width: 0; display: flex; flex-direction: column; color: #766d62; font: 10px "DM Mono", monospace; }
 .note-studio-rail-left { align-items: flex-start; padding-top: 23px; }
 .note-studio-rail-right { align-items: flex-end; padding-top: 23px; text-align: right; }
@@ -574,5 +576,5 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .note-studio-editor .note-editor-save:disabled { cursor: wait; opacity: .55; }
 @keyframes note-studio-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (max-width: 900px) { .note-studio-stage { grid-template-columns: 72px minmax(0, 1fr) 112px; gap: 15px; padding-inline: 18px; }.note-studio-rail-copy, .note-studio-rail-right p { display: none; }.note-studio-title-block { padding-inline: 32px; }.note-studio-editor .note-editor-toolbar, .note-studio-editor .note-editor-content, .note-studio-editor .note-editor-actions { padding-inline: 32px; } }
-@media (max-width: 680px) { .note-studio-layer { padding: 8px; }.note-studio { border-radius: 20px; }.note-studio-header { height: 58px; flex-basis: 58px; grid-template-columns: 1fr auto; padding: 0 14px; }.note-studio-heading, .note-studio-shortcut { display: none; }.note-studio-header-actions { grid-column: 2; }.note-studio-stage { display: block; padding: 12px; }.note-studio-rail { display: none; }.note-studio-paper { height: 100%; }.note-studio-paper-topline { padding: 14px 22px 0; font-size: 8px; }.note-studio-title-block { padding: 25px 24px 20px; }.note-studio-title-block h1 { font-size: 34px; }.note-studio-editor .note-editor-toolbar { padding: 10px 24px; }.note-studio-editor .note-editor-toolbar-label { display: none; }.note-studio-editor .note-editor-content { padding: 24px; font-size: 17px; }.note-studio-editor .note-editor-actions { padding: 13px 24px 17px; }.note-studio-editor .note-editor-error { padding-inline: 24px; } }
+@media (max-width: 680px) { .note-studio-header { height: calc(58px + var(--titlebar-height)); flex-basis: calc(58px + var(--titlebar-height)); grid-template-columns: 1fr auto; padding: var(--titlebar-height) 14px 0; }.note-studio-heading, .note-studio-shortcut { display: none; }.note-studio-header-actions { grid-column: 2; }.note-studio-stage { display: block; padding: 12px; }.note-studio-rail { display: none; }.note-studio-paper { height: 100%; }.note-studio-paper-topline { padding: 14px 22px 0; font-size: 8px; }.note-studio-title-block { padding: 25px 24px 20px; }.note-studio-title-block h1 { font-size: 34px; }.note-studio-editor .note-editor-toolbar { padding: 10px 24px; }.note-studio-editor .note-editor-toolbar-label { display: none; }.note-studio-editor .note-editor-content { padding: 24px; font-size: 17px; }.note-studio-editor .note-editor-actions { padding: 13px 24px 17px; }.note-studio-editor .note-editor-error { padding-inline: 24px; } }
 @media (prefers-reduced-motion: reduce) { .note-studio-layer { animation: none; } }
