@@ -1279,7 +1279,7 @@ function App() {
       toast("Forgotten from your library", {
         id: toastId,
         description: item.title,
-        duration: 5000,
+        duration: Infinity,
         closeButton: true,
         className: "library-toast",
         action: {
