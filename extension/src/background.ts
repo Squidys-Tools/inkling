@@ -283,10 +283,21 @@ async function collectFromTab(tabId: number, collect: "selection" | "image" | "v
     });
     if (response && typeof response === "object" && "payload" in response) {
       await dispatchCapturePayload((response as { payload: unknown }).payload, tabId);
+    } else if (response && typeof response === "object" && "reason" in response) {
+      const status: SaveStatus = {
+        state: "failed",
+        detail: String((response as { reason: unknown }).reason),
+        at: new Date().toISOString(),
+      };
+      await writeStatus(status);
     }
-  } catch {
-    // No content script on this page (or it refused): status already reflects
-    // the failure via the collect path; stay quiet here.
+  } catch (error) {
+    const status: SaveStatus = {
+      state: "failed",
+      detail: error instanceof Error ? error.message : "page collector unavailable",
+      at: new Date().toISOString(),
+    };
+    await writeStatus(status);
   }
 }
 
@@ -322,6 +333,26 @@ browser.runtime.onStartup.addListener(() => {
 browser.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "inkling-save-page") {
     void saveActiveTab();
+    return;
+  }
+  const pageUrl = tab?.url ?? info.pageUrl ?? "";
+  if (info.menuItemId === INKLING_MENU_SAVE_IMAGE && typeof info.srcUrl === "string") {
+    void dispatchCapturePayload(
+      { kind: "image", pageUrl, srcUrl: info.srcUrl },
+      tab?.id ?? 0,
+    );
+    return;
+  }
+  if (info.menuItemId === INKLING_MENU_SAVE_SELECTION && typeof info.selectionText === "string") {
+    void dispatchCapturePayload(
+      {
+        kind: "selection",
+        sourceUrl: pageUrl,
+        selectedHtml: "",
+        selectedText: info.selectionText,
+      },
+      tab?.id ?? 0,
+    );
     return;
   }
   if (tab?.id === undefined) return;
