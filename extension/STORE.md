@@ -23,9 +23,9 @@ The token never leaves the machine except to the local inkling companion on loop
 
 Chrome / Edge (same build, unchanged):
 
-1. Run `bun run dev` in `extension/` and leave it running. The first run builds the extension, then CRXJS watches the main extension bundle and reloads it in the browser.
+1. Run `bun run build` in `extension/`.
 2. Open `chrome://extensions` (Edge: `edge://extensions`), enable Developer mode, choose Load unpacked, pick `dist/` once.
-3. Keep using the same loaded extension while developing; do not remove and re-import it after each source change. If you change the injected content-script bundles, run `bun run build` once to refresh those files.
+3. After each build, press the extension's **Reload** button. Do not remove and re-import it: Chrome keeps the pairing token and app address in extension storage, and removing the extension clears that data.
 
 Firefox:
 
