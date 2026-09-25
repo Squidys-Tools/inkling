@@ -437,7 +437,7 @@ impl LibraryStorage {
         self.get_item(&id)?.ok_or(StorageError::NotFound(id))
     }
 
-    fn create_quote(&self, input: CreateQuoteInput) -> Result<ItemDto, StorageError> {
+    pub(crate) fn create_quote(&self, input: CreateQuoteInput) -> Result<ItemDto, StorageError> {
         let body = input.body.trim().to_owned();
         if body.is_empty() {
             return Err(StorageError::InvalidInput(

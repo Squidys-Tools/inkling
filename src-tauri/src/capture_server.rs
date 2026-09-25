@@ -118,6 +118,49 @@ struct CaptureRequest {
     favicon: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SelectionCaptureRequest {
+    kind: String,
+    source_url: String,
+    selected_text: String,
+    title: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImageCaptureRequest {
+    kind: String,
+    page_url: String,
+    src_url: String,
+    alt: Option<String>,
+    data_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VideoCaptureRequest {
+    kind: String,
+    source_url: String,
+}
+
+#[derive(Debug)]
+enum ValidatedCapture {
+    Page(crate::storage::CreateUrlInput),
+    Quote {
+        body: String,
+        attribution: Option<String>,
+        source_url: String,
+    },
+    Image {
+        image_url: String,
+        alt: Option<String>,
+    },
+    Video {
+        source_url: String,
+    },
+}
+
 /// Upper bound from `packages/ingestion-shared` (`MAX_DEFUDDLED_HTML_BYTES`);
 /// must match that file exactly.
 const MAX_DEFUDDLED_HTML_BYTES: usize = 2 * 1024 * 1024;
@@ -320,9 +363,68 @@ fn capped_string(value: Option<String>, max: usize, field: &str) -> Result<Optio
     }
 }
 
-fn validate_capture_payload(body: &[u8]) -> Result<crate::storage::CreateUrlInput, String> {
-    let request: CaptureRequest = serde_json::from_slice(body)
+fn validate_capture_payload(body: &[u8]) -> Result<ValidatedCapture, String> {
+    let value: serde_json::Value = serde_json::from_slice(body)
         .map_err(|_| "request body must be a JSON capture object".to_string())?;
+    let kind = value
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "capture kind is required".to_owned())?;
+    match kind {
+        "page" => {
+            let request: CaptureRequest = serde_json::from_value(value)
+                .map_err(|_| "request body must be a page capture object".to_owned())?;
+            validate_page_capture_payload(request).map(ValidatedCapture::Page)
+        }
+        "selection" => {
+            let request: SelectionCaptureRequest = serde_json::from_value(value)
+                .map_err(|_| "request body must be a selection capture object".to_owned())?;
+            if request.kind != "selection" {
+                return Err("unsupported payload kind".into());
+            }
+            let source_url = validate_capture_url(&request.source_url)?;
+            let body = truncate_chars(request.selected_text.trim(), 200_000);
+            if body.is_empty() {
+                return Err("selection cannot be empty".into());
+            }
+            let attribution = capped_string(request.title, 240, "title")?;
+            Ok(ValidatedCapture::Quote {
+                body,
+                attribution,
+                source_url,
+            })
+        }
+        "image" => {
+            let request: ImageCaptureRequest = serde_json::from_value(value)
+                .map_err(|_| "request body must be an image capture object".to_owned())?;
+            if request.kind != "image" {
+                return Err("unsupported payload kind".into());
+            }
+            validate_capture_url(&request.page_url)?;
+            let image_url = validate_capture_url(&request.src_url)?;
+            if request.data_url.is_some() {
+                return Err("data URL images are not supported by the local receiver".into());
+            }
+            let alt = capped_string(request.alt, 240, "alt")?;
+            Ok(ValidatedCapture::Image { image_url, alt })
+        }
+        "video" => {
+            let request: VideoCaptureRequest = serde_json::from_value(value)
+                .map_err(|_| "request body must be a video capture object".to_owned())?;
+            if request.kind != "video" {
+                return Err("unsupported payload kind".into());
+            }
+            Ok(ValidatedCapture::Video {
+                source_url: validate_capture_url(&request.source_url)?,
+            })
+        }
+        _ => Err("unsupported payload kind".into()),
+    }
+}
+
+fn validate_page_capture_payload(
+    request: CaptureRequest,
+) -> Result<crate::storage::CreateUrlInput, String> {
     if request.version != 1 {
         return Err("unsupported payload version".into());
     }
@@ -1070,7 +1172,7 @@ fn handle_connection(stream: TcpStream, app: AppHandle) {
                     return;
                 }
             };
-            match store_capture(&app, input) {
+            match store_validated_capture(&app, input) {
                 Ok(id) => {
                     let body = serde_json::json!({ "id": id }).to_string();
                     write_response(&mut stream, 201, "Created", &cors_ref, &body);
@@ -1129,6 +1231,82 @@ fn enqueue_favicon_cache(app: &AppHandle, item_id: &str, url: String) {
         item_id: item_id.to_owned(),
         url,
     });
+}
+
+fn enqueue_item_processing(app: &AppHandle, item: &crate::storage::ItemDto) {
+    let processing: State<'_, crate::jobs::ProcessingState> = app.state();
+    processing.enqueue_and_wake(&item.id, crate::jobs::JobKind::GenerateEmbedding);
+}
+
+fn store_validated_capture(app: &AppHandle, input: ValidatedCapture) -> Result<String, u16> {
+    match input {
+        ValidatedCapture::Page(input) => store_capture(app, input),
+        ValidatedCapture::Quote {
+            body,
+            attribution,
+            source_url,
+        } => {
+            let storage_state: State<'_, crate::storage::StorageState> = app.state();
+            let guard = storage_state.lock().map_err(|_| 503u16)?;
+            let storage = guard.as_ref().ok_or(503u16)?;
+            let item = storage
+                .create_quote(crate::storage::CreateQuoteInput {
+                    body,
+                    attribution,
+                    source_url: Some(source_url),
+                    metadata: Some(serde_json::json!({ "origin": "browser-extension" })),
+                })
+                .map_err(|_| 503u16)?;
+            let _ = crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id);
+            drop(guard);
+            enqueue_item_processing(app, &item);
+            Ok(item.id)
+        }
+        ValidatedCapture::Image { image_url, alt: _ } => {
+            let (bytes, mime_type) =
+                crate::http_fetch::download_public_image(&image_url).map_err(|_| 422u16)?;
+            let file_name = url::Url::parse(&image_url)
+                .ok()
+                .and_then(|url| {
+                    url.path_segments()
+                        .and_then(|segments| {
+                            segments.filter(|segment| !segment.is_empty()).next_back()
+                        })
+                        .map(str::to_owned)
+                })
+                .filter(|name| name.len() <= 180)
+                .unwrap_or_else(|| "image".to_owned());
+            let storage_state: State<'_, crate::storage::StorageState> = app.state();
+            let guard = storage_state.lock().map_err(|_| 503u16)?;
+            let storage = guard.as_ref().ok_or(503u16)?;
+            let item = storage
+                .save_file(crate::storage::SaveFileInput {
+                    id: None,
+                    file_name,
+                    mime_type: Some(mime_type),
+                    kind: Some("image".into()),
+                    bytes,
+                })
+                .map_err(|_| 503u16)?;
+            let _ = crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id);
+            drop(guard);
+            enqueue_item_processing(app, &item);
+            Ok(item.id)
+        }
+        ValidatedCapture::Video { source_url } => store_capture(
+            app,
+            crate::storage::CreateUrlInput {
+                source_url,
+                title: None,
+                description: None,
+                body: String::new(),
+                metadata: Some(serde_json::json!({
+                    "origin": "browser-extension",
+                    "sourceKind": "video",
+                })),
+            },
+        ),
+    }
 }
 
 /// Capture creates the item immediately (same rule as every other capture
@@ -1410,7 +1588,11 @@ mod tests {
             "publishedDate": "2026-01-02T00:00:00Z",
             "imageUrls": ["https://example.com/img.jpg", "javascript:evil()", "https://example.com/img.jpg"],
         });
-        let input = validate_capture_payload(&serde_json::to_vec(&good).unwrap()).unwrap();
+        let ValidatedCapture::Page(input) =
+            validate_capture_payload(&serde_json::to_vec(&good).unwrap()).unwrap()
+        else {
+            panic!("expected page capture")
+        };
         assert_eq!(input.source_url, "https://example.com/article");
         assert_eq!(input.title.as_deref(), Some("A quiet page"));
         let metadata = input.metadata.as_ref().unwrap();
@@ -1431,7 +1613,11 @@ mod tests {
             "url": "https://www.example.com/post",
             "title": "  ", "defuddledHtml": "", "text": "words",
         });
-        let input = validate_capture_payload(&serde_json::to_vec(&blank_title).unwrap()).unwrap();
+        let ValidatedCapture::Page(input) =
+            validate_capture_payload(&serde_json::to_vec(&blank_title).unwrap()).unwrap()
+        else {
+            panic!("expected page capture")
+        };
         assert_eq!(input.title.as_deref(), Some("www.example.com"));
 
         // Overlong titles truncate; wrong version/kind/URL shapes reject.
@@ -1440,7 +1626,11 @@ mod tests {
             "url": "https://example.com/", "title": "t".repeat(600),
             "defuddledHtml": "", "text": "",
         });
-        let input = validate_capture_payload(&serde_json::to_vec(&long_title).unwrap()).unwrap();
+        let ValidatedCapture::Page(input) =
+            validate_capture_payload(&serde_json::to_vec(&long_title).unwrap()).unwrap()
+        else {
+            panic!("expected page capture")
+        };
         assert_eq!(input.title.as_deref().unwrap().len(), 500);
 
         for bad in [
@@ -1456,6 +1646,53 @@ mod tests {
         }
 
         assert!(validate_capture_payload(b"not json").is_err());
+    }
+
+    #[test]
+    fn media_capture_payloads_validate_without_deep_links() {
+        let selection = serde_json::json!({
+            "kind": "selection",
+            "sourceUrl": "https://example.com/article",
+            "selectedHtml": "<p>kept</p>",
+            "selectedText": "kept text",
+            "title": "Example",
+        });
+        let ValidatedCapture::Quote {
+            body,
+            attribution,
+            source_url,
+        } = validate_capture_payload(&serde_json::to_vec(&selection).unwrap()).unwrap()
+        else {
+            panic!("expected selection capture")
+        };
+        assert_eq!(body, "kept text");
+        assert_eq!(attribution.as_deref(), Some("Example"));
+        assert_eq!(source_url, "https://example.com/article");
+
+        let image = serde_json::json!({
+            "kind": "image",
+            "pageUrl": "https://example.com/gallery",
+            "srcUrl": "https://cdn.example.com/photo.jpg",
+            "alt": "A photo",
+        });
+        let ValidatedCapture::Image { image_url, alt, .. } =
+            validate_capture_payload(&serde_json::to_vec(&image).unwrap()).unwrap()
+        else {
+            panic!("expected image capture")
+        };
+        assert_eq!(image_url, "https://cdn.example.com/photo.jpg");
+        assert_eq!(alt.as_deref(), Some("A photo"));
+
+        let video = serde_json::json!({
+            "kind": "video",
+            "sourceUrl": "https://www.youtube.com/watch?v=abc",
+        });
+        let ValidatedCapture::Video { source_url } =
+            validate_capture_payload(&serde_json::to_vec(&video).unwrap()).unwrap()
+        else {
+            panic!("expected video capture")
+        };
+        assert_eq!(source_url, "https://www.youtube.com/watch?v=abc");
     }
 
     #[test]

@@ -160,6 +160,7 @@ fn public_http_agent(timeout: Duration) -> ureq::Agent {
 }
 
 const MAX_FAVICON_BYTES: u64 = 128 * 1024;
+const MAX_IMAGE_BYTES: u64 = 50 * 1024 * 1024;
 const MAX_FAVICON_REDIRECTS: u32 = 5;
 
 fn favicon_extension(content_type: &str, url: &Url) -> &'static str {
@@ -245,6 +246,58 @@ pub(crate) fn download_favicon(url: &str) -> Result<(Vec<u8>, String), String> {
     }
 
     Err("network-error: Too many redirects while fetching the favicon.".into())
+}
+
+pub(crate) fn download_public_image(url: &str) -> Result<(Vec<u8>, String), String> {
+    let mut current = validate_fetch_url(url)?;
+    let agent = public_http_agent(Duration::from_secs(30));
+    for _ in 0..MAX_FAVICON_REDIRECTS {
+        validate_public_host(&current)?;
+        let mut response = agent
+            .get(current.as_str())
+            .header("User-Agent", "inkling/0.1 (+local image capture)")
+            .header("Accept", "image/*")
+            .call()
+            .map_err(|error| match error {
+                ureq::Error::Timeout(_) => format!("timeout: {error}"),
+                other => format!("network-error: {other}"),
+            })?;
+        let status = response.status().as_u16();
+        if (300..400).contains(&status) {
+            let location = response
+                .headers()
+                .get("location")
+                .and_then(|value| value.to_str().ok())
+                .ok_or_else(|| "network-error: redirect is missing a location".to_owned())?;
+            let next = current
+                .join(location)
+                .map_err(|_| "invalid-url: Redirect target could not be parsed.".to_owned())?;
+            current = validate_fetch_url(next.as_str())?;
+            continue;
+        }
+        if !(200..300).contains(&status) {
+            return Err(format!("http-status: image returned HTTP {status}"));
+        }
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("")
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_ascii_lowercase();
+        if !content_type.starts_with("image/") {
+            return Err("invalid-image: Response is not an image.".into());
+        }
+        let bytes = read_limited(response.body_mut(), MAX_IMAGE_BYTES)?;
+        if bytes.is_empty() {
+            return Err("invalid-image: Response body is empty.".into());
+        }
+        return Ok((bytes, content_type));
+    }
+    Err("network-error: Too many redirects while fetching the image.".into())
 }
 
 fn read_limited(body: &mut ureq::Body, max_bytes: u64) -> Result<Vec<u8>, String> {

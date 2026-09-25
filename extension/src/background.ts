@@ -16,7 +16,7 @@ import {
   INKLING_MENU_SAVE_SELECTION,
   INKLING_MENU_SAVE_VIDEO,
   isCaptureMessage,
-  payloadToDeepLink,
+  type ExtensionCapturePayload,
 } from "./payload";
 
 // Emitted at dist/ root by vite.content-main/isolated.config.ts — keep in sync.
@@ -31,6 +31,7 @@ const LAST_STATUS_KEY = "inkling:last-save-status";
 // except to the app on loopback.
 const TOKEN_KEY = "inkling.token";
 const BASE_URL_KEY = "inkling.base-url";
+type LoopbackCapturePayload = PageCapturePayloadV1 | ExtensionCapturePayload;
 
 export interface SaveStatus {
   state: "saved" | "queued" | "failed";
@@ -152,7 +153,7 @@ async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } 
  * (`POST {baseUrl}/v1/captures`, per-install bearer). Returns null on success
  * or a delivery error to show in the popup.
  */
-async function tryLoopback(payload: PageCapturePayloadV1): Promise<string | null> {
+async function tryLoopback(payload: LoopbackCapturePayload): Promise<string | null> {
   const config = await readLoopbackConfig();
   if (!config) return "pairing is not configured";
   try {
@@ -243,9 +244,7 @@ async function saveActiveTab(): Promise<SaveStatus> {
   return saveTab(tab.id);
 }
 
-/** Selection/image/video dispatch: the loopback server only takes page
- * payloads, so these travel by deep link (dataUrl never fits a URL and is
- * reported instead of silently dropped). */
+/** Selection/image/video dispatch through the same authenticated local receiver. */
 async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<SaveStatus> {
   void tabId;
   const message = { type: "inkling/capture", payload };
@@ -258,34 +257,21 @@ async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<
     await writeStatus(status);
     return status;
   }
-  const deepLink = payloadToDeepLink(message.payload);
-  if (!deepLink) {
+  if (message.payload.kind === "image" && !/^https?:\/\//iu.test(message.payload.srcUrl)) {
     const status: SaveStatus = {
       state: "failed",
-      detail: "this capture needs the paired app (open inkling once, then retry)",
+      detail: "image captures require an http(s) image URL",
       at: new Date().toISOString(),
     };
     await writeStatus(status);
     return status;
   }
-  // Deep-link-only payloads never enter the queue: the queue is for
-  // loopback re-POST of page payloads, and readQueue drops anything that
-  // fails isPageCapturePayload.
-  try {
-    await browser.tabs.create({ url: deepLink });
-    const status: SaveStatus = { state: "saved", at: new Date().toISOString() };
-    await writeStatus(status);
-    return status;
-  } catch (error) {
-    // App closed or no protocol handler: payload stays queued for later flush.
-    const status: SaveStatus = {
-      state: "failed",
-      detail: error instanceof Error ? error.message : "deep link refused",
-      at: new Date().toISOString(),
-    };
-    await writeStatus(status);
-    return status;
-  }
+  const deliveryError = await tryLoopback(message.payload);
+  const status: SaveStatus = deliveryError === null
+    ? { state: "saved", at: new Date().toISOString() }
+    : { state: "failed", detail: deliveryError, at: new Date().toISOString() };
+  await writeStatus(status);
+  return status;
 }
 
 async function collectFromTab(tabId: number, collect: "selection" | "image" | "video", srcUrl?: string) {
