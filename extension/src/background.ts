@@ -22,6 +22,8 @@ import {
 // Emitted at dist/ root by vite.content-main/isolated.config.ts — keep in sync.
 const CONTENT_MAIN_FILE = "content-main.js";
 const CONTENT_ISOLATED_FILE = "content-isolated.js";
+const EXTRACT_TIMEOUT_MS = 10_000;
+const EXTRACT_POLL_INTERVAL_MS = 50;
 
 const QUEUE_KEY = "inkling:pending-captures-v1";
 const LAST_STATUS_KEY = "inkling:last-save-status";
@@ -69,6 +71,13 @@ async function writeStatus(status: SaveStatus): Promise<void> {
 export async function injectExtractor(tabId: number): Promise<unknown> {
   await browser.scripting.executeScript({
     target: { tabId },
+    world: "ISOLATED",
+    func: () => {
+      document.getElementById("__inkling-extract-result")?.remove();
+    },
+  });
+  await browser.scripting.executeScript({
+    target: { tabId },
     files: [CONTENT_MAIN_FILE],
     world: "MAIN",
   });
@@ -77,22 +86,57 @@ export async function injectExtractor(tabId: number): Promise<unknown> {
     files: [CONTENT_ISOLATED_FILE],
     world: "ISOLATED",
   });
-  // The isolated bundle's IIFE discards the async extractor's return value,
-  // so the file injection above surfaces nothing useful. The content script
-  // parks its Promise on globalThis; a func injection can return that
-  // Promise, which executeScript awaits (func is stringified into the page —
-  // the key must be a literal, kept in sync with extract-promise-key.ts).
-  const results = await browser.scripting.executeScript({
-    target: { tabId },
-    world: "ISOLATED",
-    func: () => {
-      const host = globalThis as { __inklingExtractPayloadPromise?: Promise<unknown> };
-      const pending = host.__inklingExtractPayloadPromise;
-      delete host.__inklingExtractPayloadPromise;
-      return pending;
-    },
-  });
-  return results[0]?.result;
+  let promiseResult: unknown;
+  try {
+    const results = await browser.scripting.executeScript({
+      target: { tabId },
+      world: "ISOLATED",
+      func: () => {
+        const host = globalThis as { __inklingExtractPayloadPromise?: Promise<unknown> };
+        const pending = host.__inklingExtractPayloadPromise;
+        delete host.__inklingExtractPayloadPromise;
+        return pending;
+      },
+    });
+    promiseResult = results[0]?.result;
+  } catch {
+    promiseResult = undefined;
+  }
+  if (isPageCapturePayload(promiseResult)) return promiseResult;
+
+  const deadline = Date.now() + EXTRACT_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const results = await browser.scripting.executeScript({
+      target: { tabId },
+      world: "ISOLATED",
+      func: () => {
+        const node = document.getElementById("__inkling-extract-result");
+        if (!node) return null;
+        const raw = node.textContent;
+        node.remove();
+        return raw;
+      },
+    });
+    const raw = results[0]?.result;
+    if (typeof raw === "string" && raw) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        throw new Error("extractor returned invalid result");
+      }
+      if (parsed && typeof parsed === "object") {
+        const record = parsed as { ok?: unknown; payload?: unknown; error?: unknown };
+        if (record.ok === true && isPageCapturePayload(record.payload)) return record.payload;
+        if (record.ok === false) {
+          throw new Error(typeof record.error === "string" ? record.error : "page extraction failed");
+        }
+      }
+      throw new Error("extractor returned invalid result");
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, EXTRACT_POLL_INTERVAL_MS));
+  }
+  throw new Error("page extraction timed out");
 }
 
 async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } | null> {

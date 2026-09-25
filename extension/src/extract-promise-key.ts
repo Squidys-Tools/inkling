@@ -3,3 +3,4 @@
 // (func is stringified into the page, so it must inline this string — keep
 // both sites on the same constant value).
 export const EXTRACT_PAYLOAD_PROMISE_KEY = "__inklingExtractPayloadPromise";
+export const EXTRACT_RESULT_NODE_ID = "__inkling-extract-result";
