@@ -13,10 +13,7 @@ import { MASCOT_SIZE } from "./safeSpots";
 export function MascotHomeSlot({ isSearchFocused }: { isSearchFocused: boolean }) {
   const away = useRoam().away;
   return (
-    <div
-      className={`brand-mark${isSearchFocused ? " is-away" : ""}${away ? " is-roaming" : ""}`}
-      aria-hidden="true"
-    >
+    <div className={`brand-mark${isSearchFocused ? " is-away" : ""}`} aria-hidden="true">
       {away ? <span className="mascot-home-empty" /> : <LiveMascotFigure size={MASCOT_SIZE} />}
     </div>
   );

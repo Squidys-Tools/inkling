@@ -203,6 +203,23 @@ describe("roaming controller", () => {
     for (const outing of found) expect(outing[outing.length - 1]!.action.kind).toBe("go-home");
   });
 
+  test("the activity window is measured on the controller's own clock", () => {
+    // `lastActivityAt` and `now` have to share a time base, or "was the user
+    // active recently" silently answers the wrong question. The store stamps
+    // activity with the same virtual clock the controller ticks on, and this is
+    // that contract: a stamp older than the window is stale, whatever produced
+    // it, and a stale stamp makes a glance look at an item rather than track a
+    // pointer that has not moved in minutes.
+    const stale = simulate(11, () => ({ lastActivityAt: 0 }));
+    const glances = stale.steps.filter((step) => step.action.kind === "look");
+    expect(glances.length).toBeGreaterThan(0);
+    expect(glances.every((step) => step.action.target === "item")).toBe(true);
+
+    // And a stamp on the same clock, inside the window, still counts.
+    const live = simulate(11, (now) => ({ lastActivityAt: now }));
+    expect(live.steps.some((step) => step.action.target === "activity")).toBe(true);
+  });
+
   test("a failed capture ends the outing and the mascot is sad on the way home", () => {
     const { steps } = fromFirstOuting(3, (start) => (now) => ({
       captureFailed: now >= start + 2_000 && now < start + 12_000,
@@ -212,6 +229,16 @@ describe("roaming controller", () => {
     expect(sad[0]!.at).toBeGreaterThanOrEqual(2_000);
     const back = steps.find((step) => step.action.kind === "arrive")!;
     expect(back.at).toBeGreaterThanOrEqual(sad[0]!.at);
+  });
+
+  test("a failure that landed while the mascot was home does not hijack its first step", () => {
+    // The app already wears the sad face at home, and the failure is spent on one
+    // walk home. But a mascot that steps out and turns straight round reads as a
+    // glitch, not a mood, so the first step out is never the sad one.
+    const { steps } = fromFirstOuting(3, (start) => (now) => ({ captureFailed: now < start + 2_000 }));
+    const first = steps[0]!;
+    expect(["wander", "cross", "drift"]).toContain(first.action.kind);
+    expect(first.action.expression).not.toBe("triste");
   });
 
   test("reduced motion never leaves home", () => {

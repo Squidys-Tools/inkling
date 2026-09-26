@@ -142,6 +142,57 @@ describe("safe spots", () => {
     expect(isSafeSpot(nearest!, container, obstacles, MASCOT_BODY, MIN_ROOM)).toBe(true);
   });
 
+  test("a huge window still finds its margin, at whatever lattice it needs", () => {
+    // The candidate lattice is bounded so a search cannot stall the mascot's own
+    // frame, which means the step grows with the window. A 48px margin on a 4K
+    // window is then well under one step wide, and only the finer pass finds it.
+    const container: Rect = { left: 0, top: 0, right: 2560, bottom: 1400 };
+    const cards: Rect[] = [];
+    for (let row = 0; row < 5; row++) {
+      for (let col = 0; col < 6; col++) {
+        cards.push({ left: 48 + col * 400, top: 145 + row * 250, right: 48 + col * 400 + 380, bottom: 145 + row * 250 + 240 });
+      }
+    }
+    const obstacles: Rect[] = [...cards, { left: 48, top: 36, right: 2512, bottom: 86 }];
+    const from = { x: 1280, y: 115 };
+    const found = findSafeSpot({ container, obstacles, from, prefer: "any", rand: createSeededRandom(4), minRoom: MIN_ROOM });
+    expect(found).not.toBeNull();
+    expect(isSafeSpot(found!, container, obstacles, MASCOT_BODY, MIN_ROOM)).toBe(true);
+    const nearest = nearestSafeSpot(container, obstacles, from, MASCOT_BODY, MIN_ROOM);
+    expect(nearest).not.toBeNull();
+    expect(isSafeSpot(nearest!, container, obstacles, MASCOT_BODY, MIN_ROOM)).toBe(true);
+  });
+
+  test("a single big card leaves the margins and nothing else, the way Serendipity does", () => {
+    // Serendipity shows one item filling the stage, with Keep, Forget and Details
+    // on it. If that card is measured as an obstacle the only free space left is
+    // the margins, and the mascot stays out on them. If it is missed entirely,
+    // the whole stage reads as walkable floor and the mascot lands on the
+    // buttons. The geometry has to hold the answer either way, so this pins the
+    // shape rather than the selector that feeds it.
+    const container: Rect = { left: 248, top: 0, right: 1414, bottom: 807 };
+    const stage: Rect = { left: 296, top: 145, right: 1366, bottom: 720 };
+    const obstacles: Rect[] = [stage, { left: 296, top: 36, right: 1366, bottom: 86 }];
+    const rand = createSeededRandom(9);
+    for (let i = 0; i < 200; i++) {
+      const spot = findSafeSpot({ container, obstacles, from: { x: 400, y: 400 }, prefer: "any", rand, minRoom: MIN_ROOM });
+      expect(spot).not.toBeNull();
+      expect(hits(box(spot!), stage)).toBe(false);
+    }
+    // With the card gone the stage is floor again, which is what makes the
+    // missing-card case a bug rather than a preference.
+    const withoutCard = findSafeSpot({
+      container,
+      obstacles: [obstacles[1]!],
+      from: { x: 800, y: 400 },
+      prefer: "any",
+      rand: createSeededRandom(9),
+      minRoom: MIN_ROOM,
+    });
+    expect(withoutCard).not.toBeNull();
+    expect(hits(box(withoutCard!), stage)).toBe(true);
+  });
+
   test("look targets are the cards you can see, nearest first", () => {
     const targets = lookTargets(CONTAINER, CARDS, { x: 300, y: 115 });
     expect(targets.length).toBeGreaterThan(0);

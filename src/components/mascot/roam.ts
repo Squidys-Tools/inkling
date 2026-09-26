@@ -314,7 +314,10 @@ export function tickRoam(state: RoamState, signals: RoamSignals, rand: Rand): Ro
     if (now < next.due && !signals.force) return { state: next, action: null };
     return step(
       { ...next, phase: "away", awakeMs: 0, stops: 0, budgetMs: Math.round(between(rand, AWAKE_MS)) },
-      signals,
+      // There is no outing to end, so a capture that failed while the mascot was
+      // home does not send it out for a sad walk. The app's own home face is
+      // already the sad one, and the failure is spent either way.
+      { ...signals, captureFailed: false },
       rand,
       true,
     );

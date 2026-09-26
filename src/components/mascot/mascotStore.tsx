@@ -43,6 +43,7 @@ const clockSubs = new Set<(clock: number) => void>();
  */
 let homeParams: MascotParams = { state: "inkling-drift", expression: DEFAULT_EXPRESSION };
 let roamParams: MascotParams | null = null;
+let appliedParams: MascotParams = homeParams;
 
 export function prefersReducedMotion(): boolean {
   return (
@@ -135,9 +136,19 @@ export function getMascotFrame(): BotFrame {
   return frame;
 }
 
-/** The only path to the engine's state and face. Roaming overrides the app's. */
+/**
+ * The only path to the engine's state and face. Roaming overrides the app's.
+ *
+ * Both sources push on every change of their own inputs, which during an outing
+ * is every stop, and the engine already ignores a state it is already in. The
+ * guard here is so the hand-back is legible: when roaming hands the engine over
+ * and the app's own face happens to equal the face the outing was wearing,
+ * there is one path that resolves the conflict rather than two.
+ */
 function apply() {
   const active = roamParams ?? homeParams;
+  if (active.state === appliedParams.state && active.expression === appliedParams.expression) return;
+  appliedParams = active;
   engine.setState(active.state, clock);
   engine.setExpression(EXPRESSION_BY_ID.get(active.expression) ?? EXPRESSION_BY_ID.get(DEFAULT_EXPRESSION) ?? null, clock);
   if (!running) {
@@ -154,6 +165,9 @@ export function pushMascotParams({ state, expression }: MascotParams) {
 /** An outing pushes its own face here, and pushes null to hand the engine back. */
 export function pushRoamParams(params: MascotParams | null) {
   roamParams = params;
+  // A gaze outlives the outing that asked for it unless it is cleared with the
+  // hand-off, and a mascot back in its slot should look where its state looks.
+  if (!roamParams) engine.setLook(null, clock);
   apply();
 }
 

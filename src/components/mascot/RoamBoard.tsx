@@ -2,13 +2,12 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { MascotHomeSlot } from "./MascotHomeSlot";
 import { MascotRoamLayer } from "./MascotRoamLayer";
 import {
-  forceRoamOuting,
   getRoamState,
   roamAwakeLeft,
   setRoamManual,
   setRoamSeed,
   setRoamSpeed,
-  stepRoamOnce,
+  stepRoam,
   useRoam,
 } from "./roamStore";
 import { MASCOT_SIZE } from "./safeSpots";
@@ -126,7 +125,7 @@ export function RoamBoard() {
       >
         <strong style={{ display: "block", marginBottom: 8 }}>Wandering mascot</strong>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-          <button type="button" onClick={forceRoamOuting} style={button}>
+          <button type="button" onClick={stepRoam} style={button}>
             Leave now
           </button>
           <button
@@ -143,7 +142,7 @@ export function RoamBoard() {
           <button
             type="button"
             disabled={!manual}
-            onClick={stepRoamOnce}
+            onClick={stepRoam}
             style={{ ...button, opacity: manual ? 1 : 0.4 }}
           >
             Step

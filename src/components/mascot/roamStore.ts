@@ -41,7 +41,14 @@ const ROAM_STATE = "inkling-sway" as const;
 
 const CONTAINER_SELECTOR = ".main-content";
 const MARK_SELECTOR = ".brand-mark";
-const CARD_SELECTOR = ".library-grid .library-card";
+/**
+ * Anything the user reads, queried inside the container rather than by a
+ * `.library-grid` ancestor. The serendipity view renders its one item as
+ * `.serendipity-art > .library-card-slot > .library-card` with no grid above
+ * it, and that view is exactly where the Keep and Forget buttons live, so a
+ * grid-scoped query would hand the mascot the whole stage as free space.
+ */
+const CARD_SELECTOR = ".library-card";
 const TOAST_SELECTOR = "[data-sonner-toast]";
 /** Controls, chrome, and anything modal. The mascot is never allowed on them. */
 const BLOCKERS = [
@@ -153,6 +160,17 @@ function rectsOf(selector: string, limit: number): Rect[] {
   return out;
 }
 
+/** The same walk, confined to one subtree. */
+function rectsWithin(root: Element, selector: string, limit: number): Rect[] {
+  const out: Rect[] = [];
+  for (const element of root.querySelectorAll(selector)) {
+    if (out.length >= limit) break;
+    const rect = toRect(element);
+    if (rect) out.push(rect);
+  }
+  return out;
+}
+
 /** Where the mascot may go, measured now. null when the library is not on screen. */
 function measure(): Layout | null {
   const containerElement = document.querySelector(CONTAINER_SELECTOR);
@@ -165,7 +183,7 @@ function measure(): Layout | null {
   // is nowhere to come home to, so the mascot stays put.
   if (mark.right < 0 || mark.left > window.innerWidth) return null;
 
-  const cards = rectsOf(CARD_SELECTOR, MAX_OBSTACLES);
+  const cards = rectsWithin(containerElement, CARD_SELECTOR, MAX_OBSTACLES);
   const obstacles = [...cards, ...rectsOf(TOAST_SELECTOR, 4)];
   for (const selector of BLOCKERS) {
     const element = document.querySelector(selector);
@@ -175,33 +193,41 @@ function measure(): Layout | null {
   return { container, obstacles, cards, home: rectCenter(mark) };
 }
 
-/** Whether the library has anywhere to stand at all. */
-function roomExists(next: Layout | null): boolean {
-  if (!next) return false;
-  if (position && isSafeSpot(position, next.container, next.obstacles, undefined, MIN_ROOM)) return true;
-  return nearestSafeSpot(next.container, next.obstacles, position ?? next.home, undefined, MIN_ROOM) !== null;
-}
-
-function refreshLayout() {
-  layout = measure();
-  hasRoom = roomExists(layout);
+/**
+ * Measure, and answer both questions the caller has, from one search.
+ *
+ * `canStand` is "does the library have anywhere at all", which is what the
+ * controller needs before it starts a walk. `nearest` is where the mascot should
+ * stand if where it is standing has stopped being valid, which is what a resize
+ * or a scroll needs. Asking both separately measured once and then searched the
+ * candidate lattice twice, and a scroll is precisely the case where the current
+ * position is invalid and the search is at its most expensive.
+ */
+function checkLayout(): { canStand: boolean; nearest: Point | null } {
+  const next = measure();
+  layout = next;
   needsCheck = false;
   lastCheckAt = virtualNow;
+  if (!next) return { canStand: false, nearest: null };
+  const from = position ?? next.home;
+  if (isSafeSpot(from, next.container, next.obstacles, undefined, MIN_ROOM)) {
+    return { canStand: true, nearest: from };
+  }
+  const nearest = nearestSafeSpot(next.container, next.obstacles, from, undefined, MIN_ROOM);
+  return { canStand: nearest !== null, nearest };
 }
 
 /** A resize, a scroll, or new cards under the mascot: find somewhere valid again. */
 function revalidate() {
-  refreshLayout();
-  if (position === null || !layout) return;
-  if (isSafeSpot(position, layout.container, layout.obstacles, undefined, MIN_ROOM)) return;
-  const safe = nearestSafeSpot(layout.container, layout.obstacles, position, undefined, MIN_ROOM);
-  if (safe) {
-    moveTo(safe, 320, 0);
+  const { canStand, nearest } = checkLayout();
+  hasRoom = canStand;
+  if (position === null) return;
+  if (nearest) {
+    if (nearest.x !== position.x || nearest.y !== position.y) moveTo(nearest, 320, 0);
     return;
   }
   // A scroll put a card under the mascot and there is nowhere left to stand. The
   // walk ends rather than the mascot sitting on top of it.
-  hasRoom = false;
   advance(virtualNow, true);
 }
 
@@ -242,9 +268,12 @@ function moveTo(to: Point, travelMs: number, fadeMs: number) {
   const mounted = position !== null;
   position = to;
   if (!mounted) {
-    // Mount on the home mark first, so leaving reads as leaving instead of the
-    // mascot appearing in the middle of the library.
-    publish({ x: to.x, y: to.y, travelMs: 0, fadeMs: 0 });
+    // Mount on the home mark first, then travel. Publishing the destination
+    // straight away would put the mascot in the middle of the library on the
+    // first frame, and the one move that has to read as leaving is the only one
+    // that would not move at all.
+    const from = layout?.home ?? to;
+    publish({ x: from.x, y: from.y, travelMs: 0, fadeMs: 0 });
     requestAnimationFrame(() => {
       if (position) publish({ x: position.x, y: position.y, travelMs, fadeMs });
     });
@@ -265,6 +294,9 @@ function applyAction(action: RoamAction, resolved: Resolved | null) {
     endOuting();
     return;
   }
+  // A failed capture is worth one sad walk home, not a mascot that stays glum
+  // until the next successful capture happens to clear the flag.
+  if (action.expression === "triste") captureFailed = false;
   const walkingHome = action.kind === "go-home";
   // The last stretch of a walk home fades out, so the hand-off to the sidebar
   // figure is invisible instead of a jump cut.
@@ -283,13 +315,20 @@ function applyAction(action: RoamAction, resolved: Resolved | null) {
 
 // --- the loop -------------------------------------------------------------
 
+/**
+ * Reduced motion is read once and cached, not asked for sixty times a second:
+ * `signals()` runs inside the mascot's own frame callback, and building a fresh
+ * MediaQueryList per frame is work the engine does not need.
+ */
+let reducedMotion = false;
+
 function signals(force: boolean) {
   return {
     now: virtualNow,
     lastActivityAt,
     occupied,
     captureFailed,
-    reducedMotion: prefersReducedMotion(),
+    reducedMotion,
     hidden: typeof document !== "undefined" && document.hidden,
     canRoam: hasRoom,
     force,
@@ -298,7 +337,7 @@ function signals(force: boolean) {
 
 function advance(now: number, force = false) {
   if (!state) state = createRoamState(now, rand);
-  if (needsCheck && (force || now - lastCheckAt >= RECHECK_MS)) refreshLayout();
+  if (needsCheck && (force || now - lastCheckAt >= RECHECK_MS)) hasRoom = checkLayout().canStand;
 
   const input = signals(force);
   const tick = tickRoam(state, input, rand);
@@ -332,8 +371,12 @@ function onClock(clock: number) {
   if (manual) return;
   // While the mascot is out, the spot is re-checked on a timer as well as on
   // events. Cards mount lazily under a paused mascot, and nothing about that
-  // announces itself as a resize.
-  if (virtualNow - lastCheckAt >= RECHECK_MS && (needsCheck || position !== null)) revalidate();
+  // announces itself as a resize. Walking home is excluded: the slot is inside
+  // the sidebar, which is an obstacle like any other, so re-checking there would
+  // find a library spot and turn the mascot around half way home.
+  if (virtualNow - lastCheckAt >= RECHECK_MS && (needsCheck || position !== null) && state?.phase !== "returning") {
+    revalidate();
+  }
   advance(virtualNow);
 }
 
@@ -347,9 +390,17 @@ function onClock(clock: number) {
  */
 export function watchRoamInputs(): () => void {
   if (typeof window === "undefined") return () => {};
+  reducedMotion = prefersReducedMotion();
 
   const act = () => {
-    lastActivityAt = performance.now();
+    // Stamped on the mascot's own clock, not on `performance.now()`. The
+    // controller asks "was the user doing something in the last four seconds",
+    // and it asks it with `virtualNow`. That clock halts on a hidden tab and
+    // under reduced motion while the wall clock does not, so a raw stamp goes
+    // stale in the wrong direction: after any backgrounded stretch the mascot
+    // reads the user as permanently active and every glance tracks the last
+    // pointer position instead of the item in front of it.
+    lastActivityAt = virtualNow;
   };
   const track = (event: PointerEvent) => {
     pointer = { x: event.clientX, y: event.clientY };
@@ -372,7 +423,11 @@ export function watchRoamInputs(): () => void {
   if (observer && container) observer.observe(container);
 
   const motion = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
-  motion?.addEventListener("change", invalidate);
+  const onMotion = (event: MediaQueryListEvent) => {
+    reducedMotion = event.matches;
+    invalidate();
+  };
+  motion?.addEventListener("change", onMotion);
 
   const stop = onMascotClock(onClock);
   return () => {
@@ -384,7 +439,7 @@ export function watchRoamInputs(): () => void {
     window.removeEventListener("pointermove", track, capture);
     window.removeEventListener("resize", invalidate);
     window.removeEventListener("scroll", invalidate, capture);
-    motion?.removeEventListener("change", invalidate);
+    motion?.removeEventListener("change", onMotion);
     observer?.disconnect();
     stop();
   };
@@ -415,13 +470,12 @@ export function roamAwakeLeft(): number {
 
 // --- dev board controls ---------------------------------------------------
 
-/** Leave now, without waiting out the first 90 to 180 seconds. */
-export function forceRoamOuting() {
-  advance(virtualNow, true);
-}
-
-/** One decision at a time, for reading the wandering model. */
-export function stepRoamOnce() {
+/**
+ * Decide now instead of at the scheduled time. Forcing the first decision is
+ * also what "leave now" means, and on the dev board it is the same button as
+ * stepping: the controller has no notion of a step, only of a due time.
+ */
+export function stepRoam() {
   advance(virtualNow, true);
 }
 

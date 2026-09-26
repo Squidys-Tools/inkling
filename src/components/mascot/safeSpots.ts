@@ -39,8 +39,14 @@ export const MASCOT_SIZE = 44;
  */
 export const MASCOT_BODY = Math.ceil((2 * 1.06 * RAYON * MASCOT_SIZE) / (2 * DEMI_VIEWBOX) + 1);
 
-/** Spacing between candidate spots, fine enough to land inside a narrow gutter. */
+/**
+ * Spacing between candidate spots, fine enough to land inside a narrow gutter.
+ * A very large window spreads the same step over far more ground, so the step
+ * grows with the container: a search runs inside the mascot's own frame
+ * callback, and the candidate budget is what keeps that frame cheap.
+ */
 const CANDIDATE_STEP = 18;
+const MAX_CANDIDATES = 4_000;
 
 /** A spot within reach of the current one, for a short shuffle. */
 const NEAR_MIN = MASCOT_SIZE * 1.6;
@@ -76,6 +82,10 @@ export function rectCenter(rect: Rect): Point {
 /**
  * Space around the mascot at `center`, in px. Negative means it does not fit:
  * it hangs over the edge of the container, or it touches something.
+ *
+ * This runs once per candidate per obstacle, a few thousand times a search, and
+ * a search happens inside the mascot's own frame callback. So the inner loop
+ * compares squared distances and takes one square root at the end.
  */
 export function roomAt(center: Point, container: Rect, obstacles: Rect[], size = MASCOT_BODY): number {
   const half = size / 2;
@@ -85,16 +95,17 @@ export function roomAt(center: Point, container: Rect, obstacles: Rect[], size =
   const bottom = center.y + half;
   if (left < container.left || right > container.right || top < container.top || bottom > container.bottom) return -1;
 
-  let room = Math.min(left - container.left, top - container.top, container.right - right, container.bottom - bottom);
+  const edge = Math.min(left - container.left, top - container.top, container.right - right, container.bottom - bottom);
+  let roomSq = edge * edge;
   for (const obstacle of obstacles) {
     const dx = Math.max(obstacle.left - right, left - obstacle.right);
     const dy = Math.max(obstacle.top - bottom, top - obstacle.bottom);
-    // Overlapping on one axis only means the gap is measured on the other.
-    const gap = dx < 0 ? Math.max(0, dy) : dy < 0 ? Math.max(0, dx) : Math.hypot(dx, dy);
-    if (gap <= 0) return -1;
-    if (gap < room) room = gap;
+    if (dx <= 0 && dy <= 0) return -1;
+    // Separated on one axis only means the gap is measured on the other.
+    const gapSq = dx <= 0 ? dy * dy : dy <= 0 ? dx * dx : dx * dx + dy * dy;
+    if (gapSq < roomSq) roomSq = gapSq;
   }
-  return room;
+  return Math.sqrt(roomSq);
 }
 
 function distance(a: Point, b: Point): number {
@@ -105,15 +116,22 @@ function edgeDistance(center: Point, container: Rect): number {
   return Math.min(center.x - container.left, center.y - container.top, container.right - center.x, container.bottom - center.y);
 }
 
+/**
+ * Whether a candidate is even in the right part of the library for this action.
+ * Cheap arithmetic on purpose: it runs for every candidate on the lattice, and
+ * the expensive free-space test only runs for the ones that pass.
+ */
 function suits(center: Point, search: SpotSearch): boolean {
   const { prefer, from, container } = search;
   if (prefer === "any") return true;
+  const dx = center.x - from.x;
+  const dy = center.y - from.y;
   if (prefer === "near") {
-    const d = distance(center, from);
-    return d >= NEAR_MIN && d <= NEAR_MAX;
+    const sq = dx * dx + dy * dy;
+    return sq >= NEAR_MIN * NEAR_MIN && sq <= NEAR_MAX * NEAR_MAX;
   }
   if (prefer === "across") {
-    return Math.abs(center.x - from.x) >= (container.right - container.left) * ACROSS_FRACTION;
+    return Math.abs(dx) >= (container.right - container.left) * ACROSS_FRACTION;
   }
   return edgeDistance(center, container) <= MARGIN_BAND;
 }
@@ -136,8 +154,11 @@ function candidates(search: SpotSearch, step = CANDIDATE_STEP): Array<{ center: 
   for (let y = top + step / 2; y <= bottom; y += step) {
     for (let x = left + step / 2; x <= right; x += step) {
       const center = { x: x + jitterX, y: y + jitterY };
+      // Order matters: the preference is arithmetic, the free-space test walks
+      // every obstacle, and a narrow preference throws away most of the lattice.
+      if (!suits(center, search)) continue;
       const room = roomAt(center, container, obstacles, size);
-      if (room >= minRoom && suits(center, search)) out.push({ center, room });
+      if (room >= minRoom) out.push({ center, room });
     }
   }
   return out;
@@ -152,10 +173,17 @@ function candidates(search: SpotSearch, step = CANDIDATE_STEP): Array<{ center: 
  * window is luck. A finer pass settles it. Refusing to walk should mean there is
  * genuinely nowhere to go, not that the grid missed.
  */
+/** The lattice for this container, so the number of candidates stays bounded. */
+function stepFor(container: Rect): number {
+  const area = Math.max(0, container.right - container.left) * Math.max(0, container.bottom - container.top);
+  return Math.max(CANDIDATE_STEP, Math.sqrt(area / MAX_CANDIDATES));
+}
+
 function pools(search: SpotSearch): Array<Array<{ center: Point; room: number }>> {
-  const found = candidates(search);
+  const step = stepFor(search.container);
+  const found = candidates(search, step);
   if (found.length > 0) return [found];
-  const finer = candidates(search, CANDIDATE_STEP / 3);
+  const finer = candidates(search, step / 2);
   return finer.length > 0 ? [finer] : [];
 }
 
