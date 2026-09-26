@@ -56,6 +56,23 @@ function extractImageUrls(document: Document, baseUrl: string): string[] {
   return uniqueStrings(values);
 }
 
+// Prefer declared icons over a bare /favicon.ico guess — same idea as
+// Defuddle's getFavicon, but available on the fallback extractor path too.
+function extractFavicon(document: Document, baseUrl: string): string | undefined {
+  for (const link of document.querySelectorAll('link[rel~="icon" i], link[rel~="shortcut icon" i], link[rel~="apple-touch-icon" i]')) {
+    const href = link.getAttribute("href");
+    const value = normalizeHttpUrl(href, baseUrl);
+    if (value) return value;
+  }
+  const meta = normalizeHttpUrl(metaContent(document, ["og:image:favicon", "msapplication-TileImage"]), baseUrl);
+  if (meta) return meta;
+  try {
+    return normalizeHttpUrl("/favicon.ico", baseUrl) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function positiveDimension(value: string | null): number | undefined {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
@@ -212,5 +229,6 @@ export function extractFallback(document: Document, url: string): RawArticleExtr
       ...extractImageUrls(document, url),
     ]),
     imageDimensions: extractImageDimensions(document, url),
+    favicon: extractFavicon(document, url),
   };
 }

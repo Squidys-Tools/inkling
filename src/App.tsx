@@ -44,6 +44,7 @@ import {
   createQuote,
   createSpace,
   createUrl,
+  cacheFavicon,
   swapSpacePositions,
   updateSpace,
   currentDeepLinks,
@@ -58,6 +59,7 @@ import {
   getProcessingSummaries,
   retryProcessingJob,
   getCaptureStatus,
+  testCaptureConnection,
   getPairingToken,
   regeneratePairingToken,
   saveFile,
@@ -94,7 +96,7 @@ const ExpandedItemOverlay = lazy(() =>
 import { LiveMascotFigure, LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
-import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
+import { ArticleArtwork, KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
 const ReaderView = lazy(() =>
   import("./ReaderView").then((module) => ({ default: module.ReaderView })),
 );
@@ -135,6 +137,7 @@ export type LibraryItem = {
   fileUrl?: string;
   imageAlt?: string;
   sourceUrl?: string;
+  favicon?: string;
   author?: string;
   social?: XPostMetadata;
   post?: {
@@ -277,6 +280,19 @@ async function storedItemToLibraryItem(
   const pdfPageCount = baseKind === "PDF" && typeof item.metadata.pdfPageCount === "number" && Number.isInteger(item.metadata.pdfPageCount) && item.metadata.pdfPageCount > 0
     ? item.metadata.pdfPageCount
     : undefined;
+  const metadataFavicon =
+    typeof item.metadata.favicon === "string" && /^https?:\/\//iu.test(item.metadata.favicon)
+      ? item.metadata.favicon
+      : undefined;
+  const metadataFaviconPath =
+    typeof item.metadata.faviconPath === "string" &&
+    item.metadata.faviconPath.startsWith("assets/") &&
+    !item.metadata.faviconPath.includes("..")
+      ? item.metadata.faviconPath
+      : undefined;
+  const localFavicon = metadataFaviconPath
+    ? await assetUrl(metadataFaviconPath).catch(() => undefined)
+    : undefined;
 
   const remoteImage = Array.isArray(item.metadata.imageUrls)
     ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")
@@ -314,6 +330,7 @@ async function storedItemToLibraryItem(
     description: social?.text?.trim() || rawDescription,
     source,
     sourceUrl: item.sourceUrl ?? undefined,
+    favicon: localFavicon ?? metadataFavicon,
     date: formatItemDate(item.createdAt),
     createdAt: item.createdAt,
     tags,
@@ -857,7 +874,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
             <PostArtwork post={item.post} />
           ) : (
             <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.accent ?? ""}`} aria-hidden="true">
-              {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
+              {item.kind === "Article" && <ArticleArtwork item={item} />}
               {item.kind === "Note" && <NoteArtwork item={item} />}
               {item.kind === "PDF" && <PdfArtwork item={item} />}
               {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-preview">{cardPreviewText(item.title, "Saved quote")}</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
@@ -1034,6 +1051,13 @@ function ExtensionPairing() {
       .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand."));
   };
 
+  const copyBaseUrl = () => {
+    if (!status?.baseUrl) return;
+    void navigator.clipboard.writeText(status.baseUrl)
+      .then(() => toast.success("App address copied. Paste it into the extension."))
+      .catch(() => toast.error("Copy failed. Select the address and copy it by hand."));
+  };
+
   const renewToken = () => {
     if (!window.confirm("Renew the pairing token? The extension will need the new token.")) return;
     void regeneratePairingToken()
@@ -1046,31 +1070,25 @@ function ExtensionPairing() {
   };
 
   const testConnection = () => {
-    const healthUrl = status?.healthUrl;
-    if (!healthUrl || isTesting) return;
+    if (!status?.running || isTesting) return;
     setIsTesting(true);
-    const check = async () => {
-      const bearer = token ?? await getPairingToken();
-      const response = await fetch(healthUrl, {
-        headers: { Authorization: `Bearer ${bearer}` },
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    };
-    void check()
-      .then(() => toast.success("Extension receiver is reachable."))
-      .catch(() => toast.error("No answer from the receiver. Is the app running?"))
+    void testCaptureConnection()
+       .then(() => toast.success("Local receiver reachable. Extension config is stored separately in the browser extension."))
+      .catch((error: unknown) =>
+        toast.error(`Receiver unavailable: ${error instanceof Error ? error.message : "unknown error"}`),
+      )
       .finally(() => setIsTesting(false));
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "22px 2px" }}>
       <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, lineHeight: 1.6, maxWidth: "52ch" }}>
-        Paste this token into the browser extension once. Saves go straight to this library
-        over a local connection; nothing leaves the machine.
+        Paste this address and token into the browser extension once. Saves go straight to this
+        library over a local connection; nothing leaves the machine.
       </p>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span className="settings-panel-count" role="status">
-          {status ? (status.running ? `Listening on 127.0.0.1:${status.port}` : "Receiver not running") : "Checking receiver…"}
+          {status ? (status.running ? "Receiver running" : "Receiver not running") : "Checking receiver…"}
         </span>
         <button
           type="button"
@@ -1079,6 +1097,29 @@ function ExtensionPairing() {
           onClick={testConnection}
         >
           {isTesting ? "Testing…" : "Test connection"}
+        </button>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <code
+          aria-label="App address"
+          style={{
+            flex: "1 1 220px",
+            padding: "9px 12px",
+            border: "1px solid var(--rule)",
+            borderRadius: 10,
+            background: "var(--surface-strong)",
+            color: "var(--ink)",
+            font: "12px 'DM Mono', monospace",
+            letterSpacing: "0.02em",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {status?.baseUrl ?? "http://127.0.0.1:PORT"}
+        </code>
+        <button type="button" className="settings-batch-button" disabled={!status?.baseUrl} onClick={copyBaseUrl}>
+          Copy address
         </button>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -1868,9 +1909,26 @@ function App() {
     }
   }
 
-  async function persistArticle(sourceUrl: string, captureSource: string) {
-    const { ingestUrl } = await import("./lib/ingestion");
-    const article = await ingestUrl(sourceUrl);
+  async function persistArticle(sourceUrl: string, captureSource: string, knownTitle?: string) {
+    const { ingestUrl, isUrlIngestionError } = await import("./lib/ingestion");
+    const titleHint = knownTitle?.trim() || undefined;
+    let article;
+    try {
+      let fetchImpl: typeof globalThis.fetch | undefined;
+      if (canUseTauriBackend) {
+        const { tauriFetch } = await import("./lib/tauriFetch");
+        fetchImpl = tauriFetch;
+      }
+      article = await ingestUrl(sourceUrl, fetchImpl ? { fetch: fetchImpl } : {});
+    } catch (error) {
+      // Product contract: retain the URL (and known title/domain) when the
+      // download or extraction fails so the capture is never a dead end.
+      if (isUrlIngestionError(error) && error.code !== "invalid-url") {
+        await persistProvisionalArticle(sourceUrl, captureSource, titleHint);
+        return;
+      }
+      throw error;
+    }
     const metadata = {
       author: article.author,
       publishedDate: article.publishedDate,
@@ -1878,22 +1936,37 @@ function App() {
       html: article.html,
       imageUrls: article.imageUrls,
       imageDimensions: article.imageDimensions,
+      favicon: article.favicon,
       safeEmbeds: article.safeEmbeds,
       extractor: article.extractor,
       social: article.social,
       captureSource,
     };
+    const articleTitle = article.title || titleHint || new URL(article.canonicalUrl).hostname;
 
     if (canUseTauriBackend) {
       const storedItem = await createUrl({
         sourceUrl: article.canonicalUrl,
-        title: article.title,
+        title: articleTitle,
         description: article.description,
         body: article.text,
         metadata,
       });
       const libraryItem = await storedItemToLibraryItem(storedItem);
       setItems((current) => [libraryItem, ...current]);
+      if (article.favicon) {
+        void cacheFavicon(storedItem.id, article.favicon)
+          .then(async (path) => {
+            const favicon = await assetUrl(path);
+            if (!favicon) return;
+            setItems((current) =>
+              current.map((item) =>
+                String(item.id) === storedItem.id ? { ...item, favicon } : item,
+              ),
+            );
+          })
+          .catch(() => undefined);
+      }
       return;
     }
 
@@ -1903,12 +1976,13 @@ function App() {
     const item: LibraryItem = {
       id: Date.now(),
       kind: social ? "Post" : embeddedVideoLink ? "Video" : "Article",
-      title: article.title,
+      title: articleTitle,
       description: article.description || article.text.slice(0, 180),
       source: social
         ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
         : new URL(article.canonicalUrl).hostname,
       sourceUrl: article.canonicalUrl,
+      favicon: article.favicon,
       author: article.author,
       date: "Just now",
       tags: [],
@@ -1928,11 +2002,46 @@ function App() {
     setItems((current) => [item, ...current]);
   }
 
-  async function captureArticle(sourceUrl: string, captureSource: string) {
+  async function persistProvisionalArticle(sourceUrl: string, captureSource: string, knownTitle?: string) {
+    let hostname = sourceUrl;
+    try {
+      hostname = new URL(sourceUrl).hostname.replace(/^www\./u, "");
+    } catch {
+      // Keep the raw source as the domain label when parsing fails.
+    }
+    const title = knownTitle || hostname;
+
+    if (canUseTauriBackend) {
+      const storedItem = await createUrl({
+        sourceUrl,
+        title,
+        description: "",
+        body: "",
+        metadata: { captureSource, provisional: true },
+      });
+      const libraryItem = await storedItemToLibraryItem(storedItem);
+      setItems((current) => [libraryItem, ...current]);
+      return;
+    }
+
+    const item: LibraryItem = {
+      id: Date.now(),
+      kind: "Article",
+      title,
+      description: "",
+      source: hostname,
+      sourceUrl,
+      date: "Just now",
+      tags: [],
+    };
+    setItems((current) => [item, ...current]);
+  }
+
+  async function captureArticle(sourceUrl: string, captureSource: string, knownTitle?: string) {
     setCaptureError(null);
     setIsCapturing(true);
     try {
-      await persistArticle(sourceUrl, captureSource);
+      await persistArticle(sourceUrl, captureSource, knownTitle);
       setCaptureUrl("");
       setIsAdding(false);
       setCaptureMode(null);
@@ -2106,7 +2215,7 @@ function App() {
       } else if (capture.kind === "image") {
         await captureImageUrl(capture.pageUrl, capture.imageUrl, "browser extension");
       } else {
-        await captureArticle(capture.url, "browser extension");
+        await captureArticle(capture.url, "browser extension", capture.title);
       }
     }
   }

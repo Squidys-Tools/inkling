@@ -232,6 +232,10 @@ export async function createUrl(input: CreateUrlInput) {
   return invoke<StoredLibraryItem>("create_url", { input });
 }
 
+export async function cacheFavicon(itemId: string, url: string) {
+  return invoke<string>("cache_favicon", { itemId, url });
+}
+
 export async function saveFile(input: SaveFileInput) {
   return invoke<StoredLibraryItem>("save_file", { input });
 }
@@ -306,11 +310,17 @@ export type CaptureStatus = {
   running: boolean;
   port: number | null;
   healthUrl: string | null;
+  /** http://127.0.0.1:{port} for the extension options "App address" field. */
+  baseUrl: string | null;
 };
 
 export async function getCaptureStatus() {
   if (!isTauriRuntime()) return null;
   return invoke<CaptureStatus>("get_capture_status");
+}
+
+export async function testCaptureConnection() {
+  return invoke<void>("test_capture_connection");
 }
 
 export async function getPairingToken() {

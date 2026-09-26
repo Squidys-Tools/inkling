@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   AtSignIcon,
@@ -66,6 +66,67 @@ export function KindIcon({ kind }: { kind: ItemKind }) {
                 ? PlayIcon
                 : SparklesIcon;
   return <HugeiconsIcon icon={icon} size={13} />;
+}
+
+/** Host label for the seal letter and hue: URL hostname, else source, else "inkling". */
+export function articleHostLabel(item: Pick<LibraryItem, "sourceUrl" | "source">): string {
+  const fallback = (item.source ?? "").trim() || "inkling";
+  try {
+    if (item.sourceUrl) {
+      const host = new URL(item.sourceUrl).hostname.replace(/^www\./u, "");
+      return host || fallback;
+    }
+  } catch {
+    // Fall through to the source label when the URL cannot be parsed.
+  }
+  return fallback;
+}
+
+/** Deterministic hue 0–359 from a host string (stable across renders/machines). */
+export function articleHostHue(host: string): number {
+  let hash = 0;
+  for (let i = 0; i < host.length; i += 1) {
+    hash = (hash * 31 + host.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % 360;
+}
+
+// Paper-style article placeholder fill: host-tinted ground, text rules, and a
+// seal that prefers the site favicon when one was captured (else the host
+// initial). Sits absolute inside `.card-paper-art` (grid) or the overlay
+// media band — same nesting pattern as NoteArtwork/PdfArtwork.
+export function ArticleArtwork({ item }: { item: LibraryItem }) {
+  // Track the failed src (not a boolean) so a later local-path swap retries.
+  const [failedFavicon, setFailedFavicon] = useState<string | null>(null);
+  const host = articleHostLabel(item);
+  const hue = articleHostHue(host);
+  const initial = (host.replace(/[^a-z0-9]/giu, "")[0] ?? "i").toUpperCase();
+  const favicon = item.favicon;
+  const showFavicon = favicon !== undefined && favicon !== failedFavicon;
+  return (
+    <div
+      className="article-art"
+      style={{ "--article-hue": hue } as CSSProperties}
+      aria-hidden="true"
+    >
+      <span className="paper-line line-one" />
+      <span className="paper-line line-two" />
+      <span className="paper-seal">
+        {favicon !== undefined && showFavicon ? (
+          <img
+            src={favicon}
+            alt=""
+            className="paper-seal-icon"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => setFailedFavicon(favicon ?? null)}
+          />
+        ) : (
+          initial
+        )}
+      </span>
+    </div>
+  );
 }
 
 export function pdfPreviewTitle(value: string): string {

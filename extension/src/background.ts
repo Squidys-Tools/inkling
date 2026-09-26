@@ -1,28 +1,29 @@
 // Ephemeral dispatcher: no module-level mutable state (the service worker may
 // be killed between invocations). Every save re-resolves the tab, injects on
-// invoke (activeTab only — no <all_urls>, no persistent content scripts), and
-// persists before navigating: the full v1 payload goes to chrome.storage.local
-// FIRST, then the deep link fires. If the app is closed the tab navigation
-// fails but nothing is lost — the queue survives for the Phase 2 loopback
-// flush (see transport.ts postPayloadToLoopback).
+// invoke (activeTab only for the on-demand extractors; content.js is a
+// declarative content script required by context-menu collect), and persists
+// the full v1 payload before delivering it over loopback. If the app is closed
+// or not paired, the payload remains queued for a later flush.
 import browser from "webextension-polyfill";
 import {
   isPageCapturePayload,
   type PageCapturePayloadV1,
 } from "@inkling/ingestion-shared";
 import { trimCaptureQueue } from "./capture-queue";
-import { buildCaptureDeepLink, postPayloadToLoopback } from "./transport";
+import { postPayloadToLoopback } from "./transport";
 import {
   INKLING_MENU_SAVE_IMAGE,
   INKLING_MENU_SAVE_SELECTION,
   INKLING_MENU_SAVE_VIDEO,
   isCaptureMessage,
-  payloadToDeepLink,
+  type ExtensionCapturePayload,
 } from "./payload";
 
 // Emitted at dist/ root by vite.content-main/isolated.config.ts — keep in sync.
 const CONTENT_MAIN_FILE = "content-main.js";
 const CONTENT_ISOLATED_FILE = "content-isolated.js";
+const EXTRACT_TIMEOUT_MS = 10_000;
+const EXTRACT_POLL_INTERVAL_MS = 50;
 
 const QUEUE_KEY = "inkling:pending-captures-v1";
 const LAST_STATUS_KEY = "inkling:last-save-status";
@@ -30,6 +31,7 @@ const LAST_STATUS_KEY = "inkling:last-save-status";
 // except to the app on loopback.
 const TOKEN_KEY = "inkling.token";
 const BASE_URL_KEY = "inkling.base-url";
+type LoopbackCapturePayload = PageCapturePayloadV1 | ExtensionCapturePayload;
 
 export interface SaveStatus {
   state: "saved" | "queued" | "failed";
@@ -67,18 +69,75 @@ async function writeStatus(status: SaveStatus): Promise<void> {
   await browser.storage.local.set({ [LAST_STATUS_KEY]: status });
 }
 
-async function injectExtractor(tabId: number): Promise<unknown> {
+export async function injectExtractor(tabId: number): Promise<unknown> {
+  await browser.scripting.executeScript({
+    target: { tabId },
+    world: "ISOLATED",
+    func: () => {
+      document.getElementById("__inkling-extract-result")?.remove();
+    },
+  });
   await browser.scripting.executeScript({
     target: { tabId },
     files: [CONTENT_MAIN_FILE],
     world: "MAIN",
   });
-  const results = await browser.scripting.executeScript({
+  await browser.scripting.executeScript({
     target: { tabId },
     files: [CONTENT_ISOLATED_FILE],
     world: "ISOLATED",
   });
-  return results[0]?.result;
+  let promiseResult: unknown;
+  try {
+    const results = await browser.scripting.executeScript({
+      target: { tabId },
+      world: "ISOLATED",
+      func: () => {
+        const host = globalThis as { __inklingExtractPayloadPromise?: Promise<unknown> };
+        const pending = host.__inklingExtractPayloadPromise;
+        delete host.__inklingExtractPayloadPromise;
+        return pending;
+      },
+    });
+    promiseResult = results[0]?.result;
+  } catch {
+    promiseResult = undefined;
+  }
+  if (isPageCapturePayload(promiseResult)) return promiseResult;
+
+  const deadline = Date.now() + EXTRACT_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const results = await browser.scripting.executeScript({
+      target: { tabId },
+      world: "ISOLATED",
+      func: () => {
+        const node = document.getElementById("__inkling-extract-result");
+        if (!node) return null;
+        const raw = node.textContent;
+        node.remove();
+        return raw;
+      },
+    });
+    const raw = results[0]?.result;
+    if (typeof raw === "string" && raw) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        throw new Error("extractor returned invalid result");
+      }
+      if (parsed && typeof parsed === "object") {
+        const record = parsed as { ok?: unknown; payload?: unknown; error?: unknown };
+        if (record.ok === true && isPageCapturePayload(record.payload)) return record.payload;
+        if (record.ok === false) {
+          throw new Error(typeof record.error === "string" ? record.error : "page extraction failed");
+        }
+      }
+      throw new Error("extractor returned invalid result");
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, EXTRACT_POLL_INTERVAL_MS));
+  }
+  throw new Error("page extraction timed out");
 }
 
 async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } | null> {
@@ -91,18 +150,17 @@ async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } 
 
 /**
  * Loopback-first delivery: POST the v1 payload to the app's capture server
- * (`POST {baseUrl}/v1/captures`, per-install bearer). Returns true on 201.
- * Any failure (unpaired, app closed, network) falls through to the deep-link
- * path so capture never depends on pairing.
+ * (`POST {baseUrl}/v1/captures`, per-install bearer). Returns null on success
+ * or a delivery error to show in the popup.
  */
-async function tryLoopback(payload: PageCapturePayloadV1): Promise<boolean> {
+async function tryLoopback(payload: LoopbackCapturePayload): Promise<string | null> {
   const config = await readLoopbackConfig();
-  if (!config) return false;
+  if (!config) return "pairing is not configured";
   try {
     await postPayloadToLoopback(config.baseUrl, config.token, payload);
-    return true;
-  } catch {
-    return false;
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
   }
 }
 
@@ -126,6 +184,7 @@ export async function flushQueue(): Promise<{ delivered: number; pending: number
 }
 
 export async function saveTab(tabId: number): Promise<SaveStatus> {
+  void flushQueue();
   let raw: unknown;
   try {
     raw = await injectExtractor(tabId);
@@ -141,15 +200,17 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
   if (!isPageCapturePayload(raw)) {
     const status: SaveStatus = {
       state: "failed",
-      detail: "page extraction produced no usable content",
+      detail:
+        raw === undefined
+          ? "extractor returned no result"
+          : "page extraction produced no usable content",
       at: new Date().toISOString(),
     };
     await writeStatus(status);
     return status;
   }
-  // Loopback first (rich payload, 201 + id); deep link stays the fallback so
-  // an unpaired or closed app still captures.
-  if (await tryLoopback(raw)) {
+  const deliveryError = await tryLoopback(raw);
+  if (deliveryError === null) {
     const status: SaveStatus = {
       state: "saved",
       title: raw.title,
@@ -159,27 +220,14 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
     return status;
   }
   const queued = await enqueue(raw);
-  const deepLink = buildCaptureDeepLink(raw);
-  try {
-    await browser.tabs.create({ url: deepLink });
-    const status: SaveStatus = {
-      state: "saved",
-      title: raw.title,
-      at: new Date().toISOString(),
-    };
-    await writeStatus(status);
-    return status;
-  } catch (error) {
-    // App closed or no protocol handler: payload stays queued for later flush.
-    const status: SaveStatus = {
-      state: "queued",
-      title: raw.title,
-      detail: `${queued} pending (${error instanceof Error ? error.message : "deep link refused"})`,
-      at: new Date().toISOString(),
-    };
-    await writeStatus(status);
-    return status;
-  }
+  const status: SaveStatus = {
+    state: "queued",
+    title: raw.title,
+    detail: `${queued} pending — ${deliveryError}`,
+    at: new Date().toISOString(),
+  };
+  await writeStatus(status);
+  return status;
 }
 
 async function saveActiveTab(): Promise<SaveStatus> {
@@ -196,9 +244,7 @@ async function saveActiveTab(): Promise<SaveStatus> {
   return saveTab(tab.id);
 }
 
-/** Selection/image/video dispatch: the loopback server only takes page
- * payloads, so these travel by deep link (dataUrl never fits a URL and is
- * reported instead of silently dropped). */
+/** Selection/image/video dispatch through the same authenticated local receiver. */
 async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<SaveStatus> {
   void tabId;
   const message = { type: "inkling/capture", payload };
@@ -211,30 +257,21 @@ async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<
     await writeStatus(status);
     return status;
   }
-  const deepLink = payloadToDeepLink(message.payload);
-  if (!deepLink) {
+  if (message.payload.kind === "image" && !/^https?:\/\//iu.test(message.payload.srcUrl)) {
     const status: SaveStatus = {
       state: "failed",
-      detail: "this capture needs the paired app (open inkling once, then retry)",
+      detail: "image captures require an http(s) image URL",
       at: new Date().toISOString(),
     };
     await writeStatus(status);
     return status;
   }
-  try {
-    await browser.tabs.create({ url: deepLink });
-    const status: SaveStatus = { state: "saved", at: new Date().toISOString() };
-    await writeStatus(status);
-    return status;
-  } catch (error) {
-    const status: SaveStatus = {
-      state: "failed",
-      detail: error instanceof Error ? error.message : "deep link refused",
-      at: new Date().toISOString(),
-    };
-    await writeStatus(status);
-    return status;
-  }
+  const deliveryError = await tryLoopback(message.payload);
+  const status: SaveStatus = deliveryError === null
+    ? { state: "saved", at: new Date().toISOString() }
+    : { state: "failed", detail: deliveryError, at: new Date().toISOString() };
+  await writeStatus(status);
+  return status;
 }
 
 async function collectFromTab(tabId: number, collect: "selection" | "image" | "video", srcUrl?: string) {
@@ -246,10 +283,21 @@ async function collectFromTab(tabId: number, collect: "selection" | "image" | "v
     });
     if (response && typeof response === "object" && "payload" in response) {
       await dispatchCapturePayload((response as { payload: unknown }).payload, tabId);
+    } else if (response && typeof response === "object" && "reason" in response) {
+      const status: SaveStatus = {
+        state: "failed",
+        detail: String((response as { reason: unknown }).reason),
+        at: new Date().toISOString(),
+      };
+      await writeStatus(status);
     }
-  } catch {
-    // No content script on this page (or it refused): status already reflects
-    // the failure via the collect path; stay quiet here.
+  } catch (error) {
+    const status: SaveStatus = {
+      state: "failed",
+      detail: error instanceof Error ? error.message : "page collector unavailable",
+      at: new Date().toISOString(),
+    };
+    await writeStatus(status);
   }
 }
 
@@ -285,6 +333,26 @@ browser.runtime.onStartup.addListener(() => {
 browser.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "inkling-save-page") {
     void saveActiveTab();
+    return;
+  }
+  const pageUrl = tab?.url ?? info.pageUrl ?? "";
+  if (info.menuItemId === INKLING_MENU_SAVE_IMAGE && typeof info.srcUrl === "string") {
+    void dispatchCapturePayload(
+      { kind: "image", pageUrl, srcUrl: info.srcUrl },
+      tab?.id ?? 0,
+    );
+    return;
+  }
+  if (info.menuItemId === INKLING_MENU_SAVE_SELECTION && typeof info.selectionText === "string") {
+    void dispatchCapturePayload(
+      {
+        kind: "selection",
+        sourceUrl: pageUrl,
+        selectedHtml: "",
+        selectedText: info.selectionText,
+      },
+      tab?.id ?? 0,
+    );
     return;
   }
   if (tab?.id === undefined) return;

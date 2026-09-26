@@ -1,9 +1,11 @@
 //! Loopback capture receiver for the browser extension (Option B transport).
 //!
-//! The app binds `127.0.0.1` on an ephemeral port (no hardcoded ports) and
-//! exposes `POST /v1/captures` plus `GET /v1/health` to the local browser
-//! extension. Authentication is a per-install bearer token generated with the
-//! OS RNG and persisted beside the library; the token is never logged.
+//! The app binds `127.0.0.1` (ephemeral unless the last successful port is
+//! free) and exposes `POST /v1/captures` plus `GET /v1/health` to the local
+//! browser extension. Authentication is a per-install bearer token generated
+//! with the OS RNG and persisted beside the library; the token is never
+//! logged. The last bound port is also persisted beside the library so the
+//! extension's stored base URL survives restarts.
 //!
 //! Security posture, in one place:
 //! - Loopback only. The socket binds `127.0.0.1` explicitly, so no LAN peer
@@ -32,7 +34,10 @@ use std::{
     io::{BufReader, Read, Write},
     net::{TcpListener, TcpStream},
     path::PathBuf,
-    sync::Mutex,
+    sync::{
+        mpsc::{sync_channel, SyncSender},
+        Arc, Mutex, OnceLock,
+    },
     time::{Duration, Instant},
 };
 
@@ -50,10 +55,23 @@ const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
 const TOKEN_FILE_NAME: &str = "pairing_token";
+/// Last successful loopback port, beside the library. Rebinding it on boot
+/// keeps the extension's stored `inkling.base-url` valid across restarts.
+const PORT_FILE_NAME: &str = "capture_port";
 
 /// Request pairs (method, path) served by the receiver.
 const HEALTH_PATH: &str = "/v1/health";
 const CAPTURES_PATH: &str = "/v1/captures";
+const FAVICON_QUEUE_CAPACITY: usize = 32;
+const FAVICON_WORKERS: usize = 2;
+
+struct FaviconJob {
+    app: AppHandle,
+    item_id: String,
+    url: String,
+}
+
+static FAVICON_QUEUE: OnceLock<SyncSender<FaviconJob>> = OnceLock::new();
 
 #[derive(Default)]
 pub struct CaptureServerState {
@@ -68,6 +86,8 @@ pub struct CaptureStatus {
     pub running: bool,
     pub port: Option<u16>,
     pub health_url: Option<String>,
+    /// `http://127.0.0.1:{port}` for the extension options "App address" field.
+    pub base_url: Option<String>,
 }
 
 /// Request body: `PageCapturePayloadV1` from `packages/ingestion-shared`
@@ -93,6 +113,52 @@ struct CaptureRequest {
     published_date: Option<String>,
     #[serde(default)]
     image_urls: Vec<String>,
+    /// Absolute http(s) favicon URL for the card seal; stored only when valid.
+    #[serde(default)]
+    favicon: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SelectionCaptureRequest {
+    kind: String,
+    source_url: String,
+    selected_text: String,
+    title: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImageCaptureRequest {
+    kind: String,
+    page_url: String,
+    src_url: String,
+    alt: Option<String>,
+    data_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VideoCaptureRequest {
+    kind: String,
+    source_url: String,
+}
+
+#[derive(Debug)]
+enum ValidatedCapture {
+    Page(crate::storage::CreateUrlInput),
+    Quote {
+        body: String,
+        attribution: Option<String>,
+        source_url: String,
+    },
+    Image {
+        image_url: String,
+        alt: Option<String>,
+    },
+    Video {
+        source_url: String,
+    },
 }
 
 /// Upper bound from `packages/ingestion-shared` (`MAX_DEFUDDLED_HTML_BYTES`);
@@ -121,16 +187,11 @@ fn token_looks_valid(token: &str) -> bool {
 }
 
 fn token_file_path(app: &AppHandle) -> Option<PathBuf> {
-    // Same directory family `initialize_storage` uses for the library, so a
-    // fresh clone on another Windows machine just works. The app-data dir is
-    // user-private on Windows, which is the right home for a secret.
-    let exe_dir = std::env::current_exe()
+    // Sibling of library.sqlite3 via the same resolver storage uses. Never
+    // probes for the database file: if the library is moved or deleted the
+    // token must stay in the same directory family or pairing silently flips.
+    crate::storage::library_directory(app)
         .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.join("data")));
-    let app_dir = app.path().app_data_dir().ok();
-    exe_dir
-        .filter(|dir| dir.join("library.sqlite3").is_file())
-        .or(app_dir)
         .map(|dir| dir.join(TOKEN_FILE_NAME))
 }
 
@@ -154,6 +215,8 @@ fn load_or_generate_token(app: &AppHandle) -> String {
 }
 
 fn persist_token(app: &AppHandle, token: &str) -> Result<(), String> {
+    // Same resolver as load: a successful persist always writes beside the
+    // library, never into a one-off fallback directory.
     let path =
         token_file_path(app).ok_or_else(|| "cannot determine the library directory".to_string())?;
     if let Some(parent) = path.parent() {
@@ -161,6 +224,29 @@ fn persist_token(app: &AppHandle, token: &str) -> Result<(), String> {
     }
     fs::write(&path, token).map_err(|e| format!("cannot persist pairing token: {e}"))?;
     Ok(())
+}
+
+fn port_file_path(app: &AppHandle) -> Option<PathBuf> {
+    crate::storage::library_directory(app)
+        .ok()
+        .map(|dir| dir.join(PORT_FILE_NAME))
+}
+
+/// Last successful port from a previous run, if it is still a usable number.
+fn load_preferred_port(app: &AppHandle) -> Option<u16> {
+    let path = port_file_path(app)?;
+    let raw = fs::read_to_string(path).ok()?;
+    raw.trim().parse::<u16>().ok().filter(|port| *port != 0)
+}
+
+/// Best-effort: a failed write only means the next launch may pick a new port.
+fn persist_port(app: &AppHandle, port: u16) {
+    if let Some(path) = port_file_path(app) {
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = fs::write(path, port.to_string());
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -200,17 +286,31 @@ fn origin_allowed(origin: Option<&str>) -> bool {
     if origin == "null" {
         return true;
     }
-    [
+    // Extension and app custom schemes: scheme prefix is sufficient.
+    if [
         "chrome-extension://",
         "moz-extension://",
         "safari-web-extension://",
         "tauri://",
-        "https://tauri.localhost",
-        "http://tauri.localhost",
         "inkling://",
     ]
     .iter()
     .any(|prefix| origin.starts_with(prefix))
+    {
+        return true;
+    }
+    // Tauri webview http(s) origin: exact scheme+host (optional :port digits).
+    // A starts_with check would also accept https://tauri.localhost.evil.com.
+    fn tauri_localhost_http(origin: &str, scheme: &str) -> bool {
+        let Some(rest) = origin.strip_prefix(scheme) else {
+            return false;
+        };
+        rest == "tauri.localhost"
+            || rest
+                .strip_prefix("tauri.localhost:")
+                .is_some_and(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
+    }
+    tauri_localhost_http(origin, "https://") || tauri_localhost_http(origin, "http://")
 }
 
 fn check_rate_limit(state: &CaptureServerState) -> bool {
@@ -263,9 +363,68 @@ fn capped_string(value: Option<String>, max: usize, field: &str) -> Result<Optio
     }
 }
 
-fn validate_capture_payload(body: &[u8]) -> Result<crate::storage::CreateUrlInput, String> {
-    let request: CaptureRequest = serde_json::from_slice(body)
+fn validate_capture_payload(body: &[u8]) -> Result<ValidatedCapture, String> {
+    let value: serde_json::Value = serde_json::from_slice(body)
         .map_err(|_| "request body must be a JSON capture object".to_string())?;
+    let kind = value
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "capture kind is required".to_owned())?;
+    match kind {
+        "page" => {
+            let request: CaptureRequest = serde_json::from_value(value)
+                .map_err(|_| "request body must be a page capture object".to_owned())?;
+            validate_page_capture_payload(request).map(ValidatedCapture::Page)
+        }
+        "selection" => {
+            let request: SelectionCaptureRequest = serde_json::from_value(value)
+                .map_err(|_| "request body must be a selection capture object".to_owned())?;
+            if request.kind != "selection" {
+                return Err("unsupported payload kind".into());
+            }
+            let source_url = validate_capture_url(&request.source_url)?;
+            let body = truncate_chars(request.selected_text.trim(), 200_000);
+            if body.is_empty() {
+                return Err("selection cannot be empty".into());
+            }
+            let attribution = capped_string(request.title, 240, "title")?;
+            Ok(ValidatedCapture::Quote {
+                body,
+                attribution,
+                source_url,
+            })
+        }
+        "image" => {
+            let request: ImageCaptureRequest = serde_json::from_value(value)
+                .map_err(|_| "request body must be an image capture object".to_owned())?;
+            if request.kind != "image" {
+                return Err("unsupported payload kind".into());
+            }
+            validate_capture_url(&request.page_url)?;
+            let image_url = validate_capture_url(&request.src_url)?;
+            if request.data_url.is_some() {
+                return Err("data URL images are not supported by the local receiver".into());
+            }
+            let alt = capped_string(request.alt, 240, "alt")?;
+            Ok(ValidatedCapture::Image { image_url, alt })
+        }
+        "video" => {
+            let request: VideoCaptureRequest = serde_json::from_value(value)
+                .map_err(|_| "request body must be a video capture object".to_owned())?;
+            if request.kind != "video" {
+                return Err("unsupported payload kind".into());
+            }
+            Ok(ValidatedCapture::Video {
+                source_url: validate_capture_url(&request.source_url)?,
+            })
+        }
+        _ => Err("unsupported payload kind".into()),
+    }
+}
+
+fn validate_page_capture_payload(
+    request: CaptureRequest,
+) -> Result<crate::storage::CreateUrlInput, String> {
     if request.version != 1 {
         return Err("unsupported payload version".into());
     }
@@ -300,6 +459,7 @@ fn validate_capture_payload(body: &[u8]) -> Result<crate::storage::CreateUrlInpu
     let html = scrub_extension_html(&request.defuddled_html, &source_url);
     let text = truncate_chars(request.text.trim(), 200_000);
     let image_urls = clean_image_urls(request.image_urls);
+    let favicon = clean_favicon(request.favicon);
 
     let mut metadata = serde_json::Map::new();
     metadata.insert(
@@ -317,6 +477,9 @@ fn validate_capture_payload(body: &[u8]) -> Result<crate::storage::CreateUrlInpu
                 .collect(),
         ),
     );
+    if let Some(favicon) = favicon {
+        metadata.insert("favicon".into(), serde_json::Value::String(favicon));
+    }
     metadata.insert("safeEmbeds".into(), serde_json::Value::Array(Vec::new()));
     if let Some(author) = author.clone() {
         metadata.insert("author".into(), serde_json::Value::String(author));
@@ -386,6 +549,19 @@ fn clean_image_urls(values: Vec<String>) -> Vec<String> {
         }
     }
     out
+}
+
+/// Forgiving single-URL cleaner for the card seal favicon (http/https only).
+fn clean_favicon(value: Option<String>) -> Option<String> {
+    let entry = value?.trim().to_owned();
+    if entry.is_empty() {
+        return None;
+    }
+    let parsed = url::Url::parse(&entry).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return None;
+    }
+    Some(parsed.to_string())
 }
 
 /// Iframe/embed hosts allowed by `SAFE_IFRAME_HOSTS` in html-safety.ts.
@@ -795,6 +971,21 @@ fn cors_headers(origin: Option<&str>) -> Vec<(&'static str, String)> {
     out
 }
 
+fn preflight_cors_headers(origin: Option<&str>) -> Vec<(&'static str, String)> {
+    let mut headers = cors_headers(origin);
+    headers.push((
+        "Access-Control-Allow-Methods".into(),
+        "GET, POST, OPTIONS".into(),
+    ));
+    headers.push((
+        "Access-Control-Allow-Headers".into(),
+        "Authorization, Content-Type".into(),
+    ));
+    headers.push(("Access-Control-Max-Age".into(), "600".into()));
+    headers.push(("Access-Control-Allow-Private-Network".into(), "true".into()));
+    headers
+}
+
 fn write_response(
     stream: &mut TcpStream,
     status: u16,
@@ -875,13 +1066,7 @@ fn handle_connection(stream: TcpStream, app: AppHandle) {
     // CORS preflight never carries Authorization; answer the handshake and
     // let the real request authenticate itself.
     if head.method == "OPTIONS" {
-        let mut extra: Vec<(&str, String)> = cors.iter().map(|(k, v)| (*k, v.clone())).collect();
-        extra.push(("Access-Control-Allow-Methods", "GET, POST, OPTIONS".into()));
-        extra.push((
-            "Access-Control-Allow-Headers",
-            "Authorization, Content-Type".into(),
-        ));
-        extra.push(("Access-Control-Max-Age", "600".into()));
+        let extra = preflight_cors_headers(origin);
         write_response(&mut stream, 204, "No Content", &extra, "");
         return;
     }
@@ -987,7 +1172,7 @@ fn handle_connection(stream: TcpStream, app: AppHandle) {
                     return;
                 }
             };
-            match store_capture(&app, input) {
+            match store_validated_capture(&app, input) {
                 Ok(id) => {
                     let body = serde_json::json!({ "id": id }).to_string();
                     write_response(&mut stream, 201, "Created", &cors_ref, &body);
@@ -1015,6 +1200,115 @@ fn handle_connection(stream: TcpStream, app: AppHandle) {
     }
 }
 
+fn favicon_queue() -> &'static SyncSender<FaviconJob> {
+    FAVICON_QUEUE.get_or_init(|| {
+        let (sender, receiver) = sync_channel::<FaviconJob>(FAVICON_QUEUE_CAPACITY);
+        let receiver = Arc::new(Mutex::new(receiver));
+        for _ in 0..FAVICON_WORKERS {
+            let receiver = Arc::clone(&receiver);
+            let _ = std::thread::Builder::new()
+                .name("favicon-cache".into())
+                .spawn(move || loop {
+                    let job = {
+                        let receiver = receiver.lock().unwrap_or_else(|error| error.into_inner());
+                        receiver.recv()
+                    };
+                    let Ok(job) = job else { break };
+                    let _ = crate::storage::cache_favicon_in_background(
+                        &job.app,
+                        &job.item_id,
+                        &job.url,
+                    );
+                });
+        }
+        sender
+    })
+}
+
+fn enqueue_favicon_cache(app: &AppHandle, item_id: &str, url: String) {
+    let _ = favicon_queue().try_send(FaviconJob {
+        app: app.clone(),
+        item_id: item_id.to_owned(),
+        url,
+    });
+}
+
+fn enqueue_item_processing(app: &AppHandle, item: &crate::storage::ItemDto) {
+    let processing: State<'_, crate::jobs::ProcessingState> = app.state();
+    processing.enqueue_and_wake(&item.id, crate::jobs::JobKind::GenerateEmbedding);
+}
+
+fn store_validated_capture(app: &AppHandle, input: ValidatedCapture) -> Result<String, u16> {
+    match input {
+        ValidatedCapture::Page(input) => store_capture(app, input),
+        ValidatedCapture::Quote {
+            body,
+            attribution,
+            source_url,
+        } => {
+            let storage_state: State<'_, crate::storage::StorageState> = app.state();
+            let guard = storage_state.lock().map_err(|_| 503u16)?;
+            let storage = guard.as_ref().ok_or(503u16)?;
+            let item = storage
+                .create_quote(crate::storage::CreateQuoteInput {
+                    body,
+                    attribution,
+                    source_url: Some(source_url),
+                    metadata: Some(serde_json::json!({ "origin": "browser-extension" })),
+                })
+                .map_err(|_| 503u16)?;
+            let _ = crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id);
+            drop(guard);
+            enqueue_item_processing(app, &item);
+            Ok(item.id)
+        }
+        ValidatedCapture::Image { image_url, alt: _ } => {
+            let (bytes, mime_type) =
+                crate::http_fetch::download_public_image(&image_url).map_err(|_| 422u16)?;
+            let file_name = url::Url::parse(&image_url)
+                .ok()
+                .and_then(|url| {
+                    url.path_segments()
+                        .and_then(|segments| {
+                            segments.filter(|segment| !segment.is_empty()).next_back()
+                        })
+                        .map(str::to_owned)
+                })
+                .filter(|name| name.len() <= 180)
+                .unwrap_or_else(|| "image".to_owned());
+            let storage_state: State<'_, crate::storage::StorageState> = app.state();
+            let guard = storage_state.lock().map_err(|_| 503u16)?;
+            let storage = guard.as_ref().ok_or(503u16)?;
+            let item = storage
+                .save_file(crate::storage::SaveFileInput {
+                    id: None,
+                    file_name,
+                    mime_type: Some(mime_type),
+                    kind: Some("image".into()),
+                    bytes,
+                })
+                .map_err(|_| 503u16)?;
+            let _ = crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id);
+            drop(guard);
+            enqueue_item_processing(app, &item);
+            Ok(item.id)
+        }
+        ValidatedCapture::Video { source_url } => store_capture(
+            app,
+            crate::storage::CreateUrlInput {
+                source_url,
+                title: None,
+                description: None,
+                body: String::new(),
+                metadata: Some(serde_json::json!({
+                    "origin": "browser-extension",
+                    "sourceKind": "video",
+                })),
+            },
+        ),
+    }
+}
+
 /// Capture creates the item immediately (same rule as every other capture
 /// path); embeddings and indexing follow on the persisted job queue.
 fn store_capture(app: &AppHandle, input: crate::storage::CreateUrlInput) -> Result<String, u16> {
@@ -1025,8 +1319,16 @@ fn store_capture(app: &AppHandle, input: crate::storage::CreateUrlInput) -> Resu
     let item = storage.create_url(input).map_err(|_| 503u16)?;
     let _ = crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id);
     let id = item.id.clone();
+    let favicon = item
+        .metadata
+        .get("favicon")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
     drop(guard);
     processing.enqueue_and_wake(&id, crate::jobs::JobKind::GenerateEmbedding);
+    if let Some(url) = favicon {
+        enqueue_favicon_cache(app, &id, url);
+    }
     Ok(id)
 }
 
@@ -1053,12 +1355,18 @@ pub fn start_capture_server(app: &AppHandle) {
         .lock()
         .unwrap_or_else(|e| e.into_inner()) = token;
 
-    let listener = match TcpListener::bind(("127.0.0.1", 0)) {
-        Ok(listener) => listener,
-        Err(error) => {
-            eprintln!("capture server unavailable: {error}");
-            return;
-        }
+    // Prefer the last successful port so the extension's stored base URL
+    // survives restarts; fall back to ephemeral if that port is taken.
+    let preferred = load_preferred_port(app);
+    let listener = match preferred.and_then(|port| TcpListener::bind(("127.0.0.1", port)).ok()) {
+        Some(listener) => listener,
+        None => match TcpListener::bind(("127.0.0.1", 0)) {
+            Ok(listener) => listener,
+            Err(error) => {
+                eprintln!("capture server unavailable: {error}");
+                return;
+            }
+        },
     };
     let port = listener.local_addr().map(|addr| addr.port()).unwrap_or(0);
     if port == 0 {
@@ -1066,6 +1374,7 @@ pub fn start_capture_server(app: &AppHandle) {
         return;
     }
     *state.port.lock().unwrap_or_else(|e| e.into_inner()) = Some(port);
+    persist_port(app, port);
 
     let app = app.clone();
     let _ = std::thread::Builder::new()
@@ -1106,6 +1415,45 @@ pub fn get_capture_status(state: State<'_, CaptureServerState>) -> CaptureStatus
         running: port.is_some(),
         port: *port,
         health_url: port.map(|port| format!("http://127.0.0.1:{port}{HEALTH_PATH}")),
+        base_url: port.map(|port| format!("http://127.0.0.1:{port}")),
+    }
+}
+
+#[tauri::command]
+pub fn test_capture_connection(state: State<'_, CaptureServerState>) -> Result<(), String> {
+    let port = state
+        .port
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .ok_or_else(|| "capture receiver is not running".to_owned())?;
+    let token = state
+        .pairing_token
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    let mut stream = TcpStream::connect(("127.0.0.1", port))
+        .map_err(|error| format!("receiver connection failed: {error}"))?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .map_err(|error| format!("receiver timeout setup failed: {error}"))?;
+    let request = format!(
+        "GET {HEALTH_PATH} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n"
+    );
+    stream
+        .write_all(request.as_bytes())
+        .map_err(|error| format!("receiver request failed: {error}"))?;
+    let mut response = String::new();
+    stream
+        .read_to_string(&mut response)
+        .map_err(|error| format!("receiver response failed: {error}"))?;
+    if response.starts_with("HTTP/1.1 200") {
+        Ok(())
+    } else {
+        Err(response
+            .lines()
+            .next()
+            .unwrap_or("receiver returned an invalid response")
+            .to_owned())
     }
 }
 
@@ -1192,14 +1540,23 @@ mod tests {
         }
         for denied in [
             Some("https://example.com"),
-            Some("http://localhost:3000"),
             Some("http://127.0.0.1:1420"),
             Some("file://"),
             Some("nullified"),
             Some("chrome-extension-fake://x"),
+            Some("https://tauri.localhost.evil.com"),
+            Some("http://tauri.localhost.evil.com"),
+            Some("https://tauri.localhost.evil.com/path"),
+            Some("https://not-tauri.localhost"),
         ] {
             assert!(!origin_allowed(denied), "should deny {denied:?}");
         }
+        // Non-default port on the real host is still the Tauri origin.
+        assert!(origin_allowed(Some("https://tauri.localhost:4433")));
+        assert!(origin_allowed(Some("http://tauri.localhost:8080")));
+        // Scheme-relative / userinfo tricks must not pass.
+        assert!(!origin_allowed(Some("https://tauri.localhost:4433x")));
+        assert!(!origin_allowed(Some("https://user:pass@tauri.localhost")));
     }
 
     #[test]
@@ -1231,7 +1588,11 @@ mod tests {
             "publishedDate": "2026-01-02T00:00:00Z",
             "imageUrls": ["https://example.com/img.jpg", "javascript:evil()", "https://example.com/img.jpg"],
         });
-        let input = validate_capture_payload(&serde_json::to_vec(&good).unwrap()).unwrap();
+        let ValidatedCapture::Page(input) =
+            validate_capture_payload(&serde_json::to_vec(&good).unwrap()).unwrap()
+        else {
+            panic!("expected page capture")
+        };
         assert_eq!(input.source_url, "https://example.com/article");
         assert_eq!(input.title.as_deref(), Some("A quiet page"));
         let metadata = input.metadata.as_ref().unwrap();
@@ -1252,7 +1613,11 @@ mod tests {
             "url": "https://www.example.com/post",
             "title": "  ", "defuddledHtml": "", "text": "words",
         });
-        let input = validate_capture_payload(&serde_json::to_vec(&blank_title).unwrap()).unwrap();
+        let ValidatedCapture::Page(input) =
+            validate_capture_payload(&serde_json::to_vec(&blank_title).unwrap()).unwrap()
+        else {
+            panic!("expected page capture")
+        };
         assert_eq!(input.title.as_deref(), Some("www.example.com"));
 
         // Overlong titles truncate; wrong version/kind/URL shapes reject.
@@ -1261,7 +1626,11 @@ mod tests {
             "url": "https://example.com/", "title": "t".repeat(600),
             "defuddledHtml": "", "text": "",
         });
-        let input = validate_capture_payload(&serde_json::to_vec(&long_title).unwrap()).unwrap();
+        let ValidatedCapture::Page(input) =
+            validate_capture_payload(&serde_json::to_vec(&long_title).unwrap()).unwrap()
+        else {
+            panic!("expected page capture")
+        };
         assert_eq!(input.title.as_deref().unwrap().len(), 500);
 
         for bad in [
@@ -1277,6 +1646,72 @@ mod tests {
         }
 
         assert!(validate_capture_payload(b"not json").is_err());
+    }
+
+    #[test]
+    fn media_capture_payloads_validate_without_deep_links() {
+        let selection = serde_json::json!({
+            "kind": "selection",
+            "sourceUrl": "https://example.com/article",
+            "selectedHtml": "<p>kept</p>",
+            "selectedText": "kept text",
+            "title": "Example",
+        });
+        let ValidatedCapture::Quote {
+            body,
+            attribution,
+            source_url,
+        } = validate_capture_payload(&serde_json::to_vec(&selection).unwrap()).unwrap()
+        else {
+            panic!("expected selection capture")
+        };
+        assert_eq!(body, "kept text");
+        assert_eq!(attribution.as_deref(), Some("Example"));
+        assert_eq!(source_url, "https://example.com/article");
+
+        let image = serde_json::json!({
+            "kind": "image",
+            "pageUrl": "https://example.com/gallery",
+            "srcUrl": "https://cdn.example.com/photo.jpg",
+            "alt": "A photo",
+        });
+        let ValidatedCapture::Image { image_url, alt, .. } =
+            validate_capture_payload(&serde_json::to_vec(&image).unwrap()).unwrap()
+        else {
+            panic!("expected image capture")
+        };
+        assert_eq!(image_url, "https://cdn.example.com/photo.jpg");
+        assert_eq!(alt.as_deref(), Some("A photo"));
+
+        let video = serde_json::json!({
+            "kind": "video",
+            "sourceUrl": "https://www.youtube.com/watch?v=abc",
+        });
+        let ValidatedCapture::Video { source_url } =
+            validate_capture_payload(&serde_json::to_vec(&video).unwrap()).unwrap()
+        else {
+            panic!("expected video capture")
+        };
+        assert_eq!(source_url, "https://www.youtube.com/watch?v=abc");
+    }
+
+    #[test]
+    fn clean_favicon_keeps_only_absolute_http_urls() {
+        assert_eq!(
+            clean_favicon(Some("  https://example.com/favicon.ico  ".into())),
+            Some("https://example.com/favicon.ico".into())
+        );
+        assert_eq!(
+            clean_favicon(Some("http://example.com/icon.png".into())),
+            Some("http://example.com/icon.png".into())
+        );
+        assert_eq!(clean_favicon(Some("".into())), None);
+        assert_eq!(clean_favicon(Some("   ".into())), None);
+        assert_eq!(clean_favicon(None), None);
+        assert_eq!(clean_favicon(Some("data:image/png;base64,xx".into())), None);
+        assert_eq!(clean_favicon(Some("javascript:alert(1)".into())), None);
+        assert_eq!(clean_favicon(Some("/favicon.ico".into())), None);
+        assert_eq!(clean_favicon(Some("not a url".into())), None);
     }
 
     #[test]
@@ -1339,6 +1774,19 @@ mod tests {
     }
 
     #[test]
+    fn preferred_port_parses_only_nonzero_u16() {
+        // Mirrors load_preferred_port's parse rules without touching the disk.
+        let parse = |raw: &str| raw.trim().parse::<u16>().ok().filter(|port| *port != 0);
+        assert_eq!(parse("53176"), Some(53176));
+        assert_eq!(parse(" 53176\n"), Some(53176));
+        assert_eq!(parse("0"), None);
+        assert_eq!(parse(""), None);
+        assert_eq!(parse("not-a-port"), None);
+        assert_eq!(parse("65536"), None);
+        assert_eq!(parse("-1"), None);
+    }
+
+    #[test]
     fn rate_limiter_caps_a_burst_then_recovers() {
         let state = CaptureServerState::default();
         for _ in 0..RATE_LIMIT_MAX {
@@ -1353,6 +1801,14 @@ mod tests {
             .iter_mut()
             .for_each(|t| *t -= RATE_LIMIT_WINDOW + Duration::from_secs(1));
         assert!(check_rate_limit(&state));
+    }
+
+    #[test]
+    fn preflight_allows_private_network_requests() {
+        let headers = preflight_cors_headers(Some("chrome-extension://abc"));
+        assert!(headers.iter().any(|(name, value)| {
+            *name == "Access-Control-Allow-Private-Network" && value == "true"
+        }));
     }
 
     #[test]

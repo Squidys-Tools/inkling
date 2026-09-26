@@ -42,37 +42,6 @@ export type ExtensionCapturePayload =
   | ExtensionImagePayload
   | ExtensionVideoPayload;
 
-function isHttpUrlString(value: string | null | undefined): boolean {
-  if (!value) return false;
-  try {
-    const parsed = new URL(value.trim());
-    return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.hostname.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-// Deep-link encoders. The app already handles url-only links (article/video)
-// and url+title+selection links (quote). dataUrl never travels by deep link:
-// it is too large for a URL and goes through the local companion POST path.
-export function payloadToDeepLink(payload: ExtensionCapturePayload): string | null {
-  if (payload.kind === "selection") {
-    const params = new URLSearchParams({
-      url: payload.sourceUrl,
-      ...(payload.title ? { title: payload.title } : {}),
-      selection: payload.selectedText || payload.selectedHtml,
-    });
-    return `inkling://capture?${params.toString()}`;
-  }
-  if (payload.kind === "video") {
-    return `inkling://capture?url=${encodeURIComponent(payload.sourceUrl)}`;
-  }
-  if (!isHttpUrlString(payload.srcUrl)) return null;
-  const params = new URLSearchParams({ url: payload.pageUrl, image: payload.srcUrl });
-  if (payload.alt) params.set("alt", payload.alt);
-  return `inkling://capture?${params.toString()}`;
-}
-
 // Background/popup wiring (pure data + router; the service worker owns the
 // chrome.* calls). Keep these ids stable: menus persist across updates.
 export const INKLING_MENU_SAVE_SELECTION = "inkling-save-selection";
@@ -98,5 +67,5 @@ export function isCaptureMessage(value: unknown): value is ExtensionCaptureMessa
 //   chrome.contextMenus.create({ id: INKLING_MENU_SAVE_IMAGE, title: "Save image to inkling", contexts: ["image"] });
 //   // onClicked → tabs.sendMessage(tab.id, { type: "inkling/collect", menuItemId }) ;
 //   // content.js collects and replies with { type: "inkling/capture", payload };
-//   // background validates with isCaptureMessage, then opens
-//   // payloadToDeepLink(payload) so capture works even when the app is cold.
+//   // background validates with isCaptureMessage, then sends the payload
+//   // through the authenticated local receiver.

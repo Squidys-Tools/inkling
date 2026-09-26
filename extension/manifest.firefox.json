@@ -24,6 +24,12 @@
   "options_ui": {
     "page": "options.html"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
   "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
   "commands": {
     "_execute_action": {

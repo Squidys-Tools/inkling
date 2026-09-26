@@ -31,10 +31,22 @@ describe("parsePageCapturePayload", () => {
       author: "A. Cook",
       publishedDate: "2026-09-01",
       imageUrls: ["https://example.com/img.jpg"],
+      favicon: "https://example.com/favicon.ico",
     });
     expect(payload.author).toBe("A. Cook");
     expect(payload.publishedDate).toBe("2026-09-01");
     expect(payload.imageUrls).toEqual(["https://example.com/img.jpg"]);
+    expect(payload.favicon).toBe("https://example.com/favicon.ico");
+  });
+
+  test("drops a non-http favicon without failing the capture", () => {
+    const payload = parsePageCapturePayload({
+      version: 1,
+      kind: "page",
+      ...BASE,
+      favicon: "data:image/png;base64,xx",
+    });
+    expect(payload.favicon).toBeUndefined();
   });
 
   test("dedupes image URLs and drops non-http entries", () => {
@@ -94,5 +106,13 @@ describe("buildPageCapturePayload", () => {
     const payload = buildPageCapturePayload({ ...BASE, author: "A. Cook" });
     expect(isPageCapturePayload(JSON.parse(JSON.stringify(payload)))).toBe(true);
     expect(INGESTION_PAYLOAD_VERSION).toBe(1);
+  });
+
+  test("carries an http favicon through build", () => {
+    const payload = buildPageCapturePayload({
+      ...BASE,
+      favicon: "https://example.com/icon.png",
+    });
+    expect(payload.favicon).toBe("https://example.com/icon.png");
   });
 });

@@ -28,6 +28,7 @@ Guardrails:
 
 ### Added
 
+- Article cards without an Open Graph image get a host-derived placeholder: a deterministic hue tinted by the source hostname, and a seal badge that shows the site favicon when the capture pipeline found one (else the host initial) instead of a fixed letter (`src/components/ItemMedia.tsx`, `src/App.css`, `src/App.tsx`, `src/lib/ingestion/`, `packages/ingestion-shared/`, `extension/`, `src-tauri/src/capture_server.rs`, `src-tauri/src/storage.rs`)
 - Library export from Settings (Data tab): writes a dated folder with a consistent SQLite snapshot, the asset files the saved items reference, and a manifest of counts and sizes, after picking a destination folder in a native dialog.
 - Browser extension store prep: Firefox MV3 manifest, local mascot icons, options token field, and store copy draft (`extension/`).
 - Portable Windows PR previews build a self-contained review folder with pinned ONNX Runtime and embedding models, isolated database/assets/models, and a `preview:win` artifact link.
@@ -76,6 +77,12 @@ Guardrails:
 - Dead `note-art` / `note-pin` / `note-scribble` card styles left over from the note thumbnail reuse (`src/App.css`)
 ### Fixed
 
+- Extension and deep-link URL captures no longer fail with "The page could not be downloaded": the desktop app downloads pages through Rust instead of the webview (avoiding CORS), keeps a provisional URL card when download or extraction still fails, and preserves the extension title on that card (`src-tauri/src/http_fetch.rs`, `src/lib/tauriFetch.ts`, `src/App.tsx`, `src/lib/deepLink.ts`)
+- Captured article favicons are cached as local assets in the background, so the card seal loads reliably without depending on the remote site (`src-tauri/src/http_fetch.rs`, `src-tauri/src/storage.rs`, `src-tauri/src/capture_server.rs`, `src/App.tsx`, `src/lib/libraryApi.ts`)
+- Browser page captures no longer fall back to an `inkling://` deep link when the local receiver is unavailable, avoiding the operating system confirmation prompt; failed deliveries stay queued for a later retry (`extension/src/background.ts`, `extension/src/transport.ts`)
+- The local extension receiver now supports a native in-app connection test and answers Private Network Access preflights, so paired browser saves can reach the running companion without relaxing browser origin checks (`src-tauri/src/capture_server.rs`, `src/App.tsx`)
+- Source links in the expanded item overlay and reader footer open in the system browser again (webview `window.open` was a no-op; now routed through the opener plugin) (`src/lib/openExternalUrl.ts`)
+- Browser extension pairing survives app restarts: the capture server rebinds its last successful loopback port when free (otherwise falls back to ephemeral), and Settings → Extension now shows a copyable app address for the extension's base URL field (`src-tauri/src/capture_server.rs`, `src/App.tsx`, `src/lib/libraryApi.ts`)
 - Saved Spaces now restore reliably on a fresh app start instead of disappearing when their first read races storage initialization (SQU-7).
 - Portable Windows previews use the same Cargo output directory for building and packaging, even when `CARGO_TARGET_DIR` is set (#53).
 - Tags added in item details now persist after restarting the app, keep the rest of the item's metadata intact, and no longer render twice in the detail overlay.
@@ -85,6 +92,9 @@ Guardrails:
 - Undoing a forgotten item shows its `Restored to your library` confirmation again: it was raised under the id of the forget toast the same click had dismissed, so it never rendered (`src/App.tsx`)
 - Library export now keeps a completed snapshot when an asset cannot be copied, continues with the remaining files, and records each skipped path and error in `manifest.json`; the result card and toast show the skipped count.
 - Browser extension parses untrusted extraction HTML with `DOMParser` instead of `innerHTML`, and the pending-capture queue is bounded by both entry count and byte budget so it cannot exhaust the browser storage quota
+- Browser extension page save no longer fails with "page extraction produced no usable content": the isolated-world extractor parks its payload promise where the background can await it, so a successful extraction surfaces the page instead of `undefined` (#60)
+- Pairing token now lives beside the library via the same directory resolver as `initialize_storage`, instead of only when `library.sqlite3` already exists — moving or deleting the database no longer silently regenerates the token in a different folder
+- `inkling://` deep links are registered with the OS at startup so extension Save can hand off to a running desktop app (previously only installer builds registered the scheme, leaving dev sessions with no protocol handler) (`src-tauri/src/lib.rs`)
 - Library reopen now detects and rebuilds a partial full-text index and recreates missing search triggers instead of trusting table existence; a healthy reopen still writes nothing (`src-tauri/src/storage.rs`)
 - Bulk archive restore fetches processing summaries in one batched query instead of one per item, and the asset URL cache now evicts least-recently-used entries so frequently viewed covers survive large imports (`src/App.tsx`, `src/lib/assetUrlCache.ts`)
 
