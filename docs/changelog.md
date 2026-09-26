@@ -28,6 +28,7 @@ Guardrails:
 
 ### Added
 
+- The mascot now takes quiet walks around the library on a random 90-180 second schedule, chooses its own stops and expressions, yields to dialogs and reading, and returns to the sidebar without covering content (SQU-58, `src/components/mascot/MascotRoamer.tsx`).
 - Library export from Settings (Data tab): writes a dated folder with a consistent SQLite snapshot, the asset files the saved items reference, and a manifest of counts and sizes, after picking a destination folder in a native dialog.
 - Browser extension store prep: Firefox MV3 manifest, local mascot icons, options token field, and store copy draft (`extension/`).
 - Portable Windows PR previews build a self-contained review folder with pinned ONNX Runtime and embedding models, isolated database/assets/models, and a `preview:win` artifact link.

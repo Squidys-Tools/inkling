@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { BotEngine, type BotFrame } from "./bot/engine";
+import { BotEngine, type BotFrame, type Look } from "./bot/engine";
 import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION } from "./bot/expressions";
 import { SHAPE_BY_ID } from "./bot/skins";
 import { RAYON } from "./bot/repere";
@@ -32,6 +32,10 @@ let frame: BotFrame = engine.sample(0);
 let raf = 0;
 let running = false;
 const subs = new Set<() => void>();
+const frameListeners = new Set<(frame: BotFrame, clock: number) => void>();
+let baseParams: MascotParams = { state: "inkling-drift", expression: "neutre" };
+let roamParams: MascotParams | null = null;
+let appliedParams: MascotParams = baseParams;
 
 function prefersReducedMotion(): boolean {
   return (
@@ -45,12 +49,17 @@ function emit() {
   for (const fn of subs) fn();
 }
 
+function notifyFrameListeners() {
+  for (const fn of frameListeners) fn(frame, clock);
+}
+
 function tick(ms: number) {
   raf = requestAnimationFrame(tick);
   const dt = lastMs ? Math.min((ms - lastMs) / 1000, 0.064) : 0;
   lastMs = ms;
   clock += dt;
   frame = engine.sample(clock);
+  notifyFrameListeners();
   emit();
 }
 
@@ -108,13 +117,48 @@ export function getMascotFrame(): BotFrame {
   return frame;
 }
 
-export function pushMascotParams({ state, expression }: MascotParams) {
-  engine.setState(state, clock);
-  engine.setExpression(EXPRESSION_BY_ID.get(expression) ?? EXPRESSION_BY_ID.get(DEFAULT_EXPRESSION) ?? null, clock);
+function applyParams() {
+  const next = roamParams ?? baseParams;
+  if (next.state === appliedParams.state && next.expression === appliedParams.expression) return;
+  appliedParams = next;
+  engine.setState(next.state, clock);
+  engine.setExpression(
+    EXPRESSION_BY_ID.get(next.expression) ?? EXPRESSION_BY_ID.get(DEFAULT_EXPRESSION) ?? null,
+    clock,
+  );
   if (!running) {
     frame = engine.sample(clock);
+    notifyFrameListeners();
     emit();
   }
+}
+
+export function pushMascotParams(params: MascotParams) {
+  baseParams = params;
+  applyParams();
+}
+
+/** Roaming temporarily overrides the app's state and expression, then hands the base state back. */
+export function pushMascotRoamParams(params: MascotParams | null) {
+  roamParams = params;
+  if (!roamParams) engine.setLook(null, clock);
+  applyParams();
+}
+
+export function pushMascotLook(look: Look | null) {
+  engine.setLook(look, clock);
+  if (!running) {
+    frame = engine.sample(clock);
+    notifyFrameListeners();
+    emit();
+  }
+}
+
+/** Frame side channel for transient DOM work. It reuses the one shared rAF loop. */
+export function observeMascotFrame(listener: (frame: BotFrame, clock: number) => void): () => void {
+  frameListeners.add(listener);
+  listener(frame, clock);
+  return () => frameListeners.delete(listener);
 }
 
 /** Pure re-read for tests and frozen previews: no clock advance, no emit. */

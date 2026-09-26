@@ -92,6 +92,7 @@ const ExpandedItemOverlay = lazy(() =>
   })),
 );
 import { LiveMascotFigure, LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
+import { MascotRoamer } from "./components/mascot/MascotRoamer";
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
 import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
@@ -1192,6 +1193,8 @@ function App() {
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
     typeof window === "undefined" ? 960 : window.innerWidth,
   );
+  const [isMascotRoaming, setIsMascotRoaming] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
 
   const selectLibraryItem = useCallback((item: LibraryItem, rects?: SourceRects) => {
     const run = ++selectionRunRef.current;
@@ -2838,6 +2841,15 @@ function App() {
   // notification pastille; errors drop to idle so the sad face can show
   // (drift carries its own fixed face). Error beats busyness beats attention.
   const isMascotBusy = items.some((item) => item.processing?.active);
+  const mascotRoamBlocked =
+    isAdding ||
+    isSettingsOpen ||
+    selectedItem !== null ||
+    pdfViewerItem !== null ||
+    readingItem !== null ||
+    isSerendipityView ||
+    isMascotBusy ||
+    isDragActive;
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -2882,6 +2894,8 @@ function App() {
       </Suspense>
     );
   }
+  const isMascotRoamDev =
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mascot-roam");
 
   return (
     <MotionConfig reducedMotion="user">
@@ -2912,7 +2926,7 @@ function App() {
         )}
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup" data-tauri-drag-region>
-          <div className={`brand-mark${isSearchFocused ? " is-away" : ""}`} aria-hidden="true">
+          <div className={`brand-mark${isSearchFocused ? " is-away" : ""}${isMascotRoaming ? " is-roaming" : ""}`} aria-hidden="true">
             <LiveMascotFigure size={44} />
           </div>
           <div>
@@ -3144,7 +3158,7 @@ function App() {
         </div>
       </aside>
 
-      <main className="main-content">
+      <main ref={mainRef} className="main-content">
         <section className="library-header">
         </section>
 
@@ -3162,7 +3176,7 @@ function App() {
             </button>
           )}
           <div
-            className={`search-field${isSearchFocused ? " is-mascot" : ""}`}
+            className={`search-field${isSearchFocused && !isMascotRoaming ? " is-mascot" : ""}`}
             onMouseDown={(event) => {
               if (event.target !== searchRef.current) {
                 event.preventDefault();
@@ -3761,6 +3775,14 @@ function App() {
           </Suspense>
         )}
       </AnimatePresence>
+      <MascotRoamer
+        mainRef={mainRef}
+        blocked={mascotRoamBlocked}
+        captureFailed={captureError !== null}
+        reducedMotion={prefersReducedMotion}
+        onPresenceChange={setIsMascotRoaming}
+        dev={isMascotRoamDev}
+      />
       </div>
       <Toaster
         position="top-center"
