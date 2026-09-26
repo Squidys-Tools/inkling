@@ -490,9 +490,8 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .note-editor-save:hover:not(:disabled) { border-color: var(--green); background: #2b382f; }
 .note-editor-save:disabled { cursor: wait; opacity: .55; }
 
-.expanded-overlay.is-editing-note.is-placed { position: relative; left: auto; top: auto; width: min(680px, 100%); height: auto; max-height: 100%; }
 .expanded-overlay.is-editing-note .expanded-overlay-media { display: none; }
-.expanded-overlay.is-editing-note .expanded-overlay-body { padding: 0; }
+.expanded-overlay.is-editing-note .expanded-overlay-body { flex: 1 1 auto; padding: 0; }
 .expanded-overlay.is-editing-note .detail-processing, .expanded-overlay.is-editing-note .detail-meta, .expanded-overlay.is-editing-note .expanded-overlay-actions, .expanded-overlay.is-editing-note .expanded-overlay-toolbar { display: none; }
 .note-embedded-editor { min-height: 0; display: flex; flex-direction: column; margin: 0; }
 .note-embedded-title-block { flex: 0 0 auto; padding: 24px 22px 18px; border-bottom: 1px solid #35443c; background: #1b1917; }
@@ -512,4 +511,4 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .note-embedded-editor .note-editor-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 22px 15px; border-top: 1px solid #262221; background: #141311; }
 .note-embedded-editor .note-editor-status { margin-right: auto; color: var(--muted); font: 10px "DM Mono", monospace; }
 .note-embedded-editor .note-editor-cancel, .note-embedded-editor .note-editor-save { padding: 8px 12px; }
-@media (max-width: 680px) { .expanded-overlay.is-editing-note.is-placed { width: 100%; }.note-embedded-title-block { padding-inline: 18px; }.note-embedded-editor .note-editor-toolbar, .note-embedded-editor .note-editor-content, .note-embedded-editor .note-editor-actions { padding-inline: 18px; }.note-embedded-editor-surface, .note-embedded-editor .note-editor-content { min-height: 220px; } }
+@media (max-width: 680px) { .note-embedded-title-block { padding-inline: 18px; }.note-embedded-editor .note-editor-toolbar, .note-embedded-editor .note-editor-content, .note-embedded-editor .note-editor-actions { padding-inline: 18px; }.note-embedded-editor-surface, .note-embedded-editor .note-editor-content { min-height: 220px; } }

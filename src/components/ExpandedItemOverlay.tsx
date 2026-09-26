@@ -649,6 +649,14 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     beginCloseFlight(itemRef.current, rects, false);
   };
 
+  const handleOverlayClose = () => {
+    if (isEditingNoteRef.current) {
+      setIsEditingNote(false);
+      return;
+    }
+    requestClose();
+  };
+
   useEffect(() => {
     const checkSourceVisibility = () => {
       if (selectionScrollRef.current) return;
@@ -768,14 +776,14 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
         role="dialog"
         aria-modal={false}
         aria-label={detailTitleFor(shownItem)}
-        style={isEditingNoteView ? undefined : dialogFlying ? undefined : placedStyle}
+        style={dialogFlying ? undefined : placedStyle}
       >
         <button
           type="button"
           ref={closeButtonRef}
           className="expanded-overlay-close"
-          onClick={requestClose}
-          aria-label="Close details"
+           onClick={handleOverlayClose}
+           aria-label={isEditingNoteView ? "Close editor" : "Close details"}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={16} />
         </button>
