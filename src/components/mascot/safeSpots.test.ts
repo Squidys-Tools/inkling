@@ -192,44 +192,43 @@ describe("safe spots", () => {
     expect(withoutCard).not.toBeNull();
     expect(hits(box(withoutCard!), stage)).toBe(true);
   });
-
-  test("a clear-path search never picks a spot it would have to cross the grid to reach", () => {
-    // The free space is a ring, so plenty of free spots are on the far side of
-    // the grid from where the mascot stands. Reaching one means gliding over
-    // every card in between, which is the thing the geometry exists to prevent.
-    // The only lanes the real library leaves free are the two 48px margins beside
-    // the grid and the band under the capture bar. Start in the left one.
+  test("the mascot is free to land anywhere in the free space, not just its own lane", () => {
+    // The mascot hops, so there is no route to clear: only where it lands has to
+    // be free. That is what hands it the whole ring instead of the one lane it
+    // happened to be standing in, and a search that only ever returned nearby
+    // spots would quietly confine it to a column again.
     const from = { x: 272, y: 400 };
-    const near = { x: 272, y: 200 };
-    const far = { x: 1390, y: 400 };
-    expect(isSafeSpot(from, CONTAINER, OBSTACLES, MASCOT_BODY, MIN_ROOM)).toBe(true);
-    expect(isSafeSpot(near, CONTAINER, OBSTACLES, MASCOT_BODY, MIN_ROOM)).toBe(true);
-    expect(isSafeSpot(far, CONTAINER, OBSTACLES, MASCOT_BODY, MIN_ROOM)).toBe(true);
-    // Every spot a clear-path search returns is genuinely reachable on foot.
     const rand = createSeededRandom(21);
-    for (let i = 0; i < 120; i++) {
-      const spot = findSafeSpot({ container: CONTAINER, obstacles: OBSTACLES, from, prefer: "any", rand, minRoom: MIN_ROOM, clearPath: true });
-      if (!spot) continue;
-      // Sample the walk the way clearPath does, independently of it.
-      const steps = 40;
-      for (let s = 1; s < steps; s++) {
-        const t = s / steps;
-        const mid = { x: from.x + (spot.x - from.x) * t, y: from.y + (spot.y - from.y) * t };
-        expect(roomAt(mid, CONTAINER, OBSTACLES, MASCOT_BODY)).toBeGreaterThanOrEqual(0);
-      }
+    const xs: number[] = [];
+    for (let i = 0; i < 300; i++) {
+      const spot = findSafeSpot({ container: CONTAINER, obstacles: OBSTACLES, from, prefer: "any", rand, minRoom: MIN_ROOM });
+      expect(spot).not.toBeNull();
+      expect(isSafeSpot(spot!, CONTAINER, OBSTACLES, MASCOT_BODY, MIN_ROOM)).toBe(true);
+      xs.push(spot!.x);
     }
+    // The library is 1166px wide. Landing in both margins is the whole point.
+    expect(Math.min(...xs)).toBeLessThan(400);
+    expect(Math.max(...xs)).toBeGreaterThan(1100);
   });
 
-  test("dropping the clear-path demand still allows a spot on the far margin", () => {
-    // Recovery runs from wherever the mascot ended up, so it cannot demand a
-    // route: after a scroll the mascot is standing on a card and any improvement
-    // is worth a glide.
+  test("a landing spot is free, whatever the route to it was", () => {
+    // Both margins are free, and a spot on the far one from the left lane is
+    // only reachable by hopping over the grid. That is allowed now, so pin it:
+    // the geometry's job is the landing, not the journey.
     const from = { x: 272, y: 400 };
-    const unreachable = findSafeSpot({ container: CONTAINER, obstacles: OBSTACLES, from, prefer: "across", rand: createSeededRandom(2), minRoom: MIN_ROOM });
-    expect(unreachable).not.toBeNull();
-    const reachable = findSafeSpot({ container: CONTAINER, obstacles: OBSTACLES, from, prefer: "any", rand: createSeededRandom(2), minRoom: MIN_ROOM, clearPath: true });
-    expect(reachable).not.toBeNull();
-    expect(Math.abs(reachable!.x - from.x)).toBeLessThan(Math.abs(unreachable!.x - from.x));
+    const far = findSafeSpot({ container: CONTAINER, obstacles: OBSTACLES, from, prefer: "across", rand: createSeededRandom(2), minRoom: MIN_ROOM });
+    expect(far).not.toBeNull();
+    expect(isSafeSpot(far!, CONTAINER, OBSTACLES, MASCOT_BODY, MIN_ROOM)).toBe(true);
+    // And the straight line between them does cross a card, which is why the hop
+    // is not optional: the mascot is never on screen while it travels.
+    const steps = 60;
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const mid = { x: from.x + (far!.x - from.x) * t, y: from.y + (far!.y - from.y) * t };
+      if (s === 0 || s === steps) continue;
+      if (roomAt(mid, CONTAINER, OBSTACLES, MASCOT_BODY) < 0) return;
+    }
+    throw new Error("expected the straight line between the margins to cross the grid");
   });
 
   test("look targets are the cards you can see, nearest first", () => {

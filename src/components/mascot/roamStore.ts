@@ -76,17 +76,40 @@ const RECHECK_MS = 300;
 /** How long the hand-off to the sidebar takes at the end of a walk home. */
 const FADE_MS = 320;
 
+/**
+ * A hop is two halves: squash down out of one spot, then swell back up in
+ * another. The mascot is a blot with no legs, so it never travelled — it
+ * blinked, and a slide across the library read as a mechanical dash rather than
+ * an animal being somewhere. Shrinking away and growing back reads as a hop, and
+ * because it is gone in between, nothing about the route matters any more: the
+ * mascot can be anywhere in the library instead of only where it could walk.
+ *
+ * The shrink is quick and the swell is slower with a little overshoot, which is
+ * what makes it land like something with weight.
+ */
+const HOP_SHRINK_MS = 150;
+const HOP_SHRINK_EASE = "cubic-bezier(.55,0,1,.45)";
+const HOP_SHRINK_TO = 0;
+const HOP_GROW_EASE = "cubic-bezier(.2,1.35,.35,1)";
+
+
 export interface RoamSnapshot {
   away: boolean;
   phase: RoamState["phase"];
   x: number;
   y: number;
-  travelMs: number;
+  /** How long the current hop half takes, in ms. */
+  hopMs: number;
+  /** 0 while it shrinks away, 1 once it is standing somewhere. */
+  scale: number;
+  /** The curve for this half of the hop. The layer stays dumb about it. */
+  ease: string;
   /** ms to wait before the last of the walk home fades out */
   fadeMs: number;
   stops: number;
   last: { kind: RoamActionKind; target: RoamTarget; expression: string } | null;
 }
+
 
 interface Layout {
   container: Rect;
@@ -129,11 +152,14 @@ let snapshot: RoamSnapshot = {
   phase: "home",
   x: 0,
   y: 0,
-  travelMs: 0,
+  hopMs: 0,
+  scale: 1,
+  ease: HOP_SHRINK_EASE,
   fadeMs: 0,
   stops: 0,
   last: null,
 };
+
 
 const subs = new Set<() => void>();
 
@@ -223,7 +249,8 @@ function revalidate() {
   hasRoom = canStand;
   if (position === null) return;
   if (nearest) {
-    if (nearest.x !== position.x || nearest.y !== position.y) moveTo(nearest, 320, 0);
+    if (nearest.x !== position.x || nearest.y !== position.y) hopTo(nearest, 0);
+
     return;
   }
   // A scroll put a card under the mascot and there is nowhere left to stand. The
@@ -258,48 +285,77 @@ function resolve(action: RoamAction): Resolved | null {
   }
   const want = SPOT_PREFERENCE[action.target];
   const base = { container: layout.container, obstacles: layout.obstacles, from, rand, minRoom: MIN_ROOM };
-  // Every move but the departure has to be walkable end to end, so the search
-  // itself demands a clear line rather than checking one afterwards. A spot the
-  // mascot would have to glide over a card to reach is not a spot it can use.
-  //
-  // That is also how a crossing happens. The free space is a ring, so from a
-  // margin the only reachable spots are the rest of that margin; once a shuffle
-  // drifts the mascot up into the band under the search bar, the whole width
-  // opens up and the far margin is a single clear leg away. It walks to the
-  // corridor and along it rather than leaping the grid, which is both quieter
-  // and the only route that is actually clear.
+  // The mascot hops, so there is no route to worry about: only the spot it ends
+  // up in has to be free. That is what gives it the whole library to roam in
+  // rather than the one lane it happened to be standing in.
   const spot =
-    position === null
-      ? (want ? findSafeSpot({ ...base, prefer: want }) : null) ?? findSafeSpot({ ...base, prefer: "any" })
-      : (want ? findSafeSpot({ ...base, prefer: want, clearPath: true }) : null) ??
-        findSafeSpot({ ...base, prefer: "any", clearPath: true });
+    (want ? findSafeSpot({ ...base, prefer: want }) : null) ?? findSafeSpot({ ...base, prefer: "any" });
   return spot ? { to: spot, look: gaze(from, spot, 0.55) } : null;
 }
 
-function moveTo(to: Point, travelMs: number, fadeMs: number) {
+
+/** How long the swell half of a hop takes. */
+const HOP_GROW_MS = 260;
+
+let hopSeq = 0;
+let hopTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearHop() {
+  if (hopTimer !== null) {
+    clearTimeout(hopTimer);
+    hopTimer = null;
+  }
+}
+
+/**
+ * Hop to a spot: shrink away from here, move while it is invisible, swell back up
+ * over there.
+ *
+ * A hop already under way is cut short rather than queued. The mascot is
+ * mid-swell when the next one asks for the floor, and starting a shrink from
+ * half a size reads as a glitch, so the interrupted hop simply ends where it is
+ * and the new one begins from a whole mascot.
+ */
+function hopTo(to: Point, fadeMs: number) {
+  clearHop();
+  const seq = ++hopSeq;
   const mounted = position !== null;
+  const from = position ?? layout?.home ?? to;
   position = to;
+
+  const swell = () => {
+    if (seq !== hopSeq) return;
+    publish({ x: to.x, y: to.y, scale: 1, hopMs: HOP_GROW_MS, ease: HOP_GROW_EASE, fadeMs });
+  };
+  const shrink = () => {
+    if (seq !== hopSeq) return;
+    publish({ x: from.x, y: from.y, scale: HOP_SHRINK_TO, hopMs: HOP_SHRINK_MS, ease: HOP_SHRINK_EASE, fadeMs: 0 });
+    hopTimer = setTimeout(() => {
+      hopTimer = null;
+      swell();
+    }, HOP_SHRINK_MS);
+  };
+
   if (!mounted) {
-    // Mount on the home mark first, then travel. Publishing the destination
-    // straight away would put the mascot in the middle of the library on the
-    // first frame, and the one move that has to read as leaving is the only one
-    // that would not move at all.
-    const from = layout?.home ?? to;
-    publish({ x: from.x, y: from.y, travelMs: 0, fadeMs: 0 });
-    requestAnimationFrame(() => {
-      if (position) publish({ x: position.x, y: position.y, travelMs, fadeMs });
-    });
+    // The first frame out of the slot mounts a whole mascot on the mark and
+    // shrinks it away from there, so leaving reads as leaving. Publishing the
+    // destination straight away would put the mascot in the middle of the
+    // library before it had taken a breath.
+    publish({ x: from.x, y: from.y, scale: 1, hopMs: 0, ease: HOP_SHRINK_EASE, fadeMs: 0 });
+    requestAnimationFrame(shrink);
     return;
   }
-  publish({ x: to.x, y: to.y, travelMs, fadeMs });
+  shrink();
 }
 
 function endOuting() {
+  clearHop();
   position = null;
-    pushMascotLook(null);
+  pushMascotLook(null);
   pushRoamParams(null);
-  publish({ away: false, phase: "home", x: 0, y: 0, travelMs: 0, fadeMs: 0, stops: 0 });
+  publish({ away: false, phase: "home", x: 0, y: 0, hopMs: 0, scale: 1, ease: HOP_SHRINK_EASE, fadeMs: 0, stops: 0 });
 }
+
 
 function applyAction(action: RoamAction, resolved: Resolved | null) {
   if (action.kind === "arrive") {
@@ -316,7 +372,8 @@ function applyAction(action: RoamAction, resolved: Resolved | null) {
   const to = resolved?.to ?? (walkingHome ? (layout?.home ?? null) : null);
   pushMascotLook(resolved?.look ?? null);
   pushRoamParams({ state: ROAM_STATE, expression: action.expression });
-  if (to) moveTo(to, walkingHome ? action.travel - fade : action.travel, fade);
+  if (to) hopTo(to, fade);
+
   publish({
     away: true,
     phase: walkingHome ? "returning" : "away",
