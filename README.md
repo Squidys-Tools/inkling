@@ -66,7 +66,7 @@ Short clips say more than paragraphs. (Placeholders for now, real ones soon.)
 
 ## Meet the mascot
 
-A small ink blot lives in the sidebar and pops into the search bar while you type. It drifts when idle, perks up when there's background work, and looks sad when a save fails. It's also the app icon.
+A small ink blot lives in the sidebar and pops into the search bar while you type. It drifts when idle, perks up when there's background work, looks sad when a save fails, and now takes quiet walks around the library on its own. It's also the app icon.
 
 <p>
   <img src="docs/assets/mascots/inkling-splash-idle.svg" alt="inkling mascot idling" width="120">

@@ -44,3 +44,4 @@ Each feature file starts with an H1 and one paragraph describing visible behavio
 - [Archive and recover](./archive-restore.md): forgetting, Undo, archive selection, recovery, and permanent deletion.
 - [Export the library](./export.md): Settings Data, the native picker boundary, and the exported folder.
 - [Pair the browser extension](./extension.md): Settings Extension and the extension's preview and native boundaries.
+- [Roaming mascot](./mascot.md): spontaneous walks, expressions, safe lanes, yielding, and return home.
