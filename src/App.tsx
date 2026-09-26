@@ -1024,14 +1024,14 @@ function ExtensionPairing() {
         setToken(value);
         setIsRevealed(true);
       })
-      .catch(() => toast.error("Could not load the pairing token."));
+      .catch(() => toast.error("Could not load the pairing token.", { duration: 5000 }));
   };
 
   const copyToken = () => {
     if (!token) return;
     void navigator.clipboard.writeText(token)
       .then(() => toast.success("Pairing token copied. Paste it into the extension."))
-      .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand."));
+      .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand.", { duration: 5000 }));
   };
 
   const renewToken = () => {
@@ -1042,7 +1042,7 @@ function ExtensionPairing() {
         setIsRevealed(true);
         toast.success("New pairing token issued. Update the extension.");
       })
-      .catch(() => toast.error("Could not renew the pairing token."));
+      .catch(() => toast.error("Could not renew the pairing token.", { duration: 5000 }));
   };
 
   const testConnection = () => {
@@ -1058,7 +1058,7 @@ function ExtensionPairing() {
     };
     void check()
       .then(() => toast.success("Extension receiver is reachable."))
-      .catch(() => toast.error("No answer from the receiver. Is the app running?"))
+      .catch(() => toast.error("No answer from the receiver. Is the app running?", { duration: 5000 }))
       .finally(() => setIsTesting(false));
   };
 
@@ -1255,10 +1255,7 @@ function App() {
         ? current
         : [restoredItem, ...current]);
       setArchivedItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
-      // The confirmation needs a toast of its own. Sonner dismisses the forget toast the
-      // moment its action is clicked, and a later toast raised under that same id inherits
-      // the dismissed toast's `delete` flag, so it never reaches the screen.
-      toast.success("Restored to your library", { duration: 3000, closeButton: true });
+      toast.success("Restored to your library", { duration: 5000, closeButton: true });
     } catch (error) {
       toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
       setCaptureError(error instanceof Error ? error.message : String(error));
@@ -1367,7 +1364,7 @@ function App() {
       );
       setSelectedItem((current) => (current && String(current.id) === String(item.id) ? apply(current) : current));
     } catch (error) {
-      toast.error("Unable to save this tag");
+      toast.error("Unable to save this tag", { duration: 5000 });
     }
   }, [canUseTauriBackend]);
 
@@ -2696,7 +2693,7 @@ function App() {
       if (canUseTauriBackend) await deleteItem(String(item.id));
       setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== String(item.id)));
       if (selectedItem && String(selectedItem.id) === String(item.id)) setSelectedItem(null);
-      toast.success("Deleted permanently", { description: item.title, duration: 3000 });
+      toast.success("Deleted permanently", { description: item.title });
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
@@ -2765,7 +2762,7 @@ function App() {
       setArchivedItems((current) => current.filter((item) => !restoredIds.has(String(item.id))));
       setSelectedArchivedIds(new Set());
       setIsArchiveSelectionMode(false);
-      if (restoredItems.length > 0) toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`, { duration: 3000 });
+      if (restoredItems.length > 0) toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`);
       if (failures > 0) setCaptureError(`${failures} ${failures === 1 ? "item" : "items"} could not be recovered. They are still in the archive.`);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
@@ -2787,7 +2784,7 @@ function App() {
       if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
       setSelectedArchivedIds(new Set());
       setIsArchiveSelectionMode(false);
-      if (deletedIds.size > 0) toast.success(`${deletedIds.size} ${deletedIds.size === 1 ? "item" : "items"} deleted permanently`, { duration: 3000 });
+      if (deletedIds.size > 0) toast.success(`${deletedIds.size} ${deletedIds.size === 1 ? "item" : "items"} deleted permanently`);
       if (failures > 0) setCaptureError(`${failures} ${failures === 1 ? "item" : "items"} could not be deleted. They are still in the archive.`);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
@@ -3763,12 +3760,18 @@ function App() {
       </AnimatePresence>
       </div>
       <Toaster
-        position="top-center"
-        offset={{ top: 48, left: 16, right: 16 }}
-        mobileOffset={{ top: 16, left: 12, right: 12 }}
+        position="top-right"
+        offset={{ top: 48, right: 16 }}
+        mobileOffset={{ top: 16, right: 12 }}
         theme="dark"
         richColors={false}
         closeButton
+        duration={5000}
+        icons={{
+          success: <></>,
+          error: <></>,
+          close: <HugeiconsIcon icon={Cancel01Icon} size={12} color="currentColor" />,
+        }}
         containerAriaLabel="Notifications"
       />
     </MotionConfig>
