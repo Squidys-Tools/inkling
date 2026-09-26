@@ -88,6 +88,7 @@ Guardrails:
 - Browser extension parses untrusted extraction HTML with `DOMParser` instead of `innerHTML`, and the pending-capture queue is bounded by both entry count and byte budget so it cannot exhaust the browser storage quota
 - Library reopen now detects and rebuilds a partial full-text index and recreates missing search triggers instead of trusting table existence; a healthy reopen still writes nothing (`src-tauri/src/storage.rs`)
 - Bulk archive restore fetches processing summaries in one batched query instead of one per item, and the asset URL cache now evicts least-recently-used entries so frequently viewed covers survive large imports (`src/App.tsx`, `src/lib/assetUrlCache.ts`)
+- Note bodies are only derived from legacy fields once per schema upgrade instead of on every app start, a failed note save no longer leaves an unsaved draft in the in-memory body cache, and switching away from a note while its content is loading no longer leaves the note stuck on "Loading note…" (SQU-1)
 
 ---
 

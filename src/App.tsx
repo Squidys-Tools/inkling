@@ -1189,8 +1189,10 @@ function App() {
         setSelectedItem((current) => (current ? apply(current) : current));
       })
       .catch((error: unknown) => {
-        noteContentRequestsRef.current.delete(id);
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        noteContentRequestsRef.current.delete(id);
       });
     return () => {
       cancelled = true;
@@ -1412,7 +1414,6 @@ function App() {
   const updateNote = useCallback(async (item: LibraryItem, body: string) => {
     const nextBody = normalizeNoteBody(body);
     if (!nextBody) throw new Error("A note needs some text before it can be saved.");
-    noteBodyCacheRef.current.set(String(item.id), nextBody);
 
     let nextItem: LibraryItem;
     if (canUseTauriBackend) {
@@ -1439,6 +1440,7 @@ function App() {
     setItems((current) => current.map(apply));
     setArchivedItems((current) => current.map(apply));
     setSelectedItem((current) => (current ? apply(current) : current));
+    noteBodyCacheRef.current.set(String(item.id), nextBody);
   }, [canUseTauriBackend]);
 
   const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {

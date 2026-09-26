@@ -376,7 +376,7 @@ impl LibraryStorage {
 
         connection.execute_batch(crate::jobs::JOBS_SCHEMA)?;
         ensure_job_columns(&connection)?;
-        ensure_item_columns(&connection)?;
+        ensure_item_columns(&connection, version < SCHEMA_VERSION)?;
         connection.execute_batch(EMBEDDINGS_SCHEMA)?;
         connection.execute_batch(SPACES_SCHEMA)?;
         let fts5_enabled = setup_fts5(&connection);
@@ -1591,10 +1591,20 @@ fn normalize_space_color(color: Option<&str>) -> String {
     }
 }
 
-fn ensure_item_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
-    for (name, definition) in [
-        ("body", "TEXT NOT NULL DEFAULT ''"),
-        ("body_format", "TEXT NOT NULL DEFAULT 'md'"),
+fn ensure_item_columns(
+    connection: &Connection,
+    migration_needed: bool,
+) -> Result<(), rusqlite::Error> {
+    let mut added_column = false;
+    for (name, alter) in [
+        (
+            "body",
+            "ALTER TABLE items ADD COLUMN body TEXT NOT NULL DEFAULT ''",
+        ),
+        (
+            "body_format",
+            "ALTER TABLE items ADD COLUMN body_format TEXT NOT NULL DEFAULT 'md'",
+        ),
     ] {
         let present: i64 = connection.query_row(
             "SELECT COUNT(*) FROM pragma_table_info('items') WHERE name = ?1",
@@ -1602,19 +1612,34 @@ fn ensure_item_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
             |row| row.get(0),
         )?;
         if present == 0 {
-            connection.execute(
-                &format!("ALTER TABLE items ADD COLUMN {name} {definition}"),
-                [],
-            )?;
+            connection.execute(alter, [])?;
+            added_column = true;
         }
     }
 
+    let needs_backfill = if migration_needed || added_column {
+        true
+    } else {
+        connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM items WHERE body IS NULL OR body_format IS NULL)",
+            [],
+            |row| row.get::<_, i64>(0),
+        )? != 0
+    };
+    if !needs_backfill {
+        return Ok(());
+    }
+
+    let query = if migration_needed || added_column {
+        "SELECT id, kind, title, description, metadata, body, body_format FROM items"
+    } else {
+        "SELECT id, kind, title, description, metadata, body, body_format
+         FROM items
+         WHERE body IS NULL OR body_format IS NULL"
+    };
+    let transaction = connection.unchecked_transaction()?;
     let rows = {
-        let mut statement = connection.prepare(
-            "SELECT id, kind, title, description, metadata, body, body_format
-             FROM items
-             WHERE body IS NULL OR TRIM(body) = '' OR body_format IS NULL OR TRIM(body_format) = ''",
-        )?;
+        let mut statement = transaction.prepare(query)?;
         let rows = statement
             .query_map([], |row| {
                 Ok((
@@ -1656,11 +1681,12 @@ fn ensure_item_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
         let body_format = body_format
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| BODY_FORMAT_MARKDOWN.to_owned());
-        connection.execute(
+        transaction.execute(
             "UPDATE items SET body = ?1, body_format = ?2 WHERE id = ?3",
             params![body, body_format, id],
         )?;
     }
+    transaction.commit()?;
 
     Ok(())
 }
@@ -3244,6 +3270,70 @@ mod tests {
         drop(storage);
 
         let reopened = LibraryStorage::open(path).unwrap();
+        assert_eq!(
+            reopened.get_item_content("legacy-note").unwrap().body,
+            "legacy searchable body"
+        );
+        drop(reopened);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn migrated_item_bodies_are_not_rewritten_on_every_open() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-note-backfill-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("library.sqlite3");
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE items (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    kind TEXT NOT NULL,
+                    title TEXT,
+                    description TEXT,
+                    source_url TEXT,
+                    source_label TEXT,
+                    local_asset_path TEXT,
+                    thumbnail_path TEXT,
+                    ocr_text TEXT NOT NULL DEFAULT '',
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    archived INTEGER NOT NULL DEFAULT 0,
+                    favorite INTEGER NOT NULL DEFAULT 0
+                );
+                INSERT INTO items(id, kind, title, description, metadata, created_at, updated_at)
+                VALUES ('legacy-note', 'note', 'Legacy note', 'legacy searchable body', '{}', 1, 1);
+                PRAGMA user_version = 6;",
+            )
+            .unwrap();
+        drop(connection);
+
+        let storage = LibraryStorage::open(path.clone()).unwrap();
+        assert_eq!(
+            storage.get_item_content("legacy-note").unwrap().body,
+            "legacy searchable body"
+        );
+        storage
+            .connection
+            .execute_batch(
+                "CREATE TABLE body_writes (id INTEGER PRIMARY KEY);
+                 CREATE TRIGGER log_body_writes
+                 AFTER UPDATE OF body, body_format ON items
+                 BEGIN
+                     INSERT INTO body_writes (id) VALUES (NULL);
+                 END;",
+            )
+            .unwrap();
+        drop(storage);
+
+        let reopened = LibraryStorage::open(path).unwrap();
+        let rewrites: i64 = reopened
+            .connection
+            .query_row("SELECT COUNT(*) FROM body_writes", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rewrites, 0);
         assert_eq!(
             reopened.get_item_content("legacy-note").unwrap().body,
             "legacy searchable body"
