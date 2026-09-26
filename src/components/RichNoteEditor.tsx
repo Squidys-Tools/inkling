@@ -8,8 +8,7 @@ type RichNoteEditorProps = {
   title: string;
   onSave: (body: string) => void | Promise<void>;
   onEditingChange?: (editing: boolean) => void;
-  showEditButton?: boolean;
-  studio?: boolean;
+  embedded?: boolean;
 };
 
 function isSafeLink(value: string): boolean {
@@ -21,7 +20,7 @@ function isSafeLink(value: string): boolean {
   }
 }
 
-export function RichNoteEditor({ body, title, onSave, onEditingChange, showEditButton = true, studio = false }: RichNoteEditorProps) {
+export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded = false }: RichNoteEditorProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,10 +52,10 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, showEditB
   }, [body, editor, title]);
 
   useEffect(() => {
-    if ((!isEditing && !studio) || !editor) return;
+    if ((!isEditing && !embedded) || !editor) return;
     editorRootRef.current?.scrollIntoView({ block: "start" });
     editor.commands.focus();
-  }, [editor, isEditing, studio]);
+  }, [editor, embedded, isEditing]);
 
   const previewHtml = useMemo(
     () => (body === undefined ? "" : renderNoteMarkdown(noteBodyForPreview(body, title))),
@@ -67,27 +66,13 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, showEditB
     return <p className="note-editor-loading" role="status">Loading note…</p>;
   }
 
-  if (!isEditing && !studio) {
+  if (!isEditing && !embedded) {
     return (
       <div className="note-editor" data-testid="rich-note-editor">
         {body ? (
           <div className="note-editor-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} />
         ) : (
           <p className="note-editor-empty">This note is empty.</p>
-        )}
-        {showEditButton && (
-          <button
-            type="button"
-            className="note-editor-edit"
-            aria-label="Edit note"
-            onClick={() => {
-              setError(null);
-              setIsEditing(true);
-              onEditingChange?.(true);
-            }}
-          >
-            Edit note
-          </button>
         )}
       </div>
     );
@@ -128,15 +113,15 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, showEditB
   };
 
   return (
-    <div ref={editorRootRef} className={`note-editor is-editing ${studio ? "note-studio-editor" : ""}`} data-testid="rich-note-editor">
-      {studio && (
-        <div className="note-studio-title-block">
-          <span className="note-studio-kicker">FIELD NOTE</span>
+    <div ref={editorRootRef} className={`note-editor is-editing ${embedded ? "note-embedded-editor" : ""}`} data-testid="rich-note-editor">
+      {embedded && (
+        <div className="note-embedded-title-block">
+          <span className="note-embedded-kicker">FIELD NOTE</span>
           <h1>{title}</h1>
         </div>
       )}
       <div className="note-editor-toolbar" role="toolbar" aria-label="Note formatting">
-        {studio && <span className="note-editor-toolbar-label">FORMAT</span>}
+        {embedded && <span className="note-editor-toolbar-label">FORMAT</span>}
         <button type="button" aria-label="Heading 1" aria-pressed={editor.isActive("heading", { level: 1 })} onClick={() => run(() => editor.chain().toggleHeading({ level: 1 }).run())}>H1</button>
         <button type="button" aria-label="Heading 2" aria-pressed={editor.isActive("heading", { level: 2 })} onClick={() => run(() => editor.chain().toggleHeading({ level: 2 }).run())}>H2</button>
         <button type="button" aria-label="Heading 3" aria-pressed={editor.isActive("heading", { level: 3 })} onClick={() => run(() => editor.chain().toggleHeading({ level: 3 }).run())}>H3</button>
@@ -147,8 +132,8 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, showEditB
         <button type="button" aria-label="Todo list" aria-pressed={editor.isActive("taskList")} onClick={() => run(() => editor.chain().toggleTaskList().run())}>☑ Todo</button>
         <button type="button" aria-label="Add link" aria-pressed={editor.isActive("link")} onClick={addLink}>Link</button>
       </div>
-      {studio ? (
-        <div className="note-studio-editor-surface">
+      {embedded ? (
+        <div className="note-embedded-editor-surface">
           <EditorContent editor={editor} />
         </div>
       ) : (

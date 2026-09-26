@@ -19,7 +19,7 @@ import {
 import type { LibraryItem } from "../App";
 import { isTauriRuntime } from "../lib/libraryApi";
 import type { ReaderOrigin } from "../ReaderView";
-import { KindIcon, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
+import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
 import {
   OVERLAY_EASE,
   OVERLAY_FLIGHT_MS,
@@ -126,10 +126,6 @@ function savedLabelFor(date: string): string {
   return `SAVED ${date.replace(/^saved\s+/iu, "").toUpperCase()}`;
 }
 
-function wordCountFor(body: string | undefined): number {
-  return body?.trim().match(/\S+/gu)?.length ?? 0;
-}
-
 // The overlay keeps two triage actions in view: a primary (read / play / open)
 // and secondary (open original / find similar). Everything after the first
 // entry renders in the secondary slot.
@@ -184,11 +180,7 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
   if (item.kind === "Note" && !item.image) {
     return (
       <div className="expanded-overlay-media note-detail-media">
-        <div className="note-detail-art">
-          <span className="note-detail-art-label">INKLING / FIELD NOTE</span>
-          <strong aria-hidden="true">N</strong>
-          <span className="note-detail-art-caption">A page for what stays.</span>
-        </div>
+        <NoteArtwork item={item} />
       </div>
     );
   }
@@ -292,7 +284,6 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   const [linkCopyFailed, setLinkCopyFailed] = useState(false);
   const [isEditingNote, setIsEditingNote] = useState(false);
   const isEditingNoteRef = useRef(false);
-  const studioRef = useRef<HTMLDivElement>(null);
 
   // Mirror props into refs inside an effect, never during render, so a
   // concurrent render cannot publish a half-updated set. This runs before
@@ -481,7 +472,6 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   // Re-clamps and re-measures the settled overlay when the window resizes.
   useEffect(() => {
     const onResize = () => {
-      if (isEditingNoteRef.current) return;
       const dialog = dialogRef.current;
       if (!dialog || !destinationRef.current) return;
       const content = contentAreaRect();
@@ -644,7 +634,6 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   // the overlay unmounts. Cards that are no longer mounted fall back to a
   // short opacity fade.
   const requestClose = () => {
-    if (isEditingNoteRef.current) return;
     const activeFlight = flightRef.current;
     if (activeFlight?.kind === "close") {
       if (activeFlight.thenOpen) cancelPendingOpenRef.current = true;
@@ -702,7 +691,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (studioRef.current?.contains(target) || dialogRef.current?.contains(target)) return;
+      if (dialogRef.current?.contains(target)) return;
       if (target instanceof Element && target.closest(".library-card")) return;
       requestClose();
     };
@@ -769,72 +758,17 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     setIsAddingTag(false);
   }
 
-  if (isEditingNote && shownItem.kind === "Note") {
-    const wordCount = wordCountFor(shownItem.noteBody);
-    return (
-      <div className="note-studio-layer" ref={studioRef}>
-        <section className="note-studio" role="dialog" aria-modal="true" aria-label={`Edit ${detailTitleFor(shownItem)}`}>
-          <header className="note-studio-header">
-            <button type="button" className="note-studio-back" onClick={() => setIsEditingNote(false)}>
-              <span aria-hidden="true">←</span> Back to note
-            </button>
-            <div className="note-studio-heading" aria-label="Writing desk">
-              <span>INKLING</span>
-              <strong>WRITING DESK</strong>
-            </div>
-            <div className="note-studio-header-actions">
-              <span className="note-studio-shortcut">ESC TO EXIT</span>
-              <button type="button" className="note-studio-close" onClick={() => setIsEditingNote(false)} aria-label="Close note editor">
-                <HugeiconsIcon icon={Cancel01Icon} size={16} />
-              </button>
-            </div>
-          </header>
-          <div className="note-studio-stage">
-            <aside className="note-studio-rail note-studio-rail-left" aria-hidden="true">
-              <span className="note-studio-rail-label">01</span>
-              <span className="note-studio-rail-line" />
-              <span className="note-studio-rail-copy">A quiet place<br />for the next thought.</span>
-            </aside>
-            <div className="note-studio-paper">
-              <div className="note-studio-paper-topline">
-                <span>NOTE / {fileTypeFor(shownItem)}</span>
-                <span>{savedLabelFor(shownItem.date)}</span>
-              </div>
-              <Suspense fallback={<p className="note-studio-loading" role="status">Loading note…</p>}>
-                <RichNoteEditor
-                  key={`studio-${shownItem.id}`}
-                  studio
-                  body={shownItem.noteBody}
-                  title={shownItem.title}
-                  onSave={(body) => actions.onUpdateNote(shownItem, body)}
-                  onEditingChange={setIsEditingNote}
-                />
-              </Suspense>
-            </div>
-            <aside className="note-studio-rail note-studio-rail-right">
-              <div className="note-studio-metric">
-                <span>WORDS</span>
-                <strong>{wordCount}</strong>
-              </div>
-              <div className="note-studio-rail-rule" />
-              <p>{shownItem.noteBody ? "The page is yours." : "An open page."}</p>
-              <span className="note-studio-rail-mark" aria-hidden="true" />
-            </aside>
-          </div>
-        </section>
-      </div>
-    );
-  }
+  const isEditingNoteView = isEditingNote && shownItem.kind === "Note";
 
   return (
     <div className="expanded-overlay-layer" ref={layerRef}>
       <section
         ref={dialogRef}
-        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""}`}
+        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""}`}
         role="dialog"
         aria-modal={false}
         aria-label={detailTitleFor(shownItem)}
-        style={dialogFlying ? undefined : placedStyle}
+        style={isEditingNoteView ? undefined : dialogFlying ? undefined : placedStyle}
       >
         <button
           type="button"
@@ -859,44 +793,38 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           ref={bodyRef}
           style={dialogFlying && destination ? { width: destination.frame.width } : undefined}
         >
-          {shownItem.kind === "Quote" ? (
+          {isEditingNoteView ? (
+            <Suspense fallback={<p className="expanded-overlay-description" role="status">Loading editor…</p>}>
+              <RichNoteEditor
+                key={`edit-${shownItem.id}`}
+                embedded
+                body={shownItem.noteBody}
+                title={shownItem.title}
+                onSave={(body) => actions.onUpdateNote(shownItem, body)}
+                onEditingChange={setIsEditingNote}
+              />
+            </Suspense>
+          ) : shownItem.kind === "Quote" ? (
             <>
               <blockquote className="detail-quote">“{shownItem.title}”</blockquote>
               {shownItem.description && <p className="detail-attribution">— {shownItem.description.replace(/^—\s*/u, "")}</p>}
             </>
           ) : shownItem.kind === "Note" ? (
-            <>
-              <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
-              <div className="note-edit-launcher">
-                <button type="button" className="toolbar-primary" onClick={() => setIsEditingNote(true)} aria-label="Edit note">
-                  Edit note
-                </button>
-              </div>
-              <Suspense fallback={<p className="expanded-overlay-description" role="status">Loading note…</p>}>
-                <RichNoteEditor
-                  key={String(shownItem.id)}
-                  body={shownItem.noteBody}
-                  title={shownItem.title}
-                  onSave={(body) => actions.onUpdateNote(shownItem, body)}
-                  onEditingChange={setIsEditingNote}
-                  showEditButton={false}
-                />
-              </Suspense>
-            </>
+            <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
           ) : (
             <>
               <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
               {shownItem.description && <p className="expanded-overlay-description">{shownItem.description}</p>}
             </>
           )}
-          {shownItem.processing?.active && (
+          {!isEditingNoteView && shownItem.processing?.active && (
             <div className="detail-processing" role="status">
               <HugeiconsIcon icon={Loading01Icon} size={14} />
               <span>{shownItem.processing.message ?? "Processing"}</span>
               {shownItem.processing.progressTotal != null && <span>{shownItem.processing.progressCurrent}/{shownItem.processing.progressTotal}</span>}
             </div>
           )}
-          {shownItem.processing?.failedJob && (
+          {!isEditingNoteView && shownItem.processing?.failedJob && (
             <div className="detail-processing failed" role="alert">
               <HugeiconsIcon icon={AlertCircleIcon} size={14} />
               <span>{shownItem.processing.failedJob.errorMessage ?? "Processing failed"}</span>
@@ -905,7 +833,8 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
               </button>
             </div>
           )}
-          <div className="detail-meta">
+          {!isEditingNoteView && (
+            <div className="detail-meta">
             <div className="detail-filemeta">
               <span className="filemeta-type">{fileTypeFor(shownItem)}</span>
               <span className="filemeta-dot" aria-hidden="true" />
@@ -939,6 +868,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
               )}
             </div>
           </div>
+          )}
 
           {isReadRow && otherActions.some((action) => action.key === "find-similar") && (
             <div className="expanded-overlay-actions">
@@ -1019,6 +949,16 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
               )}
 
               <div className="expanded-overlay-toolbar">
+                {shownItem.kind === "Note" && (
+                  <button
+                    type="button"
+                    className="toolbar-primary"
+                    onClick={() => setIsEditingNote(true)}
+                    aria-label="Edit note"
+                  >
+                    Edit note
+                  </button>
+                )}
                 {sourceAction && (
                   <button
                     type="button"
