@@ -86,12 +86,18 @@ const MascotBoard = lazy(() =>
 const AliveBoard = lazy(() =>
   import("./components/mascot/AliveBoard").then((module) => ({ default: module.AliveBoard })),
 );
+const RoamBoard = lazy(() =>
+  import("./components/mascot/RoamBoard").then((module) => ({ default: module.RoamBoard })),
+);
 const ExpandedItemOverlay = lazy(() =>
   import("./components/ExpandedItemOverlay").then((module) => ({
     default: module.ExpandedItemOverlay,
   })),
 );
-import { LiveMascotFigure, LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
+import { LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
+import { MascotHomeSlot } from "./components/mascot/MascotHomeSlot";
+import { MascotRoamLayer } from "./components/mascot/MascotRoamLayer";
+import { setRoamBusy, setRoamCaptureFailed } from "./components/mascot/roamStore";
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
 import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
@@ -2864,6 +2870,18 @@ function App() {
     });
   }, [isMascotBusy, captureError, isSearchFocused, query, prefersReducedMotion]);
 
+  // Roaming reads two things from the app, and nothing else. An overlay that
+  // owns the screen makes the mascot hold still without spending the awake time
+  // it has left, and a failed capture is the one event that ends an outing.
+  const isOverlayOpen =
+    isAdding || isSettingsOpen || selectedItem !== null || readingItem !== null || Boolean(pdfViewerItem?.fileUrl);
+  useEffect(() => {
+    setRoamBusy(isOverlayOpen);
+  }, [isOverlayOpen]);
+  useEffect(() => {
+    setRoamCaptureFailed(Boolean(captureError));
+  }, [captureError]);
+
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);
 
   // Dev-only mascot board (vendored bloub engine + inkling skins). Not linked
@@ -2872,6 +2890,13 @@ function App() {
     return (
       <Suspense fallback={null}>
         <AliveBoard />
+      </Suspense>
+    );
+  }
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mascot-roam")) {
+    return (
+      <Suspense fallback={null}>
+        <RoamBoard />
       </Suspense>
     );
   }
@@ -2912,9 +2937,7 @@ function App() {
         )}
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup" data-tauri-drag-region>
-          <div className={`brand-mark${isSearchFocused ? " is-away" : ""}`} aria-hidden="true">
-            <LiveMascotFigure size={44} />
-          </div>
+          <MascotHomeSlot isSearchFocused={isSearchFocused} />
           <div>
             <strong>inkling</strong>
           </div>
@@ -3762,6 +3785,7 @@ function App() {
         )}
       </AnimatePresence>
       </div>
+      <MascotRoamLayer />
       <Toaster
         position="top-center"
         offset={{ top: 48, left: 16, right: 16 }}

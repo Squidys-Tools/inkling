@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { BotEngine, type BotFrame } from "./bot/engine";
+import { BotEngine, type BotFrame, type Look } from "./bot/engine";
 import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION } from "./bot/expressions";
 import { SHAPE_BY_ID } from "./bot/skins";
 import { RAYON } from "./bot/repere";
@@ -12,9 +12,10 @@ export interface MascotParams {
 }
 
 /**
- * One shared engine for the live app slots (sidebar mark, search field), so
- * the mascot can move between slots without resetting its clock — and so the
- * 60fps frame state never re-renders App, only the subscribed figures.
+ * One shared engine for the live app slots (sidebar mark, search field, roaming
+ * overlay), so the mascot can move between slots without resetting its clock —
+ * and so the 60fps frame state never re-renders App, only the subscribed
+ * figures.
  *
  * The loop pauses when the tab is hidden or when motion is reduced (params
  * still apply as a single sampled frame). Without requestAnimationFrame
@@ -32,8 +33,18 @@ let frame: BotFrame = engine.sample(0);
 let raf = 0;
 let running = false;
 const subs = new Set<() => void>();
+const clockSubs = new Set<(clock: number) => void>();
 
-function prefersReducedMotion(): boolean {
+/**
+ * Two sources of state and expression, one writer. The app pushes the face the
+ * mascot wears at home; a roaming outing pushes the face it wears out there and
+ * takes over until it hands back. Keeping both here is what stops the two from
+ * overwriting each other mid-outing.
+ */
+let homeParams: MascotParams = { state: "inkling-drift", expression: DEFAULT_EXPRESSION };
+let roamParams: MascotParams | null = null;
+
+export function prefersReducedMotion(): boolean {
   return (
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
@@ -52,6 +63,7 @@ function tick(ms: number) {
   clock += dt;
   frame = engine.sample(clock);
   emit();
+  for (const fn of clockSubs) fn(clock);
 }
 
 let lastMs = 0;
@@ -74,7 +86,7 @@ function haltLoop() {
 if (typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) haltLoop();
-    else if (subs.size > 0) ensureLoop();
+    else if (subs.size > 0 || clockSubs.size > 0) ensureLoop();
   });
 }
 
@@ -89,7 +101,7 @@ if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
       haltLoop();
       frame = engine.sample(clock);
       emit();
-    } else if (subs.size > 0) {
+    } else if (subs.size > 0 || clockSubs.size > 0) {
       ensureLoop();
     }
   });
@@ -100,7 +112,22 @@ export function subscribeMascot(fn: () => void): () => void {
   ensureLoop();
   return () => {
     subs.delete(fn);
-    if (subs.size === 0) haltLoop();
+    if (subs.size === 0 && clockSubs.size === 0) haltLoop();
+  };
+}
+
+/**
+ * The engine's own clock, in seconds since load, on every frame. The roaming
+ * controller rides it instead of opening a timer of its own: the loop already
+ * stops for a hidden tab and for reduced motion, which are exactly the moments
+ * the mascot must not decide anything.
+ */
+export function onMascotClock(fn: (clock: number) => void): () => void {
+  clockSubs.add(fn);
+  ensureLoop();
+  return () => {
+    clockSubs.delete(fn);
+    if (subs.size === 0 && clockSubs.size === 0) haltLoop();
   };
 }
 
@@ -108,9 +135,31 @@ export function getMascotFrame(): BotFrame {
   return frame;
 }
 
+/** The only path to the engine's state and face. Roaming overrides the app's. */
+function apply() {
+  const active = roamParams ?? homeParams;
+  engine.setState(active.state, clock);
+  engine.setExpression(EXPRESSION_BY_ID.get(active.expression) ?? EXPRESSION_BY_ID.get(DEFAULT_EXPRESSION) ?? null, clock);
+  if (!running) {
+    frame = engine.sample(clock);
+    emit();
+  }
+}
+
 export function pushMascotParams({ state, expression }: MascotParams) {
-  engine.setState(state, clock);
-  engine.setExpression(EXPRESSION_BY_ID.get(expression) ?? EXPRESSION_BY_ID.get(DEFAULT_EXPRESSION) ?? null, clock);
+  homeParams = { state, expression };
+  apply();
+}
+
+/** An outing pushes its own face here, and pushes null to hand the engine back. */
+export function pushRoamParams(params: MascotParams | null) {
+  roamParams = params;
+  apply();
+}
+
+/** Gaze target, absolute in degrees. null returns the gaze to the current state. */
+export function pushMascotLook(look: Look | null) {
+  engine.setLook(look, clock);
   if (!running) {
     frame = engine.sample(clock);
     emit();
