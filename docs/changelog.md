@@ -51,7 +51,7 @@ Guardrails:
 
 ### Changed
 
-- Toasts restyled as a catalog drawer slip for Undo actions and a compact ink-slip chip for success/error (shared palette, HugeIcons glyphs, top-right entry/exit, 5s status auto-dismiss, persistent Undo) (`src/App.tsx`, `src/App.css`)
+- Toasts restyled as a catalog drawer slip for Undo actions and a compact ink-slip chip for success/error (shared palette, plain content, HugeIcons close control, top-right entry/exit, 5s status auto-dismiss, persistent Undo) (`src/App.tsx`, `src/App.css`)
 - CI, CodeQL, dependency review, and labeled preview builds now skip documentation-only and demo-data-only follow-up pushes while still running for mixed changes.
 - Desktop window enforces a 1000 × 800 minimum size so the library layout remains usable when resized.
 - README rewritten as a user-facing overview (tour, screenshots, demo/mascot placeholders, FAQ) with the developer setup and docs index moved to a short section at the end (`README.md`)
