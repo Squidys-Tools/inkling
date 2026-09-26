@@ -7,7 +7,7 @@ The library is a virtualized card grid with kind-aware artwork and a single-colu
 - `browse-grid` shows the masonry grid and its card art.
 - `browse-list` switches to the list and back.
 - `browse-open` opens the detail overlay for a mounted card.
-- `browse-overlay-actions` shows available actions, including a disabled `Read` action for an Article without saved text.
+- `browse-overlay-actions` shows available actions. A disabled `Read` appears only for an Article that has saved text and a source URL; an Article with neither shows no `Read` action at all.
 - `browse-switch` retargets a settled overlay to another mounted card.
 - `browse-top-of-mind` filters to favorite items.
 - `browse-serendipity` walks through one unseen older item at a time from a capped discovery batch, with Keep and Forget actions.
@@ -51,8 +51,9 @@ Preconditions:
 
 - There is no related-items section in the current overlay. Do not describe a hidden insertion point as user-facing.
 - Clicking a second mounted card is supported. Virtualization can still make an unmounted card impossible to click.
-- `Find similar` is native-only and replaces the library results.
+- `Find similar` is native-only and replaces the library results. The button is gated on `isTauriRuntime()`, while the handler also needs `canUseTauriBackend`, so a Tauri webview running with `?preview=1` can show the button and then error. The web preview shows no button.
 - The reader and PDF viewer are React components, but native storage normally supplies their data. A seeded PDF without `fileUrl` cannot open the viewer.
+- Serendipity does not render the Grid/List control, so a view-switch step there is a silent no-op. Leave Serendipity before asserting list mode.
 - Closing a reader opened from an overlay returns to that overlay. A list-card Read action returns to the grid.
 - Video cards are thumbnails in the grid. Playback controls appear in the overlay.
 - `click` scrolls its target into view, but the Virtuoso scroller can unmount other cards. Reset `.library-grid[data-testid="virtuoso-scroller"]`, not the outer `.library-scroll`, before addressing a card by id.
