@@ -38,6 +38,9 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .brand-lockup { display: flex; align-items: center; gap: 11px; padding: 0 10px 12px; }
 .brand-lockup strong { display: block; font-family: "Gloria Hallelujah", "DM Sans", cursive; font-size: 23px; font-weight: 400; letter-spacing: 0; color: var(--ink); }
 .brand-mark { width: 44px; height: 44px; flex: 0 0 auto; overflow: hidden; transition: width .35s cubic-bezier(.2,.8,.2,1), opacity .3s ease; transform-origin: center; }.brand-mark.is-away { width: 0; opacity: 0; }.brand-lockup:has(.brand-mark.is-away) { gap: 0; }
+.mascot-home-empty { display: block; width: 100%; height: 100%; border-radius: 50%; border: 1px dashed rgba(229,221,210,.16); background: radial-gradient(circle at 50% 42%, rgba(229,221,210,.07), transparent 68%); }
+.mascot-roam { position: fixed; left: 0; top: 0; z-index: 4; width: 44px; height: 44px; pointer-events: none; will-change: transform, opacity; }
+.mascot-roam svg { display: block; width: 100%; height: 100%; }
 .brand-mark svg { display: block; width: 100%; height: 100%; }
 .primary-nav { display: grid; gap: 3px; }
 .nav-item, .space-item { border: 0; background: transparent; min-height: 38px; border-radius: var(--sidebar-radius); display: flex; align-items: center; gap: 11px; padding: 0 11px; color: #8d867c; cursor: pointer; text-align: left; transition: color .18s ease, background .18s ease, transform .18s ease; }
