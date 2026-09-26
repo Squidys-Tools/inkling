@@ -25,6 +25,7 @@ import {
   Loading01Icon,
   PlusSignIcon,
   PlayIcon,
+  PinIcon,
   RotateCwIcon,
   Search01Icon,
   Settings01Icon,
@@ -101,6 +102,7 @@ const ReaderView = lazy(() =>
 import type { ReaderItem, ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
+import { pinRailItems, showsPinRail } from "./lib/pins";
 import { serendipityItems } from "./lib/serendipity";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
 // the repo so the web preview shows a real library out of the box. The eager
@@ -1371,6 +1373,25 @@ function App() {
     }
   }, [canUseTauriBackend]);
 
+  // A pin is the item's `favorite` flag. Preview and the seeded demo keep it in
+  // local state only, the same way tags behave there.
+  const togglePinItem = useCallback(async (item: LibraryItem) => {
+    const pinned = !item.favorite;
+    try {
+      if (canUseTauriBackend) await updateItem({ id: String(item.id), favorite: pinned });
+      const apply = (current: LibraryItem) => ({
+        ...current,
+        favorite: pinned,
+      });
+      setItems((current) =>
+        current.map((currentItem) => (String(currentItem.id) === String(item.id) ? apply(currentItem) : currentItem)),
+      );
+      setSelectedItem((current) => (current && String(current.id) === String(item.id) ? apply(current) : current));
+    } catch {
+      toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
+    }
+  }, [canUseTauriBackend]);
+
   const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
     if (!item.articleHtml) return;
     setReadingItem({ item, origin });
@@ -2547,6 +2568,7 @@ function App() {
     [spaces, activeSpaceId],
   );
   const isSerendipityView = activeView === "Serendipity" && !activeSpaceId;
+  const isPinsView = activeView === "Top of mind" && !activeSpaceId;
   const serendipityCandidates = useMemo(
     () => isSerendipityView
       ? serendipityItems(items, { excludedIds: serendipityKeptIds, limit: items.length })
@@ -2581,6 +2603,19 @@ function App() {
       return matchesQuery && matchesView;
     });
   }, [activeSpace, activeSpaceId, activeView, canUseTauriBackend, isSerendipityView, items, query, serendipityBatch, similaritySource]);
+
+  const pinnedRail = useMemo(
+    () =>
+      showsPinRail({
+        activeView,
+        activeSpaceId,
+        query,
+        hasSimilaritySource: similaritySource != null,
+      })
+        ? pinRailItems(items)
+        : [],
+    [activeSpaceId, activeView, items, query, similaritySource],
+  );
 
   // VirtuosoMasonry keys rows by position, so a new result set must remount
   // the grid. Otherwise card state (video playback, embeds) sticks to the
@@ -2689,6 +2724,19 @@ function App() {
     onOpenReader: openReader,
     onRetryJob: retryJob,
   }), [openReader, retryJob, selectLibraryItem]);
+
+  // Rail cards open straight away. Flying from a strip that sits outside the
+  // grid scroller would make the grid scroll to an origin already on screen,
+  // so these carry no origin rect and the overlay just appears.
+  const pinRailCardContext = useMemo<LibraryCardContext>(() => ({
+    onSelectItem: (item) => {
+      selectionScrollRef.current = false;
+      selectionRectsRef.current = null;
+      setSelectedItem(item);
+    },
+    onOpenReader: openReader,
+    onRetryJob: retryJob,
+  }), [openReader, retryJob]);
 
   const deleteArchivedLibraryItem = useCallback(async (item: LibraryItem) => {
     setCaptureError(null);
@@ -2816,19 +2864,20 @@ function App() {
     onOpenReader: openReader,
     onFindSimilar: (item) => void findSimilarItems(item),
     onForget: forgetItem,
+    onTogglePin: togglePinItem,
     onRetryJob: retryJob,
     onAddTag: addTagToItem,
     isFindingSimilar,
-  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob]);
+  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob, togglePinItem]);
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
   useEffect(() => {
-    const selectedCards = document.querySelectorAll<HTMLElement>(".library-card.is-selected");
+    const selectedCards = document.querySelectorAll<HTMLElement>(".library-grid .library-card.is-selected");
     for (const card of selectedCards) card.classList.remove("is-selected");
     if (!selectedItem) return;
     const source = document.querySelector<HTMLElement>(
-      `.library-card[data-library-item-id="${CSS.escape(String(selectedItem.id))}"]`,
+      `.library-grid .library-card[data-library-item-id="${CSS.escape(String(selectedItem.id))}"]`,
     );
     source?.classList.add("is-selected");
   }, [selectedItem]);
@@ -3372,6 +3421,22 @@ function App() {
           )}
         </div>
 
+        {pinnedRail.length > 0 && (
+          <section className="pin-rail" aria-label="Top of mind" data-testid="pin-rail">
+            <span className="pin-rail-label">Top of mind</span>
+            <div className="pin-rail-track">
+              {pinnedRail.map((item, index) => (
+                <VirtualizedLibraryItem
+                  key={String(item.id)}
+                  data={item}
+                  index={index}
+                  context={pinRailCardContext}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         <div className="library-scroll" ref={libraryScrollRef}>
         {isSerendipityView ? (
           <section className="serendipity-stage" aria-labelledby="serendipity-title" data-testid="serendipity-view">
@@ -3461,11 +3526,16 @@ function App() {
 
             {filteredItems.length === 0 && (
               <div className="empty-state">
-                <div className="empty-icon"><HugeiconsIcon icon={Search01Icon} size={20} /></div>
+                <div className="empty-icon"><HugeiconsIcon icon={isPinsView ? PinIcon : Search01Icon} size={20} /></div>
                 {similaritySource ? (
                   <>
                     <h2>Nothing similar yet.</h2>
                     <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
+                  </>
+                ) : isPinsView ? (
+                  <>
+                    <h2>Nothing pinned yet.</h2>
+                    <p>Open anything in your library and pin it to keep it within reach.</p>
                   </>
                 ) : (
                   <>
@@ -3473,7 +3543,9 @@ function App() {
                     <p>Try another word, or save something new to your mind.</p>
                   </>
                 )}
-                <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
+                {!isPinsView && (
+                  <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
+                )}
               </div>
             )}
           </>
