@@ -11,6 +11,7 @@ This directory is the maintained source for verifying inkling's user-facing beha
 - The seed has no Article and no PDF with a local file. The reader, PDF viewer, and successful URL capture are not reachable from it. See [library-browse.md](./library-browse.md) and [capture.md](./capture.md).
 - OCR, thumbnails, embeddings, file access, SQLite, export, the deep link, and the extension receiver exist only in the desktop app. A preview proves only the panel boundary. See [export.md](./export.md) and [extension.md](./extension.md).
 - Never drive an instance this run did not start. Other run dirs and the developer's dev server may be live.
+- The mascot leaves the sidebar on its own 90 to 180 s after load and can be in the library for 15 to 35 s at a time, so it may appear in any other feature's screenshots. It is `pointer-events: none` and never overlaps a card, so it should not disturb an assertion. See [mascot.md](./mascot.md).
 
 ## Driving conventions
 
@@ -44,3 +45,4 @@ Each feature file starts with an H1 and one paragraph describing visible behavio
 - [Archive and recover](./archive-restore.md): forgetting, Undo, archive selection, recovery, and permanent deletion.
 - [Export the library](./export.md): Settings Data, the native picker boundary, and the exported folder.
 - [Pair the browser extension](./extension.md): Settings Extension and the extension's preview and native boundaries.
+- [The roaming mascot](./mascot.md): the schedule, the walk, safe spots, yields, the dev board, and the rAF overlap audit.
