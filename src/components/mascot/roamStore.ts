@@ -257,10 +257,22 @@ function resolve(action: RoamAction): Resolved | null {
     return { to: null, look: target ? gaze(from, target, 0.85) : null };
   }
   const want = SPOT_PREFERENCE[action.target];
-  const search = { container: layout.container, obstacles: layout.obstacles, from, rand, minRoom: MIN_ROOM };
-  // A crossing with nowhere to cross becomes a shorter shuffle, which is what a
-  // small library does to a curious mascot anyway.
-  const spot = (want ? findSafeSpot({ ...search, prefer: want }) : null) ?? findSafeSpot({ ...search, prefer: "any" });
+  const base = { container: layout.container, obstacles: layout.obstacles, from, rand, minRoom: MIN_ROOM };
+  // Every move but the departure has to be walkable end to end, so the search
+  // itself demands a clear line rather than checking one afterwards. A spot the
+  // mascot would have to glide over a card to reach is not a spot it can use.
+  //
+  // That is also how a crossing happens. The free space is a ring, so from a
+  // margin the only reachable spots are the rest of that margin; once a shuffle
+  // drifts the mascot up into the band under the search bar, the whole width
+  // opens up and the far margin is a single clear leg away. It walks to the
+  // corridor and along it rather than leaping the grid, which is both quieter
+  // and the only route that is actually clear.
+  const spot =
+    position === null
+      ? (want ? findSafeSpot({ ...base, prefer: want }) : null) ?? findSafeSpot({ ...base, prefer: "any" })
+      : (want ? findSafeSpot({ ...base, prefer: want, clearPath: true }) : null) ??
+        findSafeSpot({ ...base, prefer: "any", clearPath: true });
   return spot ? { to: spot, look: gaze(from, spot, 0.55) } : null;
 }
 
@@ -284,7 +296,7 @@ function moveTo(to: Point, travelMs: number, fadeMs: number) {
 
 function endOuting() {
   position = null;
-  pushMascotLook(null);
+    pushMascotLook(null);
   pushRoamParams(null);
   publish({ away: false, phase: "home", x: 0, y: 0, travelMs: 0, fadeMs: 0, stops: 0 });
 }
@@ -508,3 +520,4 @@ function getRoamSnapshot(): RoamSnapshot {
 export function useRoam(): RoamSnapshot {
   return useSyncExternalStore(subscribeRoam, getRoamSnapshot);
 }
+

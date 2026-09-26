@@ -193,6 +193,45 @@ describe("safe spots", () => {
     expect(hits(box(withoutCard!), stage)).toBe(true);
   });
 
+  test("a clear-path search never picks a spot it would have to cross the grid to reach", () => {
+    // The free space is a ring, so plenty of free spots are on the far side of
+    // the grid from where the mascot stands. Reaching one means gliding over
+    // every card in between, which is the thing the geometry exists to prevent.
+    // The only lanes the real library leaves free are the two 48px margins beside
+    // the grid and the band under the capture bar. Start in the left one.
+    const from = { x: 272, y: 400 };
+    const near = { x: 272, y: 200 };
+    const far = { x: 1390, y: 400 };
+    expect(isSafeSpot(from, CONTAINER, OBSTACLES, MASCOT_BODY, MIN_ROOM)).toBe(true);
+    expect(isSafeSpot(near, CONTAINER, OBSTACLES, MASCOT_BODY, MIN_ROOM)).toBe(true);
+    expect(isSafeSpot(far, CONTAINER, OBSTACLES, MASCOT_BODY, MIN_ROOM)).toBe(true);
+    // Every spot a clear-path search returns is genuinely reachable on foot.
+    const rand = createSeededRandom(21);
+    for (let i = 0; i < 120; i++) {
+      const spot = findSafeSpot({ container: CONTAINER, obstacles: OBSTACLES, from, prefer: "any", rand, minRoom: MIN_ROOM, clearPath: true });
+      if (!spot) continue;
+      // Sample the walk the way clearPath does, independently of it.
+      const steps = 40;
+      for (let s = 1; s < steps; s++) {
+        const t = s / steps;
+        const mid = { x: from.x + (spot.x - from.x) * t, y: from.y + (spot.y - from.y) * t };
+        expect(roomAt(mid, CONTAINER, OBSTACLES, MASCOT_BODY)).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  test("dropping the clear-path demand still allows a spot on the far margin", () => {
+    // Recovery runs from wherever the mascot ended up, so it cannot demand a
+    // route: after a scroll the mascot is standing on a card and any improvement
+    // is worth a glide.
+    const from = { x: 272, y: 400 };
+    const unreachable = findSafeSpot({ container: CONTAINER, obstacles: OBSTACLES, from, prefer: "across", rand: createSeededRandom(2), minRoom: MIN_ROOM });
+    expect(unreachable).not.toBeNull();
+    const reachable = findSafeSpot({ container: CONTAINER, obstacles: OBSTACLES, from, prefer: "any", rand: createSeededRandom(2), minRoom: MIN_ROOM, clearPath: true });
+    expect(reachable).not.toBeNull();
+    expect(Math.abs(reachable!.x - from.x)).toBeLessThan(Math.abs(unreachable!.x - from.x));
+  });
+
   test("look targets are the cards you can see, nearest first", () => {
     const targets = lookTargets(CONTAINER, CARDS, { x: 300, y: 115 });
     expect(targets.length).toBeGreaterThan(0);
@@ -207,3 +246,4 @@ describe("safe spots", () => {
     expect(lookTargets(CONTAINER, [offScreen], { x: 300, y: 115 })).toHaveLength(0);
   });
 });
+
