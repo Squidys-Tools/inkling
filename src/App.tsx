@@ -1073,7 +1073,7 @@ function ExtensionPairing() {
     if (!status?.running || isTesting) return;
     setIsTesting(true);
     void testCaptureConnection()
-      .then(() => toast.success("Extension receiver is reachable."))
+       .then(() => toast.success("Local receiver reachable. Extension config is stored separately in the browser extension."))
       .catch((error: unknown) =>
         toast.error(`Receiver unavailable: ${error instanceof Error ? error.message : "unknown error"}`),
       )
