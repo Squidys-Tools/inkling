@@ -125,7 +125,7 @@ export function MascotRoamer({
   const [initial] = useState(() => createRoamState(performance.now(), randomRef.current));
   const stateRef = useRef<RoamState>(initial);
   const [present, setPresent] = useState(false);
-  const [devView, setDevView] = useState({ action: initial.action, stopCount: 0 });
+  const [devView, setDevView] = useState({ action: initial.action, expression: initial.expression, stopCount: 0 });
   const hostRef = useRef<HTMLDivElement>(null);
   const layoutRef = useRef<{ dirty: boolean; changed: boolean; measuredAt: number; value: MeasuredLayout }>({
     dirty: true,
@@ -261,10 +261,10 @@ export function MascotRoamer({
       paint(state);
     }
     if (dev) {
-      const viewKey = `${state.action}:${state.stopCount}`;
+      const viewKey = `${state.action}:${state.expression}:${state.stopCount}`;
       if (viewKey !== lastDevViewRef.current) {
         lastDevViewRef.current = viewKey;
-        setDevView({ action: state.action, stopCount: state.stopCount });
+        setDevView({ action: state.action, expression: state.expression, stopCount: state.stopCount });
       }
     }
   }, [context, dev, mainRef, paint, setPresence, syncEngine]);
@@ -373,7 +373,7 @@ export function MascotRoamer({
       {dev && (
         <div className="mascot-roam-dev" role="status" aria-label="Mascot roam controls">
           <strong>Mascot roam</strong>
-          <span>{devView.action} · {devView.stopCount} stops</span>
+          <span>{devView.action} · {devView.expression} · {devView.stopCount} stops</span>
           <div>
             <button type="button" onClick={forceOuting}>Roam now</button>
             <button type="button" onClick={skipTenSeconds}>Skip 10s</button>
