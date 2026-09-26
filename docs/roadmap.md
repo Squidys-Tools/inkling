@@ -43,7 +43,7 @@ Content consumption and creation experiences.
 
 - [x] Distraction-free article reader with clean typography
 - [ ] Focus Mode for long-form writing
-- [ ] Rich note editor (headings, bold, links, todos)
+- [x] Rich note editor (headings, bold, links, todos)
 - [x] Quote cards with source attribution
 - [x] Video link cards with previews
 - [x] PDF viewer with page navigation

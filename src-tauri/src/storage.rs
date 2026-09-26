@@ -8,6 +8,7 @@ use std::{
 };
 
 use image::{GenericImageView, ImageFormat, ImageReader};
+use pulldown_cmark::{Event, Parser};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -15,7 +16,8 @@ use tauri::{AppHandle, Manager, State};
 use url::Url;
 use uuid::Uuid;
 
-const SCHEMA_VERSION: i64 = 6;
+const SCHEMA_VERSION: i64 = 7;
+const BODY_FORMAT_MARKDOWN: &str = "md";
 const MAX_FILE_BYTES: usize = 50 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION: u32 = 20_000;
 const MAX_IMAGE_ALLOC_BYTES: u64 = 256 * 1024 * 1024;
@@ -27,6 +29,8 @@ CREATE TABLE IF NOT EXISTS items (
     kind TEXT NOT NULL,
     title TEXT,
     description TEXT,
+    body TEXT NOT NULL DEFAULT '',
+    body_format TEXT NOT NULL DEFAULT 'md',
     source_url TEXT,
     source_label TEXT,
     local_asset_path TEXT,
@@ -201,6 +205,10 @@ pub struct ItemDto {
     pub kind: String,
     pub title: Option<String>,
     pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_format: Option<String>,
     pub source_url: Option<String>,
     pub source_label: Option<String>,
     pub local_asset_path: Option<String>,
@@ -211,6 +219,14 @@ pub struct ItemDto {
     pub updated_at: i64,
     pub archived: bool,
     pub favorite: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemContentDto {
+    pub id: String,
+    pub body: String,
+    pub body_format: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -257,6 +273,8 @@ pub struct UpdateItemInput {
     pub id: String,
     pub title: Option<String>,
     pub description: Option<String>,
+    pub body: Option<String>,
+    pub body_format: Option<String>,
     pub source_url: Option<String>,
     pub source_label: Option<String>,
     pub local_asset_path: Option<String>,
@@ -358,6 +376,7 @@ impl LibraryStorage {
 
         connection.execute_batch(crate::jobs::JOBS_SCHEMA)?;
         ensure_job_columns(&connection)?;
+        ensure_item_columns(&connection, version < SCHEMA_VERSION)?;
         connection.execute_batch(EMBEDDINGS_SCHEMA)?;
         connection.execute_batch(SPACES_SCHEMA)?;
         let fts5_enabled = setup_fts5(&connection);
@@ -382,7 +401,7 @@ impl LibraryStorage {
         let mut statement = self.connection.prepare(
             "SELECT id, kind, title, description, source_url, source_label,
                     local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
-                    updated_at, archived, favorite
+                    updated_at, archived, favorite, NULL AS body, 'md' AS body_format
              FROM items
              WHERE archived = 0
              ORDER BY updated_at DESC, created_at DESC",
@@ -399,7 +418,7 @@ impl LibraryStorage {
         let mut statement = self.connection.prepare(
             "SELECT id, kind, title, description, source_url, source_label,
                     local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
-                    updated_at, archived, favorite
+                    updated_at, archived, favorite, NULL AS body, 'md' AS body_format
              FROM items
              WHERE archived = 1
              ORDER BY updated_at DESC, created_at DESC",
@@ -423,15 +442,24 @@ impl LibraryStorage {
         let id = Uuid::new_v4().to_string();
         let timestamp = now_millis()?;
         let title = input.title.and_then(non_empty_string);
+        let description = markdown_to_plain_text(&body);
         let metadata = input.metadata.unwrap_or_else(|| Value::Object(Map::new()));
         let metadata_json = serde_json::to_string(&metadata)?;
 
         self.connection.execute(
             "INSERT INTO items (
-                id, kind, title, description, metadata, ocr_text,
+                id, kind, title, description, body, body_format, metadata, ocr_text,
                 created_at, updated_at
-             ) VALUES (?1, 'note', ?2, ?3, ?4, '', ?5, ?5)",
-            params![id, title, body, metadata_json, timestamp],
+             ) VALUES (?1, 'note', ?2, ?3, ?4, ?5, ?6, '', ?7, ?7)",
+            params![
+                id,
+                title,
+                description,
+                body,
+                BODY_FORMAT_MARKDOWN,
+                metadata_json,
+                timestamp
+            ],
         )?;
 
         self.get_item(&id)?.ok_or(StorageError::NotFound(id))
@@ -503,13 +531,15 @@ impl LibraryStorage {
 
         self.connection.execute(
             "INSERT INTO items (
-                id, kind, title, description, source_url, source_label,
+                id, kind, title, description, body, body_format, source_url, source_label,
                 metadata, ocr_text, created_at, updated_at
-             ) VALUES (?1, 'quote', ?2, ?3, ?4, ?5, ?6, '', ?7, ?7)",
+             ) VALUES (?1, 'quote', ?2, ?3, ?4, ?5, ?6, ?7, ?8, '', ?9, ?9)",
             params![
                 id,
                 title,
                 description,
+                body,
+                BODY_FORMAT_MARKDOWN,
                 source_url,
                 source_label,
                 metadata_json,
@@ -538,13 +568,15 @@ impl LibraryStorage {
 
         self.connection.execute(
             "INSERT INTO items (
-                id, kind, title, description, source_url, source_label,
+                id, kind, title, description, body, body_format, source_url, source_label,
                 metadata, ocr_text, created_at, updated_at
-             ) VALUES (?1, 'url', ?2, ?3, ?4, ?5, ?6, '', ?7, ?7)",
+             ) VALUES (?1, 'url', ?2, ?3, ?4, ?5, ?6, ?7, ?8, '', ?9, ?9)",
             params![
                 id,
                 title,
                 description,
+                body,
+                BODY_FORMAT_MARKDOWN,
                 source_url,
                 source_label,
                 metadata_json,
@@ -628,8 +660,8 @@ impl LibraryStorage {
         if existing.is_some() {
             self.connection.execute(
                 "UPDATE items
-                 SET kind = ?2, title = ?3, source_label = ?4,
-                     local_asset_path = ?5, thumbnail_path = ?6,
+                 SET kind = ?2, title = ?3, description = NULL, body = '', body_format = ?9,
+                     source_label = ?4, local_asset_path = ?5, thumbnail_path = ?6,
                      ocr_text = '', metadata = ?7, archived = 0, updated_at = ?8
                   WHERE id = ?1",
                 params![
@@ -641,18 +673,20 @@ impl LibraryStorage {
                     thumbnail_path,
                     metadata_json,
                     timestamp,
+                    BODY_FORMAT_MARKDOWN,
                 ],
             )?;
         } else {
             self.connection.execute(
                 "INSERT INTO items (
-                    id, kind, title, source_label, local_asset_path,
+                    id, kind, title, body, body_format, source_label, local_asset_path,
                     thumbnail_path, metadata, ocr_text, created_at, updated_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, '', ?8, ?8)",
+                 ) VALUES (?1, ?2, ?3, '', ?4, ?5, ?6, ?7, ?8, '', ?9, ?9)",
                 params![
                     id,
                     kind,
                     title,
+                    BODY_FORMAT_MARKDOWN,
                     source_label,
                     local_asset_path,
                     thumbnail_path,
@@ -751,25 +785,52 @@ impl LibraryStorage {
             .map(|metadata| serde_json::to_string(&metadata))
             .transpose()?;
         let title = input.title.as_deref().map(str::trim);
-        let description = input.description.as_deref().map(str::trim);
+        let body = match input.body {
+            Some(value) => {
+                let value = value.trim();
+                if value.is_empty() {
+                    return Err(StorageError::InvalidInput("body cannot be empty".into()));
+                }
+                Some(value.to_owned())
+            }
+            None => None,
+        };
+        let body_format = match input.body_format.as_deref().map(str::trim) {
+            Some(value) if value.is_empty() || value.eq_ignore_ascii_case(BODY_FORMAT_MARKDOWN) => {
+                Some(BODY_FORMAT_MARKDOWN.to_owned())
+            }
+            Some(_) => return Err(StorageError::InvalidInput("bodyFormat must be 'md'".into())),
+            None => body.as_ref().map(|_| BODY_FORMAT_MARKDOWN.to_owned()),
+        };
+        let description = body.as_deref().map(markdown_to_plain_text).or_else(|| {
+            input
+                .description
+                .as_deref()
+                .map(str::trim)
+                .map(str::to_owned)
+        });
         let now = now_millis()?;
 
         let updated = self.connection.execute(
             "UPDATE items
              SET title = COALESCE(?2, title),
                  description = COALESCE(?3, description),
-                 source_url = COALESCE(?4, source_url),
-                 source_label = COALESCE(?5, source_label),
-                 local_asset_path = COALESCE(?6, local_asset_path),
-                 thumbnail_path = COALESCE(?7, thumbnail_path),
-                 metadata = COALESCE(?8, metadata),
-                 favorite = COALESCE(?9, favorite),
-                 updated_at = ?10
+                 body = COALESCE(?4, body),
+                 body_format = COALESCE(?5, body_format),
+                 source_url = COALESCE(?6, source_url),
+                 source_label = COALESCE(?7, source_label),
+                 local_asset_path = COALESCE(?8, local_asset_path),
+                 thumbnail_path = COALESCE(?9, thumbnail_path),
+                 metadata = COALESCE(?10, metadata),
+                 favorite = COALESCE(?11, favorite),
+                 updated_at = ?12
              WHERE id = ?1",
             params![
                 input.id,
                 title,
                 description,
+                body,
+                body_format,
                 input.source_url,
                 input.source_label,
                 input.local_asset_path,
@@ -1004,8 +1065,9 @@ impl LibraryStorage {
                 let mut statement = self.connection.prepare(
                     "SELECT i.id, i.kind, i.title, i.description, i.source_url,
                             i.source_label, i.local_asset_path, i.thumbnail_path,
-                            i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
-                            i.favorite
+                             i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
+                             i.favorite, NULL AS body, 'md' AS body_format
+
                      FROM items_fts f
                      JOIN items i ON i.id = f.item_id
                      WHERE i.archived = 0 AND items_fts MATCH ?1
@@ -1021,12 +1083,13 @@ impl LibraryStorage {
             let mut statement = self.connection.prepare(
                 "SELECT id, kind, title, description, source_url, source_label,
                         local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
-                        updated_at, archived, favorite
+                        updated_at, archived, favorite, NULL AS body, 'md' AS body_format
                  FROM items
                  WHERE archived = 0
                    AND (title LIKE ?1 COLLATE NOCASE
-                        OR description LIKE ?1 COLLATE NOCASE
-                        OR source_label LIKE ?1 COLLATE NOCASE
+                         OR description LIKE ?1 COLLATE NOCASE
+                         OR body LIKE ?1 COLLATE NOCASE
+                         OR source_label LIKE ?1 COLLATE NOCASE
                         OR ocr_text LIKE ?1 COLLATE NOCASE
                         OR metadata LIKE ?1 COLLATE NOCASE)
                  ORDER BY updated_at DESC, created_at DESC
@@ -1052,8 +1115,9 @@ impl LibraryStorage {
             let mut statement = self.connection.prepare(
                 "SELECT i.id, i.kind, i.title, i.description, i.source_url,
                         i.source_label, i.local_asset_path, i.thumbnail_path,
-                        i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
-                        i.favorite, e.dimension, e.vector
+                         i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
+                         i.favorite, NULL AS body, 'md' AS body_format, e.dimension, e.vector
+
                  FROM item_embeddings e
                  JOIN items i ON i.id = e.item_id
                  WHERE i.archived = 0
@@ -1066,8 +1130,8 @@ impl LibraryStorage {
             ])?;
             while let Some(row) = rows.next()? {
                 let item = item_from_row(row)?;
-                let dimension = row.get::<_, i64>(14)?;
-                let bytes = row.get::<_, Vec<u8>>(15)?;
+                let dimension = row.get::<_, i64>(16)?;
+                let bytes = row.get::<_, Vec<u8>>(17)?;
                 let vector = match crate::embeddings::decode_f32(&bytes) {
                     Ok(vector) if vector.len() == usize::try_from(dimension).unwrap_or(0) => vector,
                     _ => continue,
@@ -1143,8 +1207,9 @@ impl LibraryStorage {
         let mut statement = self.connection.prepare(
             "SELECT i.id, i.kind, i.title, i.description, i.source_url,
                     i.source_label, i.local_asset_path, i.thumbnail_path,
-                    i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
-                    i.favorite, e.dimension, e.vector
+                     i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
+                     i.favorite, NULL AS body, 'md' AS body_format, e.dimension, e.vector
+
              FROM item_embeddings e
              JOIN items i ON i.id = e.item_id
              WHERE i.archived = 0 AND i.id != ?1
@@ -1156,8 +1221,8 @@ impl LibraryStorage {
         let mut ranked = Vec::new();
         while let Some(row) = rows.next()? {
             let item = item_from_row(row)?;
-            let dimension = row.get::<_, i64>(14)?;
-            let bytes = row.get::<_, Vec<u8>>(15)?;
+            let dimension = row.get::<_, i64>(16)?;
+            let bytes = row.get::<_, Vec<u8>>(17)?;
             let vector = match crate::embeddings::decode_f32(&bytes) {
                 Ok(vector) if vector.len() == usize::try_from(dimension).unwrap_or(0) => vector,
                 _ => continue,
@@ -1179,7 +1244,7 @@ impl LibraryStorage {
         let mut statement = self.connection.prepare(
             "SELECT id, kind, title, description, source_url, source_label,
                     local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
-                    updated_at, archived, favorite
+                    updated_at, archived, favorite, NULL AS body, 'md' AS body_format
              FROM items
              WHERE archived = 0
              ORDER BY updated_at DESC, created_at DESC
@@ -1197,13 +1262,32 @@ impl LibraryStorage {
             .query_row(
                 "SELECT id, kind, title, description, source_url, source_label,
                         local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
-                        updated_at, archived, favorite
+                        updated_at, archived, favorite, body, body_format
                  FROM items WHERE id = ?1",
                 params![id],
                 item_from_row,
             )
             .optional()
             .map_err(StorageError::from)
+    }
+
+    pub(crate) fn get_item_content(&self, id: &str) -> Result<ItemContentDto, StorageError> {
+        self.connection
+            .query_row(
+                "SELECT id, body, body_format FROM items WHERE id = ?1",
+                params![id],
+                |row| {
+                    Ok(ItemContentDto {
+                        id: row.get(0)?,
+                        body: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                        body_format: row
+                            .get::<_, Option<String>>(2)?
+                            .unwrap_or_else(|| BODY_FORMAT_MARKDOWN.to_owned()),
+                    })
+                },
+            )
+            .optional()?
+            .ok_or_else(|| StorageError::NotFound(id.to_owned()))
     }
 
     fn space_from_row(row: &Row<'_>) -> rusqlite::Result<SpaceDto> {
@@ -1507,6 +1591,106 @@ fn normalize_space_color(color: Option<&str>) -> String {
     }
 }
 
+fn ensure_item_columns(
+    connection: &Connection,
+    migration_needed: bool,
+) -> Result<(), rusqlite::Error> {
+    let mut added_column = false;
+    for (name, alter) in [
+        (
+            "body",
+            "ALTER TABLE items ADD COLUMN body TEXT NOT NULL DEFAULT ''",
+        ),
+        (
+            "body_format",
+            "ALTER TABLE items ADD COLUMN body_format TEXT NOT NULL DEFAULT 'md'",
+        ),
+    ] {
+        let present: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('items') WHERE name = ?1",
+            params![name],
+            |row| row.get(0),
+        )?;
+        if present == 0 {
+            connection.execute(alter, [])?;
+            added_column = true;
+        }
+    }
+
+    let needs_backfill = if migration_needed || added_column {
+        true
+    } else {
+        connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM items WHERE body IS NULL OR body_format IS NULL)",
+            [],
+            |row| row.get::<_, i64>(0),
+        )? != 0
+    };
+    if !needs_backfill {
+        return Ok(());
+    }
+
+    let query = if migration_needed || added_column {
+        "SELECT id, kind, title, description, metadata, body, body_format FROM items"
+    } else {
+        "SELECT id, kind, title, description, metadata, body, body_format
+         FROM items
+         WHERE body IS NULL OR body_format IS NULL"
+    };
+    let transaction = connection.unchecked_transaction()?;
+    let rows = {
+        let mut statement = transaction.prepare(query)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+
+    for (id, kind, title, description, metadata_json, body, body_format) in rows {
+        let metadata = serde_json::from_str::<Value>(&metadata_json)
+            .unwrap_or_else(|_| Value::Object(Map::new()));
+        let metadata_text = |key: &str| {
+            metadata
+                .get(key)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+        };
+        let body = body
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| match kind.as_str() {
+                "note" => description.clone(),
+                "quote" => metadata_text("quoteText").or_else(|| title.clone()),
+                "url" | "article" => {
+                    metadata_text("text").or_else(|| metadata_text("extractedText"))
+                }
+                _ => None,
+            })
+            .unwrap_or_default();
+        let body_format = body_format
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| BODY_FORMAT_MARKDOWN.to_owned());
+        transaction.execute(
+            "UPDATE items SET body = ?1, body_format = ?2 WHERE id = ?3",
+            params![body, body_format, id],
+        )?;
+    }
+    transaction.commit()?;
+
+    Ok(())
+}
+
 fn ensure_job_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
     for (name, definition) in [
         ("worker_id", "TEXT"),
@@ -1580,6 +1764,19 @@ pub fn list_archived_items(state: State<'_, StorageState>) -> Result<Vec<ItemDto
         .as_ref()
         .expect("require_storage guarantees initialization")
         .list_archived_items()
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn get_item_content(
+    id: String,
+    state: State<'_, StorageState>,
+) -> Result<ItemContentDto, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .get_item_content(&id)
         .map_err(String::from)
 }
 
@@ -1718,6 +1915,8 @@ pub fn update_item(
 ) -> Result<ItemDto, String> {
     let should_reembed = input.title.is_some()
         || input.description.is_some()
+        || input.body.is_some()
+        || input.body_format.is_some()
         || input.metadata.is_some()
         || input.add_tag.is_some()
         || input.local_asset_path.is_some();
@@ -1928,9 +2127,23 @@ fn setup_fts5(connection: &Connection) -> bool {
             [],
             |row| row.get(0),
         )?;
-        // Drop and recreate the triggers every open so a missing trigger is
-        // restored and a stale definition can never linger. DDL only: this
-        // writes no index rows, so a healthy reopen stays a no-op below.
+        let body_column_count: i64 = if exists {
+            transaction.query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('items_fts') WHERE name = 'body'",
+                [],
+                |row| row.get(0),
+            )?
+        } else {
+            0
+        };
+        if exists && body_column_count == 0 {
+            transaction.execute_batch(
+                "DROP TRIGGER IF EXISTS items_fts_after_insert;
+                 DROP TRIGGER IF EXISTS items_fts_after_update;
+                 DROP TRIGGER IF EXISTS items_fts_after_delete;
+                 DROP TABLE IF EXISTS items_fts;",
+            )?;
+        }
         transaction.execute_batch(
         r#"
         CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
@@ -1939,14 +2152,15 @@ fn setup_fts5(connection: &Connection) -> bool {
             description,
             source_label,
             ocr_text,
-            metadata
+            metadata,
+            body
         );
 
         DROP TRIGGER IF EXISTS items_fts_after_insert;
         CREATE TRIGGER items_fts_after_insert
         AFTER INSERT ON items BEGIN
-            INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
-            VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata);
+            INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
+            VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata, new.body);
         END;
 
         DROP TRIGGER IF EXISTS items_fts_after_delete;
@@ -1959,26 +2173,21 @@ fn setup_fts5(connection: &Connection) -> bool {
         CREATE TRIGGER items_fts_after_update
         AFTER UPDATE ON items BEGIN
             DELETE FROM items_fts WHERE item_id = old.id;
-            INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
-            VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata);
+            INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
+            VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata, new.body);
         END;
 
         "#,
         )?;
-        // A present table is not proof of a healthy index: a crash between
-        // the table create and the backfill leaves a partial index behind.
-        // Repair past content by comparing row counts and rebuilding only on
-        // mismatch. This catches missing or extra rows, not same-count
-        // staleness; triggers above keep all future writes covered.
         let item_count: i64 =
             transaction.query_row("SELECT COUNT(*) FROM items", [], |row| row.get(0))?;
         let indexed_count: i64 =
             transaction.query_row("SELECT COUNT(*) FROM items_fts", [], |row| row.get(0))?;
-        if !exists || item_count != indexed_count {
+        if !exists || body_column_count == 0 || item_count != indexed_count {
             transaction.execute_batch(
                 "DELETE FROM items_fts;
-                 INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
-                 SELECT id, title, description, source_label, ocr_text, metadata FROM items;",
+                 INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
+                 SELECT id, title, description, source_label, ocr_text, metadata, body FROM items;",
             )?;
         }
         transaction.commit()
@@ -2012,6 +2221,8 @@ fn item_from_row(row: &Row<'_>) -> rusqlite::Result<ItemDto> {
         updated_at: row.get(11)?,
         archived: row.get::<_, i64>(12)? != 0,
         favorite: row.get::<_, i64>(13)? != 0,
+        body: row.get(14)?,
+        body_format: row.get(15)?,
     })
 }
 
@@ -2033,6 +2244,35 @@ fn dot_product(left: &[f32], right: &[f32]) -> f32 {
         .zip(right)
         .map(|(left, right)| left * right)
         .sum()
+}
+
+pub(crate) fn markdown_to_plain_text(markdown: &str) -> String {
+    let mut plain = String::new();
+    for event in Parser::new(markdown) {
+        let value = match event {
+            Event::Text(value) | Event::Code(value) => value.to_string(),
+            Event::SoftBreak | Event::HardBreak => " ".to_owned(),
+            _ => continue,
+        };
+        let value = value.trim();
+        if value.is_empty() {
+            continue;
+        }
+        if !plain.is_empty() {
+            plain.push(' ');
+        }
+        plain.push_str(value);
+    }
+    plain
+        .replace("[ x ] ", "")
+        .replace("[X] ", "")
+        .replace("[ ] ", "")
+        .replace(" .", ".")
+        .replace(" ,", ",")
+        .replace(" ;", ";")
+        .replace(" :", ":")
+        .replace(" !", "!")
+        .replace(" ?", "?")
 }
 
 fn non_empty_string(value: String) -> Option<String> {
@@ -2886,6 +3126,219 @@ mod tests {
             }));
         }
         println!("INKLING_PERF={}", serde_json::to_string(&samples).unwrap());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn note_body_round_trips_and_updates_search_index() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-note-body-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Reading list".into()),
+                body: "# Reading list\n\n**Ship** the editor and [read the docs](https://example.com).".into(),
+                metadata: None,
+            })
+            .unwrap();
+
+        assert_eq!(
+            item.body.as_deref(),
+            Some("# Reading list\n\n**Ship** the editor and [read the docs](https://example.com).")
+        );
+        assert_eq!(item.body_format.as_deref(), Some(BODY_FORMAT_MARKDOWN));
+        assert_eq!(
+            item.description.as_deref(),
+            Some("Reading list Ship the editor and read the docs.")
+        );
+        assert!(storage
+            .search_items("Ship", 10)
+            .unwrap()
+            .iter()
+            .any(|result| result.id == item.id));
+        assert!(storage
+            .list_active_items()
+            .unwrap()
+            .iter()
+            .all(|result| result.body.is_none()));
+
+        let updated = storage
+            .update_item(UpdateItemInput {
+                id: item.id.clone(),
+                body: Some("## Next\n\n- [x] Verify the preview".into()),
+                body_format: Some(BODY_FORMAT_MARKDOWN.into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            updated.description.as_deref(),
+            Some("Next Verify the preview")
+        );
+        assert!(storage
+            .search_items("Ship", 10)
+            .unwrap()
+            .iter()
+            .all(|result| result.id != item.id));
+        assert!(storage
+            .search_items("preview", 10)
+            .unwrap()
+            .iter()
+            .any(|result| result.id == item.id));
+        assert_eq!(
+            storage.get_item_content(&item.id).unwrap().body,
+            "## Next\n\n- [x] Verify the preview"
+        );
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn old_item_schema_is_migrated_and_old_fts_is_rebuilt() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-note-migration-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("library.sqlite3");
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE items (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    kind TEXT NOT NULL,
+                    title TEXT,
+                    description TEXT,
+                    source_url TEXT,
+                    source_label TEXT,
+                    local_asset_path TEXT,
+                    thumbnail_path TEXT,
+                    ocr_text TEXT NOT NULL DEFAULT '',
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    archived INTEGER NOT NULL DEFAULT 0,
+                    favorite INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE VIRTUAL TABLE items_fts USING fts5(
+                    item_id UNINDEXED,
+                    title,
+                    description,
+                    source_label,
+                    ocr_text,
+                    metadata
+                );
+                CREATE TRIGGER items_fts_after_insert
+                AFTER INSERT ON items BEGIN
+                    INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
+                    VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata);
+                END;
+                CREATE TRIGGER items_fts_after_update
+                AFTER UPDATE ON items BEGIN
+                    DELETE FROM items_fts WHERE item_id = old.id;
+                    INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
+                    VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata);
+                END;
+                CREATE TRIGGER items_fts_after_delete
+                AFTER DELETE ON items BEGIN
+                    DELETE FROM items_fts WHERE item_id = old.id;
+                END;
+                INSERT INTO items(id, kind, title, description, metadata, ocr_text, created_at, updated_at)
+                VALUES ('legacy-note', 'note', 'Legacy note', 'legacy searchable body', '{}', '', 1, 1);
+                PRAGMA user_version = 6;",
+            )
+            .unwrap();
+        drop(connection);
+
+        let storage = LibraryStorage::open(path.clone()).unwrap();
+        let migrated = storage.get_item("legacy-note").unwrap().unwrap();
+        assert_eq!(migrated.body.as_deref(), Some("legacy searchable body"));
+        assert_eq!(migrated.body_format.as_deref(), Some(BODY_FORMAT_MARKDOWN));
+        assert!(storage
+            .search_items("searchable", 10)
+            .unwrap()
+            .iter()
+            .any(|item| item.id == "legacy-note"));
+        let body_columns: i64 = storage
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('items') WHERE name IN ('body', 'body_format')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(body_columns, 2);
+        drop(storage);
+
+        let reopened = LibraryStorage::open(path).unwrap();
+        assert_eq!(
+            reopened.get_item_content("legacy-note").unwrap().body,
+            "legacy searchable body"
+        );
+        drop(reopened);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn migrated_item_bodies_are_not_rewritten_on_every_open() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-note-backfill-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("library.sqlite3");
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE items (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    kind TEXT NOT NULL,
+                    title TEXT,
+                    description TEXT,
+                    source_url TEXT,
+                    source_label TEXT,
+                    local_asset_path TEXT,
+                    thumbnail_path TEXT,
+                    ocr_text TEXT NOT NULL DEFAULT '',
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    archived INTEGER NOT NULL DEFAULT 0,
+                    favorite INTEGER NOT NULL DEFAULT 0
+                );
+                INSERT INTO items(id, kind, title, description, metadata, created_at, updated_at)
+                VALUES ('legacy-note', 'note', 'Legacy note', 'legacy searchable body', '{}', 1, 1);
+                PRAGMA user_version = 6;",
+            )
+            .unwrap();
+        drop(connection);
+
+        let storage = LibraryStorage::open(path.clone()).unwrap();
+        assert_eq!(
+            storage.get_item_content("legacy-note").unwrap().body,
+            "legacy searchable body"
+        );
+        storage
+            .connection
+            .execute_batch(
+                "CREATE TABLE body_writes (id INTEGER PRIMARY KEY);
+                 CREATE TRIGGER log_body_writes
+                 AFTER UPDATE OF body, body_format ON items
+                 BEGIN
+                     INSERT INTO body_writes (id) VALUES (NULL);
+                 END;",
+            )
+            .unwrap();
+        drop(storage);
+
+        let reopened = LibraryStorage::open(path).unwrap();
+        let rewrites: i64 = reopened
+            .connection
+            .query_row("SELECT COUNT(*) FROM body_writes", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rewrites, 0);
+        assert_eq!(
+            reopened.get_item_content("legacy-note").unwrap().body,
+            "legacy searchable body"
+        );
+        drop(reopened);
         fs::remove_dir_all(directory).unwrap();
     }
 

@@ -56,6 +56,7 @@ import {
   listSpaceItems,
   listSpaces,
   getProcessingSummaries,
+  getItemContent,
   retryProcessingJob,
   getCaptureStatus,
   getPairingToken,
@@ -101,6 +102,7 @@ const ReaderView = lazy(() =>
 import type { ReaderItem, ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
+import { markdownToPlainText, normalizeNoteBody, NOTE_BODY_FORMAT } from "./lib/notes";
 import { serendipityItems } from "./lib/serendipity";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
 // the repo so the web preview shows a real library out of the box. The eager
@@ -122,6 +124,7 @@ export type LibraryItem = {
   kind: ItemKind;
   title: string;
   description: string;
+  noteBody?: string;
   source: string;
   date: string;
   createdAt?: number;
@@ -301,9 +304,10 @@ async function storedItemToLibraryItem(
     : item.sourceLabel || item.sourceUrl || "Quick note";
 
   const isQuote = kind === "Quote";
+  const noteBody = kind === "Note" && typeof item.body === "string" ? normalizeNoteBody(item.body) : undefined;
   const rawTitle = item.title?.trim() || "Untitled note";
   const rawDescription =
-    item.description?.trim() ||
+    (noteBody === undefined ? item.description?.trim() : markdownToPlainText(noteBody)) ||
     item.ocrText?.trim().slice(0, 180) ||
     (isQuote ? "" : "Saved to your mind.");
 
@@ -312,6 +316,7 @@ async function storedItemToLibraryItem(
     kind,
     title: rawTitle,
     description: social?.text?.trim() || rawDescription,
+    noteBody,
     source,
     sourceUrl: item.sourceUrl ?? undefined,
     date: formatItemDate(item.createdAt),
@@ -529,6 +534,8 @@ const seedItems: LibraryItem[] = [
     title: "Books to reread this fall",
     description:
       "Pilgrim at Tinker Creek, The Design of Everyday Things, Seeing Like a State. Start with the Dillard.",
+    noteBody:
+      "# Books to reread this fall\n\n- [ ] Pilgrim at Tinker Creek\n- [ ] The Design of Everyday Things\n- [ ] Seeing Like a State\n\nStart with the Dillard.",
     source: "Quick note",
     date: "Jul 19",
     tags: ["books", "life"],
@@ -1162,6 +1169,35 @@ function App() {
       void import("./components/PdfViewer");
     }
   }, [selectedItem]);
+  const noteContentRequestsRef = useRef(new Set<string>());
+  const noteBodyCacheRef = useRef(new Map<string, string>());
+  useEffect(() => {
+    if (!canUseTauriBackend || selectedItem?.kind !== "Note" || selectedItem.noteBody !== undefined) return;
+    const id = String(selectedItem.id);
+    if (noteContentRequestsRef.current.has(id)) return;
+    noteContentRequestsRef.current.add(id);
+    let cancelled = false;
+    void getItemContent(id)
+      .then((content) => {
+        if (cancelled) return;
+        const noteBody = normalizeNoteBody(content.body);
+        noteBodyCacheRef.current.set(id, noteBody);
+        const apply = (item: LibraryItem) =>
+          String(item.id) === id ? { ...item, noteBody, description: markdownToPlainText(noteBody) } : item;
+        setItems((current) => current.map(apply));
+        setArchivedItems((current) => current.map(apply));
+        setSelectedItem((current) => (current ? apply(current) : current));
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        noteContentRequestsRef.current.delete(id);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseTauriBackend, selectedItem?.id, selectedItem?.kind, selectedItem?.noteBody]);
   const [listMode, setListMode] = useState(false);
   const [isLibraryViewTransitioning, setIsLibraryViewTransitioning] = useState(false);
   const [viewSelectionListMode, setViewSelectionListMode] = useState(false);
@@ -1251,9 +1287,13 @@ function App() {
             return storedItemToLibraryItem(storedItem, summary);
           })
         : { ...item, archived: false };
+      const cachedNoteBody = noteBodyCacheRef.current.get(String(item.id));
+      const restoredLibraryItem = cachedNoteBody === undefined
+        ? restoredItem
+        : { ...restoredItem, noteBody: cachedNoteBody, description: markdownToPlainText(cachedNoteBody) };
       setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
         ? current
-        : [restoredItem, ...current]);
+        : [restoredLibraryItem, ...current]);
       setArchivedItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
       // The confirmation needs a toast of its own. Sonner dismisses the forget toast the
       // moment its action is clicked, and a later toast raised under that same id inherits
@@ -1369,6 +1409,38 @@ function App() {
     } catch (error) {
       toast.error("Unable to save this tag");
     }
+  }, [canUseTauriBackend]);
+
+  const updateNote = useCallback(async (item: LibraryItem, body: string) => {
+    const nextBody = normalizeNoteBody(body);
+    if (!nextBody) throw new Error("A note needs some text before it can be saved.");
+
+    let nextItem: LibraryItem;
+    if (canUseTauriBackend) {
+      const storedItem = await updateItem({
+        id: String(item.id),
+        body: nextBody,
+        bodyFormat: NOTE_BODY_FORMAT,
+      });
+      const summary = (await getProcessingSummaries([storedItem.id])).get(storedItem.id);
+      nextItem = {
+        ...(await storedItemToLibraryItem(storedItem, summary)),
+        noteBody: nextBody,
+      };
+    } else {
+      nextItem = {
+        ...item,
+        description: markdownToPlainText(nextBody),
+        noteBody: nextBody,
+      };
+    }
+
+    const apply = (current: LibraryItem) =>
+      String(current.id) === String(item.id) ? { ...current, ...nextItem, id: current.id } : current;
+    setItems((current) => current.map(apply));
+    setArchivedItems((current) => current.map(apply));
+    setSelectedItem((current) => (current ? apply(current) : current));
+    noteBodyCacheRef.current.set(String(item.id), nextBody);
   }, [canUseTauriBackend]);
 
   const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
@@ -1977,7 +2049,8 @@ function App() {
       id: Date.now(),
       kind: "Note",
       title: value,
-      description: "Saved from the clipboard.",
+      description: markdownToPlainText(value),
+      noteBody: normalizeNoteBody(value),
       source: captureSource,
       date: "Just now",
       tags: [],
@@ -2453,12 +2526,17 @@ function App() {
               : listActiveItems();
         const storedItems = await storedItemsPromise;
         const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
-        const libraryItems = await Promise.all(storedItems.map((item) =>
-          storedItemToLibraryItem(item, summaries.get(item.id)),
-        ));
-        if (!cancelled) {
-          setItems(libraryItems);
-        }
+         const libraryItems = await Promise.all(storedItems.map((item) =>
+           storedItemToLibraryItem(item, summaries.get(item.id)),
+         ));
+         if (!cancelled) {
+           setItems(libraryItems.map((item) => {
+             const noteBody = noteBodyCacheRef.current.get(String(item.id));
+             return noteBody === undefined
+               ? item
+               : { ...item, noteBody, description: markdownToPlainText(noteBody) };
+           }));
+         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
       } finally {
@@ -2513,10 +2591,17 @@ function App() {
         await initializeStorage();
         const storedItems = await listArchivedItems();
         const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
-        const nextItems = await Promise.all(storedItems.map((item) =>
-          storedItemToLibraryItem(item, summaries.get(item.id)),
-        ));
-        if (!cancelled) setArchivedItems(nextItems);
+         const nextItems = await Promise.all(storedItems.map((item) =>
+           storedItemToLibraryItem(item, summaries.get(item.id)),
+         ));
+         if (!cancelled) {
+           setArchivedItems(nextItems.map((item) => {
+             const noteBody = noteBodyCacheRef.current.get(String(item.id));
+             return noteBody === undefined
+               ? item
+               : { ...item, noteBody, description: markdownToPlainText(noteBody) };
+           }));
+         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
       }
@@ -2818,8 +2903,9 @@ function App() {
     onForget: forgetItem,
     onRetryJob: retryJob,
     onAddTag: addTagToItem,
+    onUpdateNote: updateNote,
     isFindingSimilar,
-  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob]);
+  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob, updateNote]);
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.

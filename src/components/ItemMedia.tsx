@@ -16,6 +16,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { autoplayEmbedUrl, providerLabel } from "../lib/ingestion/video-links";
 import { normalizeXPostOEmbed, xPostOEmbedUrl } from "../lib/ingestion/x-post";
+import { noteDescription } from "../lib/notes";
 import type { XPostMetadata } from "../lib/ingestion/types";
 import type { ItemKind, LibraryItem } from "../App";
 import pdfPointillismOptionB from "../assets/pdf-pointillism-option-b.png";
@@ -90,8 +91,8 @@ export function PdfArtwork({ item }: { item: LibraryItem }) {
   );
 }
 
-export function noteWordCount(description: string | undefined): number {
-  const text = description?.replace(/\s+/gu, " ").trim() ?? "";
+export function noteWordCount(value: string | undefined): number {
+  const text = noteDescription(value).replace(/\s+/gu, " ").trim();
   if (!text) return 0;
   return text.split(" ").length;
 }
@@ -101,7 +102,7 @@ export function noteWordCount(description: string | undefined): number {
 // note's own indexed content: the pipeline title and the description's word
 // count in place of the PDF page count.
 export function NoteArtwork({ item }: { item: LibraryItem }) {
-  const words = noteWordCount(item.description);
+  const words = noteWordCount(item.noteBody ?? item.description);
   return (
     <div className="pdf-artwork">
       <img src={pdfPointillismOptionB} alt="" className="pdf-shader" />

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { gsap } from "gsap";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -19,7 +19,7 @@ import {
 import type { LibraryItem } from "../App";
 import { isTauriRuntime } from "../lib/libraryApi";
 import type { ReaderOrigin } from "../ReaderView";
-import { KindIcon, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
+import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
 import {
   OVERLAY_EASE,
   OVERLAY_FLIGHT_MS,
@@ -35,6 +35,10 @@ import {
   type SourceRects,
 } from "./overlayMotion";
 
+const RichNoteEditor = lazy(() =>
+  import("./RichNoteEditor").then((module) => ({ default: module.RichNoteEditor })),
+);
+
 export type ExpandedOverlayActions = {
   onClose: () => void;
   onOpenPdf: (item: LibraryItem) => void;
@@ -43,6 +47,7 @@ export type ExpandedOverlayActions = {
   onForget: (item: LibraryItem) => void | Promise<void>;
   onRetryJob: (jobId: string) => void | Promise<void>;
   onAddTag?: (item: LibraryItem, tag: string) => void | Promise<void>;
+  onUpdateNote: (item: LibraryItem, body: string) => void | Promise<void>;
   isFindingSimilar: boolean;
 };
 
@@ -172,6 +177,14 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
 }
 
 function OverlayMedia({ item }: { item: LibraryItem }) {
+  if (item.kind === "Note" && !item.image) {
+    return (
+      <div className="expanded-overlay-media note-detail-media">
+        <NoteArtwork item={item} />
+      </div>
+    );
+  }
+
   if (item.social?.provider === "x") {
     return (
       <div className="expanded-overlay-media detail-x-post">
@@ -263,11 +276,14 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   const destinationRef = useRef<OverlayDestination | null>(null);
   const cancelPendingOpenRef = useRef(false);
   const hasSettledOnceRef = useRef(false);
+  const actionsRef = useRef(actions);
   const [destination, setDestination] = useState<OverlayDestination | null>(null);
   const [flight, setFlight] = useState<Flight | null>(null);
   const [pendingOpen, setPendingOpen] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkCopyFailed, setLinkCopyFailed] = useState(false);
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const isEditingNoteRef = useRef(false);
 
   // Mirror props into refs inside an effect, never during render, so a
   // concurrent render cannot publish a half-updated set. This runs before
@@ -277,6 +293,10 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     itemRef.current = item;
     flightRef.current = flight;
   }, [item, flight]);
+
+  useLayoutEffect(() => {
+    isEditingNoteRef.current = isEditingNote;
+  }, [isEditingNote]);
 
   // The item whose content the dialog shows. During a closing flight that was
   // triggered by switching items, the dialog flies back displaying the item it
@@ -488,6 +508,11 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     const previous = previousItemRef.current;
     if (previous.id === item.id) return;
     previousItemRef.current = item;
+    if (isEditingNoteRef.current) {
+      setIsEditingNote(false);
+      actionsRef.current.onClose();
+      return;
+    }
 
     const activeFlight = flightRef.current;
     if (activeFlight?.kind === "close") return;
@@ -550,7 +575,6 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     closeButtonRef.current?.focus({ preventScroll: true });
   }, [flight, destination]);
 
-  const actionsRef = useRef(actions);
   actionsRef.current = actions;
 
   const beginCloseFlight = (closingItem: LibraryItem, toRects: SourceRects | null, thenOpen: boolean) => {
@@ -625,6 +649,14 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     beginCloseFlight(itemRef.current, rects, false);
   };
 
+  const handleOverlayClose = () => {
+    if (isEditingNoteRef.current) {
+      setIsEditingNote(false);
+      return;
+    }
+    requestClose();
+  };
+
   useEffect(() => {
     const checkSourceVisibility = () => {
       if (selectionScrollRef.current) return;
@@ -649,6 +681,10 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.stopPropagation();
+      if (isEditingNoteRef.current) {
+        setIsEditingNote(false);
+        return;
+      }
       requestClose();
     };
     window.addEventListener("keydown", onKeyDown, true);
@@ -730,11 +766,13 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     setIsAddingTag(false);
   }
 
+  const isEditingNoteView = isEditingNote && shownItem.kind === "Note";
+
   return (
     <div className="expanded-overlay-layer" ref={layerRef}>
       <section
         ref={dialogRef}
-        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""}`}
+        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""}`}
         role="dialog"
         aria-modal={false}
         aria-label={detailTitleFor(shownItem)}
@@ -744,14 +782,14 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           type="button"
           ref={closeButtonRef}
           className="expanded-overlay-close"
-          onClick={requestClose}
-          aria-label="Close details"
+           onClick={handleOverlayClose}
+           aria-label={isEditingNoteView ? "Close editor" : "Close details"}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={16} />
         </button>
 
         <div
-          className="expanded-overlay-media"
+          className={`expanded-overlay-media ${shownItem.kind === "Note" && !shownItem.image ? "note-detail-media-band" : ""}`}
           ref={mediaRef}
           style={dialogFlying ? undefined : ({ height: destination ? overlayMediaHeight(shownItem, destination.frame.width, window.innerHeight) : undefined } as CSSProperties)}
         >
@@ -763,25 +801,38 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           ref={bodyRef}
           style={dialogFlying && destination ? { width: destination.frame.width } : undefined}
         >
-          {shownItem.kind === "Quote" ? (
+          {isEditingNoteView ? (
+            <Suspense fallback={<p className="expanded-overlay-description" role="status">Loading editor…</p>}>
+              <RichNoteEditor
+                key={`edit-${shownItem.id}`}
+                embedded
+                body={shownItem.noteBody}
+                title={shownItem.title}
+                onSave={(body) => actions.onUpdateNote(shownItem, body)}
+                onEditingChange={setIsEditingNote}
+              />
+            </Suspense>
+          ) : shownItem.kind === "Quote" ? (
             <>
               <blockquote className="detail-quote">“{shownItem.title}”</blockquote>
               {shownItem.description && <p className="detail-attribution">— {shownItem.description.replace(/^—\s*/u, "")}</p>}
             </>
+          ) : shownItem.kind === "Note" ? (
+            <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
           ) : (
             <>
               <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
               {shownItem.description && <p className="expanded-overlay-description">{shownItem.description}</p>}
             </>
           )}
-          {shownItem.processing?.active && (
+          {!isEditingNoteView && shownItem.processing?.active && (
             <div className="detail-processing" role="status">
               <HugeiconsIcon icon={Loading01Icon} size={14} />
               <span>{shownItem.processing.message ?? "Processing"}</span>
               {shownItem.processing.progressTotal != null && <span>{shownItem.processing.progressCurrent}/{shownItem.processing.progressTotal}</span>}
             </div>
           )}
-          {shownItem.processing?.failedJob && (
+          {!isEditingNoteView && shownItem.processing?.failedJob && (
             <div className="detail-processing failed" role="alert">
               <HugeiconsIcon icon={AlertCircleIcon} size={14} />
               <span>{shownItem.processing.failedJob.errorMessage ?? "Processing failed"}</span>
@@ -790,7 +841,8 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
               </button>
             </div>
           )}
-          <div className="detail-meta">
+          {!isEditingNoteView && (
+            <div className="detail-meta">
             <div className="detail-filemeta">
               <span className="filemeta-type">{fileTypeFor(shownItem)}</span>
               <span className="filemeta-dot" aria-hidden="true" />
@@ -824,6 +876,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
               )}
             </div>
           </div>
+          )}
 
           {isReadRow && otherActions.some((action) => action.key === "find-similar") && (
             <div className="expanded-overlay-actions">
@@ -904,6 +957,16 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
               )}
 
               <div className="expanded-overlay-toolbar">
+                {shownItem.kind === "Note" && (
+                  <button
+                    type="button"
+                    className="toolbar-primary"
+                    onClick={() => setIsEditingNote(true)}
+                    aria-label="Edit note"
+                  >
+                    Edit note
+                  </button>
+                )}
                 {sourceAction && (
                   <button
                     type="button"
