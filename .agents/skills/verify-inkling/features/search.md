@@ -7,7 +7,7 @@ Search is the organizer: the user describes what they want and the library answe
 - `search-focus` focuses the field through the `/` shortcut.
 - `search-match` narrows the grid as the query changes.
 - `search-context` reports the count and query and offers `Save as Space`.
-- `search-empty` shows `Nothing surfaced yet.` when nothing matches.
+- `search-empty` shows `Nothing surfaced yet.` when the current view returns no items, from a query, a Space, or Top of mind.
 - `search-clear` restores the full library.
 - `search-space` opens a saved search and clears the ad-hoc query.
 
@@ -38,6 +38,9 @@ Preconditions:
 - The preview filters immediately. Only the native request uses the 200 ms debounce, so wait for the value.
 - There is no query parser. `type:`, `tag:`, quotes, and exclusion syntax are plain text here. Do not present them as supported filters.
 - The preview searches title, description, source, kind, and tags. Native search uses backend FTS, fallback text matching, and semantic results. A preview match does not prove OCR, article body, author, or semantic search.
+- Native `search_items` asks for at most 100 rows, and the backend clamps to 200. A large native match set saturates `.result-count` at `100` with no truncation notice. Preview has no cap.
+- The preview treats the whole query as one literal substring. Native FTS splits on whitespace, strips double quotes, and ANDs the tokens, so `japan landscape` does not mean the same thing in both modes.
+- Similarity mode reuses the same toolbar and empty state: `.search-context` reads `similar to "<title>"` and the heading becomes `Nothing similar yet.`. See [library-browse.md](./library-browse.md) for the native-only entry point.
 - The `/` handler suppresses the shortcut only for `<input>`. A focused `<textarea>` can have its slash intercepted.
 - Selecting a Space sets its query and clears the search box. `.result-count` then describes the Space, not the whole library.
 - Every preview mutation is in memory. Navigate back to the run URL before relying on baseline counts.

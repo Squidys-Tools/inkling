@@ -40,8 +40,8 @@ Preconditions:
 
 - Only the selected row fills `.space-count`. Do not assert counts on inactive rows.
 - The color dot is a nested `role="button"` with the label `Change color of <name>`.
-- Space tools are transparent until the row is hovered or focused. A screenshot without focus may not show them.
-- Do not click the center of a Space row. Invisible move controls sit there. Click the childless name with `click --within ".space-list" --text "<name>"`.
+- Space tools are transparent until the row is hovered or focused. They sit at the row's right edge inside `.space-actions`, not its center. A screenshot without focus may not show them. Click the childless name with `click --within ".space-list" --text "<name>"`.
 - The rename input has the same accessible name as its opener. Target `.space-rename-input` while editing. Blur commits; Escape abandons.
-- A Space created from search stores plain text. The seeded `Read later` and `Top picks` rows use demo-only structured queries.
+- A Space created from search stores plain text. All three seeded rows use demo-only structured queries, not just `Read later` and `Top picks`.
 - Preview Space mutations live in memory. Navigate back to the run URL to restore the seed. The desktop app persists changes in SQLite.
+- Native `list_space_items` asks for at most 100 rows and the backend clamps to 200, so a large Space under-reports and truncates in the full app. Preview has no cap.

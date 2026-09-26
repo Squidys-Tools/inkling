@@ -10,7 +10,7 @@ The browser extension saves the current page from its popup, keyboard shortcut, 
 - `extension-health` tests the receiver from the desktop app.
 - `extension-page-save` saves a readable page from the popup, shortcut, or page context menu.
 - `extension-selection`, `extension-image`, and `extension-video` are registered context-menu routes, but their collector is not loaded by the current manifest.
-- `extension-fallback` queues a payload when local delivery fails and uses the deep link when the app is closed.
+- `extension-fallback` queues a payload when local delivery fails or the app is not paired yet, then uses the deep link.
 
 ## How to get to it (user POV)
 
@@ -28,8 +28,8 @@ Preconditions:
 
 - **Open the preview boundary.** Click `[aria-label="Settings"]`, wait for `.settings-modal`, and choose `Extension` within `.settings-modal-sidebar`. Wait for `.settings-empty-state` and read `Pairing needs the desktop app.` Save `extension-preview.png`.
 - **Desktop pairing panel.** In an isolated full app, open the same tab and assert the receiver status, masked token, `Reveal`, `Copy`, `Renew`, and `Test connection` controls. Reveal the token, test the receiver, renew it, and verify the status and token change. The preview cannot reach these controls.
-- **Extension page save.** Build and load the extension in a normal Chrome, Firefox, or Edge profile, pair it with the isolated desktop app, and open a readable HTTP fixture with a unique title. Choose `Save this page`, then use `Ctrl+Shift+S`. Require the popup's saved-title status and a matching card in the desktop library. The harness browser cannot load the extension.
-- **Fallback and queue.** Close the desktop app, save a page, and inspect the extension's queued status. Reopen the app and verify the queued page is delivered. This requires the extension-enabled browser and native receiver, not `harness.mjs`.
+- **Extension page save.** Build and load the extension in a Chromium or Edge profile, pair it with the isolated desktop app, and open a readable HTTP fixture with a unique title. Choose `Save this page`, then use `Ctrl+Shift+S`. Require the popup's saved-title status and a matching card in the desktop library. The harness browser cannot load the extension.
+- **Fallback and queue.** With the desktop app closed or unpaired, save a page and inspect the extension's queued status. Restart the browser so `onStartup` can flush the queue, then verify the queued page is delivered. Reopening the desktop app alone does not flush. This requires the extension-enabled browser and native receiver, not `harness.mjs`.
 - **Selection, image, and video menus.** Treat these as unverified on the current build because the manifest and build do not load the collector. Do not infer success from the registered context-menu labels.
 
 ## Gotchas
@@ -38,5 +38,6 @@ Preconditions:
 - The extension stores the receiver address and bearer token locally. Never paste a real token into a transcript or commit it.
 - Page extraction uses the extension's isolated scripts and Defuddle. A page that blocks injection or has no usable content reports a failed save.
 - The current extension package comments still describe loopback as a later phase, while the background dispatcher calls `postPayloadToLoopback` first. Treat the source behavior, not the stale comment, as authoritative.
+- The only build target is the Chrome manifest. `manifest.firefox.json` omits the `http://127.0.0.1/*` host permission that the Chrome manifest has, so the Firefox loopback path is unverified.
 - The current manifest does not register `content.js`; the selection, image, and video collectors are not operational in this checkout.
 - Never point the native check at the developer's live library. Use an isolated app and a prepared fixture page.

@@ -1,6 +1,6 @@
 # Export the library
 
-Export writes a dated copy of the library into a folder the user picks in the native dialog. The copy contains a consistent SQLite snapshot, the asset files the snapshot references, and a manifest describing both. If an asset cannot be copied, the export still completes and the manifest records the skipped path and error. It is a copy, never a move: the library keeps running while the export writes. The picker and the writer live in the Rust core, so this feature is only fully reachable in the desktop app.
+Export writes a dated copy of the library into a folder the user picks in the native dialog. The copy contains a consistent SQLite snapshot, the asset files the snapshot references, and a manifest describing both. If an asset cannot be copied, the export still completes and the manifest records the skipped path and error. It is a copy, never a move: the library keeps running while the export writes. The folder picker is frontend JavaScript and the writer is the Rust core, so the feature is only fully reachable in the desktop app.
 
 ## Sub-features
 
@@ -17,7 +17,7 @@ Export writes a dated copy of the library into a folder the user picks in the na
 - Choose `Settings` in the sidebar footer, then the `Data` tab.
 - Choose `Choose folder and export` and pick a destination folder in the native dialog.
 - Read the result card in the panel, and the toast.
-- Reopen Settings later: it comes back on the `Archive` tab, with the last export's card still visible until the app reloads.
+- Reopen Settings later: it comes back on the `Archive` tab. The last export's card survives in session state but renders only after you choose `Data` again.
 
 ## Driving it with harness.mjs
 
