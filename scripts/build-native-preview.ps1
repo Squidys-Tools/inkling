@@ -44,11 +44,14 @@ try {
     Ensure-Directory $outputDirectory
     Ensure-Directory $cacheDirectory
 
-    # The provisioner owns the pinned runtime and the download cache. It leaves
-    # the DLL behind for the build, so remember whether we still owe a cleanup.
+    # The provisioner owns the pinned runtime and the download cache, and
+    # returns the path it wrote to. Stage our own copy of the DLL in the output
+    # folder now, because the provisioner's copy is removed after the build and
+    # the portable folder has to survive on its own.
     $hadBuildOrt = Test-Path -LiteralPath $buildOrt
     $runtimeDll = & (Join-Path $PSScriptRoot 'provision-onnxruntime.ps1') -CacheDirectory $cacheDirectory -Destination $buildOrt
     $temporaryBuildOrt = -not $hadBuildOrt
+    Copy-Item -LiteralPath $runtimeDll -Destination (Join-Path $outputDirectory 'onnxruntime.dll') -Force
 
     $modelsDirectory = Join-Path $outputDirectory 'data\models'
     Copy-ManifestAsset $manifest.text $manifest.text.model $modelsDirectory (Join-Path $cacheDirectory 'models')
@@ -77,7 +80,6 @@ try {
         throw "Expected native executable was not produced: $builtExecutable"
     }
     Copy-Item -LiteralPath $builtExecutable -Destination (Join-Path $outputDirectory 'inkling.exe')
-    Copy-Item -LiteralPath $runtimeDll -Destination (Join-Path $outputDirectory 'onnxruntime.dll') -Force
 
     $webViewLoader = Join-Path $releaseDirectory 'WebView2Loader.dll'
     if (Test-Path -LiteralPath $webViewLoader) {

@@ -33,7 +33,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": "nsis",
     "resources": ["onnxruntime.dll"],
     "icon": [
       "icons/32x32.png",
