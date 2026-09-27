@@ -494,21 +494,42 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .expanded-overlay.is-editing-note .expanded-overlay-body { flex: 1 1 auto; padding: 0; }
 .expanded-overlay.is-editing-note .detail-processing, .expanded-overlay.is-editing-note .detail-meta, .expanded-overlay.is-editing-note .expanded-overlay-actions, .expanded-overlay.is-editing-note .expanded-overlay-toolbar { display: none; }
 .note-embedded-editor { min-height: 0; display: flex; flex-direction: column; margin: 0; }
-.note-embedded-title-block { flex: 0 0 auto; padding: 24px 22px 18px; border-bottom: 1px solid #35443c; background: #1b1917; }
-.note-embedded-kicker { display: block; margin-bottom: 10px; color: var(--orange); font: 9px "DM Mono", monospace; letter-spacing: .16em; }
-.note-embedded-title-block h1 { margin: 0; color: var(--ink); font: 400 30px/1.1 Georgia, "Times New Roman", serif; letter-spacing: -.03em; overflow-wrap: anywhere; }
-.note-embedded-editor .note-editor-toolbar { min-height: 46px; flex: 0 0 auto; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 0; padding: 9px 22px; border-bottom: 1px solid #262221; background: #141311; }
-.note-embedded-editor .note-editor-toolbar-label { margin-right: auto; color: #716960; font: 9px "DM Mono", monospace; letter-spacing: .14em; }
-.note-embedded-editor .note-editor-toolbar button { min-width: 30px; height: 28px; padding: 0 7px; border: 1px solid var(--rule); border-radius: 6px; background: #1b1917; color: var(--muted); font: 10px "DM Mono", monospace; }
-.note-embedded-editor .note-editor-toolbar button:hover, .note-embedded-editor .note-editor-toolbar button[aria-pressed="true"] { border-color: #5a5750; background: #292622; color: var(--ink); }
-.note-embedded-editor-surface { min-height: 260px; max-height: min(48vh, 420px); overflow: auto; }
-.note-embedded-editor .note-editor-content { min-height: 260px; padding: 20px 22px 24px; border: 0; border-radius: 0; background: #111b16; color: var(--ink); font-size: 14px; line-height: 1.68; }
+.note-embedded-orientation { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 12px 20px; border-bottom: 1px solid #1f1d1b; }
+.note-embedded-kicker { flex: 0 0 auto; color: #6f6a62; font: 10px "DM Sans", sans-serif; letter-spacing: .16em; text-transform: uppercase; }
+.note-embedded-divider { flex: 0 0 auto; width: 1px; height: 11px; background: #332f2c; }
+.note-embedded-name { min-width: 0; overflow: hidden; color: #c8c0b5; font: 400 14px/1.3 "Libre Baskerville", Georgia, serif; text-overflow: ellipsis; white-space: nowrap; }
+.note-embedded-editor-surface { flex: 1 1 auto; min-height: 0; overflow: auto; background: #141312; }
+.note-embedded-editor .note-editor-content { min-height: 100%; padding: 22px 20px 26px; border: 0; border-radius: 0; background: transparent; color: var(--ink); font-size: 14.5px; line-height: 1.66; }
 .note-embedded-editor .note-editor-content:focus { box-shadow: none; }
 .note-embedded-editor .note-editor-content p { margin: 0 0 10px; }
-.note-embedded-editor .note-editor-content h1, .note-embedded-editor .note-editor-content h2, .note-embedded-editor .note-editor-content h3 { margin: 20px 0 8px; font-size: 22px; }
+.note-embedded-editor .note-editor-content h1, .note-embedded-editor .note-editor-content h2, .note-embedded-editor .note-editor-content h3 { margin: 22px 0 9px; color: var(--ink); font: 400 19px/1.25 "Libre Baskerville", Georgia, serif; }
 .note-embedded-editor .note-editor-content ul, .note-embedded-editor .note-editor-content ol { margin: 0 0 12px; }
-.note-embedded-editor .note-editor-error { margin: 0; padding: 0 22px 10px; }
-.note-embedded-editor .note-editor-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 22px 15px; border-top: 1px solid #262221; background: #141311; }
-.note-embedded-editor .note-editor-status { margin-right: auto; color: var(--muted); font: 10px "DM Mono", monospace; }
-.note-embedded-editor .note-editor-cancel, .note-embedded-editor .note-editor-save { padding: 8px 12px; }
-@media (max-width: 680px) { .note-embedded-title-block { padding-inline: 18px; }.note-embedded-editor .note-editor-toolbar, .note-embedded-editor .note-editor-content, .note-embedded-editor .note-editor-actions { padding-inline: 18px; }.note-embedded-editor-surface, .note-embedded-editor .note-editor-content { min-height: 220px; } }
+.note-embedded-editor .note-editor-content blockquote { margin: 14px 0; padding-left: 13px; border-left: 1px solid #3a352f; color: #8d8672; font: italic 400 14.5px/1.6 "Libre Baskerville", Georgia, serif; }
+.note-embedded-editor .note-editor-content pre { margin: 12px 0; padding: 11px 13px; border-radius: 8px; background: #100f0e; color: #cfc7bb; font: 13px/1.55 "DM Mono", monospace; overflow-x: auto; }
+.note-embedded-editor .note-editor-content a { color: #d7a887; text-decoration-color: #6a4c39; }
+.note-embedded-editor .note-editor-error { flex: 0 0 auto; margin: 0; padding: 9px 20px; border-top: 1px solid #262221; color: #d8a08c; font-size: 12px; }
+.note-embedded-editor .note-editor-actions { position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 12px; margin: 0; padding: 9px 16px 9px 20px; border-top: 1px solid var(--rule); background: #161412; }
+.note-embedded-editor .note-editor-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 1px; margin: 0; padding: 0; background: none; border: 0; }
+.note-heading-group { display: flex; align-items: center; gap: 0; height: 22px; margin-right: 2px; padding: 0 2px; border-radius: 6px; background: #24211e; }
+.note-embedded-editor .note-heading-group button { width: 22px; height: 22px; border-radius: 4px; color: #6f6a62; font: 400 12px/1 "Libre Baskerville", Georgia, serif; }
+.note-embedded-editor .note-heading-group button[aria-pressed="true"] { background: transparent; color: var(--ink); }
+.note-embedded-editor .note-editor-toolbar button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: #b8b1a7; cursor: pointer; }
+.note-embedded-editor .note-editor-toolbar button:hover:not(:disabled) { background: #1f1d1b; color: var(--ink); }
+.note-embedded-editor .note-editor-toolbar button[aria-pressed="true"] { background: #24211e; color: var(--ink); }
+.note-embedded-editor .note-editor-toolbar button:disabled { color: #4a453f; cursor: default; }
+.note-control-divider { width: 1px; height: 14px; margin: 0 7px; background: var(--rule); }
+.note-editor-save-cluster { position: relative; display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.note-embedded-editor .note-editor-status { color: var(--muted); font: 10px "DM Mono", monospace; }
+.note-embedded-editor .note-editor-cancel, .note-embedded-editor .note-editor-save { font: 500 12.5px "DM Sans", sans-serif; }
+.note-embedded-editor .note-editor-cancel { padding: 9px 12px; border: 0; border-radius: 9px; background: transparent; color: #8d867c; cursor: pointer; }
+.note-embedded-editor .note-editor-cancel:hover { background: #1f1d1b; color: var(--ink); }
+.note-embedded-editor .note-editor-save { padding: 9px 16px; border: 0; border-radius: 9px; background: var(--orange); color: #f6ece0; cursor: pointer; }
+.note-embedded-editor .note-editor-save:disabled { opacity: .6; cursor: default; }
+.note-link-popover { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 2; display: flex; align-items: center; gap: 6px; padding: 7px; border: 1px solid #332f2c; border-radius: 10px; background: #1b1917; box-shadow: 0 16px 34px rgba(0, 0, 0, .5); }
+.note-link-input { width: 232px; padding: 7px 9px; border: 1px solid var(--rule); border-radius: 7px; background: #100f0e; color: var(--ink); font: 12px "DM Mono", monospace; }
+.note-link-input:focus { outline: none; border-color: #5a5750; }
+.note-link-apply, .note-link-remove { padding: 7px 10px; border: 0; border-radius: 7px; font: 500 12px "DM Sans", sans-serif; cursor: pointer; }
+.note-link-apply { background: var(--orange); color: #f6ece0; }
+.note-link-remove { background: #24211e; color: #b8b1a7; }
+.note-link-apply:disabled, .note-link-remove:disabled { opacity: .45; cursor: default; }
+@media (max-width: 680px) { .note-embedded-orientation, .note-embedded-editor .note-editor-content { padding-inline: 18px; }.note-embedded-editor .note-editor-actions { padding-inline: 18px; }.note-editor-toolbar { flex-wrap: wrap; } }

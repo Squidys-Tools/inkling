@@ -1,5 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  BoldIcon,
+  CodeIcon,
+  ItalicIcon,
+  Link01Icon,
+  ListIcon,
+  ListOrderedIcon,
+  ListTodoIcon,
+  QuoteIcon,
+  RefreshCcwIcon,
+  RefreshCwIcon,
+} from "@hugeicons/core-free-icons";
 import { noteEditorExtensions, renderNoteMarkdown } from "../lib/noteMarkdown";
 import { noteBodyForEditor, noteBodyForPreview, noteBodyForStorage } from "../lib/notes";
 
@@ -9,6 +22,23 @@ type RichNoteEditorProps = {
   onSave: (body: string) => void | Promise<void>;
   onEditingChange?: (editing: boolean) => void;
   embedded?: boolean;
+};
+
+const IDLE_TOOLBAR = {
+  h1: false,
+  h2: false,
+  h3: false,
+  bold: false,
+  italic: false,
+  quote: false,
+  code: false,
+  bullet: false,
+  ordered: false,
+  task: false,
+  link: false,
+  hasSelection: false,
+  canUndo: false,
+  canRedo: false,
 };
 
 function isSafeLink(value: string): boolean {
@@ -24,8 +54,10 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [linkDraft, setLinkDraft] = useState<string | null>(null);
   const saveRef = useRef(onSave);
   const editorRootRef = useRef<HTMLDivElement>(null);
+  const linkInputRef = useRef<HTMLInputElement>(null);
   const editor = useEditor({
     extensions: noteEditorExtensions,
     content: "",
@@ -49,6 +81,7 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
     editor.commands.setContent(noteBodyForEditor(body, title), { contentType: "markdown", emitUpdate: false });
     setIsEditing(false);
     setError(null);
+    setLinkDraft(null);
   }, [body, editor, title]);
 
   useEffect(() => {
@@ -56,6 +89,37 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
     editorRootRef.current?.scrollIntoView({ block: "start" });
     editor.commands.focus();
   }, [editor, embedded, isEditing]);
+
+  useEffect(() => {
+    if (linkDraft === null) return;
+    linkInputRef.current?.focus();
+    linkInputRef.current?.select();
+  }, [linkDraft]);
+
+  // Tiptap does not re-render on selection changes on its own, so the toolbar
+  // state is subscribed separately or the controls would lie about the caret.
+  const toolbar = useEditorState({
+    editor,
+    selector: ({ editor: instance }) =>
+      instance
+        ? {
+            h1: instance.isActive("heading", { level: 1 }),
+            h2: instance.isActive("heading", { level: 2 }),
+            h3: instance.isActive("heading", { level: 3 }),
+            bold: instance.isActive("bold"),
+            italic: instance.isActive("italic"),
+            quote: instance.isActive("blockquote"),
+            code: instance.isActive("codeBlock"),
+            bullet: instance.isActive("bulletList"),
+            ordered: instance.isActive("orderedList"),
+            task: instance.isActive("taskList"),
+            link: instance.isActive("link"),
+            hasSelection: !instance.state.selection.empty,
+            canUndo: instance.can().undo(),
+            canRedo: instance.can().redo(),
+          }
+        : IDLE_TOOLBAR,
+  });
 
   const previewHtml = useMemo(
     () => (body === undefined ? "" : renderNoteMarkdown(noteBodyForPreview(body, title))),
@@ -83,14 +147,26 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
   }
 
   const run = (command: () => void) => {
+    setLinkDraft(null);
     command();
     editor.commands.focus();
   };
 
-  const addLink = () => {
-    const value = window.prompt("Link URL");
-    if (!value || !isSafeLink(value)) return;
-    run(() => editor.chain().focus().setLink({ href: value }).run());
+  const openLinkEditor = () => {
+    const current = editor.isActive("link") ? editor.getAttributes("link").href : "";
+    setLinkDraft(typeof current === "string" ? current : "");
+  };
+
+  const applyLink = () => {
+    const value = (linkDraft ?? "").trim();
+    if (!isSafeLink(value)) return;
+    editor.chain().focus().extendMarkRange("link").setLink({ href: value }).run();
+    setLinkDraft(null);
+  };
+
+  const removeLink = () => {
+    editor.chain().focus().extendMarkRange("link").unsetLink().run();
+    setLinkDraft(null);
   };
 
   const save = async () => {
@@ -115,49 +191,110 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
   return (
     <div ref={editorRootRef} className={`note-editor is-editing ${embedded ? "note-embedded-editor" : ""}`} data-testid="rich-note-editor">
       {embedded && (
-        <div className="note-embedded-title-block">
-          <span className="note-embedded-kicker">FIELD NOTE</span>
-          <h1>{title}</h1>
+        <div className="note-embedded-orientation">
+          <span className="note-embedded-kicker">Editing</span>
+          <span className="note-embedded-divider" />
+          <span className="note-embedded-name">{title}</span>
         </div>
       )}
-      <div className="note-editor-toolbar" role="toolbar" aria-label="Note formatting">
-        {embedded && <span className="note-editor-toolbar-label">FORMAT</span>}
-        <button type="button" aria-label="Heading 1" aria-pressed={editor.isActive("heading", { level: 1 })} onClick={() => run(() => editor.chain().toggleHeading({ level: 1 }).run())}>H1</button>
-        <button type="button" aria-label="Heading 2" aria-pressed={editor.isActive("heading", { level: 2 })} onClick={() => run(() => editor.chain().toggleHeading({ level: 2 }).run())}>H2</button>
-        <button type="button" aria-label="Heading 3" aria-pressed={editor.isActive("heading", { level: 3 })} onClick={() => run(() => editor.chain().toggleHeading({ level: 3 }).run())}>H3</button>
-        <button type="button" aria-label="Bold" aria-pressed={editor.isActive("bold")} onClick={() => run(() => editor.chain().toggleBold().run())}>B</button>
-        <button type="button" aria-label="Italic" aria-pressed={editor.isActive("italic")} onClick={() => run(() => editor.chain().toggleItalic().run())}>I</button>
-        <button type="button" aria-label="Bulleted list" aria-pressed={editor.isActive("bulletList")} onClick={() => run(() => editor.chain().toggleBulletList().run())}>• List</button>
-        <button type="button" aria-label="Numbered list" aria-pressed={editor.isActive("orderedList")} onClick={() => run(() => editor.chain().toggleOrderedList().run())}>1. List</button>
-        <button type="button" aria-label="Todo list" aria-pressed={editor.isActive("taskList")} onClick={() => run(() => editor.chain().toggleTaskList().run())}>☑ Todo</button>
-        <button type="button" aria-label="Add link" aria-pressed={editor.isActive("link")} onClick={addLink}>Link</button>
-      </div>
-      {embedded ? (
-        <div className="note-embedded-editor-surface">
-          <EditorContent editor={editor} />
-        </div>
-      ) : (
+      <div className="note-embedded-editor-surface">
         <EditorContent editor={editor} />
-      )}
+      </div>
       {error && <p className="note-editor-error" role="alert">{error}</p>}
       <div className="note-editor-actions">
-        <span className="note-editor-status" role="status">{isSaving ? "Saving…" : "Markdown source"}</span>
-        <button
-          type="button"
-          className="note-editor-cancel"
-          aria-label="Cancel note editing"
-          onClick={() => {
-            editor.commands.setContent(noteBodyForEditor(body, title), { contentType: "markdown", emitUpdate: false });
-            setError(null);
-            setIsEditing(false);
-            onEditingChange?.(false);
-          }}
+        <div
+          className="note-editor-toolbar"
+          role="toolbar"
+          aria-label="Note formatting"
+          onMouseDown={(event) => event.preventDefault()}
         >
-          Cancel
-        </button>
-        <button type="button" className="note-editor-save" aria-label="Save note" disabled={isSaving} onClick={() => void save()}>
-          {isSaving ? "Saving…" : "Save note"}
-        </button>
+          <span className="note-heading-group">
+            <button type="button" aria-label="Heading 1" aria-pressed={toolbar?.h1} onClick={() => run(() => editor.chain().toggleHeading({ level: 1 }).run())}>H1</button>
+            <button type="button" aria-label="Heading 2" aria-pressed={toolbar?.h2} onClick={() => run(() => editor.chain().toggleHeading({ level: 2 }).run())}>H2</button>
+            <button type="button" aria-label="Heading 3" aria-pressed={toolbar?.h3} onClick={() => run(() => editor.chain().toggleHeading({ level: 3 }).run())}>H3</button>
+          </span>
+          <span className="note-control-divider" />
+          <button type="button" aria-label="Bold" aria-pressed={toolbar?.bold} onClick={() => run(() => editor.chain().toggleBold().run())}>
+            <HugeiconsIcon icon={BoldIcon} size={15} />
+          </button>
+          <button type="button" aria-label="Italic" aria-pressed={toolbar?.italic} onClick={() => run(() => editor.chain().toggleItalic().run())}>
+            <HugeiconsIcon icon={ItalicIcon} size={15} />
+          </button>
+          <span className="note-control-divider" />
+          <button type="button" aria-label="Quote" aria-pressed={toolbar?.quote} onClick={() => run(() => editor.chain().toggleBlockquote().run())}>
+            <HugeiconsIcon icon={QuoteIcon} size={15} />
+          </button>
+          <button type="button" aria-label="Code block" aria-pressed={toolbar?.code} onClick={() => run(() => editor.chain().toggleCodeBlock().run())}>
+            <HugeiconsIcon icon={CodeIcon} size={15} />
+          </button>
+          <button type="button" aria-label="Bulleted list" aria-pressed={toolbar?.bullet} onClick={() => run(() => editor.chain().toggleBulletList().run())}>
+            <HugeiconsIcon icon={ListIcon} size={15} />
+          </button>
+          <button type="button" aria-label="Numbered list" aria-pressed={toolbar?.ordered} onClick={() => run(() => editor.chain().toggleOrderedList().run())}>
+            <HugeiconsIcon icon={ListOrderedIcon} size={15} />
+          </button>
+          <button type="button" aria-label="Todo list" aria-pressed={toolbar?.task} onClick={() => run(() => editor.chain().toggleTaskList().run())}>
+            <HugeiconsIcon icon={ListTodoIcon} size={15} />
+          </button>
+          <button type="button" aria-label="Link" aria-pressed={toolbar?.link} disabled={!toolbar?.hasSelection} onClick={openLinkEditor}>
+            <HugeiconsIcon icon={Link01Icon} size={15} />
+          </button>
+          <span className="note-control-divider" />
+          <button type="button" aria-label="Undo" disabled={!toolbar?.canUndo} onClick={() => run(() => editor.chain().undo().run())}>
+            <HugeiconsIcon icon={RefreshCcwIcon} size={15} />
+          </button>
+          <button type="button" aria-label="Redo" disabled={!toolbar?.canRedo} onClick={() => run(() => editor.chain().redo().run())}>
+            <HugeiconsIcon icon={RefreshCwIcon} size={15} />
+          </button>
+        </div>
+        <div className="note-editor-save-cluster">
+          {isSaving && <span className="note-editor-status" role="status">Saving…</span>}
+          {linkDraft !== null && (
+            <div className="note-link-popover" role="group" aria-label="Link">
+              <input
+                ref={linkInputRef}
+                className="note-link-input"
+                aria-label="Link URL"
+                value={linkDraft}
+                placeholder="https://"
+                onChange={(event) => setLinkDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    applyLink();
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setLinkDraft(null);
+                  }
+                }}
+              />
+              <button type="button" className="note-link-apply" aria-label="Apply link" disabled={!isSafeLink(linkDraft.trim())} onClick={applyLink}>
+                Apply
+              </button>
+              <button type="button" className="note-link-remove" aria-label="Remove link" disabled={!toolbar?.link} onClick={removeLink}>
+                Remove
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            className="note-editor-cancel"
+            aria-label="Cancel note editing"
+            onClick={() => {
+              editor.commands.setContent(noteBodyForEditor(body, title), { contentType: "markdown", emitUpdate: false });
+              setError(null);
+              setLinkDraft(null);
+              setIsEditing(false);
+              onEditingChange?.(false);
+            }}
+          >
+            Cancel
+          </button>
+          <button type="button" className="note-editor-save" aria-label="Save note" disabled={isSaving} onClick={() => void save()}>
+            {isSaving ? "Saving…" : "Save note"}
+          </button>
+        </div>
       </div>
     </div>
   );
