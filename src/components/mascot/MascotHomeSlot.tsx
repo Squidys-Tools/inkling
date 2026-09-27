@@ -1,6 +1,6 @@
 import { LiveMascotFigure } from "./mascotStore";
 import { useRoam } from "./roamStore";
-import { MASCOT_SIZE } from "./roamSpace";
+import { MASCOT_SIZE } from "./drift";
 
 /**
  * The sidebar slot. It holds the body while the mascot is home, and while an
@@ -18,4 +18,5 @@ export function MascotHomeSlot({ isSearchFocused }: { isSearchFocused: boolean }
     </div>
   );
 }
+
 

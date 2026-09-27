@@ -1,112 +1,142 @@
 import { describe, expect, test } from "bun:test";
-import { ACCEL, MAX_SPEED, TURN_RATE, drift, type Bounds, type DriftState } from "./drift";
+import {
+  CRUISE_SPEED,
+  MASCOT_SIZE,
+  SWAY_AMPLITUDE,
+  TURN_RATE,
+  drift,
+  headingOf,
+  speedOf,
+  type DriftState,
+  type Rect,
+  type Terrain,
+} from "./drift";
 
-const ROOM: Bounds = { left: 278, top: 30, right: 1384, bottom: 777 };
-const CENTRE = { x: 800, y: 400 };
+/** A 1166x807 library with a four-column grid in the middle, as the app lays it out. */
+const ROOM: Rect = { left: 270, top: 22, right: 1392, bottom: 785 };
 
-/** Runs the drift for `seconds` at a steady 60fps and returns the final state. */
-function run(from: DriftState, target: { x: number; y: number }, seconds: number, bounds = ROOM) {
+const GRID: Rect = { left: 296, top: 145, right: 1366, bottom: 801 };
+const TERRAIN: Terrain = { room: ROOM, walls: [GRID] };
+
+const inMargin = (p: { x: number; y: number }) =>
+  !(p.x > GRID.left && p.x < GRID.right && p.y > GRID.top && p.y < GRID.bottom);
+
+function run(from: DriftState, aim: number | null, seconds: number, terrain = TERRAIN, cruise = CRUISE_SPEED) {
   const step = 1 / 60;
   let state = from;
-  let elapsed = 0;
   const path: DriftState[] = [];
   for (let t = 0; t < seconds; t += step) {
-    state = drift(state, target, bounds, step, elapsed);
-    elapsed += step;
+    state = drift(state, terrain, step, t, aim, cruise, 0);
     path.push(state);
   }
   return { state, path };
 }
 
 describe("drift", () => {
-  test("it goes to where it was heading, then keeps wandering past it", () => {
-    // It does not park. The turn radius is speed over turn rate, so the mascot
-    // reaches its target, sails on, and comes back around - which is the whole
-    // difference between something wandering and something being placed.
-    const target = { x: 1100, y: 400 };
-    const { state, path } = run({ ...CENTRE, heading: 0, speed: 0 }, target, 20);
-    const distances = path.map((p) => Math.hypot(target.x - p.x, target.y - p.y));
-    expect(Math.min(...distances)).toBeLessThan(8);
-    expect(state.x).toBeGreaterThan(1000);
-    expect(state.speed).toBeGreaterThan(0);
-    // And the distances keep changing, so it is moving rather than circling a
-    // fixed point.
-    const late = distances.slice(-180);
-    expect(Math.max(...late) - Math.min(...late)).toBeGreaterThan(20);
+  test("it goes the way it was pointed, and turns at a limited rate", () => {
+    const start: DriftState = { x: 700, y: 400, vx: 0, vy: 0 };
+    const right = drift(start, TERRAIN, 0.1, 0, 0, CRUISE_SPEED, 0);
+    expect(right.vx).toBeGreaterThan(0);
+    expect(Math.abs(right.vy)).toBeLessThan(0.5);
+    // A change of mind is a curve, not a corner: one frame may not turn further
+    // than the rate allows, however far the aim is from where it was heading.
+    const reversed = drift({ ...start, vx: 60, vy: 0 }, TERRAIN, 0.1, 0, Math.PI, CRUISE_SPEED, 0);
+    const turned = Math.abs(headingOf(reversed) - headingOf({ ...start, vx: 60, vy: 0 }));
+    expect(turned).toBeLessThanOrEqual(TURN_RATE * 0.1 + 1e-9);
   });
 
-  test("it never exceeds its speed or turn rate, whatever it is told", () => {
-    // The whole feel of it is that it cannot be yanked around, so the ceilings
-    // are the contract and a frame longer than a hitch must not break them.
-    const from: DriftState = { x: 800, y: 400, heading: 0, speed: 0 };
-    let state = from;
-    for (let i = 0; i < 2000; i++) {
-      // A target that jumps around every frame is the worst case for a turn rate.
-      const target = { x: 300 + (i % 2) * 1000, y: 100 + (i % 3) * 300 };
-      state = drift(state, target, ROOM, 0.5, i * 0.5);
-      expect(state.speed).toBeLessThanOrEqual(MAX_SPEED + 0.001);
-      expect(Number.isFinite(state.x)).toBe(true);
-      expect(Number.isFinite(state.heading)).toBe(true);
-    }
-    // A single frame may not turn further than the rate allows.
-    const turned = drift(from, { x: 300, y: 100 }, ROOM, 0.1, 0);
-    expect(Math.abs(turned.heading - from.heading)).toBeLessThanOrEqual(TURN_RATE * 0.1 + 1e-9);
-    // And it may not accelerate faster than the rate allows.
-    const accelerated = drift(from, { x: 1400, y: 400 }, ROOM, 0.1, 0);
-    expect(accelerated.speed).toBeLessThanOrEqual(ACCEL * 0.1 + 1e-9);
-  });
-
-  test("it stays inside the room, turning off whatever it reaches", () => {
-    // There is nothing to avoid in the room, but there is a window, and a blot
-    // half off the edge reads as broken.
-    const corners = [
-      { x: ROOM.left - 400, y: ROOM.top - 400 },
-      { x: ROOM.right + 400, y: ROOM.top - 400 },
-      { x: ROOM.left - 400, y: ROOM.bottom + 400 },
-      { x: ROOM.right + 400, y: ROOM.bottom + 400 },
-    ];
-    for (const target of corners) {
-      const { path } = run({ ...CENTRE, heading: 0, speed: 0 }, target, 30);
+  test("it never goes over the grid, however long it drifts", () => {
+    // The grid is a wall, not a filter: the mascot is given a direction that aims
+    // straight at the cards and has to slide along them instead.
+    for (let i = 0; i < 12; i++) {
+      const aim = (i / 12) * Math.PI * 2;
+      const start: DriftState = { x: 700, y: 120, vx: 0, vy: 0 };
+      const { path } = run(start, aim, 90);
       for (const point of path) {
-        expect(point.x).toBeGreaterThanOrEqual(ROOM.left - 0.001);
-        expect(point.x).toBeLessThanOrEqual(ROOM.right + 0.001);
-        expect(point.y).toBeGreaterThanOrEqual(ROOM.top - 0.001);
-        expect(point.y).toBeLessThanOrEqual(ROOM.bottom + 0.001);
+        expect(inMargin(point)).toBe(true);
       }
     }
   });
 
-  test("the path is curved, not a straight line", () => {
-    // This is the whole point of the rewrite. A straight line between two points
-    // is what made the mascot read as a machine sliding, and a wander with no
-    // curvature is the same drawing with softer easing.
-    const { path } = run({ ...CENTRE, heading: 0, speed: 0 }, { x: 1200, y: 200 }, 14);
-    // How far the path strays from the straight line joining its endpoints.
-    const from = { x: CENTRE.x, y: CENTRE.y };
-    const to = { x: 1200, y: 200 };
-    const line = Math.hypot(to.x - from.x, to.y - from.y);
-    const deviation = path.map((p) => {
-      const t = Math.min(1, Math.max(0, ((p.x - from.x) * (to.x - from.x) + (p.y - from.y) * (to.y - from.y)) / (line * line)));
-      return Math.hypot(p.x - (from.x + (to.x - from.x) * t), p.y - (from.y + (to.y - from.y) * t));
-    });
-    const worst = Math.max(...deviation);
-    expect(worst).toBeGreaterThan(20);
+  test("it stays inside the room as well as out of the grid", () => {
+    const { path } = run({ x: 300, y: 400, vx: 0, vy: 0 }, Math.PI, 60);
+    for (const point of path) {
+      expect(point.x).toBeGreaterThanOrEqual(ROOM.left - 0.001);
+      expect(point.y).toBeGreaterThanOrEqual(ROOM.top - 0.001);
+      expect(point.y).toBeLessThanOrEqual(ROOM.bottom + 0.001);
+    }
   });
 
-  test("two runs with the same target do not trace the same path", () => {
-    const a = run({ ...CENTRE, heading: 0, speed: 0 }, { x: 1200, y: 250 }, 8).path;
-    const b = run({ ...CENTRE, heading: Math.PI / 2, speed: 12 }, { x: 1200, y: 250 }, 8).path;
-    const last = a.length - 1;
-    expect(Math.hypot(a[last]!.x - b[last]!.x, a[last]!.y - b[last]!.y)).toBeGreaterThan(5);
+  test("the path is mostly straight, with only a little sway", () => {
+    // Aims dead down, and measures how far the path strays from that line. A
+    // creature wandering has a few degrees of drift on it; a decorative curve
+    // would be tens of degrees and read as a designed swoop.
+    const start: DriftState = { x: 700, y: 60, vx: 0, vy: 0 };
+    const { path } = run(start, 0, 12);
+    const maxStray = Math.max(...path.map((p) => Math.abs(p.y - 60)));
+    // Aims right, so allow sway in the perpendicular axis only.
+    const across = run({ x: 280, y: 400, vx: 0, vy: 0 }, 0, 10);
+    const maxAcross = Math.max(...across.path.map((p) => Math.abs(p.y - 400)));
+    expect(maxStray).toBeLessThan(140);
+    expect(maxAcross).toBeLessThan(140);
+    // And it is genuinely not a ruler-straight line, or there would be no sway.
+    expect(maxAcross).toBeGreaterThan(3);
+    expect(SWAY_AMPLITUDE).toBeLessThan(0.2);
   });
 
-  test("a frame-time spike cannot teleport it", () => {
-    // A long frame after a background tab or a GC pause must not throw the
-    // mascot across the room, so the step is clamped rather than trusted.
-    const from: DriftState = { x: 800, y: 400, heading: 0, speed: MAX_SPEED };
-    const clamped = drift(from, { x: 1400, y: 400 }, ROOM, 30, 0);
-    const honest = drift(from, { x: 1400, y: 400 }, ROOM, 0.05, 0);
-    expect(clamped.x).toBeCloseTo(honest.x, 5);
+  test("it is slow, and never faster than the cruise it was given", () => {
+    expect(CRUISE_SPEED).toBeLessThanOrEqual(40);
+    const { path } = run({ x: 280, y: 400, vx: 0, vy: 0 }, 0, 30);
+    for (const point of path) {
+      expect(speedOf(point)).toBeLessThanOrEqual(CRUISE_SPEED * 1.05);
+    }
+    // A leg that has been going a while sits near its cruise, not near zero.
+    const settled = speedOf(path[path.length - 1]!);
+    expect(settled).toBeGreaterThan(CRUISE_SPEED * 0.7);
+  });
+
+  test("a wall deflects it and it carries on along the wall", () => {
+    // Aimed into the top edge of the grid from the band above. Pinned flat against
+    // a wall it would look stuck, so the deflection is the interesting part: the
+    // normal component is gone and the tangential one carries it along.
+    const start: DriftState = { x: 700, y: 100, vx: 0, vy: 0 };
+    const { path } = run(start, Math.PI / 2, 25);
+    for (const point of path) expect(inMargin(point)).toBe(true);
+    const last = path[path.length - 1]!;
+    // It never pushed into the grid.
+    expect(last.y).toBeLessThanOrEqual(GRID.top + 0.001);
+    // And it travelled along the edge rather than sitting on it.
+    expect(Math.abs(last.x - start.x)).toBeGreaterThan(150);
+    expect(speedOf(last)).toBeGreaterThan(CRUISE_SPEED * 0.5);
+  });
+
+
+  test("no aim means it carries on in its own direction", () => {
+    const drifting: DriftState = { x: 280, y: 400, vx: 40, vy: 0 };
+    const before = headingOf(drifting);
+    const after = headingOf(drift(drifting, TERRAIN, 0.1, 0, null, CRUISE_SPEED, 0));
+    expect(Math.abs(after - before)).toBeLessThan(0.2);
+  });
+
+  test("a frame-time spike cannot fling it across the room", () => {
+    // A long frame after a background tab or a GC pause must not teleport the
+    // mascot, so the step is clamped rather than trusted.
+    const start: DriftState = { x: 280, y: 400, vx: 45, vy: 0 };
+    const spike = drift(start, TERRAIN, 30, 0, 0, CRUISE_SPEED, 0);
+    const honest = drift(start, TERRAIN, 0.05, 0, 0, CRUISE_SPEED, 0);
+    expect(spike.x).toBeCloseTo(honest.x, 5);
+  });
+
+  test("an empty room with no walls still behaves", () => {
+    // A library with no grid laid out yet: nothing to avoid, and it still drifts.
+    const open: Terrain = { room: ROOM, walls: [] };
+    const { state } = run({ x: 700, y: 400, vx: 0, vy: 0 }, 0.7, 10, open);
+    expect(speedOf(state)).toBeGreaterThan(0);
+    expect(state.x).toBeGreaterThan(ROOM.left);
+  });
+
+  test("the mascot is drawn at one size everywhere", () => {
+    expect(MASCOT_SIZE).toBe(44);
   });
 });
 

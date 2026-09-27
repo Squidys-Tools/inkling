@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { LiveMascotFigure } from "./mascotStore";
 import { setRoamBody, setRoamNode, useRoam, watchRoamInputs } from "./roamStore";
-import { MASCOT_SIZE } from "./roamSpace";
+import { MASCOT_SIZE } from "./drift";
 
 /**
  * The mascot's body while it is out of its slot.
@@ -31,5 +31,6 @@ export function MascotRoamLayer() {
     </div>
   );
 }
+
 
 

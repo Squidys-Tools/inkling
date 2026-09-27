@@ -4,13 +4,14 @@ import { MascotRoamLayer } from "./MascotRoamLayer";
 import {
   getRoamState,
   roamAwakeLeft,
+  roamMotion,
   setRoamManual,
   setRoamSeed,
   setRoamSpeed,
   stepRoam,
   useRoam,
 } from "./roamStore";
-import { MASCOT_SIZE } from "./roamSpace";
+import { MASCOT_SIZE } from "./drift";
 
 /**
  * Dev-only board for the wandering mascot. Open with ?mascot-roam.
@@ -180,7 +181,7 @@ export function RoamBoard() {
         </div>
         <div style={{ color: "#8d867c", marginBottom: 8 }}>
           away {String(roam.away)} · phase {roam.phase} · mood {getRoamState()?.mood ?? "—"} · stops {roam.stops} ·
-          awake {(roamAwakeLeft() / 1000).toFixed(1)}s · {manual ? "manual" : "auto"} · {MASCOT_SIZE}px
+          at {roamMotion().x},{roamMotion().y} &#183; {roamMotion().speed}px/s &#183; awake {(roamAwakeLeft() / 1000).toFixed(1)}s &#183; {manual ? "manual" : "auto"} &#183; {MASCOT_SIZE}px
         </div>
         <ol style={{ margin: 0, paddingLeft: 18, color: "#c9c2b6" }}>
           {lines.map((line) => (
@@ -203,4 +204,6 @@ const button: CSSProperties = {
   cursor: "pointer",
   font: "inherit",
 };
+
+
 

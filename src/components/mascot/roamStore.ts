@@ -1,15 +1,20 @@
 /**
  * Glue between the wandering controller and the real library.
  *
- * The controller in `roam.ts` decides, this file knows where things are: it
- * measures the library, turns a decision into somewhere to drift toward, moves
- * the overlay, and hands the engine a face. It owns no animation loop of its
- * own - every frame rides the mascot engine's existing clock, which already
- * stops for a hidden tab and for reduced motion.
+ * The controller in `roam.ts` decides when and with what face. This file knows
+ * where things are: it measures the library, keeps the mascot somewhere legal,
+ * moves it, and hands the engine a face. It owns no animation loop of its own -
+ * every frame rides the mascot engine's existing clock, which already stops for a
+ * hidden tab and for reduced motion.
  *
- * Nothing here re-renders React at frame rate. The overlay registers its node
- * and this file writes one transform to it per frame; React only hears about
- * mounting and unmounting, which happens twice an outing.
+ * The movement is a direction, not a destination. The mascot is told which way to
+ * go and left to get on with it, sliding along the card grid if it drifts into
+ * one. Every so often the controller asks for a different part of the library and
+ * the mascot squashes out and swells up somewhere else instead.
+ *
+ * Nothing here re-renders React at frame rate. The overlay registers its nodes
+ * and this file writes one transform per frame; React only hears about mounting
+ * and unmounting, which happens twice an outing.
  */
 
 import { useSyncExternalStore } from "react";
@@ -25,14 +30,30 @@ import {
   type RoamActionKind,
   type RoamState,
 } from "./roam";
-import { drift, type Bounds, type DriftState, type Vec } from "./drift";
-import { MASCOT_SIZE, lookTargets, pickTarget, roamBounds, type TargetPreference } from "./roamSpace";
+import {
+  CRUISE_SPEED,
+  MASCOT_SIZE,
+  drift,
+  headingOf,
+  pickDirection,
+  speedOf,
+  type DriftState,
+  type Rect,
+  type Terrain,
+  type Vec,
+} from "./drift";
+import { farPoint, freePoint, hasRoom, lookTargets, terrainFor } from "./roamSpace";
 
 /** The body state out in the library: a slow sway that keeps whatever face it is given. */
 const ROAM_STATE = "inkling-sway" as const;
 
 const CONTAINER_SELECTOR = ".main-content";
 const MARK_SELECTOR = ".brand-mark";
+/**
+ * The things it is not allowed to be on: the cards, and the strips of controls
+ * above them. Both are measured and handed to the geometry as walls.
+ */
+const BLOCKER_SELECTORS = [".library-grid", ".capture-bar", ".library-toolbar"];
 const CARD_SELECTOR = ".library-card";
 
 /** The virtualized window is the only thing in the DOM, but cap the gaze set. */
@@ -50,11 +71,17 @@ const RECHECK_MS = 500;
  * physical, and hurrying it reads as a glitch in the app rather than something
  * alive deciding to be elsewhere.
  */
-const HOP_SHRINK_MS = 280;
+const HOP_SHRINK_MS = 300;
 const HOP_SHRINK_EASE = "cubic-bezier(.5,0,.9,.4)";
 const HOP_SHRINK_TO = 0;
-const HOP_GROW_MS = 460;
+const HOP_GROW_MS = 480;
 const HOP_GROW_EASE = "cubic-bezier(.18,1.28,.36,1)";
+
+/**
+ * How much a leg varies its pace. Every leg is a little different, because a
+ * mascot that moves at exactly one speed every time is a machine on rails.
+ */
+const CRUISE_JITTER = 0.35;
 
 export interface RoamSnapshot {
   away: boolean;
@@ -64,30 +91,19 @@ export interface RoamSnapshot {
 }
 
 interface Layout {
-  /** The panel it moves inside. */
-  panel: Bounds;
-  /** The same, inset, which is the actual room. */
-  room: Bounds;
+  panel: Rect;
+  terrain: Terrain;
   /** Card rectangles, for looking at. Never for standing on. */
-  cards: Bounds[];
+  cards: Rect[];
   home: Vec;
 }
-
-const TARGET_PREFERENCE: Record<string, TargetPreference> = {
-  near: "near",
-  across: "across",
-  margin: "edge",
-  item: "any",
-  activity: "near",
-  home: "any",
-};
 
 let rand: Rand = Math.random;
 let clockScale = 1;
 let manual = false;
 let state: RoamState | null = null;
 let layout: Layout | null = null;
-let bounds: Bounds | null = null;
+let terrain: Terrain | null = null;
 let occupied = false;
 let captureFailed = false;
 let lastActivityAt = -Infinity;
@@ -98,30 +114,18 @@ let virtualNow = 0;
 let lastRaw = 0;
 let started = false;
 
-/** Where the mascot is right now, and which way it is looking to get somewhere. */
-let motion: DriftState = { x: 0, y: 0, heading: 0, speed: 0 };
-/** What it is currently drifting toward. */
-let target: Vec | null = null;
+let motion: DriftState = { x: 0, y: 0, vx: 0, vy: 0 };
+/** The direction it was last told to head in, or null to keep its own. */
+let aim: number | null = null;
+/** This leg's pace. */
+let cruise = CRUISE_SPEED;
+/** A random offset on the sway, so no two legs drift on the same line. */
+let swayPhase = 0;
 let legStartedAt = 0;
 let looking: Look | null = null;
 
 let node: HTMLDivElement | null = null;
 let body: HTMLDivElement | null = null;
-
-/**
- * The overlay hands over its nodes as callback refs, because it renders null
- * until an outing starts and an effect would never see them. They are written to
- * directly once per frame, which is the whole reason the mascot can move
- * continuously without re-rendering anything.
- */
-export function setRoamNode(outer: HTMLDivElement | null) {
-  node = outer;
-}
-
-export function setRoamBody(inner: HTMLDivElement | null) {
-  body = inner;
-}
-
 
 let snapshot: RoamSnapshot = {
   away: false,
@@ -137,29 +141,40 @@ function publish(next: Partial<RoamSnapshot>) {
   for (const fn of subs) fn();
 }
 
-function paint(x: number, y: number) {
+/**
+ * The overlay hands over its nodes as callback refs, because it renders null
+ * until an outing starts and an effect would never see them. They are written to
+ * directly once per frame, which is the whole reason the mascot can move
+ * continuously without re-rendering anything.
+ */
+export function setRoamNode(outer: HTMLDivElement | null) {
+  node = outer;
+}
 
+export function setRoamBody(inner: HTMLDivElement | null) {
+  body = inner;
+}
+
+function paint(x: number, y: number) {
   if (!node) return;
   const half = MASCOT_SIZE / 2;
   node.style.transform = `translate3d(${x - half}px, ${y - half}px, 0)`;
 }
 
-
 // --- measuring ------------------------------------------------------------
 
-function toBounds(element: Element): Bounds | null {
+function toRect(element: Element): Rect | null {
   const box = element.getBoundingClientRect();
   if (box.width <= 0 || box.height <= 0) return null;
   return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
 }
 
-function cardBounds(root: Element): Bounds[] {
-  const out: Bounds[] = [];
+function cardRects(root: Element): Rect[] {
+  const out: Rect[] = [];
   for (const element of root.querySelectorAll(CARD_SELECTOR)) {
     if (out.length >= MAX_CARDS) break;
-    const box = element.getBoundingClientRect();
-    if (box.width <= 0 || box.height <= 0) continue;
-    out.push({ left: box.left, top: box.top, right: box.right, bottom: box.bottom });
+    const rect = toRect(element);
+    if (rect) out.push(rect);
   }
   return out;
 }
@@ -169,33 +184,25 @@ function measure(): Layout | null {
   const panelElement = document.querySelector(CONTAINER_SELECTOR);
   const markElement = document.querySelector(MARK_SELECTOR);
   if (!panelElement || !markElement) return null;
-  const panel = toBounds(panelElement);
-  const mark = toBounds(markElement);
+  const panel = toRect(panelElement);
+  const mark = toRect(markElement);
   if (!panel || !mark) return null;
   // A hidden sidebar leaves the mark off screen, and then there is nowhere to
   // come home to, so the mascot stays put.
   if (mark.right < 0 || mark.left > window.innerWidth) return null;
   return {
     panel,
-    room: roamBounds(panel),
-    cards: cardBounds(panelElement),
+    terrain: terrainFor(panel, BLOCKER_SELECTORS.map((selector) => toRect(document.querySelector(selector) ?? panelElement))),
+    cards: cardRects(panelElement),
     home: { x: (mark.left + mark.right) / 2, y: (mark.top + mark.bottom) / 2 },
   };
 }
 
 function refreshLayout() {
   layout = measure();
-  bounds = layout?.room ?? null;
+  terrain = layout?.terrain ?? null;
   needsCheck = false;
   lastCheckAt = virtualNow;
-  if (!bounds) return;
-  // A resize or a scroll can leave the mascot outside the room it is now in.
-  // There is nothing to avoid, so the only correction is putting it back in.
-  const pad = 8;
-  if (motion.x < bounds.left + pad) motion.x = bounds.left + pad;
-  if (motion.x > bounds.right - pad) motion.x = bounds.right - pad;
-  if (motion.y < bounds.top + pad) motion.y = bounds.top + pad;
-  if (motion.y > bounds.bottom - pad) motion.y = bounds.bottom - pad;
 }
 
 // --- deciding -------------------------------------------------------------
@@ -213,28 +220,13 @@ function pickGazePoint(): Vec | null {
   return points[Math.floor(rand() * points.length)] ?? null;
 }
 
-/**
- * Turn a decision into a place to drift toward.
- *
- * null means there is nowhere to go, which only happens when the library is not
- * on screen at all. There is no longer a notion of a spot being refused.
- */
-function resolve(action: RoamAction): { to: Vec | null; look: Look | null } | null {
-  if (!layout || !bounds) return null;
-  if (action.target === "home") return { to: layout.home, look: null };
-  if (action.target === "item" || action.target === "activity") {
-    const point = pickGazePoint();
-    // Looking at something and drifting toward the general area of it is the
-    // whole difference between a mascot that is aware of the library and one
-    // that is drifting through an empty room.
-    const toward = action.target === "activity" ? pointer ?? point : point;
-    const to = toward
-      ? pickTarget(bounds, motion, toward.x > motion.x ? "across" : "any", rand)
-      : pickTarget(bounds, motion, "any", rand);
-    return { to, look: toward ? gaze(motion, toward, 0.85) : null };
-  }
-  const to = pickTarget(bounds, motion, TARGET_PREFERENCE[action.target] ?? "any", rand);
-  return { to, look: gaze(motion, to, 0.5) };
+/** A new direction, and a new pace to go at it with. */
+function chooseLeg(from: Vec) {
+  aim = pickDirection(rand);
+  cruise = CRUISE_SPEED * (1 - CRUISE_JITTER + rand() * CRUISE_JITTER * 2);
+  swayPhase = rand() * Math.PI * 2;
+  legStartedAt = virtualNow;
+  void from;
 }
 
 // --- the squash -----------------------------------------------------------
@@ -249,48 +241,85 @@ function clearHop() {
   }
 }
 
-/** One style write, so the squash reads the same whether React knows or not. */
-function paintScale(scale: number, hopMs: number, ease: string) {
+/**
+ * The squash is an intent, applied by the frame loop rather than written once.
+ *
+ * It used to be a requestAnimationFrame fired in the same tick as the publish
+ * that mounts the overlay, and the node did not exist yet, so the write was
+ * dropped and the mascot sat at its stylesheet size of zero for the rest of the
+ * outing. The position does not have this problem because it is written every
+ * frame anyway, which is exactly why only the scale went missing. Retrying from
+ * the loop means a write that finds no node simply happens on the next frame.
+ */
+let wantScale = 1;
+let wantTransition = "";
+let appliedScale = Number.NaN;
+let appliedTransition = "";
+
+function applyScale() {
   if (!body) return;
-  body.style.transform = `scale(${scale})`;
-  body.style.transition = `transform ${hopMs}ms ${ease}`;
+  if (wantScale === appliedScale && wantTransition === appliedTransition) return;
+  appliedScale = wantScale;
+  appliedTransition = wantTransition;
+  body.style.transform = `scale(${wantScale})`;
+  body.style.transition = wantTransition || "none";
 }
 
-function hopHome() {
+function setSquash(scale: number, ms: number, ease: string) {
+  wantScale = scale;
+  wantTransition = `transform ${ms}ms ${ease}`;
+}
+
+function growInto(point: Vec) {
+  motion = { x: point.x, y: point.y, vx: 0, vy: 0 };
+  // Put it where it is going while it is still invisible, so the swell is
+  // somewhere new rather than a slide across the library.
+  paint(point.x, point.y);
+  chooseLeg(point);
+  setSquash(1, HOP_GROW_MS, HOP_GROW_EASE);
+  applyScale();
+}
+
+/**
+ * Shrink, sit invisible, swell up somewhere else, pick a direction.
+ *
+ * One generation bump per hop. An earlier version bumped it in the caller and
+ * again inside the squash helper, so the guard below always tripped, the swell
+ * never ran, and the mascot shrank out of an outing and stayed at zero for the
+ * rest of it.
+ */
+function hopTo(point: Vec) {
   clearHop();
   const seq = ++hopSeq;
-  // Shrink away where it is, then the overlay unmounts and the slot takes over.
-  paintScale(HOP_SHRINK_TO, HOP_SHRINK_MS, HOP_SHRINK_EASE);
+  setSquash(HOP_SHRINK_TO, HOP_SHRINK_MS, HOP_SHRINK_EASE);
+  applyScale();
   hopTimer = setTimeout(() => {
     hopTimer = null;
     if (seq !== hopSeq) return;
+    growInto(point);
+  }, HOP_SHRINK_MS);
+}
+
+function hopOut() {
+  clearHop();
+  ++hopSeq;
+  setSquash(HOP_SHRINK_TO, HOP_SHRINK_MS, HOP_SHRINK_EASE);
+  applyScale();
+  hopTimer = setTimeout(() => {
+    hopTimer = null;
     finishOuting();
   }, HOP_SHRINK_MS);
 }
 
 function finishOuting() {
-  motion = { x: 0, y: 0, heading: 0, speed: 0 };
-  target = null;
+  motion = { x: 0, y: 0, vx: 0, vy: 0 };
+  aim = null;
   looking = null;
+  wantScale = 1;
+  wantTransition = "";
   pushMascotLook(null);
   pushRoamParams(null);
   publish({ away: false, phase: "home", stops: 0, last: null });
-}
-
-function beginOuting(to: Vec) {
-  clearHop();
-  const seq = ++hopSeq;
-  // Start from the slot, so leaving reads as leaving. The body mounts at zero
-  // size from its stylesheet, so the frame the node is created in shows nothing
-  // and the store places it on the very next frame, before it is ever visible.
-  motion = { x: to.x, y: to.y, heading: motion.heading, speed: 0 };
-  target = to;
-  legStartedAt = virtualNow;
-  publish({ away: true, phase: "away" });
-  requestAnimationFrame(() => {
-    if (seq !== hopSeq) return;
-    paintScale(1, HOP_GROW_MS, HOP_GROW_EASE);
-  });
 }
 
 
@@ -311,17 +340,21 @@ function signals(force: boolean) {
     captureFailed,
     reducedMotion,
     hidden: typeof document !== "undefined" && document.hidden,
-    canRoam: bounds !== null,
+    canRoam: terrain !== null && hasRoom(terrain),
     force,
   };
+}
+
+/** A view, dialog, reader, or a drag owns the screen: hold still, keep the budget. */
+function holding() {
+  return occupied;
 }
 
 function advance(now: number, force = false) {
   if (!state) state = createRoamState(now, rand);
   if (needsCheck && (force || now - lastCheckAt >= RECHECK_MS)) refreshLayout();
 
-  const input = signals(force);
-  const tick = tickRoam(state, input, rand);
+  const tick = tickRoam(state, signals(force), rand);
   if (!tick.action) {
     state = tick.state;
     return;
@@ -330,38 +363,61 @@ function advance(now: number, force = false) {
   const action = tick.action;
 
   if (action.kind === "arrive") {
-    hopHome();
+    hopOut();
     return;
   }
+
   // A failed capture is worth one sad walk home, not a mascot that stays glum
   // until the next successful capture happens to clear the flag.
   if (action.expression === "triste") captureFailed = false;
   pushRoamParams({ state: ROAM_STATE, expression: action.expression });
 
-  const walkingHome = action.kind === "go-home";
-  if (walkingHome) {
-    target = layout?.home ?? null;
+  if (!terrain) return;
+
+  if (action.kind === "go-home") {
+    looking = null;
+    pushMascotLook(null);
+    aim = Math.atan2(layout!.home.y - motion.y, layout!.home.x - motion.x);
     legStartedAt = now;
     publish({ phase: "returning", stops: state.stops, last: describe(action) });
     return;
   }
 
-  const resolved = resolve(action);
-  if (!resolved) {
-    // Nowhere to go at all, so the walk is over rather than the mascot hovering
-    // in an empty room waiting for somewhere to appear.
-    target = layout?.home ?? null;
-    publish({ phase: "returning", stops: state.stops, last: describe(action) });
+  // A glance, and a new direction to carry on in. Looking is not a place.
+  if (action.target === "item" || action.target === "activity") {
+    const point = action.target === "activity" ? pointer ?? pickGazePoint() : pickGazePoint();
+    looking = point ? gaze(motion, point, 0.85) : null;
+    pushMascotLook(looking);
+  }
+
+  if (!snapshot.away) {
+    // First thing it does when it leaves: swell up somewhere in the free space,
+    // already facing the direction it is about to set off in.
+    const start = freePoint(terrain, rand) ?? layout!.home;
+    motion = { x: start.x, y: start.y, vx: 0, vy: 0 };
+    chooseLeg(start);
+    publish({ away: true, phase: "away", stops: state.stops, last: describe(action) });
+    growInto(start);
     return;
   }
-  looking = resolved.look;
-  pushMascotLook(looking);
-  if (!snapshot.away && resolved.to) {
-    beginOuting(resolved.to);
-    return;
+
+
+  // A crossing or a drift to the margins is a request to be somewhere else, and
+  // the only way to be somewhere else without crossing the grid is to go there.
+  // Not while the user is mid-dialog: it holds still then, rather than blinking
+  // across the room behind somebody's back.
+  const relocating = !holding() && (action.target === "across" || action.target === "margin");
+  if (relocating) {
+    const elsewhere = farPoint(terrain, motion, rand);
+    if (elsewhere) {
+      hopTo(elsewhere);
+      publish({ phase: "away", stops: state.stops, last: describe(action) });
+      return;
+    }
   }
-  target = resolved.to;
-  legStartedAt = now;
+
+
+  chooseLeg(motion);
   publish({ phase: "away", stops: state.stops, last: describe(action) });
 }
 
@@ -370,9 +426,9 @@ function describe(action: RoamAction): RoamSnapshot["last"] {
 }
 
 /**
- * The frame. Steer, write the transform, and let the controller decide when the
- * next leg starts. This runs on the mascot engine's rAF, which is already going,
- * so continuous movement costs no additional loop.
+ * The frame. One style write, and the controller decides when the next leg starts.
+ * This runs on the mascot engine's rAF, which is already going, so continuous
+ * movement costs no additional loop.
  */
 function onClock(clock: number) {
   const raw = clock * 1000;
@@ -386,26 +442,25 @@ function onClock(clock: number) {
   }
   if (manual) return;
 
-  const seconds = Math.min((raw - lastRaw) / 1000, 0.05) || 0.016;
-  if (snapshot.away && bounds) {
+  if (snapshot.away && terrain) {
+    const seconds = Math.min((raw - lastRaw) / 1000, 0.05) || 0.016;
     if (needsCheck && virtualNow - lastCheckAt >= RECHECK_MS) refreshLayout();
-    if (target) {
-      // The room is the inset library, which does not include the sidebar slot,
-      // so a target outside it - which is exactly the walk home - would be pushed
-      // back inside forever and the mascot could never get home. Contain against
-      // the union of the room and wherever it is headed.
-      const room = target
-        ? {
-            left: Math.min(bounds.left, target.x),
-            top: Math.min(bounds.top, target.y),
-            right: Math.max(bounds.right, target.x),
-            bottom: Math.max(bounds.bottom, target.y),
-          }
-        : bounds;
-      motion = drift(motion, target, room, seconds, (virtualNow - legStartedAt) / 1000);
+    if (terrain) {
+      motion = holding()
+        ? motion
+        : drift(motion, terrain, seconds, (virtualNow - legStartedAt) / 1000, aim, cruise, swayPhase);
+      // A wall pushes the mascot off its heading. Take the deflected direction as
+      // the new aim, so it slides along the grid and carries on instead of
+      // pressing into it for the rest of the leg, which reads as stuck.
+      if (aim !== null && speedOf(motion) > 1 && Math.cos(headingOf(motion) - aim) < 0) {
+        aim = headingOf(motion);
+      }
+      paint(motion.x, motion.y);
     }
-    paint(motion.x, motion.y);
   }
+  // Applied every frame whether or not the mascot is out, so a squash requested
+  // in the same tick the overlay mounts lands on the first frame that has a node.
+  applyScale();
   advance(virtualNow);
 }
 
@@ -446,8 +501,8 @@ export function watchRoamInputs(): () => void {
   window.addEventListener("resize", invalidate, { passive: true });
   window.addEventListener("scroll", invalidate, capture);
 
-  // The grid changes height as items arrive or leave, which moves the room
-  // around the mascot without a scroll or a resize.
+  // The grid changes height as items arrive or leave, which moves the wall the
+  // mascot is drifting along without a scroll or a resize.
   const observer = typeof ResizeObserver === "function" ? new ResizeObserver(invalidate) : null;
   const container = document.querySelector(CONTAINER_SELECTOR);
   if (observer && container) observer.observe(container);
@@ -498,6 +553,11 @@ export function roamAwakeLeft(): number {
   return state ? awakeLeft(state) : 0;
 }
 
+/** Where it is and how fast, for the dev board. */
+export function roamMotion(): { x: number; y: number; speed: number; heading: number } {
+  return { x: Math.round(motion.x), y: Math.round(motion.y), speed: +speedOf(motion).toFixed(1), heading: +headingOf(motion).toFixed(2) };
+}
+
 // --- dev board controls ---------------------------------------------------
 
 /**
@@ -542,6 +602,4 @@ function getRoamSnapshot(): RoamSnapshot {
 export function useRoam(): RoamSnapshot {
   return useSyncExternalStore(subscribeRoam, getRoamSnapshot);
 }
-
-
 
