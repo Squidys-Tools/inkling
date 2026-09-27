@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { markdownToPlainText, normalizeNoteBody, noteBodyForEditor, noteBodyForPreview, noteBodyForStorage } from "./notes";
+import {
+  isSafeNoteLink,
+  markdownToPlainText,
+  normalizeNoteBody,
+  noteBodyForEditor,
+  noteBodyForPreview,
+  noteBodyForStorage,
+} from "./notes";
 
 describe("markdownToPlainText", () => {
   test("removes common note formatting while keeping readable text", () => {
@@ -52,5 +59,25 @@ describe("noteBodyForStorage", () => {
 describe("normalizeNoteBody", () => {
   test("normalizes line endings and trims the source", () => {
     expect(normalizeNoteBody("\r\n  # Note\r\nbody  \r\n")).toBe("# Note\nbody");
+  });
+});
+
+describe("isSafeNoteLink", () => {
+  test("accepts web URLs", () => {
+    expect(isSafeNoteLink("https://example.com/dillard")).toBe(true);
+    expect(isSafeNoteLink("http://example.com")).toBe(true);
+  });
+
+  test("refuses schemes that would run or embed on open", () => {
+    expect(isSafeNoteLink("javascript:alert(1)")).toBe(false);
+    expect(isSafeNoteLink("data:text/html,<script>alert(1)</script>")).toBe(false);
+    expect(isSafeNoteLink("file:///C:/Windows/System32/config/SAM")).toBe(false);
+    expect(isSafeNoteLink("vbscript:msgbox(1)")).toBe(false);
+  });
+
+  test("refuses anything that is not a URL", () => {
+    expect(isSafeNoteLink("")).toBe(false);
+    expect(isSafeNoteLink("   ")).toBe(false);
+    expect(isSafeNoteLink("example.com")).toBe(false);
   });
 });

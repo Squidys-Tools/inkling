@@ -75,3 +75,15 @@ export function noteBodyForStorage(markdown: string | undefined, title: string, 
 export function noteDescription(value: string | undefined): string {
   return markdownToPlainText(value ?? "");
 }
+
+// A note link opens in the user's browser, so only real web URLs are storable.
+// Everything else, including `javascript:` and data payloads, is refused here
+// before it can reach the stored Markdown.
+export function isSafeNoteLink(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}

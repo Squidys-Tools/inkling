@@ -14,7 +14,7 @@ import {
   RefreshCwIcon,
 } from "@hugeicons/core-free-icons";
 import { noteEditorExtensions, renderNoteMarkdown } from "../lib/noteMarkdown";
-import { noteBodyForEditor, noteBodyForPreview, noteBodyForStorage } from "../lib/notes";
+import { isSafeNoteLink, noteBodyForEditor, noteBodyForPreview, noteBodyForStorage } from "../lib/notes";
 
 type RichNoteEditorProps = {
   body?: string;
@@ -40,15 +40,6 @@ const IDLE_TOOLBAR = {
   canUndo: false,
   canRedo: false,
 };
-
-function isSafeLink(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
-  } catch {
-    return false;
-  }
-}
 
 export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded = false }: RichNoteEditorProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -159,7 +150,7 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
 
   const applyLink = () => {
     const value = (linkDraft ?? "").trim();
-    if (!isSafeLink(value)) return;
+    if (!isSafeNoteLink(value)) return;
     editor.chain().focus().extendMarkRange("link").setLink({ href: value }).run();
     setLinkDraft(null);
   };
@@ -269,7 +260,7 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
                   }
                 }}
               />
-              <button type="button" className="note-link-apply" aria-label="Apply link" disabled={!isSafeLink(linkDraft.trim())} onClick={applyLink}>
+              <button type="button" className="note-link-apply" aria-label="Apply link" disabled={!isSafeNoteLink(linkDraft.trim())} onClick={applyLink}>
                 Apply
               </button>
               <button type="button" className="note-link-remove" aria-label="Remove link" disabled={!toolbar?.link} onClick={removeLink}>
