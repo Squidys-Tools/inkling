@@ -28,7 +28,7 @@ export type RoamActionKind = "look" | "wander" | "cross" | "drift" | "go-home" |
 type RoamMove = Exclude<RoamActionKind, "go-home" | "arrive">;
 
 /** What the action wants the caller to aim at. Resolution lives outside this file. */
-export type RoamTarget = "item" | "activity" | "near" | "across" | "margin" | "home";
+type RoamTarget = "item" | "activity" | "near" | "across" | "margin" | "home";
 
 export interface RoamAction {
   kind: RoamActionKind;
@@ -392,3 +392,4 @@ export function createSeededRandom(seed: number): Rand {
     return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
   };
 }
+

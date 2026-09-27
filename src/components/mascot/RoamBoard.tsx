@@ -10,7 +10,7 @@ import {
   stepRoam,
   useRoam,
 } from "./roamStore";
-import { MASCOT_SIZE } from "./safeSpots";
+import { MASCOT_SIZE } from "./roamSpace";
 
 /**
  * Dev-only board for the wandering mascot. Open with ?mascot-roam.
@@ -203,3 +203,4 @@ const button: CSSProperties = {
   cursor: "pointer",
   font: "inherit",
 };
+

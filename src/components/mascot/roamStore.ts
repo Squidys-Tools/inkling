@@ -2,13 +2,14 @@
  * Glue between the wandering controller and the real library.
  *
  * The controller in `roam.ts` decides, this file knows where things are: it
- * measures the library, resolves the target the controller asked for, moves the
- * overlay, and hands the engine a face. It owns no animation loop of its own —
- * every decision rides the mascot engine's existing clock, which already stops
- * for a hidden tab and for reduced motion.
+ * measures the library, turns a decision into somewhere to drift toward, moves
+ * the overlay, and hands the engine a face. It owns no animation loop of its
+ * own - every frame rides the mascot engine's existing clock, which already
+ * stops for a hidden tab and for reduced motion.
  *
- * Nothing here re-renders App. The overlay subscribes to a small snapshot that
- * only changes on a decision, so the 60fps frames stay inside the figures.
+ * Nothing here re-renders React at frame rate. The overlay registers its node
+ * and this file writes one transform to it per frame; React only hears about
+ * mounting and unmounting, which happens twice an outing.
  */
 
 import { useSyncExternalStore } from "react";
@@ -23,143 +24,111 @@ import {
   type RoamAction,
   type RoamActionKind,
   type RoamState,
-  type RoamTarget,
 } from "./roam";
-import {
-  findSafeSpot,
-  isSafeSpot,
-  lookTargets,
-  nearestSafeSpot,
-  rectCenter,
-  type Point,
-  type Rect,
-  type SpotPreference,
-} from "./safeSpots";
+import { drift, type Bounds, type DriftState, type Vec } from "./drift";
+import { MASCOT_SIZE, lookTargets, pickTarget, roamBounds, type TargetPreference } from "./roamSpace";
 
 /** The body state out in the library: a slow sway that keeps whatever face it is given. */
 const ROAM_STATE = "inkling-sway" as const;
 
 const CONTAINER_SELECTOR = ".main-content";
 const MARK_SELECTOR = ".brand-mark";
-/**
- * Anything the user reads, queried inside the container rather than by a
- * `.library-grid` ancestor. The serendipity view renders its one item as
- * `.serendipity-art > .library-card-slot > .library-card` with no grid above
- * it, and that view is exactly where the Keep and Forget buttons live, so a
- * grid-scoped query would hand the mascot the whole stage as free space.
- */
 const CARD_SELECTOR = ".library-card";
-const TOAST_SELECTOR = "[data-sonner-toast]";
-/** Controls, chrome, and anything modal. The mascot is never allowed on them. */
-const BLOCKERS = [
-  ".capture-bar",
-  ".library-toolbar",
-  ".sidebar",
-  ".expanded-overlay",
-  ".capture-modal",
-  ".settings-modal",
-  ".pdf-viewer-overlay",
-];
 
-/** The virtualized window is the only thing in the DOM, but cap the walk anyway. */
-const MAX_OBSTACLES = 90;
-
-/**
- * Free space the mascot insists on. Without it the mascot squeezes into a
- * four-pixel sliver beside the grid, which reads as stuck rather than alive.
- */
-const MIN_ROOM = 6;
+/** The virtualized window is the only thing in the DOM, but cap the gaze set. */
+const MAX_CARDS = 60;
 
 /** Layout re-checks are throttled: a scroll must not become a layout storm. */
-const RECHECK_MS = 300;
-
-/** How long the hand-off to the sidebar takes at the end of a walk home. */
-const FADE_MS = 320;
+const RECHECK_MS = 500;
 
 /**
- * A hop is two halves: squash down out of one spot, then swell back up in
- * another. The mascot is a blot with no legs, so it never travelled — it
- * blinked, and a slide across the library read as a mechanical dash rather than
- * an animal being somewhere. Shrinking away and growing back reads as a hop, and
- * because it is gone in between, nothing about the route matters any more: the
- * mascot can be anywhere in the library instead of only where it could walk.
+ * The only two moments the mascot is not drifting. It appears when it leaves the
+ * slot and it disappears when it goes back, and both are a squash rather than a
+ * move, because a move is what it does everything else now.
  *
- * The shrink is quick and the swell is slower with a little overshoot, which is
- * what makes it land like something with weight.
+ * Slow on purpose. A blot that vanishes and reappears is doing something
+ * physical, and hurrying it reads as a glitch in the app rather than something
+ * alive deciding to be elsewhere.
  */
-const HOP_SHRINK_MS = 150;
-const HOP_SHRINK_EASE = "cubic-bezier(.55,0,1,.45)";
+const HOP_SHRINK_MS = 280;
+const HOP_SHRINK_EASE = "cubic-bezier(.5,0,.9,.4)";
 const HOP_SHRINK_TO = 0;
-const HOP_GROW_EASE = "cubic-bezier(.2,1.35,.35,1)";
-
+const HOP_GROW_MS = 460;
+const HOP_GROW_EASE = "cubic-bezier(.18,1.28,.36,1)";
 
 export interface RoamSnapshot {
   away: boolean;
   phase: RoamState["phase"];
-  x: number;
-  y: number;
-  /** How long the current hop half takes, in ms. */
-  hopMs: number;
-  /** 0 while it shrinks away, 1 once it is standing somewhere. */
-  scale: number;
-  /** The curve for this half of the hop. The layer stays dumb about it. */
-  ease: string;
-  /** ms to wait before the last of the walk home fades out */
-  fadeMs: number;
   stops: number;
-  last: { kind: RoamActionKind; target: RoamTarget; expression: string } | null;
+  last: { kind: RoamActionKind; target: string; expression: string } | null;
 }
-
 
 interface Layout {
-  container: Rect;
-  obstacles: Rect[];
-  cards: Rect[];
-  home: Point;
+  /** The panel it moves inside. */
+  panel: Bounds;
+  /** The same, inset, which is the actual room. */
+  room: Bounds;
+  /** Card rectangles, for looking at. Never for standing on. */
+  cards: Bounds[];
+  home: Vec;
 }
 
-/** A decision turned into a place, or a place to look at. */
-interface Resolved {
-  to: Point | null;
-  look: Look | null;
-}
-
-const SPOT_PREFERENCE: Partial<Record<RoamTarget, SpotPreference>> = {
+const TARGET_PREFERENCE: Record<string, TargetPreference> = {
   near: "near",
   across: "across",
-  margin: "margin",
+  margin: "edge",
+  item: "any",
+  activity: "near",
+  home: "any",
 };
 
 let rand: Rand = Math.random;
-let speed = 1;
+let clockScale = 1;
 let manual = false;
 let state: RoamState | null = null;
 let layout: Layout | null = null;
-let hasRoom = false;
-let position: Point | null = null;
+let bounds: Bounds | null = null;
 let occupied = false;
 let captureFailed = false;
 let lastActivityAt = -Infinity;
-let pointer: Point | null = null;
+let pointer: Vec | null = null;
 let needsCheck = true;
 let lastCheckAt = 0;
 let virtualNow = 0;
 let lastRaw = 0;
 let started = false;
 
+/** Where the mascot is right now, and which way it is looking to get somewhere. */
+let motion: DriftState = { x: 0, y: 0, heading: 0, speed: 0 };
+/** What it is currently drifting toward. */
+let target: Vec | null = null;
+let legStartedAt = 0;
+let looking: Look | null = null;
+
+let node: HTMLDivElement | null = null;
+let body: HTMLDivElement | null = null;
+
+/**
+ * The overlay hands over its nodes as callback refs, because it renders null
+ * until an outing starts and an effect would never see them. They are written to
+ * directly once per frame, which is the whole reason the mascot can move
+ * continuously without re-rendering anything.
+ */
+export function setRoamNode(outer: HTMLDivElement | null) {
+  node = outer;
+}
+
+export function setRoamBody(inner: HTMLDivElement | null) {
+  body = inner;
+}
+
+
 let snapshot: RoamSnapshot = {
   away: false,
   phase: "home",
-  x: 0,
-  y: 0,
-  hopMs: 0,
-  scale: 1,
-  ease: HOP_SHRINK_EASE,
-  fadeMs: 0,
   stops: 0,
   last: null,
 };
-
 
 const subs = new Set<() => void>();
 
@@ -168,134 +137,107 @@ function publish(next: Partial<RoamSnapshot>) {
   for (const fn of subs) fn();
 }
 
+function paint(x: number, y: number) {
+
+  if (!node) return;
+  const half = MASCOT_SIZE / 2;
+  node.style.transform = `translate3d(${x - half}px, ${y - half}px, 0)`;
+}
+
+
 // --- measuring ------------------------------------------------------------
 
-function toRect(element: Element): Rect | null {
+function toBounds(element: Element): Bounds | null {
   const box = element.getBoundingClientRect();
   if (box.width <= 0 || box.height <= 0) return null;
   return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
 }
 
-function rectsOf(selector: string, limit: number): Rect[] {
-  const out: Rect[] = [];
-  for (const element of document.querySelectorAll(selector)) {
-    if (out.length >= limit) break;
-    const rect = toRect(element);
-    if (rect) out.push(rect);
+function cardBounds(root: Element): Bounds[] {
+  const out: Bounds[] = [];
+  for (const element of root.querySelectorAll(CARD_SELECTOR)) {
+    if (out.length >= MAX_CARDS) break;
+    const box = element.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0) continue;
+    out.push({ left: box.left, top: box.top, right: box.right, bottom: box.bottom });
   }
   return out;
 }
 
-/** The same walk, confined to one subtree. */
-function rectsWithin(root: Element, selector: string, limit: number): Rect[] {
-  const out: Rect[] = [];
-  for (const element of root.querySelectorAll(selector)) {
-    if (out.length >= limit) break;
-    const rect = toRect(element);
-    if (rect) out.push(rect);
-  }
-  return out;
-}
-
-/** Where the mascot may go, measured now. null when the library is not on screen. */
+/** Where the library is. null when it is not on screen, e.g. a collapsed sidebar. */
 function measure(): Layout | null {
-  const containerElement = document.querySelector(CONTAINER_SELECTOR);
+  const panelElement = document.querySelector(CONTAINER_SELECTOR);
   const markElement = document.querySelector(MARK_SELECTOR);
-  if (!containerElement || !markElement) return null;
-  const container = toRect(containerElement);
-  const mark = toRect(markElement);
-  if (!container || !mark) return null;
-  // A hidden sidebar (narrow layout) leaves the mark off screen, and then there
-  // is nowhere to come home to, so the mascot stays put.
+  if (!panelElement || !markElement) return null;
+  const panel = toBounds(panelElement);
+  const mark = toBounds(markElement);
+  if (!panel || !mark) return null;
+  // A hidden sidebar leaves the mark off screen, and then there is nowhere to
+  // come home to, so the mascot stays put.
   if (mark.right < 0 || mark.left > window.innerWidth) return null;
-
-  const cards = rectsWithin(containerElement, CARD_SELECTOR, MAX_OBSTACLES);
-  const obstacles = [...cards, ...rectsOf(TOAST_SELECTOR, 4)];
-  for (const selector of BLOCKERS) {
-    const element = document.querySelector(selector);
-    const rect = element ? toRect(element) : null;
-    if (rect) obstacles.push(rect);
-  }
-  return { container, obstacles, cards, home: rectCenter(mark) };
+  return {
+    panel,
+    room: roamBounds(panel),
+    cards: cardBounds(panelElement),
+    home: { x: (mark.left + mark.right) / 2, y: (mark.top + mark.bottom) / 2 },
+  };
 }
 
-/**
- * Measure, and answer both questions the caller has, from one search.
- *
- * `canStand` is "does the library have anywhere at all", which is what the
- * controller needs before it starts a walk. `nearest` is where the mascot should
- * stand if where it is standing has stopped being valid, which is what a resize
- * or a scroll needs. Asking both separately measured once and then searched the
- * candidate lattice twice, and a scroll is precisely the case where the current
- * position is invalid and the search is at its most expensive.
- */
-function checkLayout(): { canStand: boolean; nearest: Point | null } {
-  const next = measure();
-  layout = next;
+function refreshLayout() {
+  layout = measure();
+  bounds = layout?.room ?? null;
   needsCheck = false;
   lastCheckAt = virtualNow;
-  if (!next) return { canStand: false, nearest: null };
-  const from = position ?? next.home;
-  if (isSafeSpot(from, next.container, next.obstacles, undefined, MIN_ROOM)) {
-    return { canStand: true, nearest: from };
-  }
-  const nearest = nearestSafeSpot(next.container, next.obstacles, from, undefined, MIN_ROOM);
-  return { canStand: nearest !== null, nearest };
+  if (!bounds) return;
+  // A resize or a scroll can leave the mascot outside the room it is now in.
+  // There is nothing to avoid, so the only correction is putting it back in.
+  const pad = 8;
+  if (motion.x < bounds.left + pad) motion.x = bounds.left + pad;
+  if (motion.x > bounds.right - pad) motion.x = bounds.right - pad;
+  if (motion.y < bounds.top + pad) motion.y = bounds.top + pad;
+  if (motion.y > bounds.bottom - pad) motion.y = bounds.bottom - pad;
 }
 
-/** A resize, a scroll, or new cards under the mascot: find somewhere valid again. */
-function revalidate() {
-  const { canStand, nearest } = checkLayout();
-  hasRoom = canStand;
-  if (position === null) return;
-  if (nearest) {
-    if (nearest.x !== position.x || nearest.y !== position.y) hopTo(nearest, 0);
+// --- deciding -------------------------------------------------------------
 
-    return;
-  }
-  // A scroll put a card under the mascot and there is nowhere left to stand. The
-  // walk ends rather than the mascot sitting on top of it.
-  advance(virtualNow, true);
-}
-
-// --- resolving what the controller asked for ------------------------------
-
-function gaze(from: Point, to: Point, mix: number): Look {
+function gaze(from: Vec, to: Vec, mix: number): Look {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const reach = Math.max(200, Math.hypot(dx, dy));
   return { yaw: (dx / reach) * 35, pitch: (dy / reach) * 22, mix, spin: 0, wander: 0.2 };
 }
 
-function pickItem(): Point | null {
+function pickGazePoint(): Vec | null {
   if (!layout) return null;
-  const targets = lookTargets(layout.container, layout.cards, position ?? layout.home);
-  return targets[Math.floor(rand() * targets.length)] ?? null;
+  const points = lookTargets(layout.panel, layout.cards, motion);
+  return points[Math.floor(rand() * points.length)] ?? null;
 }
 
-/** Turn a decision into a place. null means the library has no spot for it. */
-function resolve(action: RoamAction): Resolved | null {
-  if (!layout) return null;
-  const from = position ?? layout.home;
+/**
+ * Turn a decision into a place to drift toward.
+ *
+ * null means there is nowhere to go, which only happens when the library is not
+ * on screen at all. There is no longer a notion of a spot being refused.
+ */
+function resolve(action: RoamAction): { to: Vec | null; look: Look | null } | null {
+  if (!layout || !bounds) return null;
   if (action.target === "home") return { to: layout.home, look: null };
   if (action.target === "item" || action.target === "activity") {
-    const item = pickItem();
-    const target = action.target === "activity" ? pointer ?? item : item;
-    return { to: null, look: target ? gaze(from, target, 0.85) : null };
+    const point = pickGazePoint();
+    // Looking at something and drifting toward the general area of it is the
+    // whole difference between a mascot that is aware of the library and one
+    // that is drifting through an empty room.
+    const toward = action.target === "activity" ? pointer ?? point : point;
+    const to = toward
+      ? pickTarget(bounds, motion, toward.x > motion.x ? "across" : "any", rand)
+      : pickTarget(bounds, motion, "any", rand);
+    return { to, look: toward ? gaze(motion, toward, 0.85) : null };
   }
-  const want = SPOT_PREFERENCE[action.target];
-  const base = { container: layout.container, obstacles: layout.obstacles, from, rand, minRoom: MIN_ROOM };
-  // The mascot hops, so there is no route to worry about: only the spot it ends
-  // up in has to be free. That is what gives it the whole library to roam in
-  // rather than the one lane it happened to be standing in.
-  const spot =
-    (want ? findSafeSpot({ ...base, prefer: want }) : null) ?? findSafeSpot({ ...base, prefer: "any" });
-  return spot ? { to: spot, look: gaze(from, spot, 0.55) } : null;
+  const to = pickTarget(bounds, motion, TARGET_PREFERENCE[action.target] ?? "any", rand);
+  return { to, look: gaze(motion, to, 0.5) };
 }
 
-
-/** How long the swell half of a hop takes. */
-const HOP_GROW_MS = 260;
+// --- the squash -----------------------------------------------------------
 
 let hopSeq = 0;
 let hopTimer: ReturnType<typeof setTimeout> | null = null;
@@ -307,80 +249,50 @@ function clearHop() {
   }
 }
 
-/**
- * Hop to a spot: shrink away from here, move while it is invisible, swell back up
- * over there.
- *
- * A hop already under way is cut short rather than queued. The mascot is
- * mid-swell when the next one asks for the floor, and starting a shrink from
- * half a size reads as a glitch, so the interrupted hop simply ends where it is
- * and the new one begins from a whole mascot.
- */
-function hopTo(to: Point, fadeMs: number) {
+/** One style write, so the squash reads the same whether React knows or not. */
+function paintScale(scale: number, hopMs: number, ease: string) {
+  if (!body) return;
+  body.style.transform = `scale(${scale})`;
+  body.style.transition = `transform ${hopMs}ms ${ease}`;
+}
+
+function hopHome() {
   clearHop();
   const seq = ++hopSeq;
-  const mounted = position !== null;
-  const from = position ?? layout?.home ?? to;
-  position = to;
-
-  const swell = () => {
+  // Shrink away where it is, then the overlay unmounts and the slot takes over.
+  paintScale(HOP_SHRINK_TO, HOP_SHRINK_MS, HOP_SHRINK_EASE);
+  hopTimer = setTimeout(() => {
+    hopTimer = null;
     if (seq !== hopSeq) return;
-    publish({ x: to.x, y: to.y, scale: 1, hopMs: HOP_GROW_MS, ease: HOP_GROW_EASE, fadeMs });
-  };
-  const shrink = () => {
-    if (seq !== hopSeq) return;
-    publish({ x: from.x, y: from.y, scale: HOP_SHRINK_TO, hopMs: HOP_SHRINK_MS, ease: HOP_SHRINK_EASE, fadeMs: 0 });
-    hopTimer = setTimeout(() => {
-      hopTimer = null;
-      swell();
-    }, HOP_SHRINK_MS);
-  };
-
-  if (!mounted) {
-    // The first frame out of the slot mounts a whole mascot on the mark and
-    // shrinks it away from there, so leaving reads as leaving. Publishing the
-    // destination straight away would put the mascot in the middle of the
-    // library before it had taken a breath.
-    publish({ x: from.x, y: from.y, scale: 1, hopMs: 0, ease: HOP_SHRINK_EASE, fadeMs: 0 });
-    requestAnimationFrame(shrink);
-    return;
-  }
-  shrink();
+    finishOuting();
+  }, HOP_SHRINK_MS);
 }
 
-function endOuting() {
-  clearHop();
-  position = null;
+function finishOuting() {
+  motion = { x: 0, y: 0, heading: 0, speed: 0 };
+  target = null;
+  looking = null;
   pushMascotLook(null);
   pushRoamParams(null);
-  publish({ away: false, phase: "home", x: 0, y: 0, hopMs: 0, scale: 1, ease: HOP_SHRINK_EASE, fadeMs: 0, stops: 0 });
+  publish({ away: false, phase: "home", stops: 0, last: null });
 }
 
-
-function applyAction(action: RoamAction, resolved: Resolved | null) {
-  if (action.kind === "arrive") {
-    endOuting();
-    return;
-  }
-  // A failed capture is worth one sad walk home, not a mascot that stays glum
-  // until the next successful capture happens to clear the flag.
-  if (action.expression === "triste") captureFailed = false;
-  const walkingHome = action.kind === "go-home";
-  // The last stretch of a walk home fades out, so the hand-off to the sidebar
-  // figure is invisible instead of a jump cut.
-  const fade = walkingHome ? Math.max(0, action.travel - FADE_MS) : 0;
-  const to = resolved?.to ?? (walkingHome ? (layout?.home ?? null) : null);
-  pushMascotLook(resolved?.look ?? null);
-  pushRoamParams({ state: ROAM_STATE, expression: action.expression });
-  if (to) hopTo(to, fade);
-
-  publish({
-    away: true,
-    phase: walkingHome ? "returning" : "away",
-    stops: state?.stops ?? 0,
-    last: { kind: action.kind, target: action.target, expression: action.expression },
+function beginOuting(to: Vec) {
+  clearHop();
+  const seq = ++hopSeq;
+  // Start from the slot, so leaving reads as leaving. The body mounts at zero
+  // size from its stylesheet, so the frame the node is created in shows nothing
+  // and the store places it on the very next frame, before it is ever visible.
+  motion = { x: to.x, y: to.y, heading: motion.heading, speed: 0 };
+  target = to;
+  legStartedAt = virtualNow;
+  publish({ away: true, phase: "away" });
+  requestAnimationFrame(() => {
+    if (seq !== hopSeq) return;
+    paintScale(1, HOP_GROW_MS, HOP_GROW_EASE);
   });
 }
+
 
 // --- the loop -------------------------------------------------------------
 
@@ -399,14 +311,14 @@ function signals(force: boolean) {
     captureFailed,
     reducedMotion,
     hidden: typeof document !== "undefined" && document.hidden,
-    canRoam: hasRoom,
+    canRoam: bounds !== null,
     force,
   };
 }
 
 function advance(now: number, force = false) {
   if (!state) state = createRoamState(now, rand);
-  if (needsCheck && (force || now - lastCheckAt >= RECHECK_MS)) hasRoom = checkLayout().canStand;
+  if (needsCheck && (force || now - lastCheckAt >= RECHECK_MS)) refreshLayout();
 
   const input = signals(force);
   const tick = tickRoam(state, input, rand);
@@ -414,19 +326,54 @@ function advance(now: number, force = false) {
     state = tick.state;
     return;
   }
-  const resolved = resolve(tick.action);
-  if (resolved === null) {
-    // Nowhere safe to stand. The outing ends on this same pass rather than the
-    // mascot hovering a card while the controller looks for somewhere to go.
-    const home = tickRoam(tick.state, { ...input, canRoam: false }, rand);
-    state = home.state;
-    if (home.action) applyAction(home.action, { to: layout?.home ?? null, look: null });
+  state = tick.state;
+  const action = tick.action;
+
+  if (action.kind === "arrive") {
+    hopHome();
     return;
   }
-  state = tick.state;
-  applyAction(tick.action, resolved);
+  // A failed capture is worth one sad walk home, not a mascot that stays glum
+  // until the next successful capture happens to clear the flag.
+  if (action.expression === "triste") captureFailed = false;
+  pushRoamParams({ state: ROAM_STATE, expression: action.expression });
+
+  const walkingHome = action.kind === "go-home";
+  if (walkingHome) {
+    target = layout?.home ?? null;
+    legStartedAt = now;
+    publish({ phase: "returning", stops: state.stops, last: describe(action) });
+    return;
+  }
+
+  const resolved = resolve(action);
+  if (!resolved) {
+    // Nowhere to go at all, so the walk is over rather than the mascot hovering
+    // in an empty room waiting for somewhere to appear.
+    target = layout?.home ?? null;
+    publish({ phase: "returning", stops: state.stops, last: describe(action) });
+    return;
+  }
+  looking = resolved.look;
+  pushMascotLook(looking);
+  if (!snapshot.away && resolved.to) {
+    beginOuting(resolved.to);
+    return;
+  }
+  target = resolved.to;
+  legStartedAt = now;
+  publish({ phase: "away", stops: state.stops, last: describe(action) });
 }
 
+function describe(action: RoamAction): RoamSnapshot["last"] {
+  return { kind: action.kind, target: action.target, expression: action.expression };
+}
+
+/**
+ * The frame. Steer, write the transform, and let the controller decide when the
+ * next leg starts. This runs on the mascot engine's rAF, which is already going,
+ * so continuous movement costs no additional loop.
+ */
 function onClock(clock: number) {
   const raw = clock * 1000;
   if (!started) {
@@ -434,27 +381,41 @@ function onClock(clock: number) {
     lastRaw = raw;
     virtualNow = raw;
   } else {
-    virtualNow += (raw - lastRaw) * speed;
+    virtualNow += (raw - lastRaw) * clockScale;
     lastRaw = raw;
   }
   if (manual) return;
-  // While the mascot is out, the spot is re-checked on a timer as well as on
-  // events. Cards mount lazily under a paused mascot, and nothing about that
-  // announces itself as a resize. Walking home is excluded: the slot is inside
-  // the sidebar, which is an obstacle like any other, so re-checking there would
-  // find a library spot and turn the mascot around half way home.
-  if (virtualNow - lastCheckAt >= RECHECK_MS && (needsCheck || position !== null) && state?.phase !== "returning") {
-    revalidate();
+
+  const seconds = Math.min((raw - lastRaw) / 1000, 0.05) || 0.016;
+  if (snapshot.away && bounds) {
+    if (needsCheck && virtualNow - lastCheckAt >= RECHECK_MS) refreshLayout();
+    if (target) {
+      // The room is the inset library, which does not include the sidebar slot,
+      // so a target outside it - which is exactly the walk home - would be pushed
+      // back inside forever and the mascot could never get home. Contain against
+      // the union of the room and wherever it is headed.
+      const room = target
+        ? {
+            left: Math.min(bounds.left, target.x),
+            top: Math.min(bounds.top, target.y),
+            right: Math.max(bounds.right, target.x),
+            bottom: Math.max(bounds.bottom, target.y),
+          }
+        : bounds;
+      motion = drift(motion, target, room, seconds, (virtualNow - legStartedAt) / 1000);
+    }
+    paint(motion.x, motion.y);
   }
   advance(virtualNow);
 }
+
 
 // --- inputs ---------------------------------------------------------------
 
 /**
  * Watch what the mascot watches. Deliberate input is what it reacts to, so a
- * mouse drifting across the window does not pull its gaze along; the position
- * is still recorded, because a glance at a moving cursor is worth having once
+ * mouse drifting across the window does not pull its gaze along; the position is
+ * still recorded, because a glance at a moving cursor is worth having once
  * something else is happening.
  */
 export function watchRoamInputs(): () => void {
@@ -480,23 +441,24 @@ export function watchRoamInputs(): () => void {
   window.addEventListener("keydown", act, capture);
   window.addEventListener("wheel", act, capture);
   window.addEventListener("input", act, capture);
-  window.addEventListener("scroll", act, capture);
+  window.addEventListener("scroll", invalidate, capture);
   window.addEventListener("pointermove", track, capture);
   window.addEventListener("resize", invalidate, { passive: true });
   window.addEventListener("scroll", invalidate, capture);
 
-  // The grid changes height as items arrive or leave, which moves cards under
-  // the mascot without a scroll or a resize.
+  // The grid changes height as items arrive or leave, which moves the room
+  // around the mascot without a scroll or a resize.
   const observer = typeof ResizeObserver === "function" ? new ResizeObserver(invalidate) : null;
   const container = document.querySelector(CONTAINER_SELECTOR);
   if (observer && container) observer.observe(container);
 
-  const motion = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+  const motionQuery =
+    typeof window.matchMedia === "function" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
   const onMotion = (event: MediaQueryListEvent) => {
     reducedMotion = event.matches;
     invalidate();
   };
-  motion?.addEventListener("change", onMotion);
+  motionQuery?.addEventListener("change", onMotion);
 
   const stop = onMascotClock(onClock);
   return () => {
@@ -504,11 +466,10 @@ export function watchRoamInputs(): () => void {
     window.removeEventListener("keydown", act, capture);
     window.removeEventListener("wheel", act, capture);
     window.removeEventListener("input", act, capture);
-    window.removeEventListener("scroll", act, capture);
     window.removeEventListener("pointermove", track, capture);
     window.removeEventListener("resize", invalidate);
     window.removeEventListener("scroll", invalidate, capture);
-    motion?.removeEventListener("change", onMotion);
+    motionQuery?.removeEventListener("change", onMotion);
     observer?.disconnect();
     stop();
   };
@@ -518,7 +479,7 @@ function invalidate() {
   needsCheck = true;
 }
 
-/** An overlay, dialog, menu, or reader owns the screen: hold still, keep the budget. */
+/** A view, dialog, reader, or a drag owns the screen: hold still, keep the budget. */
 export function setRoamBusy(busy: boolean) {
   occupied = busy;
 }
@@ -549,7 +510,7 @@ export function stepRoam() {
 }
 
 export function setRoamSpeed(multiplier: number) {
-  speed = Math.max(0.1, Math.min(600, multiplier));
+  clockScale = Math.max(0.1, Math.min(600, multiplier));
 }
 
 export function setRoamSeed(next: number) {
@@ -573,8 +534,14 @@ function getRoamSnapshot(): RoamSnapshot {
   return snapshot;
 }
 
-/** The overlay's view. Changes once per decision, not once per frame. */
+/**
+ * Whether the mascot is out of its slot. The overlay mounts and unmounts on this
+ * and on nothing else: the frames are written straight to its nodes, so a
+ * wandering mascot costs one transform per frame and zero React renders.
+ */
 export function useRoam(): RoamSnapshot {
   return useSyncExternalStore(subscribeRoam, getRoamSnapshot);
 }
+
+
 
