@@ -68,6 +68,7 @@ jobs:
               - 'bun.lock'
               - '.bun-version'
               - 'vite.config.ts'
+              - 'scripts/assert-no-demo-seed.ts'
               - 'tsconfig.json'
               - 'tsconfig.node.json'
               - '.github/workflows/ci.yml'
@@ -101,6 +102,12 @@ jobs:
 
       - name: Build frontend
         run: bun run build
+
+      # Runs the app-mode build, whose guard fails if the committed demo seed
+      # has leaked back into a shipped bundle. Without this the exclusion is
+      # only checked at release time.
+      - name: Build frontend for the app
+        run: bun run build:app
 
       - name: Run ingestion smoke tests
         run: bun run ingest:smoke

@@ -18,7 +18,8 @@ How to set up, run, check, and troubleshoot inkling. Contribution scope and PR e
 | Desktop app | `bun run tauri dev` |
 | Portable Windows review build | `bun run preview:win` |
 | Fetch the pinned ONNX Runtime DLL | `bun run provision:ort` |
-| Production frontend build | `bun run build` |
+| Production frontend build (with demo seed, for preview) | `bun run build` |
+| Shipped app build (excludes the demo seed) | `bun run build:app` |
 | Ingestion smoke | `bun run ingest:smoke` |
 
 `bun run preview:win` builds a self-contained review folder under
@@ -26,6 +27,13 @@ How to set up, run, check, and troubleshoot inkling. Contribution scope and PR e
 Runtime DLL and embedding models, then places the database, assets, and models
 under that folder's `data\` directory. Run `inkling.exe` there; deleting the
 folder deletes the preview library. Windows WebView2 is assumed to be installed.
+
+`bun run build` keeps the committed demo seed, because the web preview and
+`vite preview` need it. `bun run build:app` drops it — both `public/seed-demo/`
+and the `src/seedPersonal.ts` bundle — and then runs
+`scripts/assert-no-demo-seed.ts`, which fails the build if either is still
+present. The Tauri build uses it, so a shipped installer never carries the
+~9.7 MB seed. Changing what the app ships means changing that mode, not `build`.
 
 `onnxruntime.dll` is a gitignored download that `bun tauri build` and the
 release workflow need before bundling, because `bundle.resources` lists it and
