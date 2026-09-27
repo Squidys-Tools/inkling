@@ -64,6 +64,9 @@ const HEALTH_PATH: &str = "/v1/health";
 const CAPTURES_PATH: &str = "/v1/captures";
 const FAVICON_QUEUE_CAPACITY: usize = 32;
 const FAVICON_WORKERS: usize = 2;
+const OEMBED_QUEUE_CAPACITY: usize = 16;
+const OEMBED_WORKERS: usize = 1;
+const MAX_OEMBED_BYTES: u64 = 512 * 1024;
 
 struct FaviconJob {
     app: AppHandle,
@@ -71,7 +74,16 @@ struct FaviconJob {
     url: String,
 }
 
+/// Provider oEmbed request for a stored video capture, resolved off the
+/// capture request so saving stays instant.
+struct OEmbedJob {
+    app: AppHandle,
+    item_id: String,
+    source_url: String,
+}
+
 static FAVICON_QUEUE: OnceLock<SyncSender<FaviconJob>> = OnceLock::new();
+static OEMBED_QUEUE: OnceLock<SyncSender<OEmbedJob>> = OnceLock::new();
 
 #[derive(Default)]
 pub struct CaptureServerState {
@@ -142,6 +154,7 @@ struct ImageCaptureRequest {
 struct VideoCaptureRequest {
     kind: String,
     source_url: String,
+    title: Option<String>,
 }
 
 #[derive(Debug)]
@@ -158,6 +171,7 @@ enum ValidatedCapture {
     },
     Video {
         source_url: String,
+        title: Option<String>,
     },
 }
 
@@ -416,6 +430,7 @@ fn validate_capture_payload(body: &[u8]) -> Result<ValidatedCapture, String> {
             }
             Ok(ValidatedCapture::Video {
                 source_url: validate_capture_url(&request.source_url)?,
+                title: capped_string(request.title, 240, "title")?,
             })
         }
         _ => Err("unsupported payload kind".into()),
@@ -1238,6 +1253,115 @@ fn enqueue_item_processing(app: &AppHandle, item: &crate::storage::ItemDto) {
     processing.enqueue_and_wake(&item.id, crate::jobs::JobKind::GenerateEmbedding);
 }
 
+/// Which provider's oEmbed endpoint answers for a saved video page. Mirrors
+/// the embed allowlist in `src/lib/ingestion/safe-embeds.ts`, but only decides
+/// where to ask for a title: the item is still stored as a plain URL and the
+/// render-time embed allowlist is unchanged.
+fn video_oembed_endpoint(source_url: &str) -> Option<(&'static str, String)> {
+    let host = url::Url::parse(source_url)
+        .ok()?
+        .host_str()?
+        .to_ascii_lowercase();
+    let endpoint_host = match host.as_str() {
+        "youtube.com"
+        | "www.youtube.com"
+        | "m.youtube.com"
+        | "youtu.be"
+        | "youtube-nocookie.com"
+        | "www.youtube-nocookie.com" => "www.youtube.com",
+        "vimeo.com" | "www.vimeo.com" | "player.vimeo.com" => "vimeo.com",
+        _ => return None,
+    };
+    Some((
+        if endpoint_host == "www.youtube.com" {
+            "YouTube"
+        } else {
+            "Vimeo"
+        },
+        format!(
+            "https://{endpoint_host}/oembed.json?url={}",
+            url::form_urlencoded::byte_serialize(source_url.as_bytes()).collect::<String>()
+        ),
+    ))
+}
+
+/// What a provider's oEmbed endpoint told us about a saved video page.
+struct VideoOEmbed {
+    provider_label: &'static str,
+    title: Option<String>,
+    author: Option<String>,
+}
+
+/// Title and author for a saved video page, or None when the host is not a
+/// known video provider. Enrichment only: the capture is already stored either
+/// way, so a missing or blocked endpoint is not an error.
+fn fetch_video_oembed(source_url: &str) -> Option<VideoOEmbed> {
+    let (provider_label, endpoint) = video_oembed_endpoint(source_url)?;
+    let metadata = crate::http_fetch::fetch_public_json(&endpoint, MAX_OEMBED_BYTES).ok()?;
+    let text = |key: &str| {
+        metadata
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    };
+    Some(VideoOEmbed {
+        provider_label,
+        title: text("title"),
+        author: text("author_name"),
+    })
+}
+
+fn oembed_queue() -> &'static SyncSender<OEmbedJob> {
+    OEMBED_QUEUE.get_or_init(|| {
+        let (sender, receiver) = sync_channel::<OEmbedJob>(OEMBED_QUEUE_CAPACITY);
+        let receiver = Arc::new(Mutex::new(receiver));
+        for _ in 0..OEMBED_WORKERS {
+            let receiver = Arc::clone(&receiver);
+            let _ = std::thread::Builder::new()
+                .name("video-oembed".into())
+                .spawn(move || loop {
+                    let job = {
+                        let receiver = receiver.lock().unwrap_or_else(|error| error.into_inner());
+                        receiver.recv()
+                    };
+                    let Ok(job) = job else { break };
+                    let Some(oembed) = fetch_video_oembed(&job.source_url) else {
+                        continue;
+                    };
+                    let description = Some(match &oembed.author {
+                        Some(author) => format!("{} · {author}", oembed.provider_label),
+                        None => format!("{} video", oembed.provider_label),
+                    });
+                    let storage_state: State<'_, crate::storage::StorageState> = job.app.state();
+                    let Ok(guard) = storage_state.lock() else {
+                        continue;
+                    };
+                    let Some(storage) = guard.as_ref() else {
+                        continue;
+                    };
+                    let _ = storage.apply_video_oembed(
+                        &job.item_id,
+                        oembed.title.as_deref(),
+                        description.as_deref(),
+                    );
+                });
+        }
+        sender
+    })
+}
+
+fn enqueue_video_oembed(app: &AppHandle, item_id: &str, source_url: String) {
+    // Best effort: a full queue or a provider without oEmbed just leaves the
+    // capture with the title the extension already sent.
+    let _ = oembed_queue().try_send(OEmbedJob {
+        app: app.clone(),
+        item_id: item_id.to_owned(),
+        source_url,
+    });
+}
+
 fn store_validated_capture(app: &AppHandle, input: ValidatedCapture) -> Result<String, u16> {
     match input {
         ValidatedCapture::Page(input) => store_capture(app, input),
@@ -1293,19 +1417,25 @@ fn store_validated_capture(app: &AppHandle, input: ValidatedCapture) -> Result<S
             enqueue_item_processing(app, &item);
             Ok(item.id)
         }
-        ValidatedCapture::Video { source_url } => store_capture(
-            app,
-            crate::storage::CreateUrlInput {
-                source_url,
-                title: None,
-                description: None,
-                body: String::new(),
-                metadata: Some(serde_json::json!({
-                    "origin": "browser-extension",
-                    "sourceKind": "video",
-                })),
-            },
-        ),
+        ValidatedCapture::Video { source_url, title } => {
+            let id = store_capture(
+                app,
+                crate::storage::CreateUrlInput {
+                    source_url: source_url.clone(),
+                    title,
+                    description: None,
+                    body: String::new(),
+                    metadata: Some(serde_json::json!({
+                        "origin": "browser-extension",
+                        "sourceKind": "video",
+                    })),
+                },
+            )?;
+            // The card already renders the provider embed; oEmbed only sharpens
+            // the title and adds the author line, so it runs after the response.
+            enqueue_video_oembed(app, &id, source_url);
+            Ok(id)
+        }
     }
 }
 
@@ -1686,13 +1816,51 @@ mod tests {
         let video = serde_json::json!({
             "kind": "video",
             "sourceUrl": "https://www.youtube.com/watch?v=abc",
+            "title": "How capture works - YouTube",
         });
-        let ValidatedCapture::Video { source_url } =
+        let ValidatedCapture::Video { source_url, title } =
             validate_capture_payload(&serde_json::to_vec(&video).unwrap()).unwrap()
         else {
             panic!("expected video capture")
         };
         assert_eq!(source_url, "https://www.youtube.com/watch?v=abc");
+        assert_eq!(title.as_deref(), Some("How capture works - YouTube"));
+
+        let untitled = serde_json::json!({
+            "kind": "video",
+            "sourceUrl": "https://vimeo.com/12345",
+        });
+        let ValidatedCapture::Video { title, .. } =
+            validate_capture_payload(&serde_json::to_vec(&untitled).unwrap()).unwrap()
+        else {
+            panic!("expected video capture")
+        };
+        assert_eq!(title, None);
+    }
+
+    #[test]
+    fn video_oembed_endpoints_cover_the_embed_allowlist() {
+        let (label, endpoint) =
+            video_oembed_endpoint("https://www.youtube.com/watch?v=abc12345678").unwrap();
+        assert_eq!(label, "YouTube");
+        assert!(endpoint.starts_with("https://www.youtube.com/oembed.json?url="));
+        // The watch URL must survive as a query value, not as raw path bytes.
+        assert!(endpoint.contains("watch%3Fv%3Dabc12345678"));
+
+        assert_eq!(
+            video_oembed_endpoint("https://youtu.be/abc12345678")
+                .unwrap()
+                .0,
+            "YouTube"
+        );
+        let (label, endpoint) = video_oembed_endpoint("https://vimeo.com/12345678901").unwrap();
+        assert_eq!(label, "Vimeo");
+        assert!(endpoint.starts_with("https://vimeo.com/oembed.json?url="));
+
+        // Not a video page, or a host that only looks like one.
+        assert!(video_oembed_endpoint("https://example.com/watch?v=abc").is_none());
+        assert!(video_oembed_endpoint("https://youtube.com.evil.test/watch").is_none());
+        assert!(video_oembed_endpoint("not a url").is_none());
     }
 
     #[test]

@@ -1,34 +1,32 @@
-// inkling content script — Phase 3 collectors (selection / image / video).
+// inkling collector (selection / image / video) — injected on invoke by
+// background.ts, which then asks for a collect over runtime messaging.
 //
 // Collects v1 payloads (see extension/src/payload.ts for the contract; field
-// names must match exactly) and replies to the background worker. Validation
-// and deep-link encoding happen background-side in payload.ts — this script
-// only reads the page and keeps every read capped so capture stays instant.
-//
-// Manifest wiring (mechanical, owned by the manifest author):
-//   "content_scripts": [{ "matches": ["<all_urls>"], "js": ["content.js"] }]
-// plus the "contextMenus" permission for the background worker.
+// names must match exactly). Validation and delivery happen background-side —
+// this script only reads the page and keeps every read capped so capture stays
+// instant.
 
-// Last right-clicked image: contextmenu fires before the worker's onClicked,
-// so stash the target here for the later collect request.
-let lastContextImage = null;
+const browserApi = globalThis.chrome ?? globalThis.browser;
 
-function imageFromElement(element) {
-  if (!element) return null;
-  if (element.tagName === "IMG") return element;
-  return element.closest ? element.closest("img") : null;
+// The worker re-injects this file on every capture. Register the listener once
+// per page: a duplicate would answer the same collect request twice.
+const firstInjection = !globalThis.__inklingCollectInstalled;
+globalThis.__inklingCollectInstalled = true;
+
+function readImage(requestedSrc) {
+  // The worker passes the srcUrl Chrome reported for the right-clicked image.
+  // Nothing is stashed from a contextmenu listener: this script is injected
+  // after that event, so a stash would always be empty.
+  const src = (requestedSrc || "").trim();
+  if (!src) return null;
+  // blob:/canvas sources cannot be fetched by the app; rasterize small ones
+  // to a dataUrl fallback, capped at ~5MB. http(s) sources download directly
+  // and never need this path.
+  if (src.startsWith("blob:") || src.startsWith("data:image/")) {
+    return { src, needsDataUrl: true };
+  }
+  return { src, needsDataUrl: false };
 }
-
-document.addEventListener(
-  "contextmenu",
-  (event) => {
-    const image = imageFromElement(event.target);
-    lastContextImage = image
-      ? { src: image.currentSrc || image.src || "", alt: image.getAttribute("alt") || "" }
-      : null;
-  },
-  true,
-);
 
 function readSelection() {
   const selection = window.getSelection();
@@ -47,20 +45,6 @@ function readSelection() {
     selectedHtml = "";
   }
   return { selectedText, selectedHtml };
-}
-
-function readImage(requestedSrc) {
-  const fromMenu = lastContextImage;
-  const src = (requestedSrc || (fromMenu && fromMenu.src) || "").trim();
-  if (!src) return null;
-  const alt = ((fromMenu && fromMenu.alt) || "").replace(/\s+/g, " ").trim().slice(0, 240);
-  // blob:/canvas sources cannot be fetched by the app; rasterize small ones
-  // to a dataUrl fallback, capped at ~5MB. http(s) sources download directly
-  // and never need this path.
-  if (src.startsWith("blob:") || src.startsWith("data:image/")) {
-    return { src, alt, needsDataUrl: true };
-  }
-  return { src, alt, needsDataUrl: false };
 }
 
 function imageToDataUrl(url) {
@@ -100,9 +84,7 @@ function readVideo() {
   return window.location.href;
 }
 
-const browserApi = globalThis.chrome ?? globalThis.browser;
-
-browserApi?.runtime?.onMessage.addListener((message, _sender, sendResponse) => {
+function handleCollectMessage(message, _sender, sendResponse) {
   if (!message || message.type !== "inkling/collect") return undefined;
 
   if (message.collect === "selection") {
@@ -134,7 +116,6 @@ browserApi?.runtime?.onMessage.addListener((message, _sender, sendResponse) => {
       kind: "image",
       pageUrl: window.location.href,
       srcUrl: found.src,
-      ...(found.alt ? { alt: found.alt } : {}),
     };
     if (!found.needsDataUrl) {
       sendResponse({ type: "inkling/capture", payload });
@@ -153,9 +134,20 @@ browserApi?.runtime?.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ type: "inkling/capture-error", reason: "not-a-video-page" });
       return true;
     }
-    sendResponse({ type: "inkling/capture", payload: { kind: "video", sourceUrl } });
+    sendResponse({
+      type: "inkling/capture",
+      payload: {
+        kind: "video",
+        sourceUrl,
+        title: document.title ? document.title.trim().slice(0, 240) : undefined,
+      },
+    });
     return true;
   }
 
   return undefined;
-});
+}
+
+if (firstInjection) {
+  browserApi?.runtime?.onMessage.addListener(handleCollectMessage);
+}

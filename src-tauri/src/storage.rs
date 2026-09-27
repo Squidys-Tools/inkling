@@ -600,6 +600,31 @@ impl LibraryStorage {
         Ok(relative_path)
     }
 
+    /// Apply provider metadata to a stored video capture. Background
+    /// enrichment rather than a user edit, so `updated_at` is left alone and
+    /// the card does not jump to the top of the library when it lands.
+    pub(crate) fn apply_video_oembed(
+        &self,
+        item_id: &str,
+        title: Option<&str>,
+        description: Option<&str>,
+    ) -> Result<(), StorageError> {
+        let item_id = validate_item_id(item_id.to_owned())?;
+        let title = title.map(str::trim).filter(|value| !value.is_empty());
+        let description = description.map(str::trim).filter(|value| !value.is_empty());
+        if title.is_none() && description.is_none() {
+            return Ok(());
+        }
+        self.connection.execute(
+            "UPDATE items
+             SET title = COALESCE(?2, title),
+                 description = COALESCE(?3, description)
+             WHERE id = ?1",
+            params![item_id, title, description],
+        )?;
+        Ok(())
+    }
+
     pub(crate) fn save_file(&self, input: SaveFileInput) -> Result<ItemDto, StorageError> {
         if input.bytes.len() > MAX_FILE_BYTES {
             return Err(StorageError::InvalidInput(format!(
@@ -3277,6 +3302,40 @@ mod tests {
         assert_eq!(stored.metadata["faviconPath"], path);
         assert_eq!(stored.updated_at, item.updated_at);
         assert_eq!(fs::read(directory.join(path)).unwrap(), b"favicon-bytes");
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn video_oembed_enrichment_keeps_the_item_timestamp() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-oembed-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://www.youtube.com/watch?v=abc".into(),
+                title: Some("Some video - YouTube".into()),
+                description: None,
+                body: String::new(),
+                metadata: Some(serde_json::json!({ "sourceKind": "video" })),
+            })
+            .unwrap();
+
+        storage
+            .apply_video_oembed(&item.id, Some("Some video"), Some("YouTube · inkling"))
+            .unwrap();
+        let enriched = storage.get_item(&item.id).unwrap().unwrap();
+        assert_eq!(enriched.title.as_deref(), Some("Some video"));
+        assert_eq!(enriched.description.as_deref(), Some("YouTube · inkling"));
+        assert_eq!(enriched.updated_at, item.updated_at);
+
+        // A failed lookup must not blank what the extension already sent.
+        storage.apply_video_oembed(&item.id, None, None).unwrap();
+        let untouched = storage.get_item(&item.id).unwrap().unwrap();
+        assert_eq!(untouched.title.as_deref(), Some("Some video"));
+        assert_eq!(untouched.updated_at, item.updated_at);
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();

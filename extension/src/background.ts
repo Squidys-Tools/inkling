@@ -1,9 +1,10 @@
 // Ephemeral dispatcher: no module-level mutable state (the service worker may
-// be killed between invocations). Every save re-resolves the tab, injects on
-// invoke (activeTab only for the on-demand extractors; content.js is a
-// declarative content script required by context-menu collect), and persists
-// the full v1 payload before delivering it over loopback. If the app is closed
-// or not paired, the payload remains queued for a later flush.
+// be killed between invocations). Every save re-resolves the tab and injects
+// what it needs on invoke under activeTab (the extractors for a page save, the
+// collector for a context-menu selection/image/video), so nothing runs on
+// pages the user never captures from. The full v1 payload is persisted before
+// delivery over loopback; if the app is closed or not paired, it stays queued
+// for a later flush.
 import browser from "webextension-polyfill";
 import {
   isPageCapturePayload,
@@ -19,9 +20,11 @@ import {
   type ExtensionCapturePayload,
 } from "./payload";
 
-// Emitted at dist/ root by vite.content-main/isolated.config.ts — keep in sync.
+// Emitted at dist/ root by vite.content-main/isolated/collect.config.ts — keep
+// in sync.
 const CONTENT_MAIN_FILE = "content-main.js";
 const CONTENT_ISOLATED_FILE = "content-isolated.js";
+const CONTENT_COLLECT_FILE = "content-collect.js";
 const EXTRACT_TIMEOUT_MS = 10_000;
 const EXTRACT_POLL_INTERVAL_MS = 50;
 
@@ -47,22 +50,38 @@ async function readQueue(): Promise<PageCapturePayloadV1[]> {
   return raw.filter(isPageCapturePayload);
 }
 
+// Every queue read-modify-write runs through this chain. flushQueue can take
+// seconds; without it, an enqueue landing mid-flush is overwritten by the
+// flush's stale write and the capture is silently dropped.
+let queueChain: Promise<unknown> = Promise.resolve();
+
+function withQueueLock<T>(operation: () => Promise<T>): Promise<T> {
+  const result = queueChain.then(operation, operation);
+  queueChain = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
 async function enqueue(payload: PageCapturePayloadV1): Promise<number> {
-  const queue = await readQueue();
-  queue.push(payload);
-  // Count + byte budget first so a full queue cannot blow the ~10MB local
-  // quota; if other keys still push the write over, drop oldest until it fits.
-  trimCaptureQueue(queue);
-  for (;;) {
-    try {
-      await browser.storage.local.set({ [QUEUE_KEY]: queue });
-      return queue.length;
-    } catch {
-      if (queue.length <= 1) return queue.length;
-      queue.shift();
-      trimCaptureQueue(queue);
+  return withQueueLock(async () => {
+    const queue = await readQueue();
+    queue.push(payload);
+    // Count + byte budget first so a full queue cannot blow the ~10MB local
+    // quota; if other keys still push the write over, drop oldest until it fits.
+    trimCaptureQueue(queue);
+    for (;;) {
+      try {
+        await browser.storage.local.set({ [QUEUE_KEY]: queue });
+        return queue.length;
+      } catch {
+        if (queue.length <= 1) return queue.length;
+        queue.shift();
+        trimCaptureQueue(queue);
+      }
     }
-  }
+  });
 }
 
 async function writeStatus(status: SaveStatus): Promise<void> {
@@ -166,21 +185,23 @@ async function tryLoopback(payload: LoopbackCapturePayload): Promise<string | nu
 
 /** Retry queued payloads against the loopback server; keeps what still fails. */
 export async function flushQueue(): Promise<{ delivered: number; pending: number }> {
-  const config = await readLoopbackConfig();
-  if (!config) return { delivered: 0, pending: (await readQueue()).length };
-  const queue = await readQueue();
-  const remaining: PageCapturePayloadV1[] = [];
-  let delivered = 0;
-  for (const payload of queue) {
-    try {
-      await postPayloadToLoopback(config.baseUrl, config.token, payload);
-      delivered += 1;
-    } catch {
-      remaining.push(payload);
+  return withQueueLock(async () => {
+    const config = await readLoopbackConfig();
+    if (!config) return { delivered: 0, pending: (await readQueue()).length };
+    const queue = await readQueue();
+    const remaining: PageCapturePayloadV1[] = [];
+    let delivered = 0;
+    for (const payload of queue) {
+      try {
+        await postPayloadToLoopback(config.baseUrl, config.token, payload);
+        delivered += 1;
+      } catch {
+        remaining.push(payload);
+      }
     }
-  }
-  await browser.storage.local.set({ [QUEUE_KEY]: remaining });
-  return { delivered, pending: remaining.length };
+    await browser.storage.local.set({ [QUEUE_KEY]: remaining });
+    return { delivered, pending: remaining.length };
+  });
 }
 
 export async function saveTab(tabId: number): Promise<SaveStatus> {
@@ -276,6 +297,12 @@ async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<
 
 async function collectFromTab(tabId: number, collect: "selection" | "image" | "video", srcUrl?: string) {
   try {
+    // Injected on invoke rather than declared on <all_urls>: nothing runs on
+    // pages the user never captures from.
+    await browser.scripting.executeScript({
+      target: { tabId },
+      files: [CONTENT_COLLECT_FILE],
+    });
     const response = await browser.tabs.sendMessage(tabId, {
       type: "inkling/collect",
       collect,

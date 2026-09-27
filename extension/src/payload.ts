@@ -30,11 +30,13 @@ type ExtensionImagePayload = {
   dataUrl?: string;
 };
 
-// A video page itself (YouTube/Vimeo watch URL). Pass-through: the app routes
-// it through the existing video-links.ts path, same as pasting the URL.
+// A video page itself (YouTube/Vimeo watch URL). The app stores the URL and
+// renders the provider embed from it; `title` is the page title the content
+// script already read, so the card is not stuck on a bare hostname.
 type ExtensionVideoPayload = {
   kind: "video";
   sourceUrl: string;
+  title?: string;
 };
 
 export type ExtensionCapturePayload =

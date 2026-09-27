@@ -300,6 +300,31 @@ pub(crate) fn download_public_image(url: &str) -> Result<(Vec<u8>, String), Stri
     Err("network-error: Too many redirects while fetching the image.".into())
 }
 
+/// Single-hop JSON GET for provider metadata (oEmbed). Same SSRF guards and
+/// public resolver as the other fetchers; no redirects, so the caller cannot be
+/// bounced somewhere private.
+pub(crate) fn fetch_public_json(url: &str, max_bytes: u64) -> Result<serde_json::Value, String> {
+    let parsed = validate_fetch_url(url)?;
+    validate_public_host(&parsed)?;
+    let mut response = public_http_agent(Duration::from_secs(4))
+        .get(parsed.as_str())
+        .header("User-Agent", "inkling/0.1 (+local video capture)")
+        .header("Accept", "application/json")
+        .call()
+        .map_err(|error| match error {
+            ureq::Error::Timeout(_) => format!("timeout: {error}"),
+            other => format!("network-error: {other}"),
+        })?;
+    if !(200..300).contains(&response.status().as_u16()) {
+        return Err(format!(
+            "http-status: metadata returned HTTP {}",
+            response.status().as_u16()
+        ));
+    }
+    let bytes = read_limited(response.body_mut(), max_bytes)?;
+    serde_json::from_slice(&bytes).map_err(|error| format!("invalid-json: {error}"))
+}
+
 fn read_limited(body: &mut ureq::Body, max_bytes: u64) -> Result<Vec<u8>, String> {
     let mut reader = body.as_reader().take(max_bytes.saturating_add(1));
     let mut buffer = Vec::new();
