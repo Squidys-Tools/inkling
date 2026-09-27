@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .artifacts/
+.playwright-cli/
 
 # Benchmark run artifacts (only results-latest.json and summary.md are tracked)
 benchmarks/results/results-*.json
