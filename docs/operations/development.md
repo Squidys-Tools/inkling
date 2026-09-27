@@ -17,6 +17,7 @@ How to set up, run, check, and troubleshoot inkling. Contribution scope and PR e
 | Web preview (no Rust compile, fastest UI loop) | `bun run preview` |
 | Desktop app | `bun run tauri dev` |
 | Portable Windows review build | `bun run preview:win` |
+| Fetch the pinned ONNX Runtime DLL | `bun run provision:ort` |
 | Production frontend build | `bun run build` |
 | Ingestion smoke | `bun run ingest:smoke` |
 
@@ -25,6 +26,13 @@ How to set up, run, check, and troubleshoot inkling. Contribution scope and PR e
 Runtime DLL and embedding models, then places the database, assets, and models
 under that folder's `data\` directory. Run `inkling.exe` there; deleting the
 folder deletes the preview library. Windows WebView2 is assumed to be installed.
+
+`onnxruntime.dll` is a gitignored download that `bun tauri build` and the
+release workflow need before bundling, because `bundle.resources` lists it and
+`ort` loads it dynamically. `bun run provision:ort` downloads and SHA-256
+verifies the pinned build from `scripts/native-preview-runtime.json` into
+`src-tauri\`. It is safe to re-run: an existing copy that already matches the pin
+is left alone, and one that does not is reported rather than silently replaced.
 
 ## Checks
 
