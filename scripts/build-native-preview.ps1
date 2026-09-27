@@ -9,52 +9,14 @@ Set-StrictMode -Version Latest
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $outputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 $cacheDirectory = [IO.Path]::GetFullPath($CacheDirectory)
+$buildOrt = [IO.Path]::GetFullPath((Join-Path $repoRoot 'src-tauri\onnxruntime.dll'))
 $repoPrefix = ([IO.Path]::GetFullPath($repoRoot).TrimEnd('\') + '\')
 
 if (-not $outputDirectory.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase)) {
     throw "OutputDirectory must stay inside the repository artifacts directory: $outputDirectory"
 }
 
-function Ensure-Directory([string] $Path) {
-    New-Item -ItemType Directory -Force -Path $Path | Out-Null
-}
-
-function Get-Sha256([string] $Path) {
-    $algorithm = [Security.Cryptography.SHA256]::Create()
-    $stream = [IO.File]::OpenRead($Path)
-    try {
-        -join ($algorithm.ComputeHash($stream) | ForEach-Object { $_.ToString('x2') })
-    }
-    finally {
-        $stream.Dispose()
-        $algorithm.Dispose()
-    }
-}
-
-function Get-VerifiedDownload([string] $Url, [string] $Path, [string] $ExpectedHash) {
-    $parent = Split-Path -Parent $Path
-    Ensure-Directory $parent
-
-    if (Test-Path -LiteralPath $Path) {
-        if ((Get-Sha256 $Path) -eq $ExpectedHash.ToLowerInvariant()) {
-            return
-        }
-        Remove-Item -LiteralPath $Path -Force
-    }
-
-    $partial = "$Path.part"
-    Write-Host "Downloading $Url"
-    & curl.exe --fail --location --silent --show-error --output $partial $Url
-    if ($LASTEXITCODE -ne 0) {
-        Remove-Item -LiteralPath $partial -Force -ErrorAction SilentlyContinue
-        throw "Download failed for $Url"
-    }
-    if ((Get-Sha256 $partial) -ne $ExpectedHash.ToLowerInvariant()) {
-        Remove-Item -LiteralPath $partial -Force
-        throw "SHA-256 mismatch for $Url"
-    }
-    Move-Item -LiteralPath $partial -Destination $Path
-}
+. (Join-Path $PSScriptRoot 'verified-download.ps1')
 
 function Copy-ManifestAsset($Model, $Asset, [string] $ModelsDirectory, [string] $ModelCacheDirectory) {
     $relativePath = ($Asset.path -replace '/', '\').TrimStart('\')
@@ -75,7 +37,6 @@ Push-Location $repoRoot
 $temporaryBuildOrt = $false
 try {
     $manifest = Get-Content -Raw -LiteralPath 'src-tauri\model-manifest.json' | ConvertFrom-Json
-    $runtime = Get-Content -Raw -LiteralPath 'scripts\native-preview-runtime.json' | ConvertFrom-Json
 
     if (Test-Path -LiteralPath $outputDirectory) {
         Remove-Item -LiteralPath $outputDirectory -Recurse -Force
@@ -83,29 +44,17 @@ try {
     Ensure-Directory $outputDirectory
     Ensure-Directory $cacheDirectory
 
-    $runtimeZip = Join-Path $cacheDirectory "onnxruntime-win-x64-$($runtime.version).zip"
-    Get-VerifiedDownload $runtime.url $runtimeZip $runtime.sha256
-    $runtimeExtract = Join-Path $cacheDirectory "onnxruntime-win-x64-$($runtime.version)"
-    $runtimeDll = Get-ChildItem -LiteralPath $runtimeExtract -Filter 'onnxruntime.dll' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
-    if (-not $runtimeDll) {
-        Ensure-Directory $runtimeExtract
-        Expand-Archive -LiteralPath $runtimeZip -DestinationPath $runtimeExtract
-        $runtimeDll = Get-ChildItem -LiteralPath $runtimeExtract -Filter 'onnxruntime.dll' -Recurse | Select-Object -First 1 -ExpandProperty FullName
-    }
-    if ((Get-Sha256 $runtimeDll) -ne $runtime.dllSha256.ToLowerInvariant()) {
-        throw "SHA-256 mismatch for the staged ONNX Runtime DLL"
-    }
+    # The provisioner owns the pinned runtime and the download cache. It leaves
+    # the DLL behind for the build, so remember whether we still owe a cleanup.
+    $hadBuildOrt = Test-Path -LiteralPath $buildOrt
+    $runtimeDll = & (Join-Path $PSScriptRoot 'provision-onnxruntime.ps1') -CacheDirectory $cacheDirectory -Destination $buildOrt
+    $temporaryBuildOrt = -not $hadBuildOrt
 
     $modelsDirectory = Join-Path $outputDirectory 'data\models'
     Copy-ManifestAsset $manifest.text $manifest.text.model $modelsDirectory (Join-Path $cacheDirectory 'models')
     Copy-ManifestAsset $manifest.text $manifest.text.tokenizer $modelsDirectory (Join-Path $cacheDirectory 'models')
     Copy-ManifestAsset $manifest.image $manifest.image.model $modelsDirectory (Join-Path $cacheDirectory 'models')
 
-    $buildOrt = Join-Path $repoRoot 'src-tauri\onnxruntime.dll'
-    if (-not (Test-Path -LiteralPath $buildOrt)) {
-        Copy-Item -LiteralPath $runtimeDll -Destination $buildOrt
-        $temporaryBuildOrt = $true
-    }
     $targetDirectory = Join-Path $repoRoot 'src-tauri\target'
     $releaseDirectory = Join-Path $targetDirectory 'release'
     $previousTargetDirectory = $env:CARGO_TARGET_DIR
