@@ -76,6 +76,7 @@ Guardrails:
 - Dead `note-art` / `note-pin` / `note-scribble` card styles left over from the note thumbnail reuse (`src/App.css`)
 ### Fixed
 
+- Shipped Windows builds no longer carry the ~9.7 MB committed demo seed: a new `bun run build:app` drops `public/seed-demo/` and the `src/seedPersonal.ts` bundle at build time and fails if either is still present, and the Tauri build uses it. The demo seed remains the default for the web preview and UI work (SQU-81).
 - Tagged Windows releases now fetch and SHA-256 verify the pinned `onnxruntime.dll` before the installer is built, so a release no longer bundles without it and ships with embeddings and OCR that cannot load (SQU-78).
 - Saved Spaces now restore reliably on a fresh app start instead of disappearing when their first read races storage initialization (SQU-7).
 - Portable Windows previews use the same Cargo output directory for building and packaging, even when `CARGO_TARGET_DIR` is set (#53).
