@@ -65,24 +65,42 @@ export interface DriftState {
 }
 
 /**
- * A amble. Slow enough to ignore, and slow enough that the sway reads as drift
- * rather than as a wobble on a fast pass.
+ * A amble. Slow enough to ignore, slow enough that the sway reads as drift
+ * rather than as a wobble on a pass. Tuned down twice against a recording:
+ * faster than this and the mascot stops feeling like it is ambling and starts
+ * feeling like it is late for something.
  */
-export const CRUISE_SPEED = 30;
+export const CRUISE_SPEED = 22;
 
 /** How fast it can change its mind, in radians per second. */
 export const TURN_RATE = 0.55;
 
 /**
- * How far the sway pushes off the intended direction, in radians. Seven degrees
- * is about a tenth of a right angle: enough that a long straight pass looks like
- * something alive, little enough that it still reads as going somewhere.
+ * How far the sway pushes off the intended direction, in radians. About three and
+ * a half degrees, which is felt rather than seen. This was 0.12, seven degrees,
+ * and a recording of it walking a long pass showed the line weaving enough to
+ * read as a designed swoop rather than something going somewhere.
  */
-export const SWAY_AMPLITUDE = 0.12;
+export const SWAY_AMPLITUDE = 0.06;
 
 /** The two rates the sway runs at. Incommensurate, so it never repeats. */
 const SWAY_RATE_A = 0.37;
 const SWAY_RATE_B = 0.23;
+
+/**
+ * How far off its aim a wall has to push the mascot before the aim is
+ * considered broken. A deflection is usually square, so this cannot be a test
+ * for "facing the other way".
+ */
+const DEFLECTION_ANGLE = 1.2;
+
+/**
+ * Below this fraction of its cruise the mascot has been stopped by something -
+ * a wall it walked into head on, or a corner - and needs a fresh direction
+ * rather than the one that walked it there.
+ */
+export const STALL_FRACTION = 0.3;
+
 
 /** The room it is in, and everything inside the room it cannot be inside. */
 export interface Terrain {
@@ -165,6 +183,11 @@ export function drift(
 
   // The walls, which at the moment is the card grid. Steps are a fraction of a
   // pixel at this pace, so nothing can tunnel through one.
+  //
+  // The normal component is removed rather than reversed. Reversing is a bounce,
+  // and a mascot that bounces off the grid and heads straight back into it
+  // oscillates against the cards for the rest of the leg; taking the tangent and
+  // carrying on is a slide, which is what anything moving through a room does.
   for (const wall of terrain.walls) {
     if (x <= wall.left || x >= wall.right || y <= wall.top || y >= wall.bottom) continue;
     const outLeft = x - wall.left;
@@ -172,11 +195,12 @@ export function drift(
     const outTop = y - wall.top;
     const outBottom = wall.bottom - y;
     const least = Math.min(outLeft, outRight, outTop, outBottom);
-    if (least === outLeft) { x = wall.left; vx = -Math.abs(vx); }
-    else if (least === outRight) { x = wall.right; vx = Math.abs(vx); }
-    else if (least === outTop) { y = wall.top; vy = -Math.abs(vy); }
-    else { y = wall.bottom; vy = Math.abs(vy); }
+    if (least === outLeft) { x = wall.left; vx = 0; }
+    else if (least === outRight) { x = wall.right; vx = 0; }
+    else if (least === outTop) { y = wall.top; vy = 0; }
+    else { y = wall.bottom; vy = 0; }
   }
+
 
   return { x, y, vx, vy };
 }
@@ -190,5 +214,26 @@ export function speedOf(state: DriftState): number {
 export function headingOf(state: DriftState): number {
   return Math.atan2(state.vy, state.vx);
 }
+
+/**
+ * The heading to adopt after a wall has pushed the mascot off course.
+ *
+ * A wall removes the normal component of the velocity and leaves the tangential
+ * one, so the mascot is not stopped - but the aim still points into the wall, the
+ * next frame steers it back in, and it spends the rest of the leg grinding along
+ * the grid. Taking the deflected direction as the new aim is what turns that into
+ * actually going somewhere.
+ *
+ * The test is the angle between them and not whether they face opposite ways: a
+ * deflection usually leaves the mascot travelling at ninety degrees to where it
+ * was aimed, which is exactly opposite of "still on course" but is not more than
+ * zero degrees of disagreement either.
+ */
+export function deflectedAim(aim: number | null, state: DriftState): number | null {
+  if (aim === null || speedOf(state) <= 1) return aim;
+  return Math.abs(shortestAngle(headingOf(state), aim)) > DEFLECTION_ANGLE ? headingOf(state) : aim;
+}
+
+
 
 

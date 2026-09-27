@@ -4,6 +4,7 @@ import {
   MASCOT_SIZE,
   SWAY_AMPLITUDE,
   TURN_RATE,
+  deflectedAim,
   drift,
   headingOf,
   speedOf,
@@ -68,24 +69,25 @@ describe("drift", () => {
   });
 
   test("the path is mostly straight, with only a little sway", () => {
-    // Aims dead down, and measures how far the path strays from that line. A
-    // creature wandering has a few degrees of drift on it; a decorative curve
-    // would be tens of degrees and read as a designed swoop.
-    const start: DriftState = { x: 700, y: 60, vx: 0, vy: 0 };
-    const { path } = run(start, 0, 12);
-    const maxStray = Math.max(...path.map((p) => Math.abs(p.y - 60)));
-    // Aims right, so allow sway in the perpendicular axis only.
-    const across = run({ x: 280, y: 400, vx: 0, vy: 0 }, 0, 10);
-    const maxAcross = Math.max(...across.path.map((p) => Math.abs(p.y - 400)));
-    expect(maxStray).toBeLessThan(140);
-    expect(maxAcross).toBeLessThan(140);
-    // And it is genuinely not a ruler-straight line, or there would be no sway.
-    expect(maxAcross).toBeGreaterThan(3);
-    expect(SWAY_AMPLITUDE).toBeLessThan(0.2);
+    // Aims right down the open band above the grid, where there is no wall to
+    // disturb it, and measures how far the path strays from that line. A creature
+    // wandering has a few degrees of drift on it; a decorative curve reads as a
+    // designed swoop. This was 0.12 radians and a recording of a long pass showed
+    // the line weaving enough to look like that, so it is now half that.
+    const start: DriftState = { x: 300, y: 80, vx: 0, vy: 0 };
+    const { path } = run(start, 0, 10);
+    const maxAcross = Math.max(...path.map((p) => Math.abs(p.y - 80)));
+    const travelled = Math.abs(path[path.length - 1]!.x - start.x);
+    expect(travelled).toBeGreaterThan(150);
+    expect(SWAY_AMPLITUDE).toBeLessThan(0.08);
+    // Mostly straight: a few degrees of drift, not a curve.
+    expect(maxAcross / travelled).toBeLessThan(0.1);
+    // And genuinely not a ruler-straight line either, or there would be no sway.
+    expect(maxAcross).toBeGreaterThan(2);
   });
 
   test("it is slow, and never faster than the cruise it was given", () => {
-    expect(CRUISE_SPEED).toBeLessThanOrEqual(40);
+    expect(CRUISE_SPEED).toBeLessThanOrEqual(26);
     const { path } = run({ x: 280, y: 400, vx: 0, vy: 0 }, 0, 30);
     for (const point of path) {
       expect(speedOf(point)).toBeLessThanOrEqual(CRUISE_SPEED * 1.05);
@@ -95,19 +97,34 @@ describe("drift", () => {
     expect(settled).toBeGreaterThan(CRUISE_SPEED * 0.7);
   });
 
-  test("a wall deflects it and it carries on along the wall", () => {
-    // Aimed into the top edge of the grid from the band above. Pinned flat against
-    // a wall it would look stuck, so the deflection is the interesting part: the
-    // normal component is gone and the tangential one carries it along.
+
+  test("a wall deflects it, and taking that as the new aim makes it slide on", () => {
+    // Aimed into the top edge of the grid from the band above. A wall removes the
+    // normal component and leaves the tangential one, so the mascot is not
+    // stopped - but the aim still points into the wall, and the next frame steers
+    // it back in, and it grinds along the grid for the rest of the leg. Taking
+    // the deflected direction is what turns that into going somewhere.
     const start: DriftState = { x: 700, y: 100, vx: 0, vy: 0 };
-    const { path } = run(start, Math.PI / 2, 25);
+    let aim: number | null = Math.PI / 2;
+    let state = start;
+    const path: DriftState[] = [];
+    for (let t = 0; t < 25; t += 1 / 60) {
+      state = drift(state, TERRAIN, 1 / 60, t, aim, CRUISE_SPEED, 0);
+      aim = deflectedAim(aim, state);
+      path.push(state);
+    }
     for (const point of path) expect(inMargin(point)).toBe(true);
-    const last = path[path.length - 1]!;
     // It never pushed into the grid.
-    expect(last.y).toBeLessThanOrEqual(GRID.top + 0.001);
-    // And it travelled along the edge rather than sitting on it.
-    expect(Math.abs(last.x - start.x)).toBeGreaterThan(150);
-    expect(speedOf(last)).toBeGreaterThan(CRUISE_SPEED * 0.5);
+    expect(state.y).toBeLessThanOrEqual(GRID.top + 0.001);
+    // And it travelled a long way along the edge rather than sitting on it.
+    expect(Math.abs(state.x - start.x)).toBeGreaterThan(200);
+    expect(speedOf(state)).toBeGreaterThan(CRUISE_SPEED * 0.5);
+  });
+
+  test("an undeflected mascot keeps its aim", () => {
+    const moving: DriftState = { x: 280, y: 400, vx: 22, vy: 0 };
+    expect(deflectedAim(0, moving)).toBe(0);
+    expect(deflectedAim(null, moving)).toBeNull();
   });
 
 
@@ -139,4 +156,5 @@ describe("drift", () => {
     expect(MASCOT_SIZE).toBe(44);
   });
 });
+
 

@@ -33,6 +33,8 @@ import {
 import {
   CRUISE_SPEED,
   MASCOT_SIZE,
+  STALL_FRACTION,
+  deflectedAim,
   drift,
   headingOf,
   pickDirection,
@@ -47,13 +49,18 @@ import { farPoint, freePoint, hasRoom, lookTargets, terrainFor } from "./roamSpa
 /** The body state out in the library: a slow sway that keeps whatever face it is given. */
 const ROAM_STATE = "inkling-sway" as const;
 
-const CONTAINER_SELECTOR = ".main-content";
+const CONTAINER_SELECTOR = ".app-shell";
 const MARK_SELECTOR = ".brand-mark";
 /**
- * The things it is not allowed to be on: the cards, and the strips of controls
- * above them. Both are measured and handed to the geometry as walls.
+ * The one thing it is not allowed to be on. The card grid is the user's content
+ * and the mascot is never over it; everything else in the app, the sidebar and
+ * the strips of controls included, is somewhere it is allowed to be. The controls
+ * were walls for a while on the grounds that a blot on the search field hides
+ * what you were aiming at, which is fair, and it cost the mascot most of the
+ * library to walk in - so they are open again and it is decoration over a control
+ * rather than an obstruction to it.
  */
-const BLOCKER_SELECTORS = [".library-grid", ".capture-bar", ".library-toolbar"];
+const BLOCKER_SELECTORS = [".library-grid"];
 const CARD_SELECTOR = ".library-card";
 
 /** The virtualized window is the only thing in the DOM, but cap the gaze set. */
@@ -76,6 +83,13 @@ const HOP_SHRINK_EASE = "cubic-bezier(.5,0,.9,.4)";
 const HOP_SHRINK_TO = 0;
 const HOP_GROW_MS = 480;
 const HOP_GROW_EASE = "cubic-bezier(.18,1.28,.36,1)";
+
+/**
+ * How long it stays in one part of the library before it will consider blinking
+ * somewhere else. Wandering and relocating are different things, and a mascot
+ * that does both at the same rate is only ever doing one of them.
+ */
+const MIN_DWELL_MS = 3_200;
 
 /**
  * How much a leg varies its pace. Every leg is a little different, because a
@@ -122,6 +136,8 @@ let cruise = CRUISE_SPEED;
 /** A random offset on the sway, so no two legs drift on the same line. */
 let swayPhase = 0;
 let legStartedAt = 0;
+/** When it last appeared somewhere, which is what the dwell is measured from. */
+let lastPlacedAt = -Infinity;
 let looking: Look | null = null;
 
 let node: HTMLDivElement | null = null;
@@ -272,6 +288,7 @@ function setSquash(scale: number, ms: number, ease: string) {
 
 function growInto(point: Vec) {
   motion = { x: point.x, y: point.y, vx: 0, vy: 0 };
+  lastPlacedAt = virtualNow;
   // Put it where it is going while it is still invisible, so the swell is
   // somewhere new rather than a slide across the library.
   paint(point.x, point.y);
@@ -404,9 +421,12 @@ function advance(now: number, force = false) {
 
   // A crossing or a drift to the margins is a request to be somewhere else, and
   // the only way to be somewhere else without crossing the grid is to go there.
-  // Not while the user is mid-dialog: it holds still then, rather than blinking
-  // across the room behind somebody's back.
-  const relocating = !holding() && (action.target === "across" || action.target === "margin");
+  // Not while the user is mid-dialog, and not before it has been here a while: a
+  // recording of the first version of this had it blinking across the library
+  // every two seconds, which is not roaming, it is teleporting with a delay. It
+  // wanders in one part for a few seconds first, and only then moves.
+  const settled = virtualNow - lastPlacedAt >= MIN_DWELL_MS;
+  const relocating = settled && !holding() && (action.target === "across" || action.target === "margin");
   if (relocating) {
     const elsewhere = farPoint(terrain, motion, rand);
     if (elsewhere) {
@@ -451,10 +471,11 @@ function onClock(clock: number) {
         : drift(motion, terrain, seconds, (virtualNow - legStartedAt) / 1000, aim, cruise, swayPhase);
       // A wall pushes the mascot off its heading. Take the deflected direction as
       // the new aim, so it slides along the grid and carries on instead of
-      // pressing into it for the rest of the leg, which reads as stuck.
-      if (aim !== null && speedOf(motion) > 1 && Math.cos(headingOf(motion) - aim) < 0) {
-        aim = headingOf(motion);
-      }
+      // pressing into it for the rest of the leg, which reads as stuck. And if it
+      // walked into something head on and stopped dead, the direction that did it
+      // is no use to it: pick a fresh one.
+      if (speedOf(motion) < cruise * STALL_FRACTION) chooseLeg(motion);
+      else aim = deflectedAim(aim, motion);
       paint(motion.x, motion.y);
     }
   }
@@ -602,4 +623,8 @@ function getRoamSnapshot(): RoamSnapshot {
 export function useRoam(): RoamSnapshot {
   return useSyncExternalStore(subscribeRoam, getRoamSnapshot);
 }
+
+
+
+
 

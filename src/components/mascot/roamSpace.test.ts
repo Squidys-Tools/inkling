@@ -50,13 +50,14 @@ describe("roam space", () => {
 
   test("the free space is a corridor, and it is small", () => {
     // Worth knowing rather than discovering: a four column grid leaves margins
-    // about as wide as the mascot, so what is left is two narrow rails and the
-    // band under the search bar. The mascot can roam all of it, but "the whole
-    // library" is a corridor here, not an open floor.
+    // about as wide as the mascot, so within the library panel what is left is
+    // two narrow rails and the band above the cards. The room the store measures
+    // is the whole app shell rather than the panel, which is where the extra
+    // space comes from.
     const area = freeArea(TERRAIN);
     const roomArea = (TERRAIN.room.right - TERRAIN.room.left) * (TERRAIN.room.bottom - TERRAIN.room.top);
     expect(area).toBeGreaterThan(0);
-    expect(area / roomArea).toBeLessThan(0.25);
+    expect(area / roomArea).toBeLessThan(0.35);
   });
 
 
@@ -129,18 +130,20 @@ describe("roam space", () => {
     expect(stray.walls).toHaveLength(0);
   });
 
-  test("the control strips are walls too, not just the cards", () => {
-    // A mascot drifting across the search field or the Add button does not block
-    // the click, but it hides what you were aiming at. The strips are walls for
-    // the same reason the grid is.
-    const captureBar: Rect = { left: 296, top: 36, right: 1366, bottom: 86 };
-    const withControls = terrainFor(PANEL, [GRID, captureBar]);
-    expect(withControls.walls).toHaveLength(2);
+  test("the control strips are open ground, and only the cards are a wall", () => {
+    // The strips were walls for a while, on the grounds that a blot on the search
+    // field hides what you were aiming at. That is fair, and it cost the mascot
+    // most of the library to walk in, so they are open and the mascot is
+    // decoration over a control rather than an obstruction to it.
+    const terrain = terrainFor(PANEL, [GRID]);
+    expect(terrain.walls).toHaveLength(1);
     const rand = createSeededRandom(13);
-    for (let i = 0; i < 300; i++) {
-      const p = freePoint(withControls, rand)!;
-      expect(p.y > captureBar.top && p.y < captureBar.bottom && p.x > captureBar.left && p.x < captureBar.right).toBe(false);
+    let onTheStrip = 0;
+    for (let i = 0; i < 400; i++) {
+      const p = freePoint(terrain, rand)!;
+      if (p.y > 36 && p.y < 86 && p.x > 296 && p.x < 1366) onTheStrip++;
     }
+    expect(onTheStrip).toBeGreaterThan(0);
   });
 
   test("a blocker outside the room is dropped rather than shrinking the room", () => {
