@@ -102,7 +102,6 @@ const ReaderView = lazy(() =>
 import type { ReaderItem, ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
-import { pinRailItems, showsPinRail } from "./lib/pins";
 import { serendipityItems } from "./lib/serendipity";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
 // the repo so the web preview shows a real library out of the box. The eager
@@ -2604,19 +2603,6 @@ function App() {
     });
   }, [activeSpace, activeSpaceId, activeView, canUseTauriBackend, isSerendipityView, items, query, serendipityBatch, similaritySource]);
 
-  const pinnedRail = useMemo(
-    () =>
-      showsPinRail({
-        activeView,
-        activeSpaceId,
-        query,
-        hasSimilaritySource: similaritySource != null,
-      })
-        ? pinRailItems(items)
-        : [],
-    [activeSpaceId, activeView, items, query, similaritySource],
-  );
-
   // VirtuosoMasonry keys rows by position, so a new result set must remount
   // the grid. Otherwise card state (video playback, embeds) sticks to the
   // wrong item after a filter change.
@@ -2724,19 +2710,6 @@ function App() {
     onOpenReader: openReader,
     onRetryJob: retryJob,
   }), [openReader, retryJob, selectLibraryItem]);
-
-  // Rail cards open straight away. Flying from a strip that sits outside the
-  // grid scroller would make the grid scroll to an origin already on screen,
-  // so these carry no origin rect and the overlay just appears.
-  const pinRailCardContext = useMemo<LibraryCardContext>(() => ({
-    onSelectItem: (item) => {
-      selectionScrollRef.current = false;
-      selectionRectsRef.current = null;
-      setSelectedItem(item);
-    },
-    onOpenReader: openReader,
-    onRetryJob: retryJob,
-  }), [openReader, retryJob]);
 
   const deleteArchivedLibraryItem = useCallback(async (item: LibraryItem) => {
     setCaptureError(null);
@@ -2873,11 +2846,11 @@ function App() {
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
   useEffect(() => {
-    const selectedCards = document.querySelectorAll<HTMLElement>(".library-grid .library-card.is-selected");
+    const selectedCards = document.querySelectorAll<HTMLElement>(".library-card.is-selected");
     for (const card of selectedCards) card.classList.remove("is-selected");
     if (!selectedItem) return;
     const source = document.querySelector<HTMLElement>(
-      `.library-grid .library-card[data-library-item-id="${CSS.escape(String(selectedItem.id))}"]`,
+      `.library-card[data-library-item-id="${CSS.escape(String(selectedItem.id))}"]`,
     );
     source?.classList.add("is-selected");
   }, [selectedItem]);
@@ -3420,22 +3393,6 @@ function App() {
             </div>
           )}
         </div>
-
-        {pinnedRail.length > 0 && (
-          <section className="pin-rail" aria-label="Top of mind" data-testid="pin-rail">
-            <span className="pin-rail-label">Top of mind</span>
-            <div className="pin-rail-track">
-              {pinnedRail.map((item, index) => (
-                <VirtualizedLibraryItem
-                  key={String(item.id)}
-                  data={item}
-                  index={index}
-                  context={pinRailCardContext}
-                />
-              ))}
-            </div>
-          </section>
-        )}
 
         <div className="library-scroll" ref={libraryScrollRef}>
         {isSerendipityView ? (

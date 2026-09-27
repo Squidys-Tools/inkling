@@ -50,7 +50,7 @@ It also understands meaning, not just exact words, and can find images that look
 - **Quote cards** — save a qoute with where it came from.
 - **Smart Spaces** — Bascially saved search queries, Spaces update themselves. Save a search once (say, `tag:essay` or your favorite pieces) and new saves show up on their own.
 - **Serendipity** — take a slow, one-at-a-time walk through older saves, keeping what still feels useful or forgetting what you do not need to carry.
-- **Pins** — pin anything worth keeping in reach, and it waits for you at the top of the library.
+- **Pins** — pin anything worth keeping in reach, then find it again in Top of mind.
 
 ### 4. Your stuff stays yours
 

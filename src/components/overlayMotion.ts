@@ -79,11 +79,9 @@ export function scrollViewport(root: HTMLElement | null): HTMLElement | null {
 
 // Measures the live grid card for an item, if it is still mounted. Returns
 // viewport coordinates so flights can run inside the fixed overlay layer.
-// Scoped to the grid: the pin rail also renders cards, and a rail card is not
-// where an overlay opened from the grid should fly back to.
 export function queryCardRects(id: string | number): SourceRects | null {
   const card = document.querySelector<HTMLElement>(
-    `.library-grid .library-card[data-library-item-id="${CSS.escape(String(id))}"]`,
+    `.library-card[data-library-item-id="${CSS.escape(String(id))}"]`,
   );
   if (!card) return null;
   const cardRect = card.getBoundingClientRect();

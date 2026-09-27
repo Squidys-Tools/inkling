@@ -161,15 +161,6 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .pdf-page-count { position: absolute; z-index: 2; right: 11%; bottom: 11%; color: #8d867c; font: 10px "DM Mono", monospace; letter-spacing: .08em; }
 .quote-preview { position: absolute; left: 11%; top: 29%; right: 13%; display: -webkit-box; overflow: hidden; color: #d0c68f; font: 16px/1.28 "DM Sans", sans-serif; letter-spacing: -.02em; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .card-image-wrap video.card-image { background: #171817; }
-.pin-rail { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; padding: 0 0 6px; }
-.pin-rail-label { flex: 0 0 auto; color: #8d867c; font: 11px "DM Mono", monospace; }
-.pin-rail-track { display: flex; flex: 1 1 auto; gap: 10px; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -ms-overflow-style: none; }
-.pin-rail-track::-webkit-scrollbar { display: none; height: 0; }
-/* Reuse the grid card so every media type keeps its own artwork. The rail is a
-   fixed strip, so the cards shrink and the slot drops the grid's bottom gap. */
-.pin-rail-track > .library-card-slot { flex: 0 0 62px; width: 62px; padding-bottom: 0; }
-.pin-rail-track .library-card { border-radius: 12px; }
-.pin-rail-track .library-card:hover { translate: 0 -2px; }
 .library-scroll { flex: 1 1 auto; min-height: 0; overflow: hidden; position: relative; scrollbar-width: none; -ms-overflow-style: none; }
 .library-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .library-grid.view-transitioning { visibility: hidden; }
