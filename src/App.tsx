@@ -1395,27 +1395,40 @@ function App() {
       const id = String(item.id);
       if (pendingPinIdsRef.current.has(id)) return;
       pendingPinIdsRef.current.add(id);
-      const pinned = !itemsRef.current.find((candidate) => String(candidate.id) === id)?.favorite;
+      // Read the live value so a repeat click reverses the previous one. An
+      // archived item is not in the active list, so fall back to the item the
+      // overlay handed over rather than treating it as unpinned.
+      const live = itemsRef.current.find((candidate) => String(candidate.id) === id);
+      const wasPinned = (live ?? item).favorite === true;
+      const pinned = !wasPinned;
+      const show = (next: boolean) => {
+        const apply = (current: LibraryItem) => (
+          String(current.id) === id ? { ...current, favorite: next } : current
+        );
+        setItems((current) => current.map(apply));
+        setArchivedItems((current) => current.map(apply));
+        setSelectedItem((current) => (current ? apply(current) : current));
+      };
       try {
-        const apply = (current: LibraryItem) => ({
-          ...current,
-          favorite: pinned,
-        });
-        // Optimistic, so a repeated click reads the new value. A later refresh
-        // can still land older data, so the pin is re-asserted until the backend
-        // confirms it.
+        // Optimistic, so a repeated click reads the new value. A refresh already
+        // in flight can land older data, so the pin is re-asserted until the
+        // backend confirms it.
         pinnedOverridesRef.current.set(id, pinned);
-        setItems((current) => current.map((currentItem) => (String(currentItem.id) === id ? apply(currentItem) : currentItem)));
-        setSelectedItem((current) => (current && String(current.id) === id ? apply(current) : current));
+        show(pinned);
         if (canUseTauriBackend) {
           const confirmed = await updateItem({ id, favorite: pinned });
-          if (Boolean(confirmed.favorite) !== pinned) pinnedOverridesRef.current.set(id, Boolean(confirmed.favorite));
-          else pinnedOverridesRef.current.delete(id);
+          // The stored value wins once it is known, including if it disagreed
+          // with what was asked for.
+          const stored = confirmed.favorite === true;
+          pinnedOverridesRef.current.delete(id);
+          show(stored);
         } else {
           pinnedOverridesRef.current.delete(id);
         }
       } catch {
+        // A failed write must not leave the item looking pinned anywhere.
         pinnedOverridesRef.current.delete(id);
+        show(wasPinned);
         toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
       } finally {
         pendingPinIdsRef.current.delete(id);
