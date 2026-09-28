@@ -1034,14 +1034,14 @@ function ExtensionPairing() {
         setToken(value);
         setIsRevealed(true);
       })
-      .catch(() => toast.error("Could not load the pairing token."));
+      .catch(() => toast.error("Could not load the pairing token.", { duration: 5000 }));
   };
 
   const copyToken = () => {
     if (!token) return;
     void navigator.clipboard.writeText(token)
       .then(() => toast.success("Pairing token copied. Paste it into the extension."))
-      .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand."));
+      .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand.", { duration: 5000 }));
   };
 
   const renewToken = () => {
@@ -1052,7 +1052,7 @@ function ExtensionPairing() {
         setIsRevealed(true);
         toast.success("New pairing token issued. Update the extension.");
       })
-      .catch(() => toast.error("Could not renew the pairing token."));
+      .catch(() => toast.error("Could not renew the pairing token.", { duration: 5000 }));
   };
 
   const testConnection = () => {
@@ -1068,7 +1068,7 @@ function ExtensionPairing() {
     };
     void check()
       .then(() => toast.success("Extension receiver is reachable."))
-      .catch(() => toast.error("No answer from the receiver. Is the app running?"))
+      .catch(() => toast.error("No answer from the receiver. Is the app running?", { duration: 5000 }))
       .finally(() => setIsTesting(false));
   };
 
@@ -1189,6 +1189,7 @@ function App() {
   const pendingLibraryViewPositionsRef = useRef<Map<string, LibraryCardPosition> | null>(null);
   const libraryViewAnimationsRef = useRef<Array<ReturnType<typeof gsap.timeline>>>([]);
   const libraryViewPreparationTimerRef = useRef<number | null>(null);
+  const pendingPermanentDeletesRef = useRef<Map<string, number>>(new Map());
   const libraryViewTransitionRunRef = useRef(0);
   const selectionRectsRef = useRef<SourceRects | null>(null);
   const selectionRunRef = useRef(0);
@@ -1265,10 +1266,6 @@ function App() {
         ? current
         : [restoredItem, ...current]);
       setArchivedItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
-      // The confirmation needs a toast of its own. Sonner dismisses the forget toast the
-      // moment its action is clicked, and a later toast raised under that same id inherits
-      // the dismissed toast's `delete` flag, so it never reaches the screen.
-      toast.success("Restored to your library", { duration: 3000, closeButton: true });
     } catch (error) {
       toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
       setCaptureError(error instanceof Error ? error.message : String(error));
@@ -1377,7 +1374,7 @@ function App() {
       );
       setSelectedItem((current) => (current && String(current.id) === String(item.id) ? apply(current) : current));
     } catch (error) {
-      toast.error("Unable to save this tag");
+      toast.error("Unable to save this tag", { duration: 5000 });
     }
   }, [canUseTauriBackend]);
 
@@ -2577,6 +2574,10 @@ function App() {
   );
   const isSerendipityView = activeView === "Serendipity" && !activeSpaceId;
   const isPinsView = activeView === "Top of mind" && !activeSpaceId;
+  // In the pins view an empty grid only means "no pins" while nothing is being
+  // searched. A query that matches nothing is a search miss, not an empty shelf,
+  // so it keeps the search copy and the way out of the search.
+  const isEmptyPinsView = isPinsView && !query.trim();
   const serendipityCandidates = useMemo(
     () => isSerendipityView
       ? serendipityItems(items, { excludedIds: serendipityKeptIds, limit: items.length })
@@ -2720,17 +2721,52 @@ function App() {
     onRetryJob: retryJob,
   }), [openReader, retryJob, selectLibraryItem]);
 
-  const deleteArchivedLibraryItem = useCallback(async (item: LibraryItem) => {
+  const schedulePermanentDelete = useCallback((id: string) => {
+    const existingTimer = pendingPermanentDeletesRef.current.get(id);
+    if (existingTimer !== undefined) window.clearTimeout(existingTimer);
+    const timer = window.setTimeout(() => {
+      pendingPermanentDeletesRef.current.delete(id);
+      if (!canUseTauriBackend) return;
+      void deleteItem(id).catch((error) => {
+        setCaptureError(error instanceof Error ? error.message : String(error));
+      });
+    }, 10000);
+    pendingPermanentDeletesRef.current.set(id, timer);
+  }, [canUseTauriBackend]);
+
+  const cancelPermanentDelete = useCallback((id: string) => {
+    const timer = pendingPermanentDeletesRef.current.get(id);
+    if (timer === undefined) return false;
+    window.clearTimeout(timer);
+    pendingPermanentDeletesRef.current.delete(id);
+    return true;
+  }, []);
+
+  const undoPermanentDelete = useCallback((deletedItems: LibraryItem[]) => {
+    const restoredItems = deletedItems.filter((item) => cancelPermanentDelete(String(item.id)));
+    if (restoredItems.length === 0) return;
+    setArchivedItems((current) => [...restoredItems, ...current]);
+  }, [cancelPermanentDelete]);
+
+  useEffect(() => () => {
+    for (const timer of pendingPermanentDeletesRef.current.values()) window.clearTimeout(timer);
+    pendingPermanentDeletesRef.current.clear();
+  }, []);
+
+  const deleteArchivedLibraryItem = useCallback((item: LibraryItem) => {
     setCaptureError(null);
-    try {
-      if (canUseTauriBackend) await deleteItem(String(item.id));
-      setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== String(item.id)));
-      if (selectedItem && String(selectedItem.id) === String(item.id)) setSelectedItem(null);
-      toast.success("Deleted permanently", { description: item.title, duration: 3000 });
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    }
-  }, [selectedItem]);
+    const itemId = String(item.id);
+    schedulePermanentDelete(itemId);
+    setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== itemId));
+    if (selectedItem && String(selectedItem.id) === itemId) setSelectedItem(null);
+    toast("Deleted permanently", {
+      description: item.title,
+      duration: 10000,
+      closeButton: true,
+      className: "library-toast",
+      action: { label: "Undo", onClick: () => undoPermanentDelete([item]) },
+    });
+  }, [cancelPermanentDelete, schedulePermanentDelete, selectedItem, undoPermanentDelete]);
 
   const toggleArchiveSelectionMode = useCallback(() => {
     setIsArchiveSelectionMode((current) => {
@@ -2795,34 +2831,30 @@ function App() {
       setArchivedItems((current) => current.filter((item) => !restoredIds.has(String(item.id))));
       setSelectedArchivedIds(new Set());
       setIsArchiveSelectionMode(false);
-      if (restoredItems.length > 0) toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`, { duration: 3000 });
+      if (restoredItems.length > 0) toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`);
       if (failures > 0) setCaptureError(`${failures} ${failures === 1 ? "item" : "items"} could not be recovered. They are still in the archive.`);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }, [archivedItems, selectedArchivedIds]);
 
-  const deleteSelectedArchivedItems = useCallback(async () => {
+  const deleteSelectedArchivedItems = useCallback(() => {
     const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
     if (selectedItems.length === 0) return;
     setCaptureError(null);
-    try {
-      const results = await Promise.allSettled(selectedItems.map(async (item) => {
-        if (canUseTauriBackend) await deleteItem(String(item.id));
-        return String(item.id);
-      }));
-      const deletedIds = new Set(results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
-      const failures = results.filter((result) => result.status === "rejected").length;
-      setArchivedItems((current) => current.filter((item) => !deletedIds.has(String(item.id))));
-      if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
-      setSelectedArchivedIds(new Set());
-      setIsArchiveSelectionMode(false);
-      if (deletedIds.size > 0) toast.success(`${deletedIds.size} ${deletedIds.size === 1 ? "item" : "items"} deleted permanently`, { duration: 3000 });
-      if (failures > 0) setCaptureError(`${failures} ${failures === 1 ? "item" : "items"} could not be deleted. They are still in the archive.`);
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    }
-  }, [archivedItems, selectedArchivedIds, selectedItem]);
+    const deletedIds = new Set(selectedItems.map((item) => String(item.id)));
+    for (const item of selectedItems) schedulePermanentDelete(String(item.id));
+    setArchivedItems((current) => current.filter((item) => !deletedIds.has(String(item.id))));
+    if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
+    setSelectedArchivedIds(new Set());
+    setIsArchiveSelectionMode(false);
+    toast(`${selectedItems.length} ${selectedItems.length === 1 ? "item" : "items"} deleted permanently`, {
+      duration: 10000,
+      closeButton: true,
+      className: "library-toast",
+      action: { label: "Undo", onClick: () => undoPermanentDelete(selectedItems) },
+    });
+  }, [archivedItems, schedulePermanentDelete, selectedArchivedIds, selectedItem, undoPermanentDelete]);
 
   const selectArchivedLibraryItem = useCallback((item: LibraryItem, rects?: SourceRects) => {
     selectionScrollRef.current = false;
@@ -3492,13 +3524,13 @@ function App() {
 
             {filteredItems.length === 0 && (
               <div className="empty-state">
-                <div className="empty-icon"><HugeiconsIcon icon={isPinsView ? PinIcon : Search01Icon} size={20} /></div>
+                <div className="empty-icon"><HugeiconsIcon icon={isEmptyPinsView ? PinIcon : Search01Icon} size={20} /></div>
                 {similaritySource ? (
                   <>
                     <h2>Nothing similar yet.</h2>
                     <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
                   </>
-                ) : isPinsView ? (
+                ) : isEmptyPinsView ? (
                   <>
                     <h2>Nothing pinned yet.</h2>
                     <p>Open anything in your library and pin it to keep it within reach.</p>
@@ -3509,7 +3541,7 @@ function App() {
                     <p>Try another word, or save something new to your mind.</p>
                   </>
                 )}
-                {!isPinsView && (
+                {!isEmptyPinsView && (
                   <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
                 )}
               </div>
@@ -3801,12 +3833,18 @@ function App() {
       </AnimatePresence>
       </div>
       <Toaster
-        position="top-center"
-        offset={{ top: 48, left: 16, right: 16 }}
-        mobileOffset={{ top: 16, left: 12, right: 12 }}
+        position="top-right"
+        offset={{ top: 48, right: 16 }}
+        mobileOffset={{ top: 16, right: 12 }}
         theme="dark"
         richColors={false}
         closeButton
+        duration={5000}
+        icons={{
+          success: <></>,
+          error: <></>,
+          close: <HugeiconsIcon icon={Cancel01Icon} size={12} color="currentColor" />,
+        }}
         containerAriaLabel="Notifications"
       />
     </MotionConfig>
