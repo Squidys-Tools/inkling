@@ -52,6 +52,7 @@ Guardrails:
 
 ### Changed
 
+- Toasts restyled as a catalog drawer slip for Undo actions and a compact ink-slip chip for success/error (shared palette, plain content, HugeIcons close control, top-right entry/exit, 5s status auto-dismiss, persistent Undo) (SQU-6, `src/App.tsx`, `src/App.css`)
 - CI, CodeQL, dependency review, and labeled preview builds now skip documentation-only and demo-data-only follow-up pushes while still running for mixed changes.
 - Desktop window enforces a 1000 × 800 minimum size so the library layout remains usable when resized.
 - README rewritten as a user-facing overview (tour, screenshots, demo/mascot placeholders, FAQ) with the developer setup and docs index moved to a short section at the end (`README.md`)
@@ -75,8 +76,10 @@ Guardrails:
 - Unused Penpot design folder (`pen/`); CI/security path filters no longer ignore it
 - Lefthook dependency, hook installer, and local formatting and frontend-check Git hooks. Entire continues to manage its own hooks.
 - Dead `note-art` / `note-pin` / `note-scribble` card styles left over from the note thumbnail reuse (`src/App.css`)
+- WiX MSI installer target. Windows releases build the NSIS installer only, which is the one Tauri's updater can replace in place (SQU-80).
 ### Fixed
 
+- `bun run preview:win` no longer fails partway through packaging the portable Windows folder. Extracting the shared ONNX Runtime provisioning had left the portable script copying its bundled `onnxruntime.dll` from a path it had just deleted, so the build either failed on a fresh checkout or produced a folder missing its runtime.
 - Shipped Windows builds no longer carry the ~9.7 MB committed demo seed: a new `bun run build:app` drops `public/seed-demo/` and the `src/seedPersonal.ts` bundle at build time and fails if either is still present, and the Tauri build uses it. The demo seed remains the default for the web preview and UI work (SQU-81).
 - Tagged Windows releases now fetch and SHA-256 verify the pinned `onnxruntime.dll` before the installer is built, so a release no longer bundles without it and ships with embeddings and OCR that cannot load (SQU-78).
 - Saved Spaces now restore reliably on a fresh app start instead of disappearing when their first read races storage initialization (SQU-7).
@@ -85,7 +88,7 @@ Guardrails:
 - Windows GNU toolchain can now build the app end to end (`export ordinal too large` in `tauri-plugin-mcp-bridge` fixed): the `--exclude-libs` linker workaround moved from `build.rs` (which only covered the top crate) to target-gated rustflags in `src-tauri/.cargo/config.toml` so it applies to every crate; verified with a full `cargo build --target x86_64-pc-windows-gnu` producing a working exe with the Common-Controls v6 manifest and `WebView2Loader.dll` beside it, and the README documents the no-admin GNU setup (`src-tauri/.cargo/config.toml`, `src-tauri/build.rs`, `README.md`)
 - Pre-push frontend check installs dependencies with lifecycle scripts skipped, so pushing no longer triggers a nested `lefthook install` that clashed with the Entire hook wrapper and blocked `git push`
 - Hook setup is now idempotent (`scripts/setup-hooks.ts` via `prepare`): routine installs leave Entire-wrapped lefthook hooks untouched, and linked worktrees share the main checkout's hooks so they need no setup
-- Undoing a forgotten item shows its `Restored to your library` confirmation again: it was raised under the id of the forget toast the same click had dismissed, so it never rendered (`src/App.tsx`)
+- Restoring an item from the archive is now silent: the card returning to the library is the confirmation, so no extra success toast appears
 - Library export now keeps a completed snapshot when an asset cannot be copied, continues with the remaining files, and records each skipped path and error in `manifest.json`; the result card and toast show the skipped count.
 - Browser extension parses untrusted extraction HTML with `DOMParser` instead of `innerHTML`, and the pending-capture queue is bounded by both entry count and byte budget so it cannot exhaust the browser storage quota
 - Library reopen now detects and rebuilds a partial full-text index and recreates missing search triggers instead of trusting table existence; a healthy reopen still writes nothing (`src-tauri/src/storage.rs`)
@@ -93,6 +96,7 @@ Guardrails:
 - Note bodies are only derived from legacy fields once per schema upgrade instead of on every app start, a failed note save no longer leaves an unsaved draft in the in-memory body cache, and switching away from a note while its content is loading no longer leaves the note stuck on "Loading note…" (SQU-1)
 - Search and preview text built from Markdown no longer loses inline spacing, so bold, links, and inline code sit in words the way they were written, and task markers are removed by the Markdown parser instead of by string matching, which means a note that writes `[x]` or `[ ]` as prose keeps its brackets (SQU-1)
 - The note editor drops its duplicate title block and the green content panel for one quiet `Editing · title` line and a single control lane beside Save, with icon controls for quote, code block, undo, and redo, and a link field that can edit or remove a link instead of a system prompt; the control lane is pinned to the bottom of the frame while the writing surface takes the space above it and scrolls on its own (SQU-1)
+- Deleting from the archive, one item or a selection, now hides the cards immediately and keeps them recoverable for ten seconds behind an Undo action before the delete is finalized (`src/App.tsx`)
 
 ---
 
