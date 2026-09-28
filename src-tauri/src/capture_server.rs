@@ -1496,7 +1496,6 @@ fn store_capture(
     input: crate::storage::CreateUrlInput,
 ) -> Result<String, (u16, String)> {
     let storage_state: State<'_, crate::storage::StorageState> = app.state();
-    let processing: State<'_, crate::jobs::ProcessingState> = app.state();
     let guard = storage_state.lock().map_err(|_| unavailable())?;
     let storage = guard.as_ref().ok_or_else(unavailable)?;
     let item = storage.create_url(input).map_err(|_| unavailable())?;
@@ -1507,7 +1506,9 @@ fn store_capture(
         .and_then(serde_json::Value::as_str)
         .map(str::to_owned);
     drop(guard);
-    processing.enqueue_and_wake(&id, crate::jobs::JobKind::GenerateEmbedding);
+    // Same helper as the quote and image arms: it writes the job rows and only
+    // wakes the worker for rows that landed.
+    enqueue_item_processing(app, &item);
     if let Some(url) = favicon {
         enqueue_favicon_cache(app, &id, url);
     }
