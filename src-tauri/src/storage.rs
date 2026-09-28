@@ -2260,6 +2260,7 @@ pub(crate) fn markdown_to_plain_text(markdown: &str) -> String {
             Event::Text(value) | Event::Code(value) => plain.push_str(&value),
             Event::SoftBreak | Event::HardBreak => plain.push(' '),
             Event::Start(tag) if starts_block(&tag) => plain.push(' '),
+            Event::InlineHtml(raw) if is_void_tag(&raw) => plain.push(' '),
             _ => continue,
         }
     }
@@ -2286,6 +2287,23 @@ fn starts_block(tag: &Tag) -> bool {
             | Tag::Table(_)
             | Tag::TableRow
             | Tag::TableCell
+    )
+}
+
+// A void inline element separates the words around it, so `foo<br>bar` must not
+// come back as `foobar`. Inline wrappers such as `<em>` do not, and treating them
+// as boundaries would split a word in half.
+fn is_void_tag(raw: &str) -> bool {
+    let name: String = raw
+        .trim()
+        .trim_start_matches('<')
+        .trim_start_matches('/')
+        .chars()
+        .take_while(char::is_ascii_alphanumeric)
+        .collect();
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "br" | "hr" | "img" | "input" | "wbr"
     )
 }
 
@@ -3222,6 +3240,13 @@ mod tests {
             markdown_to_plain_text("Toggle between [ ] and [x] in the list."),
             "Toggle between [ ] and [x] in the list."
         );
+    }
+
+    #[test]
+    fn plain_text_keeps_words_apart_across_void_inline_tags() {
+        assert_eq!(markdown_to_plain_text("foo<br>bar"), "foo bar");
+        assert_eq!(markdown_to_plain_text("one<br/>two"), "one two");
+        assert_eq!(markdown_to_plain_text("a<em>bc</em>d"), "abcd");
     }
 
     #[test]
