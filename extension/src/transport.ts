@@ -18,6 +18,15 @@ export async function postPayloadToLoopback(
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    throw new Error(`loopback capture failed: HTTP ${response.status}`);
+    // The app answers a rejected capture with { error, message }. The status
+    // alone cannot tell "the image host refused it" from "storage is down", so
+    // surface the reason the app actually gave.
+    const reason = await response
+      .json()
+      .then((body: { message?: unknown }) =>
+        typeof body?.message === "string" ? `: ${body.message}` : "",
+      )
+      .catch(() => "");
+    throw new Error(`loopback capture failed: HTTP ${response.status}${reason}`);
   }
 }

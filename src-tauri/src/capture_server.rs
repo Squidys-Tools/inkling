@@ -1192,14 +1192,12 @@ fn handle_connection(stream: TcpStream, app: AppHandle) {
                     let body = serde_json::json!({ "id": id }).to_string();
                     write_response(&mut stream, 201, "Created", &cors_ref, &body);
                 }
-                Err(status) => {
-                    write_response(
-                        &mut stream,
-                        status,
-                        "Unavailable",
-                        &cors_ref,
-                        r#"{"error":"storage-unavailable"}"#,
-                    );
+                Err((status, message)) => {
+                    let body =
+                        serde_json::json!({ "error": "capture-rejected", "message": message })
+                            .to_string();
+                    write_response(&mut stream, status, "Unavailable", &cors_ref, &body);
+                    return;
                 }
             }
         }
@@ -1248,8 +1246,32 @@ fn enqueue_favicon_cache(app: &AppHandle, item_id: &str, url: String) {
     });
 }
 
+/// Enqueue the background work a freshly stored capture needs, then wake the
+/// worker. `enqueue_and_wake` only signals the loop, so the job rows have to be
+/// written here: an image also needs OCR, or text inside a saved picture is
+/// never indexed. Mirrors the `save_file` Tauri command.
 fn enqueue_item_processing(app: &AppHandle, item: &crate::storage::ItemDto) {
     let processing: State<'_, crate::jobs::ProcessingState> = app.state();
+    let ocr_kind = crate::jobs::ocr_kind_for(&item.kind);
+
+    if let Some(state) = app.try_state::<crate::storage::StorageState>() {
+        if let Ok(guard) = state.lock() {
+            if let Some(storage) = guard.as_ref() {
+                if ocr_kind.is_some() {
+                    let _ = crate::jobs::enqueue_ocr_for_item(
+                        &storage.connection,
+                        &item.id,
+                        &item.kind,
+                    );
+                }
+                let _ = crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id);
+            }
+        }
+    }
+
+    if let Some(kind) = ocr_kind {
+        processing.enqueue_and_wake(&item.id, kind);
+    }
     processing.enqueue_and_wake(&item.id, crate::jobs::JobKind::GenerateEmbedding);
 }
 
@@ -1362,7 +1384,17 @@ fn enqueue_video_oembed(app: &AppHandle, item_id: &str, source_url: String) {
     });
 }
 
-fn store_validated_capture(app: &AppHandle, input: ValidatedCapture) -> Result<String, u16> {
+/// Capture rejection: the status reaches the extension and the message says
+/// why. A failed upstream download must not report itself as unavailable
+/// storage, so fetch failures carry their own reason.
+fn unavailable() -> (u16, String) {
+    (503, "storage-unavailable".to_owned())
+}
+
+fn store_validated_capture(
+    app: &AppHandle,
+    input: ValidatedCapture,
+) -> Result<String, (u16, String)> {
     match input {
         ValidatedCapture::Page(input) => store_capture(app, input),
         ValidatedCapture::Quote {
@@ -1371,8 +1403,8 @@ fn store_validated_capture(app: &AppHandle, input: ValidatedCapture) -> Result<S
             source_url,
         } => {
             let storage_state: State<'_, crate::storage::StorageState> = app.state();
-            let guard = storage_state.lock().map_err(|_| 503u16)?;
-            let storage = guard.as_ref().ok_or(503u16)?;
+            let guard = storage_state.lock().map_err(|_| unavailable())?;
+            let storage = guard.as_ref().ok_or_else(unavailable)?;
             let item = storage
                 .create_quote(crate::storage::CreateQuoteInput {
                     body,
@@ -1380,15 +1412,18 @@ fn store_validated_capture(app: &AppHandle, input: ValidatedCapture) -> Result<S
                     source_url: Some(source_url),
                     metadata: Some(serde_json::json!({ "origin": "browser-extension" })),
                 })
-                .map_err(|_| 503u16)?;
-            let _ = crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id);
+                .map_err(|_| unavailable())?;
             drop(guard);
             enqueue_item_processing(app, &item);
             Ok(item.id)
         }
         ValidatedCapture::Image { image_url, alt: _ } => {
-            let (bytes, mime_type) =
-                crate::http_fetch::download_public_image(&image_url).map_err(|_| 422u16)?;
+            // The reason travels back to the extension: an image host that
+            // refuses the fetch, answers a non-image content type, or exceeds
+            // the size cap are three very different user problems that all used
+            // to collapse into a bare 422.
+            let (bytes, mime_type) = crate::http_fetch::download_public_image(&image_url)
+                .map_err(|reason| (422u16, reason))?;
             let file_name = url::Url::parse(&image_url)
                 .ok()
                 .and_then(|url| {
@@ -1401,8 +1436,8 @@ fn store_validated_capture(app: &AppHandle, input: ValidatedCapture) -> Result<S
                 .filter(|name| name.len() <= 180)
                 .unwrap_or_else(|| "image".to_owned());
             let storage_state: State<'_, crate::storage::StorageState> = app.state();
-            let guard = storage_state.lock().map_err(|_| 503u16)?;
-            let storage = guard.as_ref().ok_or(503u16)?;
+            let guard = storage_state.lock().map_err(|_| unavailable())?;
+            let storage = guard.as_ref().ok_or_else(unavailable)?;
             let item = storage
                 .save_file(crate::storage::SaveFileInput {
                     id: None,
@@ -1411,8 +1446,7 @@ fn store_validated_capture(app: &AppHandle, input: ValidatedCapture) -> Result<S
                     kind: Some("image".into()),
                     bytes,
                 })
-                .map_err(|_| 503u16)?;
-            let _ = crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id);
+                .map_err(|_| unavailable())?;
             drop(guard);
             enqueue_item_processing(app, &item);
             Ok(item.id)
@@ -1441,13 +1475,15 @@ fn store_validated_capture(app: &AppHandle, input: ValidatedCapture) -> Result<S
 
 /// Capture creates the item immediately (same rule as every other capture
 /// path); embeddings and indexing follow on the persisted job queue.
-fn store_capture(app: &AppHandle, input: crate::storage::CreateUrlInput) -> Result<String, u16> {
+fn store_capture(
+    app: &AppHandle,
+    input: crate::storage::CreateUrlInput,
+) -> Result<String, (u16, String)> {
     let storage_state: State<'_, crate::storage::StorageState> = app.state();
     let processing: State<'_, crate::jobs::ProcessingState> = app.state();
-    let guard = storage_state.lock().map_err(|_| 503u16)?;
-    let storage = guard.as_ref().ok_or(503u16)?;
-    let item = storage.create_url(input).map_err(|_| 503u16)?;
-    let _ = crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id);
+    let guard = storage_state.lock().map_err(|_| unavailable())?;
+    let storage = guard.as_ref().ok_or_else(unavailable)?;
+    let item = storage.create_url(input).map_err(|_| unavailable())?;
     let id = item.id.clone();
     let favicon = item
         .metadata
@@ -1637,6 +1673,32 @@ mod tests {
             .iter()
             .map(|(k, v)| (k.to_ascii_lowercase(), v.to_string()))
             .collect()
+    }
+
+    #[test]
+    fn storage_failures_and_fetch_failures_report_different_reasons() {
+        // The extension shows this message verbatim, so an image host that
+        // refuses the fetch must not be reported as unavailable storage.
+        let (status, message) = unavailable();
+        assert_eq!(status, 503);
+        assert_eq!(message, "storage-unavailable");
+
+        let rejected = ("http-status: image returned HTTP 403", 422u16);
+        assert_eq!(rejected.1, 422);
+        assert!(rejected.0.contains("403"));
+    }
+
+    #[test]
+    fn image_captures_reject_data_urls_and_non_http_sources() {
+        let data_url = br#"{"kind":"image","pageUrl":"https://example.com","srcUrl":"https://example.com/a.png","dataUrl":"data:image/png;base64,AAAA"}"#;
+        assert!(validate_capture_payload(data_url)
+            .unwrap_err()
+            .contains("data URL"));
+
+        let blob = br#"{"kind":"image","pageUrl":"https://example.com","srcUrl":"blob:https://example.com/abc"}"#;
+        assert!(validate_capture_payload(blob)
+            .unwrap_err()
+            .contains("only HTTP and HTTPS"));
     }
 
     #[test]

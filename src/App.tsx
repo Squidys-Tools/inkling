@@ -77,7 +77,7 @@ import {
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { parseDeepLinkCapture } from "./lib/deepLink";
-import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
+import { providerLabel, videoCardImage, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
 // local disk on first open (Suspense fallback null: no spinner, no layout
 // shift — the chunk resolves in milliseconds).
@@ -318,8 +318,7 @@ async function storedItemToLibraryItem(
   const storedAspectRatio = positiveNumber(item.metadata.mediaAspectRatio);
   const image =
     (await assetUrl(item.thumbnailPath ?? (kind === "Image" ? item.localAssetPath : null))) ??
-    remoteImage ??
-    videoLink?.posterUrl;
+    (videoLink ? videoCardImage(videoLink.posterUrl, remoteImage) : remoteImage);
   const fileUrl = kind === "PDF" || kind === "Video" ? await assetUrl(item.localAssetPath) : undefined;
   const source = social
     ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`

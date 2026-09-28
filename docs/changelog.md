@@ -79,6 +79,9 @@ Guardrails:
 
 ### Fixed
 
+- Images saved from the browser extension are OCR'd like images saved in the app, so text inside a saved picture is indexed and searchable again. The extension path enqueued only an embedding job (`src-tauri/src/capture_server.rs`, `src-tauri/src/jobs.rs`)
+- Saved video cards show the video's own thumbnail again. A video page's `og:image` is the provider's logo, so the card was rendering the YouTube wordmark; the poster derived from the video id now outranks the page image (`src/lib/ingestion/video-links.ts`, `src/App.tsx`)
+- A rejected extension capture now says why. A failed image download answered a bare `422` that the extension reported as `HTTP 422`, and the app's body claimed unavailable storage; the real reason (host refused, non-image content type, over the size cap) travels back to the popup (`src-tauri/src/capture_server.rs`, `extension/src/transport.ts`)
 - Extension and deep-link URL captures no longer fail with "The page could not be downloaded": the desktop app downloads pages through Rust instead of the webview (avoiding CORS), keeps a provisional URL card when download or extraction still fails, and preserves the extension title on that card (`src-tauri/src/http_fetch.rs`, `src/lib/tauriFetch.ts`, `src/App.tsx`, `src/lib/deepLink.ts`)
 - Captured article favicons are cached as local assets in the background, so the card seal loads reliably without depending on the remote site (`src-tauri/src/http_fetch.rs`, `src-tauri/src/storage.rs`, `src-tauri/src/capture_server.rs`, `src/App.tsx`, `src/lib/libraryApi.ts`)
 - Browser page captures no longer fall back to an `inkling://` deep link when the local receiver is unavailable, avoiding the operating system confirmation prompt; failed deliveries stay queued for a later retry (`extension/src/background.ts`, `extension/src/transport.ts`)
