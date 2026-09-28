@@ -2577,6 +2577,10 @@ function App() {
   );
   const isSerendipityView = activeView === "Serendipity" && !activeSpaceId;
   const isPinsView = activeView === "Top of mind" && !activeSpaceId;
+  // In the pins view an empty grid only means "no pins" while nothing is being
+  // searched. A query that matches nothing is a search miss, not an empty shelf,
+  // so it keeps the search copy and the way out of the search.
+  const isEmptyPinsView = isPinsView && !query.trim();
   const serendipityCandidates = useMemo(
     () => isSerendipityView
       ? serendipityItems(items, { excludedIds: serendipityKeptIds, limit: items.length })
@@ -3492,13 +3496,13 @@ function App() {
 
             {filteredItems.length === 0 && (
               <div className="empty-state">
-                <div className="empty-icon"><HugeiconsIcon icon={isPinsView ? PinIcon : Search01Icon} size={20} /></div>
+                <div className="empty-icon"><HugeiconsIcon icon={isEmptyPinsView ? PinIcon : Search01Icon} size={20} /></div>
                 {similaritySource ? (
                   <>
                     <h2>Nothing similar yet.</h2>
                     <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
                   </>
-                ) : isPinsView ? (
+                ) : isEmptyPinsView ? (
                   <>
                     <h2>Nothing pinned yet.</h2>
                     <p>Open anything in your library and pin it to keep it within reach.</p>
@@ -3509,7 +3513,7 @@ function App() {
                     <p>Try another word, or save something new to your mind.</p>
                   </>
                 )}
-                {!isPinsView && (
+                {!isEmptyPinsView && (
                   <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
                 )}
               </div>
