@@ -56,7 +56,7 @@ Surfacing forgotten material through browsing and curation.
 
 - [x] Serendipity mode (slow visual browsing with keep/forget)
 - [x] Top of Mind (pinned items gathered into their own view)
-- [ ] Trash and recoverable archive
+- [x] Trash and recoverable archive
 - [x] Space management (create, rename, reorder, recolor, delete)
 - [ ] Wire the already-registered `enqueue_ocr_job` and `count_active_jobs` Tauri commands to UI (backend ships them, no frontend caller yet)
 - [x] Export and backup (database snapshot + referenced assets + manifest)
