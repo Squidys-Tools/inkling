@@ -1265,7 +1265,6 @@ function App() {
         ? current
         : [restoredItem, ...current]);
       setArchivedItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
-      toast.success("Restored to your library", { duration: 5000, closeButton: true });
     } catch (error) {
       toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
       setCaptureError(error instanceof Error ? error.message : String(error));
