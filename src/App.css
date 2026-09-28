@@ -37,8 +37,20 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .sidebar:not(.is-open) { width: 0; min-width: 0; padding-left: 0; padding-right: 0; border-right-color: transparent; opacity: 0; }
 .brand-lockup { display: flex; align-items: center; gap: 11px; padding: 0 10px 12px; }
 .brand-lockup strong { display: block; font-family: "Gloria Hallelujah", "DM Sans", cursive; font-size: 23px; font-weight: 400; letter-spacing: 0; color: var(--ink); }
-.brand-mark { width: 44px; height: 44px; flex: 0 0 auto; overflow: hidden; transition: width .35s cubic-bezier(.2,.8,.2,1), opacity .3s ease; transform-origin: center; }.brand-mark.is-away { width: 0; opacity: 0; }.brand-lockup:has(.brand-mark.is-away) { gap: 0; }
-.brand-mark svg { display: block; width: 100%; height: 100%; }
+.brand-mark { position: relative; width: 44px; height: 44px; flex: 0 0 auto; overflow: hidden; transition: width .35s cubic-bezier(.2,.8,.2,1), opacity .3s ease; transform-origin: center; }.brand-mark.is-away { width: 0; opacity: 0; }.brand-lockup:has(.brand-mark.is-away) { gap: 0; }
+.brand-mark svg { display: block; width: 100%; height: 100%; transition: opacity .24s ease, transform .35s cubic-bezier(.2,.8,.2,1); }
+.brand-mark::after { content: ""; position: absolute; inset: 9px; border-radius: 46% 54% 58% 42% / 52% 44% 56% 48%; background: rgba(229,221,210,.08); opacity: 0; transform: scale(.82); transition: opacity .3s ease, transform .4s cubic-bezier(.2,.8,.2,1); }
+.brand-mark.is-roaming svg { opacity: 0; transform: scale(.86); }
+.brand-mark.is-roaming::after { opacity: 1; transform: scale(1); }
+
+.mascot-roamer { position: fixed; top: 0; left: 0; z-index: 40; width: 44px; height: 44px; pointer-events: none; contain: layout paint style; will-change: transform, opacity; transition: opacity .18s ease; }
+.mascot-roamer.is-returning { transition: none; }
+.mascot-roamer svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 6px 10px rgba(0,0,0,.32)); }
+.mascot-roam-dev { position: fixed; right: 16px; bottom: 16px; z-index: 1000; display: grid; gap: 7px; min-width: 250px; padding: 12px; border: 1px solid #4a4842; border-radius: 12px; background: rgba(22,20,18,.94); color: var(--ink); font-size: 12px; box-shadow: 0 14px 34px rgba(0,0,0,.4); pointer-events: none; }
+.mascot-roam-dev span { color: var(--muted); font: 10px "DM Mono", monospace; }
+.mascot-roam-dev div { display: flex; flex-wrap: wrap; gap: 6px; }
+.mascot-roam-dev button { border: 1px solid #3a3733; border-radius: 7px; padding: 5px 8px; background: #232320; color: var(--ink); cursor: pointer; font-size: 11px; pointer-events: auto; }
+.mascot-roam-dev button:hover { border-color: #5a5750; background: #2a2a26; }
 .primary-nav { display: grid; gap: 3px; }
 .nav-item, .space-item { border: 0; background: transparent; min-height: 38px; border-radius: var(--sidebar-radius); display: flex; align-items: center; gap: 11px; padding: 0 11px; color: #8d867c; cursor: pointer; text-align: left; transition: color .18s ease, background .18s ease, transform .18s ease; }
 .nav-item:hover, .space-item:hover { background: rgba(255,255,255,.06); color: var(--ink); }
@@ -76,7 +88,7 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .storage-label { display: flex; justify-content: space-between; color: #8d867c; font: 11px "DM Mono", monospace; }
 .storage-track { height: 4px; margin: 10px 0 8px; border-radius: 99px; background: #33322e; overflow: hidden; }.storage-track span { display: block; width: 24%; height: 100%; background: var(--orange); }
 
-.main-content { width: auto; height: 100vh; min-width: 0; min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; padding: calc(4px + var(--titlebar-height)) 48px 30px; position: relative; overflow: hidden; transition: padding .3s cubic-bezier(.4,0,.2,1); }
+.main-content { width: auto; height: 100vh; min-width: 0; min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; padding: calc(4px + var(--titlebar-height)) 64px 78px; position: relative; overflow: hidden; transition: padding .3s cubic-bezier(.4,0,.2,1); }
 .topbar { height: var(--topbar-height); padding-top: var(--titlebar-height); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--rule); }
 .topbar-title { font: 600 18px/1.2 "DM Sans", ui-sans-serif, sans-serif; color: var(--ink); }
 .topbar-left { position: relative; display: flex; align-items: center; gap: 8px; }

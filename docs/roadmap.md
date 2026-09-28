@@ -93,3 +93,4 @@ Production readiness and first release.
 Future features under consideration
 
 - [ ] Regular Spaces (manual collections)
+- [x] Mascot roaming with occasional library walks, expressions, and a reliable return home ([SQU-58](https://linear.app/squidys-tools/issue/SQU-58/let-the-mascot-wander-the-library-on-its-own))

@@ -34,7 +34,7 @@ A thoughtful canvas companion: a clean, modern workspace where the bloub mascot 
 - States: idle (flowy, wavy animation), observing (eyes follow cursor), processing (slightly faster waviness, eyes closed to look like a furrowed brow), delighted (bounce, eyes rotated upwards to look like smiling), sleeping (eyes close after inactivity, slowed down wavyness)
 - (This is still being considered and may not be a part of the product) Content-type reactions: mascot morphs based on viewed content (reading posture for articles, wider eyes for images, thoughtful shape for notes, playful tilt for quotes)
 - Contextual surfacing: leans toward search on focus, moves to center for empty states, celebrates successes, droops slightly on errors
-- Movement: Physics-based drift within zone, 200-400ms transitions, never obscures content
+- Movement: the mascot wanders between safe spots on its own schedule, changes expression at random, and returns home without obscuring content
 - Accessibility: mascot never sole indicator of state, can be disabled in settings, respects motion preferences
 
 ## Interaction grammar
