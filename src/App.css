@@ -491,9 +491,9 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .note-editor-save:disabled { cursor: wait; opacity: .55; }
 
 .expanded-overlay.is-editing-note .expanded-overlay-media { display: none; }
-.expanded-overlay.is-editing-note .expanded-overlay-body { flex: 1 1 auto; padding: 0; }
+.expanded-overlay.is-editing-note .expanded-overlay-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; padding: 0; overflow: hidden; }
 .expanded-overlay.is-editing-note .detail-processing, .expanded-overlay.is-editing-note .detail-meta, .expanded-overlay.is-editing-note .expanded-overlay-actions, .expanded-overlay.is-editing-note .expanded-overlay-toolbar { display: none; }
-.note-embedded-editor { min-height: 0; display: flex; flex-direction: column; margin: 0; }
+.note-embedded-editor { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; margin: 0; }
 .note-embedded-orientation { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 12px 20px; border-bottom: 1px solid #1f1d1b; }
 .note-embedded-kicker { flex: 0 0 auto; color: #6f6a62; font: 10px "DM Sans", sans-serif; letter-spacing: .16em; text-transform: uppercase; }
 .note-embedded-divider { flex: 0 0 auto; width: 1px; height: 11px; background: #332f2c; }
