@@ -44,6 +44,10 @@ ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "n
 pdf-extract = "0.12"
 tokenizers = { version = "0.23.1", default-features = false, features = ["fancy-regex"] }
 tokio = { version = "1", features = ["rt", "net", "time"] }
-ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
+# `platform-verifier` trusts the OS certificate store, not just Mozilla's
+# bundled roots. Without it a TLS-intercepting network (corporate proxy, some
+# ISPs) makes every capture fail with UnknownIssuer while the browser, which
+# uses the same store, still loads the page.
+ureq = { version = "3.4.0", default-features = false, features = ["rustls", "platform-verifier"] }
 url = "2"
 windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_WinRT", "Foundation", "Foundation_Collections", "Data_Pdf", "Media_Ocr", "Storage_Streams", "Graphics_Imaging"] }

@@ -152,9 +152,19 @@ impl Resolver for PublicResolver {
 }
 
 fn public_http_agent(timeout: Duration) -> ureq::Agent {
+    // Trust the OS certificate store, the same one the browser uses. ureq's
+    // default is Mozilla's bundled roots only, which rejects any host whose
+    // chain is not in that snapshot and so fails with UnknownIssuer on a
+    // TLS-intercepting network. Chain validation stays on; we only widen which
+    // roots are trusted, and the SSRF guards below are unaffected.
     let config = ureq::Agent::config_builder()
         .max_redirects(0)
         .timeout_global(Some(timeout))
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+                .build(),
+        )
         .build();
     ureq::Agent::with_parts(config, DefaultConnector::default(), PublicResolver)
 }
@@ -386,6 +396,21 @@ pub fn fetch_http(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_agent_trusts_the_platform_certificate_store() {
+        // Regression: the agent defaulted to ureq's Mozilla-only root bundle, so
+        // any host outside that snapshot failed with `UnknownIssuer` and every
+        // capture from a TLS-intercepting network was rejected.
+        let agent = public_http_agent(Duration::from_secs(5));
+        assert!(
+            matches!(
+                agent.config().tls_config().root_certs(),
+                ureq::tls::RootCerts::PlatformVerifier
+            ),
+            "captures must trust the OS certificate store, like the browser does"
+        );
+    }
 
     #[test]
     fn rejects_private_and_non_http_targets() {

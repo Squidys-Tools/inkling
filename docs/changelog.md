@@ -80,6 +80,7 @@ Guardrails:
 
 ### Fixed
 
+- Captures work on networks that intercept TLS. The fetcher trusted only Mozilla's bundled certificate list, so any host outside that snapshot failed with `UnknownIssuer` and image saves were rejected; it now trusts the OS certificate store, the same one the browser uses, with chain validation unchanged (`src-tauri/Cargo.toml`, `src-tauri/src/http_fetch.rs`)
 - Images saved from the browser extension are OCR'd like images saved in the app, so text inside a saved picture is indexed and searchable again. The extension path enqueued only an embedding job (`src-tauri/src/capture_server.rs`, `src-tauri/src/jobs.rs`)
 - Saved video cards show the video's own thumbnail again. A video page's `og:image` is the provider's logo, so the card was rendering the YouTube wordmark; the poster derived from the video id now outranks the page image (`src/lib/ingestion/video-links.ts`, `src/App.tsx`)
 - A rejected extension capture now says why. A failed image download answered a bare `422` that the extension reported as `HTTP 422`, and the app's body claimed unavailable storage; the real reason (host refused, non-image content type, over the size cap) travels back to the popup (`src-tauri/src/capture_server.rs`, `extension/src/transport.ts`)
