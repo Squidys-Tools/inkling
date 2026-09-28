@@ -8,7 +8,7 @@ use std::{
 };
 
 use image::{GenericImageView, ImageFormat, ImageReader};
-use pulldown_cmark::{Event, Parser};
+use pulldown_cmark::{Event, Parser, Tag};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -2248,31 +2248,45 @@ fn dot_product(left: &[f32], right: &[f32]) -> f32 {
 
 pub(crate) fn markdown_to_plain_text(markdown: &str) -> String {
     let mut plain = String::new();
-    for event in Parser::new(markdown) {
-        let value = match event {
-            Event::Text(value) | Event::Code(value) => value.to_string(),
-            Event::SoftBreak | Event::HardBreak => " ".to_owned(),
+    // Tasklist support is what drops `- [x]` markers: the parser reports each one
+    // as its own event instead of text, so nothing is matched against the joined
+    // string afterwards.
+    let options = pulldown_cmark::Options::ENABLE_TASKLISTS;
+    for event in Parser::new_ext(markdown, options) {
+        match event {
+            // Adjacent inline runs belong to the same word or phrase, so they are
+            // appended as they came. A parser that splits `[x]` into three events
+            // must not become `[ x ]`.
+            Event::Text(value) | Event::Code(value) => plain.push_str(&value),
+            Event::SoftBreak | Event::HardBreak => plain.push(' '),
+            Event::Start(tag) if starts_block(&tag) => plain.push(' '),
             _ => continue,
-        };
-        let value = value.trim();
-        if value.is_empty() {
-            continue;
         }
-        if !plain.is_empty() {
-            plain.push(' ');
-        }
-        plain.push_str(value);
     }
     plain
-        .replace("[ x ] ", "")
-        .replace("[X] ", "")
-        .replace("[ ] ", "")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
         .replace(" .", ".")
         .replace(" ,", ",")
         .replace(" ;", ";")
         .replace(" :", ":")
         .replace(" !", "!")
         .replace(" ?", "?")
+}
+
+fn starts_block(tag: &Tag) -> bool {
+    matches!(
+        tag,
+        Tag::Paragraph
+            | Tag::Heading { .. }
+            | Tag::BlockQuote(_)
+            | Tag::CodeBlock(_)
+            | Tag::Item
+            | Tag::Table(_)
+            | Tag::TableRow
+            | Tag::TableCell
+    )
 }
 
 fn non_empty_string(value: String) -> Option<String> {
@@ -3192,6 +3206,22 @@ mod tests {
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn plain_text_drops_task_markers_but_keeps_brackets_written_as_prose() {
+        assert_eq!(
+            markdown_to_plain_text("- [x] Measure the wall\n- [ ] Order the chairs"),
+            "Measure the wall Order the chairs"
+        );
+        assert_eq!(
+            markdown_to_plain_text("The prompt prints [X] when the step passes."),
+            "The prompt prints [X] when the step passes."
+        );
+        assert_eq!(
+            markdown_to_plain_text("Toggle between [ ] and [x] in the list."),
+            "Toggle between [ ] and [x] in the list."
+        );
     }
 
     #[test]
