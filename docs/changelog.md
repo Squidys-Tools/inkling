@@ -75,6 +75,8 @@ Guardrails:
 - Unused Penpot design folder (`pen/`); CI/security path filters no longer ignore it
 - Lefthook dependency, hook installer, and local formatting and frontend-check Git hooks. Entire continues to manage its own hooks.
 - Dead `note-art` / `note-pin` / `note-scribble` card styles left over from the note thumbnail reuse (`src/App.css`)
+- WiX MSI installer target. Windows releases build the NSIS installer only, which is the one Tauri's updater can replace in place (SQU-80).
+
 ### Fixed
 
 - Extension and deep-link URL captures no longer fail with "The page could not be downloaded": the desktop app downloads pages through Rust instead of the webview (avoiding CORS), keeps a provisional URL card when download or extraction still fails, and preserves the extension title on that card (`src-tauri/src/http_fetch.rs`, `src/lib/tauriFetch.ts`, `src/App.tsx`, `src/lib/deepLink.ts`)
@@ -83,6 +85,9 @@ Guardrails:
 - The local extension receiver now supports a native in-app connection test and answers Private Network Access preflights, so paired browser saves can reach the running companion without relaxing browser origin checks (`src-tauri/src/capture_server.rs`, `src/App.tsx`)
 - Source links in the expanded item overlay and reader footer open in the system browser again (webview `window.open` was a no-op; now routed through the opener plugin) (`src/lib/openExternalUrl.ts`)
 - Browser extension pairing survives app restarts: the capture server rebinds its last successful loopback port when free (otherwise falls back to ephemeral), and Settings → Extension now shows a copyable app address for the extension's base URL field (`src-tauri/src/capture_server.rs`, `src/App.tsx`, `src/lib/libraryApi.ts`)
+- `bun run preview:win` no longer fails partway through packaging the portable Windows folder. Extracting the shared ONNX Runtime provisioning had left the portable script copying its bundled `onnxruntime.dll` from a path it had just deleted, so the build either failed on a fresh checkout or produced a folder missing its runtime.
+- Shipped Windows builds no longer carry the ~9.7 MB committed demo seed: a new `bun run build:app` drops `public/seed-demo/` and the `src/seedPersonal.ts` bundle at build time and fails if either is still present, and the Tauri build uses it. The demo seed remains the default for the web preview and UI work (SQU-81).
+- Tagged Windows releases now fetch and SHA-256 verify the pinned `onnxruntime.dll` before the installer is built, so a release no longer bundles without it and ships with embeddings and OCR that cannot load (SQU-78).
 - Saved Spaces now restore reliably on a fresh app start instead of disappearing when their first read races storage initialization (SQU-7).
 - Portable Windows previews use the same Cargo output directory for building and packaging, even when `CARGO_TARGET_DIR` is set (#53).
 - Tags added in item details now persist after restarting the app, keep the rest of the item's metadata intact, and no longer render twice in the detail overlay.

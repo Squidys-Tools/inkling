@@ -33,6 +33,13 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
+      # tauri.conf.json bundles onnxruntime.dll, and tauri-build validates
+      # bundle resources on every build, so the pinned DLL has to be in place
+      # before tauri-action runs. `ort` is load-dynamic: skip this and the
+      # installer ships with dead embeddings and OCR.
+      - name: Provision ONNX Runtime
+        run: bun run provision:ort
+
       - name: Build Tauri application and create draft release
         uses: tauri-apps/tauri-action@v1
         env:

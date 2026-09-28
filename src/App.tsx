@@ -108,10 +108,19 @@ import { serendipityItems } from "./lib/serendipity";
 // the repo so the web preview shows a real library out of the box. The eager
 // glob below resolves to an empty map when that file is absent, so clones
 // still fall back to the original 17-item demo library below.
-const personalSeedModules = import.meta.glob<{ personalSeedItems?: LibraryItem[] }>(
-  "./seedPersonal.ts",
-  { eager: true },
-);
+//
+// The glob is conditional so a shipped app build never bundles the seed: a
+// build-time `define` in vite.config.ts replaces VITE_INKLING_SEED with "0"
+// for `--mode app`, so this resolves to an empty object and the module is
+// never included. Gating it with `shouldUseSeedLibrary()` instead would keep
+// the seed in the bundle, because the bytes are already there before any
+// runtime check runs. See scripts/assert-no-demo-seed.ts for the guard.
+const personalSeedModules: Record<string, { personalSeedItems?: LibraryItem[] }> =
+  import.meta.env.VITE_INKLING_SEED === "0"
+    ? {}
+    : import.meta.glob<{ personalSeedItems?: LibraryItem[] }>("./seedPersonal.ts", {
+        eager: true,
+      });
 const localSeedItems: LibraryItem[] =
   Object.values(personalSeedModules)[0]?.personalSeedItems ?? [];
 import "./App.css";
