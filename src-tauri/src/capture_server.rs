@@ -322,7 +322,8 @@ fn origin_allowed(origin: Option<&str>) -> bool {
         rest == "tauri.localhost"
             || rest
                 .strip_prefix("tauri.localhost:")
-                .is_some_and(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
+                // `u16` rejects anything above 65535; zero is not a port.
+                .is_some_and(|port| port.parse::<u16>().is_ok_and(|value| value != 0))
     }
     tauri_localhost_http(origin, "https://") || tauri_localhost_http(origin, "http://")
 }
@@ -1196,7 +1197,12 @@ fn handle_connection(stream: TcpStream, app: AppHandle) {
                     let body =
                         serde_json::json!({ "error": "capture-rejected", "message": message })
                             .to_string();
-                    write_response(&mut stream, status, "Unavailable", &cors_ref, &body);
+                    let reason = match status {
+                        502 => "Bad Gateway",
+                        503 => "Service Unavailable",
+                        _ => "Unprocessable Entity",
+                    };
+                    write_response(&mut stream, status, reason, &cors_ref, &body);
                     return;
                 }
             }
@@ -1252,27 +1258,37 @@ fn enqueue_favicon_cache(app: &AppHandle, item_id: &str, url: String) {
 /// never indexed. Mirrors the `save_file` Tauri command.
 fn enqueue_item_processing(app: &AppHandle, item: &crate::storage::ItemDto) {
     let processing: State<'_, crate::jobs::ProcessingState> = app.state();
-    let ocr_kind = crate::jobs::ocr_kind_for(&item.kind);
+    let mut queued: Vec<crate::jobs::JobKind> = Vec::new();
 
     if let Some(state) = app.try_state::<crate::storage::StorageState>() {
         if let Ok(guard) = state.lock() {
             if let Some(storage) = guard.as_ref() {
-                if ocr_kind.is_some() {
-                    let _ = crate::jobs::enqueue_ocr_for_item(
+                if let Some(kind) = crate::jobs::ocr_kind_for(&item.kind) {
+                    match crate::jobs::enqueue_ocr_for_item(
                         &storage.connection,
                         &item.id,
                         &item.kind,
-                    );
+                    ) {
+                        Ok(Some(_)) => queued.push(kind),
+                        Ok(None) => {}
+                        Err(error) => eprintln!("ocr enqueue failed for {}: {error}", item.id),
+                    }
                 }
-                let _ = crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id);
+                match crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id) {
+                    Ok(_) => queued.push(crate::jobs::JobKind::GenerateEmbedding),
+                    Err(error) => eprintln!("embedding enqueue failed for {}: {error}", item.id),
+                }
             }
         }
     }
 
-    if let Some(kind) = ocr_kind {
+    // Only signal for rows that actually landed: `enqueue_and_wake` just nudges
+    // the worker loop, so a lost write would leave it polling for a job that
+    // does not exist. The capture is already stored either way, so a failure
+    // here is logged, never fatal.
+    for kind in queued {
         processing.enqueue_and_wake(&item.id, kind);
     }
-    processing.enqueue_and_wake(&item.id, crate::jobs::JobKind::GenerateEmbedding);
 }
 
 /// Which provider's oEmbed endpoint answers for a saved video page. Mirrors
@@ -1420,10 +1436,10 @@ fn store_validated_capture(
         ValidatedCapture::Image { image_url, alt: _ } => {
             // The reason travels back to the extension: an image host that
             // refuses the fetch, answers a non-image content type, or exceeds
-            // the size cap are three very different user problems that all used
-            // to collapse into a bare 422.
+            // the size cap are three very different user problems. 502, not 422:
+            // the request was well formed, the upstream host is what failed.
             let (bytes, mime_type) = crate::http_fetch::download_public_image(&image_url)
-                .map_err(|reason| (422u16, reason))?;
+                .map_err(|reason| (502u16, reason))?;
             let file_name = url::Url::parse(&image_url)
                 .ok()
                 .and_then(|url| {
@@ -1676,16 +1692,25 @@ mod tests {
     }
 
     #[test]
+    fn tauri_origins_reject_ports_outside_the_valid_range() {
+        // Digit-only checks let `https://tauri.localhost:99999` through, which
+        // is not a port any browser would ever present.
+        assert!(origin_allowed(Some("https://tauri.localhost")));
+        assert!(origin_allowed(Some("https://tauri.localhost:1420")));
+        assert!(!origin_allowed(Some("https://tauri.localhost:99999")));
+        assert!(!origin_allowed(Some("https://tauri.localhost:0")));
+        assert!(!origin_allowed(Some("https://tauri.localhost:")));
+        assert!(!origin_allowed(Some("https://tauri.localhost:80a")));
+        assert!(!origin_allowed(Some("https://tauri.localhost.evil.com")));
+    }
+
+    #[test]
     fn storage_failures_and_fetch_failures_report_different_reasons() {
         // The extension shows this message verbatim, so an image host that
         // refuses the fetch must not be reported as unavailable storage.
         let (status, message) = unavailable();
         assert_eq!(status, 503);
         assert_eq!(message, "storage-unavailable");
-
-        let rejected = ("http-status: image returned HTTP 403", 422u16);
-        assert_eq!(rejected.1, 422);
-        assert!(rejected.0.contains("403"));
     }
 
     #[test]
