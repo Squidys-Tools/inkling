@@ -11,6 +11,7 @@ import {
   FileTextIcon,
   Globe02Icon,
   Loading01Icon,
+  PinIcon,
   PlusSignIcon,
   RotateCwIcon,
   SparklesIcon,
@@ -41,6 +42,7 @@ export type ExpandedOverlayActions = {
   onOpenReader: (item: LibraryItem, origin: ReaderOrigin) => void;
   onFindSimilar: (item: LibraryItem) => void;
   onForget: (item: LibraryItem) => void | Promise<void>;
+  onTogglePin: (item: LibraryItem) => void | Promise<void>;
   onRetryJob: (jobId: string) => void | Promise<void>;
   onAddTag?: (item: LibraryItem, tag: string) => void | Promise<void>;
   onToggleSpace?: (item: LibraryItem, spaceId: string) => void | Promise<void>;
@@ -722,6 +724,44 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
     (action) => action.key === "read" || action.key === "open-pdf" || action.key === "read-unavailable",
   );
   const isReadRow = Boolean(readAction);
+  const isPinned = shownItem.favorite === true;
+
+  // Copy, pin and forget sit at the end of both toolbar layouts, so they are
+  // built once here rather than pasted into each row.
+  const itemControls = (
+    <>
+      {shownItem.sourceUrl && (
+        <button
+          type="button"
+          className="toolbar-icon"
+          onClick={copySourceLink}
+          aria-label="Copy link to original"
+          title={linkCopied ? "Copied" : linkCopyFailed ? "Copy failed" : "Copy link"}
+        >
+          {linkCopied ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} /> : <HugeiconsIcon icon={Copy01Icon} size={14} />}
+        </button>
+      )}
+      <button
+        type="button"
+        className="toolbar-icon"
+        onClick={() => void actions.onTogglePin(shownItem)}
+        aria-label={isPinned ? "Unpin from Top of mind" : "Pin to Top of mind"}
+        aria-pressed={isPinned}
+        title={isPinned ? "Unpin" : "Pin to Top of mind"}
+      >
+        <HugeiconsIcon icon={PinIcon} size={14} />
+      </button>
+      <button
+        type="button"
+        className="toolbar-icon toolbar-icon-muted"
+        onClick={() => void actions.onForget(shownItem)}
+        aria-label="Forget this item"
+        title="Forget"
+      >
+        <HugeiconsIcon icon={Archive01Icon} size={14} />
+      </button>
+    </>
+  );
 
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
@@ -896,26 +936,7 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
                   {sourceAction.icon} {sourceAction.label} <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
                 </button>
               )}
-              {shownItem.sourceUrl && (
-                <button
-                  type="button"
-                  className="toolbar-icon"
-                  onClick={copySourceLink}
-                  aria-label="Copy link to original"
-                  title={linkCopied ? "Copied" : linkCopyFailed ? "Copy failed" : "Copy link"}
-                >
-                  {linkCopied ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} /> : <HugeiconsIcon icon={Copy01Icon} size={14} />}
-                </button>
-              )}
-              <button
-                type="button"
-                className="toolbar-icon toolbar-icon-muted"
-                onClick={() => void actions.onForget(shownItem)}
-                aria-label="Forget this item"
-                title="Forget"
-              >
-                <HugeiconsIcon icon={Archive01Icon} size={14} />
-              </button>
+              {itemControls}
             </div>
           ) : (
             <>
@@ -948,26 +969,7 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
                     {sourceAction.icon} {sourceAction.label} <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
                   </button>
                 )}
-                {shownItem.sourceUrl && (
-                  <button
-                    type="button"
-                    className="toolbar-icon"
-                    onClick={copySourceLink}
-                    aria-label="Copy link to original"
-                    title={linkCopied ? "Copied" : linkCopyFailed ? "Copy failed" : "Copy link"}
-                  >
-                    {linkCopied ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} /> : <HugeiconsIcon icon={Copy01Icon} size={14} />}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="toolbar-icon toolbar-icon-muted"
-                  onClick={() => void actions.onForget(shownItem)}
-                  aria-label="Forget this item"
-                  title="Forget"
-                >
-                  <HugeiconsIcon icon={Archive01Icon} size={14} />
-                </button>
+                {itemControls}
               </div>
             </>
           )}
