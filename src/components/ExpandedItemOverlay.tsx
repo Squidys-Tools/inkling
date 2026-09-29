@@ -701,27 +701,52 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Modeless close: clicks on empty library space dismiss the overlay, while
-  // clicks on cards fall through to the card's own handler, which switches
-  // the overlay to that item.
+  // Modeless close: presses on empty library space dismiss the overlay, while
+  // presses on cards fall through to the card's own handler, which switches the
+  // overlay to that item. While a note is being written the press is absorbed
+  // instead, so it cannot silently cancel what was just typed or reach a
+  // control behind the panel. The close button and Escape are the ways out.
   useEffect(() => {
+    // True for anything the panel does not own: the press did not land in the
+    // dialog and did not land on a card.
+    const isOutsidePress = (target: EventTarget | null) => {
+      if (!(target instanceof Node)) return false;
+      if (dialogRef.current?.contains(target)) return false;
+      return !(target instanceof Element && target.closest(".library-card"));
+    };
+
     const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (dialogRef.current?.contains(target)) return;
-      if (target instanceof Element && target.closest(".library-card")) return;
-      // While a note is being written an outside click is absorbed: it must not
-      // silently cancel what was just typed, and it must not reach a control
-      // behind the panel either. The close button and Escape are the ways out.
-      if (isEditingNoteRef.current) {
-        event.preventDefault();
-        event.stopPropagation();
+      if (!isOutsidePress(event.target)) return;
+      if (!isEditingNoteRef.current) {
+        requestClose();
         return;
       }
-      requestClose();
+      event.preventDefault();
+      event.stopPropagation();
     };
+
+    // A control behind the panel can answer the press, the release, or the
+    // click, and those are separate events, so the press alone is not enough to
+    // absorb the interaction. mousedown is included rather than relying on the
+    // pointerdown cancel to suppress it.
+    const absorbOutsidePress = (event: Event) => {
+      if (!isEditingNoteRef.current || !isOutsidePress(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
     document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("mousedown", absorbOutsidePress, true);
+    document.addEventListener("pointerup", absorbOutsidePress, true);
+    document.addEventListener("mouseup", absorbOutsidePress, true);
+    document.addEventListener("click", absorbOutsidePress, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("mousedown", absorbOutsidePress, true);
+      document.removeEventListener("pointerup", absorbOutsidePress, true);
+      document.removeEventListener("mouseup", absorbOutsidePress, true);
+      document.removeEventListener("click", absorbOutsidePress, true);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
