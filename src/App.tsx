@@ -1232,6 +1232,12 @@ function App() {
   const libraryViewAnimationsRef = useRef<Array<ReturnType<typeof gsap.timeline>>>([]);
   const libraryViewPreparationTimerRef = useRef<number | null>(null);
   const pendingPermanentDeletesRef = useRef<Map<string, PendingPermanentDelete>>(new Map());
+  // Latest active list, mirrored so a delete that fails ten seconds from now
+  // reads the library as it is then, not as it was when the timer was set.
+  const activeItemsRef = useRef<LibraryItem[]>(items);
+  useEffect(() => {
+    activeItemsRef.current = items;
+  }, [items]);
   const libraryViewTransitionRunRef = useRef(0);
   const selectionRectsRef = useRef<SourceRects | null>(null);
   const selectionRunRef = useRef(0);
@@ -2811,8 +2817,10 @@ function App() {
         // can bring the card back; drop it again now the delete has landed.
         setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== id));
       }).catch((error) => {
-        // Keep partial results: a rejected delete means the item is still
-        // stored, so it has to return to the archive with the error still shown.
+        // A recovered item is no longer archived, so its delete fails on
+        // purpose: leaving it out is already the desired end state and the error
+        // would only confuse. An item that is still archived comes back here.
+        if (activeItemsRef.current.some((candidate) => String(candidate.id) === id)) return;
         restoreArchivedItems([item]);
         setCaptureError(error instanceof Error ? error.message : String(error));
       });
