@@ -509,9 +509,9 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     if (previous.id === item.id) return;
     previousItemRef.current = item;
     if (isEditingNoteRef.current) {
+      // Selecting another card abandons the draft, but the overlay should land on
+      // the card that was clicked rather than closing outright.
       setIsEditingNote(false);
-      actionsRef.current.onClose();
-      return;
     }
 
     const activeFlight = flightRef.current;
@@ -660,6 +660,9 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   useEffect(() => {
     const checkSourceVisibility = () => {
       if (selectionScrollRef.current) return;
+      // While a note is being written the source card is irrelevant: closing on
+      // scroll or resize would throw away the draft without a word.
+      if (isEditingNoteRef.current) return;
       const contentArea = contentAreaRef.current;
       const viewport = scrollViewport(contentArea);
       const rects = queryCardRects(itemIdRef.current);
@@ -701,6 +704,13 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
       if (!(target instanceof Node)) return;
       if (dialogRef.current?.contains(target)) return;
       if (target instanceof Element && target.closest(".library-card")) return;
+      // A click on empty library space leaves the editor before it dismisses the
+      // overlay, the same way Escape and the close button do, so a stray click
+      // never throws away what was just typed.
+      if (isEditingNoteRef.current) {
+        setIsEditingNote(false);
+        return;
+      }
       requestClose();
     };
     document.addEventListener("pointerdown", onPointerDown, true);
