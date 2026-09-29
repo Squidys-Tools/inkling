@@ -25,6 +25,7 @@ import {
   Loading01Icon,
   PlusSignIcon,
   PlayIcon,
+  PinIcon,
   RotateCwIcon,
   Search01Icon,
   Settings01Icon,
@@ -102,6 +103,7 @@ import type { ReaderItem, ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import { serendipityItems } from "./lib/serendipity";
+import { isEmptyPinsView, matchesPinsView } from "./lib/pinsView";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
 // the repo so the web preview shows a real library out of the box. The eager
 // glob below resolves to an empty map when that file is absent, so clones
@@ -1198,7 +1200,14 @@ function App() {
   const loadItemsRef = useRef<() => void>(() => {});
   // Generation counter for space moves: only the latest move may apply its
   // backend result; older ones resync, so rapid clicks cannot overwrite newer state.
-  const spaceMoveSeqRef = useRef(0);
+    const spaceMoveSeqRef = useRef(0);
+    // Mirror of `items` for callbacks that must read the newest value without
+    // being rebuilt on every load.
+    const itemsRef = useRef<LibraryItem[]>([]);
+    // Pins whose write has not been confirmed by the backend yet. A refresh that
+    // was already in flight can resolve with the pre-pin value, so these are
+    // re-applied when it lands.
+    const pinnedOverridesRef = useRef<Map<string, boolean>>(new Map());
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
     typeof window === "undefined" ? 960 : window.innerWidth,
   );
@@ -1376,6 +1385,55 @@ function App() {
       toast.error("Unable to save this tag", { duration: 5000 });
     }
   }, [canUseTauriBackend]);
+
+    // Pins are flipped from current state, not from the item the click captured,
+    // so a second click during a slow write reverses the first instead of
+    // repeating it. The in-flight id also keeps the control from reporting a
+    // toggle it has not applied yet.
+    const pendingPinIdsRef = useRef<Set<string>>(new Set());
+    const togglePinItem = useCallback(async (item: LibraryItem) => {
+      const id = String(item.id);
+      if (pendingPinIdsRef.current.has(id)) return;
+      pendingPinIdsRef.current.add(id);
+      // Read the live value so a repeat click reverses the previous one. An
+      // archived item is not in the active list, so fall back to the item the
+      // overlay handed over rather than treating it as unpinned.
+      const live = itemsRef.current.find((candidate) => String(candidate.id) === id);
+      const wasPinned = (live ?? item).favorite === true;
+      const pinned = !wasPinned;
+      const show = (next: boolean) => {
+        const apply = (current: LibraryItem) => (
+          String(current.id) === id ? { ...current, favorite: next } : current
+        );
+        setItems((current) => current.map(apply));
+        setArchivedItems((current) => current.map(apply));
+        setSelectedItem((current) => (current ? apply(current) : current));
+      };
+      try {
+        // Optimistic, so a repeated click reads the new value. A refresh already
+        // in flight can land older data, so the pin is re-asserted until the
+        // backend confirms it.
+        pinnedOverridesRef.current.set(id, pinned);
+        show(pinned);
+        if (canUseTauriBackend) {
+          const confirmed = await updateItem({ id, favorite: pinned });
+          // The stored value wins once it is known, including if it disagreed
+          // with what was asked for.
+          const stored = confirmed.favorite === true;
+          pinnedOverridesRef.current.delete(id);
+          show(stored);
+        } else {
+          pinnedOverridesRef.current.delete(id);
+        }
+      } catch {
+        // A failed write must not leave the item looking pinned anywhere.
+        pinnedOverridesRef.current.delete(id);
+        show(wasPinned);
+        toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
+      } finally {
+        pendingPinIdsRef.current.delete(id);
+      }
+    }, [canUseTauriBackend]);
 
   const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
     if (!item.articleHtml) return;
@@ -2463,7 +2521,16 @@ function App() {
           storedItemToLibraryItem(item, summaries.get(item.id)),
         ));
         if (!cancelled) {
-          setItems(libraryItems);
+          // A refresh can resolve with a pin state older than a write this
+          // session has already applied. Re-assert the unconfirmed pins so the
+          // overlay and Top of mind cannot disagree until the backend catches up.
+          const overrides = pinnedOverridesRef.current;
+          setItems(overrides.size === 0
+            ? libraryItems
+            : libraryItems.map((candidate) => {
+              const pinned = overrides.get(String(candidate.id));
+              return pinned === undefined ? candidate : { ...candidate, favorite: pinned };
+            }));
         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -2553,6 +2620,15 @@ function App() {
     [spaces, activeSpaceId],
   );
   const isSerendipityView = activeView === "Serendipity" && !activeSpaceId;
+  const isPinsView = activeView === "Top of mind" && !activeSpaceId;
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  // The pins nav item clears the query and any similarity source, so the view
+  // normally reads the whole library. The flag still guards the empty state
+  // against a search that a refresh or a restored view can narrow.
+  const pinsViewIsEmpty = isPinsView && isEmptyPinsView({ query, similaritySource });
   const serendipityCandidates = useMemo(
     () => isSerendipityView
       ? serendipityItems(items, { excludedIds: serendipityKeptIds, limit: items.length })
@@ -2580,7 +2656,7 @@ function App() {
             .includes(normalizedQuery);
       const matchesView =
         activeView === "Everything" ||
-        (activeView === "Top of mind" && item.favorite) ||
+          (activeView === "Top of mind" && matchesPinsView(item)) ||
         (activeSpace
           ? canUseTauriBackend || itemMatchesSmartQuery(item, activeSpace.query)
           : false);
@@ -2853,10 +2929,11 @@ function App() {
     onOpenReader: openReader,
     onFindSimilar: (item) => void findSimilarItems(item),
     onForget: forgetItem,
+    onTogglePin: togglePinItem,
     onRetryJob: retryJob,
     onAddTag: addTagToItem,
     isFindingSimilar,
-  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob]);
+  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob, togglePinItem]);
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
@@ -2976,10 +3053,13 @@ function App() {
           </button>
           <button
             className={`nav-item ${activeView === "Top of mind" && !activeSpaceId ? "active" : ""}`}
-            onClick={() => {
-              setActiveSpaceId(null);
-              setActiveView("Top of mind");
-            }}
+              onClick={() => {
+                setActiveSpaceId(null);
+                setActiveView("Top of mind");
+                setQuery("");
+                setSimilaritySource(null);
+                setSelectedItem(null);
+              }}
           >
             <HugeiconsIcon icon={SparklesIcon} size={17} />
             <span>Top of mind</span>
@@ -3498,11 +3578,16 @@ function App() {
 
             {filteredItems.length === 0 && (
               <div className="empty-state">
-                <div className="empty-icon"><HugeiconsIcon icon={Search01Icon} size={20} /></div>
+                <div className="empty-icon"><HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} /></div>
                 {similaritySource ? (
                   <>
                     <h2>Nothing similar yet.</h2>
                     <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
+                  </>
+                ) : pinsViewIsEmpty ? (
+                  <>
+                    <h2>Nothing pinned yet.</h2>
+                    <p>Open anything in your library and pin it to keep it within reach.</p>
                   </>
                 ) : (
                   <>
@@ -3510,7 +3595,9 @@ function App() {
                     <p>Try another word, or save something new to your mind.</p>
                   </>
                 )}
-                <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
+                {!pinsViewIsEmpty && (
+                  <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
+                )}
               </div>
             )}
           </>
