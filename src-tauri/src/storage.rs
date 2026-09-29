@@ -529,17 +529,18 @@ impl LibraryStorage {
         let title = Some(body.clone());
         let description = attribution.clone();
 
+        // The body column belongs to notes. A quote already keeps its text in
+        // title, quoteText, and the searchable metadata text, so writing it a
+        // fourth time here would only duplicate it in the search index.
         self.connection.execute(
             "INSERT INTO items (
                 id, kind, title, description, body, body_format, source_url, source_label,
                 metadata, ocr_text, created_at, updated_at
-             ) VALUES (?1, 'quote', ?2, ?3, ?4, ?5, ?6, ?7, ?8, '', ?9, ?9)",
+             ) VALUES (?1, 'quote', ?2, ?3, '', '', ?4, ?5, ?6, '', ?7, ?7)",
             params![
                 id,
                 title,
                 description,
-                body,
-                BODY_FORMAT_MARKDOWN,
                 source_url,
                 source_label,
                 metadata_json,
@@ -566,21 +567,22 @@ impl LibraryStorage {
         let id = Uuid::new_v4().to_string();
         let timestamp = now_millis()?;
 
+        // body stays empty for a url: the frontend sends the extracted article
+        // text under this name as transport for the metadata below, and only
+        // notes carry a body the app reads back.
         self.connection.execute(
             "INSERT INTO items (
                 id, kind, title, description, body, body_format, source_url, source_label,
                 metadata, ocr_text, created_at, updated_at
-             ) VALUES (?1, 'url', ?2, ?3, ?4, ?5, ?6, ?7, ?8, '', ?9, ?9)",
+             ) VALUES (?1, 'url', ?2, ?3, '', '', ?4, ?5, ?6, '', ?7, ?7)",
             params![
                 id,
                 title,
                 description,
-                body,
-                BODY_FORMAT_MARKDOWN,
                 source_url,
                 source_label,
                 metadata_json,
-                timestamp,
+                timestamp
             ],
         )?;
 
@@ -3222,6 +3224,61 @@ mod tests {
             storage.get_item_content(&item.id).unwrap().body,
             "## Next\n\n- [x] Verify the preview"
         );
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn only_notes_carry_a_body_column() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-body-scope-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        // The frontend sends the primary text of every kind under the same
+        // `body` name, so the storage layer has to keep the column note-only or
+        // a quote ends up storing its text four times.
+        let note = storage
+            .create_note(CreateNoteInput {
+                title: Some("A note".into()),
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let quote = storage
+            .create_quote(CreateQuoteInput {
+                body: "warm light".into(),
+                attribution: Some("Ada".into()),
+                source_url: None,
+                metadata: None,
+            })
+            .unwrap();
+        let article = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://example.com/warm-light".into(),
+                title: Some("An article".into()),
+                description: None,
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+
+        assert_eq!(note.body.as_deref(), Some("warm light"));
+        assert_eq!(note.body_format.as_deref(), Some(BODY_FORMAT_MARKDOWN));
+        assert_eq!(quote.body.as_deref(), Some(""));
+        assert_eq!(quote.body_format.as_deref(), Some(""));
+        assert_eq!(article.body.as_deref(), Some(""));
+        assert_eq!(article.body_format.as_deref(), Some(""));
+
+        // The quote keeps its text where the rest of the app reads it.
+        assert_eq!(quote.title.as_deref(), Some("warm light"));
+        assert_eq!(quote.description.as_deref(), Some("Ada"));
+        assert!(storage
+            .search_items("warm", 10)
+            .unwrap()
+            .iter()
+            .any(|result| result.id == quote.id));
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();
