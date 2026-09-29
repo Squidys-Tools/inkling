@@ -1463,8 +1463,15 @@ function App() {
       };
     }
 
-    const apply = (current: LibraryItem) =>
-      String(current.id) === String(item.id) ? { ...current, ...nextItem, id: current.id } : current;
+    // The saved response carries the row's pin as it was before an in-flight
+    // write landed, so a pin the backend has not confirmed yet wins over it,
+    // the same way a refresh re-applies its overrides.
+    const apply = (current: LibraryItem) => {
+      if (String(current.id) !== String(item.id)) return current;
+      const saved = { ...current, ...nextItem, id: current.id };
+      const pinned = pinnedOverridesRef.current.get(String(item.id));
+      return pinned === undefined ? saved : { ...saved, favorite: pinned };
+    };
     setItems((current) => current.map(apply));
     setArchivedItems((current) => current.map(apply));
     setSelectedItem((current) => (current ? apply(current) : current));
