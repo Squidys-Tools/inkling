@@ -48,7 +48,7 @@ Guardrails:
 - README shows the inkling mascot (idle, wink, wide, notify states sampled from the live engine via `bun scripts/mascot-board.ts`), and the desktop app icon is the idle mascot (`README.md`, `src-tauri/icons/`)
 
 - "Find similar" now works for text items, not just images: notes, quotes, articles, and saved links rank by their text embeddings across kinds, with the button offered in the expanded item view and a dedicated empty state while indexing finishes (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`, `src/lib/libraryApi.ts`, `src-tauri/src/storage.rs`) (#55)
-- Project-local verification skill: a dependency-free Chrome DevTools Protocol harness launches the seeded web preview on ports it picks itself, health-checks the instance before any drive, exercises the UI with real clicks and typed input, and leaves screenshots plus a command transcript behind, with a maintained feature map for capture, search, browsing, Spaces, and the archive (`.agents/skills/verify-inkling/`)
+- Top of Mind: items can be pinned and unpinned from their details view, and the Top of mind view collects them. That view explains itself when nothing is pinned yet, and the main library stays a plain list of everything (SQU-9) (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
 
 ### Changed
 

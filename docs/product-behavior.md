@@ -139,7 +139,7 @@ Serendipity presents older items in a slow, visual browsing mode. The user can k
 
 ### Top of Mind
 
-Top of Mind is a small, user-curated set of pinned items shown when opening the library.
+Top of Mind is a small, user-curated set of pinned items, gathered into their own view in the library.
 
 ## Onboarding
 
