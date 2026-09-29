@@ -974,6 +974,13 @@ type LibraryCardPosition = {
   height: number;
 };
 
+// One accepted archive delete: the timer waiting out the undo window, plus the
+// item that timer needs to restore or reconcile if the delete does not land.
+type PendingPermanentDelete = {
+  timer: number;
+  item: LibraryItem;
+};
+
 const LIBRARY_TRANSITION_TARGET_SELECTOR =
   ".library-card-media > .card-image-wrap, .library-card-media > .card-paper-art, .library-card-media > .post-art, .library-card-media > .x-post-art, .card-content";
 
@@ -1224,7 +1231,7 @@ function App() {
   const pendingLibraryViewPositionsRef = useRef<Map<string, LibraryCardPosition> | null>(null);
   const libraryViewAnimationsRef = useRef<Array<ReturnType<typeof gsap.timeline>>>([]);
   const libraryViewPreparationTimerRef = useRef<number | null>(null);
-  const pendingPermanentDeletesRef = useRef<Map<string, number>>(new Map());
+  const pendingPermanentDeletesRef = useRef<Map<string, PendingPermanentDelete>>(new Map());
   const libraryViewTransitionRunRef = useRef(0);
   const selectionRectsRef = useRef<SourceRects | null>(null);
   const selectionRunRef = useRef(0);
@@ -2781,42 +2788,68 @@ function App() {
     onRetryJob: retryJob,
   }), [openReader, retryJob, selectLibraryItem]);
 
-  const schedulePermanentDelete = useCallback((id: string) => {
-    const existingTimer = pendingPermanentDeletesRef.current.get(id);
-    if (existingTimer !== undefined) window.clearTimeout(existingTimer);
-    const timer = window.setTimeout(() => {
+  const restoreArchivedItems = useCallback((restoredItems: LibraryItem[]) => {
+    if (restoredItems.length === 0) return;
+    // A settings reload can re-add a row that is still stored, so restore by
+    // presence instead of blind prepending a second copy of the same item.
+    setArchivedItems((current) => {
+      const absent = restoredItems.filter((item) => !current.some((candidate) => String(candidate.id) === String(item.id)));
+      return absent.length === 0 ? current : [...absent, ...current];
+    });
+  }, []);
+
+  const schedulePermanentDelete = useCallback((item: LibraryItem) => {
+    const id = String(item.id);
+    const previous = pendingPermanentDeletesRef.current.get(id);
+    if (previous !== undefined) window.clearTimeout(previous.timer);
+    const pending: PendingPermanentDelete = { timer: 0, item };
+    pending.timer = window.setTimeout(() => {
       pendingPermanentDeletesRef.current.delete(id);
       if (!canUseTauriBackend) return;
-      void deleteItem(id).catch((error) => {
+      void deleteItem(id).then(() => {
+        // The row is still in the database during the undo window, so a reload
+        // can bring the card back; drop it again now the delete has landed.
+        setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== id));
+      }).catch((error) => {
+        // Keep partial results: a rejected delete means the item is still
+        // stored, so it has to return to the archive with the error still shown.
+        restoreArchivedItems([item]);
         setCaptureError(error instanceof Error ? error.message : String(error));
       });
     }, 10000);
-    pendingPermanentDeletesRef.current.set(id, timer);
-  }, [canUseTauriBackend]);
+    pendingPermanentDeletesRef.current.set(id, pending);
+    return pending;
+  }, [canUseTauriBackend, restoreArchivedItems]);
 
-  const cancelPermanentDelete = useCallback((id: string) => {
-    const timer = pendingPermanentDeletesRef.current.get(id);
-    if (timer === undefined) return false;
-    window.clearTimeout(timer);
+  const cancelPermanentDelete = useCallback((pending: PendingPermanentDelete) => {
+    const id = String(pending.item.id);
+    // Only the toast that scheduled a deletion may cancel it. Deleting the same
+    // item again stores a new record, and that older Undo has to stay a no-op.
+    if (pendingPermanentDeletesRef.current.get(id) !== pending) return false;
+    window.clearTimeout(pending.timer);
     pendingPermanentDeletesRef.current.delete(id);
     return true;
   }, []);
 
-  const undoPermanentDelete = useCallback((deletedItems: LibraryItem[]) => {
-    const restoredItems = deletedItems.filter((item) => cancelPermanentDelete(String(item.id)));
-    if (restoredItems.length === 0) return;
-    setArchivedItems((current) => [...restoredItems, ...current]);
-  }, [cancelPermanentDelete]);
+  const undoPermanentDelete = useCallback((pendingDeletes: PendingPermanentDelete[]) => {
+    const restored = pendingDeletes.filter((pending) => cancelPermanentDelete(pending)).map((pending) => pending.item);
+    restoreArchivedItems(restored);
+  }, [cancelPermanentDelete, restoreArchivedItems]);
 
   useEffect(() => () => {
-    for (const timer of pendingPermanentDeletesRef.current.values()) window.clearTimeout(timer);
+    // A delete the user already accepted must not silently come back because
+    // they quit inside the undo window, so run the pending ones now.
+    for (const [id, pending] of pendingPermanentDeletesRef.current) {
+      window.clearTimeout(pending.timer);
+      if (canUseTauriBackend) void deleteItem(id).catch(() => {});
+    }
     pendingPermanentDeletesRef.current.clear();
-  }, []);
+  }, [canUseTauriBackend]);
 
   const deleteArchivedLibraryItem = useCallback((item: LibraryItem) => {
     setCaptureError(null);
     const itemId = String(item.id);
-    schedulePermanentDelete(itemId);
+    const pending = schedulePermanentDelete(item);
     setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== itemId));
     if (selectedItem && String(selectedItem.id) === itemId) setSelectedItem(null);
     toast("Deleted permanently", {
@@ -2824,9 +2857,9 @@ function App() {
       duration: 10000,
       closeButton: true,
       className: "library-toast",
-      action: { label: "Undo", onClick: () => undoPermanentDelete([item]) },
+      action: { label: "Undo", onClick: () => undoPermanentDelete([pending]) },
     });
-  }, [cancelPermanentDelete, schedulePermanentDelete, selectedItem, undoPermanentDelete]);
+  }, [schedulePermanentDelete, selectedItem, undoPermanentDelete]);
 
   const toggleArchiveSelectionMode = useCallback(() => {
     setIsArchiveSelectionMode((current) => {
@@ -2903,7 +2936,7 @@ function App() {
     if (selectedItems.length === 0) return;
     setCaptureError(null);
     const deletedIds = new Set(selectedItems.map((item) => String(item.id)));
-    for (const item of selectedItems) schedulePermanentDelete(String(item.id));
+    const pendingDeletes = selectedItems.map((item) => schedulePermanentDelete(item));
     setArchivedItems((current) => current.filter((item) => !deletedIds.has(String(item.id))));
     if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
     setSelectedArchivedIds(new Set());
@@ -2912,7 +2945,7 @@ function App() {
       duration: 10000,
       closeButton: true,
       className: "library-toast",
-      action: { label: "Undo", onClick: () => undoPermanentDelete(selectedItems) },
+      action: { label: "Undo", onClick: () => undoPermanentDelete(pendingDeletes) },
     });
   }, [archivedItems, schedulePermanentDelete, selectedArchivedIds, selectedItem, undoPermanentDelete]);
 
