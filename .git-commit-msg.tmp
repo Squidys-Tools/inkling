@@ -1,0 +1,25 @@
+fix(capture): address the security and durability review findings
+
+Six review findings on the extension capture path:
+
+- A page could forge a capture: the extractor mirrored its result into the
+  page's DOM as a fallback, and a page could plant that node to make the
+  extension save a URL of its choosing. The result now travels only over the
+  isolated world, which page script cannot reach. The DOM fallback existed
+  only as belt-and-braces for a handoff that already works, so it is deleted
+  rather than authenticated — a nonce would narrow the window without closing
+  it, because the page can read the node as soon as it appears.
+- The server moved to a new port when its saved one was taken, while the
+  extension kept posting the bearer token to the old address. It now refuses
+  to start and reports "not running" instead.
+- Selection, image, and video captures are queued when the app is closed,
+  like page captures. The queue only understood page payloads, so a media
+  save was silently dropped.
+- Video oEmbed enrichment only fills fields the capture originally stored,
+  so a user rename made before the response lands survives.
+- Article cards render only the cached local favicon, so opening the library
+  no longer contacts the saved site's server.
+- A context-menu quote goes through the collector, keeping its markup and
+  page title.
+- Favicon storage checks the item still exists before writing, so deleting
+  an item mid-download no longer leaves an orphan asset directory.

@@ -80,6 +80,13 @@ Guardrails:
 
 ### Fixed
 
+- A page can no longer forge a capture. The extractor used to mirror its result into the page's DOM as a fallback, and a page could plant that node to make the extension save a URL of its choosing; extraction now travels only over the isolated world, which page script cannot reach
+- The capture server no longer moves to a different port when its saved one is taken. The extension keeps posting the bearer token to the stored address, so it refused to start and reports "not running" instead of handing the token to whatever is listening there
+- A selection, image, or video captured while the app is closed is queued for delivery instead of being discarded, like a page capture
+- Video background enrichment no longer overwrites a title the user has already edited: it only fills fields the capture originally stored
+- Article cards render only the locally cached favicon, so opening the library no longer contacts the saved site's server and discloses what is being viewed
+- A quote saved from the browser context menu keeps its selected markup and page title instead of plain text alone
+- Deleting an item while its favicon is downloading no longer recreates the deleted item's asset directory
 - Captures work on networks that intercept TLS. The fetcher trusted only Mozilla's bundled certificate list, so any host outside that snapshot failed with `UnknownIssuer` and image saves were rejected; it now trusts the OS certificate store, the same one the browser uses, with chain validation unchanged (`src-tauri/Cargo.toml`, `src-tauri/src/http_fetch.rs`)
 - Images saved from the browser extension are OCR'd like images saved in the app, so text inside a saved picture is indexed and searchable again. The extension path enqueued only an embedding job (`src-tauri/src/capture_server.rs`, `src-tauri/src/jobs.rs`)
 - Saved video cards show the video's own thumbnail again. A video page's `og:image` is the provider's logo, so the card was rendering the YouTube wordmark; the poster derived from the video id now outranks the page image (`src/lib/ingestion/video-links.ts`, `src/App.tsx`)

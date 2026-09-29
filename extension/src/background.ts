@@ -11,6 +11,7 @@ import {
   type PageCapturePayloadV1,
 } from "@inkling/ingestion-shared";
 import { trimCaptureQueue } from "./capture-queue";
+import { isQueuedCapturePayload } from "./queue-payload";
 import { postPayloadToLoopback } from "./transport";
 import {
   INKLING_MENU_SAVE_IMAGE,
@@ -25,8 +26,6 @@ import {
 const CONTENT_MAIN_FILE = "content-main.js";
 const CONTENT_ISOLATED_FILE = "content-isolated.js";
 const CONTENT_COLLECT_FILE = "content-collect.js";
-const EXTRACT_TIMEOUT_MS = 10_000;
-const EXTRACT_POLL_INTERVAL_MS = 50;
 
 const QUEUE_KEY = "inkling:pending-captures-v1";
 const LAST_STATUS_KEY = "inkling:last-save-status";
@@ -43,11 +42,11 @@ export interface SaveStatus {
   at: string;
 }
 
-async function readQueue(): Promise<PageCapturePayloadV1[]> {
+async function readQueue(): Promise<LoopbackCapturePayload[]> {
   const stored = await browser.storage.local.get(QUEUE_KEY);
   const raw = stored[QUEUE_KEY];
   if (!Array.isArray(raw)) return [];
-  return raw.filter(isPageCapturePayload);
+  return raw.filter(isQueuedCapturePayload);
 }
 
 // Every queue read-modify-write runs through this chain. flushQueue can take
@@ -64,7 +63,7 @@ function withQueueLock<T>(operation: () => Promise<T>): Promise<T> {
   return result;
 }
 
-async function enqueue(payload: PageCapturePayloadV1): Promise<number> {
+async function enqueue(payload: LoopbackCapturePayload): Promise<number> {
   return withQueueLock(async () => {
     const queue = await readQueue();
     queue.push(payload);
@@ -91,13 +90,6 @@ async function writeStatus(status: SaveStatus): Promise<void> {
 export async function injectExtractor(tabId: number): Promise<unknown> {
   await browser.scripting.executeScript({
     target: { tabId },
-    world: "ISOLATED",
-    func: () => {
-      document.getElementById("__inkling-extract-result")?.remove();
-    },
-  });
-  await browser.scripting.executeScript({
-    target: { tabId },
     files: [CONTENT_MAIN_FILE],
     world: "MAIN",
   });
@@ -106,7 +98,16 @@ export async function injectExtractor(tabId: number): Promise<unknown> {
     files: [CONTENT_ISOLATED_FILE],
     world: "ISOLATED",
   });
-  let promiseResult: unknown;
+  // The isolated world parks the extraction promise on its own globalThis. That
+  // world is not reachable from the page, so this is the only channel a capture
+  // travels over.
+  //
+  // There is deliberately no DOM fallback. The page shares the DOM, so a result
+  // published there could be planted by the page to forge a capture; a nonce
+  // handshake would narrow that window without closing it, because the page can
+  // read the node as soon as it appears. A page that cannot reach the isolated
+  // world gets a plain extraction failure instead.
+  let result: unknown;
   try {
     const results = await browser.scripting.executeScript({
       target: { tabId },
@@ -118,45 +119,15 @@ export async function injectExtractor(tabId: number): Promise<unknown> {
         return pending;
       },
     });
-    promiseResult = results[0]?.result;
-  } catch {
-    promiseResult = undefined;
+    result = results[0]?.result;
+  } catch (error) {
+    // The injected func returns the extraction promise, so a rejected
+    // extraction surfaces here. Report the extractor's own reason rather than
+    // a generic failure, so the popup says what actually went wrong.
+    throw new Error(error instanceof Error ? error.message : "page extraction failed");
   }
-  if (isPageCapturePayload(promiseResult)) return promiseResult;
-
-  const deadline = Date.now() + EXTRACT_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const results = await browser.scripting.executeScript({
-      target: { tabId },
-      world: "ISOLATED",
-      func: () => {
-        const node = document.getElementById("__inkling-extract-result");
-        if (!node) return null;
-        const raw = node.textContent;
-        node.remove();
-        return raw;
-      },
-    });
-    const raw = results[0]?.result;
-    if (typeof raw === "string" && raw) {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        throw new Error("extractor returned invalid result");
-      }
-      if (parsed && typeof parsed === "object") {
-        const record = parsed as { ok?: unknown; payload?: unknown; error?: unknown };
-        if (record.ok === true && isPageCapturePayload(record.payload)) return record.payload;
-        if (record.ok === false) {
-          throw new Error(typeof record.error === "string" ? record.error : "page extraction failed");
-        }
-      }
-      throw new Error("extractor returned invalid result");
-    }
-    await new Promise<void>((resolve) => setTimeout(resolve, EXTRACT_POLL_INTERVAL_MS));
-  }
-  throw new Error("page extraction timed out");
+  if (isPageCapturePayload(result)) return result;
+  throw new Error("extractor returned no result");
 }
 
 async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } | null> {
@@ -189,7 +160,7 @@ export async function flushQueue(): Promise<{ delivered: number; pending: number
     const config = await readLoopbackConfig();
     if (!config) return { delivered: 0, pending: (await readQueue()).length };
     const queue = await readQueue();
-    const remaining: PageCapturePayloadV1[] = [];
+    const remaining: LoopbackCapturePayload[] = [];
     let delivered = 0;
     for (const payload of queue) {
       try {
@@ -288,9 +259,20 @@ async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<
     return status;
   }
   const deliveryError = await tryLoopback(message.payload);
-  const status: SaveStatus = deliveryError === null
-    ? { state: "saved", at: new Date().toISOString() }
-    : { state: "failed", detail: deliveryError, at: new Date().toISOString() };
+  if (deliveryError === null) {
+    const status: SaveStatus = { state: "saved", at: new Date().toISOString() };
+    await writeStatus(status);
+    return status;
+  }
+  // Queue like a page save. A media capture that arrives while the app is
+  // closed is exactly the case a local library must not lose, and these
+  // payloads are small (a URL, a quote, or an image URL) compared to a page.
+  const queued = await enqueue(message.payload);
+  const status: SaveStatus = {
+    state: "queued",
+    detail: `${queued} pending — ${deliveryError}`,
+    at: new Date().toISOString(),
+  };
   await writeStatus(status);
   return status;
 }
@@ -370,24 +352,23 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
     );
     return;
   }
-  if (info.menuItemId === INKLING_MENU_SAVE_SELECTION && typeof info.selectionText === "string") {
-    void dispatchCapturePayload(
-      {
-        kind: "selection",
-        sourceUrl: pageUrl,
-        selectedHtml: "",
-        selectedText: info.selectionText,
-      },
-      tab?.id ?? 0,
-    );
-    return;
-  }
-  if (tab?.id === undefined) return;
-  if (info.menuItemId === INKLING_MENU_SAVE_SELECTION) {
+  if (tab?.id !== undefined && info.menuItemId === INKLING_MENU_SAVE_SELECTION) {
+    // Always go through the collector: it reads the selected markup and the
+    // page title. The context-menu event has already fired by the time the
+    // collector is injected, but the live selection is still readable, and
+    // losing attribution on a quote is not an acceptable fallback.
     void collectFromTab(tab.id, "selection");
-  } else if (info.menuItemId === INKLING_MENU_SAVE_IMAGE) {
-    void collectFromTab(tab.id, "image", typeof info.srcUrl === "string" ? info.srcUrl : undefined);
-  } else if (info.menuItemId === INKLING_MENU_SAVE_VIDEO) {
+  } else if (info.menuItemId === INKLING_MENU_SAVE_SELECTION) {
+    // No tab (rare), so the collector cannot run. The plain text still saves.
+    if (typeof info.selectionText === "string") {
+      void dispatchCapturePayload(
+        { kind: "selection", sourceUrl: pageUrl, selectedHtml: "", selectedText: info.selectionText },
+        tab?.id ?? 0,
+      );
+    }
+  } else if (tab?.id !== undefined && info.menuItemId === INKLING_MENU_SAVE_IMAGE) {
+    void collectFromTab(tab.id, "image", info.srcUrl);
+  } else if (tab?.id !== undefined && info.menuItemId === INKLING_MENU_SAVE_VIDEO) {
     void collectFromTab(tab.id, "video");
   }
 });

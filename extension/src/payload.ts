@@ -59,9 +59,32 @@ export function isCaptureMessage(value: unknown): value is ExtensionCaptureMessa
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
   if (record.type !== "inkling/capture" || !record.payload || typeof record.payload !== "object") return false;
-  return (["selection", "image", "video"] as string[]).includes(
-    (record.payload as Record<string, unknown>).kind as string,
-  );
+  return isExtensionCapturePayload(record.payload);
+}
+
+/**
+ * Structural check for a media capture. The queued payloads come back out of
+ * storage, so the shape has to be verified rather than assumed — an image
+ * without its `srcUrl` would be POSTed and rejected by the app with a
+ * confusing error, long after the user's save.
+ */
+export function isExtensionCapturePayload(value: unknown): value is ExtensionCapturePayload {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  const kind = record.kind;
+  if (kind === "selection") {
+    return typeof record.sourceUrl === "string"
+      && typeof record.selectedText === "string"
+      && (record.selectedHtml === undefined || typeof record.selectedHtml === "string");
+  }
+  if (kind === "image") {
+    return typeof record.pageUrl === "string" && typeof record.srcUrl === "string";
+  }
+  if (kind === "video") {
+    return typeof record.sourceUrl === "string"
+      && (record.title === undefined || typeof record.title === "string");
+  }
+  return false;
 }
 
 // Thin wiring the background worker applies (mechanical; no logic here):

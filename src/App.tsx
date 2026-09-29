@@ -289,10 +289,11 @@ async function storedItemToLibraryItem(
   const pdfPageCount = baseKind === "PDF" && typeof item.metadata.pdfPageCount === "number" && Number.isInteger(item.metadata.pdfPageCount) && item.metadata.pdfPageCount > 0
     ? item.metadata.pdfPageCount
     : undefined;
-  const metadataFavicon =
-    typeof item.metadata.favicon === "string" && /^https?:\/\//iu.test(item.metadata.favicon)
-      ? item.metadata.favicon
-      : undefined;
+  // Only the cached copy is rendered. The stored remote URL is kept for the
+  // background cache job, but using it as an <img> source would make merely
+  // opening the library contact a site-chosen third party and disclose what
+  // the user is looking at. A missing local seal is fine; the card has kind
+  // artwork. See `metadataFaviconPath` below.
   const metadataFaviconPath =
     typeof item.metadata.faviconPath === "string" &&
     item.metadata.faviconPath.startsWith("assets/") &&
@@ -338,7 +339,7 @@ async function storedItemToLibraryItem(
     description: social?.text?.trim() || rawDescription,
     source,
     sourceUrl: item.sourceUrl ?? undefined,
-    favicon: localFavicon ?? metadataFavicon,
+    favicon: localFavicon,
     date: formatItemDate(item.createdAt),
     createdAt: item.createdAt,
     tags,

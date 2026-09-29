@@ -1,31 +1,18 @@
 // Isolated-world entry point, injected on invoke by background.ts AFTER
-// content-main.js. Parks the payload on globalThis and mirrors the settled
-// result into the DOM so Chrome's separate script-injection worlds cannot drop
-// the handoff.
+// content-main.js. Parks the payload promise on the isolated world's own
+// globalThis, which background.ts reads back.
+//
+// The result is deliberately NOT mirrored into the DOM: the page shares the
+// DOM, so anything published there can be read or forged by the page itself,
+// which would let a hostile page make the extension save a capture of its
+// choosing. The isolated world is not reachable from page script, so the
+// promise below is the only channel a capture travels over.
 import { extractCurrentPage } from "./defuddle-extract";
-import { EXTRACT_PAYLOAD_PROMISE_KEY, EXTRACT_RESULT_NODE_ID } from "./extract-promise-key";
-
-type ExtractionResult =
-  | { ok: true; payload: Awaited<ReturnType<typeof extractCurrentPage>>["payload"] }
-  | { ok: false; error: string };
-
-function publishResult(result: ExtractionResult): void {
-  const node = document.createElement("script");
-  node.id = EXTRACT_RESULT_NODE_ID;
-  node.type = "application/json";
-  node.textContent = JSON.stringify(result);
-  (document.documentElement ?? document.body)?.append(node);
-}
+import { EXTRACT_PAYLOAD_PROMISE_KEY } from "./extract-promise-key";
 
 const resultPromise = (async () => {
-  try {
-    const { payload } = await extractCurrentPage();
-    publishResult({ ok: true, payload });
-    return payload;
-  } catch (error) {
-    publishResult({ ok: false, error: error instanceof Error ? error.message : String(error) });
-    throw error;
-  }
+  const { payload } = await extractCurrentPage();
+  return payload;
 })();
 
 (globalThis as Record<string, unknown>)[EXTRACT_PAYLOAD_PROMISE_KEY] = resultPromise;

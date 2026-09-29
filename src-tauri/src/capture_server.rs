@@ -253,6 +253,14 @@ fn load_preferred_port(app: &AppHandle) -> Option<u16> {
     raw.trim().parse::<u16>().ok().filter(|port| *port != 0)
 }
 
+/// Drop a port that turned out to belong to someone else, so the next launch
+/// binds a fresh one instead of retrying a port it must never serve on.
+fn forget_preferred_port(app: &AppHandle) {
+    if let Some(path) = port_file_path(app) {
+        let _ = fs::remove_file(path);
+    }
+}
+
 /// Best-effort: a failed write only means the next launch may pick a new port.
 fn persist_port(app: &AppHandle, port: u16) {
     if let Some(path) = port_file_path(app) {
@@ -1468,6 +1476,13 @@ fn store_validated_capture(
             Ok(item.id)
         }
         ValidatedCapture::Video { source_url, title } => {
+            // Record what the capture itself set, so the oEmbed worker can tell
+            // an untouched item from one the user already renamed. Without this
+            // a slow oEmbed response silently overwrites the user's edit.
+            let baseline = crate::storage::VideoOembedBaseline {
+                title: title.clone(),
+                description: None,
+            };
             let id = store_capture(
                 app,
                 crate::storage::CreateUrlInput {
@@ -1478,6 +1493,7 @@ fn store_validated_capture(
                     metadata: Some(serde_json::json!({
                         "origin": "browser-extension",
                         "sourceKind": "video",
+                        "oEmbedBaseline": baseline,
                     })),
                 },
             )?;
@@ -1539,14 +1555,33 @@ pub fn start_capture_server(app: &AppHandle) {
         .unwrap_or_else(|e| e.into_inner()) = token;
 
     // Prefer the last successful port so the extension's stored base URL
-    // survives restarts; fall back to ephemeral if that port is taken.
-    let preferred = load_preferred_port(app);
-    let listener = match preferred.and_then(|port| TcpListener::bind(("127.0.0.1", port)).ok()) {
-        Some(listener) => listener,
+    // survives restarts.
+    //
+    // If that port is now taken by something else, do NOT move to a new one.
+    // The extension would keep posting the bearer token to the stale address
+    // and hand it to whatever is listening there, and captures would fail
+    // anyway. Refusing to start is the safe outcome: pairing reports "not
+    // running" and the user re-pairs against the new address. A first run has
+    // no stored port, so an ephemeral bind is correct there.
+    let listener = match load_preferred_port(app) {
         None => match TcpListener::bind(("127.0.0.1", 0)) {
             Ok(listener) => listener,
             Err(error) => {
                 eprintln!("capture server unavailable: {error}");
+                return;
+            }
+        },
+        Some(preferred) => match TcpListener::bind(("127.0.0.1", preferred)) {
+            Ok(listener) => listener,
+            Err(error) => {
+                eprintln!(
+                    "capture server unavailable: port {preferred} is in use ({error}); \
+                     refusing to move so the extension cannot post the pairing token to it"
+                );
+                // Forget the stale port so the next launch can bind a fresh one.
+                // Settings then shows that new address to copy into the
+                // extension, which is the only step that can safely re-pair.
+                forget_preferred_port(app);
                 return;
             }
         },
