@@ -683,6 +683,10 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      // A field inside the dialog owns its own Escape: the new-tag input and
+      // the editor's link URL field each cancel just themselves. This listener
+      // runs in the capture phase, before their handlers get a chance to.
+      if (event.target instanceof HTMLInputElement) return;
       event.stopPropagation();
       if (isEditingNoteRef.current) {
         setIsEditingNote(false);
@@ -704,11 +708,12 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
       if (!(target instanceof Node)) return;
       if (dialogRef.current?.contains(target)) return;
       if (target instanceof Element && target.closest(".library-card")) return;
-      // A click on empty library space leaves the editor before it dismisses the
-      // overlay, the same way Escape and the close button do, so a stray click
-      // never throws away what was just typed.
+      // While a note is being written an outside click is absorbed: it must not
+      // silently cancel what was just typed, and it must not reach a control
+      // behind the panel either. The close button and Escape are the ways out.
       if (isEditingNoteRef.current) {
-        setIsEditingNote(false);
+        event.preventDefault();
+        event.stopPropagation();
         return;
       }
       requestClose();
