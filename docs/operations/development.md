@@ -47,21 +47,23 @@ is left alone, and one that does not is reported rather than silently replaced.
 | Goal | Command | Notes |
 |---|---|---|
 | Fast local gate | `bun run check` | `typecheck` + `bun test` |
-| CI parity (frontend) | `bun run check:frontend` | Version pin + locked install + tests + knip + build + ingestion smoke — exactly what the CI frontend job runs |
+| CI parity (frontend) | `bun run check:frontend` | Version pin + locked install + tests + knip + build + ingestion smoke. Matches the CI frontend job except the workspace typechecks and extension build below |
 | Typecheck only | `bun run typecheck` | App + benchmark harness |
+| Workspace typecheck | `bun run --cwd extension typecheck` and `bun run --cwd packages/ingestion-shared typecheck` | The root `tsconfig.json` includes only `src`, so the extension and shared package need their own pass |
+| Extension build | `bun run --cwd extension build` | Three bundles behind two manifests; catches manifest and bundler breakage |
 | Unused code | `bun run knip:check` | Hard gate in CI; `knip.json` owns entry/project patterns. To clean up locally, run `bunx knip --fix` then `bun install` (re-syncs the lockfile if deps were pruned), fix any `noUnusedLocals` fallout, and re-run `bun run check:frontend` |
 | Bun pin | `bun run check:bun-version` | `.bun-version` vs `packageManager` vs running Bun must agree |
-| Native | `cargo fmt` / `cargo check --locked` / `cargo test --locked` | Run from `src-tauri/` |
+| Native | `cargo fmt` / `cargo clippy` / `cargo check --locked` / `cargo test --locked` | Run from `src-tauri/` |
 
 For early signal, run `bun run check:frontend` for frontend changes or the native checks for Rust changes. `noUnusedLocals` / `noUnusedParameters` are on — the compiler will catch dead locals; Knip catches dead exports and dependencies.
 
 ## Git hooks
 
-None — there are no local hooks by policy. Formatting (`cargo fmt --check`) and all other gates run in CI.
+None — there are no local hooks by policy. Formatting (`cargo fmt --check`), linting (`cargo clippy -- -D warnings`), and all other gates run in CI.
 
 ## CI behavior (what runs where)
 
-- `ci.yml`: docs-only pushes skip; otherwise path-gated `frontend` vs `native` jobs. `frontend` runs tests, `knip:check`, build, and ingestion smoke.
+- `ci.yml`: docs-only pushes skip; otherwise path-gated `frontend` vs `native` jobs. `frontend` verifies the Bun version pin, typechecks every workspace, runs tests, `knip:check`, build, ingestion smoke, and the extension build. `native` runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo check --locked`, and `cargo test --locked`.
 - `security.yml`: CodeQL (JS/TS + Rust) on open/reopen and roughly every 4th push, dependency review on every PR; path gating applies to push-to-main only.
 - `knip.yml`: scheduled `knip --fix` (every other day) opens a cleanup PR. It strips unused `export` keywords and prunes dependencies; it never deletes files.
 - `links.yml`: weekly markdown link check, opens an issue on failures. New custom schemes (`inkling://`) or local hosts go in `.lycheeignore`.

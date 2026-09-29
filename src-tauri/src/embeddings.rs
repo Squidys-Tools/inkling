@@ -18,8 +18,8 @@ pub const IMAGE_DIMENSION: usize = 768;
 
 const TEXT_MAX_TOKENS: usize = 8192;
 const IMAGE_EDGE: u32 = 224;
-const IMAGE_MEAN: [f32; 3] = [0.48145466, 0.4578275, 0.40821073];
-const IMAGE_STD: [f32; 3] = [0.26862954, 0.26130258, 0.27577711];
+const IMAGE_MEAN: [f32; 3] = [0.4814547, 0.4578275, 0.4082107];
+const IMAGE_STD: [f32; 3] = [0.26862954, 0.2613026, 0.2757771];
 
 #[derive(Debug, Deserialize)]
 struct ModelManifest {
@@ -106,22 +106,14 @@ pub fn text_query_embedding(model_cache: &Path, text: &str) -> Result<Vec<f32>, 
             runtime.embed(&format!("search_query: {text}"))
         })
     });
-    match result {
+    // Storage tests intentionally run without the 230 MB model bundle.
+    // Production builds retain lexical search when the learned model is unavailable.
+    #[cfg(test)]
+    let result = match result {
         Ok(vector) => Ok(vector),
-        Err(error) => {
-            // Storage tests intentionally run without the 230 MB model bundle.
-            // Production builds retain lexical search when the learned model is unavailable.
-            #[cfg(test)]
-            {
-                let _ = error;
-                Ok(legacy_text_embedding(&fallback_text))
-            }
-            #[cfg(not(test))]
-            {
-                Err(error)
-            }
-        }
-    }
+        Err(_) => Ok(legacy_text_embedding(&fallback_text)),
+    };
+    result
 }
 
 /// Embeds an image with Nomic Vision v1.5. The first indexing run downloads
@@ -315,8 +307,8 @@ impl TextRuntime {
             return Err("Nomic attention mask contains no active tokens".into());
         }
         let mut vector = vec![0.0_f32; TEXT_DIMENSION];
-        for token_index in 0..sequence_length {
-            if attention_mask[token_index] == 0 {
+        for (token_index, mask) in attention_mask.iter().take(sequence_length).enumerate() {
+            if *mask == 0 {
                 continue;
             }
             let start = token_index * TEXT_DIMENSION;
@@ -531,12 +523,13 @@ pub fn encode_f32(embedding: &[f32]) -> Vec<u8> {
 
 #[allow(dead_code)]
 pub fn decode_f32(bytes: &[u8]) -> Result<Vec<f32>, String> {
-    let chunks = bytes.chunks_exact(std::mem::size_of::<f32>());
-    if !chunks.remainder().is_empty() {
+    let (chunks, remainder) = bytes.as_chunks::<4>();
+    if !remainder.is_empty() {
         return Err("embedding blob has an invalid byte length".into());
     }
     Ok(chunks
-        .map(|chunk| f32::from_le_bytes(chunk.try_into().expect("chunks_exact guarantees size")))
+        .iter()
+        .map(|chunk| f32::from_le_bytes(*chunk))
         .collect())
 }
 
