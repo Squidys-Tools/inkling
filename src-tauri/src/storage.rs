@@ -2290,9 +2290,10 @@ fn starts_block(tag: &Tag) -> bool {
     )
 }
 
-// A void inline element separates the words around it, so `foo<br>bar` must not
-// come back as `foobar`. Inline wrappers such as `<em>` do not, and treating them
-// as boundaries would split a word in half.
+// A void inline element ends a line, so `foo<br>bar` must not come back as
+// `foobar`. An inline wrapper such as `<em>` only marks up a run and must not
+// split it; a word-internal hint like `<wbr>` is a break opportunity, not a
+// boundary, and treating either as one splits a word in half.
 fn is_void_tag(raw: &str) -> bool {
     let name: String = raw
         .trim()
@@ -2303,7 +2304,7 @@ fn is_void_tag(raw: &str) -> bool {
         .collect();
     matches!(
         name.to_ascii_lowercase().as_str(),
-        "br" | "hr" | "img" | "input" | "wbr"
+        "br" | "hr" | "img" | "input"
     )
 }
 
@@ -3247,6 +3248,8 @@ mod tests {
         assert_eq!(markdown_to_plain_text("foo<br>bar"), "foo bar");
         assert_eq!(markdown_to_plain_text("one<br/>two"), "one two");
         assert_eq!(markdown_to_plain_text("a<em>bc</em>d"), "abcd");
+        // A word-internal break hint must not become a space in search text.
+        assert_eq!(markdown_to_plain_text("hy<wbr>phen"), "hyphen");
     }
 
     #[test]
