@@ -58,6 +58,7 @@ Surfacing forgotten material through browsing and curation.
 - [ ] Top of Mind (pinned items on library open)
 - [x] Trash and recoverable archive
 - [x] Space management (create, rename, reorder, recolor, delete)
+- [x] Regular Spaces (manual collections)
 - [ ] Wire the already-registered `enqueue_ocr_job` and `count_active_jobs` Tauri commands to UI (backend ships them, no frontend caller yet)
 - [x] Export and backup (database snapshot + referenced assets + manifest)
 - [ ] Import and restore from an export
@@ -85,11 +86,3 @@ Production readiness and first release.
 - [ ] Windows installer and update mechanism
 - [ ] Web version portability (frontend + domain boundaries)
 - [ ] Performance and refactoring pass, then establish the frontend bundle-size baseline and add a bundle-size PR comment check (deferred until the bundle is feature-complete; `pdfjs-dist` / `tesseract.js` chunking is the main risk)
-
-## TBD
-
-**Status: unknown**
-
-Future features under consideration
-
-- [ ] Regular Spaces (manual collections)

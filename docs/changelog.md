@@ -47,6 +47,7 @@ Guardrails:
 - README shows the inkling mascot (idle, wink, wide, notify states sampled from the live engine via `bun scripts/mascot-board.ts`), and the desktop app icon is the idle mascot (`README.md`, `src-tauri/icons/`)
 
 - "Find similar" now works for text items, not just images: notes, quotes, articles, and saved links rank by their text embeddings across kinds, with the button offered in the expanded item view and a dedicated empty state while indexing finishes (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`, `src/lib/libraryApi.ts`, `src-tauri/src/storage.rs`) (#55)
+- Regular Spaces: manual collections alongside saved searches. The Space create form chooses Smart or Manual, a Manual Space holds only the items you file into it from the expanded item view, and the chips there show current membership and take an item back out. Deleting a Space still leaves its items alone (SQU-4, `src-tauri/src/storage.rs`, `src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
 - Project-local verification skill: a dependency-free Chrome DevTools Protocol harness launches the seeded web preview on ports it picks itself, health-checks the instance before any drive, exercises the UI with real clicks and typed input, and leaves screenshots plus a command transcript behind, with a maintained feature map for capture, search, browsing, Spaces, and the archive (`.agents/skills/verify-inkling/`)
 
 ### Changed
