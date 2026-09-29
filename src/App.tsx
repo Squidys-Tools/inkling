@@ -702,9 +702,11 @@ const seedSpaces: StoredSpace[] = [
 ];
 
 // Manual membership for the seeded Regular Space, so preview mode can exercise
-// the same add/remove flow the Tauri core serves from the database.
+// the same add/remove flow the Tauri core serves from the database. These are
+// ids the demo seed actually keeps (5, 10, 12, 13); the archived copies in
+// previewArchivedItems are re-keyed, so the originals stay in the library.
 const seedSpaceItems: Record<string, string[]> = {
-  "seed-weekend-reading": ["3", "7"],
+  "seed-weekend-reading": ["5", "13"],
 };
 
 const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
@@ -2296,7 +2298,11 @@ function App() {
     }
   }
 
-  async function handleToggleItemInSpace(item: LibraryItem, spaceId: string) {
+  // Membership decides the direction of the toggle, so this has to stay a
+  // stable callback: the overlay actions memo closes over it, and a plain
+  // function would leave that memo holding a pre-toggle membership read and
+  // turn "Remove from" into a second add.
+  const handleToggleItemInSpace = useCallback(async (item: LibraryItem, spaceId: string) => {
     const member = itemSpaceIds.includes(spaceId);
     setCaptureError(null);
     try {
@@ -2321,7 +2327,7 @@ function App() {
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
-  }
+  }, [activeSpaceId, canUseTauriBackend, itemSpaceIds]);
 
   async function handleDeleteSpace(space: StoredSpace) {
     setCaptureError(null);
@@ -3051,7 +3057,7 @@ function App() {
     onAddTag: addTagToItem,
     onToggleSpace: (item, spaceId) => void handleToggleItemInSpace(item, spaceId),
     isFindingSimilar,
-  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob, togglePinItem]);
+  }), [addTagToItem, forgetItem, handleToggleItemInSpace, isFindingSimilar, openReader, retryJob, togglePinItem]);
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
