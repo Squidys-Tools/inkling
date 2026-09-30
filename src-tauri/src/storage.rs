@@ -1658,25 +1658,14 @@ fn ensure_item_columns(
         rows
     };
 
-    for (id, kind, title, description, metadata_json, body, body_format) in rows {
-        let metadata = serde_json::from_str::<Value>(&metadata_json)
-            .unwrap_or_else(|_| Value::Object(Map::new()));
-        let metadata_text = |key: &str| {
-            metadata
-                .get(key)
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(str::to_owned)
-        };
+    for (id, kind, _title, description, _metadata_json, body, body_format) in rows {
+        // The body column belongs to notes. A legacy note kept its text in
+        // description, so that stays the only fallback; quotes and urls already
+        // hold theirs in title and searchable metadata.
         let body = body
             .filter(|value| !value.trim().is_empty())
             .or_else(|| match kind.as_str() {
                 "note" => description.clone(),
-                "quote" => metadata_text("quoteText").or_else(|| title.clone()),
-                "url" | "article" => {
-                    metadata_text("text").or_else(|| metadata_text("extractedText"))
-                }
                 _ => None,
             })
             .unwrap_or_default();
@@ -3359,6 +3348,20 @@ mod tests {
                 END;
                 INSERT INTO items(id, kind, title, description, metadata, ocr_text, created_at, updated_at)
                 VALUES ('legacy-note', 'note', 'Legacy note', 'legacy searchable body', '{}', '', 1, 1);
+                INSERT INTO items(id, kind, title, description, source_url, source_label, metadata, ocr_text, created_at, updated_at)
+                VALUES (
+                    'legacy-quote', 'quote', 'A library is a promise to the future', 'Ada Lovelace',
+                    NULL, NULL,
+                    '{\"quoteText\":\"A library is a promise to the future\",\"attribution\":\"Ada Lovelace\",\"text\":\"A library is a promise to the future. Ada Lovelace\"}',
+                    '', 1, 1
+                );
+                INSERT INTO items(id, kind, title, description, source_url, source_label, metadata, ocr_text, created_at, updated_at)
+                VALUES (
+                    'legacy-url', 'url', 'On writing well', NULL,
+                    'https://example.com/writing', 'example.com',
+                    '{\"sourceUrl\":\"https://example.com/writing\",\"text\":\"Extracted article text that should not be duplicated into the body column.\",\"html\":\"\"}',
+                    '', 1, 1
+                );
                 PRAGMA user_version = 6;",
             )
             .unwrap();
@@ -3373,6 +3376,34 @@ mod tests {
             .unwrap()
             .iter()
             .any(|item| item.id == "legacy-note"));
+
+        // A migrated quote and url keep their text where the create paths put it
+        // and must not gain a second copy in body.
+        let migrated_quote = storage.get_item("legacy-quote").unwrap().unwrap();
+        assert_eq!(migrated_quote.body.as_deref(), Some(""));
+        assert_eq!(
+            migrated_quote.title.as_deref(),
+            Some("A library is a promise to the future")
+        );
+        assert_eq!(
+            migrated_quote
+                .metadata
+                .get("quoteText")
+                .and_then(Value::as_str),
+            Some("A library is a promise to the future")
+        );
+        let migrated_url = storage.get_item("legacy-url").unwrap().unwrap();
+        assert_eq!(migrated_url.body.as_deref(), Some(""));
+        assert_eq!(
+            migrated_url.metadata.get("text").and_then(Value::as_str),
+            Some("Extracted article text that should not be duplicated into the body column.")
+        );
+        assert!(storage
+            .search_items("Lovelace", 10)
+            .unwrap()
+            .iter()
+            .any(|item| item.id == "legacy-quote"));
+
         let body_columns: i64 = storage
             .connection
             .query_row(
