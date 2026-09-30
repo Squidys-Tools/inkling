@@ -40,7 +40,6 @@
     "@tauri-apps/plugin-dialog": "^2.7.3",
     "@virtuoso.dev/masonry": "^1.4.3",
     "defuddle": "^0.19.4",
-    "dompurify": "3.4.16",
     "gsap": "^3.15.0",
     "linkedom": "^0.18.13",
     "motion": "^13.4.0",

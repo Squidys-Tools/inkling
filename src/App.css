@@ -465,28 +465,8 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 #decorum-tb-close:hover { background-color: #c42b1c !important; color: #fff8ee !important; }
 
 .note-editor { margin-top: 4px; }
-.note-editor-preview { max-width: 62ch; color: var(--ink); font-size: 13px; line-height: 1.6; }
-.note-editor-preview > :first-child { margin-top: 0; }
-.note-editor-preview > :last-child { margin-bottom: 0; }
-.note-editor-preview h1, .note-editor-preview h2, .note-editor-preview h3 { margin: 18px 0 7px; color: var(--ink); font-family: Georgia, "Times New Roman", serif; font-weight: 400; line-height: 1.2; }
-.note-editor-preview h1 { font-size: 22px; }
-.note-editor-preview h2 { font-size: 18px; }
-.note-editor-preview h3 { font-size: 15px; }
-.note-editor-preview p { margin: 9px 0; }
-.note-editor-preview ul, .note-editor-preview ol { margin: 9px 0; padding-left: 22px; }
-.note-editor-preview li { margin: 4px 0; }
-.note-editor-preview ul[data-type="taskList"] { padding-left: 0; list-style: none; }
-.note-editor-preview ul[data-type="taskList"] > li { display: flex; align-items: flex-start; gap: 8px; }
-.note-editor-preview ul[data-type="taskList"] > li > p { margin: 0; }
-.note-editor-preview li[data-checked="true"] { color: var(--muted); text-decoration: line-through; }
-.note-editor-preview input { accent-color: var(--green); }
-.note-editor-preview ul[data-type="taskList"] input, .note-editor-content ul[data-type="taskList"] input { margin-top: 3px; }
-.note-editor-preview a { color: var(--orange); text-decoration: underline; text-underline-offset: 3px; }
-.note-editor-preview blockquote { margin: 12px 0; padding-left: 12px; border-left: 2px solid var(--orange); color: var(--muted); }
-.note-editor-preview code { padding: 2px 4px; border-radius: 4px; background: #0c0c0b; color: #c9d8c3; font: 11px "DM Mono", monospace; }
-.note-editor-preview pre { overflow-x: auto; margin: 12px 0; padding: 11px; border: 1px solid var(--rule); border-radius: 8px; background: #0c0c0b; }
-.note-editor-preview pre code { padding: 0; }
-.note-editor-empty, .note-editor-loading { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.note-editor-content ul[data-type="taskList"] input { margin-top: 3px; }
+.note-editor-loading { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
 .note-editor-edit, .note-editor-cancel, .note-editor-save { border-radius: 7px; cursor: pointer; font-size: 11px; }
 .note-editor-edit { margin-top: 14px; padding: 7px 10px; border: 1px solid var(--rule); background: transparent; color: var(--muted); }
 .note-editor-edit:hover { border-color: #5a5750; background: #1b1917; color: var(--ink); }

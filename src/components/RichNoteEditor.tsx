@@ -42,9 +42,8 @@ const IDLE_TOOLBAR = {
 };
 
 // Editing only happens inside the expanded overlay, which owns when the editor
-// opens. Whether notes also deserve a read view is an open product question, so
-// this component stays a plain editor and `renderNoteMarkdown` in
-// ../lib/noteMarkdown keeps the sanitized renderer a read view can use.
+// opens. This component only ever edits; rendering a stored note as sanitized
+// HTML is a separate concern, if the product ever asks for it.
 export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded = false }: RichNoteEditorProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
