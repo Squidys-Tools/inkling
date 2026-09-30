@@ -511,8 +511,9 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     if (previous.id === item.id) return;
     previousItemRef.current = item;
     if (isEditingNoteRef.current) {
-      // Selecting another card abandons the draft, but the overlay should land on
-      // the card that was clicked rather than closing outright.
+      // Card presses are absorbed while a note is being written, so this only
+      // catches a switch that arrived another way (Enter on a focused card).
+      // Leave the editor rather than carry the draft onto another item.
       setIsEditingNote(false);
     }
 
@@ -703,20 +704,23 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
 
   // Modeless close: presses on empty library space dismiss the overlay, while
   // presses on cards fall through to the card's own handler, which switches the
-  // overlay to that item. While a note is being written the press is absorbed
-  // instead, so it cannot silently cancel what was just typed or reach a
-  // control behind the panel. The close button and Escape are the ways out.
+  // overlay to that item. While a note is being written every press outside the
+  // dialog is absorbed, cards included, so it cannot silently cancel what was
+  // just typed, carry the panel to another item, or reach a control behind it.
+  // The close button, Escape and Save are the ways out.
   useEffect(() => {
-    // True for anything the panel does not own: the press did not land in the
-    // dialog and did not land on a card.
-    const isOutsidePress = (target: EventTarget | null) => {
+    // True for presses the panel answers itself: anything outside the dialog,
+    // plus the cards too while a note is being written, so a stray press cannot
+    // navigate the overlay off an unsaved draft.
+    const shouldHandlePress = (target: EventTarget | null) => {
       if (!(target instanceof Node)) return false;
       if (dialogRef.current?.contains(target)) return false;
-      return !(target instanceof Element && target.closest(".library-card"));
+      const onCard = target instanceof Element && target.closest(".library-card") !== null;
+      return !onCard || isEditingNoteRef.current;
     };
 
     const onPointerDown = (event: PointerEvent) => {
-      if (!isOutsidePress(event.target)) return;
+      if (!shouldHandlePress(event.target)) return;
       if (!isEditingNoteRef.current) {
         requestClose();
         return;
@@ -729,23 +733,23 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     // click, and those are separate events, so the press alone is not enough to
     // absorb the interaction. mousedown is included rather than relying on the
     // pointerdown cancel to suppress it.
-    const absorbOutsidePress = (event: Event) => {
-      if (!isEditingNoteRef.current || !isOutsidePress(event.target)) return;
+    const absorbHandledPress = (event: Event) => {
+      if (!isEditingNoteRef.current || !shouldHandlePress(event.target)) return;
       event.preventDefault();
       event.stopPropagation();
     };
 
     document.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("mousedown", absorbOutsidePress, true);
-    document.addEventListener("pointerup", absorbOutsidePress, true);
-    document.addEventListener("mouseup", absorbOutsidePress, true);
-    document.addEventListener("click", absorbOutsidePress, true);
+    document.addEventListener("mousedown", absorbHandledPress, true);
+    document.addEventListener("pointerup", absorbHandledPress, true);
+    document.addEventListener("mouseup", absorbHandledPress, true);
+    document.addEventListener("click", absorbHandledPress, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("mousedown", absorbOutsidePress, true);
-      document.removeEventListener("pointerup", absorbOutsidePress, true);
-      document.removeEventListener("mouseup", absorbOutsidePress, true);
-      document.removeEventListener("click", absorbOutsidePress, true);
+      document.removeEventListener("mousedown", absorbHandledPress, true);
+      document.removeEventListener("pointerup", absorbHandledPress, true);
+      document.removeEventListener("mouseup", absorbHandledPress, true);
+      document.removeEventListener("click", absorbHandledPress, true);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -1143,6 +1143,19 @@ function ExtensionPairing() {
   );
 }
 
+// Note bodies are cached so an opened note is not re-fetched and a refresh does
+// not drop a body the list query never carries. Same LRU shape as the asset URL
+// cache: writes re-insert, so the oldest key is the least recently used body.
+const NOTE_BODY_CACHE_LIMIT = 200;
+function rememberNoteBody(cache: Map<string, string>, id: string, body: string) {
+  cache.delete(id);
+  if (cache.size >= NOTE_BODY_CACHE_LIMIT) {
+    const oldest = cache.keys().next();
+    if (oldest.value !== undefined) cache.delete(oldest.value);
+  }
+  cache.set(id, body);
+}
+
 function App() {
   const canUseTauriBackend = isTauriRuntime() && !shouldUseSeedLibrary();
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
@@ -1203,7 +1216,7 @@ function App() {
       .then((content) => {
         if (cancelled) return;
         const noteBody = normalizeNoteBody(content.body);
-        noteBodyCacheRef.current.set(id, noteBody);
+        rememberNoteBody(noteBodyCacheRef.current, id, noteBody);
         // The body is the only thing still missing here. Its description came
         // back already projected, so the fetched content only fills the gap.
         const apply = (item: LibraryItem) => (String(item.id) === id ? { ...item, noteBody } : item);
@@ -1483,7 +1496,7 @@ function App() {
     setItems((current) => current.map(apply));
     setArchivedItems((current) => current.map(apply));
     setSelectedItem((current) => (current ? apply(current) : current));
-    noteBodyCacheRef.current.set(String(item.id), nextBody);
+    rememberNoteBody(noteBodyCacheRef.current, String(item.id), nextBody);
   }, [canUseTauriBackend]);
 
   // Pins are flipped from current state, not from the item the click captured,
@@ -2931,14 +2944,16 @@ function App() {
   }, [cancelPermanentDelete, restoreArchivedItems]);
 
   useEffect(() => () => {
-    // A delete the user already accepted must not silently come back because
-    // they quit inside the undo window, so run the pending ones now.
-    for (const [id, pending] of pendingPermanentDeletesRef.current) {
+    // A pending delete is finalized by its own timer, and unmounting must not
+    // run it: a remount (StrictMode, HMR) would flush real deletes, and closing
+    // the window tears the webview down without unmounting anyway. Dropping the
+    // timers leaves those items archived and recoverable, which is the state
+    // the delete never left.
+    for (const pending of pendingPermanentDeletesRef.current.values()) {
       window.clearTimeout(pending.timer);
-      if (canUseTauriBackend) void deleteItem(id).catch(() => {});
     }
     pendingPermanentDeletesRef.current.clear();
-  }, [canUseTauriBackend]);
+  }, []);
 
   const deleteArchivedLibraryItem = useCallback((item: LibraryItem) => {
     setCaptureError(null);
