@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { parseHTML } from "linkedom";
-import { STATE_BY_ID } from "./bot/states";
-import { RAYON } from "./bot/repere";
-import { closedPath, toPoints } from "./bot/shape";
 import { buildReadmeMascot, readmeMascotFrame, readmeMascotSvg } from "./readmeMascot";
 
 // The README mascot is a file nobody lints and everybody sees, so what these
@@ -26,6 +23,25 @@ function keyframes(css: string): Map<string, Array<[string, string]>> {
 
 const style = () => svg.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? "";
 const blocks = () => keyframes(style());
+
+/** Area centroid of a closed polygon given its on-curve points. The blob is a
+ *  closed path of cubic segments, and the on-curve points trace it, so this is
+ *  where the ink actually sits. A bounding box cannot answer that: the mascot's
+ *  lobes are not symmetric left to right, so the box's centre wanders while the
+ *  mascot stands perfectly still. */
+function centroid(points: Array<[number, number]>): [number, number] {
+  let twiceArea = 0;
+  let x = 0;
+  let y = 0;
+  for (const [i, [px, py]] of points.entries()) {
+    const [qx, qy] = points[(i + 1) % points.length]!;
+    const cross = px * qy - qx * py;
+    twiceArea += cross;
+    x += (px + qx) * cross;
+    y += (py + qy) * cross;
+  }
+  return [x / (3 * twiceArea), y / (3 * twiceArea)];
+}
 
 describe("readme mascot svg", () => {
   test("is a standalone document the readme can point an img at", () => {
@@ -56,22 +72,18 @@ describe("readme mascot svg", () => {
 
   test("turns, flickers and blinks, each on one loop", () => {
     const all = blocks();
-    expect([...all.keys()].sort()).toEqual(["inkling-blink", "inkling-flicker", "inkling-turn"]);
+    expect([...all.keys()].sort()).toEqual(["inkling-blink", "inkling-flicker"]);
     for (const frames of all.values()) {
       expect(frames.length).toBeGreaterThan(1);
       expect(frames[0]![0]).toBe("0");
     }
-    for (const name of ["inkling-turn", "inkling-flicker", "inkling-blink"]) {
+    for (const name of ["inkling-flicker", "inkling-blink"]) {
       expect(style()).toContain(`animation:${name} 24s linear infinite`);
     }
   });
 
   test("every loop closes on itself, so it repeats without a seam", () => {
     const all = blocks();
-    // A whole number of turns is its own identity, which is what makes the turn
-    // seam-free without baking a duplicated first frame.
-    const turn = all.get("inkling-turn") ?? [];
-    expect(turn[turn.length - 1]![1]).toContain("rotate(360deg)");
     // The outline and the lid have to land back where they started, and they
     // have to do it on the loop point rather than somewhere before it.
     for (const name of ["inkling-flicker", "inkling-blink"]) {
@@ -81,18 +93,42 @@ describe("readme mascot svg", () => {
     }
   });
 
-  test("the loop is really the drift, not the sway it replaced", () => {
+  test("stays in frame for the whole loop, which is the bug this file had once", () => {
+    // Every baked outline has to sit around the middle of the viewBox. A mascot
+    // that swings off the page still has a perfectly plausible ink area, so an
+    // area check sails straight past it; only its position gives it away. This
+    // is the check that was missing when a `rotate()` on the wrong pivot shipped
+    // the mascot out of frame.
+    for (const [, decl] of blocks().get("inkling-flicker") ?? []) {
+      const d = decl.match(/path\("([^"]*)"\)/)?.[1] ?? "";
+      // M x y, then 64 groups of six: two control points and the on-curve point.
+      const n = (d.match(/-?\d+\.?\d*/g) ?? []).map(Number);
+      const points: Array<[number, number]> = [[n[0]!, n[1]!]];
+      for (let i = 2; i + 5 < n.length; i += 6) points.push([n[i + 4]!, n[i + 5]!]);
+      const [cx, cy] = centroid(points);
+      // The blob is built on a circle at the origin, so its area centroid sits
+      // on the origin to within a lobe's worth of asymmetry.
+      expect(Math.hypot(cx, cy)).toBeLessThan(4);
+      // And no single point may reach the viewBox edge, or the mask would crop
+      // the mascot rather than the background.
+      for (const [x, y] of points) {
+        expect(Math.abs(x)).toBeLessThan(158);
+        expect(Math.abs(y)).toBeLessThan(158);
+      }
+    }
+  });
+
+  test("the turn is baked into the path, not hung off a transform origin", () => {
+    // `transform-box: view-box` with a percentage origin is the ambiguous
+    // pairing that sent the mascot off screen, so there must be no such rule
+    // left, and no `rotate(` anywhere in the file.
+    expect(style()).not.toContain("transform-box:view-box");
+    expect(style()).not.toContain("rotate(");
+    // The turn really is in the outlines: no two a quarter turn apart share one.
     const flicker = (blocks().get("inkling-flicker") ?? []).map(([, decl]) => decl);
-    // Enough outlines that the lobes are actually carried by the path rather
-    // than riding a transform, and every one of them distinct bar the loop
-    // point, which has to repeat the first for the seam to be provably closed.
-    expect(flicker.length).toBeGreaterThanOrEqual(12);
-    expect(new Set(flicker).size).toBe(flicker.length - 1);
-    // ...and they have to be the drift's lobes, taken from the engine's profile.
-    const first = flicker[0]!.match(/path\("([^"]*)"\)/)?.[1] ?? "";
-    expect(first.length).toBeGreaterThan(1000);
-    const pose = STATE_BY_ID.get("inkling-drift-loop")!.pose(7);
-    expect(pose.sil.rot).toBeCloseTo((7 * Math.PI * 2) / 24, 6);
+    const at = (t: number) => flicker[Math.round((t / 24) * (flicker.length - 1))];
+    expect(at(0)).not.toBe(at(6));
+    expect(at(0)).not.toBe(at(12));
   });
 
   test("the blink shuts the eye to the engine's own floor", () => {
@@ -106,7 +142,7 @@ describe("readme mascot svg", () => {
 
   test("a reader who asked for reduced motion gets the still, not the loop", () => {
     const rule = style().match(/@media \(prefers-reduced-motion:reduce\)\{([^}]*)\}/)?.[1] ?? "";
-    for (const name of ["inkling-turn", "inkling-flicker", "inkling-blink"]) {
+    for (const name of ["inkling-flicker", "inkling-blink"]) {
       expect(rule).toContain(`.${name}`);
     }
     expect(rule).toContain("animation:none");
@@ -126,9 +162,7 @@ describe("readme mascot svg", () => {
     // asset rounds coordinates to save bytes and the engine does not.
     const numbers = (d: string) => (d.match(/-?\d+\.?\d*/g) ?? []).map(Number);
     const resting = numbers(blocks().get("inkling-flicker")?.[0]?.[1].match(/path\("([^"]*)"\)/)?.[1] ?? "");
-    const engineOutline = numbers(
-      closedPath(toPoints({ ...STATE_BY_ID.get("inkling-drift-loop")!.pose(0).sil, rot: 0 }, RAYON)),
-    );
+    const engineOutline = numbers(frame.bodyPath);
     expect(resting.length).toBe(engineOutline.length);
     for (const [i, value] of resting.entries()) {
       // Half a unit is the most rounding to 0.5 can move a coordinate, which is
