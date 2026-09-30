@@ -6,7 +6,7 @@ inkling is a quiet little home for everything you want to keep: articles, images
 
 Everything lives on your own computer. Nothing leaves ever leaves.
 
-<img src="docs/assets/mascots/inkling-splash-loop.svg" alt="inkling mascot, a small ink blot with eyes that breathes and blinks" width="160">
+<img src="docs/assets/mascots/inkling-splash-loop.svg" alt="inkling mascot, a small ink blot with eyes that turns, drifts and blinks" width="160">
 
 ![Your inkling library — a visual grid of saved articles, images, quotes, and videos](docs/assets/screenshots/library.png)
 
