@@ -804,13 +804,15 @@ impl LibraryStorage {
             Some(_) => return Err(StorageError::InvalidInput("bodyFormat must be 'md'".into())),
             None => body.as_ref().map(|_| BODY_FORMAT_MARKDOWN.to_owned()),
         };
-        let description = body.as_deref().map(markdown_to_plain_text).or_else(|| {
-            input
-                .description
-                .as_deref()
-                .map(str::trim)
-                .map(str::to_owned)
-        });
+        // An explicit description is what the caller asked for and wins; the
+        // projection over the body is only a fallback for callers that omit it,
+        // which is how a note save re-derives it from the new body.
+        let description = input
+            .description
+            .as_deref()
+            .map(str::trim)
+            .map(str::to_owned)
+            .or_else(|| body.as_deref().map(markdown_to_plain_text));
         let now = now_millis()?;
 
         let updated = self.connection.execute(
@@ -1633,9 +1635,9 @@ fn ensure_item_columns(
     }
 
     let query = if migration_needed || added_column {
-        "SELECT id, kind, title, description, metadata, body, body_format FROM items"
+        "SELECT id, kind, description, body, body_format FROM items"
     } else {
-        "SELECT id, kind, title, description, metadata, body, body_format
+        "SELECT id, kind, description, body, body_format
          FROM items
          WHERE body IS NULL OR body_format IS NULL"
     };
@@ -1649,16 +1651,14 @@ fn ensure_item_columns(
                     row.get::<_, String>(1)?,
                     row.get::<_, Option<String>>(2)?,
                     row.get::<_, Option<String>>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, Option<String>>(5)?,
-                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(4)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         rows
     };
 
-    for (id, kind, _title, description, _metadata_json, body, body_format) in rows {
+    for (id, kind, description, body, body_format) in rows {
         // The body column belongs to notes. A legacy note kept its text in
         // description, so that stays the only fallback; quotes and urls already
         // hold theirs in title and searchable metadata.
@@ -3213,6 +3213,69 @@ mod tests {
             storage.get_item_content(&item.id).unwrap().body,
             "## Next\n\n- [x] Verify the preview"
         );
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn an_explicit_description_outranks_the_body_projection() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-description-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Field notes".into()),
+                body: "first draft".into(),
+                metadata: None,
+            })
+            .unwrap();
+
+        // A caller that sends no description gets the projection, which is how
+        // the note editor re-derives it from the body it just saved.
+        let derived = storage
+            .update_item(UpdateItemInput {
+                id: item.id.clone(),
+                body: Some("## Second\n\nA sharper line.".into()),
+                body_format: Some(BODY_FORMAT_MARKDOWN.into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            derived.description.as_deref(),
+            Some("Second A sharper line.")
+        );
+
+        // A caller that sends both gets the description it asked for, and the
+        // body still lands.
+        let explicit = storage
+            .update_item(UpdateItemInput {
+                id: item.id.clone(),
+                description: Some("A hand written summary".into()),
+                body: Some("## Third\n\nDifferent text again.".into()),
+                body_format: Some(BODY_FORMAT_MARKDOWN.into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            explicit.description.as_deref(),
+            Some("A hand written summary")
+        );
+        assert_eq!(
+            storage.get_item_content(&item.id).unwrap().body,
+            "## Third\n\nDifferent text again."
+        );
+
+        // A description on its own is still a plain description write.
+        let described = storage
+            .update_item(UpdateItemInput {
+                id: item.id.clone(),
+                description: Some("  Trimmed summary  ".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(described.description.as_deref(), Some("Trimmed summary"));
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();
