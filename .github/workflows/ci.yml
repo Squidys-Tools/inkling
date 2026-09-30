@@ -28,7 +28,7 @@ concurrency:
 jobs:
   changes:
     name: Detect changes
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pull-requests: read
@@ -63,12 +63,18 @@ jobs:
               - '!src/seedPersonal.ts'
               - '!public/seed-demo/**'
               - 'benchmarks/**'
+              # Workspaces the root tsconfig does not cover.
+              - 'extension/**'
+              - 'packages/**'
+              - '!packages/**/node_modules/**'
               - 'index.html'
               - 'package.json'
               - 'bun.lock'
               - '.bun-version'
               - 'vite.config.ts'
+              - 'knip.json'
               - 'scripts/assert-no-demo-seed.ts'
+              - 'scripts/assert-no-demo-seed.test.ts'
               - 'tsconfig.json'
               - 'tsconfig.node.json'
               - '.github/workflows/ci.yml'
@@ -80,7 +86,7 @@ jobs:
     name: Frontend checks
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out repository
@@ -91,8 +97,21 @@ jobs:
         with:
           bun-version-file: .bun-version
 
+      # Guards against the three Bun pins drifting apart: .bun-version,
+      # packageManager, and the Bun that setup-bun actually installed.
+      - name: Verify Bun version pin
+        run: bun run check:bun-version
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      # Root tsconfig only includes src, so the extension and shared package
+      # are invisible to `bun run typecheck`. Check each workspace explicitly.
+      - name: Typecheck workspaces
+        run: |
+          bun run typecheck
+          bun run --cwd extension typecheck
+          bun run --cwd packages/ingestion-shared typecheck
 
       - name: Run unit tests
         run: bun test
@@ -112,6 +131,12 @@ jobs:
       - name: Run ingestion smoke tests
         run: bun run ingest:smoke
 
+      # The extension ships as three separate bundles behind two manifests.
+      # Building it here catches manifest and bundler regressions long before
+      # someone tries to load the unpacked directory.
+      - name: Build browser extension
+        run: bun run --cwd extension build
+
   native:
     name: Native checks
     needs: changes
@@ -125,7 +150,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
+          components: rustfmt, clippy
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -135,6 +160,12 @@ jobs:
       - name: Check formatting
         working-directory: src-tauri
         run: cargo fmt --all -- --check
+
+      # Hard gate: clippy warnings fail the build. `--all-targets` covers tests
+      # and benches too, so lint-only code paths cannot drift back in.
+      - name: Lint Rust application
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --locked -- -D warnings
 
       - name: Check Rust application
         working-directory: src-tauri

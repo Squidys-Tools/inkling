@@ -46,12 +46,16 @@ Guardrails:
 - Committed web-preview demo library: 24 personal items (photos, art, UI references, one clip) plus four keepers from the original set, shuffled with a fixed seed so the order is mixed but stable; images live compressed by hand in `public/seed-demo/` with titles in `src/seedPersonal.ts` (`src/seedPersonal.ts`, `src/App.tsx`, `public/seed-demo/`)
 - README screenshots of the visual library grid and the expanded item detail view (`docs/assets/screenshots/library.png`, `docs/assets/screenshots/detail.png`), plus reserved slots for demo clips (`docs/assets/demo/`) and upcoming mascots (`docs/assets/mascots/`)
 - README shows the inkling mascot (idle, wink, wide, notify states sampled from the live engine via `bun scripts/mascot-board.ts`), and the desktop app icon is the idle mascot (`README.md`, `src-tauri/icons/`)
+- The README mascot turns, drifts and blinks instead of holding a pose: a looping SVG whose turn and lobe drift come from a new `inkling-drift-loop` state, the sidebar drift re-timed onto a period it can actually repeat, with a `prefers-reduced-motion` fallback that leaves the still (`src/components/mascot/readmeMascot.ts`, `src/components/mascot/bot/states.ts`, `docs/assets/mascots/inkling-splash-loop.svg`)
+- Fixed the README mascot drifting off the page and disappearing mid-turn on some browsers: the turn is now baked into the path keyframes instead of a CSS `rotate()` on an ambiguous `transform-box: view-box` origin, and the loop point repeats the first outline so the seam stays invisible (`src/components/mascot/readmeMascot.ts`, `docs/assets/mascots/inkling-splash-loop.svg`) (#93)
 
 - "Find similar" now works for text items, not just images: notes, quotes, articles, and saved links rank by their text embeddings across kinds, with the button offered in the expanded item view and a dedicated empty state while indexing finishes (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`, `src/lib/libraryApi.ts`, `src-tauri/src/storage.rs`) (#55)
 - Top of Mind: items can be pinned and unpinned from their details view, and the Top of mind view collects them. That view explains itself when nothing is pinned yet, and the main library stays a plain list of everything (SQU-9) (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
 
 ### Changed
 
+- GitHub Actions moved off paid Blacksmith runners to the free GitHub-hosted ones (`.github/workflows/ci.yml`, `.github/workflows/security.yml`, `.github/workflows/release.yml`)
+- CI now lints Rust with `cargo clippy --all-targets -- -D warnings`, typechecks the extension and shared package workspaces, builds the browser extension, and verifies the Bun version pin; frontend paths under `extension/` and `packages/` trigger the frontend job (`.github/workflows/ci.yml`)
 - Toasts restyled as a catalog drawer slip for Undo actions and a compact ink-slip chip for success/error (shared palette, plain content, HugeIcons close control, top-right entry/exit, 5s status auto-dismiss, persistent Undo) (SQU-6, `src/App.tsx`, `src/App.css`)
 - CI, CodeQL, dependency review, and labeled preview builds now skip documentation-only and demo-data-only follow-up pushes while still running for mixed changes.
 - Desktop window enforces a 1000 × 800 minimum size so the library layout remains usable when resized.

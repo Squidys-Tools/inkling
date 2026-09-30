@@ -170,6 +170,7 @@ export type StateId =
   | 'inkling-sway'
   | 'inkling-jelly'
   | 'inkling-drift'
+  | 'inkling-drift-loop'
 
 export interface StateDef {
   id: StateId
@@ -656,6 +657,57 @@ export const STATES: StateDef[] = [
         )
       })
       // Poids visuel constant : seule la forme change, jamais la taille.
+      const peak = Math.max(...raw)
+      const radii = raw.map((r) => (r * 1.06) / peak)
+      return base({
+        sil: { radii, rot: (t * TAU) / 24, cx: 0, cy: 0, sx: 1, sy: 1 },
+        gaze: { ...REST_GAZE, yaw: 15 },
+        split: 10.5,
+        eyes: pair(EYE_W, EYE_H)
+      })
+    }
+  },
+  {
+    // INKLING EXTENSION — see StateId above. Not a sidebar state: this one
+    // exists so the README mascot can DRIFT the way the sidebar does while
+    // still coming back to where it started.
+    //
+    // `inkling-drift` runs on a free clock, where never repeating is the whole
+    // point, and its nine periods (24, 26, 21, 17, 15, 14, 10, 8, 6) have a
+    // least common multiple of days. An SVG has to loop, so every period here
+    // is the nearest divisor of 24 instead: the turn keeps its exact 24s period
+    // and the lobe drift keeps its speeds to within a second or two, but the
+    // state at t and t+24 is now identical to the digit.
+    //
+    // Read it as the same figure on a 24s clock, not as the sidebar's motion.
+    id: 'inkling-drift-loop',
+    duration: 24,
+    morph: 0.8,
+    blinkIn: false,
+    baseFace: false,
+    baseBody: false,
+    steadyFace: true,
+    pose: (t) => {
+      const wave = (base: number, depth: number, period: number, phase: number) =>
+        base + depth * Math.sin((t * TAU) / period + phase)
+      const a5 = wave(0.055, 0.032, 12, 0)
+      const a3 = wave(0.04, 0.022, 12, 2.1)
+      const a2 = wave(0.03, 0.016, 24, 4.2)
+      const a7 = wave(0.012, 0.006, 6, 1.3)
+      const p5 = 0.8 + (t * TAU) / 24
+      const p3 = 2.0 - (t * TAU) / 12
+      const p2 = 2.0 + 0.3 * Math.sin((t * TAU) / 12)
+      const p7 = (t * TAU) / 8
+      const raw = Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
+        const a = (i / PROFILE_SAMPLES) * TAU
+        return (
+          1 +
+          a5 * Math.cos(5 * a + p5) +
+          a3 * Math.cos(3 * a + p3) +
+          a2 * Math.cos(2 * a + p2) +
+          a7 * Math.cos(7 * a + p7)
+        )
+      })
       const peak = Math.max(...raw)
       const radii = raw.map((r) => (r * 1.06) / peak)
       return base({

@@ -66,12 +66,16 @@ pub fn page_count(pdf_bytes: &[u8]) -> Option<usize> {
 fn decode_text_string(bytes: &[u8]) -> String {
     let decoded = if bytes.starts_with(&[0xFE, 0xFF]) {
         let units = bytes[2..]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u16::from_be_bytes([pair[0], pair[1]]));
         String::from_utf16_lossy(&units.collect::<Vec<_>>())
     } else if bytes.starts_with(&[0xFF, 0xFE]) {
         let units = bytes[2..]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u16::from_le_bytes([pair[0], pair[1]]));
         String::from_utf16_lossy(&units.collect::<Vec<_>>())
     } else {

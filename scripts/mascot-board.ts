@@ -3,6 +3,7 @@ import { EXPRESSION_BY_ID } from "../src/components/mascot/bot/expressions";
 import { COLOR_BY_ID, SHAPE_BY_ID, mixHex } from "../src/components/mascot/bot/skins";
 import { DEMI_VIEWBOX, RAYON } from "../src/components/mascot/bot/repere";
 import type { StateId } from "../src/components/mascot/bot/states";
+import { buildReadmeMascot } from "../src/components/mascot/readmeMascot";
 
 const r2 = (n: number) => String(Math.round(n * 100) / 100);
 
@@ -65,3 +66,8 @@ for (const shape of SHAPES) {
     console.log(`wrote ${path}`);
   }
 }
+
+// The README hero, which breathes and blinks rather than holding a pose.
+const loopPath = `${outDir}/inkling-splash-loop.svg`;
+await Bun.write(loopPath, buildReadmeMascot());
+console.log(`wrote ${loopPath}`);
