@@ -64,6 +64,11 @@ export function serializeNoteDocument(document: JSONContent): string {
   return normalizeNoteBody(markdownManager.serialize(document));
 }
 
+// The note editor only ever edits, so this has no caller today: whether notes
+// deserve a read view is an open product question, and the allowlist below is
+// the expensive part to get right. It is kept, exported, and knip is told to
+// leave this file's exports alone so a read view can pick it up without
+// re-deriving the sanitizer.
 export function renderNoteMarkdown(markdown: string): string {
   const html = generateHTML(parseNoteMarkdown(markdown), noteEditorExtensions);
   const safeHtml = DOMPurify.sanitize(html, {

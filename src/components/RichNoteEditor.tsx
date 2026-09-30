@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -13,8 +13,8 @@ import {
   RefreshCcwIcon,
   RefreshCwIcon,
 } from "@hugeicons/core-free-icons";
-import { noteEditorExtensions, renderNoteMarkdown } from "../lib/noteMarkdown";
-import { isSafeNoteLink, noteBodyForEditor, noteBodyForPreview, noteBodyForStorage } from "../lib/notes";
+import { noteEditorExtensions } from "../lib/noteMarkdown";
+import { isSafeNoteLink, noteBodyForEditor, noteBodyForStorage } from "../lib/notes";
 
 type RichNoteEditorProps = {
   body?: string;
@@ -41,8 +41,11 @@ const IDLE_TOOLBAR = {
   canRedo: false,
 };
 
+// Editing only happens inside the expanded overlay, which owns when the editor
+// opens. Whether notes also deserve a read view is an open product question, so
+// this component stays a plain editor and `renderNoteMarkdown` in
+// ../lib/noteMarkdown keeps the sanitized renderer a read view can use.
 export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded = false }: RichNoteEditorProps) {
-  const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
@@ -70,16 +73,15 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
   useEffect(() => {
     if (!editor) return;
     editor.commands.setContent(noteBodyForEditor(body, title), { contentType: "markdown", emitUpdate: false });
-    setIsEditing(false);
     setError(null);
     setLinkDraft(null);
   }, [body, editor, title]);
 
   useEffect(() => {
-    if ((!isEditing && !embedded) || !editor) return;
+    if (!embedded || !editor) return;
     editorRootRef.current?.scrollIntoView({ block: "start" });
     editor.commands.focus();
-  }, [editor, embedded, isEditing]);
+  }, [editor, embedded]);
 
   useEffect(() => {
     if (linkDraft === null) return;
@@ -112,25 +114,8 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
         : IDLE_TOOLBAR,
   });
 
-  const previewHtml = useMemo(
-    () => (body === undefined ? "" : renderNoteMarkdown(noteBodyForPreview(body, title))),
-    [body, title],
-  );
-
   if (body === undefined) {
     return <p className="note-editor-loading" role="status">Loading note…</p>;
-  }
-
-  if (!isEditing && !embedded) {
-    return (
-      <div className="note-editor" data-testid="rich-note-editor">
-        {body ? (
-          <div className="note-editor-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} />
-        ) : (
-          <p className="note-editor-empty">This note is empty.</p>
-        )}
-      </div>
-    );
   }
 
   if (!editor) {
@@ -161,6 +146,9 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
   };
 
   const save = async () => {
+    // Emptiness is decided on the edited text, before the title heading goes
+    // back on, so a note the user cleared is refused the same way `update_item`
+    // refuses an empty body.
     const nextBody = noteBodyForStorage(body, title, editor.getMarkdown());
     if (!nextBody) {
       setError("A note needs some text before it can be saved.");
@@ -170,7 +158,6 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
     setError(null);
     try {
       await saveRef.current(nextBody);
-      setIsEditing(false);
       onEditingChange?.(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : String(saveError));
@@ -276,7 +263,6 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
               editor.commands.setContent(noteBodyForEditor(body, title), { contentType: "markdown", emitUpdate: false });
               setError(null);
               setLinkDraft(null);
-              setIsEditing(false);
               onEditingChange?.(false);
             }}
           >

@@ -317,8 +317,12 @@ async function storedItemToLibraryItem(
   const isQuote = kind === "Quote";
   const noteBody = kind === "Note" && typeof item.body === "string" ? normalizeNoteBody(item.body) : undefined;
   const rawTitle = item.title?.trim() || "Untitled note";
+  // The backend already stored `markdown_to_plain_text(body)` as the
+  // description, so a note's plain text arrives ready to read. Projecting the
+  // body again here would only ever disagree with the stored row, and would
+  // eat the brackets in prose that happens to look like a link.
   const rawDescription =
-    (noteBody === undefined ? item.description?.trim() : markdownToPlainText(noteBody)) ||
+    item.description?.trim() ||
     item.ocrText?.trim().slice(0, 180) ||
     (isQuote ? "" : "Saved to your mind.");
 
@@ -1200,8 +1204,9 @@ function App() {
         if (cancelled) return;
         const noteBody = normalizeNoteBody(content.body);
         noteBodyCacheRef.current.set(id, noteBody);
-        const apply = (item: LibraryItem) =>
-          String(item.id) === id ? { ...item, noteBody, description: markdownToPlainText(noteBody) } : item;
+        // The body is the only thing still missing here. Its description came
+        // back already projected, so the fetched content only fills the gap.
+        const apply = (item: LibraryItem) => (String(item.id) === id ? { ...item, noteBody } : item);
         setItems((current) => current.map(apply));
         setArchivedItems((current) => current.map(apply));
         setSelectedItem((current) => (current ? apply(current) : current));
@@ -1320,9 +1325,12 @@ function App() {
           })
         : { ...item, archived: false };
       const cachedNoteBody = noteBodyCacheRef.current.get(String(item.id));
+      // The restore response carries the description the backend already
+      // projected; the cache only holds a body this session edited, so it
+      // re-attaches the body without re-deriving the description.
       const restoredLibraryItem = cachedNoteBody === undefined
         ? restoredItem
-        : { ...restoredItem, noteBody: cachedNoteBody, description: markdownToPlainText(cachedNoteBody) };
+        : { ...restoredItem, noteBody: cachedNoteBody };
       setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
         ? current
         : [restoredLibraryItem, ...current]);
@@ -2623,9 +2631,7 @@ function App() {
           setItems(libraryItems.map((item) => {
             const noteBody = noteBodies.get(String(item.id));
             const pinned = overrides.get(String(item.id));
-            const withNote = noteBody === undefined
-              ? item
-              : { ...item, noteBody, description: markdownToPlainText(noteBody) };
+            const withNote = noteBody === undefined ? item : { ...item, noteBody };
             return pinned === undefined ? withNote : { ...withNote, favorite: pinned };
           }));
         }
@@ -2689,9 +2695,7 @@ function App() {
          if (!cancelled) {
            setArchivedItems(nextItems.map((item) => {
              const noteBody = noteBodyCacheRef.current.get(String(item.id));
-             return noteBody === undefined
-               ? item
-               : { ...item, noteBody, description: markdownToPlainText(noteBody) };
+             return noteBody === undefined ? item : { ...item, noteBody };
            }));
          }
       } catch (error) {
