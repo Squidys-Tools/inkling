@@ -2,8 +2,6 @@ import { BotEngine, type BotFrame } from "./bot/engine";
 import { EXPRESSION_BY_ID } from "./bot/expressions";
 import { blinkScale, liveliness } from "./bot/face";
 import { DEMI_VIEWBOX, RAYON } from "./bot/repere";
-import { closedPath, toPoints } from "./bot/shape";
-import { STATE_BY_ID } from "./bot/states";
 
 /**
  * The mascot as a looping standalone SVG, for the README.
@@ -11,29 +9,30 @@ import { STATE_BY_ID } from "./bot/states";
  * GitHub renders an SVG referenced from an `<img>` as a document with CSS and
  * no script, so keyframes inside it run and nothing else has to change.
  *
- * The motion is the sidebar's own `inkling-drift-loop`, and it is split across
- * two animations because the two halves of it are cheap in different ways. The
- * turn is rigid, so it rides on a `rotate()` and costs the compositor nothing.
- * The lobe drift reshapes the outline, which no transform can express, so those
- * radii are baked into `d` keyframes straight from the engine's profile.
+ * The whole turn AND the lobe drift are baked into `d` keyframes, off the
+ * engine's own body path, and nothing is rotated with a CSS transform.
  *
- * Splitting it that way is also what keeps the file honest. Baked frame to
- * frame, a full turn is 64 cubics interpolated along a chord, so the outline
- * would shrink by ~0.9% halfway through every step and the blob would pulse.
- * Rotating the un-turned path instead means the turn is exact and the baked
- * frames only carry the slow lobe change, which samples cleanly.
+ * That is not the obvious way to do it. A rigid turn looks like exactly the
+ * kind of thing `rotate()` is for, and an earlier version of this file used it
+ * and shipped the mascot flying off the page. `transform-box: view-box` with
+ * `transform-origin: 50% 50%` is the way to say "about the middle of the
+ * viewBox", but the spec is ambiguous about where the viewBox's reference box
+ * actually starts, engines do not agree, and getting it wrong puts the pivot
+ * at (158, 158) instead of (0, 0). The mascot is then 223 units from its own
+ * pivot and swings clean out of frame. A baked path has no pivot to get wrong.
+ *
+ * What baking does cost is the chord: two outlines a step apart interpolate
+ * along a straight line, so the shape sits on the chord rather than the arc and
+ * shrinks by `1 - cos(step/2)` at each midpoint. One outline per second is a
+ * 15 degree step, 0.86% at the midpoint, which is under half a pixel on the
+ * 160px the README draws it at.
  */
 
 /** One full turn, matching `inkling-drift-loop`'s 24 s rotation period. */
 const LOOP_SECONDS = 24;
 
-/** Baked outlines around the loop, the loop point included. Every lobe term
- *  has a visual period between 3.4s and 6s, so one outline every 1.5s is two to
- *  four samples per cycle: enough that the browser's linear interpolation
- *  between them tracks the curve, and the only term close to the limit is the
- *  7-fold one at a 0.6% amplitude, well under a pixel at the size the README
- *  shows this. */
-const FLICKER_STEP_SECONDS = 1.5;
+/** One baked outline per second. See the chord note above for why not coarser. */
+const FLICKER_STEP_SECONDS = 1;
 
 /** Where the engine blinks again three quarters of the way round, and how long
  *  one lid takes, so the second of the pair follows the first. */
@@ -45,22 +44,25 @@ const r4 = (n: number) => String(Math.round(n * 10000) / 10000);
 const pct = (t: number) => r4((100 * t) / LOOP_SECONDS);
 
 /** Half a unit. The outline is 316 units across and the README shows it at
- *  160px, so this is a fiftieth of a pixel there, and it takes a fifth off the
- *  one thing in this file that costs anything. */
+ *  160px, so this is a fiftieth of a pixel there. */
 const path1 = (d: string) => d.replace(/-?\d+\.?\d*/g, (m) => String(Math.round(Number(m) * 2) / 2));
 
-/**
- * The loop's outline at t, with the rotation left out.
+/** The loop's outline at t, turned and reshaped, straight from the engine.
  *
- * This is `toPoints` and `closedPath` — the engine's own path construction —
- * called on the state's profile at `rot: 0`. `inkling-drift-loop` has no squash
- * and no offset, so the engine's path is exactly its profile turned, which the
- * stylesheet applies as a transform instead.
+ *  `inkling-drift-loop` sets `steadyFace`, so its eyes are pinned to a fixed
+ *  gaze and do not travel with the turn. Only the body moves, and this is its
+ *  path, which is what the sidebar is drawing at the same instant.
+ *
+ *  A fresh engine per sample on purpose: the state changes at t=0, so a sample
+ *  is always at or after that change and no morph is ever in flight.
  */
 function outlineAt(t: number): string {
-  const sil = STATE_BY_ID.get("inkling-drift-loop")!.pose(t).sil;
-  const unturned = { ...sil, rot: 0 };
-  return closedPath(toPoints(unturned, RAYON));
+  return new BotEngine(
+    RAYON,
+    "inkling-drift-loop",
+    null,
+    EXPRESSION_BY_ID.get("neutre") ?? null,
+  ).sample(t).bodyPath;
 }
 
 /**
@@ -95,23 +97,23 @@ function blinkShape(): { at: number; shut: number; closed: number } {
   return { at, shut, closed };
 }
 
-/** `@keyframes` for the turn. A whole number of turns is its own identity, so
- *  the loop has no seam here. */
-function turnKeyframes(): string {
-  return `0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}`;
-}
-
-/** Baked outlines around the loop. The last one lands on the loop point at
- *  exactly 100%, holding the same outline the first holds at 0%, so the
- *  browser interpolates nothing across the seam and the repeat is provably
- *  continuous rather than merely close. */
+/** `@keyframes` for the body: the loop point included, holding the same
+ *  outline the first frame holds, so the browser interpolates nothing across
+ *  the seam and the repeat is provably continuous.
+ *
+ *  The loop point is the *first* outline pasted back in, not a sample at
+ *  t=24. The engine's state has length 24s, so `sample(24)` has already
+ *  crossed into the next state and is a different pose; a keyframe taken there
+ *  would put a visible jump at exactly the moment the animation is supposed to
+ *  be invisible. The pose at 24s is the pose at 0s by construction, so the
+ *  first outline is the honest value for both. */
 function flickerKeyframes(): string {
-  const frames: string[] = [];
   const steps = Math.round(LOOP_SECONDS / FLICKER_STEP_SECONDS);
-  for (let i = 0; i <= steps; i++) {
-    const t = (LOOP_SECONDS * i) / steps;
-    frames.push(`${pct(t)}%{d:path("${path1(outlineAt(t))}")}`);
+  const frames: string[] = [];
+  for (let i = 0; i < steps; i++) {
+    frames.push(`${pct((LOOP_SECONDS * i) / steps)}%{d:path("${path1(outlineAt((LOOP_SECONDS * i) / steps))}")}`);
   }
+  frames.push(`${pct(LOOP_SECONDS)}%{d:path("${path1(outlineAt(0))}")}`);
   return frames.join("");
 }
 
@@ -140,20 +142,17 @@ function blinkKeyframes(): string {
 }
 
 /**
- * The sway is carried by the body group, and the mask resolves in the user space
- * of whatever references it, so the mask's own copy of the outline must not turn
- * a second time or the ink and its backing drift apart. The eyes are cut inside
- * the mask and blink there, about their own middle: a fill-box origin stays put
- * under the turned ancestor, where a view-box one would not.
+ * The eyes are cut in the mask rather than painted on top, so the mascot reads
+ * the same on a light README as on a dark one. They blink about their own
+ * middle: a fill-box origin is the one reference box with no ambiguity about
+ * where it starts, and these are the only transforms left in the file.
  */
 const STYLE = `<style>
-.inkling-turn{transform-box:view-box;transform-origin:50% 50%;animation:inkling-turn ${LOOP_SECONDS}s linear infinite}
 .inkling-flicker{animation:inkling-flicker ${LOOP_SECONDS}s linear infinite}
 .inkling-blink{transform-box:fill-box;transform-origin:50% 50%;animation:inkling-blink ${LOOP_SECONDS}s linear infinite}
-@keyframes inkling-turn{${turnKeyframes()}}
 @keyframes inkling-flicker{${flickerKeyframes()}}
 @keyframes inkling-blink{${blinkKeyframes()}}
-@media (prefers-reduced-motion:reduce){.inkling-turn,.inkling-flicker,.inkling-blink{animation:none}}
+@media (prefers-reduced-motion:reduce){.inkling-flicker,.inkling-blink{animation:none}}
 </style>`;
 
 /** The still this loop starts and ends on, which is also what a reader who
@@ -167,8 +166,7 @@ export function readmeMascotFrame(): BotFrame {
   ).sample(0);
 }
 
-/** Eyes stay holes cut in the mask, never pale shapes painted on top, so the
- *  mascot reads the same on a light README as on a dark one. */
+/** Eyes stay holes cut in the mask, never pale shapes painted on top. */
 function eyes(frame: BotFrame): string {
   return frame.eyes
     .map(
@@ -180,9 +178,10 @@ function eyes(frame: BotFrame): string {
     .join("");
 }
 
-/** Standalone looping SVG: the frozen-frame recipe, with the outline keyframes
- *  on the one place that owns it and the turn on the group around both the
- *  paper and the ink. */
+/** Standalone looping SVG: the frozen-frame recipe with the outline keyframes
+ *  on the one place that owns it. The mask's copy of the outline is the same
+ *  path carrying the same keyframes, so the ink and the hole it is cut with
+ *  cannot drift apart. */
 export function readmeMascotSvg(frame: BotFrame, ink: string, paper: string, still: string): string {
   const vb = DEMI_VIEWBOX;
   const cut =
@@ -196,7 +195,7 @@ export function readmeMascotSvg(frame: BotFrame, ink: string, paper: string, sti
     STYLE +
     `<defs><mask id="inkling" maskUnits="userSpaceOnUse" x="${-vb}" y="${-vb}" width="${vb * 2}" height="${vb * 2}">` +
     `${cut}</mask></defs>` +
-    `<g class="inkling-turn" opacity="${r2(frame.bodyAlpha)}">` +
+    `<g opacity="${r2(frame.bodyAlpha)}">` +
     `<path class="inkling-flicker" d="${still}" fill="${paper}"/>` +
     `<g mask="url(#inkling)"><rect x="${-vb}" y="${-vb}" width="${vb * 2}" height="${vb * 2}" fill="${ink}"/></g>` +
     `</g></svg>`
