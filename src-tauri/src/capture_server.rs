@@ -167,7 +167,6 @@ enum ValidatedCapture {
     },
     Image {
         image_url: String,
-        alt: Option<String>,
     },
     Video {
         source_url: String,
@@ -428,8 +427,11 @@ fn validate_capture_payload(body: &[u8]) -> Result<ValidatedCapture, String> {
             if request.data_url.is_some() {
                 return Err("data URL images are not supported by the local receiver".into());
             }
-            let alt = capped_string(request.alt, 240, "alt")?;
-            Ok(ValidatedCapture::Image { image_url, alt })
+            // Validated for length even though it is not stored: the extension
+            // sends it, and an unbounded string is still worth rejecting at the
+            // boundary. `save_file` has no alt field yet.
+            let _alt = capped_string(request.alt, 240, "alt")?;
+            Ok(ValidatedCapture::Image { image_url })
         }
         "video" => {
             let request: VideoCaptureRequest = serde_json::from_value(value)
@@ -998,15 +1000,15 @@ fn cors_headers(origin: Option<&str>) -> Vec<(&'static str, String)> {
 fn preflight_cors_headers(origin: Option<&str>) -> Vec<(&'static str, String)> {
     let mut headers = cors_headers(origin);
     headers.push((
-        "Access-Control-Allow-Methods".into(),
-        "GET, POST, OPTIONS".into(),
+        "Access-Control-Allow-Methods",
+        "GET, POST, OPTIONS".to_owned(),
     ));
     headers.push((
-        "Access-Control-Allow-Headers".into(),
-        "Authorization, Content-Type".into(),
+        "Access-Control-Allow-Headers",
+        "Authorization, Content-Type".to_owned(),
     ));
-    headers.push(("Access-Control-Max-Age".into(), "600".into()));
-    headers.push(("Access-Control-Allow-Private-Network".into(), "true".into()));
+    headers.push(("Access-Control-Max-Age", "600".to_owned()));
+    headers.push(("Access-Control-Allow-Private-Network", "true".to_owned()));
     headers
 }
 
@@ -1211,7 +1213,6 @@ fn handle_connection(stream: TcpStream, app: AppHandle) {
                         _ => "Unprocessable Entity",
                     };
                     write_response(&mut stream, status, reason, &cors_ref, &body);
-                    return;
                 }
             }
         }
@@ -1441,7 +1442,7 @@ fn store_validated_capture(
             enqueue_item_processing(app, &item);
             Ok(item.id)
         }
-        ValidatedCapture::Image { image_url, alt: _ } => {
+        ValidatedCapture::Image { image_url } => {
             // The reason travels back to the extension: an image host that
             // refuses the fetch, answers a non-image content type, or exceeds
             // the size cap are three very different user problems. 502, not 422:
@@ -1452,9 +1453,7 @@ fn store_validated_capture(
                 .ok()
                 .and_then(|url| {
                     url.path_segments()
-                        .and_then(|segments| {
-                            segments.filter(|segment| !segment.is_empty()).next_back()
-                        })
+                        .and_then(|mut segments| segments.rfind(|segment| !segment.is_empty()))
                         .map(str::to_owned)
                 })
                 .filter(|name| name.len() <= 180)
@@ -1928,13 +1927,25 @@ mod tests {
             "srcUrl": "https://cdn.example.com/photo.jpg",
             "alt": "A photo",
         });
-        let ValidatedCapture::Image { image_url, alt, .. } =
+        let ValidatedCapture::Image { image_url } =
             validate_capture_payload(&serde_json::to_vec(&image).unwrap()).unwrap()
         else {
             panic!("expected image capture")
         };
         assert_eq!(image_url, "https://cdn.example.com/photo.jpg");
-        assert_eq!(alt.as_deref(), Some("A photo"));
+
+        // An over-long alt is still rejected at the boundary.
+        let long_alt = serde_json::json!({
+            "kind": "image",
+            "pageUrl": "https://example.com/gallery",
+            "srcUrl": "https://cdn.example.com/photo.jpg",
+            "alt": "x".repeat(300),
+        });
+        assert!(
+            validate_capture_payload(&serde_json::to_vec(&long_alt).unwrap())
+                .unwrap_err()
+                .contains("alt")
+        );
 
         let video = serde_json::json!({
             "kind": "video",
