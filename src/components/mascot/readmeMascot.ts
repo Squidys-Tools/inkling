@@ -1,7 +1,6 @@
 import { BotEngine, type BotFrame } from "./bot/engine";
 import { EXPRESSION_BY_ID, type BotExpression } from "./bot/expressions";
 import { REST_GAZE, blinkScale, liveliness } from "./bot/face";
-import { loopNoise } from "./bot/math";
 import { DEMI_VIEWBOX, RAYON } from "./bot/repere";
 
 /**
@@ -30,17 +29,33 @@ import { DEMI_VIEWBOX, RAYON } from "./bot/repere";
  * What baking does cost is the chord: two outlines a step apart interpolate
  * along a straight line, so the shape sits on the chord rather than the arc and
  * shrinks by `1 - cos(step/2)` at each midpoint. One outline per second is a
- * 15 degree step, 0.86% at the midpoint, which is under half a pixel on the
- * 160px the README draws it at.
+ * 15 degree step, and measured against the continuous body the whole track
+ * strays by 1.74% of the radius at worst, 0.56% on average — 0.88px and 0.28px
+ * at the 160px the README draws it at. Denser keyframes buy that back and cost
+ * bytes nobody can see, so one per second stands.
+ *
+ * The loop closes HERE, in the last keyframe, and not in the state. Every track
+ * pastes its value at t=0 at 100%, so the browser interpolates its final
+ * keyframe to the opening one across the last second. That is a straight line
+ * covering that second's 15 degree turn — which is what a normal second of this
+ * body is anyway, the outline travelling 13px at the README's size. So the
+ * motion does not have to close on itself, and `inkling-drift-faced` does not
+ * try: it is the sidebar's `inkling-drift`, periods and all. An earlier version
+ * snapped every one of those periods to a divisor of 24 to make the state
+ * self-closing, and paid for it with a silhouette that recurred every 12s while
+ * the body took twice as long to come round — which read, correctly, as a
+ * different mascot. Closing the loop here instead costs 2.3px of lobe drift
+ * folded into a seam that was already a full second long.
  */
 
-/** One full turn, matching `inkling-drift-loop`'s 24 s rotation period. */
+/** One full turn, matching `inkling-drift`'s 24 s rotation period. */
 const LOOP_SECONDS = 24;
 
 /** One baked outline per second. See the chord note above for why not coarser. */
 const FLICKER_STEP_SECONDS = 1;
 
-const STATE = "inkling-drift-loop";
+/** The sidebar's own drift, with `baseFace` on so the score below can wear it. */
+const STATE = "inkling-drift-faced";
 const MORPH = BotEngine.SHAPE_MORPH;
 
 const r2 = (n: number) => String(Math.round(n * 100) / 100);
@@ -64,10 +79,14 @@ const path1 = (d: string) => d.replace(/-?\d+\.?\d*/g, (m) => String(Math.round(
  *
  * 10.5 is the split, 15 and 24 the yaw and pitch. Measured over the whole loop
  * with the full expression score running, the tightest an eye corner ever comes
- * to the outline is 8.7 units, or 4.4px at the size the README draws this, and
- * it happens under the neutral eyes a quarter of the way round the turn. That
- * number is what decides which expressions are available at all: at the app's
- * own placement `surpris` and `excite` put the eye outside the body entirely.
+ * to the outline is 9.0 units, or 4.6px at the size the README draws this, and it
+ * is the FAR eye a quarter of the way round the turn that gets there — the near
+ * one never drops below 25. That figure is what decides where the face may sit:
+ * run the same score at the app's own placement and an eye ends up about 4 units
+ * OUTSIDE the blob. Individual expressions are not the discriminator — held all
+ * loop, `surpris` and `excite` both fit at this placement with under 3 units to
+ * spare, and `neutre` is the one that walks out at the app's. It is the score as
+ * it actually plays, on a body turning under it, that needs the tightened one.
  *
  * The pitch is the one that costs the most. The state this replaces sat at
  * `REST_GAZE`'s 28.6, which put the eyes higher and was fine while the face
@@ -146,35 +165,30 @@ function blendTo(from: BotExpression, to: BotExpression, t: number): BotExpressi
   };
 }
 
-/** The face at `t`: the scored expression, pinned where `PLACEMENT` says. */
+/**
+ * The face at `t`: the scored expression, pinned where `PLACEMENT` says, then
+ * wandered by the engine's own `liveliness`.
+ *
+ * Reading the drift straight off `liveliness` rather than off a second hand-rolled
+ * copy is what keeps the README's gaze the sidebar's. It used to be copied here
+ * with every period snapped to a divisor of 24, on the grounds that the loop
+ * needed it — but the loop never needed it: the transform track pastes its value
+ * at t=0 at 100%, so the seam is already a straight line across the last second,
+ * gaze drift or not. The roll is left out, as the engine's own `Look` note
+ * explains, and the wander reaches the engine through `setLook` with `mix: 1`,
+ * because that is the only undated input `sample` has.
+ */
 function face(t: number): BotExpression {
   const e = scored(t);
+  const life = liveliness(t);
   return {
     ...e,
     gaze: {
-      yaw: PLACEMENT.yaw + (e.gaze.yaw - NEUTRE.gaze.yaw) + wander(t).yaw,
-      pitch: PLACEMENT.pitch + (e.gaze.pitch - NEUTRE.gaze.pitch) + wander(t).pitch,
+      yaw: PLACEMENT.yaw + (e.gaze.yaw - NEUTRE.gaze.yaw) + life.dYaw,
+      pitch: PLACEMENT.pitch + (e.gaze.pitch - NEUTRE.gaze.pitch) + life.dPitch,
       roll: PLACEMENT.roll + (e.gaze.roll - NEUTRE.gaze.roll),
     },
     split: PLACEMENT.split,
-  };
-}
-
-/**
- * The gaze wandering around its pinned home, on periods that divide 24.
- *
- * `liveliness` already drifts the eyes, and the amplitudes here are its own —
- * but its periods (11.3, 3.7, 9.1, 4.3, 13.7) are primes of nothing, so at t=24
- * the eyes are looking somewhere else than at t=0 and the loop has a visible
- * jump in it. These are the nearest divisors instead, which is the same trade
- * `inkling-drift-loop` makes for the body. The drift is then handed to the
- * engine through `setLook` with `mix: 1`, because that is the only undated input
- * `sample` has; the roll is left out, as the engine's own `Look` note explains.
- */
-function wander(t: number): { yaw: number; pitch: number } {
-  return {
-    yaw: loopNoise(t, 8, 0.4) * 5.5 + loopNoise(t, 4, 2.1) * 1.6,
-    pitch: loopNoise(t, 6, 1.3) * 4.2 + loopNoise(t, 12, 0.7) * 1.3,
   };
 }
 
@@ -270,15 +284,15 @@ function blinks(): Blink[] {
 }
 
 /** `@keyframes` for the body: the loop point included, holding the same
- *  outline the first frame holds, so the browser interpolates nothing across the
- *  seam and the repeat is provably continuous.
+ *  outline the first frame holds, so the repeat is continuous.
  *
- *  The loop point is the *first* outline pasted back in, not a sample at
- *  t=24. The engine's state has length 24s, so `sample(24)` has already
- *  crossed into the next state and is a different pose; a keyframe taken there
- *  would put a visible jump at exactly the moment the animation is supposed to
- *  be invisible. The pose at 24s is the pose at 0s by construction, so the
- *  first outline is the honest value for both. */
+ *  The loop point is the *first* outline pasted back in, not a sample at t=24.
+ *  The state has length 24s, so `sample(24)` has already crossed into the next
+ *  state and is a different pose; a keyframe taken there would put a visible jump
+ *  at exactly the moment the animation is supposed to be invisible. Nothing here
+ *  needs the state to agree with itself at 24 — the browser draws a straight
+ *  line from the t=23 outline to the t=0 one, which is that second's turn either
+ *  way. See the note at the top of the file on why the loop closes here. */
 function flickerKeyframes(): string {
   const steps = Math.round(LOOP_SECONDS / FLICKER_STEP_SECONDS);
   const frames: string[] = [];
