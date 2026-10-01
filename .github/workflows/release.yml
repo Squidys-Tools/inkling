@@ -11,7 +11,7 @@ permissions:
 jobs:
   windows:
     name: Build Windows release
-    runs-on: blacksmith-4vcpu-windows-2025
+    runs-on: windows-2025
 
     steps:
       - name: Check out repository
@@ -21,6 +21,8 @@ jobs:
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile

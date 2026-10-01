@@ -31,7 +31,7 @@ jobs:
     # events, comparing against the previous head prevents a docs-only follow-
     # up commit from rerunning the full security matrix.
     if: always() && !cancelled()
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pull-requests: read
@@ -90,7 +90,7 @@ jobs:
     # Decides whether this PR event gets a full CodeQL matrix run: always on
     # open/reopen, otherwise roughly every 4th push (by total commit count).
     if: github.event_name == 'pull_request'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pull-requests: read
@@ -126,7 +126,7 @@ jobs:
       (github.event_name == 'schedule' ||
        (needs.gate.outputs.scan == 'true' && needs.changes.outputs.frontend == 'true') ||
        (github.event_name == 'push' && needs.changes.outputs.frontend == 'true'))
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: read
@@ -152,7 +152,7 @@ jobs:
       (github.event_name == 'schedule' ||
        (needs.gate.outputs.scan == 'true' && needs.changes.outputs.native == 'true') ||
        (github.event_name == 'push' && needs.changes.outputs.native == 'true'))
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: read
@@ -178,7 +178,7 @@ jobs:
     if: >-
       github.event_name == 'pull_request' &&
       needs.changes.outputs.relevant == 'true'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Review dependency changes

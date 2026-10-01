@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
@@ -418,7 +418,7 @@ impl ProcessingState {
         *self.app_handle.lock().unwrap() = Some(app);
     }
 
-    fn start_worker_if_needed(&self, db_path: &PathBuf) {
+    fn start_worker_if_needed(&self, db_path: &Path) {
         let mut handle_guard = self.worker_handle.lock().unwrap();
         if handle_guard.is_some() {
             return;
@@ -459,7 +459,7 @@ impl ProcessingState {
     }
 }
 
-fn worker_loop(db_path: &PathBuf, worker_id: &str, rx: Receiver<()>, notify: Sender<String>) {
+fn worker_loop(db_path: &Path, worker_id: &str, rx: Receiver<()>, notify: Sender<String>) {
     loop {
         match rx.recv_timeout(Duration::from_secs(5)) {
             Ok(()) => {}
@@ -471,8 +471,8 @@ fn worker_loop(db_path: &PathBuf, worker_id: &str, rx: Receiver<()>, notify: Sen
     }
 }
 
-fn process_pending_jobs(db_path: &PathBuf, worker_id: &str, notify: &Sender<String>) {
-    let storage = match crate::storage::LibraryStorage::open(db_path.clone()) {
+fn process_pending_jobs(db_path: &Path, worker_id: &str, notify: &Sender<String>) {
+    let storage = match crate::storage::LibraryStorage::open(db_path.to_owned()) {
         Ok(s) => s,
         Err(_) => return,
     };
@@ -500,7 +500,7 @@ fn process_job(
     storage: &crate::storage::LibraryStorage,
     job: JobDto,
     worker_id: &str,
-    db_path: &PathBuf,
+    db_path: &Path,
     notify: &Sender<String>,
 ) {
     let item = match storage.get_item(&job.item_id) {
@@ -569,7 +569,7 @@ fn process_image_ocr(
     item: &crate::storage::ItemDto,
     job: &JobDto,
     worker_id: &str,
-    db_path: &PathBuf,
+    db_path: &Path,
     bytes: &[u8],
 ) {
     let backend = crate::ocr::create_ocr_backend();
@@ -631,7 +631,7 @@ fn process_pdf_ocr(
     item: &crate::storage::ItemDto,
     job: &JobDto,
     worker_id: &str,
-    db_path: &PathBuf,
+    db_path: &Path,
     bytes: &[u8],
     notify: &Sender<String>,
 ) {
@@ -773,7 +773,7 @@ fn process_embeddings(
     item: &crate::storage::ItemDto,
     job: &JobDto,
     worker_id: &str,
-    db_path: &PathBuf,
+    db_path: &Path,
     notify: &Sender<String>,
 ) {
     let model_cache = db_path
@@ -856,10 +856,18 @@ fn generate_embeddings(
 }
 
 fn embedding_text(item: &crate::storage::ItemDto) -> Option<String> {
+    let body = item.body.as_deref().map(|body| {
+        if item.body_format.as_deref() == Some("md") {
+            crate::storage::markdown_to_plain_text(body)
+        } else {
+            body.to_owned()
+        }
+    });
+    let body = body.filter(|value| !value.trim().is_empty());
     let mut parts = Vec::new();
     for value in [
         item.title.as_deref(),
-        item.description.as_deref(),
+        body.as_deref().or(item.description.as_deref()),
         Some(item.ocr_text.as_str()),
     ]
     .into_iter()
@@ -869,11 +877,13 @@ fn embedding_text(item: &crate::storage::ItemDto) -> Option<String> {
     {
         parts.push(value.to_owned());
     }
-    for key in ["text", "extractedText"] {
-        if let Some(value) = item.metadata.get(key).and_then(serde_json::Value::as_str) {
-            let value = value.trim();
-            if !value.is_empty() {
-                parts.push(value.to_owned());
+    if body.is_none() {
+        for key in ["text", "extractedText"] {
+            if let Some(value) = item.metadata.get(key).and_then(serde_json::Value::as_str) {
+                let value = value.trim();
+                if !value.is_empty() {
+                    parts.push(value.to_owned());
+                }
             }
         }
     }
@@ -881,12 +891,12 @@ fn embedding_text(item: &crate::storage::ItemDto) -> Option<String> {
 }
 
 fn start_job_lease_heartbeat(
-    db_path: &PathBuf,
+    db_path: &Path,
     job_id: &str,
     worker_id: &str,
 ) -> (Sender<()>, thread::JoinHandle<()>) {
     let (stop_tx, stop_rx) = mpsc::channel();
-    let db_path = db_path.clone();
+    let db_path = db_path.to_owned();
     let job_id = job_id.to_owned();
     let worker_id = worker_id.to_owned();
     let interval = Duration::from_millis((JOB_LEASE_MILLIS / 3) as u64);
@@ -1096,6 +1106,32 @@ mod tests {
     fn non_visual_items_get_no_ocr_row() {
         assert!(
             enqueue_ocr_for_item(&Connection::open_in_memory().unwrap(), "a", "article").is_ok()
+        );
+    }
+
+    #[test]
+    fn embedding_text_prefers_plain_markdown_body_over_legacy_sources() {
+        let item = crate::storage::ItemDto {
+            id: "note".into(),
+            kind: "note".into(),
+            title: Some("Reading list".into()),
+            description: Some("stale description".into()),
+            body: Some("# Heading\n\n**Warm** timber".into()),
+            body_format: Some("md".into()),
+            source_url: None,
+            source_label: None,
+            local_asset_path: None,
+            thumbnail_path: None,
+            ocr_text: String::new(),
+            metadata: serde_json::json!({ "text": "stale metadata" }),
+            created_at: 1,
+            updated_at: 1,
+            archived: false,
+            favorite: false,
+        };
+        assert_eq!(
+            embedding_text(&item),
+            Some("Reading list\n\nHeading Warm timber".into())
         );
     }
 

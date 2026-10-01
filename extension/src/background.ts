@@ -10,8 +10,7 @@ import {
   isPageCapturePayload,
   type PageCapturePayloadV1,
 } from "@inkling/ingestion-shared";
-import { trimCaptureQueue } from "./capture-queue";
-import { isQueuedCapturePayload } from "./queue-payload";
+import { QUEUE_KEY, enqueue, readQueue, withQueueLock } from "./capture-queue-store";
 import { postPayloadToLoopback } from "./transport";
 import {
   INKLING_MENU_SAVE_IMAGE,
@@ -27,7 +26,6 @@ const CONTENT_MAIN_FILE = "content-main.js";
 const CONTENT_ISOLATED_FILE = "content-isolated.js";
 const CONTENT_COLLECT_FILE = "content-collect.js";
 
-const QUEUE_KEY = "inkling:pending-captures-v1";
 const LAST_STATUS_KEY = "inkling:last-save-status";
 // Same keys the options page writes; the token never leaves the machine
 // except to the app on loopback.
@@ -42,46 +40,7 @@ export interface SaveStatus {
   at: string;
 }
 
-async function readQueue(): Promise<LoopbackCapturePayload[]> {
-  const stored = await browser.storage.local.get(QUEUE_KEY);
-  const raw = stored[QUEUE_KEY];
-  if (!Array.isArray(raw)) return [];
-  return raw.filter(isQueuedCapturePayload);
-}
 
-// Every queue read-modify-write runs through this chain. flushQueue can take
-// seconds; without it, an enqueue landing mid-flush is overwritten by the
-// flush's stale write and the capture is silently dropped.
-let queueChain: Promise<unknown> = Promise.resolve();
-
-function withQueueLock<T>(operation: () => Promise<T>): Promise<T> {
-  const result = queueChain.then(operation, operation);
-  queueChain = result.then(
-    () => undefined,
-    () => undefined,
-  );
-  return result;
-}
-
-async function enqueue(payload: LoopbackCapturePayload): Promise<number> {
-  return withQueueLock(async () => {
-    const queue = await readQueue();
-    queue.push(payload);
-    // Count + byte budget first so a full queue cannot blow the ~10MB local
-    // quota; if other keys still push the write over, drop oldest until it fits.
-    trimCaptureQueue(queue);
-    for (;;) {
-      try {
-        await browser.storage.local.set({ [QUEUE_KEY]: queue });
-        return queue.length;
-      } catch {
-        if (queue.length <= 1) return queue.length;
-        queue.shift();
-        trimCaptureQueue(queue);
-      }
-    }
-  });
-}
 
 async function writeStatus(status: SaveStatus): Promise<void> {
   await browser.storage.local.set({ [LAST_STATUS_KEY]: status });

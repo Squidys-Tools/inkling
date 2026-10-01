@@ -369,7 +369,7 @@ fn validate_capture_url(input: &str) -> Result<String, String> {
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err("only HTTP and HTTPS URLs can be saved".into());
     }
-    if parsed.host_str().map_or(true, |h| h.is_empty()) {
+    if parsed.host_str().is_none_or(|h| h.is_empty()) {
         return Err("url must include a host".into());
     }
     if !parsed.username().is_empty() || parsed.password().is_some() {
