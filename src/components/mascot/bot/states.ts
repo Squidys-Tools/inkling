@@ -670,7 +670,8 @@ export const STATES: StateDef[] = [
   {
     // INKLING EXTENSION — see StateId above. Not a sidebar state: this one
     // exists so the README mascot can DRIFT the way the sidebar does while
-    // still coming back to where it started.
+    // still coming back to where it started, and WEAR the expression the README
+    // script hands it.
     //
     // `inkling-drift` runs on a free clock, where never repeating is the whole
     // point, and its nine periods (24, 26, 21, 17, 15, 14, 10, 8, 6) have a
@@ -679,12 +680,19 @@ export const STATES: StateDef[] = [
     // and the lobe drift keeps its speeds to within a second or two, but the
     // state at t and t+24 is now identical to the digit.
     //
+    // `baseFace` is what lets the face change at all: the pose below is the
+    // FALLBACK, the one an unexpressed mascot wears, and it is the tightened
+    // placement the turning body needs — not the round one `neutre` asks for,
+    // which walks the eyes into a lobe as the blob rotates. A caller that wants
+    // an expression passes one and the engine swaps in its gaze, split and eyes;
+    // the README does, and pins the gaze back down itself for the same reason.
+    //
     // Read it as the same figure on a 24s clock, not as the sidebar's motion.
     id: 'inkling-drift-loop',
     duration: 24,
     morph: 0.8,
     blinkIn: false,
-    baseFace: false,
+    baseFace: true,
     baseBody: false,
     steadyFace: true,
     pose: (t) => {
