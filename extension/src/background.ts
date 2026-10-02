@@ -11,7 +11,7 @@ import {
   type PageCapturePayloadV1,
 } from "@inkling/ingestion-shared";
 import { QUEUE_KEY, enqueue, readQueue, withQueueLock } from "./capture-queue-store";
-import { postPayloadToLoopback } from "./transport";
+import { isPermanentCaptureError, postPayloadToLoopback } from "./transport";
 import {
   INKLING_MENU_SAVE_IMAGE,
   INKLING_MENU_SAVE_SELECTION,
@@ -102,35 +102,52 @@ async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } 
  * (`POST {baseUrl}/v1/captures`, per-install bearer). Returns null on success
  * or a delivery error to show in the popup.
  */
-async function tryLoopback(payload: LoopbackCapturePayload): Promise<string | null> {
+/** Delivery outcome for one capture attempt. */
+type DeliveryOutcome = { delivered: true } | { delivered: false; reason: string; permanent: boolean };
+
+/**
+ * POST a capture once and report whether the failure is worth retrying. Callers
+ * must decide from `permanent` rather than re-POSTing to find out: a second
+ * attempt cannot change the app's answer and only doubles the requests.
+ */
+async function attemptDelivery(payload: LoopbackCapturePayload): Promise<DeliveryOutcome> {
   const config = await readLoopbackConfig();
-  if (!config) return "pairing is not configured";
+  if (!config) return { delivered: false, reason: "pairing is not configured", permanent: false };
   try {
     await postPayloadToLoopback(config.baseUrl, config.token, payload);
-    return null;
+    return { delivered: true };
   } catch (error) {
-    return error instanceof Error ? error.message : String(error);
+    return {
+      delivered: false,
+      reason: error instanceof Error ? error.message : String(error),
+      permanent: isPermanentCaptureError(error),
+    };
   }
 }
 
 /** Retry queued payloads against the loopback server; keeps what still fails. */
-export async function flushQueue(): Promise<{ delivered: number; pending: number }> {
+export async function flushQueue(): Promise<{ delivered: number; pending: number; dropped: number }> {
   return withQueueLock(async () => {
     const config = await readLoopbackConfig();
-    if (!config) return { delivered: 0, pending: (await readQueue()).length };
+    if (!config) return { delivered: 0, pending: (await readQueue()).length, dropped: 0 };
     const queue = await readQueue();
     const remaining: LoopbackCapturePayload[] = [];
     let delivered = 0;
+    let dropped = 0;
     for (const payload of queue) {
       try {
         await postPayloadToLoopback(config.baseUrl, config.token, payload);
         delivered += 1;
-      } catch {
-        remaining.push(payload);
+      } catch (error) {
+        // A capture the app refuses on its merits will be refused identically
+        // on every retry. Keeping it would pin the queue lock on an undeliverable
+        // payload and push out older captures that could still succeed.
+        if (isPermanentCaptureError(error)) dropped += 1;
+        else remaining.push(payload);
       }
     }
     await browser.storage.local.set({ [QUEUE_KEY]: remaining });
-    return { delivered, pending: remaining.length };
+    return { delivered, pending: remaining.length, dropped };
   });
 }
 
@@ -160,8 +177,8 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
     await writeStatus(status);
     return status;
   }
-  const deliveryError = await tryLoopback(raw);
-  if (deliveryError === null) {
+  const outcome = await attemptDelivery(raw);
+  if (outcome.delivered) {
     const status: SaveStatus = {
       state: "saved",
       title: raw.title,
@@ -170,13 +187,16 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
     await writeStatus(status);
     return status;
   }
-  const queued = await enqueue(raw);
-  const status: SaveStatus = {
-    state: "queued",
-    title: raw.title,
-    detail: `${queued} pending — ${deliveryError}`,
-    at: new Date().toISOString(),
-  };
+  // Same rule as a media capture: a rejection the app will repeat is not worth
+  // a queue slot on every future flush.
+  const status: SaveStatus = outcome.permanent
+    ? { state: "failed", title: raw.title, detail: outcome.reason, at: new Date().toISOString() }
+    : {
+        state: "queued",
+        title: raw.title,
+        detail: `${await enqueue(raw)} pending — ${outcome.reason}`,
+        at: new Date().toISOString(),
+      };
   await writeStatus(status);
   return status;
 }
@@ -217,8 +237,8 @@ async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<
     await writeStatus(status);
     return status;
   }
-  const deliveryError = await tryLoopback(message.payload);
-  if (deliveryError === null) {
+  const outcome = await attemptDelivery(message.payload);
+  if (outcome.delivered) {
     const status: SaveStatus = { state: "saved", at: new Date().toISOString() };
     await writeStatus(status);
     return status;
@@ -226,12 +246,19 @@ async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<
   // Queue like a page save. A media capture that arrives while the app is
   // closed is exactly the case a local library must not lose, and these
   // payloads are small (a URL, a quote, or an image URL) compared to a page.
-  const queued = await enqueue(message.payload);
-  const status: SaveStatus = {
-    state: "queued",
-    detail: `${queued} pending — ${deliveryError}`,
-    at: new Date().toISOString(),
-  };
+  //
+  // Only a *transient* failure is queued. A rejection the app will repeat — a
+  // malformed payload, an image host answering with something that is not an
+  // image — would occupy a queue slot on every future flush, delay later saves
+  // behind it, and eventually push older captures out of the bounded queue for
+  // no possible gain. Report it failed instead.
+  const status: SaveStatus = outcome.permanent
+    ? { state: "failed", detail: outcome.reason, at: new Date().toISOString() }
+    : {
+        state: "queued",
+        detail: `${await enqueue(message.payload)} pending — ${outcome.reason}`,
+        at: new Date().toISOString(),
+      };
   await writeStatus(status);
   return status;
 }
