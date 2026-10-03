@@ -655,17 +655,18 @@ impl LibraryStorage {
         Ok(relative_path)
     }
 
-    /// Apply provider metadata to a stored video capture. Background
+    /// Apply provider title/description to a saved video page, but only to the
+    /// fields the user has not touched since the capture. Background
     /// enrichment rather than a user edit, so `updated_at` is left alone and
     /// the card does not jump to the top of the library when it lands.
-    /// Apply provider title/description to a saved video page, but only to the
-    /// fields the user has not touched since the capture.
     ///
     /// The enrichment runs in the background after the response is sent, so a
     /// user can rename the item first. A blind `COALESCE` write would discard
     /// that edit. The capture records what it originally stored in
     /// `oEmbedBaseline`; a field is enriched only while it still equals that
-    /// baseline, so an edit always wins.
+    /// baseline, so an edit always wins. The baseline must therefore name the
+    /// value the row really holds, including a derived default such as the
+    /// hostname fallback in `create_url`.
     pub(crate) fn apply_video_oembed(
         &self,
         item_id: &str,
@@ -2036,17 +2037,13 @@ pub fn resolve_asset_path(path: String, state: State<'_, StorageState>) -> Resul
         .map_err(String::from)
 }
 
-#[tauri::command]
+/// Async because `cache_favicon_in_background` blocks on the favicon download.
+/// A sync command would run it on the main thread and freeze the window for the
+/// request, which is why the receiver's own favicon path uses a dedicated
+/// worker instead of this command.
+#[tauri::command(async)]
 pub fn cache_favicon(item_id: String, url: String, app: AppHandle) -> Result<String, String> {
-    let (bytes, extension) = crate::http_fetch::download_favicon(&url)?;
-    let state = app.state::<StorageState>();
-    let guard = state.lock().map_err(String::from)?;
-    let storage = guard
-        .as_ref()
-        .ok_or_else(|| StorageError::NotInitialized.to_string())?;
-    storage
-        .store_favicon(&item_id, &bytes, &extension)
-        .map_err(String::from)
+    cache_favicon_in_background(&app, &item_id, &url)
 }
 
 pub(crate) fn cache_favicon_in_background(

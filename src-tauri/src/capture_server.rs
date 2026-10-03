@@ -448,6 +448,16 @@ fn validate_capture_payload(body: &[u8]) -> Result<ValidatedCapture, String> {
     }
 }
 
+/// The hostname `create_url` titles a capture with when it carries no title of
+/// its own. Shared so a recorded baseline and the title that actually lands in
+/// the row cannot drift apart.
+fn source_hostname(url: &str) -> String {
+    url::Url::parse(url)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
 fn validate_page_capture_payload(
     request: CaptureRequest,
 ) -> Result<crate::storage::CreateUrlInput, String> {
@@ -461,10 +471,7 @@ fn validate_page_capture_payload(
     if request.defuddled_html.len() > MAX_DEFUDDLED_HTML_BYTES {
         return Err("content exceeds the payload size limit".into());
     }
-    let hostname = url::Url::parse(&source_url)
-        .ok()
-        .and_then(|url| url.host_str().map(str::to_owned))
-        .unwrap_or_default();
+    let hostname = source_hostname(&source_url);
     // Forgiving like the rest of capture: a blank title falls back to the
     // hostname instead of failing the save.
     let title = {
@@ -693,6 +700,51 @@ fn iframe_host_allowed(src: Option<&str>) -> bool {
         .any(|allowed| host.eq_ignore_ascii_case(allowed))
 }
 
+/// True when the character reference starting at `start` decodes to `:`. The
+/// browser decodes attribute values before it resolves a URL, so a raw scan of
+/// the markup has to account for what the parser will see.
+fn encodes_colon_at(value: &str, start: usize) -> bool {
+    let Some(rest) = value.get(start + 1..) else {
+        return false;
+    };
+    if rest.starts_with("colon;") {
+        return true;
+    }
+    let Some(digits) = rest.strip_prefix('#') else {
+        return false;
+    };
+    let hex = digits
+        .strip_prefix('x')
+        .or_else(|| digits.strip_prefix('X'));
+    let digits = hex.unwrap_or(digits);
+    // The reference ends at the first character that cannot be part of it; a
+    // missing semicolon still decodes inside an attribute value.
+    let end = digits
+        .find(|character: char| {
+            if hex.is_some() {
+                !character.is_ascii_hexdigit()
+            } else {
+                !character.is_ascii_digit()
+            }
+        })
+        .unwrap_or(digits.len());
+    let code = if hex.is_some() {
+        u32::from_str_radix(&digits[..end], 16)
+    } else {
+        digits[..end].parse::<u32>()
+    };
+    code.is_ok_and(|code| code == u32::from(b':'))
+}
+
+/// True when `value` carries a character reference that decodes to `:`.
+/// `href="javascript&colon;alert(1)"` has no scheme as written but is a live
+/// `javascript:` URL once the HTML parser decodes it.
+fn contains_encoded_colon(value: &str) -> bool {
+    value
+        .match_indices('&')
+        .any(|(start, _)| encodes_colon_at(value, start))
+}
+
 /// Keep the attribute only when its URL value has no scheme or an http(s)
 /// one; `javascript:`, `data:`, and friends are dropped with the attribute.
 fn safe_url_attr(value: &str) -> bool {
@@ -701,9 +753,14 @@ fn safe_url_attr(value: &str) -> bool {
         return false;
     }
     match value.split_once(':') {
-        None => true,
+        // Relative value. Nothing but a decoded colon can turn it into a
+        // scheme, so only that case needs a closer look.
+        None => !contains_encoded_colon(value),
         Some((scheme, _)) if scheme.contains('/') => true,
         Some((scheme, _)) => {
+            // A reference can only add characters here, so it can never turn
+            // this into `javascript:` — and it cannot make a raw scheme that
+            // is not http(s) read as one either.
             let scheme = scheme.trim().to_ascii_lowercase();
             scheme == "http" || scheme == "https"
         }
@@ -1475,32 +1532,43 @@ fn store_validated_capture(
             Ok(item.id)
         }
         ValidatedCapture::Video { source_url, title } => {
-            // Record what the capture itself set, so the oEmbed worker can tell
-            // an untouched item from one the user already renamed. Without this
-            // a slow oEmbed response silently overwrites the user's edit.
-            let baseline = crate::storage::VideoOembedBaseline {
-                title: title.clone(),
-                description: None,
-            };
-            let id = store_capture(
-                app,
-                crate::storage::CreateUrlInput {
-                    source_url: source_url.clone(),
-                    title,
-                    description: None,
-                    body: String::new(),
-                    metadata: Some(serde_json::json!({
-                        "origin": "browser-extension",
-                        "sourceKind": "video",
-                        "oEmbedBaseline": baseline,
-                    })),
-                },
-            )?;
+            let id = store_capture(app, video_capture_input(source_url.clone(), title))?;
             // The card already renders the provider embed; oEmbed only sharpens
             // the title and adds the author line, so it runs after the response.
             enqueue_video_oembed(app, &id, source_url);
             Ok(id)
         }
+    }
+}
+
+/// Row and enrichment baseline for a video capture.
+///
+/// `create_url` titles an untitled capture with the source hostname, so the
+/// baseline has to name that same value. Recording a bare `null` instead made
+/// storage read the hostname as a user edit and skip the provider title, so an
+/// untitled capture stayed stuck on "vimeo.com".
+fn video_capture_input(
+    source_url: String,
+    title: Option<String>,
+) -> crate::storage::CreateUrlInput {
+    let title = title.or_else(|| {
+        let hostname = source_hostname(&source_url);
+        (!hostname.is_empty()).then_some(hostname)
+    });
+    let baseline = crate::storage::VideoOembedBaseline {
+        title: title.clone(),
+        description: None,
+    };
+    crate::storage::CreateUrlInput {
+        source_url,
+        title,
+        description: None,
+        body: String::new(),
+        metadata: Some(serde_json::json!({
+            "origin": "browser-extension",
+            "sourceKind": "video",
+            "oEmbedBaseline": baseline,
+        })),
     }
 }
 
@@ -1594,7 +1662,8 @@ pub fn start_capture_server(app: &AppHandle) {
     persist_port(app, port);
 
     let app = app.clone();
-    let _ = std::thread::Builder::new()
+    let serving = app.clone();
+    if std::thread::Builder::new()
         .name("capture-server".into())
         .spawn(move || {
             for stream in listener.incoming() {
@@ -1609,7 +1678,7 @@ pub fn start_capture_server(app: &AppHandle) {
                         if !loopback {
                             continue;
                         }
-                        let app = app.clone();
+                        let app = serving.clone();
                         let _ = std::thread::Builder::new()
                             .name("capture-server-conn".into())
                             .spawn(move || handle_connection(stream, app));
@@ -1619,7 +1688,16 @@ pub fn start_capture_server(app: &AppHandle) {
                     }
                 }
             }
-        });
+        })
+        .is_err()
+    {
+        // Nothing is listening, so `port` must not claim otherwise: the same
+        // lie would have the extension post the pairing token into the void.
+        *state.port.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        forget_preferred_port(&app);
+        eprintln!("capture server unavailable: could not start the listener thread");
+        return;
+    }
     // Port (not token) is safe to note: it is ephemeral and useless without
     // the bearer credential.
     eprintln!("capture server listening on 127.0.0.1:{port}");
@@ -1636,7 +1714,10 @@ pub fn get_capture_status(state: State<'_, CaptureServerState>) -> CaptureStatus
     }
 }
 
-#[tauri::command]
+/// Async because the health probe is a blocking connect plus read with a 2s
+/// timeout. Loopback and user-triggered, so the freeze is short — but it is
+/// still a freeze, and the Test connection button is the wrong place to meet one.
+#[tauri::command(async)]
 pub fn test_capture_connection(state: State<'_, CaptureServerState>) -> Result<(), String> {
     let port = state
         .port
@@ -2133,6 +2214,147 @@ mod tests {
         assert!(parse_head("GARBAGE\r\n\r\n").is_err());
         assert!(parse_head("GET /no-version\r\n\r\n").is_err());
         assert!(parse_head("GET /x HTTP/1.1\r\nno-colon\r\n\r\n").is_err());
+    }
+
+    #[test]
+    fn video_capture_baselines_name_the_title_the_row_really_gets() {
+        // `create_url` titles an untitled capture with the hostname, so the
+        // baseline has to say so too. Recorded as `null`, storage read the
+        // hostname as a user edit and the provider title was never applied.
+        let untitled = video_capture_input("https://vimeo.com/12345".into(), None);
+        assert_eq!(untitled.title.as_deref(), Some("vimeo.com"));
+        assert_eq!(
+            untitled.metadata.as_ref().unwrap()["oEmbedBaseline"]["title"],
+            "vimeo.com"
+        );
+
+        let titled = video_capture_input(
+            "https://vimeo.com/12345".into(),
+            Some("How it works".into()),
+        );
+        assert_eq!(titled.title.as_deref(), Some("How it works"));
+        assert_eq!(
+            titled.metadata.as_ref().unwrap()["oEmbedBaseline"]["title"],
+            "How it works"
+        );
+    }
+
+    #[test]
+    fn an_untitled_video_capture_still_gets_the_provider_title() {
+        // End to end through storage: capture, then the background oEmbed
+        // landing. Before the baseline named the hostname, enrichment skipped
+        // and the card stayed titled "vimeo.com".
+        let directory =
+            std::env::temp_dir().join(format!("inkling-video-baseline-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let storage = crate::storage::LibraryStorage::open(directory.join("library.sqlite3"))
+            .expect("open a scratch library");
+
+        let stored = storage
+            .create_url(video_capture_input("https://vimeo.com/12345".into(), None))
+            .unwrap();
+        assert_eq!(stored.title.as_deref(), Some("vimeo.com"));
+
+        storage
+            .apply_video_oembed(
+                &stored.id,
+                Some("How capture works"),
+                Some("Vimeo · inkling"),
+            )
+            .unwrap();
+        let enriched = storage.get_item(&stored.id).unwrap().unwrap();
+        assert_eq!(
+            enriched.title.as_deref(),
+            Some("How capture works"),
+            "an untouched hostname fallback must not block enrichment"
+        );
+        assert_eq!(enriched.description.as_deref(), Some("Vimeo · inkling"));
+
+        drop(storage);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn an_untitled_video_capture_still_lets_a_rename_win() {
+        // The other half of the contract: naming the hostname as the baseline
+        // must not turn the fallback into a licence to overwrite a real edit.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-video-baseline-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let storage = crate::storage::LibraryStorage::open(directory.join("library.sqlite3"))
+            .expect("open a scratch library");
+
+        let stored = storage
+            .create_url(video_capture_input("https://vimeo.com/12345".into(), None))
+            .unwrap();
+        // The rename a user would make: only the title column changes, which is
+        // what `apply_video_oembed` compares against the baseline.
+        storage
+            .connection
+            .execute(
+                "UPDATE items SET title = 'My own name' WHERE id = ?1",
+                [&stored.id],
+            )
+            .unwrap();
+
+        storage
+            .apply_video_oembed(&stored.id, Some("How capture works"), None)
+            .unwrap();
+        let enriched = storage.get_item(&stored.id).unwrap().unwrap();
+        assert_eq!(enriched.title.as_deref(), Some("My own name"));
+
+        drop(storage);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn scrubber_drops_schemes_hidden_behind_character_references() {
+        // The reader renders stored HTML, and no `sanitizeHtml` pass runs on
+        // this path, so the receiver scrub is the only gate. The HTML parser
+        // decodes attribute values, which turns these into live URLs.
+        let dirty = concat!(
+            "<a href=\"javascript&colon;alert(1)\">named</a>",
+            "<a href=\"javascript&#58;alert(1)\">decimal</a>",
+            "<a href=\"javascript&#x3a;alert(1)\">hex</a>",
+            "<a href=\"javascript&#0000058alert(1)\">padded</a>",
+            "<img src=\"data&colon;image/png;base64,AAAA\">",
+        );
+        let clean = scrub_extension_html(dirty, "https://example.com/article");
+        for value in ["&colon;", "&#58;", "&#x3a;", "data&colon"] {
+            assert!(
+                !clean.contains(value),
+                "scrubbed output still carries {value:?}: {clean}"
+            );
+        }
+        // Ordinary links, including one whose query uses an encoded ampersand
+        // after the scheme, are untouched.
+        let kept = scrub_extension_html(
+            concat!(
+                "<a href=\"https://example.com/a?x=1&amp;y=2\">abs</a>",
+                "<a href=\"/relative?x=1&y=2\">rel</a>",
+            ),
+            "https://example.com/article",
+        );
+        assert!(kept.contains("https://example.com/a?x=1&amp;y=2"));
+        assert!(kept.contains("/relative?x=1&y=2"));
+    }
+
+    #[test]
+    fn only_references_that_can_introduce_a_colon_are_decoded() {
+        // `&colon;` and every spelling of numeric 58 are the only references
+        // that can turn a relative-looking value into a scheme.
+        assert!(encodes_colon_at("a&colon;b", 1));
+        assert!(encodes_colon_at("a&#58;b", 1));
+        assert!(encodes_colon_at("a&#X3A;b", 1));
+        assert!(encodes_colon_at("a&#0000058b", 1));
+        for value in [
+            "a&amp;b", "a&b=2", "a&", "a&#;", "a&#x;", "a&#59;", "a&colon",
+        ] {
+            assert!(
+                !encodes_colon_at(value, 1),
+                "{value} must not read as a scheme separator"
+            );
+        }
     }
 
     #[test]

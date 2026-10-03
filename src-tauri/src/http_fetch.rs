@@ -349,10 +349,17 @@ fn read_limited(body: &mut ureq::Body, max_bytes: u64) -> Result<Vec<u8>, String
     Ok(buffer)
 }
 
-/// Single-hop HTTP GET for the webview. Redirects are not followed here:
-/// the TypeScript ingestion pipeline already inspects each hop with
-/// parseHttpUrl-style SSRF guards before requesting the next URL.
-#[tauri::command]
+/// Single-hop HTTP GET for the webview. Redirects are not followed here: the
+/// caller walks them and requests each hop as its own call, so every hop is
+/// re-validated by `validate_fetch_url` and `validate_public_host` below.
+/// Those checks are the guard, not the TypeScript side: `url-ingestion.ts`
+/// inspects the page request's own hops with parseHttpUrl, but the X-post
+/// oEmbed request follows redirects through here and relies on this alone.
+///
+/// Async because the body is a blocking GET. A sync command runs on the main
+/// thread, which would freeze the window for the whole download — the one thing
+/// capture must never do.
+#[tauri::command(async)]
 pub fn fetch_http(
     url: String,
     user_agent: String,
@@ -424,6 +431,11 @@ mod tests {
         assert!(validate_fetch_url("ftp://example.com/file").is_err());
         assert!(validate_fetch_url("https://user:pass@example.com/").is_err());
         assert!(validate_fetch_url("").is_err());
+        // Numeric spellings of 127.0.0.1 and an IPv4-mapped loopback must not
+        // read as public hosts.
+        assert!(validate_fetch_url("http://2130706433/").is_err());
+        assert!(validate_fetch_url("http://0x7f.1/").is_err());
+        assert!(validate_fetch_url("http://[::ffff:127.0.0.1]/").is_err());
     }
 
     #[test]
