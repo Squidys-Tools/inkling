@@ -32,6 +32,12 @@ export function withQueueLock<T>(operation: () => Promise<T>): Promise<T> {
   return result;
 }
 
+/**
+ * Add a capture to the pending queue and report how many are waiting. Returns
+ * 0 when storage would not take even the newest entry: nothing older is left to
+ * drop, so the caller has to report a failure instead of a phantom entry. A
+ * successful enqueue always reports at least 1.
+ */
 export async function enqueue(payload: QueuedCapturePayload): Promise<number> {
   return withQueueLock(async () => {
     const queue = await readQueue();
@@ -44,7 +50,9 @@ export async function enqueue(payload: QueuedCapturePayload): Promise<number> {
         await browser.storage.local.set({ [QUEUE_KEY]: queue });
         return queue.length;
       } catch {
-        if (queue.length <= 1) return queue.length;
+        // Nothing older left to drop and the write still fails, so this capture
+        // has nowhere to go.
+        if (queue.length <= 1) return 0;
         queue.shift();
         trimCaptureQueue(queue);
       }

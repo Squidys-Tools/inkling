@@ -66,23 +66,29 @@ export function isCaptureMessage(value: unknown): value is ExtensionCaptureMessa
  * Structural check for a media capture. The queued payloads come back out of
  * storage, so the shape has to be verified rather than assumed — an image
  * without its `srcUrl` would be POSTed and rejected by the app with a
- * confusing error, long after the user's save.
+ * confusing error, long after the user's save. Every optional field is checked
+ * too: a `null` where a string is declared reaches the app as JSON and lands in
+ * a column the app did not promise to accept.
  */
 export function isExtensionCapturePayload(value: unknown): value is ExtensionCapturePayload {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
   const kind = record.kind;
+  const optionalString = (field: string) => record[field] === undefined || typeof record[field] === "string";
   if (kind === "selection") {
     return typeof record.sourceUrl === "string"
       && typeof record.selectedText === "string"
-      && (record.selectedHtml === undefined || typeof record.selectedHtml === "string");
+      && optionalString("selectedHtml")
+      && optionalString("title");
   }
   if (kind === "image") {
-    return typeof record.pageUrl === "string" && typeof record.srcUrl === "string";
+    return typeof record.pageUrl === "string"
+      && typeof record.srcUrl === "string"
+      && optionalString("alt")
+      && optionalString("dataUrl");
   }
   if (kind === "video") {
-    return typeof record.sourceUrl === "string"
-      && (record.title === undefined || typeof record.title === "string");
+    return typeof record.sourceUrl === "string" && optionalString("title");
   }
   return false;
 }

@@ -1,8 +1,8 @@
-// Ephemeral dispatcher: no module-level mutable state (the service worker may
-// be killed between invocations). Every save re-resolves the tab and injects
-// what it needs on invoke under activeTab (the extractors for a page save, the
-// collector for a context-menu selection/image/video), so nothing runs on
-// pages the user never captures from. The full v1 payload is persisted before
+// Ephemeral dispatcher: nothing here survives between invocations (the service
+// worker may be killed mid-save), so every save re-resolves the tab and
+// injects what it needs on invoke under activeTab (the extractors for a page
+// save, the collector for a context-menu selection/image/video). Nothing runs
+// on pages the user never captures from. The full v1 payload is persisted before
 // delivery over loopback; if the app is closed or not paired, it stays queued
 // for a later flush.
 import browser from "webextension-polyfill";
@@ -11,6 +11,7 @@ import {
   type PageCapturePayloadV1,
 } from "@inkling/ingestion-shared";
 import { QUEUE_KEY, enqueue, readQueue, withQueueLock } from "./capture-queue-store";
+import { captureQueueEntryKey, removeSettledCaptureEntries } from "./capture-queue";
 import { isPermanentCaptureError, postPayloadToLoopback } from "./transport";
 import {
   INKLING_MENU_SAVE_IMAGE,
@@ -40,7 +41,19 @@ export interface SaveStatus {
   at: string;
 }
 
-
+/**
+ * A menu click or a keyboard shortcut has no caller waiting on the result, and
+ * an unhandled rejection in a service worker is how a save vanishes with no
+ * status and no queue entry. Every fire-and-forget path goes through here;
+ * paths with a caller await it and report their own failures.
+ *
+ * `unknown` because contextMenus.create is typed as returning the raw menu id
+ * while the polyfill hands back a promise: Promise.resolve passes a promise
+ * through unchanged and neutralizes anything else.
+ */
+function fireAndForget(work: unknown): void {
+  void Promise.resolve(work).catch(() => undefined);
+}
 
 async function writeStatus(status: SaveStatus): Promise<void> {
   await browser.storage.local.set({ [LAST_STATUS_KEY]: status });
@@ -97,11 +110,6 @@ async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } 
   return { baseUrl, token };
 }
 
-/**
- * Loopback-first delivery: POST the v1 payload to the app's capture server
- * (`POST {baseUrl}/v1/captures`, per-install bearer). Returns null on success
- * or a delivery error to show in the popup.
- */
 /** Delivery outcome for one capture attempt. */
 type DeliveryOutcome = { delivered: true } | { delivered: false; reason: string; permanent: boolean };
 
@@ -126,33 +134,78 @@ async function attemptDelivery(payload: LoopbackCapturePayload): Promise<Deliver
 }
 
 /** Retry queued payloads against the loopback server; keeps what still fails. */
-export async function flushQueue(): Promise<{ delivered: number; pending: number; dropped: number }> {
-  return withQueueLock(async () => {
-    const config = await readLoopbackConfig();
-    if (!config) return { delivered: 0, pending: (await readQueue()).length, dropped: 0 };
-    const queue = await readQueue();
-    const remaining: LoopbackCapturePayload[] = [];
-    let delivered = 0;
-    let dropped = 0;
-    for (const payload of queue) {
-      try {
-        await postPayloadToLoopback(config.baseUrl, config.token, payload);
-        delivered += 1;
-      } catch (error) {
-        // A capture the app refuses on its merits will be refused identically
-        // on every retry. Keeping it would pin the queue lock on an undeliverable
-        // payload and push out older captures that could still succeed.
-        if (isPermanentCaptureError(error)) dropped += 1;
-        else remaining.push(payload);
-      }
+async function flushQueuedCaptures(): Promise<{ delivered: number; pending: number; dropped: number }> {
+  const config = await readLoopbackConfig();
+  // Read under the lock, deliver outside it, settle under it again. Holding the
+  // lock across the POSTs would block every capture enqueued while the app is
+  // slow or hung — the exact case the queue exists for. Nothing is removed from
+  // storage until it settles, so a worker killed mid-flush loses nothing and the
+  // next flush re-reads the whole batch.
+  const batch = await withQueueLock(readQueue);
+  if (!config || batch.length === 0) return { delivered: 0, pending: batch.length, dropped: 0 };
+  const settled = new Set<string>();
+  let delivered = 0;
+  let dropped = 0;
+  for (const payload of batch) {
+    try {
+      await postPayloadToLoopback(config.baseUrl, config.token, payload);
+      delivered += 1;
+    } catch (error) {
+      // A capture the app refuses on its merits will be refused identically on
+      // every retry. Keeping it would delay every later save behind it for no
+      // possible gain.
+      if (!isPermanentCaptureError(error)) continue;
+      dropped += 1;
     }
-    await browser.storage.local.set({ [QUEUE_KEY]: remaining });
-    return { delivered, pending: remaining.length, dropped };
+    settled.add(captureQueueEntryKey(payload));
+  }
+  const pending = await withQueueLock(async () => {
+    const queue = await readQueue();
+    // Nothing settled — the app is closed or refusing for now. Rewriting an
+    // unchanged queue on every save would be storage churn for no reason.
+    if (settled.size === 0) return queue.length;
+    removeSettledCaptureEntries(queue, settled);
+    await browser.storage.local.set({ [QUEUE_KEY]: queue });
+    return queue.length;
   });
+  return { delivered, pending, dropped };
+}
+
+// One flush at a time. Two concurrent flushes would deliver the same batch
+// twice. Deliberately not persisted: if the worker dies mid-flush the next flush
+// simply re-reads the whole queue.
+let flushInFlight: Promise<{ delivered: number; pending: number; dropped: number }> | null = null;
+
+export function flushQueue(): Promise<{ delivered: number; pending: number; dropped: number }> {
+  flushInFlight ??= flushQueuedCaptures().finally(() => {
+    flushInFlight = null;
+  });
+  return flushInFlight;
+}
+
+/**
+ * A capture the app would not take right now: keep it for the next flush, or
+ * report honestly when local storage has no room left to keep it in.
+ */
+async function keepQueued(
+  payload: LoopbackCapturePayload,
+  reason: string,
+  title?: string,
+): Promise<SaveStatus> {
+  const pending = await enqueue(payload).catch(() => 0);
+  const at = new Date().toISOString();
+  return pending > 0
+    ? { state: "queued", title, detail: `${pending} pending — ${reason}`, at }
+    : {
+        state: "failed",
+        title,
+        detail: `${reason} — the pending queue is full, so it was not kept`,
+        at,
+      };
 }
 
 export async function saveTab(tabId: number): Promise<SaveStatus> {
-  void flushQueue();
+  fireAndForget(flushQueue());
   let raw: unknown;
   try {
     raw = await injectExtractor(tabId);
@@ -191,12 +244,7 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
   // a queue slot on every future flush.
   const status: SaveStatus = outcome.permanent
     ? { state: "failed", title: raw.title, detail: outcome.reason, at: new Date().toISOString() }
-    : {
-        state: "queued",
-        title: raw.title,
-        detail: `${await enqueue(raw)} pending — ${outcome.reason}`,
-        at: new Date().toISOString(),
-      };
+    : await keepQueued(raw, outcome.reason, raw.title);
   await writeStatus(status);
   return status;
 }
@@ -216,8 +264,7 @@ async function saveActiveTab(): Promise<SaveStatus> {
 }
 
 /** Selection/image/video dispatch through the same authenticated local receiver. */
-async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<SaveStatus> {
-  void tabId;
+async function dispatchCapturePayload(payload: unknown): Promise<SaveStatus> {
   const message = { type: "inkling/capture", payload };
   if (!isCaptureMessage(message)) {
     const status: SaveStatus = {
@@ -228,7 +275,15 @@ async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<
     await writeStatus(status);
     return status;
   }
-  if (message.payload.kind === "image" && !/^https?:\/\//iu.test(message.payload.srcUrl)) {
+  // The app downloads http(s) sources itself and honors `dataUrl` for the
+  // blob:/canvas sources it cannot fetch, so both are acceptable. Anything else
+  // — a chrome:// or file: URL the app has no way to read — is not, and would
+  // come back as a 422 the user cannot act on.
+  if (
+    message.payload.kind === "image"
+    && !/^https?:\/\//iu.test(message.payload.srcUrl)
+    && !message.payload.dataUrl
+  ) {
     const status: SaveStatus = {
       state: "failed",
       detail: "image captures require an http(s) image URL",
@@ -254,11 +309,7 @@ async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<
   // no possible gain. Report it failed instead.
   const status: SaveStatus = outcome.permanent
     ? { state: "failed", detail: outcome.reason, at: new Date().toISOString() }
-    : {
-        state: "queued",
-        detail: `${await enqueue(message.payload)} pending — ${outcome.reason}`,
-        at: new Date().toISOString(),
-      };
+    : await keepQueued(message.payload, outcome.reason);
   await writeStatus(status);
   return status;
 }
@@ -277,11 +328,20 @@ async function collectFromTab(tabId: number, collect: "selection" | "image" | "v
       ...(srcUrl ? { srcUrl } : {}),
     });
     if (response && typeof response === "object" && "payload" in response) {
-      await dispatchCapturePayload((response as { payload: unknown }).payload, tabId);
+      await dispatchCapturePayload((response as { payload: unknown }).payload);
     } else if (response && typeof response === "object" && "reason" in response) {
       const status: SaveStatus = {
         state: "failed",
         detail: String((response as { reason: unknown }).reason),
+        at: new Date().toISOString(),
+      };
+      await writeStatus(status);
+    } else {
+      // Neither a payload nor a reason: nothing was captured and nothing was
+      // queued. Say so instead of leaving the popup showing an older save.
+      const status: SaveStatus = {
+        state: "failed",
+        detail: "page collector returned no capture",
         at: new Date().toISOString(),
       };
       await writeStatus(status);
@@ -296,71 +356,74 @@ async function collectFromTab(tabId: number, collect: "selection" | "image" | "v
   }
 }
 
-browser.runtime.onInstalled.addListener(() => {
-  void browser.contextMenus.create({
-    id: "inkling-save-page",
-    title: "Save page to inkling",
-    contexts: ["page"],
-  });
-  void browser.contextMenus.create({
-    id: INKLING_MENU_SAVE_SELECTION,
-    title: "Save selection as quote",
-    contexts: ["selection"],
-  });
-  void browser.contextMenus.create({
-    id: INKLING_MENU_SAVE_IMAGE,
-    title: "Save image to inkling",
-    contexts: ["image"],
-  });
-  void browser.contextMenus.create({
-    id: INKLING_MENU_SAVE_VIDEO,
-    title: "Save video to inkling",
-    contexts: ["page", "video"],
-  });
+browser.runtime.onInstalled.addListener(({ reason }) => {
+  // Menus survive an extension update and contextMenus.create rejects a
+  // duplicate id, so only the first install creates them. Recreating on every
+  // update was an unhandled rejection per menu and left the browser's
+  // last-error report pointing at an extension doing nothing wrong.
+  if (reason === "install") {
+    fireAndForget(browser.contextMenus.create({
+      id: "inkling-save-page",
+      title: "Save page to inkling",
+      contexts: ["page"],
+    }));
+    fireAndForget(browser.contextMenus.create({
+      id: INKLING_MENU_SAVE_SELECTION,
+      title: "Save selection as quote",
+      contexts: ["selection"],
+    }));
+    fireAndForget(browser.contextMenus.create({
+      id: INKLING_MENU_SAVE_IMAGE,
+      title: "Save image to inkling",
+      contexts: ["image"],
+    }));
+    fireAndForget(browser.contextMenus.create({
+      id: INKLING_MENU_SAVE_VIDEO,
+      title: "Save video to inkling",
+      contexts: ["page", "video"],
+    }));
+  }
   // Opportunistic drain: a previously queued save may now be deliverable.
-  void flushQueue();
+  fireAndForget(flushQueue());
 });
 
 browser.runtime.onStartup.addListener(() => {
-  void flushQueue();
+  fireAndForget(flushQueue());
 });
 
 browser.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "inkling-save-page") {
-    void saveActiveTab();
+    fireAndForget(saveActiveTab());
     return;
   }
-  const pageUrl = tab?.url ?? info.pageUrl ?? "";
-  if (info.menuItemId === INKLING_MENU_SAVE_IMAGE && typeof info.srcUrl === "string") {
-    void dispatchCapturePayload(
-      { kind: "image", pageUrl, srcUrl: info.srcUrl },
-      tab?.id ?? 0,
-    );
-    return;
-  }
-  if (tab?.id !== undefined && info.menuItemId === INKLING_MENU_SAVE_SELECTION) {
-    // Always go through the collector: it reads the selected markup and the
-    // page title. The context-menu event has already fired by the time the
-    // collector is injected, but the live selection is still readable, and
-    // losing attribution on a quote is not an acceptable fallback.
-    void collectFromTab(tab.id, "selection");
-  } else if (info.menuItemId === INKLING_MENU_SAVE_SELECTION) {
-    // No tab (rare), so the collector cannot run. The plain text still saves.
-    if (typeof info.selectionText === "string") {
-      void dispatchCapturePayload(
-        { kind: "selection", sourceUrl: pageUrl, selectedHtml: "", selectedText: info.selectionText },
-        tab?.id ?? 0,
-      );
+  if (tab?.id === undefined) {
+    // No tab, so no collector and nothing to read off the page. Only a
+    // selection can still be saved from the event itself.
+    if (info.menuItemId === INKLING_MENU_SAVE_SELECTION && typeof info.selectionText === "string") {
+      fireAndForget(dispatchCapturePayload({
+        kind: "selection",
+        sourceUrl: info.pageUrl ?? "",
+        selectedHtml: "",
+        selectedText: info.selectionText,
+      }));
     }
-  } else if (tab?.id !== undefined && info.menuItemId === INKLING_MENU_SAVE_IMAGE) {
-    void collectFromTab(tab.id, "image", info.srcUrl);
-  } else if (tab?.id !== undefined && info.menuItemId === INKLING_MENU_SAVE_VIDEO) {
-    void collectFromTab(tab.id, "video");
+    return;
+  }
+  // Everything else goes through the collector: it reads the live page, so a
+  // selection keeps its title, a blob:/canvas image gets the dataUrl fallback
+  // the app cannot fetch for itself, and the payload carries the real frame URL
+  // rather than whatever the tab reports.
+  if (info.menuItemId === INKLING_MENU_SAVE_SELECTION) {
+    fireAndForget(collectFromTab(tab.id, "selection"));
+  } else if (info.menuItemId === INKLING_MENU_SAVE_IMAGE) {
+    fireAndForget(collectFromTab(tab.id, "image", info.srcUrl));
+  } else if (info.menuItemId === INKLING_MENU_SAVE_VIDEO) {
+    fireAndForget(collectFromTab(tab.id, "video"));
   }
 });
 
 browser.commands.onCommand.addListener((command) => {
-  if (command === "inkling-save-page") void saveActiveTab();
+  if (command === "inkling-save-page") fireAndForget(saveActiveTab());
 });
 
 browser.runtime.onMessage.addListener((message: unknown) => {

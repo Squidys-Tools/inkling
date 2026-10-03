@@ -28,3 +28,25 @@ export function trimCaptureQueue(queue: unknown[]): void {
     queue.shift();
   }
 }
+
+/** Identity of one queued entry, across a storage round trip. */
+export function captureQueueEntryKey(payload: unknown): string {
+  return JSON.stringify(payload);
+}
+
+/**
+ * Remove in place one entry per settled key — what a flush delivered or gave up
+ * on. Keys, not positions: a capture appended while the flush was delivering is
+ * at the tail, and must survive the flush's write. Consuming each key as it
+ * matches keeps two byte-identical captures from taking each other's place.
+ */
+export function removeSettledCaptureEntries(queue: unknown[], settled: Set<string>): void {
+  let index = 0;
+  while (index < queue.length) {
+    if (settled.delete(captureQueueEntryKey(queue[index]))) {
+      queue.splice(index, 1);
+      continue;
+    }
+    index += 1;
+  }
+}
