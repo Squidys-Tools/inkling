@@ -6,7 +6,7 @@ export const DEEP_LINK_SELECTION_MAX_LENGTH = 1500;
 export const DEEP_LINK_ATTRIBUTION_MAX_LENGTH = 240;
 
 export type DeepLinkCapture =
-  | { kind: "url"; url: string }
+  | { kind: "url"; url: string; title?: string }
   | { kind: "quote"; url: string; selection: string; attribution: string }
   | { kind: "image"; pageUrl: string; imageUrl: string; alt: string };
 
@@ -62,5 +62,7 @@ export function parseDeepLinkCapture(value: string): DeepLinkCapture | null {
     return { kind: "image", pageUrl: url, imageUrl, alt };
   }
 
-  return { kind: "url", url };
+  // Title is provenance for provisional URL cards; extraction may replace it later.
+  const title = parsed.searchParams.get("title")?.trim().slice(0, DEEP_LINK_ATTRIBUTION_MAX_LENGTH) ?? "";
+  return title ? { kind: "url", url, title } : { kind: "url", url };
 }

@@ -1,52 +1,115 @@
 import type { PageCapturePayloadV1 } from "@inkling/ingestion-shared";
+import type { ExtensionCapturePayload } from "./payload";
 
-// Phase 1 transport: the app is reached through its deep link
-// (inkling://capture?url=…), which proves end-to-end delivery before the
-// loopback server lands. The v1 payload itself is transport-agnostic — Phase 2
-// swaps the body below from "deep link + queued payload" to "POST the same
-// payload" without changing the schema. See postPayloadToLoopback.
+type LoopbackCapturePayload = PageCapturePayloadV1 | ExtensionCapturePayload;
 
-// The app re-sanitizes everything on receipt (see packages/ingestion-shared),
-// so the deep link carries only URL + title: small, auditable, and never a
-// vector for smuggling markup through a URL handler. The provenance marker is
-// `via`, NOT `source` — the app's deep-link parser reads `source` as a legacy
-// alias for the target URL, so reusing that name would corrupt parsing.
-const CAPTURE_VIA = "extension" as const;
+/**
+ * A capture the app refused on its merits, as opposed to one it could not
+ * accept right now. `permanent` says which: see isPermanentStatus for the app's
+ * own vocabulary. Retrying a permanent rejection only fills the pending queue
+ * and pushes out captures that would have succeeded.
+ */
+export class CaptureRejectedError extends Error {
+  readonly permanent: boolean;
 
-export function buildCaptureDeepLink(
-  payload: Pick<PageCapturePayloadV1, "url" | "title">,
-): string {
-  const params = new URLSearchParams({
-    url: payload.url,
-    title: payload.title,
-    via: CAPTURE_VIA,
-  });
-  return `inkling://capture?${params.toString()}`;
+  constructor(message: string, permanent: boolean) {
+    super(message);
+    this.name = "CaptureRejectedError";
+    this.permanent = permanent;
+  }
 }
 
 /**
- * Phase 2 swap point. POSTs the unchanged v1 payload to the app's loopback
- * capture endpoint (`POST {baseUrl}/v1/captures`, per-install bearer token via
- * `Authorization: Bearer …`). NOT wired up in Phase 1 — `baseUrl` and `token`
- * are deliberately parameters, resolved from app discovery at call time and
- * never baked in (the app binds 127.0.0.1 on an ephemeral port), so the call
- * site stays identical when the swap lands.
+ * The app's own vocabulary, not a generic rule:
+ * - 4xx means the app refused the capture *on the payload's own merits* —
+ *   malformed body, oversized body, wrong content type, unsupported route.
+ *   Retrying it produces the same answer, so it is dropped rather than queued.
+ * - 401 and 403 are the app saying the *caller* is not welcome yet: a pairing
+ *   token the user has not refreshed, or an origin policy the app has since
+ *   changed. Nothing about the capture is wrong, and re-pairing is a thing the
+ *   user does. Queuing is exactly right — dropping the backlog here would
+ *   destroy every capture taken while the app was closed, over a token the
+ *   user can fix in five seconds.
+ * - 502 means the image host answered with something that is not an image, or
+ *   refused it. That answer will be identical on every retry, so it is as
+ *   permanent as a 4xx despite being a 5xx.
+ * - 503 means storage is not ready yet, and 408/429 mean "later". Those are
+ *   worth retrying.
  */
+function isPermanentStatus(status: number): boolean {
+  if (status === 401 || status === 403 || status === 408 || status === 429 || status === 503) return false;
+  if (status === 502) return true;
+  return status >= 400 && status < 500;
+}
+
+/**
+ * Bound on one capture POST. The popup waits on this, and so does every queued
+ * capture during a flush, so a socket that accepts and never answers must not
+ * park either. The app bounds its own socket at 10s and its image download at
+ * 10s, so anything past this is a connection that will never produce a verdict.
+ *
+ * Delivery is at-least-once: a capture the app stored but whose response was
+ * lost gets stored again on the retry. That window already exists for any
+ * transport failure after the app commits. A timeout widens it slightly and
+ * still beats losing the user's capture outright.
+ */
+const CAPTURE_TIMEOUT_MS = 30_000;
+
+function isTimeout(error: unknown): boolean {
+  // AbortSignal.timeout rejects with a DOMException, which is not an Error
+  // instance, so match on the name instead.
+  return (
+    typeof error === "object" && error !== null && (error as { name?: unknown }).name === "TimeoutError"
+  );
+}
+
 export async function postPayloadToLoopback(
   baseUrl: string,
   token: string,
-  payload: PageCapturePayloadV1,
+  payload: LoopbackCapturePayload,
 ): Promise<void> {
   const endpoint = `${baseUrl.replace(/\/+$/, "")}/v1/captures`;
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    throw new Error(`loopback capture failed: HTTP ${response.status}`);
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(CAPTURE_TIMEOUT_MS),
+    });
+  } catch (error) {
+    // No verdict at all: the app is closed, unreachable, or not answering.
+    // Worth retrying.
+    throw new CaptureRejectedError(
+      isTimeout(error)
+        ? `the app did not answer within ${CAPTURE_TIMEOUT_MS / 1000}s`
+        : error instanceof Error
+          ? error.message
+          : "could not reach the app",
+      false,
+    );
   }
+  if (!response.ok) {
+    // The app answers a rejected capture with { error, message }. The status
+    // alone cannot tell "the image host refused it" from "storage is down", so
+    // surface the reason the app actually gave.
+    const reason = await response
+      .json()
+      .then((body: { message?: unknown }) =>
+        typeof body?.message === "string" ? `: ${body.message}` : "",
+      )
+      .catch(() => "");
+    throw new CaptureRejectedError(
+      `loopback capture failed: HTTP ${response.status}${reason}`,
+      isPermanentStatus(response.status),
+    );
+  }
+}
+
+/** True when retrying the same payload cannot change the outcome. */
+export function isPermanentCaptureError(error: unknown): boolean {
+  return error instanceof CaptureRejectedError && error.permanent;
 }

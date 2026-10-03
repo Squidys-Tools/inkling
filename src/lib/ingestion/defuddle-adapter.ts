@@ -29,6 +29,7 @@ export class DefaultDefuddleAdapter implements DefuddleAdapter {
     }).parse();
 
     const structured = extractJsonLdMetadata(document, url);
+    const favicon = normalizeHttpUrl(result.favicon, url) ?? undefined;
 
     return {
       title: normalizeText(result.title) || structured.title,
@@ -41,6 +42,7 @@ export class DefaultDefuddleAdapter implements DefuddleAdapter {
         ...imageUrlsFromResult(result, url),
         ...(structured.imageUrls ?? []),
       ]),
+      ...(favicon ? { favicon } : {}),
     };
   }
 }

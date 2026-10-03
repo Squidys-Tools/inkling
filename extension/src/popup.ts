@@ -12,7 +12,7 @@ function renderStatus(status: SaveStatus | null): void {
   if (status.state === "saved") {
     statusLine.textContent = status.title ? `Saved “${status.title}”.` : "Saved.";
   } else if (status.state === "queued") {
-    statusLine.textContent = `App is closed — kept locally (${status.detail ?? "pending"}).`;
+    statusLine.textContent = `Inkling is unavailable — kept locally (${status.detail ?? "pending"}).`;
   } else {
     statusLine.textContent = `Couldn’t save: ${status.detail ?? "unknown error"}.`;
   }

@@ -13,6 +13,25 @@ describe("parseDeepLinkCapture", () => {
     });
   });
 
+  test("url capture keeps the title for a provisional card", () => {
+    expect(
+      parseDeepLinkCapture("inkling://capture?url=https%3A%2F%2Fexample.com%2Farticle&title=Great%20Essay&via=extension"),
+    ).toEqual({
+      kind: "url",
+      url: "https://example.com/article",
+      title: "Great Essay",
+    });
+  });
+
+  test("blank title is omitted rather than kept empty", () => {
+    expect(
+      parseDeepLinkCapture("inkling://capture?url=https%3A%2F%2Fexample.com%2F&title=%20%20"),
+    ).toEqual({
+      kind: "url",
+      url: "https://example.com/",
+    });
+  });
+
   test("ignores the via provenance marker", () => {
     expect(
       parseDeepLinkCapture("inkling://capture?url=https%3A%2F%2Fexample.com%2F&via=extension"),

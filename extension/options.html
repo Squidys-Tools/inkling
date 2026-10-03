@@ -18,6 +18,8 @@
     <label for="token" style="margin-top: 8px;">Local token (stays on this machine)</label>
     <input id="token" type="password" autocomplete="off" />
     <p><button id="save" type="button">Save</button> <span id="saved" role="status"></span></p>
-    <script src="options.js"></script>
+    <p id="storage-status" role="status">Checking extension storage…</p>
+    <p>Extension ID: <code id="extension-id"></code></p>
+    <script type="module" src="options.js"></script>
   </body>
 </html>

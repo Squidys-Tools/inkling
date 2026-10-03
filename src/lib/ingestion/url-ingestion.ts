@@ -72,6 +72,7 @@ function mergeExtraction(primary: RawArticleExtraction, fallback: RawArticleExtr
     imageDimensions: [...(fallback.imageDimensions ?? []), ...(primary.imageDimensions ?? [])].filter(
       (value, index, values) => values.findIndex((candidate) => candidate.url === value.url) === index,
     ),
+    favicon: primary.favicon ?? fallback.favicon,
   };
 }
 
@@ -389,6 +390,11 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
       value !== null && imageUrls.includes(value.url) && values.findIndex((candidate) => candidate?.url === value.url) === index,
     );
 
+  const favicon =
+    normalizeHttpUrl(extraction.favicon, fetchedUrl) ??
+    normalizeHttpUrl(fallback.favicon, fetchedUrl) ??
+    undefined;
+
   return {
     sourceUrl,
     fetchedUrl,
@@ -401,6 +407,7 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
     text: htmlToText(html),
     imageUrls,
     imageDimensions,
+    ...(favicon ? { favicon } : {}),
     safeEmbeds: collectSafeEmbeds(sourceDocument, fetchedUrl),
     extractor,
   };

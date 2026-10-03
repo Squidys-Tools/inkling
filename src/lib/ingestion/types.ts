@@ -50,6 +50,7 @@ export interface NormalizedArticle {
   text: string;
   imageUrls: string[];
   imageDimensions: ImageDimensions[];
+  favicon?: string;
   safeEmbeds: SafeEmbedCandidate[];
   extractor: IngestionExtractor;
   social?: XPostMetadata;
@@ -64,6 +65,7 @@ export interface RawArticleExtraction {
   contentHtml?: string;
   imageUrls?: string[];
   imageDimensions?: ImageDimensions[];
+  favicon?: string;
 }
 
 export interface DefuddleAdapter {

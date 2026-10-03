@@ -267,6 +267,16 @@ pub struct SaveFileInput {
     pub bytes: Vec<u8>,
 }
 
+/// What a video capture originally stored, recorded so background oEmbed
+/// enrichment can tell an untouched field from one the user has since edited.
+/// Enrichment only ever fills a field that still equals this value.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoOembedBaseline {
+    pub title: Option<String>,
+    pub description: Option<String>,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateItemInput {
@@ -465,7 +475,7 @@ impl LibraryStorage {
         self.get_item(&id)?.ok_or(StorageError::NotFound(id))
     }
 
-    fn create_quote(&self, input: CreateQuoteInput) -> Result<ItemDto, StorageError> {
+    pub(crate) fn create_quote(&self, input: CreateQuoteInput) -> Result<ItemDto, StorageError> {
         let body = input.body.trim().to_owned();
         if body.is_empty() {
             return Err(StorageError::InvalidInput(
@@ -587,6 +597,128 @@ impl LibraryStorage {
         )?;
 
         self.get_item(&id)?.ok_or(StorageError::NotFound(id))
+    }
+
+    pub(crate) fn store_favicon(
+        &self,
+        item_id: &str,
+        bytes: &[u8],
+        extension: &str,
+    ) -> Result<String, StorageError> {
+        let item_id = validate_item_id(item_id.to_owned())?;
+        let extension = extension.trim().to_ascii_lowercase();
+        if !matches!(
+            extension.as_str(),
+            "ico" | "png" | "svg" | "jpg" | "webp" | "gif"
+        ) {
+            return Err(StorageError::InvalidInput(
+                "favicon extension is not supported".into(),
+            ));
+        }
+        if bytes.is_empty() {
+            return Err(StorageError::InvalidInput(
+                "favicon bytes cannot be empty".into(),
+            ));
+        }
+
+        // Confirm the item still exists before writing anything. The favicon
+        // download runs in the background, so the user can delete the item
+        // mid-flight; writing first would recreate the deleted item's asset
+        // directory and leave an orphaned file the delete path never cleans up.
+        let current_metadata: String = self
+            .connection
+            .query_row(
+                "SELECT metadata FROM items WHERE id = ?1",
+                params![item_id],
+                |row| row.get::<_, String>(0),
+            )
+            .map_err(|error| match error {
+                rusqlite::Error::QueryReturnedNoRows => StorageError::NotFound(item_id.clone()),
+                other => StorageError::Sql(other),
+            })?;
+
+        let item_directory = self.assets_directory().join(&item_id);
+        fs::create_dir_all(&item_directory)?;
+        let favicon_path = item_directory.join(format!("favicon.{extension}"));
+        fs::write(&favicon_path, bytes)?;
+        let relative_path = relative_asset_path(&favicon_path, &self.assets_root())?;
+
+        let mut metadata: Map<String, Value> =
+            serde_json::from_str(&current_metadata).unwrap_or_default();
+        metadata.insert("faviconPath".into(), Value::String(relative_path.clone()));
+        let metadata_json = serde_json::to_string(&Value::Object(metadata))?;
+        self.connection.execute(
+            "UPDATE items SET metadata = ?1 WHERE id = ?2",
+            params![metadata_json, item_id],
+        )?;
+
+        Ok(relative_path)
+    }
+
+    /// Apply provider title/description to a saved video page, but only to the
+    /// fields the user has not touched since the capture. Background
+    /// enrichment rather than a user edit, so `updated_at` is left alone and
+    /// the card does not jump to the top of the library when it lands.
+    ///
+    /// The enrichment runs in the background after the response is sent, so a
+    /// user can rename the item first. A blind `COALESCE` write would discard
+    /// that edit. The capture records what it originally stored in
+    /// `oEmbedBaseline`; a field is enriched only while it still equals that
+    /// baseline, so an edit always wins. The baseline must therefore name the
+    /// value the row really holds, including a derived default such as the
+    /// hostname fallback in `create_url`.
+    pub(crate) fn apply_video_oembed(
+        &self,
+        item_id: &str,
+        title: Option<&str>,
+        description: Option<&str>,
+    ) -> Result<(), StorageError> {
+        let item_id = validate_item_id(item_id.to_owned())?;
+        let title = title.map(str::trim).filter(|value| !value.is_empty());
+        let description = description.map(str::trim).filter(|value| !value.is_empty());
+        if title.is_none() && description.is_none() {
+            return Ok(());
+        }
+        let item = self
+            .get_item(&item_id)?
+            .ok_or_else(|| StorageError::NotFound(item_id.clone()))?;
+
+        let mut metadata: Map<String, Value> = match &item.metadata {
+            Value::Object(map) => map.clone(),
+            _ => Map::new(),
+        };
+        let baseline: Option<VideoOembedBaseline> = metadata
+            .remove("oEmbedBaseline")
+            .and_then(|value| serde_json::from_value(value).ok());
+
+        // No baseline means the item predates this field or came from another
+        // capture path; leave it entirely alone rather than guess.
+        let Some(baseline) = baseline else {
+            return Ok(());
+        };
+
+        let current_title = item.title.as_deref().map(str::trim);
+        let current_description = item.description.as_deref().map(str::trim);
+        let untouched = |baseline: &Option<String>, current: Option<&str>| match baseline {
+            Some(original) => current == Some(original.trim()),
+            None => current.is_none_or(str::is_empty),
+        };
+        let next_title = title.filter(|_| untouched(&baseline.title, current_title));
+        let next_description =
+            description.filter(|_| untouched(&baseline.description, current_description));
+
+        // The baseline is always dropped, so a retry of the same enrichment
+        // cannot re-apply after the user has edited the item.
+        let metadata_json = serde_json::to_string(&Value::Object(metadata))?;
+        self.connection.execute(
+            "UPDATE items
+             SET title = COALESCE(?2, title),
+                 description = COALESCE(?3, description),
+                 metadata = ?4
+             WHERE id = ?1",
+            params![item_id, next_title, next_description, metadata_json],
+        )?;
+        Ok(())
     }
 
     pub(crate) fn save_file(&self, input: SaveFileInput) -> Result<ItemDto, StorageError> {
@@ -1705,19 +1837,26 @@ fn ensure_job_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
+/// Single source of truth for where the library (and its sibling files, such
+/// as the pairing token) live. Portable-preview builds use `data/` beside the
+/// executable; every other build uses the Tauri app-data dir. Never gates on
+/// whether `library.sqlite3` already exists — that would flip the directory
+/// after a move/delete and strand the pairing token in the wrong home.
+pub(crate) fn library_directory(app: &AppHandle) -> Result<PathBuf, StorageError> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|executable| portable_data_directory(&executable))
+        .or_else(|| app.path().app_data_dir().ok())
+        .ok_or_else(|| StorageError::InvalidInput("cannot determine the library directory".into()))
+}
+
 #[tauri::command]
 pub fn initialize_storage(
     app: AppHandle,
     state: State<'_, StorageState>,
     processing: State<'_, crate::jobs::ProcessingState>,
 ) -> Result<StorageStatus, String> {
-    let database_directory = std::env::current_exe()
-        .ok()
-        .and_then(|executable| portable_data_directory(&executable))
-        .or_else(|| app.path().app_data_dir().ok())
-        .ok_or_else(|| {
-            StorageError::InvalidInput("cannot determine the library directory".into())
-        })?;
+    let database_directory = library_directory(&app).map_err(String::from)?;
     fs::create_dir_all(&database_directory).map_err(StorageError::from)?;
 
     let database_path = database_directory.join("library.sqlite3");
@@ -1895,6 +2034,31 @@ pub fn resolve_asset_path(path: String, state: State<'_, StorageState>) -> Resul
         .as_ref()
         .expect("require_storage guarantees initialization")
         .resolve_asset_path(&path)
+        .map_err(String::from)
+}
+
+/// Async because `cache_favicon_in_background` blocks on the favicon download.
+/// A sync command would run it on the main thread and freeze the window for the
+/// request, which is why the receiver's own favicon path uses a dedicated
+/// worker instead of this command.
+#[tauri::command(async)]
+pub fn cache_favicon(item_id: String, url: String, app: AppHandle) -> Result<String, String> {
+    cache_favicon_in_background(&app, &item_id, &url)
+}
+
+pub(crate) fn cache_favicon_in_background(
+    app: &AppHandle,
+    item_id: &str,
+    url: &str,
+) -> Result<String, String> {
+    let (bytes, extension) = crate::http_fetch::download_favicon(url)?;
+    let state = app.state::<StorageState>();
+    let guard = state.lock().map_err(String::from)?;
+    let storage = guard
+        .as_ref()
+        .ok_or_else(|| StorageError::NotInitialized.to_string())?;
+    storage
+        .store_favicon(item_id, &bytes, &extension)
         .map_err(String::from)
 }
 
@@ -2345,6 +2509,34 @@ fn article_metadata(
     metadata
         .entry("html")
         .or_insert_with(|| Value::String(String::new()));
+    // Card seal favicon: keep only an absolute http(s) URL; drop anything else
+    // rather than failing the capture (same forgiving rule as image URLs).
+    if let Some(Value::String(favicon)) = metadata.get("favicon").cloned() {
+        let cleaned = url::Url::parse(favicon.trim())
+            .ok()
+            .filter(|url| matches!(url.scheme(), "http" | "https"))
+            .map(|url| Value::String(url.to_string()));
+        match cleaned {
+            Some(value) => {
+                metadata.insert("favicon".into(), value);
+            }
+            None => {
+                metadata.remove("favicon");
+            }
+        }
+    } else {
+        metadata.remove("favicon");
+    }
+    if let Some(Value::String(path)) = metadata.get("faviconPath").cloned() {
+        let normalized = path.replace('\\', "/");
+        if normalized.starts_with("assets/") && !normalized.contains("..") {
+            metadata.insert("faviconPath".into(), Value::String(normalized));
+        } else {
+            metadata.remove("faviconPath");
+        }
+    } else {
+        metadata.remove("faviconPath");
+    }
 
     Ok(Value::Object(metadata))
 }
@@ -3153,6 +3345,132 @@ mod tests {
         fs::remove_dir_all(directory).unwrap();
     }
 
+    fn test_storage() -> (std::path::PathBuf, LibraryStorage) {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        (directory, storage)
+    }
+
+    fn saved_video(baseline_title: Option<&str>) -> (LibraryStorage, String) {
+        let (directory, storage) = test_storage();
+        let item = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://www.youtube.com/watch?v=abc12345678".into(),
+                title: baseline_title.map(str::to_owned),
+                description: None,
+                body: String::new(),
+                metadata: Some(serde_json::json!({
+                    "origin": "browser-extension",
+                    "sourceKind": "video",
+                    "oEmbedBaseline": { "title": baseline_title, "description": null },
+                })),
+            })
+            .unwrap();
+        let _ = directory;
+        (storage, item.id)
+    }
+
+    #[test]
+    fn video_enrichment_fills_an_untouched_title() {
+        let (storage, id) = saved_video(Some("Watch later"));
+        storage
+            .apply_video_oembed(&id, Some("A Real Video Title"), Some("A Channel"))
+            .unwrap();
+        let item = storage.get_item(&id).unwrap().unwrap();
+        assert_eq!(item.title.as_deref(), Some("A Real Video Title"));
+        assert_eq!(item.description.as_deref(), Some("A Channel"));
+        drop(storage);
+    }
+
+    #[test]
+    fn video_enrichment_never_overwrites_a_user_edit() {
+        // Regression: oEmbed runs in the background, so a user can rename the
+        // item first. The provider's values used to win and the edit was lost.
+        let (storage, id) = saved_video(Some("Watch later"));
+        storage
+            .update_item(UpdateItemInput {
+                id: id.clone(),
+                title: Some("My own name for this".into()),
+                ..Default::default()
+            })
+            .unwrap();
+
+        storage
+            .apply_video_oembed(&id, Some("A Real Video Title"), Some("A Channel"))
+            .unwrap();
+        let item = storage.get_item(&id).unwrap().unwrap();
+        assert_eq!(
+            item.title.as_deref(),
+            Some("My own name for this"),
+            "the user's title must survive background enrichment"
+        );
+        // The description was never set by anyone, so it still gets enriched.
+        assert_eq!(item.description.as_deref(), Some("A Channel"));
+    }
+
+    #[test]
+    fn video_enrichment_is_dropped_once_applied() {
+        // The baseline is consumed, so a retry cannot re-apply provider values
+        // over a later edit.
+        let (storage, id) = saved_video(Some("Watch later"));
+        storage
+            .apply_video_oembed(&id, Some("A Real Video Title"), None)
+            .unwrap();
+        storage
+            .apply_video_oembed(&id, Some("Retried Title"), None)
+            .unwrap();
+        let item = storage.get_item(&id).unwrap().unwrap();
+        assert_eq!(item.title.as_deref(), Some("A Real Video Title"));
+        drop(storage);
+    }
+
+    #[test]
+    fn video_enrichment_leaves_items_without_a_baseline_alone() {
+        let (directory, storage) = test_storage();
+        let item = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://www.youtube.com/watch?v=abc12345678".into(),
+                title: Some("Something".into()),
+                description: None,
+                body: String::new(),
+                metadata: None,
+            })
+            .unwrap();
+        storage
+            .apply_video_oembed(&item.id, Some("Provider Title"), None)
+            .unwrap();
+        let item = storage.get_item(&item.id).unwrap().unwrap();
+        assert_eq!(item.title.as_deref(), Some("Something"));
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn storing_a_favicon_for_a_deleted_item_writes_nothing() {
+        // Regression: the favicon download runs in the background, so the item
+        // can be deleted mid-flight. Writing the file first recreated the
+        // deleted item's asset directory and left an orphan behind.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let assets = storage.assets_directory();
+
+        let result = storage.store_favicon("deleted-item-id", b"\x00\x01", "png");
+        assert!(
+            matches!(result, Err(StorageError::NotFound(_))),
+            "expected NotFound, got {result:?}"
+        );
+        assert!(
+            !assets.join("deleted-item-id").exists(),
+            "no asset directory may be created for an item that no longer exists"
+        );
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
     #[test]
     fn note_body_round_trips_and_updates_search_index() {
         let directory =
@@ -3801,6 +4119,72 @@ mod tests {
         let items = storage.list_space_items(&article_space.id, 50).unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].kind, "url");
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn stores_favicon_asset_without_changing_item_timestamp() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-favicon-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://example.com/article".into(),
+                title: Some("Article".into()),
+                description: None,
+                body: "body".into(),
+                metadata: Some(serde_json::json!({ "favicon": "https://example.com/favicon.png" })),
+            })
+            .unwrap();
+        let path = storage
+            .store_favicon(&item.id, b"favicon-bytes", "png")
+            .unwrap();
+        let stored = storage.get_item(&item.id).unwrap().unwrap();
+
+        assert_eq!(path, format!("assets/items/{}/favicon.png", item.id));
+        assert_eq!(stored.metadata["faviconPath"], path);
+        assert_eq!(stored.updated_at, item.updated_at);
+        assert_eq!(fs::read(directory.join(path)).unwrap(), b"favicon-bytes");
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn video_oembed_enrichment_keeps_the_item_timestamp() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-oembed-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://www.youtube.com/watch?v=abc".into(),
+                title: Some("Some video - YouTube".into()),
+                description: None,
+                body: String::new(),
+                metadata: Some(serde_json::json!({
+                    "sourceKind": "video",
+                    "oEmbedBaseline": { "title": "Some video - YouTube", "description": null },
+                })),
+            })
+            .unwrap();
+
+        storage
+            .apply_video_oembed(&item.id, Some("Some video"), Some("YouTube · inkling"))
+            .unwrap();
+        let enriched = storage.get_item(&item.id).unwrap().unwrap();
+        assert_eq!(enriched.title.as_deref(), Some("Some video"));
+        assert_eq!(enriched.description.as_deref(), Some("YouTube · inkling"));
+        assert_eq!(enriched.updated_at, item.updated_at);
+
+        // A retry with nothing to say must not blank what is already stored.
+        storage.apply_video_oembed(&item.id, None, None).unwrap();
+        let untouched = storage.get_item(&item.id).unwrap().unwrap();
+        assert_eq!(untouched.title.as_deref(), Some("Some video"));
+        assert_eq!(untouched.updated_at, item.updated_at);
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();

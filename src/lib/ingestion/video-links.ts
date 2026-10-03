@@ -39,6 +39,19 @@ export function videoLinkFromSourceUrl(sourceUrl: string | null | undefined): Vi
   };
 }
 
+/**
+ * Card image for a saved video page. A provider's own `og:image` is its logo,
+ * not the video, so the poster derived from the video id outranks the first
+ * image the page offered. Non-video items pass `posterUrl` as undefined and
+ * keep the page image.
+ */
+export function videoCardImage(
+  posterUrl: string | undefined,
+  pageImage: string | undefined,
+): string | undefined {
+  return posterUrl ?? pageImage;
+}
+
 export function autoplayEmbedUrl(embedUrl: string): string {
   return `${embedUrl}${embedUrl.includes("?") ? "&" : "?"}autoplay=1`;
 }

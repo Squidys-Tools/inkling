@@ -1,9 +1,11 @@
 //! Loopback capture receiver for the browser extension (Option B transport).
 //!
-//! The app binds `127.0.0.1` on an ephemeral port (no hardcoded ports) and
-//! exposes `POST /v1/captures` plus `GET /v1/health` to the local browser
-//! extension. Authentication is a per-install bearer token generated with the
-//! OS RNG and persisted beside the library; the token is never logged.
+//! The app binds `127.0.0.1` (ephemeral unless the last successful port is
+//! free) and exposes `POST /v1/captures` plus `GET /v1/health` to the local
+//! browser extension. Authentication is a per-install bearer token generated
+//! with the OS RNG and persisted beside the library; the token is never
+//! logged. The last bound port is also persisted beside the library so the
+//! extension's stored base URL survives restarts.
 //!
 //! Security posture, in one place:
 //! - Loopback only. The socket binds `127.0.0.1` explicitly, so no LAN peer
@@ -32,7 +34,10 @@ use std::{
     io::{BufReader, Read, Write},
     net::{TcpListener, TcpStream},
     path::PathBuf,
-    sync::Mutex,
+    sync::{
+        mpsc::{sync_channel, SyncSender},
+        Arc, Mutex, OnceLock,
+    },
     time::{Duration, Instant},
 };
 
@@ -50,10 +55,35 @@ const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
 const TOKEN_FILE_NAME: &str = "pairing_token";
+/// Last successful loopback port, beside the library. Rebinding it on boot
+/// keeps the extension's stored `inkling.base-url` valid across restarts.
+const PORT_FILE_NAME: &str = "capture_port";
 
 /// Request pairs (method, path) served by the receiver.
 const HEALTH_PATH: &str = "/v1/health";
 const CAPTURES_PATH: &str = "/v1/captures";
+const FAVICON_QUEUE_CAPACITY: usize = 32;
+const FAVICON_WORKERS: usize = 2;
+const OEMBED_QUEUE_CAPACITY: usize = 16;
+const OEMBED_WORKERS: usize = 1;
+const MAX_OEMBED_BYTES: u64 = 512 * 1024;
+
+struct FaviconJob {
+    app: AppHandle,
+    item_id: String,
+    url: String,
+}
+
+/// Provider oEmbed request for a stored video capture, resolved off the
+/// capture request so saving stays instant.
+struct OEmbedJob {
+    app: AppHandle,
+    item_id: String,
+    source_url: String,
+}
+
+static FAVICON_QUEUE: OnceLock<SyncSender<FaviconJob>> = OnceLock::new();
+static OEMBED_QUEUE: OnceLock<SyncSender<OEmbedJob>> = OnceLock::new();
 
 #[derive(Default)]
 pub struct CaptureServerState {
@@ -68,6 +98,8 @@ pub struct CaptureStatus {
     pub running: bool,
     pub port: Option<u16>,
     pub health_url: Option<String>,
+    /// `http://127.0.0.1:{port}` for the extension options "App address" field.
+    pub base_url: Option<String>,
 }
 
 /// Request body: `PageCapturePayloadV1` from `packages/ingestion-shared`
@@ -93,6 +125,53 @@ struct CaptureRequest {
     published_date: Option<String>,
     #[serde(default)]
     image_urls: Vec<String>,
+    /// Absolute http(s) favicon URL for the card seal; stored only when valid.
+    #[serde(default)]
+    favicon: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SelectionCaptureRequest {
+    kind: String,
+    source_url: String,
+    selected_text: String,
+    title: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImageCaptureRequest {
+    kind: String,
+    page_url: String,
+    src_url: String,
+    alt: Option<String>,
+    data_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VideoCaptureRequest {
+    kind: String,
+    source_url: String,
+    title: Option<String>,
+}
+
+#[derive(Debug)]
+enum ValidatedCapture {
+    Page(crate::storage::CreateUrlInput),
+    Quote {
+        body: String,
+        attribution: Option<String>,
+        source_url: String,
+    },
+    Image {
+        image_url: String,
+    },
+    Video {
+        source_url: String,
+        title: Option<String>,
+    },
 }
 
 /// Upper bound from `packages/ingestion-shared` (`MAX_DEFUDDLED_HTML_BYTES`);
@@ -121,16 +200,11 @@ fn token_looks_valid(token: &str) -> bool {
 }
 
 fn token_file_path(app: &AppHandle) -> Option<PathBuf> {
-    // Same directory family `initialize_storage` uses for the library, so a
-    // fresh clone on another Windows machine just works. The app-data dir is
-    // user-private on Windows, which is the right home for a secret.
-    let exe_dir = std::env::current_exe()
+    // Sibling of library.sqlite3 via the same resolver storage uses. Never
+    // probes for the database file: if the library is moved or deleted the
+    // token must stay in the same directory family or pairing silently flips.
+    crate::storage::library_directory(app)
         .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.join("data")));
-    let app_dir = app.path().app_data_dir().ok();
-    exe_dir
-        .filter(|dir| dir.join("library.sqlite3").is_file())
-        .or(app_dir)
         .map(|dir| dir.join(TOKEN_FILE_NAME))
 }
 
@@ -154,6 +228,8 @@ fn load_or_generate_token(app: &AppHandle) -> String {
 }
 
 fn persist_token(app: &AppHandle, token: &str) -> Result<(), String> {
+    // Same resolver as load: a successful persist always writes beside the
+    // library, never into a one-off fallback directory.
     let path =
         token_file_path(app).ok_or_else(|| "cannot determine the library directory".to_string())?;
     if let Some(parent) = path.parent() {
@@ -161,6 +237,37 @@ fn persist_token(app: &AppHandle, token: &str) -> Result<(), String> {
     }
     fs::write(&path, token).map_err(|e| format!("cannot persist pairing token: {e}"))?;
     Ok(())
+}
+
+fn port_file_path(app: &AppHandle) -> Option<PathBuf> {
+    crate::storage::library_directory(app)
+        .ok()
+        .map(|dir| dir.join(PORT_FILE_NAME))
+}
+
+/// Last successful port from a previous run, if it is still a usable number.
+fn load_preferred_port(app: &AppHandle) -> Option<u16> {
+    let path = port_file_path(app)?;
+    let raw = fs::read_to_string(path).ok()?;
+    raw.trim().parse::<u16>().ok().filter(|port| *port != 0)
+}
+
+/// Drop a port that turned out to belong to someone else, so the next launch
+/// binds a fresh one instead of retrying a port it must never serve on.
+fn forget_preferred_port(app: &AppHandle) {
+    if let Some(path) = port_file_path(app) {
+        let _ = fs::remove_file(path);
+    }
+}
+
+/// Best-effort: a failed write only means the next launch may pick a new port.
+fn persist_port(app: &AppHandle, port: u16) {
+    if let Some(path) = port_file_path(app) {
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = fs::write(path, port.to_string());
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -200,17 +307,32 @@ fn origin_allowed(origin: Option<&str>) -> bool {
     if origin == "null" {
         return true;
     }
-    [
+    // Extension and app custom schemes: scheme prefix is sufficient.
+    if [
         "chrome-extension://",
         "moz-extension://",
         "safari-web-extension://",
         "tauri://",
-        "https://tauri.localhost",
-        "http://tauri.localhost",
         "inkling://",
     ]
     .iter()
     .any(|prefix| origin.starts_with(prefix))
+    {
+        return true;
+    }
+    // Tauri webview http(s) origin: exact scheme+host (optional :port digits).
+    // A starts_with check would also accept https://tauri.localhost.evil.com.
+    fn tauri_localhost_http(origin: &str, scheme: &str) -> bool {
+        let Some(rest) = origin.strip_prefix(scheme) else {
+            return false;
+        };
+        rest == "tauri.localhost"
+            || rest
+                .strip_prefix("tauri.localhost:")
+                // `u16` rejects anything above 65535; zero is not a port.
+                .is_some_and(|port| port.parse::<u16>().is_ok_and(|value| value != 0))
+    }
+    tauri_localhost_http(origin, "https://") || tauri_localhost_http(origin, "http://")
 }
 
 fn check_rate_limit(state: &CaptureServerState) -> bool {
@@ -263,9 +385,82 @@ fn capped_string(value: Option<String>, max: usize, field: &str) -> Result<Optio
     }
 }
 
-fn validate_capture_payload(body: &[u8]) -> Result<crate::storage::CreateUrlInput, String> {
-    let request: CaptureRequest = serde_json::from_slice(body)
+fn validate_capture_payload(body: &[u8]) -> Result<ValidatedCapture, String> {
+    let value: serde_json::Value = serde_json::from_slice(body)
         .map_err(|_| "request body must be a JSON capture object".to_string())?;
+    let kind = value
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "capture kind is required".to_owned())?;
+    match kind {
+        "page" => {
+            let request: CaptureRequest = serde_json::from_value(value)
+                .map_err(|_| "request body must be a page capture object".to_owned())?;
+            validate_page_capture_payload(request).map(ValidatedCapture::Page)
+        }
+        "selection" => {
+            let request: SelectionCaptureRequest = serde_json::from_value(value)
+                .map_err(|_| "request body must be a selection capture object".to_owned())?;
+            if request.kind != "selection" {
+                return Err("unsupported payload kind".into());
+            }
+            let source_url = validate_capture_url(&request.source_url)?;
+            let body = truncate_chars(request.selected_text.trim(), 200_000);
+            if body.is_empty() {
+                return Err("selection cannot be empty".into());
+            }
+            let attribution = capped_string(request.title, 240, "title")?;
+            Ok(ValidatedCapture::Quote {
+                body,
+                attribution,
+                source_url,
+            })
+        }
+        "image" => {
+            let request: ImageCaptureRequest = serde_json::from_value(value)
+                .map_err(|_| "request body must be an image capture object".to_owned())?;
+            if request.kind != "image" {
+                return Err("unsupported payload kind".into());
+            }
+            validate_capture_url(&request.page_url)?;
+            let image_url = validate_capture_url(&request.src_url)?;
+            if request.data_url.is_some() {
+                return Err("data URL images are not supported by the local receiver".into());
+            }
+            // Validated for length even though it is not stored: the extension
+            // sends it, and an unbounded string is still worth rejecting at the
+            // boundary. `save_file` has no alt field yet.
+            let _alt = capped_string(request.alt, 240, "alt")?;
+            Ok(ValidatedCapture::Image { image_url })
+        }
+        "video" => {
+            let request: VideoCaptureRequest = serde_json::from_value(value)
+                .map_err(|_| "request body must be a video capture object".to_owned())?;
+            if request.kind != "video" {
+                return Err("unsupported payload kind".into());
+            }
+            Ok(ValidatedCapture::Video {
+                source_url: validate_capture_url(&request.source_url)?,
+                title: capped_string(request.title, 240, "title")?,
+            })
+        }
+        _ => Err("unsupported payload kind".into()),
+    }
+}
+
+/// The hostname `create_url` titles a capture with when it carries no title of
+/// its own. Shared so a recorded baseline and the title that actually lands in
+/// the row cannot drift apart.
+fn source_hostname(url: &str) -> String {
+    url::Url::parse(url)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
+fn validate_page_capture_payload(
+    request: CaptureRequest,
+) -> Result<crate::storage::CreateUrlInput, String> {
     if request.version != 1 {
         return Err("unsupported payload version".into());
     }
@@ -276,10 +471,7 @@ fn validate_capture_payload(body: &[u8]) -> Result<crate::storage::CreateUrlInpu
     if request.defuddled_html.len() > MAX_DEFUDDLED_HTML_BYTES {
         return Err("content exceeds the payload size limit".into());
     }
-    let hostname = url::Url::parse(&source_url)
-        .ok()
-        .and_then(|url| url.host_str().map(str::to_owned))
-        .unwrap_or_default();
+    let hostname = source_hostname(&source_url);
     // Forgiving like the rest of capture: a blank title falls back to the
     // hostname instead of failing the save.
     let title = {
@@ -300,6 +492,7 @@ fn validate_capture_payload(body: &[u8]) -> Result<crate::storage::CreateUrlInpu
     let html = scrub_extension_html(&request.defuddled_html, &source_url);
     let text = truncate_chars(request.text.trim(), 200_000);
     let image_urls = clean_image_urls(request.image_urls);
+    let favicon = clean_favicon(request.favicon);
 
     let mut metadata = serde_json::Map::new();
     metadata.insert(
@@ -317,6 +510,9 @@ fn validate_capture_payload(body: &[u8]) -> Result<crate::storage::CreateUrlInpu
                 .collect(),
         ),
     );
+    if let Some(favicon) = favicon {
+        metadata.insert("favicon".into(), serde_json::Value::String(favicon));
+    }
     metadata.insert("safeEmbeds".into(), serde_json::Value::Array(Vec::new()));
     if let Some(author) = author.clone() {
         metadata.insert("author".into(), serde_json::Value::String(author));
@@ -386,6 +582,19 @@ fn clean_image_urls(values: Vec<String>) -> Vec<String> {
         }
     }
     out
+}
+
+/// Forgiving single-URL cleaner for the card seal favicon (http/https only).
+fn clean_favicon(value: Option<String>) -> Option<String> {
+    let entry = value?.trim().to_owned();
+    if entry.is_empty() {
+        return None;
+    }
+    let parsed = url::Url::parse(&entry).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return None;
+    }
+    Some(parsed.to_string())
 }
 
 /// Iframe/embed hosts allowed by `SAFE_IFRAME_HOSTS` in html-safety.ts.
@@ -491,6 +700,51 @@ fn iframe_host_allowed(src: Option<&str>) -> bool {
         .any(|allowed| host.eq_ignore_ascii_case(allowed))
 }
 
+/// True when the character reference starting at `start` decodes to `:`. The
+/// browser decodes attribute values before it resolves a URL, so a raw scan of
+/// the markup has to account for what the parser will see.
+fn encodes_colon_at(value: &str, start: usize) -> bool {
+    let Some(rest) = value.get(start + 1..) else {
+        return false;
+    };
+    if rest.starts_with("colon;") {
+        return true;
+    }
+    let Some(digits) = rest.strip_prefix('#') else {
+        return false;
+    };
+    let hex = digits
+        .strip_prefix('x')
+        .or_else(|| digits.strip_prefix('X'));
+    let digits = hex.unwrap_or(digits);
+    // The reference ends at the first character that cannot be part of it; a
+    // missing semicolon still decodes inside an attribute value.
+    let end = digits
+        .find(|character: char| {
+            if hex.is_some() {
+                !character.is_ascii_hexdigit()
+            } else {
+                !character.is_ascii_digit()
+            }
+        })
+        .unwrap_or(digits.len());
+    let code = if hex.is_some() {
+        u32::from_str_radix(&digits[..end], 16)
+    } else {
+        digits[..end].parse::<u32>()
+    };
+    code.is_ok_and(|code| code == u32::from(b':'))
+}
+
+/// True when `value` carries a character reference that decodes to `:`.
+/// `href="javascript&colon;alert(1)"` has no scheme as written but is a live
+/// `javascript:` URL once the HTML parser decodes it.
+fn contains_encoded_colon(value: &str) -> bool {
+    value
+        .match_indices('&')
+        .any(|(start, _)| encodes_colon_at(value, start))
+}
+
 /// Keep the attribute only when its URL value has no scheme or an http(s)
 /// one; `javascript:`, `data:`, and friends are dropped with the attribute.
 fn safe_url_attr(value: &str) -> bool {
@@ -499,9 +753,14 @@ fn safe_url_attr(value: &str) -> bool {
         return false;
     }
     match value.split_once(':') {
-        None => true,
+        // Relative value. Nothing but a decoded colon can turn it into a
+        // scheme, so only that case needs a closer look.
+        None => !contains_encoded_colon(value),
         Some((scheme, _)) if scheme.contains('/') => true,
         Some((scheme, _)) => {
+            // A reference can only add characters here, so it can never turn
+            // this into `javascript:` — and it cannot make a raw scheme that
+            // is not http(s) read as one either.
             let scheme = scheme.trim().to_ascii_lowercase();
             scheme == "http" || scheme == "https"
         }
@@ -795,6 +1054,21 @@ fn cors_headers(origin: Option<&str>) -> Vec<(&'static str, String)> {
     out
 }
 
+fn preflight_cors_headers(origin: Option<&str>) -> Vec<(&'static str, String)> {
+    let mut headers = cors_headers(origin);
+    headers.push((
+        "Access-Control-Allow-Methods",
+        "GET, POST, OPTIONS".to_owned(),
+    ));
+    headers.push((
+        "Access-Control-Allow-Headers",
+        "Authorization, Content-Type".to_owned(),
+    ));
+    headers.push(("Access-Control-Max-Age", "600".to_owned()));
+    headers.push(("Access-Control-Allow-Private-Network", "true".to_owned()));
+    headers
+}
+
 fn write_response(
     stream: &mut TcpStream,
     status: u16,
@@ -875,13 +1149,7 @@ fn handle_connection(stream: TcpStream, app: AppHandle) {
     // CORS preflight never carries Authorization; answer the handshake and
     // let the real request authenticate itself.
     if head.method == "OPTIONS" {
-        let mut extra: Vec<(&str, String)> = cors.iter().map(|(k, v)| (*k, v.clone())).collect();
-        extra.push(("Access-Control-Allow-Methods", "GET, POST, OPTIONS".into()));
-        extra.push((
-            "Access-Control-Allow-Headers",
-            "Authorization, Content-Type".into(),
-        ));
-        extra.push(("Access-Control-Max-Age", "600".into()));
+        let extra = preflight_cors_headers(origin);
         write_response(&mut stream, 204, "No Content", &extra, "");
         return;
     }
@@ -987,19 +1255,21 @@ fn handle_connection(stream: TcpStream, app: AppHandle) {
                     return;
                 }
             };
-            match store_capture(&app, input) {
+            match store_validated_capture(&app, input) {
                 Ok(id) => {
                     let body = serde_json::json!({ "id": id }).to_string();
                     write_response(&mut stream, 201, "Created", &cors_ref, &body);
                 }
-                Err(status) => {
-                    write_response(
-                        &mut stream,
-                        status,
-                        "Unavailable",
-                        &cors_ref,
-                        r#"{"error":"storage-unavailable"}"#,
-                    );
+                Err((status, message)) => {
+                    let body =
+                        serde_json::json!({ "error": "capture-rejected", "message": message })
+                            .to_string();
+                    let reason = match status {
+                        502 => "Bad Gateway",
+                        503 => "Service Unavailable",
+                        _ => "Unprocessable Entity",
+                    };
+                    write_response(&mut stream, status, reason, &cors_ref, &body);
                 }
             }
         }
@@ -1015,18 +1285,316 @@ fn handle_connection(stream: TcpStream, app: AppHandle) {
     }
 }
 
+fn favicon_queue() -> &'static SyncSender<FaviconJob> {
+    FAVICON_QUEUE.get_or_init(|| {
+        let (sender, receiver) = sync_channel::<FaviconJob>(FAVICON_QUEUE_CAPACITY);
+        let receiver = Arc::new(Mutex::new(receiver));
+        for _ in 0..FAVICON_WORKERS {
+            let receiver = Arc::clone(&receiver);
+            let _ = std::thread::Builder::new()
+                .name("favicon-cache".into())
+                .spawn(move || loop {
+                    let job = {
+                        let receiver = receiver.lock().unwrap_or_else(|error| error.into_inner());
+                        receiver.recv()
+                    };
+                    let Ok(job) = job else { break };
+                    let _ = crate::storage::cache_favicon_in_background(
+                        &job.app,
+                        &job.item_id,
+                        &job.url,
+                    );
+                });
+        }
+        sender
+    })
+}
+
+fn enqueue_favicon_cache(app: &AppHandle, item_id: &str, url: String) {
+    let _ = favicon_queue().try_send(FaviconJob {
+        app: app.clone(),
+        item_id: item_id.to_owned(),
+        url,
+    });
+}
+
+/// Enqueue the background work a freshly stored capture needs, then wake the
+/// worker. `enqueue_and_wake` only signals the loop, so the job rows have to be
+/// written here: an image also needs OCR, or text inside a saved picture is
+/// never indexed. Mirrors the `save_file` Tauri command.
+fn enqueue_item_processing(app: &AppHandle, item: &crate::storage::ItemDto) {
+    let processing: State<'_, crate::jobs::ProcessingState> = app.state();
+    let mut queued: Vec<crate::jobs::JobKind> = Vec::new();
+
+    if let Some(state) = app.try_state::<crate::storage::StorageState>() {
+        if let Ok(guard) = state.lock() {
+            if let Some(storage) = guard.as_ref() {
+                if let Some(kind) = crate::jobs::ocr_kind_for(&item.kind) {
+                    match crate::jobs::enqueue_ocr_for_item(
+                        &storage.connection,
+                        &item.id,
+                        &item.kind,
+                    ) {
+                        Ok(Some(_)) => queued.push(kind),
+                        Ok(None) => {}
+                        Err(error) => eprintln!("ocr enqueue failed for {}: {error}", item.id),
+                    }
+                }
+                match crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id) {
+                    Ok(_) => queued.push(crate::jobs::JobKind::GenerateEmbedding),
+                    Err(error) => eprintln!("embedding enqueue failed for {}: {error}", item.id),
+                }
+            }
+        }
+    }
+
+    // Only signal for rows that actually landed: `enqueue_and_wake` just nudges
+    // the worker loop, so a lost write would leave it polling for a job that
+    // does not exist. The capture is already stored either way, so a failure
+    // here is logged, never fatal.
+    for kind in queued {
+        processing.enqueue_and_wake(&item.id, kind);
+    }
+}
+
+/// Which provider's oEmbed endpoint answers for a saved video page. Mirrors
+/// the embed allowlist in `src/lib/ingestion/safe-embeds.ts`, but only decides
+/// where to ask for a title: the item is still stored as a plain URL and the
+/// render-time embed allowlist is unchanged.
+fn video_oembed_endpoint(source_url: &str) -> Option<(&'static str, String)> {
+    let host = url::Url::parse(source_url)
+        .ok()?
+        .host_str()?
+        .to_ascii_lowercase();
+    let endpoint_host = match host.as_str() {
+        "youtube.com"
+        | "www.youtube.com"
+        | "m.youtube.com"
+        | "youtu.be"
+        | "youtube-nocookie.com"
+        | "www.youtube-nocookie.com" => "www.youtube.com",
+        "vimeo.com" | "www.vimeo.com" | "player.vimeo.com" => "vimeo.com",
+        _ => return None,
+    };
+    Some((
+        if endpoint_host == "www.youtube.com" {
+            "YouTube"
+        } else {
+            "Vimeo"
+        },
+        format!(
+            "https://{endpoint_host}/oembed.json?url={}",
+            url::form_urlencoded::byte_serialize(source_url.as_bytes()).collect::<String>()
+        ),
+    ))
+}
+
+/// What a provider's oEmbed endpoint told us about a saved video page.
+struct VideoOEmbed {
+    provider_label: &'static str,
+    title: Option<String>,
+    author: Option<String>,
+}
+
+/// Title and author for a saved video page, or None when the host is not a
+/// known video provider. Enrichment only: the capture is already stored either
+/// way, so a missing or blocked endpoint is not an error.
+fn fetch_video_oembed(source_url: &str) -> Option<VideoOEmbed> {
+    let (provider_label, endpoint) = video_oembed_endpoint(source_url)?;
+    let metadata = crate::http_fetch::fetch_public_json(&endpoint, MAX_OEMBED_BYTES).ok()?;
+    let text = |key: &str| {
+        metadata
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    };
+    Some(VideoOEmbed {
+        provider_label,
+        title: text("title"),
+        author: text("author_name"),
+    })
+}
+
+fn oembed_queue() -> &'static SyncSender<OEmbedJob> {
+    OEMBED_QUEUE.get_or_init(|| {
+        let (sender, receiver) = sync_channel::<OEmbedJob>(OEMBED_QUEUE_CAPACITY);
+        let receiver = Arc::new(Mutex::new(receiver));
+        for _ in 0..OEMBED_WORKERS {
+            let receiver = Arc::clone(&receiver);
+            let _ = std::thread::Builder::new()
+                .name("video-oembed".into())
+                .spawn(move || loop {
+                    let job = {
+                        let receiver = receiver.lock().unwrap_or_else(|error| error.into_inner());
+                        receiver.recv()
+                    };
+                    let Ok(job) = job else { break };
+                    let Some(oembed) = fetch_video_oembed(&job.source_url) else {
+                        continue;
+                    };
+                    let description = Some(match &oembed.author {
+                        Some(author) => format!("{} · {author}", oembed.provider_label),
+                        None => format!("{} video", oembed.provider_label),
+                    });
+                    let storage_state: State<'_, crate::storage::StorageState> = job.app.state();
+                    let Ok(guard) = storage_state.lock() else {
+                        continue;
+                    };
+                    let Some(storage) = guard.as_ref() else {
+                        continue;
+                    };
+                    let _ = storage.apply_video_oembed(
+                        &job.item_id,
+                        oembed.title.as_deref(),
+                        description.as_deref(),
+                    );
+                });
+        }
+        sender
+    })
+}
+
+fn enqueue_video_oembed(app: &AppHandle, item_id: &str, source_url: String) {
+    // Best effort: a full queue or a provider without oEmbed just leaves the
+    // capture with the title the extension already sent.
+    let _ = oembed_queue().try_send(OEmbedJob {
+        app: app.clone(),
+        item_id: item_id.to_owned(),
+        source_url,
+    });
+}
+
+/// Capture rejection: the status reaches the extension and the message says
+/// why. A failed upstream download must not report itself as unavailable
+/// storage, so fetch failures carry their own reason.
+fn unavailable() -> (u16, String) {
+    (503, "storage-unavailable".to_owned())
+}
+
+fn store_validated_capture(
+    app: &AppHandle,
+    input: ValidatedCapture,
+) -> Result<String, (u16, String)> {
+    match input {
+        ValidatedCapture::Page(input) => store_capture(app, input),
+        ValidatedCapture::Quote {
+            body,
+            attribution,
+            source_url,
+        } => {
+            let storage_state: State<'_, crate::storage::StorageState> = app.state();
+            let guard = storage_state.lock().map_err(|_| unavailable())?;
+            let storage = guard.as_ref().ok_or_else(unavailable)?;
+            let item = storage
+                .create_quote(crate::storage::CreateQuoteInput {
+                    body,
+                    attribution,
+                    source_url: Some(source_url),
+                    metadata: Some(serde_json::json!({ "origin": "browser-extension" })),
+                })
+                .map_err(|_| unavailable())?;
+            drop(guard);
+            enqueue_item_processing(app, &item);
+            Ok(item.id)
+        }
+        ValidatedCapture::Image { image_url } => {
+            // The reason travels back to the extension: an image host that
+            // refuses the fetch, answers a non-image content type, or exceeds
+            // the size cap are three very different user problems. 502, not 422:
+            // the request was well formed, the upstream host is what failed.
+            let (bytes, mime_type) = crate::http_fetch::download_public_image(&image_url)
+                .map_err(|reason| (502u16, reason))?;
+            let file_name = url::Url::parse(&image_url)
+                .ok()
+                .and_then(|url| {
+                    url.path_segments()
+                        .and_then(|mut segments| segments.rfind(|segment| !segment.is_empty()))
+                        .map(str::to_owned)
+                })
+                .filter(|name| name.len() <= 180)
+                .unwrap_or_else(|| "image".to_owned());
+            let storage_state: State<'_, crate::storage::StorageState> = app.state();
+            let guard = storage_state.lock().map_err(|_| unavailable())?;
+            let storage = guard.as_ref().ok_or_else(unavailable)?;
+            let item = storage
+                .save_file(crate::storage::SaveFileInput {
+                    id: None,
+                    file_name,
+                    mime_type: Some(mime_type),
+                    kind: Some("image".into()),
+                    bytes,
+                })
+                .map_err(|_| unavailable())?;
+            drop(guard);
+            enqueue_item_processing(app, &item);
+            Ok(item.id)
+        }
+        ValidatedCapture::Video { source_url, title } => {
+            let id = store_capture(app, video_capture_input(source_url.clone(), title))?;
+            // The card already renders the provider embed; oEmbed only sharpens
+            // the title and adds the author line, so it runs after the response.
+            enqueue_video_oembed(app, &id, source_url);
+            Ok(id)
+        }
+    }
+}
+
+/// Row and enrichment baseline for a video capture.
+///
+/// `create_url` titles an untitled capture with the source hostname, so the
+/// baseline has to name that same value. Recording a bare `null` instead made
+/// storage read the hostname as a user edit and skip the provider title, so an
+/// untitled capture stayed stuck on "vimeo.com".
+fn video_capture_input(
+    source_url: String,
+    title: Option<String>,
+) -> crate::storage::CreateUrlInput {
+    let title = title.or_else(|| {
+        let hostname = source_hostname(&source_url);
+        (!hostname.is_empty()).then_some(hostname)
+    });
+    let baseline = crate::storage::VideoOembedBaseline {
+        title: title.clone(),
+        description: None,
+    };
+    crate::storage::CreateUrlInput {
+        source_url,
+        title,
+        description: None,
+        body: String::new(),
+        metadata: Some(serde_json::json!({
+            "origin": "browser-extension",
+            "sourceKind": "video",
+            "oEmbedBaseline": baseline,
+        })),
+    }
+}
+
 /// Capture creates the item immediately (same rule as every other capture
 /// path); embeddings and indexing follow on the persisted job queue.
-fn store_capture(app: &AppHandle, input: crate::storage::CreateUrlInput) -> Result<String, u16> {
+fn store_capture(
+    app: &AppHandle,
+    input: crate::storage::CreateUrlInput,
+) -> Result<String, (u16, String)> {
     let storage_state: State<'_, crate::storage::StorageState> = app.state();
-    let processing: State<'_, crate::jobs::ProcessingState> = app.state();
-    let guard = storage_state.lock().map_err(|_| 503u16)?;
-    let storage = guard.as_ref().ok_or(503u16)?;
-    let item = storage.create_url(input).map_err(|_| 503u16)?;
-    let _ = crate::jobs::enqueue_embedding_for_item(&storage.connection, &item.id);
+    let guard = storage_state.lock().map_err(|_| unavailable())?;
+    let storage = guard.as_ref().ok_or_else(unavailable)?;
+    let item = storage.create_url(input).map_err(|_| unavailable())?;
     let id = item.id.clone();
+    let favicon = item
+        .metadata
+        .get("favicon")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
     drop(guard);
-    processing.enqueue_and_wake(&id, crate::jobs::JobKind::GenerateEmbedding);
+    // Same helper as the quote and image arms: it writes the job rows and only
+    // wakes the worker for rows that landed.
+    enqueue_item_processing(app, &item);
+    if let Some(url) = favicon {
+        enqueue_favicon_cache(app, &id, url);
+    }
     Ok(id)
 }
 
@@ -1053,12 +1621,37 @@ pub fn start_capture_server(app: &AppHandle) {
         .lock()
         .unwrap_or_else(|e| e.into_inner()) = token;
 
-    let listener = match TcpListener::bind(("127.0.0.1", 0)) {
-        Ok(listener) => listener,
-        Err(error) => {
-            eprintln!("capture server unavailable: {error}");
-            return;
-        }
+    // Prefer the last successful port so the extension's stored base URL
+    // survives restarts.
+    //
+    // If that port is now taken by something else, do NOT move to a new one.
+    // The extension would keep posting the bearer token to the stale address
+    // and hand it to whatever is listening there, and captures would fail
+    // anyway. Refusing to start is the safe outcome: pairing reports "not
+    // running" and the user re-pairs against the new address. A first run has
+    // no stored port, so an ephemeral bind is correct there.
+    let listener = match load_preferred_port(app) {
+        None => match TcpListener::bind(("127.0.0.1", 0)) {
+            Ok(listener) => listener,
+            Err(error) => {
+                eprintln!("capture server unavailable: {error}");
+                return;
+            }
+        },
+        Some(preferred) => match TcpListener::bind(("127.0.0.1", preferred)) {
+            Ok(listener) => listener,
+            Err(error) => {
+                eprintln!(
+                    "capture server unavailable: port {preferred} is in use ({error}); \
+                     refusing to move so the extension cannot post the pairing token to it"
+                );
+                // Forget the stale port so the next launch can bind a fresh one.
+                // Settings then shows that new address to copy into the
+                // extension, which is the only step that can safely re-pair.
+                forget_preferred_port(app);
+                return;
+            }
+        },
     };
     let port = listener.local_addr().map(|addr| addr.port()).unwrap_or(0);
     if port == 0 {
@@ -1066,9 +1659,11 @@ pub fn start_capture_server(app: &AppHandle) {
         return;
     }
     *state.port.lock().unwrap_or_else(|e| e.into_inner()) = Some(port);
+    persist_port(app, port);
 
     let app = app.clone();
-    let _ = std::thread::Builder::new()
+    let serving = app.clone();
+    if std::thread::Builder::new()
         .name("capture-server".into())
         .spawn(move || {
             for stream in listener.incoming() {
@@ -1083,7 +1678,7 @@ pub fn start_capture_server(app: &AppHandle) {
                         if !loopback {
                             continue;
                         }
-                        let app = app.clone();
+                        let app = serving.clone();
                         let _ = std::thread::Builder::new()
                             .name("capture-server-conn".into())
                             .spawn(move || handle_connection(stream, app));
@@ -1093,7 +1688,16 @@ pub fn start_capture_server(app: &AppHandle) {
                     }
                 }
             }
-        });
+        })
+        .is_err()
+    {
+        // Nothing is listening, so `port` must not claim otherwise: the same
+        // lie would have the extension post the pairing token into the void.
+        *state.port.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        forget_preferred_port(&app);
+        eprintln!("capture server unavailable: could not start the listener thread");
+        return;
+    }
     // Port (not token) is safe to note: it is ephemeral and useless without
     // the bearer credential.
     eprintln!("capture server listening on 127.0.0.1:{port}");
@@ -1106,6 +1710,48 @@ pub fn get_capture_status(state: State<'_, CaptureServerState>) -> CaptureStatus
         running: port.is_some(),
         port: *port,
         health_url: port.map(|port| format!("http://127.0.0.1:{port}{HEALTH_PATH}")),
+        base_url: port.map(|port| format!("http://127.0.0.1:{port}")),
+    }
+}
+
+/// Async because the health probe is a blocking connect plus read with a 2s
+/// timeout. Loopback and user-triggered, so the freeze is short — but it is
+/// still a freeze, and the Test connection button is the wrong place to meet one.
+#[tauri::command(async)]
+pub fn test_capture_connection(state: State<'_, CaptureServerState>) -> Result<(), String> {
+    let port = state
+        .port
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .ok_or_else(|| "capture receiver is not running".to_owned())?;
+    let token = state
+        .pairing_token
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    let mut stream = TcpStream::connect(("127.0.0.1", port))
+        .map_err(|error| format!("receiver connection failed: {error}"))?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .map_err(|error| format!("receiver timeout setup failed: {error}"))?;
+    let request = format!(
+        "GET {HEALTH_PATH} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n"
+    );
+    stream
+        .write_all(request.as_bytes())
+        .map_err(|error| format!("receiver request failed: {error}"))?;
+    let mut response = String::new();
+    stream
+        .read_to_string(&mut response)
+        .map_err(|error| format!("receiver response failed: {error}"))?;
+    if response.starts_with("HTTP/1.1 200") {
+        Ok(())
+    } else {
+        Err(response
+            .lines()
+            .next()
+            .unwrap_or("receiver returned an invalid response")
+            .to_owned())
     }
 }
 
@@ -1162,6 +1808,41 @@ mod tests {
     }
 
     #[test]
+    fn tauri_origins_reject_ports_outside_the_valid_range() {
+        // Digit-only checks let `https://tauri.localhost:99999` through, which
+        // is not a port any browser would ever present.
+        assert!(origin_allowed(Some("https://tauri.localhost")));
+        assert!(origin_allowed(Some("https://tauri.localhost:1420")));
+        assert!(!origin_allowed(Some("https://tauri.localhost:99999")));
+        assert!(!origin_allowed(Some("https://tauri.localhost:0")));
+        assert!(!origin_allowed(Some("https://tauri.localhost:")));
+        assert!(!origin_allowed(Some("https://tauri.localhost:80a")));
+        assert!(!origin_allowed(Some("https://tauri.localhost.evil.com")));
+    }
+
+    #[test]
+    fn storage_failures_and_fetch_failures_report_different_reasons() {
+        // The extension shows this message verbatim, so an image host that
+        // refuses the fetch must not be reported as unavailable storage.
+        let (status, message) = unavailable();
+        assert_eq!(status, 503);
+        assert_eq!(message, "storage-unavailable");
+    }
+
+    #[test]
+    fn image_captures_reject_data_urls_and_non_http_sources() {
+        let data_url = br#"{"kind":"image","pageUrl":"https://example.com","srcUrl":"https://example.com/a.png","dataUrl":"data:image/png;base64,AAAA"}"#;
+        assert!(validate_capture_payload(data_url)
+            .unwrap_err()
+            .contains("data URL"));
+
+        let blob = br#"{"kind":"image","pageUrl":"https://example.com","srcUrl":"blob:https://example.com/abc"}"#;
+        assert!(validate_capture_payload(blob)
+            .unwrap_err()
+            .contains("only HTTP and HTTPS"));
+    }
+
+    #[test]
     fn bearer_tokens_must_match_exactly() {
         let h = headers(&[("Authorization", "Bearer abc123")]);
         assert_eq!(bearer_token(&h), Some("abc123"));
@@ -1192,14 +1873,23 @@ mod tests {
         }
         for denied in [
             Some("https://example.com"),
-            Some("http://localhost:3000"),
             Some("http://127.0.0.1:1420"),
             Some("file://"),
             Some("nullified"),
             Some("chrome-extension-fake://x"),
+            Some("https://tauri.localhost.evil.com"),
+            Some("http://tauri.localhost.evil.com"),
+            Some("https://tauri.localhost.evil.com/path"),
+            Some("https://not-tauri.localhost"),
         ] {
             assert!(!origin_allowed(denied), "should deny {denied:?}");
         }
+        // Non-default port on the real host is still the Tauri origin.
+        assert!(origin_allowed(Some("https://tauri.localhost:4433")));
+        assert!(origin_allowed(Some("http://tauri.localhost:8080")));
+        // Scheme-relative / userinfo tricks must not pass.
+        assert!(!origin_allowed(Some("https://tauri.localhost:4433x")));
+        assert!(!origin_allowed(Some("https://user:pass@tauri.localhost")));
     }
 
     #[test]
@@ -1231,7 +1921,11 @@ mod tests {
             "publishedDate": "2026-01-02T00:00:00Z",
             "imageUrls": ["https://example.com/img.jpg", "javascript:evil()", "https://example.com/img.jpg"],
         });
-        let input = validate_capture_payload(&serde_json::to_vec(&good).unwrap()).unwrap();
+        let ValidatedCapture::Page(input) =
+            validate_capture_payload(&serde_json::to_vec(&good).unwrap()).unwrap()
+        else {
+            panic!("expected page capture")
+        };
         assert_eq!(input.source_url, "https://example.com/article");
         assert_eq!(input.title.as_deref(), Some("A quiet page"));
         let metadata = input.metadata.as_ref().unwrap();
@@ -1252,7 +1946,11 @@ mod tests {
             "url": "https://www.example.com/post",
             "title": "  ", "defuddledHtml": "", "text": "words",
         });
-        let input = validate_capture_payload(&serde_json::to_vec(&blank_title).unwrap()).unwrap();
+        let ValidatedCapture::Page(input) =
+            validate_capture_payload(&serde_json::to_vec(&blank_title).unwrap()).unwrap()
+        else {
+            panic!("expected page capture")
+        };
         assert_eq!(input.title.as_deref(), Some("www.example.com"));
 
         // Overlong titles truncate; wrong version/kind/URL shapes reject.
@@ -1261,7 +1959,11 @@ mod tests {
             "url": "https://example.com/", "title": "t".repeat(600),
             "defuddledHtml": "", "text": "",
         });
-        let input = validate_capture_payload(&serde_json::to_vec(&long_title).unwrap()).unwrap();
+        let ValidatedCapture::Page(input) =
+            validate_capture_payload(&serde_json::to_vec(&long_title).unwrap()).unwrap()
+        else {
+            panic!("expected page capture")
+        };
         assert_eq!(input.title.as_deref().unwrap().len(), 500);
 
         for bad in [
@@ -1277,6 +1979,122 @@ mod tests {
         }
 
         assert!(validate_capture_payload(b"not json").is_err());
+    }
+
+    #[test]
+    fn media_capture_payloads_validate_without_deep_links() {
+        let selection = serde_json::json!({
+            "kind": "selection",
+            "sourceUrl": "https://example.com/article",
+            "selectedHtml": "<p>kept</p>",
+            "selectedText": "kept text",
+            "title": "Example",
+        });
+        let ValidatedCapture::Quote {
+            body,
+            attribution,
+            source_url,
+        } = validate_capture_payload(&serde_json::to_vec(&selection).unwrap()).unwrap()
+        else {
+            panic!("expected selection capture")
+        };
+        assert_eq!(body, "kept text");
+        assert_eq!(attribution.as_deref(), Some("Example"));
+        assert_eq!(source_url, "https://example.com/article");
+
+        let image = serde_json::json!({
+            "kind": "image",
+            "pageUrl": "https://example.com/gallery",
+            "srcUrl": "https://cdn.example.com/photo.jpg",
+            "alt": "A photo",
+        });
+        let ValidatedCapture::Image { image_url } =
+            validate_capture_payload(&serde_json::to_vec(&image).unwrap()).unwrap()
+        else {
+            panic!("expected image capture")
+        };
+        assert_eq!(image_url, "https://cdn.example.com/photo.jpg");
+
+        // An over-long alt is still rejected at the boundary.
+        let long_alt = serde_json::json!({
+            "kind": "image",
+            "pageUrl": "https://example.com/gallery",
+            "srcUrl": "https://cdn.example.com/photo.jpg",
+            "alt": "x".repeat(300),
+        });
+        assert!(
+            validate_capture_payload(&serde_json::to_vec(&long_alt).unwrap())
+                .unwrap_err()
+                .contains("alt")
+        );
+
+        let video = serde_json::json!({
+            "kind": "video",
+            "sourceUrl": "https://www.youtube.com/watch?v=abc",
+            "title": "How capture works - YouTube",
+        });
+        let ValidatedCapture::Video { source_url, title } =
+            validate_capture_payload(&serde_json::to_vec(&video).unwrap()).unwrap()
+        else {
+            panic!("expected video capture")
+        };
+        assert_eq!(source_url, "https://www.youtube.com/watch?v=abc");
+        assert_eq!(title.as_deref(), Some("How capture works - YouTube"));
+
+        let untitled = serde_json::json!({
+            "kind": "video",
+            "sourceUrl": "https://vimeo.com/12345",
+        });
+        let ValidatedCapture::Video { title, .. } =
+            validate_capture_payload(&serde_json::to_vec(&untitled).unwrap()).unwrap()
+        else {
+            panic!("expected video capture")
+        };
+        assert_eq!(title, None);
+    }
+
+    #[test]
+    fn video_oembed_endpoints_cover_the_embed_allowlist() {
+        let (label, endpoint) =
+            video_oembed_endpoint("https://www.youtube.com/watch?v=abc12345678").unwrap();
+        assert_eq!(label, "YouTube");
+        assert!(endpoint.starts_with("https://www.youtube.com/oembed.json?url="));
+        // The watch URL must survive as a query value, not as raw path bytes.
+        assert!(endpoint.contains("watch%3Fv%3Dabc12345678"));
+
+        assert_eq!(
+            video_oembed_endpoint("https://youtu.be/abc12345678")
+                .unwrap()
+                .0,
+            "YouTube"
+        );
+        let (label, endpoint) = video_oembed_endpoint("https://vimeo.com/12345678901").unwrap();
+        assert_eq!(label, "Vimeo");
+        assert!(endpoint.starts_with("https://vimeo.com/oembed.json?url="));
+
+        // Not a video page, or a host that only looks like one.
+        assert!(video_oembed_endpoint("https://example.com/watch?v=abc").is_none());
+        assert!(video_oembed_endpoint("https://youtube.com.evil.test/watch").is_none());
+        assert!(video_oembed_endpoint("not a url").is_none());
+    }
+
+    #[test]
+    fn clean_favicon_keeps_only_absolute_http_urls() {
+        assert_eq!(
+            clean_favicon(Some("  https://example.com/favicon.ico  ".into())),
+            Some("https://example.com/favicon.ico".into())
+        );
+        assert_eq!(
+            clean_favicon(Some("http://example.com/icon.png".into())),
+            Some("http://example.com/icon.png".into())
+        );
+        assert_eq!(clean_favicon(Some("".into())), None);
+        assert_eq!(clean_favicon(Some("   ".into())), None);
+        assert_eq!(clean_favicon(None), None);
+        assert_eq!(clean_favicon(Some("data:image/png;base64,xx".into())), None);
+        assert_eq!(clean_favicon(Some("javascript:alert(1)".into())), None);
+        assert_eq!(clean_favicon(Some("/favicon.ico".into())), None);
+        assert_eq!(clean_favicon(Some("not a url".into())), None);
     }
 
     #[test]
@@ -1339,6 +2157,19 @@ mod tests {
     }
 
     #[test]
+    fn preferred_port_parses_only_nonzero_u16() {
+        // Mirrors load_preferred_port's parse rules without touching the disk.
+        let parse = |raw: &str| raw.trim().parse::<u16>().ok().filter(|port| *port != 0);
+        assert_eq!(parse("53176"), Some(53176));
+        assert_eq!(parse(" 53176\n"), Some(53176));
+        assert_eq!(parse("0"), None);
+        assert_eq!(parse(""), None);
+        assert_eq!(parse("not-a-port"), None);
+        assert_eq!(parse("65536"), None);
+        assert_eq!(parse("-1"), None);
+    }
+
+    #[test]
     fn rate_limiter_caps_a_burst_then_recovers() {
         let state = CaptureServerState::default();
         for _ in 0..RATE_LIMIT_MAX {
@@ -1353,6 +2184,14 @@ mod tests {
             .iter_mut()
             .for_each(|t| *t -= RATE_LIMIT_WINDOW + Duration::from_secs(1));
         assert!(check_rate_limit(&state));
+    }
+
+    #[test]
+    fn preflight_allows_private_network_requests() {
+        let headers = preflight_cors_headers(Some("chrome-extension://abc"));
+        assert!(headers.iter().any(|(name, value)| {
+            *name == "Access-Control-Allow-Private-Network" && value == "true"
+        }));
     }
 
     #[test]
@@ -1375,6 +2214,147 @@ mod tests {
         assert!(parse_head("GARBAGE\r\n\r\n").is_err());
         assert!(parse_head("GET /no-version\r\n\r\n").is_err());
         assert!(parse_head("GET /x HTTP/1.1\r\nno-colon\r\n\r\n").is_err());
+    }
+
+    #[test]
+    fn video_capture_baselines_name_the_title_the_row_really_gets() {
+        // `create_url` titles an untitled capture with the hostname, so the
+        // baseline has to say so too. Recorded as `null`, storage read the
+        // hostname as a user edit and the provider title was never applied.
+        let untitled = video_capture_input("https://vimeo.com/12345".into(), None);
+        assert_eq!(untitled.title.as_deref(), Some("vimeo.com"));
+        assert_eq!(
+            untitled.metadata.as_ref().unwrap()["oEmbedBaseline"]["title"],
+            "vimeo.com"
+        );
+
+        let titled = video_capture_input(
+            "https://vimeo.com/12345".into(),
+            Some("How it works".into()),
+        );
+        assert_eq!(titled.title.as_deref(), Some("How it works"));
+        assert_eq!(
+            titled.metadata.as_ref().unwrap()["oEmbedBaseline"]["title"],
+            "How it works"
+        );
+    }
+
+    #[test]
+    fn an_untitled_video_capture_still_gets_the_provider_title() {
+        // End to end through storage: capture, then the background oEmbed
+        // landing. Before the baseline named the hostname, enrichment skipped
+        // and the card stayed titled "vimeo.com".
+        let directory =
+            std::env::temp_dir().join(format!("inkling-video-baseline-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let storage = crate::storage::LibraryStorage::open(directory.join("library.sqlite3"))
+            .expect("open a scratch library");
+
+        let stored = storage
+            .create_url(video_capture_input("https://vimeo.com/12345".into(), None))
+            .unwrap();
+        assert_eq!(stored.title.as_deref(), Some("vimeo.com"));
+
+        storage
+            .apply_video_oembed(
+                &stored.id,
+                Some("How capture works"),
+                Some("Vimeo · inkling"),
+            )
+            .unwrap();
+        let enriched = storage.get_item(&stored.id).unwrap().unwrap();
+        assert_eq!(
+            enriched.title.as_deref(),
+            Some("How capture works"),
+            "an untouched hostname fallback must not block enrichment"
+        );
+        assert_eq!(enriched.description.as_deref(), Some("Vimeo · inkling"));
+
+        drop(storage);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn an_untitled_video_capture_still_lets_a_rename_win() {
+        // The other half of the contract: naming the hostname as the baseline
+        // must not turn the fallback into a licence to overwrite a real edit.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-video-baseline-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let storage = crate::storage::LibraryStorage::open(directory.join("library.sqlite3"))
+            .expect("open a scratch library");
+
+        let stored = storage
+            .create_url(video_capture_input("https://vimeo.com/12345".into(), None))
+            .unwrap();
+        // The rename a user would make: only the title column changes, which is
+        // what `apply_video_oembed` compares against the baseline.
+        storage
+            .connection
+            .execute(
+                "UPDATE items SET title = 'My own name' WHERE id = ?1",
+                [&stored.id],
+            )
+            .unwrap();
+
+        storage
+            .apply_video_oembed(&stored.id, Some("How capture works"), None)
+            .unwrap();
+        let enriched = storage.get_item(&stored.id).unwrap().unwrap();
+        assert_eq!(enriched.title.as_deref(), Some("My own name"));
+
+        drop(storage);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn scrubber_drops_schemes_hidden_behind_character_references() {
+        // The reader renders stored HTML, and no `sanitizeHtml` pass runs on
+        // this path, so the receiver scrub is the only gate. The HTML parser
+        // decodes attribute values, which turns these into live URLs.
+        let dirty = concat!(
+            "<a href=\"javascript&colon;alert(1)\">named</a>",
+            "<a href=\"javascript&#58;alert(1)\">decimal</a>",
+            "<a href=\"javascript&#x3a;alert(1)\">hex</a>",
+            "<a href=\"javascript&#0000058alert(1)\">padded</a>",
+            "<img src=\"data&colon;image/png;base64,AAAA\">",
+        );
+        let clean = scrub_extension_html(dirty, "https://example.com/article");
+        for value in ["&colon;", "&#58;", "&#x3a;", "data&colon"] {
+            assert!(
+                !clean.contains(value),
+                "scrubbed output still carries {value:?}: {clean}"
+            );
+        }
+        // Ordinary links, including one whose query uses an encoded ampersand
+        // after the scheme, are untouched.
+        let kept = scrub_extension_html(
+            concat!(
+                "<a href=\"https://example.com/a?x=1&amp;y=2\">abs</a>",
+                "<a href=\"/relative?x=1&y=2\">rel</a>",
+            ),
+            "https://example.com/article",
+        );
+        assert!(kept.contains("https://example.com/a?x=1&amp;y=2"));
+        assert!(kept.contains("/relative?x=1&y=2"));
+    }
+
+    #[test]
+    fn only_references_that_can_introduce_a_colon_are_decoded() {
+        // `&colon;` and every spelling of numeric 58 are the only references
+        // that can turn a relative-looking value into a scheme.
+        assert!(encodes_colon_at("a&colon;b", 1));
+        assert!(encodes_colon_at("a&#58;b", 1));
+        assert!(encodes_colon_at("a&#X3A;b", 1));
+        assert!(encodes_colon_at("a&#0000058b", 1));
+        for value in [
+            "a&amp;b", "a&b=2", "a&", "a&#;", "a&#x;", "a&#59;", "a&colon",
+        ] {
+            assert!(
+                !encodes_colon_at(value, 1),
+                "{value} must not read as a scheme separator"
+            );
+        }
     }
 
     #[test]

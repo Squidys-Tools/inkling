@@ -1,35 +1,38 @@
-// Ephemeral dispatcher: no module-level mutable state (the service worker may
-// be killed between invocations). Every save re-resolves the tab, injects on
-// invoke (activeTab only — no <all_urls>, no persistent content scripts), and
-// persists before navigating: the full v1 payload goes to chrome.storage.local
-// FIRST, then the deep link fires. If the app is closed the tab navigation
-// fails but nothing is lost — the queue survives for the Phase 2 loopback
-// flush (see transport.ts postPayloadToLoopback).
+// Ephemeral dispatcher: nothing here survives between invocations (the service
+// worker may be killed mid-save), so every save re-resolves the tab and
+// injects what it needs on invoke under activeTab (the extractors for a page
+// save, the collector for a context-menu selection/image/video). Nothing runs
+// on pages the user never captures from. The full v1 payload is persisted before
+// delivery over loopback; if the app is closed or not paired, it stays queued
+// for a later flush.
 import browser from "webextension-polyfill";
 import {
   isPageCapturePayload,
   type PageCapturePayloadV1,
 } from "@inkling/ingestion-shared";
-import { trimCaptureQueue } from "./capture-queue";
-import { buildCaptureDeepLink, postPayloadToLoopback } from "./transport";
+import { QUEUE_KEY, enqueue, readQueue, withQueueLock } from "./capture-queue-store";
+import { captureQueueEntryKey, removeSettledCaptureEntries } from "./capture-queue";
+import { isPermanentCaptureError, postPayloadToLoopback } from "./transport";
 import {
   INKLING_MENU_SAVE_IMAGE,
   INKLING_MENU_SAVE_SELECTION,
   INKLING_MENU_SAVE_VIDEO,
   isCaptureMessage,
-  payloadToDeepLink,
+  type ExtensionCapturePayload,
 } from "./payload";
 
-// Emitted at dist/ root by vite.content-main/isolated.config.ts — keep in sync.
+// Emitted at dist/ root by vite.content-main/isolated/collect.config.ts — keep
+// in sync.
 const CONTENT_MAIN_FILE = "content-main.js";
 const CONTENT_ISOLATED_FILE = "content-isolated.js";
+const CONTENT_COLLECT_FILE = "content-collect.js";
 
-const QUEUE_KEY = "inkling:pending-captures-v1";
 const LAST_STATUS_KEY = "inkling:last-save-status";
 // Same keys the options page writes; the token never leaves the machine
 // except to the app on loopback.
 const TOKEN_KEY = "inkling.token";
 const BASE_URL_KEY = "inkling.base-url";
+type LoopbackCapturePayload = PageCapturePayloadV1 | ExtensionCapturePayload;
 
 export interface SaveStatus {
   state: "saved" | "queued" | "failed";
@@ -38,47 +41,65 @@ export interface SaveStatus {
   at: string;
 }
 
-async function readQueue(): Promise<PageCapturePayloadV1[]> {
-  const stored = await browser.storage.local.get(QUEUE_KEY);
-  const raw = stored[QUEUE_KEY];
-  if (!Array.isArray(raw)) return [];
-  return raw.filter(isPageCapturePayload);
-}
-
-async function enqueue(payload: PageCapturePayloadV1): Promise<number> {
-  const queue = await readQueue();
-  queue.push(payload);
-  // Count + byte budget first so a full queue cannot blow the ~10MB local
-  // quota; if other keys still push the write over, drop oldest until it fits.
-  trimCaptureQueue(queue);
-  for (;;) {
-    try {
-      await browser.storage.local.set({ [QUEUE_KEY]: queue });
-      return queue.length;
-    } catch {
-      if (queue.length <= 1) return queue.length;
-      queue.shift();
-      trimCaptureQueue(queue);
-    }
-  }
+/**
+ * A menu click or a keyboard shortcut has no caller waiting on the result, and
+ * an unhandled rejection in a service worker is how a save vanishes with no
+ * status and no queue entry. Every fire-and-forget path goes through here;
+ * paths with a caller await it and report their own failures.
+ *
+ * `unknown` because contextMenus.create is typed as returning the raw menu id
+ * while the polyfill hands back a promise: Promise.resolve passes a promise
+ * through unchanged and neutralizes anything else.
+ */
+function fireAndForget(work: unknown): void {
+  void Promise.resolve(work).catch(() => undefined);
 }
 
 async function writeStatus(status: SaveStatus): Promise<void> {
   await browser.storage.local.set({ [LAST_STATUS_KEY]: status });
 }
 
-async function injectExtractor(tabId: number): Promise<unknown> {
+export async function injectExtractor(tabId: number): Promise<unknown> {
   await browser.scripting.executeScript({
     target: { tabId },
     files: [CONTENT_MAIN_FILE],
     world: "MAIN",
   });
-  const results = await browser.scripting.executeScript({
+  await browser.scripting.executeScript({
     target: { tabId },
     files: [CONTENT_ISOLATED_FILE],
     world: "ISOLATED",
   });
-  return results[0]?.result;
+  // The isolated world parks the extraction promise on its own globalThis. That
+  // world is not reachable from the page, so this is the only channel a capture
+  // travels over.
+  //
+  // There is deliberately no DOM fallback. The page shares the DOM, so a result
+  // published there could be planted by the page to forge a capture; a nonce
+  // handshake would narrow that window without closing it, because the page can
+  // read the node as soon as it appears. A page that cannot reach the isolated
+  // world gets a plain extraction failure instead.
+  let result: unknown;
+  try {
+    const results = await browser.scripting.executeScript({
+      target: { tabId },
+      world: "ISOLATED",
+      func: () => {
+        const host = globalThis as { __inklingExtractPayloadPromise?: Promise<unknown> };
+        const pending = host.__inklingExtractPayloadPromise;
+        delete host.__inklingExtractPayloadPromise;
+        return pending;
+      },
+    });
+    result = results[0]?.result;
+  } catch (error) {
+    // The injected func returns the extraction promise, so a rejected
+    // extraction surfaces here. Report the extractor's own reason rather than
+    // a generic failure, so the popup says what actually went wrong.
+    throw new Error(error instanceof Error ? error.message : "page extraction failed");
+  }
+  if (isPageCapturePayload(result)) return result;
+  throw new Error("extractor returned no result");
 }
 
 async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } | null> {
@@ -89,43 +110,102 @@ async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } 
   return { baseUrl, token };
 }
 
+/** Delivery outcome for one capture attempt. */
+type DeliveryOutcome = { delivered: true } | { delivered: false; reason: string; permanent: boolean };
+
 /**
- * Loopback-first delivery: POST the v1 payload to the app's capture server
- * (`POST {baseUrl}/v1/captures`, per-install bearer). Returns true on 201.
- * Any failure (unpaired, app closed, network) falls through to the deep-link
- * path so capture never depends on pairing.
+ * POST a capture once and report whether the failure is worth retrying. Callers
+ * must decide from `permanent` rather than re-POSTing to find out: a second
+ * attempt cannot change the app's answer and only doubles the requests.
  */
-async function tryLoopback(payload: PageCapturePayloadV1): Promise<boolean> {
+async function attemptDelivery(payload: LoopbackCapturePayload): Promise<DeliveryOutcome> {
   const config = await readLoopbackConfig();
-  if (!config) return false;
+  if (!config) return { delivered: false, reason: "pairing is not configured", permanent: false };
   try {
     await postPayloadToLoopback(config.baseUrl, config.token, payload);
-    return true;
-  } catch {
-    return false;
+    return { delivered: true };
+  } catch (error) {
+    return {
+      delivered: false,
+      reason: error instanceof Error ? error.message : String(error),
+      permanent: isPermanentCaptureError(error),
+    };
   }
 }
 
 /** Retry queued payloads against the loopback server; keeps what still fails. */
-export async function flushQueue(): Promise<{ delivered: number; pending: number }> {
+async function flushQueuedCaptures(): Promise<{ delivered: number; pending: number; dropped: number }> {
   const config = await readLoopbackConfig();
-  if (!config) return { delivered: 0, pending: (await readQueue()).length };
-  const queue = await readQueue();
-  const remaining: PageCapturePayloadV1[] = [];
+  // Read under the lock, deliver outside it, settle under it again. Holding the
+  // lock across the POSTs would block every capture enqueued while the app is
+  // slow or hung — the exact case the queue exists for. Nothing is removed from
+  // storage until it settles, so a worker killed mid-flush loses nothing and the
+  // next flush re-reads the whole batch.
+  const batch = await withQueueLock(readQueue);
+  if (!config || batch.length === 0) return { delivered: 0, pending: batch.length, dropped: 0 };
+  const settled = new Set<string>();
   let delivered = 0;
-  for (const payload of queue) {
+  let dropped = 0;
+  for (const payload of batch) {
     try {
       await postPayloadToLoopback(config.baseUrl, config.token, payload);
       delivered += 1;
-    } catch {
-      remaining.push(payload);
+    } catch (error) {
+      // A capture the app refuses on its merits will be refused identically on
+      // every retry. Keeping it would delay every later save behind it for no
+      // possible gain.
+      if (!isPermanentCaptureError(error)) continue;
+      dropped += 1;
     }
+    settled.add(captureQueueEntryKey(payload));
   }
-  await browser.storage.local.set({ [QUEUE_KEY]: remaining });
-  return { delivered, pending: remaining.length };
+  const pending = await withQueueLock(async () => {
+    const queue = await readQueue();
+    // Nothing settled — the app is closed or refusing for now. Rewriting an
+    // unchanged queue on every save would be storage churn for no reason.
+    if (settled.size === 0) return queue.length;
+    removeSettledCaptureEntries(queue, settled);
+    await browser.storage.local.set({ [QUEUE_KEY]: queue });
+    return queue.length;
+  });
+  return { delivered, pending, dropped };
+}
+
+// One flush at a time. Two concurrent flushes would deliver the same batch
+// twice. Deliberately not persisted: if the worker dies mid-flush the next flush
+// simply re-reads the whole queue.
+let flushInFlight: Promise<{ delivered: number; pending: number; dropped: number }> | null = null;
+
+export function flushQueue(): Promise<{ delivered: number; pending: number; dropped: number }> {
+  flushInFlight ??= flushQueuedCaptures().finally(() => {
+    flushInFlight = null;
+  });
+  return flushInFlight;
+}
+
+/**
+ * A capture the app would not take right now: keep it for the next flush, or
+ * report honestly when local storage has no room left to keep it in.
+ */
+async function keepQueued(
+  payload: LoopbackCapturePayload,
+  reason: string,
+  title?: string,
+): Promise<SaveStatus> {
+  const pending = await enqueue(payload).catch(() => 0);
+  const at = new Date().toISOString();
+  return pending > 0
+    ? { state: "queued", title, detail: `${pending} pending — ${reason}`, at }
+    : {
+        state: "failed",
+        title,
+        detail: `${reason} — the pending queue is full, so it was not kept`,
+        at,
+      };
 }
 
 export async function saveTab(tabId: number): Promise<SaveStatus> {
+  fireAndForget(flushQueue());
   let raw: unknown;
   try {
     raw = await injectExtractor(tabId);
@@ -141,15 +221,17 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
   if (!isPageCapturePayload(raw)) {
     const status: SaveStatus = {
       state: "failed",
-      detail: "page extraction produced no usable content",
+      detail:
+        raw === undefined
+          ? "extractor returned no result"
+          : "page extraction produced no usable content",
       at: new Date().toISOString(),
     };
     await writeStatus(status);
     return status;
   }
-  // Loopback first (rich payload, 201 + id); deep link stays the fallback so
-  // an unpaired or closed app still captures.
-  if (await tryLoopback(raw)) {
+  const outcome = await attemptDelivery(raw);
+  if (outcome.delivered) {
     const status: SaveStatus = {
       state: "saved",
       title: raw.title,
@@ -158,28 +240,13 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
     await writeStatus(status);
     return status;
   }
-  const queued = await enqueue(raw);
-  const deepLink = buildCaptureDeepLink(raw);
-  try {
-    await browser.tabs.create({ url: deepLink });
-    const status: SaveStatus = {
-      state: "saved",
-      title: raw.title,
-      at: new Date().toISOString(),
-    };
-    await writeStatus(status);
-    return status;
-  } catch (error) {
-    // App closed or no protocol handler: payload stays queued for later flush.
-    const status: SaveStatus = {
-      state: "queued",
-      title: raw.title,
-      detail: `${queued} pending (${error instanceof Error ? error.message : "deep link refused"})`,
-      at: new Date().toISOString(),
-    };
-    await writeStatus(status);
-    return status;
-  }
+  // Same rule as a media capture: a rejection the app will repeat is not worth
+  // a queue slot on every future flush.
+  const status: SaveStatus = outcome.permanent
+    ? { state: "failed", title: raw.title, detail: outcome.reason, at: new Date().toISOString() }
+    : await keepQueued(raw, outcome.reason, raw.title);
+  await writeStatus(status);
+  return status;
 }
 
 async function saveActiveTab(): Promise<SaveStatus> {
@@ -196,11 +263,8 @@ async function saveActiveTab(): Promise<SaveStatus> {
   return saveTab(tab.id);
 }
 
-/** Selection/image/video dispatch: the loopback server only takes page
- * payloads, so these travel by deep link (dataUrl never fits a URL and is
- * reported instead of silently dropped). */
-async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<SaveStatus> {
-  void tabId;
+/** Selection/image/video dispatch through the same authenticated local receiver. */
+async function dispatchCapturePayload(payload: unknown): Promise<SaveStatus> {
   const message = { type: "inkling/capture", payload };
   if (!isCaptureMessage(message)) {
     const status: SaveStatus = {
@@ -211,94 +275,155 @@ async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<
     await writeStatus(status);
     return status;
   }
-  const deepLink = payloadToDeepLink(message.payload);
-  if (!deepLink) {
+  // The app downloads http(s) sources itself and honors `dataUrl` for the
+  // blob:/canvas sources it cannot fetch, so both are acceptable. Anything else
+  // — a chrome:// or file: URL the app has no way to read — is not, and would
+  // come back as a 422 the user cannot act on.
+  if (
+    message.payload.kind === "image"
+    && !/^https?:\/\//iu.test(message.payload.srcUrl)
+    && !message.payload.dataUrl
+  ) {
     const status: SaveStatus = {
       state: "failed",
-      detail: "this capture needs the paired app (open inkling once, then retry)",
+      detail: "image captures require an http(s) image URL",
       at: new Date().toISOString(),
     };
     await writeStatus(status);
     return status;
   }
-  try {
-    await browser.tabs.create({ url: deepLink });
+  const outcome = await attemptDelivery(message.payload);
+  if (outcome.delivered) {
     const status: SaveStatus = { state: "saved", at: new Date().toISOString() };
     await writeStatus(status);
     return status;
-  } catch (error) {
-    const status: SaveStatus = {
-      state: "failed",
-      detail: error instanceof Error ? error.message : "deep link refused",
-      at: new Date().toISOString(),
-    };
-    await writeStatus(status);
-    return status;
   }
+  // Queue like a page save. A media capture that arrives while the app is
+  // closed is exactly the case a local library must not lose, and these
+  // payloads are small (a URL, a quote, or an image URL) compared to a page.
+  //
+  // Only a *transient* failure is queued. A rejection the app will repeat — a
+  // malformed payload, an image host answering with something that is not an
+  // image — would occupy a queue slot on every future flush, delay later saves
+  // behind it, and eventually push older captures out of the bounded queue for
+  // no possible gain. Report it failed instead.
+  const status: SaveStatus = outcome.permanent
+    ? { state: "failed", detail: outcome.reason, at: new Date().toISOString() }
+    : await keepQueued(message.payload, outcome.reason);
+  await writeStatus(status);
+  return status;
 }
 
 async function collectFromTab(tabId: number, collect: "selection" | "image" | "video", srcUrl?: string) {
   try {
+    // Injected on invoke rather than declared on <all_urls>: nothing runs on
+    // pages the user never captures from.
+    await browser.scripting.executeScript({
+      target: { tabId },
+      files: [CONTENT_COLLECT_FILE],
+    });
     const response = await browser.tabs.sendMessage(tabId, {
       type: "inkling/collect",
       collect,
       ...(srcUrl ? { srcUrl } : {}),
     });
     if (response && typeof response === "object" && "payload" in response) {
-      await dispatchCapturePayload((response as { payload: unknown }).payload, tabId);
+      await dispatchCapturePayload((response as { payload: unknown }).payload);
+    } else if (response && typeof response === "object" && "reason" in response) {
+      const status: SaveStatus = {
+        state: "failed",
+        detail: String((response as { reason: unknown }).reason),
+        at: new Date().toISOString(),
+      };
+      await writeStatus(status);
+    } else {
+      // Neither a payload nor a reason: nothing was captured and nothing was
+      // queued. Say so instead of leaving the popup showing an older save.
+      const status: SaveStatus = {
+        state: "failed",
+        detail: "page collector returned no capture",
+        at: new Date().toISOString(),
+      };
+      await writeStatus(status);
     }
-  } catch {
-    // No content script on this page (or it refused): status already reflects
-    // the failure via the collect path; stay quiet here.
+  } catch (error) {
+    const status: SaveStatus = {
+      state: "failed",
+      detail: error instanceof Error ? error.message : "page collector unavailable",
+      at: new Date().toISOString(),
+    };
+    await writeStatus(status);
   }
 }
 
-browser.runtime.onInstalled.addListener(() => {
-  void browser.contextMenus.create({
-    id: "inkling-save-page",
-    title: "Save page to inkling",
-    contexts: ["page"],
-  });
-  void browser.contextMenus.create({
-    id: INKLING_MENU_SAVE_SELECTION,
-    title: "Save selection as quote",
-    contexts: ["selection"],
-  });
-  void browser.contextMenus.create({
-    id: INKLING_MENU_SAVE_IMAGE,
-    title: "Save image to inkling",
-    contexts: ["image"],
-  });
-  void browser.contextMenus.create({
-    id: INKLING_MENU_SAVE_VIDEO,
-    title: "Save video to inkling",
-    contexts: ["page", "video"],
-  });
+browser.runtime.onInstalled.addListener(({ reason }) => {
+  // Menus survive an extension update and contextMenus.create rejects a
+  // duplicate id, so only the first install creates them. Recreating on every
+  // update was an unhandled rejection per menu and left the browser's
+  // last-error report pointing at an extension doing nothing wrong.
+  if (reason === "install") {
+    fireAndForget(browser.contextMenus.create({
+      id: "inkling-save-page",
+      title: "Save page to inkling",
+      contexts: ["page"],
+    }));
+    fireAndForget(browser.contextMenus.create({
+      id: INKLING_MENU_SAVE_SELECTION,
+      title: "Save selection as quote",
+      contexts: ["selection"],
+    }));
+    fireAndForget(browser.contextMenus.create({
+      id: INKLING_MENU_SAVE_IMAGE,
+      title: "Save image to inkling",
+      contexts: ["image"],
+    }));
+    fireAndForget(browser.contextMenus.create({
+      id: INKLING_MENU_SAVE_VIDEO,
+      title: "Save video to inkling",
+      contexts: ["page", "video"],
+    }));
+  }
   // Opportunistic drain: a previously queued save may now be deliverable.
-  void flushQueue();
+  fireAndForget(flushQueue());
 });
 
 browser.runtime.onStartup.addListener(() => {
-  void flushQueue();
+  fireAndForget(flushQueue());
 });
 
 browser.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "inkling-save-page") {
-    void saveActiveTab();
+    fireAndForget(saveActiveTab());
     return;
   }
-  if (tab?.id === undefined) return;
+  if (tab?.id === undefined) {
+    // No tab, so no collector and nothing to read off the page. Only a
+    // selection can still be saved from the event itself.
+    if (info.menuItemId === INKLING_MENU_SAVE_SELECTION && typeof info.selectionText === "string") {
+      fireAndForget(dispatchCapturePayload({
+        kind: "selection",
+        sourceUrl: info.pageUrl ?? "",
+        selectedHtml: "",
+        selectedText: info.selectionText,
+      }));
+    }
+    return;
+  }
+  // Everything else goes through the collector: it reads the live page, so a
+  // selection keeps its title, a blob:/canvas image gets the dataUrl fallback
+  // the app cannot fetch for itself, and the payload carries the real frame URL
+  // rather than whatever the tab reports.
   if (info.menuItemId === INKLING_MENU_SAVE_SELECTION) {
-    void collectFromTab(tab.id, "selection");
+    fireAndForget(collectFromTab(tab.id, "selection"));
   } else if (info.menuItemId === INKLING_MENU_SAVE_IMAGE) {
-    void collectFromTab(tab.id, "image", typeof info.srcUrl === "string" ? info.srcUrl : undefined);
+    fireAndForget(collectFromTab(tab.id, "image", info.srcUrl));
   } else if (info.menuItemId === INKLING_MENU_SAVE_VIDEO) {
-    void collectFromTab(tab.id, "video");
+    fireAndForget(collectFromTab(tab.id, "video"));
   }
 });
 
 browser.commands.onCommand.addListener((command) => {
-  if (command === "inkling-save-page") void saveActiveTab();
+  if (command === "inkling-save-page") fireAndForget(saveActiveTab());
 });
 
 browser.runtime.onMessage.addListener((message: unknown) => {
