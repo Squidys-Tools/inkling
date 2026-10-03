@@ -65,17 +65,37 @@ async function singleHop(
 }
 
 /**
+ * Merge the way `fetch` does: a `Request` input contributes its own headers,
+ * and `init.headers` overrides them rather than replacing the set.
+ */
+function mergeHeaders(input: RequestInfo | URL, init?: RequestInit): Headers {
+  const headers = new Headers(input instanceof Request ? input.headers : undefined);
+  new Headers(init?.headers).forEach((value, name) => headers.set(name, value));
+  return headers;
+}
+
+/**
  * Desktop `fetch` that routes through the Rust `fetch_http` command so
  * article capture is not blocked by webview CORS. Redirect policy matches
  * the RequestInit contract: manual returns the 3xx as-is, follow walks
  * locations (validated as relative to the current hop by URL), error throws.
+ *
+ * Only `Accept` and `User-Agent` reach the wire, because that is all the
+ * `fetch_http` command takes. A method or body cannot be honoured, so this
+ * rejects them instead of quietly performing a GET — see the guard below.
  */
 export async function tauriFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
+  const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    // `fetch_http` is a GET. Honouring the shape of `fetch` while sending
+    // something else is the kind of bug that only shows up as missing data.
+    throw new TypeError(`tauriFetch cannot send ${method}: fetch_http is a GET`);
+  }
   const url = requestUrl(input);
-  const headers = new Headers(init?.headers);
+  const headers = mergeHeaders(input, init);
   const signal = init?.signal ?? null;
   const redirect = init?.redirect ?? "follow";
   const timeoutMs = DEFAULT_TIMEOUT_MS;

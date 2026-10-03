@@ -3,6 +3,11 @@ import {
   buildPageCapturePayload,
   INGESTION_PAYLOAD_VERSION,
   isPageCapturePayload,
+  MAX_AUTHOR_LENGTH,
+  MAX_PUBLISHED_DATE_LENGTH,
+  MAX_TEXT_LENGTH,
+  MAX_TITLE_LENGTH,
+  MAX_URL_LENGTH,
   parsePageCapturePayload,
   PayloadValidationError,
 } from "./payload";
@@ -93,6 +98,67 @@ describe("parsePageCapturePayload", () => {
     expect(() =>
       parsePageCapturePayload({ ...BASE, version: 1, kind: "page", defuddledHtml: "x".repeat(3 * 1024 * 1024) }),
     ).toThrow(PayloadValidationError);
+  });
+});
+
+// A hostile page controls every string in this payload. The receiver truncates
+// these fields, so the producer truncates them too: the capture survives and
+// the cost crossing IPC and chrome.storage stays bounded.
+describe("untrusted string bounds", () => {
+  test("truncates an inflated article body instead of failing the capture", () => {
+    const payload = parsePageCapturePayload({
+      version: 1,
+      kind: "page",
+      ...BASE,
+      text: "x".repeat(MAX_TEXT_LENGTH + 5_000),
+    });
+    expect(payload.text).toHaveLength(MAX_TEXT_LENGTH);
+  });
+
+  test("truncates title, author, and publishedDate to the receiver's caps", () => {
+    const payload = parsePageCapturePayload({
+      version: 1,
+      kind: "page",
+      ...BASE,
+      title: "t".repeat(MAX_TITLE_LENGTH + 100),
+      author: "a".repeat(MAX_AUTHOR_LENGTH + 100),
+      publishedDate: "2026-09-01T00:00:00.000Z".repeat(10),
+    });
+    expect(payload.title).toHaveLength(MAX_TITLE_LENGTH);
+    expect(payload.author).toHaveLength(MAX_AUTHOR_LENGTH);
+    expect(payload.publishedDate).toHaveLength(MAX_PUBLISHED_DATE_LENGTH);
+  });
+
+  test("never splits a surrogate pair when clamping", () => {
+    const payload = parsePageCapturePayload({
+      version: 1,
+      kind: "page",
+      ...BASE,
+      title: `a${"\u{1F600}".repeat(MAX_TITLE_LENGTH)}`,
+    });
+    expect(payload.title).toBe(`a${"\u{1F600}".repeat((MAX_TITLE_LENGTH - 1) / 2)}`);
+  });
+
+  test("rejects an over-long capture URL, matching the receiver", () => {
+    const long = `https://example.com/${"p".repeat(MAX_URL_LENGTH)}`;
+    expect(() => parsePageCapturePayload({ ...BASE, version: 1, kind: "page", url: long })).toThrow(
+      PayloadValidationError,
+    );
+  });
+
+  test("drops an over-long image URL rather than the whole capture", () => {
+    const payload = parsePageCapturePayload({
+      version: 1,
+      kind: "page",
+      ...BASE,
+      imageUrls: [`https://example.com/${"i".repeat(MAX_URL_LENGTH)}`, "https://example.com/ok.jpg"],
+    });
+    expect(payload.imageUrls).toEqual(["https://example.com/ok.jpg"]);
+  });
+
+  test("build applies the same bounds as the parser", () => {
+    const payload = buildPageCapturePayload({ ...BASE, title: "t".repeat(MAX_TITLE_LENGTH + 100) });
+    expect(payload.title).toHaveLength(MAX_TITLE_LENGTH);
   });
 });
 

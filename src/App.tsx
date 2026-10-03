@@ -151,6 +151,7 @@ export type LibraryItem = {
   fileUrl?: string;
   imageAlt?: string;
   sourceUrl?: string;
+  /** Locally cached favicon asset URL for the card seal. Never a remote URL. */
   favicon?: string;
   author?: string;
   social?: XPostMetadata;
@@ -2168,7 +2169,6 @@ function App() {
         ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
         : new URL(article.canonicalUrl).hostname,
       sourceUrl: article.canonicalUrl,
-      favicon: article.favicon,
       author: article.author,
       date: "Just now",
       tags: [],
@@ -2395,8 +2395,9 @@ function App() {
     for (const value of values) {
       const capture = parseDeepLinkCapture(value);
       if (!capture) continue;
-      // Every path creates the provisional card immediately; extraction,
-      // embeddings, and indexing run as background jobs from there.
+      // A URL capture downloads and extracts before the card exists; a quote or
+      // image capture is stored from the payload alone. Either way the card and
+      // every background job start from a persisted item.
       if (capture.kind === "quote") {
         await persistQuote(capture.selection, capture.attribution, capture.url, "browser extension");
       } else if (capture.kind === "image") {
