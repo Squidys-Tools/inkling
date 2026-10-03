@@ -50,7 +50,17 @@ export type ExpandedOverlayActions = {
   onRetryJob: (jobId: string) => void | Promise<void>;
   onAddTag?: (item: LibraryItem, tag: string) => void | Promise<void>;
   onUpdateNote: (item: LibraryItem, body: string) => void | Promise<void>;
+  onToggleSpace?: (item: LibraryItem, spaceId: string) => void | Promise<void>;
   isFindingSimilar: boolean;
+};
+
+/** A Regular Space chip: filing an item in and taking it back out happen in the
+ *  same place, so one toggle carries both directions. */
+export type OverlaySpaceChip = {
+  id: string;
+  name: string;
+  color: string;
+  member: boolean;
 };
 
 type OverlayAction = {
@@ -258,12 +268,14 @@ function detailTitleFor(item: LibraryItem): string {
 type ExpandedItemOverlayProps = {
   item: LibraryItem;
   actions: ExpandedOverlayActions;
+  /** Regular Spaces available to file this item in. Empty hides the row. */
+  spaces?: OverlaySpaceChip[];
   originRectsRef: RefObject<SourceRects | null>;
   contentAreaRef: RefObject<HTMLElement | null>;
   selectionScrollRef: RefObject<boolean>;
 };
 
-export function ExpandedItemOverlay({ item, actions, originRectsRef, contentAreaRef, selectionScrollRef }: ExpandedItemOverlayProps) {
+export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, contentAreaRef, selectionScrollRef }: ExpandedItemOverlayProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
@@ -959,6 +971,27 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
                 </button>
               )}
             </div>
+            {spaces && spaces.length > 0 && (
+              <div className="detail-spaces">
+                {spaces.map((space) => (
+                  <button
+                    key={space.id}
+                    type="button"
+                    className={`detail-space ${space.member ? "is-member" : ""}`}
+                    aria-pressed={space.member}
+                    title={
+                      space.member
+                        ? `Remove from ${space.name}`
+                        : `Add to ${space.name}`
+                    }
+                    onClick={() => void actions.onToggleSpace?.(shownItem, space.id)}
+                  >
+                    <span className={`detail-space-dot ${space.color}`} aria-hidden="true" />
+                    {space.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           )}
 

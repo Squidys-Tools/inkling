@@ -42,6 +42,7 @@ import {
 import {
   assetUrl,
   archiveItem,
+  addSpaceItem,
   createQuote,
   createSpace,
   createUrl,
@@ -54,8 +55,10 @@ import {
   isTauriRuntime,
   listActiveItems,
   listArchivedItems,
+  listItemSpaces,
   listSpaceItems,
   listSpaces,
+  removeSpaceItem,
   getProcessingSummaries,
   getItemContent,
   retryProcessingJob,
@@ -72,6 +75,7 @@ import {
   type LibraryExportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
+  type SpaceKind,
   type StoredLibraryItem,
   type StoredSpace,
 } from "./lib/libraryApi";
@@ -671,6 +675,7 @@ const seedSpaces: StoredSpace[] = [
     name: "Design references",
     color: "orange",
     query: { tag: "reference" },
+    kind: "smart",
     position: 1,
     createdAt: 0,
     updatedAt: 0,
@@ -680,6 +685,7 @@ const seedSpaces: StoredSpace[] = [
     name: "Read later",
     color: "green",
     query: { tag: "essay" },
+    kind: "smart",
     position: 2,
     createdAt: 0,
     updatedAt: 0,
@@ -689,11 +695,30 @@ const seedSpaces: StoredSpace[] = [
     name: "Top picks",
     color: "blue",
     query: { favorite: true },
+    kind: "smart",
     position: 3,
     createdAt: 0,
     updatedAt: 0,
   },
+  {
+    id: "seed-weekend-reading",
+    name: "Weekend reading",
+    color: "pink",
+    query: {},
+    kind: "regular",
+    position: 4,
+    createdAt: 0,
+    updatedAt: 0,
+  },
 ];
+
+// Manual membership for the seeded Regular Space, so preview mode can exercise
+// the same add/remove flow the Tauri core serves from the database. These are
+// ids the demo seed actually keeps (5, 10, 12, 13); the archived copies in
+// previewArchivedItems are re-keyed, so the originals stay in the library.
+const seedSpaceItems: Record<string, string[]> = {
+  "seed-weekend-reading": ["5", "13"],
+};
 
 const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
 
@@ -1175,6 +1200,15 @@ function App() {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
+  const [newSpaceKind, setNewSpaceKind] = useState<SpaceKind>("smart");
+  // Manual membership, keyed by space id then item id. Only read in preview and
+  // seed mode; the Tauri core owns membership through the space item commands.
+  const [localSpaceItems, setLocalSpaceItems] = useState<Map<string, Set<string>>>(
+    () => new Map(Object.entries(seedSpaceItems).map(([spaceId, ids]) => [spaceId, new Set(ids)])),
+  );
+  // Which Regular Spaces hold the item open in the overlay, so its chips can
+  // render in the right state. Cleared whenever the overlay closes.
+  const [itemSpaceIds, setItemSpaceIds] = useState<string[]>([]);
   const [renamingSpaceId, setRenamingSpaceId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -2339,6 +2373,7 @@ function App() {
 
   function beginSaveSearch() {
     setIsCreatingSpace(true);
+    setNewSpaceKind("smart");
     setNewSpaceName(query.trim());
   }
 
@@ -2347,18 +2382,22 @@ function App() {
     const name = newSpaceName.trim();
     if (!name) return;
 
-    const spaceQuery: SmartSpaceQuery = query.trim() ? { text: query.trim() } : {};
+    // A Regular Space is filled by hand, so the search behind the sidebar "+"
+    // does not become its query.
+    const spaceQuery: SmartSpaceQuery =
+      newSpaceKind === "smart" && query.trim() ? { text: query.trim() } : {};
     const color = SPACE_COLORS[spaces.length % SPACE_COLORS.length];
     setCaptureError(null);
 
     try {
       const created = canUseTauriBackend
-        ? await createSpace({ name, color, query: spaceQuery })
+        ? await createSpace({ name, color, query: spaceQuery, kind: newSpaceKind })
         : {
             id: `local-space-${Date.now()}`,
             name,
             color,
             query: spaceQuery,
+            kind: newSpaceKind,
             position: spaces.length + 1,
             createdAt: Date.now(),
             updatedAt: Date.now(),
@@ -2366,17 +2405,55 @@ function App() {
       setSpaces((current) => [...current, created]);
       setIsCreatingSpace(false);
       setNewSpaceName("");
+      setNewSpaceKind("smart");
       selectSpace(created);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }
 
+  // Membership decides the direction of the toggle, so this has to stay a
+  // stable callback: the overlay actions memo closes over it, and a plain
+  // function would leave that memo holding a pre-toggle membership read and
+  // turn "Remove from" into a second add.
+  const handleToggleItemInSpace = useCallback(async (item: LibraryItem, spaceId: string) => {
+    const member = itemSpaceIds.includes(spaceId);
+    setCaptureError(null);
+    try {
+      if (canUseTauriBackend) {
+        if (member) await removeSpaceItem(spaceId, String(item.id));
+        else await addSpaceItem(spaceId, String(item.id));
+        setItemSpaceIds((current) =>
+          member ? current.filter((id) => id !== spaceId) : [...current, spaceId],
+        );
+        // The open Space lists its own members, so its grid has to re-read.
+        if (activeSpaceId === spaceId) loadItemsRef.current();
+      } else {
+        setLocalSpaceItems((current) => {
+          const next = new Map(current);
+          const members = new Set(next.get(spaceId) ?? []);
+          if (member) members.delete(String(item.id));
+          else members.add(String(item.id));
+          next.set(spaceId, members);
+          return next;
+        });
+      }
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }, [activeSpaceId, canUseTauriBackend, itemSpaceIds]);
+
   async function handleDeleteSpace(space: StoredSpace) {
     setCaptureError(null);
     try {
       if (canUseTauriBackend) await deleteSpace(space.id);
       setSpaces((current) => current.filter((candidate) => candidate.id !== space.id));
+      setLocalSpaceItems((current) => {
+        const next = new Map(current);
+        next.delete(space.id);
+        return next;
+      });
+      setItemSpaceIds((current) => current.filter((id) => id !== space.id));
       if (activeSpaceId === space.id) clearToDefaultView();
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
@@ -2606,6 +2683,35 @@ function App() {
     };
   }, []);
 
+  // Manual membership for the open overlay, read only while an item is open so
+  // the grid load stays a single query.
+  useEffect(() => {
+    const itemId = selectedItem ? String(selectedItem.id) : null;
+    if (!itemId) {
+      setItemSpaceIds([]);
+      return;
+    }
+    if (shouldUseSeedLibrary()) {
+      setItemSpaceIds(
+        [...localSpaceItems]
+          .filter(([, members]) => members.has(itemId))
+          .map(([spaceId]) => spaceId),
+      );
+      return;
+    }
+    let cancelled = false;
+    listItemSpaces(itemId)
+      .then((ids) => {
+        if (!cancelled) setItemSpaceIds(ids);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [localSpaceItems, selectedItem?.id]);
+
   useEffect(() => {
     if (shouldUseSeedLibrary()) return;
     let cancelled = false;
@@ -2779,11 +2885,28 @@ function App() {
         activeView === "Everything" ||
           (activeView === "Top of mind" && matchesPinsView(item)) ||
         (activeSpace
-          ? canUseTauriBackend || itemMatchesSmartQuery(item, activeSpace.query)
+          ? canUseTauriBackend
+            ? true
+            : activeSpace.kind === "regular"
+              // Mirror of the core's membership read for browser (seed) mode.
+              ? (localSpaceItems.get(activeSpace.id)?.has(String(item.id)) ?? false)
+              : itemMatchesSmartQuery(item, activeSpace.query)
           : false);
       return matchesQuery && matchesView;
     });
-  }, [activeSpace, activeSpaceId, activeView, canUseTauriBackend, isSerendipityView, items, query, serendipityBatch, similaritySource]);
+  }, [activeSpace, activeSpaceId, activeView, canUseTauriBackend, isSerendipityView, items, localSpaceItems, query, serendipityBatch, similaritySource]);
+
+  // The Regular Spaces an item can be filed into, and whether it already is.
+  // Smart Spaces are excluded: their contents come from the query, so a chip
+  // for them would be a claim that goes stale on its own.
+  const manualSpaces = useMemo(
+    () => spaces.filter((space) => space.kind === "regular"),
+    [spaces],
+  );
+  const selectedItemSpaces = useMemo(
+    () => manualSpaces.map((space) => ({ ...space, member: itemSpaceIds.includes(space.id) })),
+    [itemSpaceIds, manualSpaces],
+  );
 
   // VirtuosoMasonry keys rows by position, so a new result set must remount
   // the grid. Otherwise card state (video playback, embeds) sticks to the
@@ -3084,8 +3207,9 @@ function App() {
     onRetryJob: retryJob,
     onAddTag: addTagToItem,
     onUpdateNote: updateNote,
+    onToggleSpace: (item, spaceId) => void handleToggleItemInSpace(item, spaceId),
     isFindingSimilar,
-  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob, togglePinItem, updateNote]);
+  }), [addTagToItem, forgetItem, handleToggleItemInSpace, isFindingSimilar, openReader, retryJob, togglePinItem, updateNote]);
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
@@ -3231,10 +3355,11 @@ function App() {
             <button
               className="icon-button small"
               aria-label="Add a Space"
-              title="Add a Smart Space"
+              title="Add a Space"
               onClick={() => {
                 setIsCreatingSpace((current) => !current);
                 setNewSpaceName("");
+                setNewSpaceKind("smart");
               }}
             >
               <HugeiconsIcon icon={PlusSignIcon} size={16} />
@@ -3365,14 +3490,30 @@ function App() {
                 autoFocus
                 value={newSpaceName}
                 onChange={(event) => setNewSpaceName(event.target.value)}
-                placeholder={query.trim() ? `Save “${query.trim()}” as…` : "Name this space"}
+                placeholder={newSpaceKind === "smart" && query.trim() ? `Save “${query.trim()}” as…` : "Name this space"}
                 aria-label="Space name"
                 maxLength={80}
               />
+              <div className="space-kind" role="radiogroup" aria-label="How this Space fills">
+                {(["smart", "regular"] as const).map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    role="radio"
+                    aria-checked={newSpaceKind === kind}
+                    className={`space-kind-option ${newSpaceKind === kind ? "is-active" : ""}`}
+                    onClick={() => setNewSpaceKind(kind)}
+                  >
+                    {kind === "smart" ? "Smart" : "Manual"}
+                  </button>
+                ))}
+              </div>
               <p className="space-form-hint">
-                {query.trim()
-                  ? "A Smart Space that updates automatically as items match this search."
-                  : "An empty Smart Space matches everything you have saved."}
+                {newSpaceKind === "regular"
+                  ? "Holds only the items you file into it. Open an item and pick a Space to add it."
+                  : query.trim()
+                    ? "A Smart Space that updates automatically as items match this search."
+                    : "An empty Smart Space matches everything you have saved."}
               </p>
               <div className="space-form-actions">
                 <button
@@ -3731,7 +3872,12 @@ function App() {
             {filteredItems.length === 0 && (
               <div className="empty-state">
                 <div className="empty-icon"><HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} /></div>
-                {similaritySource ? (
+                {activeSpace?.kind === "regular" ? (
+                  <>
+                    <h2>{activeSpace.name} is empty.</h2>
+                    <p>Open anything in your library and pick {activeSpace.name} to file it in here.</p>
+                  </>
+                ) : similaritySource ? (
                   <>
                     <h2>Nothing similar yet.</h2>
                     <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
@@ -3747,7 +3893,7 @@ function App() {
                     <p>Try another word, or save something new to your mind.</p>
                   </>
                 )}
-                {!pinsViewIsEmpty && (
+                {activeSpace?.kind !== "regular" && !pinsViewIsEmpty && (
                   <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
                 )}
               </div>
@@ -3990,6 +4136,7 @@ function App() {
             key="expanded-item-overlay"
             item={selectedItem}
             actions={expandedOverlayActions}
+            spaces={selectedItemSpaces}
             originRectsRef={selectionRectsRef}
             contentAreaRef={libraryScrollRef}
             selectionScrollRef={selectionScrollRef}
