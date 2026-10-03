@@ -8,6 +8,8 @@ export type StoredLibraryItem = {
   kind: StoredItemKind | string;
   title: string | null;
   description: string | null;
+  body?: string | null;
+  bodyFormat?: string | null;
   sourceUrl: string | null;
   sourceLabel: string | null;
   localAssetPath: string | null;
@@ -18,6 +20,12 @@ export type StoredLibraryItem = {
   updatedAt: number;
   archived: boolean;
   favorite: boolean;
+};
+
+export type StoredItemContent = {
+  id: string;
+  body: string;
+  bodyFormat: string;
 };
 
 export type CreateNoteInput = {
@@ -45,6 +53,8 @@ type UpdateItemInput = {
   id: string;
   title?: string;
   description?: string;
+  body?: string;
+  bodyFormat?: string;
   sourceUrl?: string;
   sourceLabel?: string;
   localAssetPath?: string;
@@ -184,6 +194,10 @@ export async function listActiveItems() {
 
 export async function listArchivedItems() {
   return invoke<StoredLibraryItem[]>("list_archived_items");
+}
+
+export async function getItemContent(id: string) {
+  return invoke<StoredItemContent>("get_item_content", { id });
 }
 
 export async function searchItems(query: string) {

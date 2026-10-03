@@ -64,6 +64,7 @@ pub fn run() {
             storage::initialize_storage,
             storage::list_active_items,
             storage::list_archived_items,
+            storage::get_item_content,
             storage::create_note,
             storage::create_quote,
             storage::create_url,

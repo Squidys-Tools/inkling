@@ -25,6 +25,7 @@ import {
   Loading01Icon,
   PlusSignIcon,
   PlayIcon,
+  PinIcon,
   RotateCwIcon,
   Search01Icon,
   Settings01Icon,
@@ -56,6 +57,7 @@ import {
   listSpaceItems,
   listSpaces,
   getProcessingSummaries,
+  getItemContent,
   retryProcessingJob,
   getCaptureStatus,
   getPairingToken,
@@ -107,15 +109,26 @@ const ReaderView = lazy(() =>
 import type { ReaderItem, ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
+import { markdownToPlainText, normalizeNoteBody, NOTE_BODY_FORMAT } from "./lib/notes";
 import { serendipityItems } from "./lib/serendipity";
+import { isEmptyPinsView, matchesPinsView } from "./lib/pinsView";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
 // the repo so the web preview shows a real library out of the box. The eager
 // glob below resolves to an empty map when that file is absent, so clones
 // still fall back to the original 17-item demo library below.
-const personalSeedModules = import.meta.glob<{ personalSeedItems?: LibraryItem[] }>(
-  "./seedPersonal.ts",
-  { eager: true },
-);
+//
+// The glob is conditional so a shipped app build never bundles the seed: a
+// build-time `define` in vite.config.ts replaces VITE_INKLING_SEED with "0"
+// for `--mode app`, so this resolves to an empty object and the module is
+// never included. Gating it with `shouldUseSeedLibrary()` instead would keep
+// the seed in the bundle, because the bytes are already there before any
+// runtime check runs. See scripts/assert-no-demo-seed.ts for the guard.
+const personalSeedModules: Record<string, { personalSeedItems?: LibraryItem[] }> =
+  import.meta.env.VITE_INKLING_SEED === "0"
+    ? {}
+    : import.meta.glob<{ personalSeedItems?: LibraryItem[] }>("./seedPersonal.ts", {
+        eager: true,
+      });
 const localSeedItems: LibraryItem[] =
   Object.values(personalSeedModules)[0]?.personalSeedItems ?? [];
 import "./App.css";
@@ -128,6 +141,7 @@ export type LibraryItem = {
   kind: ItemKind;
   title: string;
   description: string;
+  noteBody?: string;
   source: string;
   date: string;
   createdAt?: number;
@@ -307,7 +321,12 @@ async function storedItemToLibraryItem(
     : item.sourceLabel || item.sourceUrl || "Quick note";
 
   const isQuote = kind === "Quote";
+  const noteBody = kind === "Note" && typeof item.body === "string" ? normalizeNoteBody(item.body) : undefined;
   const rawTitle = item.title?.trim() || "Untitled note";
+  // The backend already stored `markdown_to_plain_text(body)` as the
+  // description, so a note's plain text arrives ready to read. Projecting the
+  // body again here would only ever disagree with the stored row, and would
+  // eat the brackets in prose that happens to look like a link.
   const rawDescription =
     item.description?.trim() ||
     item.ocrText?.trim().slice(0, 180) ||
@@ -318,6 +337,7 @@ async function storedItemToLibraryItem(
     kind,
     title: rawTitle,
     description: social?.text?.trim() || rawDescription,
+    noteBody,
     source,
     sourceUrl: item.sourceUrl ?? undefined,
     date: formatItemDate(item.createdAt),
@@ -535,6 +555,8 @@ const seedItems: LibraryItem[] = [
     title: "Books to reread this fall",
     description:
       "Pilgrim at Tinker Creek, The Design of Everyday Things, Seeing Like a State. Start with the Dillard.",
+    noteBody:
+      "# Books to reread this fall\n\n- [ ] Pilgrim at Tinker Creek\n- [ ] The Design of Everyday Things\n- [ ] Seeing Like a State\n\nStart with the Dillard.",
     source: "Quick note",
     date: "Jul 19",
     tags: ["books", "life"],
@@ -964,6 +986,13 @@ type LibraryCardPosition = {
   height: number;
 };
 
+// One accepted archive delete: the timer waiting out the undo window, plus the
+// item that timer needs to restore or reconcile if the delete does not land.
+type PendingPermanentDelete = {
+  timer: number;
+  item: LibraryItem;
+};
+
 const LIBRARY_TRANSITION_TARGET_SELECTOR =
   ".library-card-media > .card-image-wrap, .library-card-media > .card-paper-art, .library-card-media > .post-art, .library-card-media > .x-post-art, .card-content";
 
@@ -1030,14 +1059,14 @@ function ExtensionPairing() {
         setToken(value);
         setIsRevealed(true);
       })
-      .catch(() => toast.error("Could not load the pairing token."));
+      .catch(() => toast.error("Could not load the pairing token.", { duration: 5000 }));
   };
 
   const copyToken = () => {
     if (!token) return;
     void navigator.clipboard.writeText(token)
       .then(() => toast.success("Pairing token copied. Paste it into the extension."))
-      .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand."));
+      .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand.", { duration: 5000 }));
   };
 
   const renewToken = () => {
@@ -1048,7 +1077,7 @@ function ExtensionPairing() {
         setIsRevealed(true);
         toast.success("New pairing token issued. Update the extension.");
       })
-      .catch(() => toast.error("Could not renew the pairing token."));
+      .catch(() => toast.error("Could not renew the pairing token.", { duration: 5000 }));
   };
 
   const testConnection = () => {
@@ -1064,7 +1093,7 @@ function ExtensionPairing() {
     };
     void check()
       .then(() => toast.success("Extension receiver is reachable."))
-      .catch(() => toast.error("No answer from the receiver. Is the app running?"))
+      .catch(() => toast.error("No answer from the receiver. Is the app running?", { duration: 5000 }))
       .finally(() => setIsTesting(false));
   };
 
@@ -1120,6 +1149,19 @@ function ExtensionPairing() {
   );
 }
 
+// Note bodies are cached so an opened note is not re-fetched and a refresh does
+// not drop a body the list query never carries. Same LRU shape as the asset URL
+// cache: writes re-insert, so the oldest key is the least recently used body.
+const NOTE_BODY_CACHE_LIMIT = 200;
+function rememberNoteBody(cache: Map<string, string>, id: string, body: string) {
+  cache.delete(id);
+  if (cache.size >= NOTE_BODY_CACHE_LIMIT) {
+    const oldest = cache.keys().next();
+    if (oldest.value !== undefined) cache.delete(oldest.value);
+  }
+  cache.set(id, body);
+}
+
 function App() {
   const canUseTauriBackend = isTauriRuntime() && !shouldUseSeedLibrary();
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
@@ -1168,6 +1210,36 @@ function App() {
       void import("./components/PdfViewer");
     }
   }, [selectedItem]);
+  const noteContentRequestsRef = useRef(new Set<string>());
+  const noteBodyCacheRef = useRef(new Map<string, string>());
+  useEffect(() => {
+    if (!canUseTauriBackend || selectedItem?.kind !== "Note" || selectedItem.noteBody !== undefined) return;
+    const id = String(selectedItem.id);
+    if (noteContentRequestsRef.current.has(id)) return;
+    noteContentRequestsRef.current.add(id);
+    let cancelled = false;
+    void getItemContent(id)
+      .then((content) => {
+        if (cancelled) return;
+        const noteBody = normalizeNoteBody(content.body);
+        rememberNoteBody(noteBodyCacheRef.current, id, noteBody);
+        // The body is the only thing still missing here. Its description came
+        // back already projected, so the fetched content only fills the gap.
+        const apply = (item: LibraryItem) => (String(item.id) === id ? { ...item, noteBody } : item);
+        setItems((current) => current.map(apply));
+        setArchivedItems((current) => current.map(apply));
+        setSelectedItem((current) => (current ? apply(current) : current));
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        noteContentRequestsRef.current.delete(id);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseTauriBackend, selectedItem?.id, selectedItem?.kind, selectedItem?.noteBody]);
   const [listMode, setListMode] = useState(false);
   const [isLibraryViewTransitioning, setIsLibraryViewTransitioning] = useState(false);
   const [viewSelectionListMode, setViewSelectionListMode] = useState(false);
@@ -1185,6 +1257,13 @@ function App() {
   const pendingLibraryViewPositionsRef = useRef<Map<string, LibraryCardPosition> | null>(null);
   const libraryViewAnimationsRef = useRef<Array<ReturnType<typeof gsap.timeline>>>([]);
   const libraryViewPreparationTimerRef = useRef<number | null>(null);
+  const pendingPermanentDeletesRef = useRef<Map<string, PendingPermanentDelete>>(new Map());
+  // Latest active list, mirrored so a delete that fails ten seconds from now
+  // reads the library as it is then, not as it was when the timer was set.
+  const activeItemsRef = useRef<LibraryItem[]>(items);
+  useEffect(() => {
+    activeItemsRef.current = items;
+  }, [items]);
   const libraryViewTransitionRunRef = useRef(0);
   const selectionRectsRef = useRef<SourceRects | null>(null);
   const selectionRunRef = useRef(0);
@@ -1194,7 +1273,14 @@ function App() {
   const loadItemsRef = useRef<() => void>(() => {});
   // Generation counter for space moves: only the latest move may apply its
   // backend result; older ones resync, so rapid clicks cannot overwrite newer state.
-  const spaceMoveSeqRef = useRef(0);
+    const spaceMoveSeqRef = useRef(0);
+    // Mirror of `items` for callbacks that must read the newest value without
+    // being rebuilt on every load.
+    const itemsRef = useRef<LibraryItem[]>([]);
+    // Pins whose write has not been confirmed by the backend yet. A refresh that
+    // was already in flight can resolve with the pre-pin value, so these are
+    // re-applied when it lands.
+    const pinnedOverridesRef = useRef<Map<string, boolean>>(new Map());
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
     typeof window === "undefined" ? 960 : window.innerWidth,
   );
@@ -1257,14 +1343,17 @@ function App() {
             return storedItemToLibraryItem(storedItem, summary);
           })
         : { ...item, archived: false };
+      const cachedNoteBody = noteBodyCacheRef.current.get(String(item.id));
+      // The restore response carries the description the backend already
+      // projected; the cache only holds a body this session edited, so it
+      // re-attaches the body without re-deriving the description.
+      const restoredLibraryItem = cachedNoteBody === undefined
+        ? restoredItem
+        : { ...restoredItem, noteBody: cachedNoteBody };
       setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
         ? current
-        : [restoredItem, ...current]);
+        : [restoredLibraryItem, ...current]);
       setArchivedItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
-      // The confirmation needs a toast of its own. Sonner dismisses the forget toast the
-      // moment its action is clicked, and a later toast raised under that same id inherits
-      // the dismissed toast's `delete` flag, so it never reaches the screen.
-      toast.success("Restored to your library", { duration: 3000, closeButton: true });
     } catch (error) {
       toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
       setCaptureError(error instanceof Error ? error.message : String(error));
@@ -1373,7 +1462,95 @@ function App() {
       );
       setSelectedItem((current) => (current && String(current.id) === String(item.id) ? apply(current) : current));
     } catch (error) {
-      toast.error("Unable to save this tag");
+      toast.error("Unable to save this tag", { duration: 5000 });
+    }
+  }, [canUseTauriBackend]);
+
+  const updateNote = useCallback(async (item: LibraryItem, body: string) => {
+    const nextBody = normalizeNoteBody(body);
+    if (!nextBody) throw new Error("A note needs some text before it can be saved.");
+
+    let nextItem: LibraryItem;
+    if (canUseTauriBackend) {
+      const storedItem = await updateItem({
+        id: String(item.id),
+        body: nextBody,
+        bodyFormat: NOTE_BODY_FORMAT,
+      });
+      const summary = (await getProcessingSummaries([storedItem.id])).get(storedItem.id);
+      nextItem = {
+        ...(await storedItemToLibraryItem(storedItem, summary)),
+        noteBody: nextBody,
+      };
+    } else {
+      nextItem = {
+        ...item,
+        description: markdownToPlainText(nextBody),
+        noteBody: nextBody,
+      };
+    }
+
+    // The saved response carries the row's pin as it was before an in-flight
+    // write landed, so a pin the backend has not confirmed yet wins over it,
+    // the same way a refresh re-applies its overrides.
+    const apply = (current: LibraryItem) => {
+      if (String(current.id) !== String(item.id)) return current;
+      const saved = { ...current, ...nextItem, id: current.id };
+      const pinned = pinnedOverridesRef.current.get(String(item.id));
+      return pinned === undefined ? saved : { ...saved, favorite: pinned };
+    };
+    setItems((current) => current.map(apply));
+    setArchivedItems((current) => current.map(apply));
+    setSelectedItem((current) => (current ? apply(current) : current));
+    rememberNoteBody(noteBodyCacheRef.current, String(item.id), nextBody);
+  }, [canUseTauriBackend]);
+
+  // Pins are flipped from current state, not from the item the click captured,
+    // so a second click during a slow write reverses the first instead of
+    // repeating it. The in-flight id also keeps the control from reporting a
+    // toggle it has not applied yet.
+    const pendingPinIdsRef = useRef<Set<string>>(new Set());
+    const togglePinItem = useCallback(async (item: LibraryItem) => {
+      const id = String(item.id);
+      if (pendingPinIdsRef.current.has(id)) return;
+      pendingPinIdsRef.current.add(id);
+      // Read the live value so a repeat click reverses the previous one. An
+      // archived item is not in the active list, so fall back to the item the
+      // overlay handed over rather than treating it as unpinned.
+      const live = itemsRef.current.find((candidate) => String(candidate.id) === id);
+      const wasPinned = (live ?? item).favorite === true;
+      const pinned = !wasPinned;
+      const show = (next: boolean) => {
+        const apply = (current: LibraryItem) => (
+          String(current.id) === id ? { ...current, favorite: next } : current
+        );
+        setItems((current) => current.map(apply));
+        setArchivedItems((current) => current.map(apply));
+        setSelectedItem((current) => (current ? apply(current) : current));
+      };
+      try {
+        // Optimistic, so a repeated click reads the new value. A refresh already
+        // in flight can land older data, so the pin is re-asserted until the
+        // backend confirms it.
+        pinnedOverridesRef.current.set(id, pinned);
+        show(pinned);
+        if (canUseTauriBackend) {
+          const confirmed = await updateItem({ id, favorite: pinned });
+          // The stored value wins once it is known, including if it disagreed
+          // with what was asked for.
+          const stored = confirmed.favorite === true;
+          pinnedOverridesRef.current.delete(id);
+          show(stored);
+        } else {
+          pinnedOverridesRef.current.delete(id);
+        }
+      } catch {
+        // A failed write must not leave the item looking pinned anywhere.
+        pinnedOverridesRef.current.delete(id);
+        show(wasPinned);
+        toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
+    } finally {
+      pendingPinIdsRef.current.delete(id);
     }
   }, [canUseTauriBackend]);
 
@@ -1983,7 +2160,8 @@ function App() {
       id: Date.now(),
       kind: "Note",
       title: value,
-      description: "Saved from the clipboard.",
+      description: markdownToPlainText(value),
+      noteBody: normalizeNoteBody(value),
       source: captureSource,
       date: "Just now",
       tags: [],
@@ -2463,7 +2641,18 @@ function App() {
           storedItemToLibraryItem(item, summaries.get(item.id)),
         ));
         if (!cancelled) {
-          setItems(libraryItems);
+          // A refresh can resolve with data older than two writes this session
+          // already made: a note body still in the cache, and a pin the backend
+          // has not confirmed. Both are re-applied so the grid, the overlay, and
+          // Top of mind cannot disagree with what the user just did.
+          const noteBodies = noteBodyCacheRef.current;
+          const overrides = pinnedOverridesRef.current;
+          setItems(libraryItems.map((item) => {
+            const noteBody = noteBodies.get(String(item.id));
+            const pinned = overrides.get(String(item.id));
+            const withNote = noteBody === undefined ? item : { ...item, noteBody };
+            return pinned === undefined ? withNote : { ...withNote, favorite: pinned };
+          }));
         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -2519,10 +2708,15 @@ function App() {
         await initializeStorage();
         const storedItems = await listArchivedItems();
         const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
-        const nextItems = await Promise.all(storedItems.map((item) =>
-          storedItemToLibraryItem(item, summaries.get(item.id)),
-        ));
-        if (!cancelled) setArchivedItems(nextItems);
+         const nextItems = await Promise.all(storedItems.map((item) =>
+           storedItemToLibraryItem(item, summaries.get(item.id)),
+         ));
+         if (!cancelled) {
+           setArchivedItems(nextItems.map((item) => {
+             const noteBody = noteBodyCacheRef.current.get(String(item.id));
+             return noteBody === undefined ? item : { ...item, noteBody };
+           }));
+         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
       }
@@ -2553,6 +2747,15 @@ function App() {
     [spaces, activeSpaceId],
   );
   const isSerendipityView = activeView === "Serendipity" && !activeSpaceId;
+  const isPinsView = activeView === "Top of mind" && !activeSpaceId;
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  // The pins nav item clears the query and any similarity source, so the view
+  // normally reads the whole library. The flag still guards the empty state
+  // against a search that a refresh or a restored view can narrow.
+  const pinsViewIsEmpty = isPinsView && isEmptyPinsView({ query, similaritySource });
   const serendipityCandidates = useMemo(
     () => isSerendipityView
       ? serendipityItems(items, { excludedIds: serendipityKeptIds, limit: items.length })
@@ -2580,7 +2783,7 @@ function App() {
             .includes(normalizedQuery);
       const matchesView =
         activeView === "Everything" ||
-        (activeView === "Top of mind" && item.favorite) ||
+          (activeView === "Top of mind" && matchesPinsView(item)) ||
         (activeSpace
           ? canUseTauriBackend || itemMatchesSmartQuery(item, activeSpace.query)
           : false);
@@ -2696,17 +2899,82 @@ function App() {
     onRetryJob: retryJob,
   }), [openReader, retryJob, selectLibraryItem]);
 
-  const deleteArchivedLibraryItem = useCallback(async (item: LibraryItem) => {
-    setCaptureError(null);
-    try {
-      if (canUseTauriBackend) await deleteItem(String(item.id));
-      setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== String(item.id)));
-      if (selectedItem && String(selectedItem.id) === String(item.id)) setSelectedItem(null);
-      toast.success("Deleted permanently", { description: item.title, duration: 3000 });
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+  const restoreArchivedItems = useCallback((restoredItems: LibraryItem[]) => {
+    if (restoredItems.length === 0) return;
+    // A settings reload can re-add a row that is still stored, so restore by
+    // presence instead of blind prepending a second copy of the same item.
+    setArchivedItems((current) => {
+      const absent = restoredItems.filter((item) => !current.some((candidate) => String(candidate.id) === String(item.id)));
+      return absent.length === 0 ? current : [...absent, ...current];
+    });
+  }, []);
+
+  const schedulePermanentDelete = useCallback((item: LibraryItem) => {
+    const id = String(item.id);
+    const previous = pendingPermanentDeletesRef.current.get(id);
+    if (previous !== undefined) window.clearTimeout(previous.timer);
+    const pending: PendingPermanentDelete = { timer: 0, item };
+    pending.timer = window.setTimeout(() => {
+      pendingPermanentDeletesRef.current.delete(id);
+      if (!canUseTauriBackend) return;
+      void deleteItem(id).then(() => {
+        // The row is still in the database during the undo window, so a reload
+        // can bring the card back; drop it again now the delete has landed.
+        setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== id));
+      }).catch((error) => {
+        // A recovered item is no longer archived, so its delete fails on
+        // purpose: leaving it out is already the desired end state and the error
+        // would only confuse. An item that is still archived comes back here.
+        if (activeItemsRef.current.some((candidate) => String(candidate.id) === id)) return;
+        restoreArchivedItems([item]);
+        setCaptureError(error instanceof Error ? error.message : String(error));
+      });
+    }, 10000);
+    pendingPermanentDeletesRef.current.set(id, pending);
+    return pending;
+  }, [canUseTauriBackend, restoreArchivedItems]);
+
+  const cancelPermanentDelete = useCallback((pending: PendingPermanentDelete) => {
+    const id = String(pending.item.id);
+    // Only the toast that scheduled a deletion may cancel it. Deleting the same
+    // item again stores a new record, and that older Undo has to stay a no-op.
+    if (pendingPermanentDeletesRef.current.get(id) !== pending) return false;
+    window.clearTimeout(pending.timer);
+    pendingPermanentDeletesRef.current.delete(id);
+    return true;
+  }, []);
+
+  const undoPermanentDelete = useCallback((pendingDeletes: PendingPermanentDelete[]) => {
+    const restored = pendingDeletes.filter((pending) => cancelPermanentDelete(pending)).map((pending) => pending.item);
+    restoreArchivedItems(restored);
+  }, [cancelPermanentDelete, restoreArchivedItems]);
+
+  useEffect(() => () => {
+    // A pending delete is finalized by its own timer, and unmounting must not
+    // run it: a remount (StrictMode, HMR) would flush real deletes, and closing
+    // the window tears the webview down without unmounting anyway. Dropping the
+    // timers leaves those items archived and recoverable, which is the state
+    // the delete never left.
+    for (const pending of pendingPermanentDeletesRef.current.values()) {
+      window.clearTimeout(pending.timer);
     }
-  }, [selectedItem]);
+    pendingPermanentDeletesRef.current.clear();
+  }, []);
+
+  const deleteArchivedLibraryItem = useCallback((item: LibraryItem) => {
+    setCaptureError(null);
+    const itemId = String(item.id);
+    const pending = schedulePermanentDelete(item);
+    setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== itemId));
+    if (selectedItem && String(selectedItem.id) === itemId) setSelectedItem(null);
+    toast("Deleted permanently", {
+      description: item.title,
+      duration: 10000,
+      closeButton: true,
+      className: "library-toast",
+      action: { label: "Undo", onClick: () => undoPermanentDelete([pending]) },
+    });
+  }, [schedulePermanentDelete, selectedItem, undoPermanentDelete]);
 
   const toggleArchiveSelectionMode = useCallback(() => {
     setIsArchiveSelectionMode((current) => {
@@ -2771,34 +3039,30 @@ function App() {
       setArchivedItems((current) => current.filter((item) => !restoredIds.has(String(item.id))));
       setSelectedArchivedIds(new Set());
       setIsArchiveSelectionMode(false);
-      if (restoredItems.length > 0) toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`, { duration: 3000 });
+      if (restoredItems.length > 0) toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`);
       if (failures > 0) setCaptureError(`${failures} ${failures === 1 ? "item" : "items"} could not be recovered. They are still in the archive.`);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }, [archivedItems, selectedArchivedIds]);
 
-  const deleteSelectedArchivedItems = useCallback(async () => {
+  const deleteSelectedArchivedItems = useCallback(() => {
     const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
     if (selectedItems.length === 0) return;
     setCaptureError(null);
-    try {
-      const results = await Promise.allSettled(selectedItems.map(async (item) => {
-        if (canUseTauriBackend) await deleteItem(String(item.id));
-        return String(item.id);
-      }));
-      const deletedIds = new Set(results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
-      const failures = results.filter((result) => result.status === "rejected").length;
-      setArchivedItems((current) => current.filter((item) => !deletedIds.has(String(item.id))));
-      if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
-      setSelectedArchivedIds(new Set());
-      setIsArchiveSelectionMode(false);
-      if (deletedIds.size > 0) toast.success(`${deletedIds.size} ${deletedIds.size === 1 ? "item" : "items"} deleted permanently`, { duration: 3000 });
-      if (failures > 0) setCaptureError(`${failures} ${failures === 1 ? "item" : "items"} could not be deleted. They are still in the archive.`);
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    }
-  }, [archivedItems, selectedArchivedIds, selectedItem]);
+    const deletedIds = new Set(selectedItems.map((item) => String(item.id)));
+    const pendingDeletes = selectedItems.map((item) => schedulePermanentDelete(item));
+    setArchivedItems((current) => current.filter((item) => !deletedIds.has(String(item.id))));
+    if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
+    setSelectedArchivedIds(new Set());
+    setIsArchiveSelectionMode(false);
+    toast(`${selectedItems.length} ${selectedItems.length === 1 ? "item" : "items"} deleted permanently`, {
+      duration: 10000,
+      closeButton: true,
+      className: "library-toast",
+      action: { label: "Undo", onClick: () => undoPermanentDelete(pendingDeletes) },
+    });
+  }, [archivedItems, schedulePermanentDelete, selectedArchivedIds, selectedItem, undoPermanentDelete]);
 
   const selectArchivedLibraryItem = useCallback((item: LibraryItem, rects?: SourceRects) => {
     selectionScrollRef.current = false;
@@ -2822,10 +3086,12 @@ function App() {
     onOpenReader: openReader,
     onFindSimilar: (item) => void findSimilarItems(item),
     onForget: forgetItem,
+    onTogglePin: togglePinItem,
     onRetryJob: retryJob,
     onAddTag: addTagToItem,
+    onUpdateNote: updateNote,
     isFindingSimilar,
-  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob]);
+  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob, togglePinItem, updateNote]);
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
@@ -2986,10 +3252,13 @@ function App() {
           </button>
           <button
             className={`nav-item ${activeView === "Top of mind" && !activeSpaceId ? "active" : ""}`}
-            onClick={() => {
-              setActiveSpaceId(null);
-              setActiveView("Top of mind");
-            }}
+              onClick={() => {
+                setActiveSpaceId(null);
+                setActiveView("Top of mind");
+                setQuery("");
+                setSimilaritySource(null);
+                setSelectedItem(null);
+              }}
           >
             <HugeiconsIcon icon={SparklesIcon} size={17} />
             <span>Top of mind</span>
@@ -3508,11 +3777,16 @@ function App() {
 
             {filteredItems.length === 0 && (
               <div className="empty-state">
-                <div className="empty-icon"><HugeiconsIcon icon={Search01Icon} size={20} /></div>
+                <div className="empty-icon"><HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} /></div>
                 {similaritySource ? (
                   <>
                     <h2>Nothing similar yet.</h2>
                     <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
+                  </>
+                ) : pinsViewIsEmpty ? (
+                  <>
+                    <h2>Nothing pinned yet.</h2>
+                    <p>Open anything in your library and pin it to keep it within reach.</p>
                   </>
                 ) : (
                   <>
@@ -3520,7 +3794,9 @@ function App() {
                     <p>Try another word, or save something new to your mind.</p>
                   </>
                 )}
-                <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
+                {!pinsViewIsEmpty && (
+                  <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
+                )}
               </div>
             )}
           </>
@@ -3811,12 +4087,18 @@ function App() {
       </div>
       <MascotRoamLayer />
       <Toaster
-        position="top-center"
-        offset={{ top: 48, left: 16, right: 16 }}
-        mobileOffset={{ top: 16, left: 12, right: 12 }}
+        position="top-right"
+        offset={{ top: 48, right: 16 }}
+        mobileOffset={{ top: 16, right: 12 }}
         theme="dark"
         richColors={false}
         closeButton
+        duration={5000}
+        icons={{
+          success: <></>,
+          error: <></>,
+          close: <HugeiconsIcon icon={Cancel01Icon} size={12} color="currentColor" />,
+        }}
         containerAriaLabel="Notifications"
       />
     </MotionConfig>

@@ -11,7 +11,7 @@ permissions:
 jobs:
   windows:
     name: Build Windows release
-    runs-on: blacksmith-4vcpu-windows-2025
+    runs-on: windows-2025
 
     steps:
       - name: Check out repository
@@ -21,6 +21,8 @@ jobs:
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
@@ -32,6 +34,13 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+
+      # tauri.conf.json bundles onnxruntime.dll, and tauri-build validates
+      # bundle resources on every build, so the pinned DLL has to be in place
+      # before tauri-action runs. `ort` is load-dynamic: skip this and the
+      # installer ships with dead embeddings and OCR.
+      - name: Provision ONNX Runtime
+        run: bun run provision:ort
 
       - name: Build Tauri application and create draft release
         uses: tauri-apps/tauri-action@v1

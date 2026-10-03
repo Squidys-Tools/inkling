@@ -43,7 +43,7 @@ Content consumption and creation experiences.
 
 - [x] Distraction-free article reader with clean typography
 - [ ] Focus Mode for long-form writing
-- [ ] Rich note editor (headings, bold, links, todos)
+- [x] Rich note editor (headings, bold, links, todos)
 - [x] Quote cards with source attribution
 - [x] Video link cards with previews
 - [x] PDF viewer with page navigation
@@ -55,8 +55,8 @@ Content consumption and creation experiences.
 Surfacing forgotten material through browsing and curation.
 
 - [x] Serendipity mode (slow visual browsing with keep/forget)
-- [ ] Top of Mind (pinned items on library open)
-- [ ] Trash and recoverable archive
+- [x] Top of Mind (pinned items gathered into their own view)
+- [x] Trash and recoverable archive
 - [x] Space management (create, rename, reorder, recolor, delete)
 - [ ] Wire the already-registered `enqueue_ocr_job` and `count_active_jobs` Tauri commands to UI (backend ships them, no frontend caller yet)
 - [x] Export and backup (database snapshot + referenced assets + manifest)
