@@ -1533,15 +1533,14 @@ function App() {
     rememberNoteBody(noteBodyCacheRef.current, String(item.id), nextBody);
   }, [canUseTauriBackend]);
 
-  // Pins are flipped from current state, not from the item the click captured,
+// Pins are flipped from current state, not from the item the click captured,
     // so a second click during a slow write reverses the first instead of
-    // repeating it. The in-flight id also keeps the control from reporting a
-    // toggle it has not applied yet.
-    const pendingPinIdsRef = useRef<Set<string>>(new Set());
+    // repeating it. Writes for one item chain instead of being dropped: the old
+    // guard returned early on an in-flight id, so undoing a pin needed a third
+    // click once the first write landed.
+    const pinWritesRef = useRef<Map<string, Promise<void>>>(new Map());
     const togglePinItem = useCallback(async (item: LibraryItem) => {
       const id = String(item.id);
-      if (pendingPinIdsRef.current.has(id)) return;
-      pendingPinIdsRef.current.add(id);
       // Read the live value so a repeat click reverses the previous one. An
       // archived item is not in the active list, so fall back to the item the
       // overlay handed over rather than treating it as unpinned.
@@ -1556,31 +1555,44 @@ function App() {
         setArchivedItems((current) => current.map(apply));
         setSelectedItem((current) => (current ? apply(current) : current));
       };
-      try {
-        // Optimistic, so a repeated click reads the new value. A refresh already
-        // in flight can land older data, so the pin is re-asserted until the
-        // backend confirms it.
-        pinnedOverridesRef.current.set(id, pinned);
-        show(pinned);
-        if (canUseTauriBackend) {
+      // Optimistic, so a repeated click reads the new value. A refresh already
+      // in flight can land older data, so the pin is re-applied until the
+      // backend confirms it.
+      pinnedOverridesRef.current.set(id, pinned);
+      show(pinned);
+
+      // A Space's rows come from its own query rather than a client-side
+      // filter, so a Smart Space that filters on the pin keeps showing the old
+      // contents until it is re-read. Only that case needs the extra load.
+      const openSpace = activeSpaceId !== null
+        ? spaces.find((space) => space.id === activeSpaceId)
+        : undefined;
+      const rereadsPins = openSpace?.kind === "smart" && openSpace.query.favorite != null;
+
+      const write = (pinWritesRef.current.get(id) ?? Promise.resolve())
+        .then(async () => {
+          if (!canUseTauriBackend) return;
           const confirmed = await updateItem({ id, favorite: pinned });
           // The stored value wins once it is known, including if it disagreed
           // with what was asked for.
-          const stored = confirmed.favorite === true;
-          pinnedOverridesRef.current.delete(id);
-          show(stored);
-        } else {
-          pinnedOverridesRef.current.delete(id);
-        }
-      } catch {
-        // A failed write must not leave the item looking pinned anywhere.
-        pinnedOverridesRef.current.delete(id);
-        show(wasPinned);
-        toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
-    } finally {
-      pendingPinIdsRef.current.delete(id);
-    }
-  }, [canUseTauriBackend]);
+          show(confirmed.favorite === true);
+          if (rereadsPins) loadItemsRef.current();
+        })
+        .catch(() => {
+          // A failed write must not leave the item looking pinned anywhere.
+          show(wasPinned);
+          toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
+        })
+        .finally(() => {
+          // Release the override only if no later click has claimed it in the
+          // meantime, and only clear this item's slot if it is still the tail of
+          // the chain.
+          if (pinnedOverridesRef.current.get(id) === pinned) pinnedOverridesRef.current.delete(id);
+          if (pinWritesRef.current.get(id) === write) pinWritesRef.current.delete(id);
+        });
+      pinWritesRef.current.set(id, write);
+      await write;
+  }, [activeSpaceId, canUseTauriBackend, spaces]);
 
   const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
     if (!item.articleHtml) return;
