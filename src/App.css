@@ -66,13 +66,16 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .space-delete.space-tool:hover { color: var(--ink); }
 .space-rename-input { border: 1px solid var(--orange); background: #161412; border-radius: 8px; min-height: 26px; padding: 0 8px; font-size: 13px; color: var(--ink); outline: none; width: 100%; min-width: 0; flex: 1; }
 .space-form { padding: 6px 11px 10px; display: grid; gap: 8px; }
-.space-form input { border: 1px solid var(--rule); background: #161412; border-radius: 8px; min-height: 33px; padding: 0 10px; font-size: 13px; color: var(--ink); outline: none; width: 100%; }
-.space-form input:focus { border-color: var(--orange); }
+.space-form input:not([type="radio"]) { border: 1px solid var(--rule); background: #161412; border-radius: 8px; min-height: 33px; padding: 0 10px; font-size: 13px; color: var(--ink); outline: none; width: 100%; }
+.space-form input:not([type="radio"]):focus { border-color: var(--orange); }
 .space-form-hint { margin: 0; color: #8d867c; font-size: 11px; line-height: 1.45; }
-.space-kind { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border: 1px solid var(--rule); border-radius: 9px; background: #161412; }
-.space-kind-option { border: 0; border-radius: 6px; background: transparent; color: #8d867c; cursor: pointer; padding: 6px 0; font-size: 12px; transition: color .15s ease, background .15s ease; }
+.space-kind { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin: 0; min-inline-size: 0; padding: 3px; border: 1px solid var(--rule); border-radius: 9px; background: #161412; }
+.space-kind-option { display: flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: transparent; color: #8d867c; cursor: pointer; padding: 6px 0; font-size: 12px; transition: color .15s ease, background .15s ease; }
 .space-kind-option:hover { color: var(--ink); }
 .space-kind-option.is-active { background: #241c16; color: var(--orange); font-weight: 600; }
+/* The real input is clipped, so its own focus ring is invisible; draw it on
+   the label instead. */
+.space-kind-option:has(input:focus-visible) { outline: 2px solid var(--orange); outline-offset: 3px; }
 .space-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .save-space-link { margin-left: 14px; }
 .sidebar-footer { margin-top: auto; display: grid; gap: 3px; padding-top: 16px; padding-bottom: 8px; }
@@ -227,7 +230,7 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .detail-tag-input { width: 110px; padding: 4px 8px; border: 1px solid var(--rule); border-radius: 6px; outline: none; background: #0c0c0b; color: var(--ink); font: 10px "DM Mono", monospace; }
 .detail-tag-input:focus { border-color: var(--orange); }
 .detail-spaces { display: flex; flex-wrap: wrap; gap: 4px 6px; padding-top: 6px; width: 100%; }
-.detail-space { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid #3a3833; border-radius: 999px; background: transparent; color: #8d867c; cursor: pointer; font: 10px "DM Mono", monospace; transition: color .15s ease, border-color .15s ease, background .15s ease; }
+.detail-space { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 3px 9px; border: 1px solid #3a3833; border-radius: 999px; background: transparent; color: #8d867c; cursor: pointer; font: 10px "DM Mono", monospace; transition: color .15s ease, border-color .15s ease, background .15s ease; }
 .detail-space:hover { color: var(--ink); border-color: #5a5750; }
 .detail-space.is-member { color: var(--ink); border-color: #4a4842; background: #1b1917; }
 .detail-space-dot { width: 6px; height: 6px; border-radius: 50%; background: #8d867c; flex: 0 0 auto; }

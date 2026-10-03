@@ -972,7 +972,7 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
               )}
             </div>
             {spaces && spaces.length > 0 && (
-              <div className="detail-spaces">
+              <div className="detail-spaces" role="group" aria-label="Regular Spaces">
                 {spaces.map((space) => (
                   <button
                     key={space.id}

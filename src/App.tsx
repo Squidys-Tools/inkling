@@ -3494,21 +3494,30 @@ function App() {
                 aria-label="Space name"
                 maxLength={80}
               />
-              <div className="space-kind" role="radiogroup" aria-label="How this Space fills">
+              {/* Native radios rather than role="radio" buttons: the group gets
+                  arrow-key selection, one tab stop and group semantics from the
+                  platform instead of from ARIA we would then have to maintain. */}
+              <fieldset className="space-kind">
+                <legend className="visually-hidden">How this Space fills</legend>
                 {(["smart", "regular"] as const).map((kind) => (
-                  <button
+                  <label
                     key={kind}
-                    type="button"
-                    role="radio"
-                    aria-checked={newSpaceKind === kind}
                     className={`space-kind-option ${newSpaceKind === kind ? "is-active" : ""}`}
-                    onClick={() => setNewSpaceKind(kind)}
                   >
-                    {kind === "smart" ? "Smart" : "Manual"}
-                  </button>
+                    <input
+                      type="radio"
+                      name="space-kind"
+                      className="visually-hidden"
+                      value={kind}
+                      checked={newSpaceKind === kind}
+                      aria-describedby="space-kind-hint"
+                      onChange={() => setNewSpaceKind(kind)}
+                    />
+                    {kind === "smart" ? "Smart" : "Regular"}
+                  </label>
                 ))}
-              </div>
-              <p className="space-form-hint">
+              </fieldset>
+              <p className="space-form-hint" id="space-kind-hint">
                 {newSpaceKind === "regular"
                   ? "Holds only the items you file into it. Open an item and pick a Space to add it."
                   : query.trim()
