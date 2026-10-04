@@ -29,6 +29,13 @@ function htmlTagBoundary(raw: string): string {
   return VOID_HTML_TAGS.has(name) || BLOCK_HTML_TAGS.has(name) ? " " : "";
 }
 
+// CommonMark recognises a raw tag for inline parsing, and anything else is
+// literal text. A `<` that does not open a tag must survive with the words
+// around it; dropping "prose" between `<` and the next `>` destroyed it.
+function looksLikeTagStart(value: string): boolean {
+  return /^<\/?[a-zA-Z]/u.test(value) || /^<![a-zA-Z]/u.test(value) || /^<\?/u.test(value);
+}
+
 function stripHtmlTags(value: string): string {
   let result = "";
   let cursor = 0;
@@ -37,6 +44,32 @@ function stripHtmlTags(value: string): string {
     if (opening === -1) {
       result += value.slice(cursor);
       break;
+    }
+    const rest = value.slice(opening);
+    const comment = rest.match(/^<!--[\s\S]*?-->/u);
+    if (comment) {
+      result += value.slice(cursor, opening);
+      cursor = opening + comment[0].length;
+      continue;
+    }
+    // An autolink unwraps to its inner text instead of being deleted, so the
+    // URL written by the user survives the projection the way it does in Rust.
+    const autolink = rest.match(/^<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^<>\s]*)>/u);
+    if (autolink) {
+      result += value.slice(cursor, opening) + autolink[1];
+      cursor = opening + autolink[0].length;
+      continue;
+    }
+    const emailAutolink = rest.match(/^<([^<>\s@]+@[^<>\s@]+)>/u);
+    if (emailAutolink) {
+      result += value.slice(cursor, opening) + emailAutolink[1];
+      cursor = opening + emailAutolink[0].length;
+      continue;
+    }
+    if (!looksLikeTagStart(rest)) {
+      result += value.slice(cursor, opening + 1);
+      cursor = opening + 1;
+      continue;
     }
     const closing = value.indexOf(">", opening + 1);
     if (closing === -1) {
@@ -47,6 +80,58 @@ function stripHtmlTags(value: string): string {
     cursor = closing + 1;
   }
   return result;
+}
+
+// Entities are decoded exactly once, with a single pass over the original
+// string, so `&amp;lt;` comes back as `&lt;` and never as `<`. Decoding runs
+// after tag stripping: entity-decoded `<div>` text must survive as text
+// instead of being re-scanned as a tag.
+const NAMED_HTML_ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0",
+  ensp: "\u2002", emsp: "\u2003", copy: "©", reg: "®", trade: "™",
+  hellip: "…", mdash: "—", ndash: "–", lsquo: "‘", rsquo: "’",
+  ldquo: "“", rdquo: "”", laquo: "«", raquo: "»", times: "×",
+  divide: "÷", plusmn: "±", deg: "°", micro: "µ", para: "¶", sect: "§",
+  middot: "·", bull: "•", dagger: "†", Dagger: "‡", permil: "‰",
+  prime: "′", Prime: "″", euro: "€", pound: "£", yen: "¥", cent: "¢",
+  agrave: "à", Agrave: "À", aacute: "á", Aacute: "Á", acirc: "â", Acirc: "Â",
+  auml: "ä", Auml: "Ä", aelig: "æ", AElig: "Æ", ccedil: "ç", Ccedil: "Ç",
+  egrave: "è", Egrave: "È", eacute: "é", Eacute: "É", ecirc: "ê", Ecirc: "Ê",
+  euml: "ë", Euml: "Ë", iuml: "ï", Iuml: "Ï", iacute: "í", Iacute: "Í",
+  ntilde: "ñ", Ntilde: "Ñ", oacute: "ó", Oacute: "Ó", ocirc: "ô", Ocirc: "Ô",
+  ouml: "ö", Ouml: "Ö", oslash: "ø", Oslash: "Ø", uacute: "ú", Uacute: "Ú",
+  ucirc: "û", Ucirc: "Û", uuml: "ü", Uuml: "Ü", szlig: "ß", aring: "å", Aring: "Å",
+};
+
+function decodeHtmlEntities(value: string): string {
+  return value.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]+);/giu, (match, body: string) => {
+    if (body.startsWith("#")) {
+      const point = body[1]?.toLowerCase() === "x" ? Number.parseInt(body.slice(2), 16) : Number.parseInt(body.slice(1), 10);
+      if (Number.isFinite(point) && point >= 0 && point <= 0x10ffff) {
+        try {
+          return String.fromCodePoint(point);
+        } catch {
+          return match;
+        }
+      }
+      return match;
+    }
+    // Named references are case sensitive, so `&Aacute;` is not `&aacute;`. The
+    // map carries both cases; the lowercase fallback only catches the handful of
+    // uppercase aliases HTML also defines, such as `&AMP;`.
+    return NAMED_HTML_ENTITIES[body] ?? NAMED_HTML_ENTITIES[body.toLowerCase()] ?? match;
+  });
+}
+
+// Intraword `_` is literal in CommonMark: `foo_bar_baz` is one word. Underscore
+// emphasis only counts when neither delimiter sits inside a run of word
+// characters. Star emphasis keeps no guard so intraword `*` agrees with Rust.
+function stripUnderscoreEmphasis(value: string, marker: string): string {
+  return value.replace(new RegExp(`(${marker})(.*?)\\1`, "gu"), (match, _marker: string, inner: string, offset: number, whole: string) => {
+    const before = offset > 0 ? whole[offset - 1] : "";
+    const after = offset + match.length < whole.length ? whole[offset + match.length] : "";
+    return /\w/u.test(before) || /\w/u.test(after) ? match : inner;
+  });
 }
 
 // Projects note Markdown to plain text. Only the preview build has no Rust side
@@ -78,16 +163,21 @@ export function markdownToPlainText(markdown: string): string {
     source
       .replace(/!\[([^\]]*)\]\([^)]*\)/gu, "$1")
       .replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1")
-      .replace(/(\*\*\*|___)(.*?)\1/gu, "$2")
-      .replace(/(\*\*|__)(.*?)\1/gu, "$2")
-      .replace(/(\*|_)(.*?)\1/gu, "$2")
+      .replace(/(\*\*\*)(.*?)\1/gu, "$2")
+      .replace(/(\*\*)(.*?)\1/gu, "$2")
+      .replace(/(\*)(.*?)\1/gu, "$2")
       .replace(/^\s{0,3}#{1,6}\s+/gmu, "")
       .replace(/^\s*>\s?/gmu, "")
       .replace(/^\s*(?:[-+*]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/gmu, ""),
-  )
-    .replace(/\s+/gu, " ")
-    .trim()
-    .replace(/ ([.,;!?])/gu, "$1");
+  );
+  // Underscore emphasis and entity decoding run after tag stripping, so
+  // decoded entities are never re-scanned as tags and underscore rules see
+  // the same characters the tag pass saw.
+  source = stripUnderscoreEmphasis(source, "___");
+  source = stripUnderscoreEmphasis(source, "__");
+  source = stripUnderscoreEmphasis(source, "_");
+  source = decodeHtmlEntities(source);
+  source = source.replace(/\s+/gu, " ").trim().replace(/ ([.,;!?])/gu, "$1");
   return source.replace(/\u0000(\d+)\u0000/gu, (_, index: string) => code[Number(index)] ?? "");
 }
 

@@ -62,6 +62,43 @@ describe("markdownToPlainText", () => {
     expect(markdownToPlainText("before<div>after")).toBe("before after");
     expect(markdownToPlainText("<table><tr><td>cell</td></tr></table>")).toBe("cell");
   });
+
+  test("decodes HTML entities to their text", () => {
+    expect(markdownToPlainText("&lt;div&gt;hello&lt;/div&gt;")).toBe("<div>hello</div>");
+    expect(markdownToPlainText("5 &gt; 3 and 2 &lt; 4 &amp; 1")).toBe("5 > 3 and 2 < 4 & 1");
+  });
+
+  test("decodes entities exactly once", () => {
+    expect(markdownToPlainText("&amp;lt;")).toBe("&lt;");
+  });
+
+  test("treats named entity references as case sensitive", () => {
+    expect(markdownToPlainText("&Aacute; &aacute;")).toBe("Á á");
+    expect(markdownToPlainText("&AElig; &aelig;")).toBe("Æ æ");
+    expect(markdownToPlainText("&Uuml; &uuml;")).toBe("Ü ü");
+  });
+
+  test("does not strip prose between angle brackets", () => {
+    expect(markdownToPlainText("a < b and b > a")).toBe("a < b and b > a");
+    expect(markdownToPlainText("a < b")).toBe("a < b");
+    expect(markdownToPlainText("5 < 10")).toBe("5 < 10");
+  });
+
+  test("unwraps autolinks to their inner text", () => {
+    expect(markdownToPlainText("see <https://example.com> now")).toBe("see https://example.com now");
+    expect(markdownToPlainText("<https://example.com>")).toBe("https://example.com");
+    expect(markdownToPlainText("<http://example.com>")).toBe("http://example.com");
+    expect(markdownToPlainText("<user@example.com>")).toBe("user@example.com");
+  });
+
+  test("keeps intraword underscores literal", () => {
+    expect(markdownToPlainText("foo_bar_baz")).toBe("foo_bar_baz");
+    expect(markdownToPlainText("keep_it_literal")).toBe("keep_it_literal");
+  });
+
+  test("keeps markup and entities inside a code span verbatim", () => {
+    expect(markdownToPlainText("`<tag> &amp;`")).toBe("<tag> &amp;");
+  });
 });
 
 describe("noteBodyForPreview", () => {
