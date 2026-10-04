@@ -256,15 +256,21 @@ fn decode_image_data_url(input: &str) -> Result<(Vec<u8>, String), String> {
     if !crate::http_fetch::is_decodable_image_mime(mime_type) {
         return Err("image data URL is not a supported image type".into());
     }
-    // Reject on the encoded length before allocating or decoding. Base64 is
-    // 4 chars per 3 bytes, so `len * 3 / 4` is an upper bound on the decoded
-    // size; `payload` is already inside the 5 MB JSON body cap, so this
-    // multiplication cannot overflow.
+    // Reject on the encoded length before allocating or decoding. Base64 is 4
+    // chars per 3 bytes and the payload is padded, so the encoded length of an
+    // n-byte image is `ceil(n / 3) * 4` — which `len * 3 / 4` overstates by up
+    // to 2. At the cap that difference is the whole margin: a 5 MiB image
+    // encodes to 6,990,508 chars and the naive check reads that back as
+    // 5,242,881, one byte over, so an image of exactly the maximum size was
+    // refused and the ceiling was unreachable. Compare the encoded length
+    // against the encoded form of the cap instead. `payload` is already inside
+    // the JSON body cap, so this cannot overflow.
     let compact: String = payload
         .chars()
         .filter(|c| !c.is_ascii_whitespace())
         .collect();
-    if compact.len() * 3 / 4 > MAX_IMAGE_DATA_URL_BYTES {
+    let max_encoded = MAX_IMAGE_DATA_URL_BYTES.div_ceil(3) * 4;
+    if compact.len() > max_encoded {
         return Err("image data URL exceeds the size limit".into());
     }
     let bytes = base64::Engine::decode(
@@ -2190,6 +2196,43 @@ mod tests {
             panic!("an http(s) capture must stay a download")
         };
         assert_eq!(url, "https://cdn.example.com/photo.jpg");
+    }
+
+    #[test]
+    fn an_image_of_exactly_the_cap_is_accepted() {
+        // The encoded-length pre-check used `len * 3 / 4`, which overstates a
+        // padded payload by up to two bytes. At the cap that is the entire
+        // margin: a 5 MiB image encodes to 6,990,508 characters and the naive
+        // arithmetic reads back 5,242,881 - one byte over the limit - so the
+        // largest image the extension is willing to send was refused by the
+        // receiver as a permanent rejection, and the documented ceiling could
+        // not actually be reached.
+        let exact = MAX_IMAGE_DATA_URL_BYTES;
+        let encoded = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            vec![b'x'; exact],
+        );
+        let data_url = format!("data:image/png;base64,{encoded}");
+
+        let (bytes, mime_type) = decode_image_data_url(&data_url).unwrap();
+        assert_eq!(mime_type, "image/png");
+        assert_eq!(
+            bytes.len(),
+            exact,
+            "an image of exactly the cap must survive the pre-check"
+        );
+    }
+
+    #[test]
+    fn one_byte_over_the_cap_is_still_refused() {
+        // The other half: the pre-check must stay a real limit, not a formality
+        // loosened until everything fits.
+        let encoded = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            vec![b'x'; MAX_IMAGE_DATA_URL_BYTES + 1],
+        );
+        let data_url = format!("data:image/png;base64,{encoded}");
+        assert!(decode_image_data_url(&data_url).is_err());
     }
 
     #[test]
