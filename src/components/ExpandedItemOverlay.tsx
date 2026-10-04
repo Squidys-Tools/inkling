@@ -942,6 +942,12 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
               </button>
             </div>
           )}
+          {!isEditingNoteView && shownItem.captureError && (
+            <div className="detail-processing failed" role="alert">
+              <HugeiconsIcon icon={AlertCircleIcon} size={14} />
+              <span>{shownItem.captureError}</span>
+            </div>
+          )}
           {!isEditingNoteView && (
             <div className="detail-meta">
             <div className="detail-filemeta">

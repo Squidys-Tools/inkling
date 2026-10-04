@@ -8,6 +8,14 @@
 
 const browserApi = globalThis.chrome ?? globalThis.browser;
 
+// Decoded-byte ceiling for one data URL, and the same number the receiver will
+// accept: `MAX_IMAGE_DATA_URL_BYTES` in src-tauri/src/capture_server.rs derives
+// it from the 5 MB JSON body budget, because base64 expands 4/3 inside that
+// body. Both sides have to agree — a data URL over it comes back 413, which this
+// extension treats as a permanent rejection and drops, so checking it here is
+// what turns a silent loss into an honest "too large" at save time.
+const MAX_DATA_URL_BYTES = 3_926_016;
+
 // The worker re-injects this file on every capture. Register the listener once
 // per page: a duplicate would answer the same collect request twice.
 const firstInjection = !globalThis.__inklingCollectInstalled;
@@ -19,9 +27,9 @@ function readImage(requestedSrc) {
   // after that event, so a stash would always be empty.
   const src = (requestedSrc || "").trim();
   if (!src) return null;
-  // blob:/canvas sources cannot be fetched by the app; rasterize small ones
-  // to a dataUrl fallback, capped at ~5MB. http(s) sources download directly
-  // and never need this path.
+  // blob:/canvas sources cannot be fetched by the app; rasterize small ones to
+  // a dataUrl fallback, capped at MAX_DATA_URL_BYTES. http(s) sources download
+  // directly and never need this path.
   if (src.startsWith("blob:") || src.startsWith("data:image/")) {
     return { src, needsDataUrl: true };
   }
@@ -56,8 +64,8 @@ function imageToDataUrl(url) {
     .then(
       (blob) =>
         new Promise((resolve, reject) => {
-          if (blob.size > 5 * 1024 * 1024) {
-            reject(new Error("image fallback exceeds the 5MB dataUrl cap"));
+          if (blob.size > MAX_DATA_URL_BYTES) {
+            reject(new Error("image fallback exceeds the dataUrl size cap"));
             return;
           }
           const reader = new FileReader();

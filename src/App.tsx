@@ -167,6 +167,8 @@ export type LibraryItem = {
   favorite?: boolean;
   archived?: boolean;
   processing?: ProcessingSummary;
+  /** Why a background capture step gave up. Recorded by the receiver, never set here. */
+  captureError?: string;
    articleHtml?: string;
    articleAuthor?: string;
    publishedDate?: string;
@@ -309,6 +311,12 @@ async function storedItemToLibraryItem(
   const localFavicon = metadataFaviconPath
     ? await assetUrl(metadataFaviconPath).catch(() => undefined)
     : undefined;
+  // A capture answers before its slow work, so an image whose download failed
+  // (or whose job never fit in the queue) leaves a row that looks saved and
+  // holds nothing. The receiver records the reason there; carry it so the card
+  // can say so instead of showing a placeholder as if it were the picture.
+  const captureError =
+    typeof item.metadata.captureError === "string" ? item.metadata.captureError.trim().slice(0, 240) : "";
 
   const remoteImage = Array.isArray(item.metadata.imageUrls)
     ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")
@@ -369,6 +377,7 @@ async function storedItemToLibraryItem(
     favorite: item.favorite,
     archived: item.archived,
     processing,
+    captureError: captureError || undefined,
     articleHtml: metadataHtml && metadataHtml.trim() ? metadataHtml : undefined,
     articleAuthor: metadataAuthor,
     publishedDate: metadataPublishedDate,
@@ -929,6 +938,12 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
               >
                 <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
               </button>
+            </div>
+          )}
+          {item.captureError && (
+            <div className="card-processing failed" role="alert">
+              <HugeiconsIcon icon={AlertCircleIcon} size={13} />
+              <span>{item.captureError}</span>
             </div>
           )}
           <div className="card-footer">

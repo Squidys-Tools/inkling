@@ -85,6 +85,7 @@ Guardrails:
 
 ### Fixed
 
+- An image the app could not finish saving now says so on the item instead of looking like a saved picture. A capture is acknowledged before its slow work runs, so a failed download or a full image queue used to leave a card holding nothing and no way to tell (`src-tauri/src/capture_server.rs`, `src-tauri/src/storage.rs`, `src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
 - A capture the app permanently rejects is no longer retried forever. A media save whose image host answers with something that is not an image used to be queued as if delivery were merely delayed, so every flush retried it, held the queue lock, and eventually pushed older pending captures out of the bounded queue; the extension now reports it failed instead (`extension/src/transport.ts`, `extension/src/background.ts`)
 - A page can no longer forge a capture. The extractor used to mirror its result into the page's DOM as a fallback, and a page could plant that node to make the extension save a URL of its choosing; extraction now travels only over the isolated world, which page script cannot reach
 - The capture server no longer moves to a different port when its saved one is taken. The extension keeps posting the bearer token to the stored address, so it refused to start and reports "not running" instead of handing the token to whatever is listening there
