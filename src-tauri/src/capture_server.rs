@@ -67,6 +67,8 @@ const FAVICON_WORKERS: usize = 2;
 const OEMBED_QUEUE_CAPACITY: usize = 16;
 const OEMBED_WORKERS: usize = 1;
 const MAX_OEMBED_BYTES: u64 = 512 * 1024;
+const IMAGE_QUEUE_CAPACITY: usize = 16;
+const IMAGE_WORKERS: usize = 2;
 
 struct FaviconJob {
     app: AppHandle,
@@ -82,8 +84,16 @@ struct OEmbedJob {
     source_url: String,
 }
 
+/// An image capture's bytes, to be read after the response went out.
+struct ImageJob {
+    app: AppHandle,
+    item_id: String,
+    source: ImageSource,
+}
+
 static FAVICON_QUEUE: OnceLock<SyncSender<FaviconJob>> = OnceLock::new();
 static OEMBED_QUEUE: OnceLock<SyncSender<OEmbedJob>> = OnceLock::new();
+static IMAGE_QUEUE: OnceLock<SyncSender<ImageJob>> = OnceLock::new();
 
 #[derive(Default)]
 pub struct CaptureServerState {
@@ -166,12 +176,88 @@ enum ValidatedCapture {
         source_url: String,
     },
     Image {
-        image_url: String,
+        /// Where the pixels come from. Decided at the boundary so storage writes
+        /// whichever one won without re-deriving it.
+        source: ImageSource,
+        /// The page the image was on. The provisional row's source, so an image
+        /// whose own URL is a `blob:` the app cannot fetch still lands with an
+        /// http(s) source before its bytes arrive.
+        page_url: String,
     },
     Video {
         source_url: String,
         title: Option<String>,
     },
+}
+
+/// An image capture's bytes, still to be read. Neither variant is fetched on the
+/// request thread: the row is created first and the queue worker fills this in.
+#[derive(Debug)]
+enum ImageSource {
+    /// Already in hand — the extension rasterized a `blob:`/canvas source to a
+    /// data URL because the app has no way to fetch one.
+    Bytes {
+        bytes: Vec<u8>,
+        mime_type: String,
+    },
+    Remote {
+        url: String,
+    },
+}
+
+/// Decoded-size ceiling for one data-URL image, matched to
+/// `EXTENSION_IMAGE_DATA_URL_MAX_BYTES` in
+/// `src/lib/ingestion/extension-capture.ts` (5 MB). The extension already
+/// refuses to send more, so this is the Rust-side half of the same cap: the
+/// encoded length is checked against it before decoding, and the decoded byte
+/// count against it after.
+const MAX_IMAGE_DATA_URL_BYTES: usize = 5 * 1024 * 1024;
+
+/// Decode a `data:image/<subtype>;base64,<payload>` image.
+///
+/// Only the base64 raster form is accepted. `data:text/html` is not an image at
+/// all, and `image/svg+xml` is an active-content format: the reader renders
+/// stored content, so accepting SVG here would put script-capable markup in the
+/// library through the back door. The subtype is checked against the same list
+/// the download path uses, so a type the thumbnail decoder cannot read is
+/// refused identically whichever way the bytes arrive.
+fn decode_image_data_url(input: &str) -> Result<(Vec<u8>, String), String> {
+    let value = input.trim();
+    let Some(rest) = value.strip_prefix("data:") else {
+        return Err("image data URL must start with data:".into());
+    };
+    let Some((meta, payload)) = rest.split_once(',') else {
+        return Err("image data URL is missing its payload separator".into());
+    };
+    let Some(mime_type) = meta.strip_suffix(";base64") else {
+        return Err("image data URL must be base64 encoded".into());
+    };
+    if !crate::http_fetch::is_decodable_image_mime(mime_type) {
+        return Err("image data URL is not a supported image type".into());
+    }
+    // Reject on the encoded length before allocating or decoding. Base64 is
+    // 4 chars per 3 bytes, so `len * 3 / 4` is an upper bound on the decoded
+    // size; `payload` is already inside the 5 MB JSON body cap, so this
+    // multiplication cannot overflow.
+    let compact: String = payload
+        .chars()
+        .filter(|c| !c.is_ascii_whitespace())
+        .collect();
+    if compact.len() * 3 / 4 > MAX_IMAGE_DATA_URL_BYTES {
+        return Err("image data URL exceeds the size limit".into());
+    }
+    let bytes = base64::Engine::decode(
+        &base64::engine::general_purpose::STANDARD,
+        compact.as_bytes(),
+    )
+    .map_err(|_| "image data URL is not valid base64".to_string())?;
+    if bytes.is_empty() {
+        return Err("image data URL decoded to no bytes".into());
+    }
+    if bytes.len() > MAX_IMAGE_DATA_URL_BYTES {
+        return Err("image data URL exceeds the size limit".into());
+    }
+    Ok((bytes, mime_type.to_owned()))
 }
 
 /// Upper bound from `packages/ingestion-shared` (`MAX_DEFUDDLED_HTML_BYTES`);
@@ -267,6 +353,58 @@ fn persist_port(app: &AppHandle, port: u16) {
             let _ = fs::create_dir_all(parent);
         }
         let _ = fs::write(path, port.to_string());
+    }
+}
+
+/// How long to keep retrying the preferred port before concluding the port
+/// belongs to someone else.
+///
+/// Do not "simplify" this away. This app is Windows-only and every capture
+/// response carries `Connection: close`, so the *server* initiates each close
+/// and the `(127.0.0.1, port)` pair sits in `TIME_WAIT` for minutes. A restart
+/// inside that window gets `WSAEADDRINUSE` from a bind that would succeed
+/// moments later, and treating that as a foreign listener forgets the preferred
+/// port and refuses to start — so pairing reports "not running" until a second,
+/// seemingly random restart happens to land outside the window. Retrying is what
+/// makes a quick restart deterministic. The refusal itself is still correct and
+/// must stay: a listener that is really there must never receive the pairing
+/// token, so only an exhausted budget may forget the port.
+const PORT_BIND_RETRY_BUDGET: Duration = Duration::from_secs(3);
+const PORT_BIND_RETRY_DELAY: Duration = Duration::from_millis(100);
+
+/// Bind the preferred port, retrying `AddrInUse` until the budget runs out.
+/// `forget` fires only on that final refusal, never after a retry that worked.
+///
+/// The bind and the forget are parameters so the retry-then-forget ordering can
+/// be tested without a real multi-minute `TIME_WAIT` window.
+fn bind_preferred_port(
+    port: u16,
+    budget: Duration,
+    delay: Duration,
+    bind: &mut dyn FnMut(u16) -> std::io::Result<TcpListener>,
+    forget: impl FnOnce(),
+) -> Option<TcpListener> {
+    let deadline = Instant::now() + budget;
+    loop {
+        let error = match bind(port) {
+            Ok(listener) => return Some(listener),
+            Err(error) => error,
+        };
+        // Only `AddrInUse` is worth waiting on: that is the TIME_WAIT refusal.
+        // Anything else (a denied bind, a bad interface) will not clear, and
+        // boot has no reason to sit through the budget for it.
+        if error.kind() != std::io::ErrorKind::AddrInUse || Instant::now() >= deadline {
+            eprintln!(
+                "capture server unavailable: port {port} is still in use ({error}); \
+                 refusing to move so the extension cannot post the pairing token to it"
+            );
+            // Forget the stale port so the next launch can bind a fresh one.
+            // Settings then shows that new address to copy into the extension,
+            // which is the only step that can safely re-pair.
+            forget();
+            return None;
+        }
+        std::thread::sleep(delay);
     }
 }
 
@@ -422,16 +560,26 @@ fn validate_capture_payload(body: &[u8]) -> Result<ValidatedCapture, String> {
             if request.kind != "image" {
                 return Err("unsupported payload kind".into());
             }
-            validate_capture_url(&request.page_url)?;
-            let image_url = validate_capture_url(&request.src_url)?;
-            if request.data_url.is_some() {
-                return Err("data URL images are not supported by the local receiver".into());
-            }
+            let page_url = validate_capture_url(&request.page_url)?;
             // Validated for length even though it is not stored: the extension
             // sends it, and an unbounded string is still worth rejecting at the
             // boundary. `save_file` has no alt field yet.
             let _alt = capped_string(request.alt, 240, "alt")?;
-            Ok(ValidatedCapture::Image { image_url })
+            // The data URL wins when present. The extension only sends one for
+            // sources the app cannot fetch — a `blob:` URL validates against
+            // nothing here, so refusing the payload would make canvas and blob
+            // image captures impossible. Otherwise `srcUrl` is a plain http(s)
+            // image the background worker downloads.
+            let source = match request.data_url.as_deref().map(str::trim) {
+                Some(data_url) if !data_url.is_empty() => {
+                    let (bytes, mime_type) = decode_image_data_url(data_url)?;
+                    ImageSource::Bytes { bytes, mime_type }
+                }
+                _ => ImageSource::Remote {
+                    url: validate_capture_url(&request.src_url)?,
+                },
+            };
+            Ok(ValidatedCapture::Image { source, page_url })
         }
         "video" => {
             let request: VideoCaptureRequest = serde_json::from_value(value)
@@ -1357,6 +1505,37 @@ fn enqueue_item_processing(app: &AppHandle, item: &crate::storage::ItemDto) {
     }
 }
 
+/// One provider's oEmbed endpoint. A table, not a format string: Vimeo and
+/// YouTube disagree on both the path (`/api/oembed.json` vs `/oembed`) and the
+/// parameters (`format=json` only YouTube takes it), and a shared shape
+/// silently produced two URLs that 404.
+struct OEmbedProvider {
+    label: &'static str,
+    hosts: &'static [&'static str],
+    /// Endpoint with `{}` where the percent-encoded source URL goes.
+    endpoint: &'static str,
+}
+
+const OEMBED_PROVIDERS: &[OEmbedProvider] = &[
+    OEmbedProvider {
+        label: "YouTube",
+        hosts: &[
+            "youtube.com",
+            "www.youtube.com",
+            "m.youtube.com",
+            "youtu.be",
+            "youtube-nocookie.com",
+            "www.youtube-nocookie.com",
+        ],
+        endpoint: "https://www.youtube.com/oembed?url={}&format=json",
+    },
+    OEmbedProvider {
+        label: "Vimeo",
+        hosts: &["vimeo.com", "www.vimeo.com", "player.vimeo.com"],
+        endpoint: "https://vimeo.com/api/oembed.json?url={}",
+    },
+];
+
 /// Which provider's oEmbed endpoint answers for a saved video page. Mirrors
 /// the embed allowlist in `src/lib/ingestion/safe-embeds.ts`, but only decides
 /// where to ask for a title: the item is still stored as a plain URL and the
@@ -1366,27 +1545,11 @@ fn video_oembed_endpoint(source_url: &str) -> Option<(&'static str, String)> {
         .ok()?
         .host_str()?
         .to_ascii_lowercase();
-    let endpoint_host = match host.as_str() {
-        "youtube.com"
-        | "www.youtube.com"
-        | "m.youtube.com"
-        | "youtu.be"
-        | "youtube-nocookie.com"
-        | "www.youtube-nocookie.com" => "www.youtube.com",
-        "vimeo.com" | "www.vimeo.com" | "player.vimeo.com" => "vimeo.com",
-        _ => return None,
-    };
-    Some((
-        if endpoint_host == "www.youtube.com" {
-            "YouTube"
-        } else {
-            "Vimeo"
-        },
-        format!(
-            "https://{endpoint_host}/oembed.json?url={}",
-            url::form_urlencoded::byte_serialize(source_url.as_bytes()).collect::<String>()
-        ),
-    ))
+    let provider = OEMBED_PROVIDERS
+        .iter()
+        .find(|provider| provider.hosts.contains(&host.as_str()))?;
+    let encoded = url::form_urlencoded::byte_serialize(source_url.as_bytes()).collect::<String>();
+    Some((provider.label, provider.endpoint.replace("{}", &encoded)))
 }
 
 /// What a provider's oEmbed endpoint told us about a saved video page.
@@ -1466,6 +1629,150 @@ fn enqueue_video_oembed(app: &AppHandle, item_id: &str, source_url: String) {
     });
 }
 
+/// Name the asset the image lands as. Remote captures keep the file name the
+/// host used, which is the best label available; a data URL has no URL to read
+/// one from, so it falls back to the subtype.
+fn image_file_name(url: &str, mime_type: &str) -> String {
+    url::Url::parse(url)
+        .ok()
+        .and_then(|url| {
+            url.path_segments()
+                .and_then(|mut segments| segments.rfind(|segment| !segment.is_empty()))
+                .map(str::to_owned)
+        })
+        .filter(|name| name.len() <= 180)
+        .unwrap_or_else(|| match mime_type.strip_prefix("image/") {
+            Some("jpeg") => "image.jpg".to_owned(),
+            Some(subtype) => format!("image.{subtype}"),
+            None => "image".to_owned(),
+        })
+}
+
+/// An image capture's bytes, resolved but not yet on disk.
+struct ImageBytes {
+    bytes: Vec<u8>,
+    mime_type: String,
+    file_name: String,
+}
+
+/// Read an image capture's bytes.
+///
+/// Deliberately takes no storage lock: a download can take tens of seconds and
+/// that lock guards every capture, OCR job and search in the app. Holding it
+/// across a network call would trade one slow capture for a frozen library.
+fn read_image_bytes(
+    source: ImageSource,
+    fetch: impl FnOnce(&str) -> Result<(Vec<u8>, String), String>,
+) -> Result<ImageBytes, String> {
+    Ok(match source {
+        ImageSource::Bytes { bytes, mime_type } => {
+            let file_name = image_file_name("", &mime_type);
+            ImageBytes {
+                bytes,
+                mime_type,
+                file_name,
+            }
+        }
+        ImageSource::Remote { url } => {
+            let (bytes, mime_type) = fetch(&url)?;
+            let file_name = image_file_name(&url, &mime_type);
+            ImageBytes {
+                bytes,
+                mime_type,
+                file_name,
+            }
+        }
+    })
+}
+
+/// Attach the bytes to the provisional row, turning it into the saved image.
+fn write_image_bytes(
+    storage: &crate::storage::LibraryStorage,
+    item_id: &str,
+    image: ImageBytes,
+) -> Result<crate::storage::ItemDto, String> {
+    storage
+        .save_file(crate::storage::SaveFileInput {
+            id: Some(item_id.to_owned()),
+            file_name: image.file_name,
+            mime_type: Some(image.mime_type),
+            kind: Some("image".into()),
+            bytes: image.bytes,
+        })
+        .map_err(|error| error.to_string())
+}
+
+fn image_queue() -> &'static SyncSender<ImageJob> {
+    IMAGE_QUEUE.get_or_init(|| {
+        let (sender, receiver) = sync_channel::<ImageJob>(IMAGE_QUEUE_CAPACITY);
+        let receiver = Arc::new(Mutex::new(receiver));
+        for _ in 0..IMAGE_WORKERS {
+            let receiver = Arc::clone(&receiver);
+            let _ = std::thread::Builder::new()
+                .name("image-capture".into())
+                .spawn(move || loop {
+                    let job = {
+                        let receiver = receiver.lock().unwrap_or_else(|error| error.into_inner());
+                        receiver.recv()
+                    };
+                    let Ok(job) = job else { break };
+                    // Fetch before locking storage: see `read_image_bytes`.
+                    let fetched =
+                        read_image_bytes(job.source, crate::http_fetch::download_public_image);
+                    let storage_state: State<'_, crate::storage::StorageState> = job.app.state();
+                    let Ok(guard) = storage_state.lock() else {
+                        continue;
+                    };
+                    let Some(storage) = guard.as_ref() else {
+                        continue;
+                    };
+                    match fetched.and_then(|image| write_image_bytes(storage, &job.item_id, image))
+                    {
+                        Ok(item) => {
+                            // The bytes are on disk, so the item is an image now:
+                            // queue the OCR a picture needs and its embedding.
+                            drop(guard);
+                            enqueue_item_processing(&job.app, &item);
+                        }
+                        Err(reason) => {
+                            // The response went out long ago, so the extension
+                            // cannot be told here. Recording it on the row keeps
+                            // the failure from being dropped silently.
+                            let _ = storage.record_capture_error(&job.item_id, &reason);
+                        }
+                    }
+                });
+        }
+        sender
+    })
+}
+
+fn enqueue_image_capture(app: &AppHandle, item_id: &str, source: ImageSource) {
+    // `try_send` never blocks: the request handler's job is to answer, not to
+    // wait for a worker. A full queue leaves the provisional row as a URL to the
+    // page the image was on, which is still a usable capture.
+    let _ = image_queue().try_send(ImageJob {
+        app: app.clone(),
+        item_id: item_id.to_owned(),
+        source,
+    });
+}
+
+/// Provisional row for an image capture: created before any bytes are read, so
+/// the card the user sees is the same one the background work fills in.
+fn image_capture_input(page_url: String) -> crate::storage::CreateUrlInput {
+    crate::storage::CreateUrlInput {
+        source_url: page_url,
+        title: None,
+        description: None,
+        body: String::new(),
+        metadata: Some(serde_json::json!({
+            "origin": "browser-extension",
+            "sourceKind": "image",
+        })),
+    }
+}
+
 /// Capture rejection: the status reaches the extension and the message says
 /// why. A failed upstream download must not report itself as unavailable
 /// storage, so fetch failures carry their own reason.
@@ -1499,36 +1806,24 @@ fn store_validated_capture(
             enqueue_item_processing(app, &item);
             Ok(item.id)
         }
-        ValidatedCapture::Image { image_url } => {
-            // The reason travels back to the extension: an image host that
-            // refuses the fetch, answers a non-image content type, or exceeds
-            // the size cap are three very different user problems. 502, not 422:
-            // the request was well formed, the upstream host is what failed.
-            let (bytes, mime_type) = crate::http_fetch::download_public_image(&image_url)
-                .map_err(|reason| (502u16, reason))?;
-            let file_name = url::Url::parse(&image_url)
-                .ok()
-                .and_then(|url| {
-                    url.path_segments()
-                        .and_then(|mut segments| segments.rfind(|segment| !segment.is_empty()))
-                        .map(str::to_owned)
-                })
-                .filter(|name| name.len() <= 180)
-                .unwrap_or_else(|| "image".to_owned());
+        ValidatedCapture::Image { source, page_url } => {
+            // The row lands first and the download follows on the queue. Doing
+            // it the other way round held the response for the image host's
+            // full timeout, which is capture blocking on slow work — the one
+            // thing capture must never do.
             let storage_state: State<'_, crate::storage::StorageState> = app.state();
             let guard = storage_state.lock().map_err(|_| unavailable())?;
             let storage = guard.as_ref().ok_or_else(unavailable)?;
             let item = storage
-                .save_file(crate::storage::SaveFileInput {
-                    id: None,
-                    file_name,
-                    mime_type: Some(mime_type),
-                    kind: Some("image".into()),
-                    bytes,
-                })
+                .create_url(image_capture_input(page_url))
                 .map_err(|_| unavailable())?;
             drop(guard);
+            // Same helper as every other arm: it writes the job rows and only
+            // wakes the worker for rows that landed. The row is a URL for now,
+            // so this is its page's text; the image worker re-runs it for the
+            // bytes once they arrive.
             enqueue_item_processing(app, &item);
+            enqueue_image_capture(app, &item.id, source);
             Ok(item.id)
         }
         ValidatedCapture::Video { source_url, title } => {
@@ -1638,20 +1933,19 @@ pub fn start_capture_server(app: &AppHandle) {
                 return;
             }
         },
-        Some(preferred) => match TcpListener::bind(("127.0.0.1", preferred)) {
-            Ok(listener) => listener,
-            Err(error) => {
-                eprintln!(
-                    "capture server unavailable: port {preferred} is in use ({error}); \
-                     refusing to move so the extension cannot post the pairing token to it"
-                );
-                // Forget the stale port so the next launch can bind a fresh one.
-                // Settings then shows that new address to copy into the
-                // extension, which is the only step that can safely re-pair.
-                forget_preferred_port(app);
-                return;
+        Some(preferred) => {
+            let mut bind = |port| TcpListener::bind(("127.0.0.1", port));
+            match bind_preferred_port(
+                preferred,
+                PORT_BIND_RETRY_BUDGET,
+                PORT_BIND_RETRY_DELAY,
+                &mut bind,
+                || forget_preferred_port(app),
+            ) {
+                Some(listener) => listener,
+                None => return,
             }
-        },
+        }
     };
     let port = listener.local_addr().map(|addr| addr.port()).unwrap_or(0);
     if port == 0 {
@@ -1830,16 +2124,77 @@ mod tests {
     }
 
     #[test]
-    fn image_captures_reject_data_urls_and_non_http_sources() {
-        let data_url = br#"{"kind":"image","pageUrl":"https://example.com","srcUrl":"https://example.com/a.png","dataUrl":"data:image/png;base64,AAAA"}"#;
-        assert!(validate_capture_payload(data_url)
-            .unwrap_err()
-            .contains("data URL"));
+    fn a_blob_image_capture_is_accepted_as_a_bounded_data_url() {
+        // The extension rasterizes blob:/canvas sources to a data URL precisely
+        // because the app cannot fetch them. `srcUrl` is a `blob:` here, so it
+        // is not an http(s) URL and the payload is the only usable source.
+        let payload = br#"{"kind":"image","pageUrl":"https://example.com/gallery","srcUrl":"blob:https://example.com/2f8a","dataUrl":"data:image/png;base64,iVBORw0KGgo="}"#;
+        let ValidatedCapture::Image { source, page_url } =
+            validate_capture_payload(payload).unwrap()
+        else {
+            panic!("expected image capture")
+        };
+        assert_eq!(page_url, "https://example.com/gallery");
+        let ImageSource::Bytes { bytes, mime_type } = source else {
+            panic!("a data URL capture must carry its bytes, not a URL to fetch")
+        };
+        assert_eq!(mime_type, "image/png");
+        // iVBORw0KGgo= is the first eight bytes of a PNG signature.
+        assert_eq!(bytes, b"\x89PNG\r\n\x1a\n");
 
-        let blob = br#"{"kind":"image","pageUrl":"https://example.com","srcUrl":"blob:https://example.com/abc"}"#;
-        assert!(validate_capture_payload(blob)
-            .unwrap_err()
-            .contains("only HTTP and HTTPS"));
+        // An http(s) source needs no data URL and stays a fetch.
+        let remote = br#"{"kind":"image","pageUrl":"https://example.com/gallery","srcUrl":"https://cdn.example.com/photo.jpg"}"#;
+        let ValidatedCapture::Image { source, .. } = validate_capture_payload(remote).unwrap()
+        else {
+            panic!("expected image capture")
+        };
+        let ImageSource::Remote { url } = source else {
+            panic!("an http(s) capture must stay a download")
+        };
+        assert_eq!(url, "https://cdn.example.com/photo.jpg");
+    }
+
+    #[test]
+    fn data_url_images_reject_everything_that_is_not_a_decodable_raster() {
+        let capture = |data_url: &str| {
+            serde_json::json!({
+                "kind": "image",
+                "pageUrl": "https://example.com/gallery",
+                "srcUrl": "blob:https://example.com/2f8a",
+                "dataUrl": data_url,
+            })
+        };
+        // SVG is an active-content format and the reader renders stored content,
+        // so it must not get in through the data URL door. AVIF and HEIC decode
+        // nowhere in this app, so they fail later rather than here.
+        for refused in [
+            "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+            "data:image/avif;base64,AAAA",
+            "data:text/html;base64,PGgxPmhpPC9oMT4=",
+            "data:image/png,notbase64",
+            "data:image/png;base64,!!!not base64!!!",
+            "data:image/png;base64,",
+            "data:;base64,QUJD",
+            "data:image/png",
+            "https://example.com/photo.png",
+        ] {
+            assert!(
+                validate_capture_payload(&serde_json::to_vec(&capture(refused)).unwrap()).is_err(),
+                "should refuse {refused}"
+            );
+        }
+
+        // 5 MB decoded is the shared cap with the extension's own sender.
+        let oversized = format!(
+            "data:image/png;base64,{}",
+            "A".repeat(MAX_IMAGE_DATA_URL_BYTES / 3 * 4 + 8)
+        );
+        let error = validate_capture_payload(&serde_json::to_vec(&capture(&oversized)).unwrap())
+            .unwrap_err();
+        assert!(
+            error.contains("size limit"),
+            "an oversized data URL must say so: {error}"
+        );
     }
 
     #[test]
@@ -2008,12 +2363,15 @@ mod tests {
             "srcUrl": "https://cdn.example.com/photo.jpg",
             "alt": "A photo",
         });
-        let ValidatedCapture::Image { image_url } =
+        let ValidatedCapture::Image { source, .. } =
             validate_capture_payload(&serde_json::to_vec(&image).unwrap()).unwrap()
         else {
             panic!("expected image capture")
         };
-        assert_eq!(image_url, "https://cdn.example.com/photo.jpg");
+        let ImageSource::Remote { url } = source else {
+            panic!("expected a download-backed image capture")
+        };
+        assert_eq!(url, "https://cdn.example.com/photo.jpg");
 
         // An over-long alt is still rejected at the boundary.
         let long_alt = serde_json::json!({
@@ -2054,23 +2412,51 @@ mod tests {
     }
 
     #[test]
-    fn video_oembed_endpoints_cover_the_embed_allowlist() {
-        let (label, endpoint) =
-            video_oembed_endpoint("https://www.youtube.com/watch?v=abc12345678").unwrap();
-        assert_eq!(label, "YouTube");
-        assert!(endpoint.starts_with("https://www.youtube.com/oembed.json?url="));
-        // The watch URL must survive as a query value, not as raw path bytes.
-        assert!(endpoint.contains("watch%3Fv%3Dabc12345678"));
-
+    fn video_oembed_endpoints_match_each_provider_s_documented_url() {
+        // Exact strings, not "the shape looks right": the shared `/oembed.json`
+        // format both providers were given 404s on both hosts, so enrichment
+        // never landed and the capture stayed titled after the hostname.
         assert_eq!(
-            video_oembed_endpoint("https://youtu.be/abc12345678")
-                .unwrap()
-                .0,
-            "YouTube"
+            video_oembed_endpoint("https://www.youtube.com/watch?v=abc12345678"),
+            Some((
+                "YouTube",
+                "https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3Dabc12345678&format=json".to_owned()
+            ))
         );
-        let (label, endpoint) = video_oembed_endpoint("https://vimeo.com/12345678901").unwrap();
-        assert_eq!(label, "Vimeo");
-        assert!(endpoint.starts_with("https://vimeo.com/oembed.json?url="));
+        assert_eq!(
+            video_oembed_endpoint("https://vimeo.com/12345678901"),
+            Some((
+                "Vimeo",
+                "https://vimeo.com/api/oembed.json?url=https%3A%2F%2Fvimeo.com%2F12345678901"
+                    .to_owned()
+            ))
+        );
+        // Every host the embed allowlist covers reaches its provider's endpoint.
+        for host in [
+            "youtube.com",
+            "m.youtube.com",
+            "youtu.be",
+            "youtube-nocookie.com",
+            "www.youtube-nocookie.com",
+        ] {
+            let (label, endpoint) =
+                video_oembed_endpoint(&format!("https://{host}/watch?v=abc12345678")).unwrap();
+            assert_eq!(label, "YouTube", "{host}");
+            assert!(
+                endpoint.starts_with("https://www.youtube.com/oembed?url="),
+                "{host} -> {endpoint}"
+            );
+            assert!(endpoint.ends_with("&format=json"), "{host} -> {endpoint}");
+        }
+        for host in ["vimeo.com", "www.vimeo.com", "player.vimeo.com"] {
+            let (label, endpoint) =
+                video_oembed_endpoint(&format!("https://{host}/12345678901")).unwrap();
+            assert_eq!(label, "Vimeo", "{host}");
+            assert!(
+                endpoint.starts_with("https://vimeo.com/api/oembed.json?url="),
+                "{host} -> {endpoint}"
+            );
+        }
 
         // Not a video page, or a host that only looks like one.
         assert!(video_oembed_endpoint("https://example.com/watch?v=abc").is_none());
@@ -2167,6 +2553,182 @@ mod tests {
         assert_eq!(parse("not-a-port"), None);
         assert_eq!(parse("65536"), None);
         assert_eq!(parse("-1"), None);
+    }
+
+    #[test]
+    fn a_preferred_port_is_retried_before_it_is_forgotten() {
+        // A Windows TIME_WAIT socket reports AddrInUse for a bind that will
+        // succeed moments later. Giving up on the first failure forgot the port
+        // and refused to start, so a quick restart reported "not running" until
+        // an apparently random second one worked.
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let attempts = std::cell::Cell::new(0);
+        let mut bind = |_port: u16| {
+            let seen = attempts.get() + 1;
+            attempts.set(seen);
+            match seen {
+                1 | 2 => Err(std::io::Error::from(std::io::ErrorKind::AddrInUse)),
+                _ => Ok(listener.try_clone().unwrap()),
+            }
+        };
+        let mut forgotten = false;
+        let bound = bind_preferred_port(
+            53176,
+            Duration::from_secs(1),
+            Duration::from_millis(1),
+            &mut bind,
+            || forgotten = true,
+        );
+        assert!(bound.is_some(), "a bind that clears must be retried into");
+        assert_eq!(attempts.get(), 3);
+        assert!(
+            !forgotten,
+            "a retry that succeeded must not forget the port the extension is paired to"
+        );
+    }
+
+    #[test]
+    fn a_port_still_busy_after_the_budget_is_forgotten_and_refused() {
+        // The refusal stays: a listener that really is there must never receive
+        // the pairing token. Only an exhausted retry budget may forget the port.
+        let mut attempts = 0;
+        let mut bind = |_port: u16| {
+            attempts += 1;
+            Err(std::io::Error::from(std::io::ErrorKind::AddrInUse))
+        };
+        let mut forgotten = false;
+        let bound = bind_preferred_port(
+            53176,
+            Duration::from_millis(5),
+            Duration::from_millis(1),
+            &mut bind,
+            || forgotten = true,
+        );
+        assert!(bound.is_none());
+        assert!(forgotten);
+        assert!(attempts > 1, "the bind must be retried before giving up");
+    }
+
+    /// A one-pixel PNG the thumbnail decoder can actually read, so these tests
+    /// exercise the asset write rather than the decoder's error path.
+    fn one_pixel_png() -> Vec<u8> {
+        let mut bytes = Vec::new();
+        image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            1,
+            1,
+            image::Rgba([10, 20, 30, 255]),
+        ))
+        .write_to(
+            &mut std::io::Cursor::new(&mut bytes),
+            image::ImageFormat::Png,
+        )
+        .expect("encode a one-pixel PNG");
+        bytes
+    }
+
+    #[test]
+    fn an_image_capture_is_stored_before_the_fetch_runs() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-image-capture-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let storage = crate::storage::LibraryStorage::open(directory.join("library.sqlite3"))
+            .expect("open a scratch library");
+
+        // The request handler does exactly this much: create the row. The fetch
+        // is injected below so the ordering can be observed from inside it.
+        let provisional = storage
+            .create_url(image_capture_input("https://example.com/gallery".into()))
+            .unwrap();
+        assert_eq!(provisional.kind, "url");
+        assert!(provisional.local_asset_path.is_none());
+
+        let image = read_image_bytes(
+            ImageSource::Remote {
+                url: "https://cdn.example.com/photo.png".into(),
+            },
+            |url| {
+                // Inside the fetch the row the user already saw must exist: the
+                // download runs after the response, never in front of it.
+                assert!(storage.get_item(&provisional.id).unwrap().is_some());
+                assert_eq!(url, "https://cdn.example.com/photo.png");
+                Ok((one_pixel_png(), "image/png".to_owned()))
+            },
+        )
+        .expect("the download succeeds");
+        let finished = write_image_bytes(&storage, &provisional.id, image)
+            .expect("the bytes land on the same row");
+        assert_eq!(finished.id, provisional.id);
+        assert_eq!(finished.kind, "image");
+        assert!(finished.local_asset_path.is_some());
+
+        drop(storage);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn a_failed_image_download_is_recorded_on_the_capture_it_could_not_fill() {
+        // The response was answered before the download started, so the reason
+        // has nowhere else to go. Dropping it would leave a card that looks
+        // saved and never resolves.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-image-failed-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let storage = crate::storage::LibraryStorage::open(directory.join("library.sqlite3"))
+            .expect("open a scratch library");
+        let provisional = storage
+            .create_url(image_capture_input("https://example.com/gallery".into()))
+            .unwrap();
+
+        let Err(error) = read_image_bytes(
+            ImageSource::Remote {
+                url: "https://cdn.example.com/photo.png".into(),
+            },
+            |_| Err("network-error: the image host did not answer".to_owned()),
+        ) else {
+            panic!("the fetch failed, so there are no bytes to write")
+        };
+        storage
+            .record_capture_error(&provisional.id, &error)
+            .unwrap();
+
+        let stored = storage.get_item(&provisional.id).unwrap().unwrap();
+        assert_eq!(stored.kind, "url");
+        assert_eq!(
+            stored.metadata["captureError"],
+            serde_json::json!("network-error: the image host did not answer")
+        );
+
+        drop(storage);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn a_data_url_image_needs_no_fetch_at_all() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-image-data-url-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let storage = crate::storage::LibraryStorage::open(directory.join("library.sqlite3"))
+            .expect("open a scratch library");
+        let provisional = storage
+            .create_url(image_capture_input("https://example.com/gallery".into()))
+            .unwrap();
+
+        // The bytes already crossed the wire; there is nothing left to fetch,
+        // so a panicking fetcher is the honest expectation.
+        let image = read_image_bytes(
+            ImageSource::Bytes {
+                bytes: one_pixel_png(),
+                mime_type: "image/png".to_owned(),
+            },
+            |_| panic!("a data URL capture must not fetch anything"),
+        )
+        .unwrap();
+        let item = write_image_bytes(&storage, &provisional.id, image).unwrap();
+        assert_eq!(item.kind, "image");
+        assert_eq!(item.source_label.as_deref(), Some("image/png"));
+
+        drop(storage);
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

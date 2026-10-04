@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::io::Read;
-use std::net::ToSocketAddrs;
 use std::time::Duration;
 
 use serde::Serialize;
@@ -103,18 +102,42 @@ fn validate_fetch_url(input: &str) -> Result<Url, String> {
     Ok(parsed)
 }
 
-fn validate_public_host(url: &Url) -> Result<(), String> {
-    let host = url
-        .host_str()
-        .ok_or_else(|| "invalid-url: The URL is missing a host.".to_owned())?;
-    let port = url
-        .port_or_known_default()
-        .ok_or_else(|| "invalid-url: The URL is missing a port.".to_owned())?;
-    let addresses = (host, port)
-        .to_socket_addrs()
+/// Deadline handed to the resolver. A finite one matters: `NextTimeout::
+/// NotHappening` sends ureq down its synchronous `to_socket_addrs()` path, which
+/// is the unbounded blocking call this replaced.
+fn resolve_deadline(timeout: Duration) -> NextTimeout {
+    NextTimeout {
+        after: ureq::unversioned::transport::time::Duration::Exact(timeout),
+        reason: ureq::Timeout::Resolve,
+    }
+}
+
+/// Confirm the host resolves, and to somewhere public.
+///
+/// Resolution goes through `DefaultResolver` with a finite deadline instead of
+/// `to_socket_addrs()`. That call is an unbounded blocking system call, so a
+/// stalled resolver ignored the caller's timeout entirely and pinned the thread
+/// long past its budget. `DefaultResolver` resolves on a thread ureq can time
+/// out, so handing it the caller's budget is what makes this bounded; only a
+/// `NotHappening` deadline would send it back down the synchronous path.
+///
+/// The per-address private-range rejection below stays the SSRF guard: a public
+/// name that resolves into the loopback or LAN ranges is refused exactly as
+/// `validate_fetch_url` refuses one written out in full.
+fn validate_public_host(url: &Url, timeout: Duration) -> Result<(), String> {
+    let uri: ureq::http::Uri = url
+        .as_str()
+        .parse()
+        .map_err(|_| "invalid-url: The URL is missing a host.".to_owned())?;
+    let addresses = DefaultResolver::default()
+        .resolve(
+            &uri,
+            &ureq::config::Config::default(),
+            resolve_deadline(timeout),
+        )
         .map_err(|error| format!("network-error: Could not resolve the host: {error}"))?;
     let mut resolved = false;
-    for address in addresses {
+    for address in addresses.iter() {
         resolved = true;
         if private_hostname(&address.ip().to_string()) {
             return Err("invalid-url: Private network URLs are not supported.".into());
@@ -173,6 +196,40 @@ const MAX_FAVICON_BYTES: u64 = 128 * 1024;
 const MAX_IMAGE_BYTES: u64 = 50 * 1024 * 1024;
 const MAX_FAVICON_REDIRECTS: u32 = 5;
 
+/// Ceiling on the buffer `fetch_http` will build, whatever the caller asks for.
+/// `maxBytes` arrives straight from the webview, so a direct Tauri invoke could
+/// otherwise name any size and have the Rust side honour it. The webview asks
+/// for 8 MB for article extraction; 16 MB leaves it headroom for a large page
+/// while keeping the worst case bounded.
+const MAX_FETCH_BYTES: u64 = 16 * 1024 * 1024;
+
+fn clamp_fetch_bytes(requested: u64) -> u64 {
+    requested.clamp(1, MAX_FETCH_BYTES)
+}
+
+/// Raster MIME types the thumbnail decoder can actually read, matching the
+/// `image` crate features this app builds with (bmp, gif, ico, jpeg, png, tiff,
+/// webp). SVG and AVIF download cleanly and then fail in the decoder, so the
+/// user is told a capture succeeded and watches it fail; refusing them here
+/// keeps one answer for "not an image we can store".
+pub(crate) const DECODABLE_IMAGE_MIME: &[&str] = &[
+    "image/bmp",
+    "image/gif",
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/tiff",
+    "image/webp",
+    "image/x-icon",
+    "image/vnd.microsoft.icon",
+];
+
+/// Bare MIME type (no parameters) that both `download_public_image` and the
+/// capture receiver's data-URL decoder accept.
+pub(crate) fn is_decodable_image_mime(mime: &str) -> bool {
+    DECODABLE_IMAGE_MIME.contains(&mime.trim().to_ascii_lowercase().as_str())
+}
+
 fn favicon_extension(content_type: &str, url: &Url) -> &'static str {
     let mime = content_type
         .split(';')
@@ -207,10 +264,11 @@ fn favicon_extension(content_type: &str, url: &Url) -> &'static str {
 
 pub(crate) fn download_favicon(url: &str) -> Result<(Vec<u8>, String), String> {
     let mut current = validate_fetch_url(url)?;
-    let agent = public_http_agent(Duration::from_secs(10));
+    let timeout = Duration::from_secs(10);
+    let agent = public_http_agent(timeout);
 
     for _ in 0..MAX_FAVICON_REDIRECTS {
-        validate_public_host(&current)?;
+        validate_public_host(&current, timeout)?;
         let mut response = agent
             .get(current.as_str())
             .header("User-Agent", "inkling/1.0")
@@ -260,9 +318,10 @@ pub(crate) fn download_favicon(url: &str) -> Result<(Vec<u8>, String), String> {
 
 pub(crate) fn download_public_image(url: &str) -> Result<(Vec<u8>, String), String> {
     let mut current = validate_fetch_url(url)?;
-    let agent = public_http_agent(Duration::from_secs(30));
+    let timeout = Duration::from_secs(30);
+    let agent = public_http_agent(timeout);
     for _ in 0..MAX_FAVICON_REDIRECTS {
-        validate_public_host(&current)?;
+        validate_public_host(&current, timeout)?;
         let mut response = agent
             .get(current.as_str())
             .header("User-Agent", "inkling/0.1 (+local image capture)")
@@ -298,7 +357,11 @@ pub(crate) fn download_public_image(url: &str) -> Result<(Vec<u8>, String), Stri
             .unwrap_or("")
             .trim()
             .to_ascii_lowercase();
-        if !content_type.starts_with("image/") {
+        // One answer for every content type we cannot store as an image: the
+        // host replied, the bytes are not an image this app can read. SVG and
+        // AVIF pass the `image/` prefix check and fail in the thumbnail decoder,
+        // which tells the user a capture worked and then shows nothing.
+        if !is_decodable_image_mime(&content_type) {
             return Err("invalid-image: Response is not an image.".into());
         }
         let bytes = read_limited(response.body_mut(), MAX_IMAGE_BYTES)?;
@@ -315,8 +378,9 @@ pub(crate) fn download_public_image(url: &str) -> Result<(Vec<u8>, String), Stri
 /// bounced somewhere private.
 pub(crate) fn fetch_public_json(url: &str, max_bytes: u64) -> Result<serde_json::Value, String> {
     let parsed = validate_fetch_url(url)?;
-    validate_public_host(&parsed)?;
-    let mut response = public_http_agent(Duration::from_secs(4))
+    let timeout = Duration::from_secs(4);
+    validate_public_host(&parsed, timeout)?;
+    let mut response = public_http_agent(timeout)
         .get(parsed.as_str())
         .header("User-Agent", "inkling/0.1 (+local video capture)")
         .header("Accept", "application/json")
@@ -368,8 +432,8 @@ pub fn fetch_http(
     max_bytes: u64,
 ) -> Result<FetchHttpResult, String> {
     let parsed = validate_fetch_url(&url)?;
-    validate_public_host(&parsed)?;
     let timeout = Duration::from_millis(timeout_ms.clamp(1, 120_000));
+    validate_public_host(&parsed, timeout)?;
     let agent = public_http_agent(timeout);
 
     let mut response = agent
@@ -390,7 +454,7 @@ pub fn fetch_http(
         }
     }
 
-    let bytes = read_limited(response.body_mut(), max_bytes)?;
+    let bytes = read_limited(response.body_mut(), clamp_fetch_bytes(max_bytes))?;
     let body = String::from_utf8_lossy(&bytes).into_owned();
 
     Ok(FetchHttpResult {
@@ -459,9 +523,72 @@ mod tests {
             after: ureq::unversioned::transport::time::Duration::NotHappening,
             reason: ureq::Timeout::Resolve,
         };
+
         assert!(PublicResolver
             .resolve(&uri, &ureq::config::Config::default(), timeout)
             .is_err());
+    }
+
+    #[test]
+    fn host_validation_bounds_name_resolution() {
+        // The old code called `to_socket_addrs()` directly: an unbounded blocking
+        // system call, so a stalled resolver ignored the caller's timeout. The
+        // deadline has to be finite, because `NotHappening` is what sends ureq
+        // back down that synchronous path.
+        let budget = Duration::from_millis(250);
+        let deadline = resolve_deadline(budget);
+        assert_eq!(
+            deadline.after,
+            ureq::unversioned::transport::time::Duration::Exact(budget)
+        );
+        assert!(!deadline.after.is_not_happening());
+    }
+
+    #[test]
+    fn host_validation_still_rejects_private_dns_answers() {
+        // Bounding the resolution replaced the call, not the guard. A name
+        // resolving into the loopback range is still refused, with the wording
+        // the extension shows the user, even though `validate_fetch_url` only
+        // ever saw the name.
+        let url = Url::parse("http://localhost:8080/asset.png").unwrap();
+        assert_eq!(
+            validate_public_host(&url, Duration::from_secs(2)),
+            Err("invalid-url: Private network URLs are not supported.".to_owned())
+        );
+    }
+
+    #[test]
+    fn only_decodable_raster_types_cross_the_image_boundary() {
+        for mime in DECODABLE_IMAGE_MIME {
+            assert!(is_decodable_image_mime(mime), "{mime} should be accepted");
+        }
+        for mime in [
+            // Downloads fine, fails in the thumbnail decoder.
+            "image/svg+xml",
+            "image/avif",
+            "image/heic",
+            "image/jxl",
+            "text/html",
+            "application/octet-stream",
+            "",
+            "image",
+        ] {
+            assert!(!is_decodable_image_mime(mime), "{mime} should be refused");
+        }
+        // Callers pass the bare type; the header's parameters are stripped first.
+        assert!(is_decodable_image_mime("IMAGE/PNG"));
+        assert!(is_decodable_image_mime(" image/webp "));
+    }
+
+    #[test]
+    fn the_webview_cannot_ask_for_an_unbounded_buffer() {
+        // `maxBytes` is caller-controlled and `read_limited` sizes a real buffer
+        // from it, so the ceiling lives here rather than in the webview.
+        assert_eq!(clamp_fetch_bytes(8 * 1024 * 1024), 8 * 1024 * 1024);
+        assert_eq!(clamp_fetch_bytes(MAX_FETCH_BYTES), MAX_FETCH_BYTES);
+        assert_eq!(clamp_fetch_bytes(MAX_FETCH_BYTES + 1), MAX_FETCH_BYTES);
+        assert_eq!(clamp_fetch_bytes(u64::MAX), MAX_FETCH_BYTES);
+        assert_eq!(clamp_fetch_bytes(0), 1);
     }
 
     #[test]

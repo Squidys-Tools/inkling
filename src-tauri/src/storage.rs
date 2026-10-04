@@ -655,6 +655,40 @@ impl LibraryStorage {
         Ok(relative_path)
     }
 
+    /// Record why a capture could not be completed.
+    ///
+    /// Capture answers before the slow work, so an image whose download failed
+    /// still has a row — and the response that would have carried the reason is
+    /// long gone. The item is the only durable place left for it, which is why
+    /// this is metadata on the row rather than an in-memory notice.
+    pub(crate) fn record_capture_error(
+        &self,
+        item_id: &str,
+        reason: &str,
+    ) -> Result<(), StorageError> {
+        let item_id = validate_item_id(item_id.to_owned())?;
+        let reason = reason.trim();
+        if reason.is_empty() {
+            return Err(StorageError::InvalidInput(
+                "capture error reason cannot be empty".into(),
+            ));
+        }
+        let item = self
+            .get_item(&item_id)?
+            .ok_or(StorageError::NotFound(item_id.clone()))?;
+        let mut metadata: Map<String, Value> = match item.metadata {
+            Value::Object(map) => map,
+            _ => Map::new(),
+        };
+        metadata.insert("captureError".into(), Value::String(reason.to_owned()));
+        let metadata_json = serde_json::to_string(&Value::Object(metadata))?;
+        self.connection.execute(
+            "UPDATE items SET metadata = ?1 WHERE id = ?2",
+            params![metadata_json, item_id],
+        )?;
+        Ok(())
+    }
+
     /// Apply provider title/description to a saved video page, but only to the
     /// fields the user has not touched since the capture. Background
     /// enrichment rather than a user edit, so `updated_at` is left alone and
