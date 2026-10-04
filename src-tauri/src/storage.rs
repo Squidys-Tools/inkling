@@ -769,8 +769,20 @@ impl LibraryStorage {
         }
 
         let file_name = sanitize_file_name(&input.file_name)?;
-        let id = match input.id {
-            Some(id) => validate_item_id(id)?,
+        // A caller-supplied id means "attach to this item". If the row is gone,
+        // the user deleted it while the work was in flight: writing anyway
+        // resurrects the item and leaves an asset directory nothing will ever
+        // clean up. Checked before any write, the way `store_favicon` does,
+        // because the background image and OCR jobs both get here after a
+        // capture has already been acknowledged.
+        let attaching = input.id.is_some();
+        let id = match input.id.as_deref() {
+            Some(id) => {
+                let validated = validate_item_id(id.to_owned())?;
+                self.get_item(&validated)?
+                    .ok_or_else(|| StorageError::NotFound(validated.clone()))?;
+                validated
+            }
             None => Uuid::new_v4().to_string(),
         };
         let mime_type = input
@@ -824,14 +836,17 @@ impl LibraryStorage {
         let title = Some(pdf_title.unwrap_or_else(|| file_name.clone()));
         let source_label = mime_type.clone();
 
-        let existing = self.get_item(&id)?;
-        if existing.is_some() {
+        // `attaching` was decided by finding the row above, so this only writes
+        // over an item that still exists. `archived` is deliberately left alone:
+        // a user who archived the card while a download ran did not ask for it
+        // to come back.
+        if attaching {
             self.connection.execute(
                 "UPDATE items
                  SET kind = ?2, title = ?3, description = NULL, body = '', body_format = ?9,
                      source_label = ?4, local_asset_path = ?5, thumbnail_path = ?6,
-                     ocr_text = '', metadata = ?7, archived = 0, updated_at = ?8
-                  WHERE id = ?1",
+                     ocr_text = '', metadata = ?7, updated_at = ?8
+                 WHERE id = ?1",
                 params![
                     id,
                     kind,
@@ -4339,6 +4354,105 @@ mod tests {
 
         assert!(!item_directory.exists());
         assert!(storage.get_item(&item.id).unwrap().is_none());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn attaching_a_file_never_resurrects_a_deleted_item() {
+        // The background image and OCR jobs both attach to an item that was
+        // already acknowledged, so the row can be gone by the time the bytes
+        // arrive. Writing anyway would put the deleted item back and leave an
+        // asset directory nothing cleans up.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .save_file(SaveFileInput {
+                id: None,
+                file_name: "notes.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"attached bytes".to_vec(),
+            })
+            .unwrap();
+        let id = item.id.clone();
+        // Trash is two steps in this model: archived first, then purged.
+        storage.archive_item(&id, true).unwrap();
+        storage.delete_item(&id).unwrap();
+
+        let error = storage
+            .save_file(SaveFileInput {
+                id: Some(id.clone()),
+                file_name: "notes.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"attached bytes".to_vec(),
+            })
+            .unwrap_err();
+        assert!(
+            matches!(error, StorageError::NotFound(ref missing) if missing == &id),
+            "expected NotFound, got {error:?}"
+        );
+
+        assert!(storage.get_item(&id).unwrap().is_none(), "item came back");
+        assert!(
+            !directory.join("assets").join("items").join(&id).exists(),
+            "an orphaned asset directory was left behind"
+        );
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn attaching_a_file_does_not_unarchive_an_archived_item() {
+        // The user archived the card while the download was still running.
+        // Completing that download is not a request to bring it back.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .save_file(SaveFileInput {
+                id: None,
+                file_name: "notes.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"attached bytes".to_vec(),
+            })
+            .unwrap();
+        storage.archive_item(&item.id, true).unwrap();
+
+        storage
+            .save_file(SaveFileInput {
+                id: Some(item.id.clone()),
+                file_name: "notes.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"attached bytes".to_vec(),
+            })
+            .unwrap();
+
+        let stored = storage.get_item(&item.id).unwrap().unwrap();
+        assert!(
+            stored.metadata.get("archived").is_none(),
+            "metadata should not claim a non-archived item"
+        );
+        let archived: i64 = storage
+            .connection
+            .query_row(
+                "SELECT archived FROM items WHERE id = ?1",
+                [&item.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            archived, 1,
+            "the archived item was unarchived by a download"
+        );
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();

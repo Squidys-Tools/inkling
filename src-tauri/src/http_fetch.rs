@@ -125,6 +125,9 @@ fn resolve_deadline(timeout: Duration) -> NextTimeout {
 /// name that resolves into the loopback or LAN ranges is refused exactly as
 /// `validate_fetch_url` refuses one written out in full.
 fn validate_public_host(url: &Url, timeout: Duration) -> Result<(), String> {
+    // A `Uri` has no fragment component, but parsing one that carries a
+    // fragment succeeds anyway: the fragment is dropped, which is correct since
+    // it is never sent on the wire.
     let uri: ureq::http::Uri = url
         .as_str()
         .parse()
@@ -554,6 +557,32 @@ mod tests {
         assert_eq!(
             validate_public_host(&url, Duration::from_secs(2)),
             Err("invalid-url: Private network URLs are not supported.".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_uri_drops_the_fragment_before_resolution() {
+        // Checked because a `Uri` has no fragment component, which looked like
+        // it would reject any URL carrying an anchor. It does not: the fragment
+        // is parsed and discarded, which is the correct HTTP behaviour since a
+        // fragment is never sent on the wire. Kept as a regression note so the
+        // next reader does not "fix" this a second time. `Uri` has no fragment
+        // accessor at all: it does not model fragments, it discards them.
+        let anchored: ureq::http::Uri = "http://localhost:8080/page?q=1#section-two"
+            .parse()
+            .expect("a fragment must not fail the parse");
+        let plain: ureq::http::Uri = "http://localhost:8080/page?q=1".parse().unwrap();
+        assert_eq!(anchored.to_string(), plain.to_string());
+        assert_eq!(anchored.path(), "/page");
+        assert_eq!(anchored.query(), Some("q=1"));
+        assert_eq!(anchored.authority().unwrap().as_str(), "localhost:8080");
+
+        // And the anchor survives the validation that was reported to reject it.
+        let url = Url::parse("http://localhost:8080/page#section-two").unwrap();
+        assert_eq!(
+            validate_public_host(&url, Duration::from_secs(2)),
+            Err("invalid-url: Private network URLs are not supported.".to_owned()),
+            "the fragment must not turn a private host into a parse failure"
         );
     }
 

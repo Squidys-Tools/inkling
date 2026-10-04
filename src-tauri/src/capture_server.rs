@@ -45,8 +45,11 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
 /// Cap for a single capture JSON body. Extension payloads carry extracted
-/// article HTML, so this is generous; anything larger is rejected with 413.
-pub const MAX_JSON_BYTES: usize = 5 * 1024 * 1024;
+/// article HTML, and an image capture additionally carries a base64 data URL
+/// inside that body, so this has to be large enough to hold a maximum-size
+/// image — see the compile-time check on `MAX_IMAGE_DATA_URL_BYTES`. Anything
+/// larger is rejected with 413.
+pub const MAX_JSON_BYTES: usize = 8 * 1024 * 1024;
 /// Cap for the HTTP head (request line + headers). Bodies stream separately.
 const MAX_HEAD_BYTES: usize = 64 * 1024;
 /// Basic rate limit: at most this many requests per window per loopback peer.
@@ -205,13 +208,31 @@ enum ImageSource {
     },
 }
 
-/// Decoded-size ceiling for one data-URL image, matched to
-/// `EXTENSION_IMAGE_DATA_URL_MAX_BYTES` in
-/// `src/lib/ingestion/extension-capture.ts` (5 MB). The extension already
-/// refuses to send more, so this is the Rust-side half of the same cap: the
-/// encoded length is checked against it before decoding, and the decoded byte
-/// count against it after.
+/// Decoded-size ceiling for one data-URL image.
+///
+/// Matches what the extension will actually send: `extension/content.js`
+/// refuses to rasterize a blob over 5 MB, so 5 MB decoded is the largest image a
+/// user can legitimately produce and there is nothing to gain by rejecting
+/// less. Both sides must change together.
+///
+/// The budget is moved by raising `MAX_JSON_BYTES`, not by lowering this,
+/// because the data URL travels *inside* the JSON body and base64 expands it by
+/// 4/3. Capping the image at what a 5 MB body can hold would leave every
+/// capture between 3.75 MB and 5 MB refused with 413 by the body reader before
+/// this decoder ever ran — the same failure, just moved.
 const MAX_IMAGE_DATA_URL_BYTES: usize = 5 * 1024 * 1024;
+
+/// Room inside a body for the JSON envelope around a data URL: the kind, the
+/// page URL, the `blob:` source and the `data:` header. Generous — the real
+/// envelope is a few hundred bytes.
+const DATA_URL_ENVELOPE_BYTES: usize = 8 * 1024;
+
+/// A maximum-size data URL has to fit inside one capture body. Base64 is four
+/// characters per three bytes. Without this the body reader rejects the largest
+/// images the extension is willing to send, and the image cap above quietly
+/// stops being reachable.
+const _: () =
+    assert!(MAX_JSON_BYTES >= MAX_IMAGE_DATA_URL_BYTES.div_ceil(3) * 4 + DATA_URL_ENVELOPE_BYTES);
 
 /// Decode a `data:image/<subtype>;base64,<payload>` image.
 ///
@@ -1749,13 +1770,30 @@ fn image_queue() -> &'static SyncSender<ImageJob> {
 
 fn enqueue_image_capture(app: &AppHandle, item_id: &str, source: ImageSource) {
     // `try_send` never blocks: the request handler's job is to answer, not to
-    // wait for a worker. A full queue leaves the provisional row as a URL to the
-    // page the image was on, which is still a usable capture.
-    let _ = image_queue().try_send(ImageJob {
-        app: app.clone(),
-        item_id: item_id.to_owned(),
-        source,
-    });
+    // wait for a worker. A full queue is still not a reason to drop the image
+    // silently, though — for a blob or canvas capture the data URL was the whole
+    // capture, so a discarded job leaves a card that looks saved and holds
+    // nothing. Record it on the row, the same as a failed download, so the loss
+    // is at least legible instead of looking like success.
+    if image_queue()
+        .try_send(ImageJob {
+            app: app.clone(),
+            item_id: item_id.to_owned(),
+            source,
+        })
+        .is_err()
+    {
+        if let Some(storage) = app.try_state::<crate::storage::StorageState>() {
+            if let Ok(guard) = storage.lock() {
+                if let Some(storage) = guard.as_ref() {
+                    let _ = storage.record_capture_error(
+                        item_id,
+                        "the image queue was full, so the image was not saved",
+                    );
+                }
+            }
+        }
+    }
 }
 
 /// Provisional row for an image capture: created before any bytes are read, so
@@ -2920,7 +2958,17 @@ mod tests {
     }
 
     #[test]
-    fn json_size_cap_is_five_megabytes() {
-        assert_eq!(MAX_JSON_BYTES, 5 * 1024 * 1024);
+    fn the_body_budget_carries_a_maximum_size_data_url() {
+        // Base64 expands 4/3 and the payload travels inside the JSON body, so
+        // these two numbers are one contract and neither is meaningful alone.
+        // A compile-time assert catches the regression; this records its shape
+        // for whoever tunes either number next.
+        let encoded = MAX_IMAGE_DATA_URL_BYTES.div_ceil(3) * 4;
+        assert_eq!(MAX_IMAGE_DATA_URL_BYTES, 5 * 1024 * 1024);
+        assert!(
+            MAX_JSON_BYTES >= encoded + DATA_URL_ENVELOPE_BYTES,
+            "a {MAX_IMAGE_DATA_URL_BYTES} byte image encodes to {encoded} bytes, which \
+             must fit inside a {MAX_JSON_BYTES} byte body"
+        );
     }
 }
