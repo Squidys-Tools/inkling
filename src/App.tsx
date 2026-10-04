@@ -2751,13 +2751,20 @@ function App() {
     }
     let cancelled = false;
     const issuedAt = spaceMembershipEpochRef.current;
+    // One guard for both outcomes. A read a chip toggle has superseded has
+    // nothing to report either way: the toggle's own write is now the
+    // authoritative answer and reports its own failure. Checking the epoch on
+    // the success path only would leave a stale rejection raising an error for
+    // a read whose result nobody can use any more.
+    const superseded = () => cancelled || issuedAt !== spaceMembershipEpochRef.current;
     listItemSpaces(itemId)
       .then((ids) => {
-        if (cancelled || issuedAt !== spaceMembershipEpochRef.current) return;
+        if (superseded()) return;
         setItemSpaceIds(ids);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+        if (superseded()) return;
+        setCaptureError(error instanceof Error ? error.message : String(error));
       });
     return () => {
       cancelled = true;
