@@ -117,12 +117,14 @@ describe("markdownToPlainText", () => {
   });
 
   test("treats a non-ASCII letter as a word character", () => {
-    // Both sides of the delimiter have to be non-ASCII for this to discriminate.
-    // An ASCII neighbour satisfies the old ASCII-only guard on its own, and a
-    // single underscore never matches the two-delimiter pattern at all, so
-    // neither would notice the guard being wrong.
+    // The neighbours decide, and only a non-ASCII one discriminates: an ASCII
+    // neighbour satisfies the ASCII-only guard by itself, and a single
+    // underscore never reaches the two-delimiter pattern at all. The last two
+    // put the non-ASCII letter on one side of the pair only, so neither half
+    // of the guard can go unnoticed.
     expect(markdownToPlainText("é_foo_é")).toBe("é_foo_é");
-    expect(markdownToPlainText("ï_ô_ü")).toBe("ï_ô_ü");
+    expect(markdownToPlainText("_naïve_ça")).toBe("_naïve_ça");
+    expect(markdownToPlainText("Déjà_vu_")).toBe("Déjà_vu_");
   });
 
   test("leaves a lone underscore alone for want of a closing delimiter", () => {
