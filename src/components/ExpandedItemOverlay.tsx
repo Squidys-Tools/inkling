@@ -987,7 +987,7 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
                     onClick={() => void actions.onToggleSpace?.(shownItem, space.id)}
                   >
                     <span className={`detail-space-dot ${space.color}`} aria-hidden="true" />
-                    {space.name}
+                    <span className="detail-space-name">{space.name}</span>
                   </button>
                 ))}
               </div>

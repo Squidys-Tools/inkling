@@ -2424,35 +2424,60 @@ function App() {
     }
   }
 
-  // Membership decides the direction of the toggle, so this has to stay a
-  // stable callback: the overlay actions memo closes over it, and a plain
-  // function would leave that memo holding a pre-toggle membership read and
-  // turn "Remove from" into a second add.
+  // The chips toggle from live membership, so this has to stay a stable
+  // callback: the overlay actions memo closes over it, and a plain function
+  // would leave that memo holding a pre-toggle membership read and turn
+  // "Remove from" into a second add.
+  //
+  // The direction is applied before the write rather than after it, because a
+  // second click while the first write is in flight has to reverse the first
+  // instead of repeating it. Two writes for one Space are chained so the
+  // reversal cannot land before the write it reverses.
+  const spaceWritesRef = useRef<Map<string, Promise<void>>>(new Map());
   const handleToggleItemInSpace = useCallback(async (item: LibraryItem, spaceId: string) => {
-    const member = itemSpaceIds.includes(spaceId);
+    const itemId = String(item.id);
+    const wasMember = itemSpaceIds.includes(spaceId);
+    const member = !wasMember;
+    const show = (next: boolean) => {
+      setItemSpaceIds((current) => {
+        if (next) return current.includes(spaceId) ? current : [...current, spaceId];
+        return current.filter((id) => id !== spaceId);
+      });
+    };
     setCaptureError(null);
-    try {
-      if (canUseTauriBackend) {
-        if (member) await removeSpaceItem(spaceId, String(item.id));
-        else await addSpaceItem(spaceId, String(item.id));
-        setItemSpaceIds((current) =>
-          member ? current.filter((id) => id !== spaceId) : [...current, spaceId],
-        );
+    if (!canUseTauriBackend) {
+      // Preview keeps membership in local state and an effect mirrors that into
+      // itemSpaceIds, so there is no write to make and none to chain.
+      setLocalSpaceItems((current) => {
+        const next = new Map(current);
+        const members = new Set(next.get(spaceId) ?? []);
+        if (member) members.delete(itemId);
+        else members.add(itemId);
+        next.set(spaceId, members);
+        return next;
+      });
+      return;
+    }
+
+    show(member);
+    const write = (spaceWritesRef.current.get(spaceId) ?? Promise.resolve())
+      .then(async () => {
+        if (member) await removeSpaceItem(spaceId, itemId);
+        else await addSpaceItem(spaceId, itemId);
         // The open Space lists its own members, so its grid has to re-read.
         if (activeSpaceId === spaceId) loadItemsRef.current();
-      } else {
-        setLocalSpaceItems((current) => {
-          const next = new Map(current);
-          const members = new Set(next.get(spaceId) ?? []);
-          if (member) members.delete(String(item.id));
-          else members.add(String(item.id));
-          next.set(spaceId, members);
-          return next;
-        });
-      }
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    }
+      })
+      .catch((error: unknown) => {
+        // A failed write must not leave the chip claiming a membership the
+        // library does not have.
+        show(wasMember);
+        setCaptureError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        if (spaceWritesRef.current.get(spaceId) === write) spaceWritesRef.current.delete(spaceId);
+      });
+    spaceWritesRef.current.set(spaceId, write);
+    await write;
   }, [activeSpaceId, canUseTauriBackend, itemSpaceIds]);
 
   async function handleDeleteSpace(space: StoredSpace) {

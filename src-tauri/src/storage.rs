@@ -1627,7 +1627,11 @@ impl LibraryStorage {
                 "items can only be added to a Regular Space".into(),
             ));
         }
-        self.get_item(item_id)?;
+        // space_items carries no foreign key, so nothing below would stop an
+        // unknown item id from becoming an orphan membership row.
+        if self.get_item(item_id)?.is_none() {
+            return Err(StorageError::NotFound(item_id.to_owned()));
+        }
 
         self.connection.execute(
             "INSERT OR IGNORE INTO space_items (space_id, item_id, added_at) VALUES (?1, ?2, ?3)",
@@ -3926,6 +3930,49 @@ mod tests {
         storage.remove_space_item(&space.id, &filed.id).unwrap();
         assert!(storage.list_space_items(&space.id, 50).unwrap().is_empty());
         assert!(storage.list_item_space_ids(&filed.id).unwrap().is_empty());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn filing_an_item_that_does_not_exist_is_refused() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-manual-missing-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let space = storage
+            .create_space(CreateSpaceInput {
+                name: "Weekend reading".into(),
+                color: None,
+                kind: SpaceKind::Regular,
+                query: SmartSpaceQuery::default(),
+            })
+            .unwrap();
+
+        // space_items has no foreign key, so nothing but this check stops a bad
+        // id from leaving an orphan row nothing will ever read or clean up.
+        assert!(matches!(
+            storage.add_space_item(&space.id, "no-such-item"),
+            Err(StorageError::NotFound(_))
+        ));
+        assert!(storage.list_space_items(&space.id, 50).unwrap().is_empty());
+
+        // A real item that was deleted for good is refused the same way.
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Gone".into()),
+                body: "deleted below".into(),
+                metadata: None,
+            })
+            .unwrap();
+        storage.archive_item(&item.id, true).unwrap();
+        storage.delete_item(&item.id).unwrap();
+        assert!(matches!(
+            storage.add_space_item(&space.id, &item.id),
+            Err(StorageError::NotFound(_))
+        ));
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();
