@@ -133,34 +133,58 @@ describe("capture rejection classification", () => {
     );
   });
 
-  test("every attempt is bounded, so a silent app cannot hang the save", async () => {
+  test("every attempt is bounded by a timeout signal", async () => {
     const { postPayloadToLoopback } = await import("./transport");
+    const originalTimeout = AbortSignal.timeout;
+    const deadlines: number[] = [];
     let seen: AbortSignal | undefined;
-    let settled = false;
-    // A fetch that never settles: the bound is what has to end the attempt.
-    // Asserted on the signal existing and being un-aborted rather than on
-    // waiting for it to fire, because the real timeout is 30s and a test that
-    // waits it out proves the same thing 30s slower.
+    // Spy on the factory rather than inspecting the signal it returns. A signal
+    // reads `aborted === false` before its deadline either way, so asserting on
+    // that proves nothing about whether a bound exists. Recording the requested
+    // duration is what actually distinguishes a timeout from an open-ended
+    // signal, and it needs no waiting: the real bound is 30s.
+    AbortSignal.timeout = ((ms?: number) => {
+      deadlines.push(Number(ms));
+      return originalTimeout(0);
+    }) as typeof AbortSignal.timeout;
+    try {
+      await withFetch(
+        (_input, init) => {
+          seen = init?.signal ?? undefined;
+          return new Promise<Response>(() => undefined);
+        },
+        async () => {
+          void postPayloadToLoopback(baseUrl, token, imagePayload).catch(() => undefined);
+        },
+      );
+      await Promise.resolve();
+    } finally {
+      AbortSignal.timeout = originalTimeout;
+    }
+
+    expect(seen, "no signal was attached to the request").toBeDefined();
+    expect(deadlines, "AbortSignal.timeout was never called").toHaveLength(1);
+    expect(deadlines[0]).toBeGreaterThan(0);
+  });
+
+  test("a timed-out attempt is retryable, not permanent", async () => {
+    // The bound is only useful if losing the race still leaves the capture in
+    // the queue. A dropped socket and an expired deadline are the same situation
+    // to the user, so both have to be retryable.
+    const { postPayloadToLoopback } = await import("./transport");
     await withFetch(
-      (_input, init) => {
-        seen = init?.signal ?? undefined;
-        return new Promise<Response>(() => undefined);
+      async () => {
+        const error = new Error("aborted");
+        error.name = "TimeoutError";
+        throw error;
       },
       async () => {
-        // Do not await: this deliberately does not settle.
-        void postPayloadToLoopback(baseUrl, token, imagePayload).catch(() => undefined);
+        const thrown = (await postPayloadToLoopback(baseUrl, token, imagePayload).catch(
+          (error: unknown) => error,
+        )) as CaptureRejectedError;
+        expect(isPermanentCaptureError(thrown)).toBe(false);
       },
     );
-    await Promise.resolve();
-    settled = true;
-    // A signal with no deadline would be `aborted === false` forever, which is
-    // what the previous version of this test asserted. What makes it a bound is
-    // that it was created by AbortSignal.timeout, which is observable: such a
-    // signal is already aborted once its time elapses and, unlike a manually
-    // constructed one, cannot be reset.
-    expect(seen, "no timeout signal was attached to the request").toBeDefined();
-    expect(seen?.aborted, "the attempt must carry a timeout, not be left open").toBe(false);
-    expect(settled).toBe(true);
   });
 
   test("an unreachable app is retryable, not permanent", async () => {

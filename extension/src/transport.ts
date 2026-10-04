@@ -79,6 +79,7 @@ export async function postPayloadToLoopback(
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(CAPTURE_TIMEOUT_MS),
+      
     });
   } catch (error) {
     // No verdict at all: the app is closed, unreachable, or not answering.
