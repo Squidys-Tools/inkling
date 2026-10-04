@@ -257,14 +257,8 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
     );
   }
 
-  if (item.kind === "Note") {
-    return (
-      <div className="expanded-overlay-media">
-        <NoteArtwork item={item} />
-      </div>
-    );
-  }
-
+  // No Note branch: an imageless note returned at the top, and a note with an
+  // image returned at `item.image` above.
   if (item.kind === "Post" && item.post) {
     return (
       <div className="expanded-overlay-media">

@@ -5,7 +5,7 @@ import browser from "webextension-polyfill";
 import type { PageCapturePayloadV1 } from "@inkling/ingestion-shared";
 import type { ExtensionCapturePayload } from "./payload";
 import { isQueuedCapturePayload } from "./queue-payload";
-import { trimCaptureQueue } from "./capture-queue";
+import { trimCaptureQueue, removeSettledCaptureEntries } from "./capture-queue";
 
 export type QueuedCapturePayload = PageCapturePayloadV1 | ExtensionCapturePayload;
 
@@ -53,6 +53,29 @@ function isStorageQuotaError(error: unknown): boolean {
  * a reason eviction cannot fix, so the caller reports that rather than blaming
  * the queue.
  */
+/**
+ * Remove one settled entry, matched by identity rather than position.
+ *
+ * A capture can be appended while its own delivery is in flight, so the entry
+ * to remove is wherever it now sits, not at a remembered index. Reusing the
+ * flush's count-based removal keeps two byte-identical captures distinguishable:
+ * settling one leaves its twin queued instead of letting the pair consume each
+ * other.
+ *
+ * Missing is not an error. The queue is best-effort and a capture that is
+ * already gone has nothing left to settle.
+ */
+export async function settle(payload: QueuedCapturePayload): Promise<boolean> {
+  return withQueueLock(async () => {
+    const queue = await readQueue();
+    const before = queue.length;
+    removeSettledCaptureEntries(queue, [payload]);
+    if (queue.length === before) return false;
+    await browser.storage.local.set({ [QUEUE_KEY]: queue });
+    return true;
+  });
+}
+
 export async function enqueue(payload: QueuedCapturePayload): Promise<number> {
   return withQueueLock(async () => {
     const queue = await readQueue();

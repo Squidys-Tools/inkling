@@ -64,4 +64,48 @@ describe("openExternalUrl", () => {
     }
     expect(openExternalUrl(undefined)).toBe(false);
   });
+
+  // The anchor is the Preview route, not a fallback. In the Tauri webview
+  // navigation and window.open are inert, so an anchor there would report
+  // success while nothing opened; the Tauri branch therefore has no fallback
+  // and swallows its own failure rather than pretending. This test exists so
+  // the next reader does not re-add one.
+  test("preview opens through an anchor, and only preview", () => {
+    const clicked: string[] = [];
+    const originalDocument = globalThis.document;
+    const host = globalThis as unknown as Record<string, unknown>;
+    // `isTauriRuntime` reads window.__TAURI_INTERNALS__, an ambient global other
+    // suites in this run may have set, so the runtime is pinned explicitly here
+    // rather than assumed.
+    const hadTauri = "__TAURI_INTERNALS__" in host;
+    delete host.__TAURI_INTERNALS__;
+    const win = (globalThis as unknown as { window?: Record<string, unknown> }).window;
+    const hadTauriOnWindow = typeof win === "object" && win !== null && "__TAURI_INTERNALS__" in win;
+    if (typeof win === "object" && win !== null) delete win.__TAURI_INTERNALS__;
+    host.document = {
+      createElement: () => ({
+        href: "",
+        target: "",
+        rel: "",
+        click(this: { href: string }) {
+          clicked.push(this.href);
+        },
+      }),
+    };
+    try {
+      expect(openExternalUrl("https://example.com/article")).toBe(true);
+      expect(
+        clicked,
+        "preview must activate the anchor rather than only construct it",
+      ).toEqual(["https://example.com/article"]);
+    } finally {
+      if (hadTauri) host.__TAURI_INTERNALS__ = {};
+      if (hadTauriOnWindow && typeof win === "object" && win !== null) win.__TAURI_INTERNALS__ = {};
+      if (originalDocument === undefined) {
+        delete host.document;
+      } else {
+        host.document = originalDocument;
+      }
+    }
+  });
 });

@@ -17,17 +17,27 @@ pub struct FetchHttpResult {
     pub body: String,
 }
 
+/// True when an IPv4 address is not routable on the public internet.
+///
+/// The special-use ranges are the narrow ones. Matching a whole /16 because
+/// its third octet looks special refuses legitimate public sites: only
+/// 192.0.0.0/24, 192.0.2.0/24, 198.51.100.0/24 and 203.0.113.0/24 are reserved,
+/// so the rest of those /16s are ordinary addresses.
 fn private_ipv4(octets: [u8; 4]) -> bool {
-    let [first, second, ..] = octets;
+    let [first, second, third, ..] = octets;
     first == 0
         || first == 10
         || (first == 100 && (64..=127).contains(&second))
         || first == 127
         || (first == 169 && second == 254)
         || (first == 172 && (16..=31).contains(&second))
-        || (first == 192 && matches!(second, 0 | 2 | 168))
-        || (first == 198 && matches!(second, 18 | 19 | 51))
-        || (first == 203 && second == 0)
+        // 192.0.0.0/24 (IETF protocol assignments) and 192.0.2.0/24 (TEST-NET-1),
+        // plus the private 192.168.0.0/16.
+        || (first == 192 && (second == 168 || (second == 0 && third == 0) || (second == 0 && third == 2)))
+        // 198.18.0.0/15 (benchmarking) and 198.51.100.0/24 (TEST-NET-2).
+        || (first == 198 && (second == 18 || second == 19 || (second == 51 && third == 100)))
+        // 203.0.113.0/24 (TEST-NET-3) only, not the rest of 203.0.0.0/16.
+        || (first == 203 && second == 0 && third == 113)
         || first >= 224
 }
 
@@ -498,6 +508,33 @@ mod tests {
         assert!(validate_fetch_url("ftp://example.com/file").is_err());
         assert!(validate_fetch_url("https://user:pass@example.com/").is_err());
         assert!(validate_fetch_url("").is_err());
+        // The special-use ranges are the narrow ones. Blocking a whole /16
+        // because its third octet looked reserved refuses real public sites,
+        // so each of these must stay reachable.
+        for public in [
+            "http://192.0.1.1/",  // outside 192.0.0.0/24 and 192.0.2.0/24
+            "http://192.2.0.1/",  // outside 192.0.2.0/24
+            "http://198.52.0.1/", // outside 198.51.100.0/24
+            "http://203.0.1.1/",  // outside 203.0.113.0/24
+            "http://198.20.0.1/", // outside 198.18.0.0/15
+        ] {
+            assert!(
+                validate_fetch_url(public).is_ok(),
+                "{public} is ordinary public space and must not be refused"
+            );
+        }
+        // And the reserved halves of those same ranges must still be refused.
+        for reserved in [
+            "http://192.0.0.1/",
+            "http://192.0.2.1/",
+            "http://198.51.100.1/",
+            "http://203.0.113.1/",
+        ] {
+            assert!(
+                validate_fetch_url(reserved).is_err(),
+                "{reserved} is reserved"
+            );
+        }
         // Numeric spellings of 127.0.0.1 and an IPv4-mapped loopback must not
         // read as public hosts.
         assert!(validate_fetch_url("http://2130706433/").is_err());

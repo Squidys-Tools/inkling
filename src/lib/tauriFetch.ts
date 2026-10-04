@@ -86,7 +86,15 @@ function mergeHeaders(input: RequestInfo | URL, init?: RequestInit): Headers {
  *
  * Only `Accept` and `User-Agent` reach the wire, because that is all the
  * `fetch_http` command takes. A method or body cannot be honoured, so this
- * rejects them instead of quietly performing a GET — see the guard below.
+ * rejects them instead of quietly performing a GET - see the guard below.
+ *
+ * Aborting here rejects the JS promise but does not cancel the native request:
+ * `fetch_http` is already in flight and there is no cancel channel across the
+ * IPC boundary. That is deliberate, not a gap - the Rust side bounds the work
+ * itself with `timeout_global` (http_fetch.rs, clamped to 120s), so an orphaned
+ * native fetch always terminates on its own. Building a cancellation channel to
+ * stop it a few seconds sooner would be new machinery across the bridge for no
+ * user-visible gain, which AGENTS.md rules out.
  */
 export async function tauriFetch(
   input: RequestInfo | URL,

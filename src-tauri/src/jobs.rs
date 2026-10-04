@@ -1104,9 +1104,17 @@ mod tests {
 
     #[test]
     fn non_visual_items_get_no_ocr_row() {
-        assert!(
-            enqueue_ocr_for_item(&Connection::open_in_memory().unwrap(), "a", "article").is_ok()
-        );
+        let conn = test_connection();
+        conn.execute("INSERT INTO items (id) VALUES ('note1')", [])
+            .unwrap();
+        for kind in ["article", "note", "quote", "url", "video"] {
+            let ocr = enqueue_ocr_for_item(&conn, "note1", kind).unwrap();
+            assert!(ocr.is_none(), "{kind} must not get an OCR job, got {ocr:?}");
+        }
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM jobs", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 0, "a non-visual item must leave the jobs table empty");
     }
 
     #[test]

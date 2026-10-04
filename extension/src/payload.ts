@@ -68,7 +68,8 @@ export function isCaptureMessage(value: unknown): value is ExtensionCaptureMessa
  * without its `srcUrl` would be POSTed and rejected by the app with a
  * confusing error, long after the user's save. Every optional field is checked
  * too: a `null` where a string is declared reaches the app as JSON and lands in
- * a column the app did not promise to accept.
+ * a column the app did not promise to accept. Every required field is checked
+ * for the same reason: the narrowing has to hold for the type it claims.
  */
 export function isExtensionCapturePayload(value: unknown): value is ExtensionCapturePayload {
   if (!value || typeof value !== "object") return false;
@@ -77,8 +78,8 @@ export function isExtensionCapturePayload(value: unknown): value is ExtensionCap
   const optionalString = (field: string) => record[field] === undefined || typeof record[field] === "string";
   if (kind === "selection") {
     return typeof record.sourceUrl === "string"
+      && typeof record.selectedHtml === "string"
       && typeof record.selectedText === "string"
-      && optionalString("selectedHtml")
       && optionalString("title");
   }
   if (kind === "image") {

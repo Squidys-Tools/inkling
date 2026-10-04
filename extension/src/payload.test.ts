@@ -44,6 +44,15 @@ describe("isExtensionCapturePayload", () => {
     expect(isExtensionCapturePayload({ kind: "unknown" })).toBe(false);
     expect(isExtensionCapturePayload("selection")).toBe(false);
   });
+
+  test("a selection without its required selectedHtml does not narrow", () => {
+    // Narrowing to ExtensionCapturePayload promises selectedHtml is a string.
+    // A queued selection missing it passed the old guard and then reached the
+    // app as undefined, which is the field sanitizeHtml has to trust.
+    expect(
+      isExtensionCapturePayload({ kind: "selection", sourceUrl: "https://e.com", selectedText: "q" }),
+    ).toBe(false);
+  });
 });
 
 describe("isCaptureMessage", () => {

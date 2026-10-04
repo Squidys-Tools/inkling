@@ -11,7 +11,7 @@ import {
   isPageCapturePayload,
   type PageCapturePayloadV1,
 } from "@inkling/ingestion-shared";
-import { QUEUE_KEY, enqueue, readQueue, withQueueLock } from "./capture-queue-store";
+import { QUEUE_KEY, enqueue, readQueue, settle, withQueueLock } from "./capture-queue-store";
 import { removeSettledCaptureEntries } from "./capture-queue";
 import { EXTRACTOR_FN_KEY } from "./extract-handoff";
 import { isPermanentCaptureError, postPayloadToLoopback } from "./transport";
@@ -194,36 +194,65 @@ export function flushQueue(): Promise<{ delivered: number; pending: number; drop
  * A capture the app would not take right now: keep it for the next flush, or
  * report honestly when local storage has no room left to keep it in.
  */
-async function keepQueued(
-  payload: LoopbackCapturePayload,
-  reason: string,
-  title?: string,
-): Promise<SaveStatus> {
-  const at = new Date().toISOString();
+
+/**
+ * Deliver a capture that was written to the queue before the attempt, removing
+ * it again once the attempt settles for good.
+ *
+ * Enqueue-first is what makes the save durable: an MV3 worker can be torn down
+ * between any two awaits, so a capture that was only ever in memory during its
+ * POST is lost with no trace. The queue is the durable record and the POST is
+ * just an attempt to shorten the wait.
+ *
+ * The trade is one extra storage write per successful save, which is cheap on a
+ * user-initiated action. It also creates a hazard the direct path did not have:
+ * `saveTab` fires `flushQueue()` before extracting, and a flush that reads the
+ * queue after this enqueue would deliver the same payload alongside this
+ * attempt. Two deliveries of one capture is a duplicate library item, so the
+ * flush is awaited first rather than left racing.
+ */
+async function deliverDurably(payload: LoopbackCapturePayload, title?: string): Promise<SaveStatus> {
+  // Settle any in-flight flush before enqueueing, so it cannot read this entry.
+  await flushQueue().catch(() => undefined);
   let pending: number;
   try {
     pending = await enqueue(payload);
   } catch (error) {
-    // The queue could not be written for a reason dropping older captures would
-    // not fix. Say so: "the queue is full" would be the wrong story, and it is
-    // the user's only clue about a capture the backlog is now missing.
+    // Storage is unusable, so the durable record cannot be written at all.
+    // Attempt anyway: the payload is in hand and the app may well be reachable.
+    const outcome = await attemptDelivery(payload);
+    const at = new Date().toISOString();
+    if (outcome.delivered) return { state: "saved", title, at };
     return {
       state: "failed",
       title,
-      detail: `${reason} — and the pending queue could not be written: ${
+      detail: `${outcome.reason} — and it could not be queued: ${
         error instanceof Error ? error.message : String(error)
       }`,
       at,
     };
   }
-  return pending > 0
-    ? { state: "queued", title, detail: `${pending} pending — ${reason}`, at }
-    : {
-        state: "failed",
-        title,
-        detail: `${reason} — the pending queue is full, so it was not kept`,
-        at,
-      };
+
+  const outcome = await attemptDelivery(payload);
+  if (!outcome.delivered && !outcome.permanent) {
+    // Transient: the entry stays exactly as it is, and the next flush retries it.
+    const at = new Date().toISOString();
+    return {
+      state: "queued",
+      title,
+      detail: `${Math.max(pending - 1, 0)} pending — ${outcome.reason}`,
+      at,
+    };
+  }
+
+  // Delivered, or refused on its merits: either way this entry has served its
+  // purpose and a retry would only duplicate or re-refuse it. Removed by
+  // identity so a capture appended during the attempt survives.
+  await settle(payload).catch(() => undefined);
+  const at = new Date().toISOString();
+  return outcome.delivered
+    ? { state: "saved", title, at }
+    : { state: "failed", title, detail: outcome.reason, at };
 }
 
 export async function saveTab(tabId: number): Promise<SaveStatus> {
@@ -252,21 +281,9 @@ export async function saveTab(tabId: number): Promise<SaveStatus> {
     await writeStatus(status);
     return status;
   }
-  const outcome = await attemptDelivery(raw);
-  if (outcome.delivered) {
-    const status: SaveStatus = {
-      state: "saved",
-      title: raw.title,
-      at: new Date().toISOString(),
-    };
-    await writeStatus(status);
-    return status;
-  }
-  // Same rule as a media capture: a rejection the app will repeat is not worth
-  // a queue slot on every future flush.
-  const status: SaveStatus = outcome.permanent
-    ? { state: "failed", title: raw.title, detail: outcome.reason, at: new Date().toISOString() }
-    : await keepQueued(raw, outcome.reason, raw.title);
+  // Durable first: the worker can die between any two awaits, so the capture
+  // goes to the queue before the attempt rather than only after a failure.
+  const status = await deliverDurably(raw, raw.title);
   await writeStatus(status);
   return status;
 }
@@ -314,24 +331,14 @@ async function dispatchCapturePayload(payload: unknown): Promise<SaveStatus> {
     await writeStatus(status);
     return status;
   }
-  const outcome = await attemptDelivery(message.payload);
-  if (outcome.delivered) {
-    const status: SaveStatus = { state: "saved", at: new Date().toISOString() };
-    await writeStatus(status);
-    return status;
-  }
-  // Queue like a page save. A media capture that arrives while the app is
-  // closed is exactly the case a local library must not lose, and these
-  // payloads are small (a URL, a quote, or an image URL) compared to a page.
-  //
-  // Only a *transient* failure is queued. A rejection the app will repeat — a
-  // malformed payload, an image host answering with something that is not an
-  // image — would occupy a queue slot on every future flush, delay later saves
-  // behind it, and eventually push older captures out of the bounded queue for
-  // no possible gain. Report it failed instead.
-  const status: SaveStatus = outcome.permanent
-    ? { state: "failed", detail: outcome.reason, at: new Date().toISOString() }
-    : await keepQueued(message.payload, outcome.reason);
+  // Durable first, same reason and same shape as a page save: a media capture
+  // that arrives while the app is closed is exactly the case a local library
+  // must not lose, and these payloads are small (a URL, a quote, or an image
+  // URL) compared to a page. A rejection the app will repeat — a malformed
+  // payload, an image host answering with something that is not an image —
+  // settles the entry immediately rather than occupying a slot on every future
+  // flush and pushing older captures out of the bounded queue.
+  const status = await deliverDurably(message.payload);
   await writeStatus(status);
   return status;
 }

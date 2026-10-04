@@ -549,7 +549,12 @@ fn validate_capture_url(input: &str) -> Result<String, String> {
 
 fn capped_string(value: Option<String>, max: usize, field: &str) -> Result<Option<String>, String> {
     match value.map(|v| v.trim().to_owned()) {
-        Some(v) if v.len() > max => Err(format!("{field} must be at most {max} characters")),
+        // Counted in characters, not bytes. A byte count refuses a 240-character
+        // CJK or emoji title for exceeding 240 "characters", which is both wrong
+        // and the error message's own lie.
+        Some(v) if v.chars().count() > max => {
+            Err(format!("{field} must be at most {max} characters"))
+        }
         Some(v) if v.is_empty() => Ok(None),
         other => Ok(other),
     }
@@ -2243,6 +2248,22 @@ mod tests {
         );
         let data_url = format!("data:image/png;base64,{encoded}");
         assert!(decode_image_data_url(&data_url).is_err());
+    }
+
+    #[test]
+    fn capped_fields_count_characters_not_bytes() {
+        // A 240-character CJK or emoji title is well over 240 bytes, so a byte
+        // count refused it with an error that claimed it was too many
+        // "characters". Both directions are asserted: multi-byte text that
+        // fits must be accepted, and genuinely over-long text still refused.
+        let cjk = "文".repeat(240);
+        assert_eq!(cjk.chars().count(), 240);
+        assert_eq!(cjk.len(), 720, "the fixture must actually be multi-byte");
+        assert!(capped_string(Some(cjk.clone()), 240, "title").is_ok());
+
+        let over = "文".repeat(241);
+        let error = capped_string(Some(over), 240, "title").unwrap_err();
+        assert!(error.contains("240 characters"), "{error}");
     }
 
     #[test]
