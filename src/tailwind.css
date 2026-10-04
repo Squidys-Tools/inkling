@@ -1,0 +1,51 @@
+/* `theme.css` supplies Tailwind's default scales — spacing, radius, text size,
+   font weight, easing. Utilities built on those emit nothing without it, and it
+   emits nothing at all without preflight, which is why this file deliberately
+   omits `tailwindcss` itself. The default color palette it also carries is
+   dropped again below with `--color-*: initial`. */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+
+/*
+ * Design tokens. Tailwind v4 compiles `@theme` to plain CSS custom properties on
+ * :root, so the same value is reachable as `var(--paper)` and as `bg-paper`
+ * without a second source of truth.
+ *
+ * App.css keeps its own :root block for now. The duplication is deliberate and
+ * temporary: each legacy name drops out when its last var() consumer migrates.
+ */
+
+@theme {
+  /* Drop Tailwind's stock palette so every color in the product comes from a
+     token below. `bg-red-500` should not be one keystroke away. */
+  --color-*: initial;
+
+  --color-paper: #0c0c0b;
+  --color-surface: #161412;
+  --color-surface-strong: #1b1917;
+  --color-ink: #e5ddd2;
+  --color-muted: #8d867c;
+  --color-rule: #262221;
+  --color-orange: #b0714f;
+  --color-orange-soft: #241c16;
+  --color-green: #7fa08d;
+  --color-green-soft: #26332c;
+  --color-blue-soft: #243136;
+  --color-yellow-soft: #3a3524;
+
+  --radius-search: 20px;
+  --radius-toggle: 12px;
+  --radius-sidebar: 14px;
+
+  /* Matches the font stack App.css sets on :root. Preflight is not loaded, so
+     naming these here only makes `font-sans`/`font-mono` available as utilities. */
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, monospace;
+
+  --animate-spin-slow: spin 1.2s linear infinite;
+
+  /* Fixed chrome heights. Tailwind has no namespace for these, so they are
+     reached as h-(--topbar-height) rather than a utility name. */
+  --topbar-height: 56px;
+  --titlebar-height: 32px;
+}

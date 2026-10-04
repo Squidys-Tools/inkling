@@ -1,6 +1,7 @@
 import { rmSync } from "node:fs";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
@@ -40,7 +41,11 @@ export default defineConfig(async ({ mode }) => {
   const includeSeed = mode !== "app";
 
   return {
-    plugins: includeSeed ? [react()] : [react(), excludeSeedFromAppBuild()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      ...(includeSeed ? [] : [excludeSeedFromAppBuild()]),
+    ],
 
     // Read by the seed glob in src/App.tsx. A `define` rather than a runtime
     // check, so the false branch is dropped and the seed module is never
