@@ -96,7 +96,7 @@ import { LiveMascotFigure, LiveMascotSearchEyes, pushMascotParams } from "./comp
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { useDialog } from "./components/dialog/useDialog";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
-import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
+import { KindIcon, NoteArtwork, POST_ART_CLASS, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
 const ReaderView = lazy(() =>
   import("./ReaderView").then((module) => ({ default: module.ReaderView })),
 );
@@ -730,20 +730,38 @@ function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
   return true;
 }
 
+/* The `card-image-wrap` / `card-paper-art` hooks are read as direct children of
+   `.library-card-media` by the grid-to-detail FLIP transition, so they stay
+   verbatim. The featured tint uses an ancestor variant because the accent class
+   on the paper (`paper-blue` and friends) must keep losing to it. */
+const CARD_PAPER_ART_CLASS =
+  "card-paper-art relative aspect-[var(--card-media-ratio,1.45)] overflow-hidden bg-surface [.featured-card_&]:bg-orange-soft";
+
+const CARD_IMAGE_WRAP_CLASS =
+  "card-image-wrap relative aspect-[var(--card-media-ratio,4/3)] overflow-hidden bg-surface-strong";
+
+const CARD_IMAGE_CLASS = "card-image block h-full w-full object-cover transition-none";
+
+const PAPER_LINE_CLASS = "paper-line absolute block h-px bg-[#4a4842] opacity-65";
+
+const PAPER_SEAL_CLASS =
+  "paper-seal absolute right-[12%] bottom-[15%] grid size-[58px] place-items-center rounded-full border border-[#a06b4e] " +
+  "font-sans text-[26px] text-[#d98d68] [transform:rotate(-13deg)]";
+
 function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }) {
   if (!item.video && !item.fileUrl && !item.image) {
-    return <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><HugeiconsIcon icon={PlayIcon} size={20} /></span></div>;
+    return <div className={CARD_PAPER_ART_CLASS} aria-hidden="true"><span className="video-paper-play"><HugeiconsIcon icon={PlayIcon} size={20} /></span></div>;
   }
 
   // Cards are static thumbnails that open the details overlay on click. The
   // play badge is a purely visual affordance — playback happens in the overlay.
   return (
-    <div className="card-image-wrap">
+    <div className={CARD_IMAGE_WRAP_CLASS}>
       {item.image ? (
-        <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" fetchPriority={index < 6 ? "high" : undefined} />
+        <img src={item.image} alt={item.imageAlt ?? item.title} className={CARD_IMAGE_CLASS} loading="lazy" decoding="async" fetchPriority={index < 6 ? "high" : undefined} />
       ) : item.fileUrl ? (
         <video
-          className="card-image"
+          className={`${CARD_IMAGE_CLASS} bg-[#171817]`}
           src={item.fileUrl}
           muted
           playsInline
@@ -789,16 +807,58 @@ function cardRectsFor(card: HTMLElement): SourceRects {
   };
 }
 
+const SETTINGS_TAB_CLASS =
+  "flex min-h-10 w-full items-center gap-2.5 rounded-sidebar border-0 bg-transparent px-[13px] text-left text-[13px] text-muted cursor-pointer " +
+  "transition-[color,background,transform] duration-[.18s] ease-out motion-reduce:transition-none " +
+  "hover:bg-[rgba(255,255,255,.06)] hover:text-ink active:scale-[.98]";
+
+const SETTINGS_TAB_ACTIVE_CLASS = "bg-surface text-ink font-semibold";
+
+/* Recover and Delete share this base; only their fill and hover border differ. */
+const SETTINGS_BATCH_BUTTON_CLASS =
+  "inline-flex h-[27px] items-center justify-center rounded-[20px] whitespace-nowrap border border-rule px-[10px] cursor-pointer " +
+  "font-sans text-[11px] font-medium transition-[transform,background,border-color,color,opacity] duration-[.18s] ease-out " +
+  "motion-reduce:transition-none active:scale-[.96] disabled:cursor-not-allowed disabled:opacity-42";
+
+const SETTINGS_SELECT_BUTTON_BASE =
+  "inline-flex h-[27px] items-center justify-center gap-1.5 rounded-[20px] whitespace-nowrap border border-ink px-[10px] cursor-pointer " +
+  "font-sans text-[11px] font-medium transition-[transform,background,border-color,color,opacity] duration-[.18s] ease-out " +
+  "motion-reduce:transition-none hover:bg-[#f2ece1] active:scale-[.96] disabled:cursor-not-allowed disabled:opacity-42";
+
+const SETTINGS_SELECT_BUTTON_CLASS = `${SETTINGS_SELECT_BUTTON_BASE} bg-ink text-paper`;
+const SETTINGS_SELECT_BUTTON_ACTIVE_CLASS = `${SETTINGS_SELECT_BUTTON_BASE} bg-[#f2ece1] text-paper`;
+
+const SETTINGS_CLOSE_BUTTON_CLASS =
+  "icon-button small h-[30px] w-[30px] rounded-[7px] border-rule bg-surface";
+
+const SETTINGS_SCROLL_CLASS =
+  "min-h-0 flex-auto overflow-y-auto p-[18px_3px_5px_0] [scrollbar-color:#4a4842_transparent] [scrollbar-width:thin] max-[700px]:overflow-visible";
+
+/* `library-card` and `is-selected` are a behavioural API: the overlay, the FLIP
+   transition and the keyboard selection path all look them up on the live DOM,
+   `is-selected` included, which is toggled with `classList` on virtualized nodes
+   instead of through React state. Hence the plain classes and the `&.is-selected`
+   variant rather than a conditional class. */
+const LIBRARY_CARD_CLASS =
+  "library-card w-full min-w-0 cursor-pointer aspect-[4/5] overflow-hidden rounded-[20px] border border-rule bg-surface " +
+  "contain-[layout_paint] origin-top-left transition-[translate,box-shadow,border-color] duration-[.2s] ease-[ease] " +
+  "hover:translate-y-[-3px] hover:border-[#4a4842] hover:shadow-[0_11px_27px_rgba(0,0,0,.45)] focus-visible:translate-y-[-2px] " +
+  "[&.is-selected]:border-[#595450] [&.is-selected]:shadow-[0_0_0_1px_rgba(239,117,64,.35)]";
+
+const LIBRARY_CARD_SLOT_CLASS = "library-card-slot box-border min-w-0";
+
 type VirtualizedLibraryItemProps = {
   data: LibraryItem;
   index: number;
   context: LibraryCardContext;
+  slotClassName?: string;
 };
 
 const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
   data: item,
   index,
   context,
+  slotClassName,
 }: VirtualizedLibraryItemProps) {
   const archiveSelectionMode = context.archiveSelectionMode === true;
   const isArchivedItemSelected = context.isArchivedItemSelected?.(item) ?? false;
@@ -812,9 +872,9 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
   };
 
   return (
-    <div className="library-card-slot" data-library-index={index}>
+    <div className={`${LIBRARY_CARD_SLOT_CLASS} ${slotClassName ?? ""}`} data-library-index={index}>
       <article
-        className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? "archive-card-selected" : ""}`}
+        className={`${LIBRARY_CARD_CLASS} ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? "archive-card-selected" : ""}`}
         data-library-item-id={String(item.id)}
         style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
         onClick={handleCardSelect}
@@ -851,32 +911,32 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
             />
           </button>
         )}
-        <div className="library-card-media">
+        <div className="library-card-media absolute inset-0 min-w-0">
           {item.social?.provider === "x" ? (
             <div className="x-post-art">
               <XPostEmbed
                 social={item.social}
-                fallback={item.post ? <PostArtwork post={item.post} /> : <div className="post-art">Post preview unavailable.</div>}
+                fallback={item.post ? <PostArtwork post={item.post} /> : <div className={POST_ART_CLASS}>Post preview unavailable.</div>}
               />
             </div>
           ) : item.kind === "Video" ? (
             <LibraryVideoMedia item={item} index={index} />
           ) : item.image ? (
-            <div className="card-image-wrap">
-              <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" fetchPriority={index < 6 ? "high" : undefined} />
+            <div className={CARD_IMAGE_WRAP_CLASS}>
+              <img src={item.image} alt={item.imageAlt ?? item.title} className={CARD_IMAGE_CLASS} loading="lazy" decoding="async" fetchPriority={index < 6 ? "high" : undefined} />
             </div>
           ) : item.kind === "Post" && item.post ? (
             <PostArtwork post={item.post} />
           ) : (
-            <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.accent ?? ""}`} aria-hidden="true">
-              {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
+            <div className={`${CARD_PAPER_ART_CLASS} ${item.kind === "Quote" ? "quote-art" : item.accent ?? ""}`} aria-hidden="true">
+              {item.kind === "Article" && <><span className={`${PAPER_LINE_CLASS} line-one`} /><span className={`${PAPER_LINE_CLASS} line-two`} /><span className={PAPER_SEAL_CLASS}>m</span></>}
               {item.kind === "Note" && <NoteArtwork item={item} />}
               {item.kind === "PDF" && <PdfArtwork item={item} />}
-              {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-preview">{cardPreviewText(item.title, "Saved quote")}</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
+              {item.kind === "Quote" && <><span className="quote-mark absolute left-[10%] top-[7%] font-[Georgia,serif] text-[104px] leading-[.9]">“</span><span className="quote-preview">{cardPreviewText(item.title, "Saved quote")}</span><span className="quote-line absolute right-[13%] bottom-[26%] h-px w-[46%]" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
             </div>
           )}
         </div>
-        <div className={`card-content ${item.kind === "Quote" ? "quote-content" : item.kind === "Note" ? "note-content" : ""}`}>
+        <div className={`card-content hidden ${item.kind === "Quote" ? "quote-content" : item.kind === "Note" ? "note-content" : ""}`}>
           <div className="card-kicker"><span><KindIcon kind={item.kind} />{item.kind}</span><span>{item.date}</span></div>
           <h2 className={item.kind === "Quote" ? "quote-title" : ""}>{item.kind === "Quote" ? (/^["“]/u.test(item.title.trim()) ? item.title : `“${item.title}”`) : item.title}</h2>
           <p className={item.kind === "Quote" ? "quote-attribution" : ""}>{item.description ? (item.kind === "Quote" && !item.description.trim().startsWith("—") ? `— ${item.description}` : item.description) : (item.kind === "Quote" ? "" : item.description)}</p>
@@ -1017,10 +1077,10 @@ function ExtensionPairing() {
 
   if (!isTauriRuntime()) {
     return (
-      <div className="settings-empty-state">
-        <div className="settings-empty-icon"><HugeiconsIcon icon={Link01Icon} size={19} /></div>
-        <h4>Pairing needs the desktop app.</h4>
-        <p>Open Settings in the installed app to pair the browser extension.</p>
+      <div className="grid min-h-[260px] place-items-center content-center rounded-2xl border border-dashed border-rule p-[40px_24px] text-center">
+        <div className="mb-3.5 grid size-[42px] place-items-center rounded-full bg-surface-strong text-muted"><HugeiconsIcon icon={Link01Icon} size={19} /></div>
+        <h4 className="m-0 font-sans text-[17px] font-medium leading-[1.2] text-ink">Pairing needs the desktop app.</h4>
+        <p className="mt-2 mb-0 max-w-[32ch] text-[12px] leading-[1.5] text-muted">Open Settings in the installed app to pair the browser extension.</p>
       </div>
     );
   }
@@ -1081,12 +1141,12 @@ function ExtensionPairing() {
         over a local connection; nothing leaves the machine.
       </p>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span className="settings-panel-count" role="status">
+        <span className="font-mono text-[10px] text-muted" role="status">
           {status ? (status.running ? `Listening on 127.0.0.1:${status.port}` : "Receiver not running") : "Checking receiver…"}
         </span>
         <button
           type="button"
-          className="settings-batch-button"
+          className={SETTINGS_BATCH_BUTTON_CLASS}
           disabled={!status?.healthUrl || isTesting}
           onClick={testConnection}
         >
@@ -1112,13 +1172,13 @@ function ExtensionPairing() {
         >
           {isRevealed && token ? token : "••••••••••••••••••••••••"}
         </code>
-        <button type="button" className="settings-batch-button" onClick={revealToken}>
+        <button type="button" className={SETTINGS_BATCH_BUTTON_CLASS} onClick={revealToken}>
           {isRevealed ? "Hide" : "Reveal"}
         </button>
-        <button type="button" className="settings-batch-button" disabled={!isRevealed || !token} onClick={copyToken}>
+        <button type="button" className={SETTINGS_BATCH_BUTTON_CLASS} disabled={!isRevealed || !token} onClick={copyToken}>
           Copy
         </button>
-        <button type="button" className="settings-batch-button settings-batch-delete" onClick={renewToken}>
+        <button type="button" className={SETTINGS_BATCH_BUTTON_CLASS + " bg-orange-soft text-orange hover:border-orange"} onClick={renewToken}>
           Renew
         </button>
       </div>
@@ -3586,7 +3646,7 @@ function App() {
         {isSettingsOpen && (
           <motion.div
             key="settings-modal-backdrop"
-            className="settings-modal-backdrop"
+            className="fixed inset-0 z-[110] grid place-items-center bg-[rgba(10,10,9,.76)] p-[clamp(16px,4vh,40px)_clamp(16px,3vw,48px)] max-[700px]:p-3"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -3605,60 +3665,75 @@ function App() {
               exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
               transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
             >
-              <aside className="settings-modal-sidebar" aria-label="Settings sections">
-                <header className="settings-sidebar-header">
+              <aside
+                className="flex w-56 min-w-56 min-h-0 shrink-0 flex-col border-r border-rule bg-paper p-[26px_16px_22px] max-[700px]:w-auto max-[700px]:min-w-0 max-[700px]:border-r-0 max-[700px]:border-b max-[700px]:border-rule max-[700px]:p-[18px_14px_12px]"
+                aria-label="Settings sections"
+              >
+                <header className="flex items-center justify-between gap-3 px-[10px] pb-[26px] max-[700px]:px-[4px] max-[700px]:pb-[14px]">
                   <h2 {...settingsDialog.labelProps} className="m-0 font-sans text-base font-semibold leading-[1.2] tracking-[-.02em] text-ink">Settings</h2>
                 </header>
-                <div className="settings-sidebar-content">
+                <div>
                   <button
                     type="button"
-                    className={`settings-tab ${settingsTab === "archive" ? "active" : ""}`}
+                    className={`${SETTINGS_TAB_CLASS} ${settingsTab === "archive" ? SETTINGS_TAB_ACTIVE_CLASS : ""}`}
                     aria-current={settingsTab === "archive" ? "page" : undefined}
                     onClick={() => setSettingsTab("archive")}
                   >
                     <HugeiconsIcon icon={Archive01Icon} size={16} />
-                    <span>Archive</span>
-                    <span className="settings-tab-count">{archivedItems.length}</span>
+                    <span className="grow">Archive</span>
+                    <span className="font-mono text-[10px] text-muted">{archivedItems.length}</span>
                   </button>
                   <button
                     type="button"
-                    className={`settings-tab ${settingsTab === "data" ? "active" : ""}`}
+                    className={`${SETTINGS_TAB_CLASS} ${settingsTab === "data" ? SETTINGS_TAB_ACTIVE_CLASS : ""}`}
                     aria-current={settingsTab === "data" ? "page" : undefined}
                     onClick={() => setSettingsTab("data")}
                   >
                     <HugeiconsIcon icon={Database02Icon} size={16} />
-                    <span>Data</span>
+                    <span className="grow">Data</span>
                   </button>
                   <button
                     type="button"
-                    className={`settings-tab ${settingsTab === "extension" ? "active" : ""}`}
+                    className={`${SETTINGS_TAB_CLASS} ${settingsTab === "extension" ? SETTINGS_TAB_ACTIVE_CLASS : ""}`}
                     aria-current={settingsTab === "extension" ? "page" : undefined}
                     onClick={() => setSettingsTab("extension")}
                   >
                     <HugeiconsIcon icon={Link01Icon} size={16} />
-                    <span>Extension</span>
+                    <span className="grow">Extension</span>
                   </button>
                 </div>
               </aside>
 
               {settingsTab === "archive" ? (
-              <section className="settings-panel" aria-labelledby="archive-panel-title">
-                <header className="settings-panel-header">
-                  <div className="settings-panel-header-content">
-                    <div className="settings-panel-heading">
-                      <h2 id="archive-panel-title">Archived items</h2>
+              <section
+                className="flex min-h-0 min-w-0 flex-auto flex-col p-[28px_30px] max-[700px]:p-[20px_18px_24px]"
+                aria-labelledby="archive-panel-title"
+              >
+                <header className="flex items-start justify-between gap-[18px] border-b border-rule">
+                  <div className="flex min-w-0 flex-auto flex-col items-start gap-[9px]">
+                    <div className="flex flex-col gap-[7px]">
+                      <h2
+                        id="archive-panel-title"
+                        className="m-0 font-sans text-[24px] font-medium leading-[1.1] tracking-[-.04em] text-ink"
+                      >
+                        Archived items
+                      </h2>
                     </div>
-                    <div className="settings-panel-count-row">
-                      <span className="settings-panel-count">{archivedItems.length} {archivedItems.length === 1 ? "item" : "items"} in archive</span>
-                      <div className="settings-archive-actions" aria-label="Archive actions">
+                    <div className="flex min-h-[27px] items-center justify-between gap-[14px] self-stretch max-[700px]:items-start">
+                      <span className="font-mono text-[10px] text-muted">{archivedItems.length} {archivedItems.length === 1 ? "item" : "items"} in archive</span>
+                      <div className="flex flex-wrap items-center justify-end gap-2 max-[700px]:gap-1.5" aria-label="Archive actions">
                         {isArchiveSelectionMode && (
                           <>
-                            <span className="settings-selected-count" role="status" aria-live="polite">
+                            <span
+                              className="inline-flex h-[27px] items-center justify-center rounded-[20px] whitespace-nowrap border-0 bg-transparent p-0 font-mono text-[10px] font-medium text-ink"
+                              role="status"
+                              aria-live="polite"
+                            >
                               {selectedArchivedIds.size} selected
                             </span>
                             <button
                               type="button"
-                              className="settings-batch-button settings-batch-recover"
+                              className={SETTINGS_BATCH_BUTTON_CLASS + " bg-green-soft text-green hover:border-green"}
                               disabled={selectedArchivedIds.size === 0}
                               onClick={() => void recoverSelectedArchivedItems()}
                             >
@@ -3666,7 +3741,7 @@ function App() {
                             </button>
                             <button
                               type="button"
-                              className="settings-batch-button settings-batch-delete"
+                              className={SETTINGS_BATCH_BUTTON_CLASS + " bg-orange-soft text-orange hover:border-orange"}
                               disabled={selectedArchivedIds.size === 0}
                               onClick={() => void deleteSelectedArchivedItems()}
                             >
@@ -3676,7 +3751,11 @@ function App() {
                         )}
                         <button
                           type="button"
-                          className={`settings-select-button ${isArchiveSelectionMode ? "is-active" : ""}`}
+                          className={
+                            isArchiveSelectionMode
+                              ? SETTINGS_SELECT_BUTTON_ACTIVE_CLASS
+                              : SETTINGS_SELECT_BUTTON_CLASS
+                          }
                           aria-pressed={isArchiveSelectionMode}
                           aria-label={isArchiveSelectionMode ? "Exit multi-select mode" : "Select archived items"}
                           onClick={toggleArchiveSelectionMode}
@@ -3690,7 +3769,7 @@ function App() {
                   <button
                     ref={settingsCloseRef}
                     type="button"
-                    className="icon-button small settings-close"
+                    className={SETTINGS_CLOSE_BUTTON_CLASS}
                     onClick={() => setIsSettingsOpen(false)}
                     aria-label="Close settings"
                   >
@@ -3698,42 +3777,51 @@ function App() {
                   </button>
                 </header>
 
-                <div className="settings-archive-scroll">
+                <div className={SETTINGS_SCROLL_CLASS}>
                   {archivedItems.length > 0 ? (
-                    <div className="settings-archive-grid">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(205px,1fr))] items-start gap-[14px]">
                       {archivedItems.map((item, index) => (
                         <VirtualizedLibraryItem
                           key={String(item.id)}
                           data={item}
                           index={index}
                           context={archivedCardContext}
+                          slotClassName="min-w-0 pb-0"
                         />
                       ))}
                     </div>
                   ) : (
-                    <div className="settings-empty-state">
-                      <div className="settings-empty-icon"><HugeiconsIcon icon={Archive01Icon} size={19} /></div>
-                      <h4>Your archive is empty.</h4>
-                      <p>Items you forget from the library will appear here.</p>
+                    <div className="grid min-h-[260px] place-items-center content-center rounded-2xl border border-dashed border-rule p-[40px_24px] text-center">
+                      <div className="mb-3.5 grid size-[42px] place-items-center rounded-full bg-surface-strong text-muted"><HugeiconsIcon icon={Archive01Icon} size={19} /></div>
+                      <h4 className="m-0 font-sans text-[17px] font-medium leading-[1.2] text-ink">Your archive is empty.</h4>
+                      <p className="mt-2 mb-0 max-w-[32ch] text-[12px] leading-[1.5] text-muted">Items you forget from the library will appear here.</p>
                     </div>
                   )}
                 </div>
               </section>
               ) : settingsTab === "data" ? (
-                <section className="settings-panel" aria-labelledby="data-panel-title">
-                  <header className="settings-panel-header">
-                    <div className="settings-panel-header-content">
-                      <div className="settings-panel-heading">
-                        <h2 id="data-panel-title">Your library</h2>
+                <section
+                  className="flex min-h-0 min-w-0 flex-auto flex-col p-[28px_30px] max-[700px]:p-[20px_18px_24px]"
+                  aria-labelledby="data-panel-title"
+                >
+                  <header className="flex items-start justify-between gap-[18px] border-b border-rule">
+                    <div className="flex min-w-0 flex-auto flex-col items-start gap-[9px]">
+                      <div className="flex flex-col gap-[7px]">
+                        <h2
+                          id="data-panel-title"
+                          className="m-0 font-sans text-[24px] font-medium leading-[1.1] tracking-[-.04em] text-ink"
+                        >
+                          Your library
+                        </h2>
                       </div>
-                      <p className="settings-panel-note">
+                      <p className="m-0 max-w-[62ch] text-[12px] leading-[1.55] text-muted">
                         Everything inkling saves stays on this machine. An export writes a copy you can keep somewhere else.
                       </p>
                     </div>
                     <button
                       ref={settingsCloseRef}
                       type="button"
-                      className="icon-button small settings-close"
+                      className={SETTINGS_CLOSE_BUTTON_CLASS}
                       onClick={() => setIsSettingsOpen(false)}
                       aria-label="Close settings"
                     >
@@ -3741,19 +3829,24 @@ function App() {
                     </button>
                   </header>
 
-                  <div className="settings-data-scroll">
-                    <div className="settings-data-card">
-                      <div className="settings-data-heading">
+                  <div className={SETTINGS_SCROLL_CLASS}>
+                    <div className="flex max-w-[560px] flex-col gap-3 rounded-2xl border border-rule bg-surface p-5">
+                      <div className="flex items-center gap-[9px] text-ink">
                         <HugeiconsIcon icon={Database02Icon} size={17} />
-                        <h3>Export a copy</h3>
+                        <h3 className="m-0 font-sans text-[15px] font-medium leading-[1.2] tracking-[-.02em]">Export a copy</h3>
                       </div>
-                      <p>
+                      <p className="m-0 text-[12px] leading-[1.6] text-muted">
                         Writes a dated folder holding a snapshot of the database, the files your items point at, and a manifest
                         describing both. Keep it on another drive to back the library up.
                       </p>
                       <button
                         type="button"
-                        className={`settings-data-button ${isExportingLibrary ? "is-busy" : ""}`}
+                        className={
+                          "inline-flex h-[34px] self-start items-center gap-2 rounded-[20px] border border-ink bg-ink px-[15px] text-paper cursor-pointer " +
+                          "font-sans text-[12px] font-medium transition-[transform,opacity] duration-[.18s] ease-out " +
+                          "hover:opacity-90 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-45 " +
+                          (isExportingLibrary ? "[&_svg]:animate-spin-slow" : "")
+                        }
                         disabled={!canUseTauriBackend || isExportingLibrary}
                         onClick={() => void exportLibraryToFolder()}
                       >
@@ -3761,45 +3854,57 @@ function App() {
                         <span>{isExportingLibrary ? "Exporting…" : "Choose folder and export"}</span>
                       </button>
                       {!canUseTauriBackend ? (
-                        <p className="settings-data-hint">Export runs in the desktop app.</p>
+                        <p className="m-0 font-mono text-[12px] leading-[1.6] text-muted">Export runs in the desktop app.</p>
                       ) : null}
                       {lastExport ? (
-                        <div className="settings-data-result" role="status" aria-live="polite">
-                          <span className="settings-data-summary">
+                        <div
+                          className="flex flex-col gap-1.5 rounded-xl border border-dashed border-rule p-[12px_14px]"
+                          role="status"
+                          aria-live="polite"
+                        >
+                          <span className="font-mono text-[11px] font-medium text-ink">
                             {formatExportSummary(lastExport)}
                           </span>
-                          <span className="settings-data-path">{lastExport.directory}</span>
+                          <span className="font-mono text-[11px] leading-[1.5] text-muted [overflow-wrap:anywhere]">{lastExport.directory}</span>
                         </div>
                       ) : null}
                     </div>
                   </div>
                 </section>
               ) : (
-              <section className="settings-panel" aria-labelledby="extension-panel-title">
-                <header className="settings-panel-header">
-                  <div className="settings-panel-header-content">
-                    <div className="settings-panel-heading">
-                      <h2 id="extension-panel-title">Browser extension</h2>
+<section
+                  className="flex min-h-0 min-w-0 flex-auto flex-col p-[28px_30px] max-[700px]:p-[20px_18px_24px]"
+                  aria-labelledby="extension-panel-title"
+                >
+                  <header className="flex items-start justify-between gap-[18px] border-b border-rule">
+                    <div className="flex min-w-0 flex-auto flex-col items-start gap-[9px]">
+                      <div className="flex flex-col gap-[7px]">
+                        <h2
+                          id="extension-panel-title"
+                          className="m-0 font-sans text-[24px] font-medium leading-[1.1] tracking-[-.04em] text-ink"
+                        >
+                          Browser extension
+                        </h2>
+                      </div>
+                      <div className="flex min-h-[27px] items-center justify-between gap-[14px] self-stretch max-[700px]:items-start">
+                        <span className="font-mono text-[10px] text-muted">Save pages without leaving the browser</span>
+                      </div>
                     </div>
-                    <div className="settings-panel-count-row">
-                      <span className="settings-panel-count">Save pages without leaving the browser</span>
-                    </div>
-                  </div>
-                  <button
-                    ref={settingsCloseRef}
-                    type="button"
-                    className="icon-button small settings-close"
-                    onClick={() => setIsSettingsOpen(false)}
-                    aria-label="Close settings"
-                  >
-                    <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                  </button>
-                </header>
+                    <button
+                      ref={settingsCloseRef}
+                      type="button"
+                      className={SETTINGS_CLOSE_BUTTON_CLASS}
+                      onClick={() => setIsSettingsOpen(false)}
+                      aria-label="Close settings"
+                    >
+                      <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                    </button>
+                  </header>
 
-                <div className="settings-archive-scroll">
-                  <ExtensionPairing />
-                </div>
-              </section>
+                  <div className={SETTINGS_SCROLL_CLASS}>
+                    <ExtensionPairing />
+                  </div>
+                </section>
               )}
             </motion.section>
           </motion.div>
