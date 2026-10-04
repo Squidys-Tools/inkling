@@ -1581,7 +1581,12 @@ function App() {
         .catch(() => {
           // A failed write must not leave the item looking pinned anywhere.
           show(wasPinned);
-          toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
+          // A later click already asked for something else and reports its own
+          // outcome, so a superseded failure stays quiet rather than blaming the
+          // user for a state that is no longer the one being written.
+          if (pinWritesRef.current.get(id) === write) {
+            toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
+          }
         })
         .finally(() => {
           // Release the override only if no later click has claimed it in the
@@ -2434,10 +2439,17 @@ function App() {
   // instead of repeating it. Two writes for one Space are chained so the
   // reversal cannot land before the write it reverses.
   const spaceWritesRef = useRef<Map<string, Promise<void>>>(new Map());
+  // Bumped by every chip toggle. A membership read already in flight carries the
+  // value it saw here and drops its result if a toggle has landed since, so an
+  // older read cannot roll back the chip the user just changed.
+  const spaceMembershipEpochRef = useRef(0);
   const handleToggleItemInSpace = useCallback(async (item: LibraryItem, spaceId: string) => {
     const itemId = String(item.id);
     const wasMember = itemSpaceIds.includes(spaceId);
-    const member = !wasMember;
+    // `adding` is the state being moved to, not the one being left. Naming it
+    // after the destination keeps the write and the optimistic apply reading the
+    // same way round, which is the trap the previous `member` name walked into.
+    const adding = !wasMember;
     const show = (next: boolean) => {
       setItemSpaceIds((current) => {
         if (next) return current.includes(spaceId) ? current : [...current, spaceId];
@@ -2451,19 +2463,20 @@ function App() {
       setLocalSpaceItems((current) => {
         const next = new Map(current);
         const members = new Set(next.get(spaceId) ?? []);
-        if (member) members.delete(itemId);
-        else members.add(itemId);
+        if (adding) members.add(itemId);
+        else members.delete(itemId);
         next.set(spaceId, members);
         return next;
       });
       return;
     }
 
-    show(member);
+    spaceMembershipEpochRef.current += 1;
+    show(adding);
     const write = (spaceWritesRef.current.get(spaceId) ?? Promise.resolve())
       .then(async () => {
-        if (member) await removeSpaceItem(spaceId, itemId);
-        else await addSpaceItem(spaceId, itemId);
+        if (adding) await addSpaceItem(spaceId, itemId);
+        else await removeSpaceItem(spaceId, itemId);
         // The open Space lists its own members, so its grid has to re-read.
         if (activeSpaceId === spaceId) loadItemsRef.current();
       })
@@ -2737,9 +2750,11 @@ function App() {
       return;
     }
     let cancelled = false;
+    const issuedAt = spaceMembershipEpochRef.current;
     listItemSpaces(itemId)
       .then((ids) => {
-        if (!cancelled) setItemSpaceIds(ids);
+        if (cancelled || issuedAt !== spaceMembershipEpochRef.current) return;
+        setItemSpaceIds(ids);
       })
       .catch((error: unknown) => {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
