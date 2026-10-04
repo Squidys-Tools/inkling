@@ -78,6 +78,25 @@ describe("markdownToPlainText", () => {
     expect(markdownToPlainText("&Uuml; &uuml;")).toBe("Ü ü");
   });
 
+  test("only case-folds the aliases HTML defines in both cases", () => {
+    expect(markdownToPlainText("&AMP;")).toBe("&");
+    expect(markdownToPlainText("&EURO;")).toBe("&EURO;");
+    expect(markdownToPlainText("&NBSP;")).toBe("&NBSP;");
+  });
+
+  test("does not resolve an entity name to an inherited property", () => {
+    expect(markdownToPlainText("&constructor;")).toBe("&constructor;");
+    expect(markdownToPlainText("&toString;")).toBe("&toString;");
+    expect(markdownToPlainText("&hasOwnProperty;")).toBe("&hasOwnProperty;");
+  });
+
+  test("cannot forge a code placeholder through a numeric reference", () => {
+    // U+0000 is the sentinel the code-span pass wraps placeholders in.
+    expect(markdownToPlainText("&#0;0&#0;")).toBe("\uFFFD0\uFFFD");
+    expect(markdownToPlainText("a&#0;0&#0;b")).toBe("a\uFFFD0\uFFFDb");
+    expect(markdownToPlainText("`keep` &#0;0&#0;")).toBe("keep \uFFFD0\uFFFD");
+  });
+
   test("does not strip prose between angle brackets", () => {
     expect(markdownToPlainText("a < b and b > a")).toBe("a < b and b > a");
     expect(markdownToPlainText("a < b")).toBe("a < b");
@@ -94,6 +113,20 @@ describe("markdownToPlainText", () => {
   test("keeps intraword underscores literal", () => {
     expect(markdownToPlainText("foo_bar_baz")).toBe("foo_bar_baz");
     expect(markdownToPlainText("keep_it_literal")).toBe("keep_it_literal");
+    expect(markdownToPlainText("foo _bar_baz qux")).toBe("foo _bar_baz qux");
+  });
+
+  test("treats a non-ASCII letter as a word character", () => {
+    expect(markdownToPlainText("é_foo_é")).toBe("é_foo_é");
+    expect(markdownToPlainText("naïve_thing")).toBe("naïve_thing");
+  });
+
+  test("still strips genuine underscore emphasis", () => {
+    expect(markdownToPlainText("_real_")).toBe("real");
+    expect(markdownToPlainText("__strong__")).toBe("strong");
+    expect(markdownToPlainText("___both___")).toBe("both");
+    expect(markdownToPlainText("a _b_ c")).toBe("a b c");
+    expect(markdownToPlainText("***both***")).toBe("both");
   });
 
   test("keeps markup and entities inside a code span verbatim", () => {
