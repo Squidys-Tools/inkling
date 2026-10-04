@@ -11,7 +11,12 @@ import { afterEach, expect, mock, test } from "bun:test";
 import type { PageCapturePayloadV1 } from "@inkling/ingestion-shared";
 
 const storage: Record<string, unknown> = {};
-let quotaExceeded = false;
+/**
+ * A fake write failure: the message the browser would use, and how many writes
+ * it fails. Infinity for a failure that persists, 1 for "the first write lost a
+ * race, the retry is fine".
+ */
+let writeFailure: { message: string; writes: number } | null = null;
 
 const localGet = async (keys: string | string[]) => {
   const wanted = typeof keys === "string" ? [keys] : keys;
@@ -22,7 +27,10 @@ const localGet = async (keys: string | string[]) => {
   return found;
 };
 const localSet = async (items: Record<string, unknown>) => {
-  if (quotaExceeded) throw new Error("QUOTA_BYTES quota exceeded");
+  if (writeFailure && writeFailure.writes > 0) {
+    writeFailure.writes -= 1;
+    throw new Error(writeFailure.message);
+  }
   Object.assign(storage, items);
 };
 
@@ -31,7 +39,7 @@ mock.module("webextension-polyfill", () => ({
 }));
 
 const { QUEUE_KEY, enqueue, readQueue, withQueueLock } = await import("./capture-queue-store");
-const { captureQueueEntryKey, removeSettledCaptureEntries } = await import("./capture-queue");
+const { removeSettledCaptureEntries } = await import("./capture-queue");
 
 function payload(id: number): PageCapturePayloadV1 {
   return {
@@ -47,19 +55,44 @@ function payload(id: number): PageCapturePayloadV1 {
 
 afterEach(() => {
   for (const key of Object.keys(storage)) delete storage[key];
-  quotaExceeded = false;
+  writeFailure = null;
 });
 
-test("a queue storage refuses reports nothing kept rather than a phantom entry", async () => {
+test("a full storage quota reports nothing kept rather than a phantom entry", async () => {
   // Every older entry is dropped one at a time until the write fits. When even
   // the newest one will not fit, the capture is gone, and saying "1 pending"
   // would tell the user it is safe when it is not.
   storage[QUEUE_KEY] = [payload(1)];
-  quotaExceeded = true;
+  writeFailure = { message: "QUOTA_BYTES quota exceeded", writes: Infinity };
 
   expect(await enqueue(payload(2))).toBe(0);
   // The entry storage already holds is untouched; nothing claimed to add to it.
   expect(storage[QUEUE_KEY]).toEqual([payload(1)]);
+});
+
+test("a full storage quota drops the oldest capture to make room", async () => {
+  // Quota is the one failure eviction answers: dropping an older capture is a
+  // real trade, taken because the alternative is storing nothing. Only the first
+  // write fails, so the retry after eviction has to succeed.
+  storage[QUEUE_KEY] = [payload(1), payload(2)];
+  writeFailure = { message: "QUOTA_BYTES quota exceeded", writes: 1 };
+
+  expect(await enqueue(payload(3))).toBe(2);
+  // The oldest went to make room for the capture being saved.
+  expect(storage[QUEUE_KEY]).toEqual([payload(2), payload(3)]);
+});
+
+test("a transient storage failure keeps the backlog instead of evicting it", async () => {
+  // A locked profile or a momentary I/O error says nothing about space. Treating
+  // it as quota silently destroyed older captures to make room for a capture
+  // that was never stored — losing the offline backlog, which is the one thing
+  // the queue exists to protect.
+  const transient = "An unexpected error occurred while setting the storage item";
+  storage[QUEUE_KEY] = [payload(1), payload(2)];
+  writeFailure = { message: transient, writes: Infinity };
+
+  await expect(enqueue(payload(3))).rejects.toThrow(transient);
+  expect(storage[QUEUE_KEY]).toEqual([payload(1), payload(2)]);
 });
 
 test("a capture enqueued during a queue flush survives the flush write", async () => {
@@ -117,10 +150,9 @@ test("an enqueue is not blocked by a flush that is still delivering", async () =
   const flushed = (async () => {
     const batch = await withQueueLock(readQueue);
     await delivering;
-    const settled = new Set(batch.map(captureQueueEntryKey));
     return withQueueLock(async () => {
       const queue = await readQueue();
-      removeSettledCaptureEntries(queue, settled);
+      removeSettledCaptureEntries(queue, batch);
       await localSet({ [QUEUE_KEY]: queue });
       return queue.length;
     });

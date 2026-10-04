@@ -55,6 +55,28 @@ function imageUrlsFromContent(contentHtml: string, pageUrl: string, limit = 40):
   return urls;
 }
 
+/**
+ * Defuddle reports no favicon on a page that declares no icon, but the app's own
+ * fallback path still finds one — a declared icon, then a bare /favicon.ico guess
+ * — and an extension capture without it loses the favicon seal for no reason.
+ * Read the same inert snapshot Defuddle was handed, never the live document.
+ */
+function declaredFavicon(document: Document, baseUrl: string): string | null {
+  const links = document.querySelectorAll(
+    'link[rel~="icon" i], link[rel~="shortcut icon" i], link[rel~="apple-touch-icon" i]',
+  );
+  for (const link of links) {
+    const declared = absoluteUrl(link.getAttribute("href"), baseUrl);
+    if (declared) return declared;
+  }
+  for (const name of ["og:image:favicon", "msapplication-tileimage"]) {
+    const meta = document.querySelector(`meta[name="${name}" i], meta[property="${name}" i]`);
+    const declared = absoluteUrl(meta?.getAttribute("content"), baseUrl);
+    if (declared) return declared;
+  }
+  return absoluteUrl("/favicon.ico", baseUrl);
+}
+
 // Ask the MAIN-world stamper to flatten open shadow roots, then proceed
 // whether it answers or not (CSP or injection failure must not block capture:
 // a URL + title + best-effort content beats an error card).
@@ -95,10 +117,10 @@ export async function extractCurrentPage(): Promise<ExtractResult> {
   const imageFromMeta = absoluteUrl(result.image, pageUrl);
   const imageUrls = imageUrlsFromContent(contentHtml, pageUrl);
   if (imageFromMeta && !imageUrls.includes(imageFromMeta)) imageUrls.unshift(imageFromMeta);
-  const favicon = absoluteUrl(
-    typeof result.favicon === "string" ? result.favicon : null,
-    pageUrl,
-  ) ?? undefined;
+  const favicon =
+    absoluteUrl(typeof result.favicon === "string" ? result.favicon : null, pageUrl)
+    ?? declaredFavicon(clone, pageUrl)
+    ?? undefined;
 
   const payload = buildPageCapturePayload({
     url: pageUrl,

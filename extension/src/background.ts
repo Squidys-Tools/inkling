@@ -2,16 +2,18 @@
 // worker may be killed mid-save), so every save re-resolves the tab and
 // injects what it needs on invoke under activeTab (the extractors for a page
 // save, the collector for a context-menu selection/image/video). Nothing runs
-// on pages the user never captures from. The full v1 payload is persisted before
-// delivery over loopback; if the app is closed or not paired, it stays queued
-// for a later flush.
+// on pages the user never captures from. A capture is delivered over loopback
+// first and queued only when that fails, so a worker killed in between loses it;
+// persisting first instead would hand the same payload to the flush this very
+// save starts, and duplicate the capture every time.
 import browser from "webextension-polyfill";
 import {
   isPageCapturePayload,
   type PageCapturePayloadV1,
 } from "@inkling/ingestion-shared";
 import { QUEUE_KEY, enqueue, readQueue, withQueueLock } from "./capture-queue-store";
-import { captureQueueEntryKey, removeSettledCaptureEntries } from "./capture-queue";
+import { removeSettledCaptureEntries } from "./capture-queue";
+import { EXTRACTOR_FN_KEY } from "./extract-handoff";
 import { isPermanentCaptureError, postPayloadToLoopback } from "./transport";
 import {
   INKLING_MENU_SAVE_IMAGE,
@@ -70,9 +72,10 @@ export async function injectExtractor(tabId: number): Promise<unknown> {
     files: [CONTENT_ISOLATED_FILE],
     world: "ISOLATED",
   });
-  // The isolated world parks the extraction promise on its own globalThis. That
-  // world is not reachable from the page, so this is the only channel a capture
-  // travels over.
+  // The isolated world installs the extractor on its own globalThis, which the
+  // page cannot reach. Invoking it here keeps each capture inside the save that
+  // asked for it — parking the payload in a shared slot for a later injection to
+  // read back let two saves on one tab overwrite each other.
   //
   // There is deliberately no DOM fallback. The page shares the DOM, so a result
   // published there could be planted by the page to forge a capture; a nonce
@@ -84,18 +87,22 @@ export async function injectExtractor(tabId: number): Promise<unknown> {
     const results = await browser.scripting.executeScript({
       target: { tabId },
       world: "ISOLATED",
-      func: () => {
-        const host = globalThis as { __inklingExtractPayloadPromise?: Promise<unknown> };
-        const pending = host.__inklingExtractPayloadPromise;
-        delete host.__inklingExtractPayloadPromise;
-        return pending;
+      // The browser awaits what this returns, so the payload crosses as a
+      // resolved value. The extractor's own name arrives as an argument: a func
+      // is stringified into the page, so naming the global inline here would be a
+      // second copy of extract-handoff.ts's constant that nothing keeps in sync.
+      func: async (key: string) => {
+        const extract = (globalThis as Record<string, unknown>)[key];
+        if (typeof extract !== "function") return undefined;
+        return (extract as () => Promise<unknown>)();
       },
+      args: [EXTRACTOR_FN_KEY],
     });
     result = results[0]?.result;
   } catch (error) {
-    // The injected func returns the extraction promise, so a rejected
-    // extraction surfaces here. Report the extractor's own reason rather than
-    // a generic failure, so the popup says what actually went wrong.
+    // The injected func awaits the extraction, so a rejected extraction surfaces
+    // here. Report the extractor's own reason rather than a generic failure, so
+    // the popup says what actually went wrong.
     throw new Error(error instanceof Error ? error.message : "page extraction failed");
   }
   if (isPageCapturePayload(result)) return result;
@@ -143,7 +150,7 @@ async function flushQueuedCaptures(): Promise<{ delivered: number; pending: numb
   // next flush re-reads the whole batch.
   const batch = await withQueueLock(readQueue);
   if (!config || batch.length === 0) return { delivered: 0, pending: batch.length, dropped: 0 };
-  const settled = new Set<string>();
+  const settled: LoopbackCapturePayload[] = [];
   let delivered = 0;
   let dropped = 0;
   for (const payload of batch) {
@@ -157,13 +164,13 @@ async function flushQueuedCaptures(): Promise<{ delivered: number; pending: numb
       if (!isPermanentCaptureError(error)) continue;
       dropped += 1;
     }
-    settled.add(captureQueueEntryKey(payload));
+    settled.push(payload);
   }
   const pending = await withQueueLock(async () => {
     const queue = await readQueue();
     // Nothing settled — the app is closed or refusing for now. Rewriting an
     // unchanged queue on every save would be storage churn for no reason.
-    if (settled.size === 0) return queue.length;
+    if (settled.length === 0) return queue.length;
     removeSettledCaptureEntries(queue, settled);
     await browser.storage.local.set({ [QUEUE_KEY]: queue });
     return queue.length;
@@ -192,8 +199,23 @@ async function keepQueued(
   reason: string,
   title?: string,
 ): Promise<SaveStatus> {
-  const pending = await enqueue(payload).catch(() => 0);
   const at = new Date().toISOString();
+  let pending: number;
+  try {
+    pending = await enqueue(payload);
+  } catch (error) {
+    // The queue could not be written for a reason dropping older captures would
+    // not fix. Say so: "the queue is full" would be the wrong story, and it is
+    // the user's only clue about a capture the backlog is now missing.
+    return {
+      state: "failed",
+      title,
+      detail: `${reason} — and the pending queue could not be written: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      at,
+    };
+  }
   return pending > 0
     ? { state: "queued", title, detail: `${pending} pending — ${reason}`, at }
     : {

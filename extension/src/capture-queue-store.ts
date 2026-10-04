@@ -33,10 +33,25 @@ export function withQueueLock<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * A full local-storage quota, and only that, is worth dropping older captures
+ * over. The polyfill rejects a failed set with the browser's lastError message,
+ * and both engines spell a full quota "QUOTA_BYTES/QUOTA_ITEMS … quota
+ * exceeded". Any other failure — a locked profile, a racing writer, a momentary
+ * I/O error — says nothing about space, and destroying the backlog to make room
+ * for a capture that was never stored is the exact loss the queue exists to
+ * prevent.
+ */
+function isStorageQuotaError(error: unknown): boolean {
+  return /quota/i.test(error instanceof Error ? error.message : String(error));
+}
+
+/**
  * Add a capture to the pending queue and report how many are waiting. Returns
  * 0 when storage would not take even the newest entry: nothing older is left to
  * drop, so the caller has to report a failure instead of a phantom entry. A
- * successful enqueue always reports at least 1.
+ * successful enqueue always reports at least 1. Throws when the write failed for
+ * a reason eviction cannot fix, so the caller reports that rather than blaming
+ * the queue.
  */
 export async function enqueue(payload: QueuedCapturePayload): Promise<number> {
   return withQueueLock(async () => {
@@ -49,7 +64,8 @@ export async function enqueue(payload: QueuedCapturePayload): Promise<number> {
       try {
         await browser.storage.local.set({ [QUEUE_KEY]: queue });
         return queue.length;
-      } catch {
+      } catch (error) {
+        if (!isStorageQuotaError(error)) throw error;
         // Nothing older left to drop and the write still fails, so this capture
         // has nowhere to go.
         if (queue.length <= 1) return 0;

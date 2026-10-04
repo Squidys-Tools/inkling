@@ -30,20 +30,30 @@ export function trimCaptureQueue(queue: unknown[]): void {
 }
 
 /** Identity of one queued entry, across a storage round trip. */
-export function captureQueueEntryKey(payload: unknown): string {
+function captureQueueEntryKey(payload: unknown): string {
   return JSON.stringify(payload);
 }
 
 /**
- * Remove in place one entry per settled key — what a flush delivered or gave up
- * on. Keys, not positions: a capture appended while the flush was delivering is
- * at the tail, and must survive the flush's write. Consuming each key as it
- * matches keeps two byte-identical captures from taking each other's place.
+ * Remove in place one entry per settled payload — what a flush delivered or gave
+ * up on. Keys, not positions: a capture appended while the flush was delivering
+ * is at the tail, and must survive the flush's write. Counts, not membership: two
+ * queued captures can be byte-identical (the same selection saved twice, a
+ * retried save), so a set would settle the key once and leave the twin queued
+ * for a duplicate delivery on the next flush.
  */
-export function removeSettledCaptureEntries(queue: unknown[], settled: Set<string>): void {
+export function removeSettledCaptureEntries(queue: unknown[], settled: Iterable<unknown>): void {
+  const remaining = new Map<string, number>();
+  for (const payload of settled) {
+    const key = captureQueueEntryKey(payload);
+    remaining.set(key, (remaining.get(key) ?? 0) + 1);
+  }
   let index = 0;
   while (index < queue.length) {
-    if (settled.delete(captureQueueEntryKey(queue[index]))) {
+    const key = captureQueueEntryKey(queue[index]);
+    const count = remaining.get(key) ?? 0;
+    if (count > 0) {
+      remaining.set(key, count - 1);
       queue.splice(index, 1);
       continue;
     }
