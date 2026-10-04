@@ -62,6 +62,85 @@ describe("markdownToPlainText", () => {
     expect(markdownToPlainText("before<div>after")).toBe("before after");
     expect(markdownToPlainText("<table><tr><td>cell</td></tr></table>")).toBe("cell");
   });
+
+  test("decodes HTML entities to their text", () => {
+    expect(markdownToPlainText("&lt;div&gt;hello&lt;/div&gt;")).toBe("<div>hello</div>");
+    expect(markdownToPlainText("5 &gt; 3 and 2 &lt; 4 &amp; 1")).toBe("5 > 3 and 2 < 4 & 1");
+  });
+
+  test("decodes entities exactly once", () => {
+    expect(markdownToPlainText("&amp;lt;")).toBe("&lt;");
+  });
+
+  test("treats named entity references as case sensitive", () => {
+    expect(markdownToPlainText("&Aacute; &aacute;")).toBe("Á á");
+    expect(markdownToPlainText("&AElig; &aelig;")).toBe("Æ æ");
+    expect(markdownToPlainText("&Uuml; &uuml;")).toBe("Ü ü");
+  });
+
+  test("only case-folds the aliases HTML defines in both cases", () => {
+    expect(markdownToPlainText("&AMP;")).toBe("&");
+    expect(markdownToPlainText("&EURO;")).toBe("&EURO;");
+    expect(markdownToPlainText("&NBSP;")).toBe("&NBSP;");
+  });
+
+  test("does not resolve an entity name to an inherited property", () => {
+    expect(markdownToPlainText("&constructor;")).toBe("&constructor;");
+    expect(markdownToPlainText("&toString;")).toBe("&toString;");
+    expect(markdownToPlainText("&hasOwnProperty;")).toBe("&hasOwnProperty;");
+  });
+
+  test("cannot forge a code placeholder through a numeric reference", () => {
+    // U+0000 is the sentinel the code-span pass wraps placeholders in.
+    expect(markdownToPlainText("&#0;0&#0;")).toBe("\uFFFD0\uFFFD");
+    expect(markdownToPlainText("a&#0;0&#0;b")).toBe("a\uFFFD0\uFFFDb");
+    expect(markdownToPlainText("`keep` &#0;0&#0;")).toBe("keep \uFFFD0\uFFFD");
+  });
+
+  test("does not strip prose between angle brackets", () => {
+    expect(markdownToPlainText("a < b and b > a")).toBe("a < b and b > a");
+    expect(markdownToPlainText("a < b")).toBe("a < b");
+    expect(markdownToPlainText("5 < 10")).toBe("5 < 10");
+  });
+
+  test("unwraps autolinks to their inner text", () => {
+    expect(markdownToPlainText("see <https://example.com> now")).toBe("see https://example.com now");
+    expect(markdownToPlainText("<https://example.com>")).toBe("https://example.com");
+    expect(markdownToPlainText("<http://example.com>")).toBe("http://example.com");
+    expect(markdownToPlainText("<user@example.com>")).toBe("user@example.com");
+  });
+
+  test("keeps intraword underscores literal", () => {
+    expect(markdownToPlainText("foo_bar_baz")).toBe("foo_bar_baz");
+    expect(markdownToPlainText("keep_it_literal")).toBe("keep_it_literal");
+    expect(markdownToPlainText("foo _bar_baz qux")).toBe("foo _bar_baz qux");
+  });
+
+  test("treats a non-ASCII letter as a word character", () => {
+    // Both sides of the delimiter have to be non-ASCII for this to discriminate.
+    // An ASCII neighbour satisfies the old ASCII-only guard on its own, and a
+    // single underscore never matches the two-delimiter pattern at all, so
+    // neither would notice the guard being wrong.
+    expect(markdownToPlainText("é_foo_é")).toBe("é_foo_é");
+    expect(markdownToPlainText("ï_ô_ü")).toBe("ï_ô_ü");
+  });
+
+  test("leaves a lone underscore alone for want of a closing delimiter", () => {
+    expect(markdownToPlainText("naïve_thing")).toBe("naïve_thing");
+    expect(markdownToPlainText("snake_case")).toBe("snake_case");
+  });
+
+  test("still strips genuine underscore emphasis", () => {
+    expect(markdownToPlainText("_real_")).toBe("real");
+    expect(markdownToPlainText("__strong__")).toBe("strong");
+    expect(markdownToPlainText("___both___")).toBe("both");
+    expect(markdownToPlainText("a _b_ c")).toBe("a b c");
+    expect(markdownToPlainText("***both***")).toBe("both");
+  });
+
+  test("keeps markup and entities inside a code span verbatim", () => {
+    expect(markdownToPlainText("`<tag> &amp;`")).toBe("<tag> &amp;");
+  });
 });
 
 describe("noteBodyForPreview", () => {
