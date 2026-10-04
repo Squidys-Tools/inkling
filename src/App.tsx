@@ -94,6 +94,7 @@ const ExpandedItemOverlay = lazy(() =>
 );
 import { LiveMascotFigure, LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
+import { useDialog } from "./components/dialog/useDialog";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
 import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
 const ReaderView = lazy(() =>
@@ -2374,48 +2375,23 @@ function App() {
         event.preventDefault();
         searchRef.current?.focus();
       }
-      if (event.key === "Escape") {
-        if (isSettingsOpen) setIsSettingsOpen(false);
-        setIsAdding(false);
-        setCaptureMode(null);
-      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isSettingsOpen, readingItem]);
+  }, [readingItem]);
 
-  useEffect(() => {
-    if (!isSettingsOpen) return;
+  // Escape belongs to whichever dialog is on top, so each one owns it rather
+  // than a handler here guessing at which surfaces happen to be open.
+  const captureDialog = useDialog({
+    open: isAdding,
+    onClose: closeCaptureModal,
+  });
 
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const focusTimer = window.setTimeout(() => settingsCloseRef.current?.focus(), 0);
-
-    const onSettingsKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
-      const modal = document.querySelector<HTMLElement>(".settings-modal");
-      if (!modal) return;
-      const focusable = Array.from(modal.querySelectorAll<HTMLElement>(
-        "button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex=\"-1\"])",
-      ));
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener("keydown", onSettingsKeyDown);
-    return () => {
-      window.clearTimeout(focusTimer);
-      document.removeEventListener("keydown", onSettingsKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [isSettingsOpen]);
+  const settingsDialog = useDialog({
+    open: isSettingsOpen,
+    onClose: () => setIsSettingsOpen(false),
+    initialFocus: settingsCloseRef,
+  });
 
   // Settings reopens on Archive, the way it behaved while that was the only tab.
   useEffect(() => {
@@ -3325,9 +3301,8 @@ function App() {
             >
               <motion.section
                 className="capture-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="capture-modal-title"
+                ref={captureDialog.dialogRef}
+                {...captureDialog.rootProps}
                 initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
                 animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
                 exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
@@ -3335,7 +3310,7 @@ function App() {
               >
               <header className="capture-modal-header">
                 <div>
-                  <h2 id="capture-modal-title">Add to your library</h2>
+                  <h2 {...captureDialog.labelProps}>Add to your library</h2>
                   <p>Choose what you want to save.</p>
                 </div>
                 <button className="icon-button small" type="button" onClick={closeCaptureModal} aria-label="Close add menu"><HugeiconsIcon icon={Cancel01Icon} size={16} /></button>
@@ -3621,11 +3596,10 @@ function App() {
             }}
           >
             <motion.section
+              ref={settingsDialog.dialogRef}
               id="settings-modal"
-              className="settings-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="settings-modal-title"
+              className="flex h-[min(760px,100%)] min-h-0 w-[min(1180px,100%)] overflow-hidden rounded-[24px] border border-rule bg-paper text-ink shadow-[0_30px_80px_rgba(0,0,0,.55)] max-[700px]:h-[min(720px,100%)] max-[700px]:flex-col max-[700px]:rounded-[18px]"
+              {...settingsDialog.rootProps}
               initial={{ opacity: 0, transform: "translateY(10px) scale(0.98)" }}
               animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
               exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
@@ -3633,7 +3607,7 @@ function App() {
             >
               <aside className="settings-modal-sidebar" aria-label="Settings sections">
                 <header className="settings-sidebar-header">
-                  <h2>Settings</h2>
+                  <h2 {...settingsDialog.labelProps} className="m-0 font-sans text-base font-semibold leading-[1.2] tracking-[-.02em] text-ink">Settings</h2>
                 </header>
                 <div className="settings-sidebar-content">
                   <button

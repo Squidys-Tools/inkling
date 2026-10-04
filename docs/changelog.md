@@ -97,6 +97,10 @@ Guardrails:
 - Library reopen now detects and rebuilds a partial full-text index and recreates missing search triggers instead of trusting table existence; a healthy reopen still writes nothing (`src-tauri/src/storage.rs`)
 - Bulk archive restore fetches processing summaries in one batched query instead of one per item, and the asset URL cache now evicts least-recently-used entries so frequently viewed covers survive large imports (`src/App.tsx`, `src/lib/assetUrlCache.ts`)
 - Deleting from the archive, one item or a selection, now hides the cards immediately and keeps them recoverable for ten seconds behind an Undo action before the delete is finalized (`src/App.tsx`)
+- Keyboard focus no longer escapes the app's dialogs. The add sheet, reader, PDF viewer and item overlay all declared themselves modal but only the settings modal trapped Tab, so tabbing walked through the library behind an overlay that looked modal; all five now share one dialog primitive that contains Tab, moves focus in on open and returns it to the control that opened the dialog on close (`src/components/dialog/`)
+- Pressing Escape now closes one dialog instead of two. The reader and item overlay both listened on `window` and called `stopPropagation()`, which cannot stop a sibling listener on the same node, so a single press dismissed both; the topmost open dialog now answers Escape and the ones underneath stay put.
+- The settings dialog no longer announces itself through a dangling `aria-labelledby` that pointed at an id no element carried, leaving screen readers with no accessible name for it (`src/App.tsx`)
+- Tab inside a dialog no longer becomes stuck when the dialog has nothing focusable in it, such as the add sheet while its form is between the exit and enter of a mode switch
 
 ---
 

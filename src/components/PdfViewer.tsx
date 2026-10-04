@@ -11,6 +11,7 @@ import {
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { useDialog } from "./dialog/useDialog";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -39,6 +40,14 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
   const [containerWidth, setContainerWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Escape, focus, and Tab all belong to the shared primitive; this effect only
+  // keeps the paging keys the primitive does not know about.
+  const { dialogRef, rootProps } = useDialog<HTMLDivElement>({
+    open: true,
+    onClose,
+    label: `PDF viewer: ${title}`,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -129,11 +138,6 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
       if (event.target instanceof HTMLInputElement) return;
       if (event.key === "ArrowLeft" || event.key === "PageUp") {
         event.preventDefault();
@@ -146,7 +150,7 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+  }, []);
 
   const pageCount = state.phase === "ready" ? state.pageCount : 0;
   const atLastPage = pageNumber >= pageCount;
@@ -160,10 +164,9 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
 
   return (
     <div
+      ref={dialogRef}
       className="pdf-viewer-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`PDF viewer: ${title}`}
+      {...rootProps}
       onClick={onClose}
     >
       <div className="pdf-viewer" onClick={(event) => event.stopPropagation()}>

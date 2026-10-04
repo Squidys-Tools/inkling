@@ -21,6 +21,7 @@ import type { LibraryItem } from "../App";
 import { isTauriRuntime } from "../lib/libraryApi";
 import type { ReaderOrigin } from "../ReaderView";
 import { KindIcon, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
+import { useDialog } from "./dialog/useDialog";
 import {
   OVERLAY_EASE,
   OVERLAY_FLIGHT_MS,
@@ -627,6 +628,20 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     beginCloseFlight(itemRef.current, rects, false);
   };
 
+  // Escape and the accessible name come from the shared primitive, which
+  // arbitrates Escape so a reader opened from here closes before this does.
+  // Everything else stays local: this overlay is modeless on purpose, so it
+  // traps nothing, claims no modality, places its own focus once GSAP has
+  // settled the panel, and looks its source card up on the way out.
+  const { rootProps } = useDialog({
+    open: true,
+    onClose: requestClose,
+    label: detailTitleFor(shownItem),
+    trapFocus: false,
+    restoreFocus: false,
+    elementRef: dialogRef,
+  });
+
   useEffect(() => {
     const checkSourceVisibility = () => {
       if (selectionScrollRef.current) return;
@@ -646,17 +661,6 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionScrollRef]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      requestClose();
-    };
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Modeless close: clicks on empty library space dismiss the overlay, while
   // clicks on cards fall through to the card's own handler, which switches
@@ -775,9 +779,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
       <section
         ref={dialogRef}
         className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""}`}
-        role="dialog"
-        aria-modal={false}
-        aria-label={detailTitleFor(shownItem)}
+        {...rootProps}
         style={dialogFlying ? undefined : placedStyle}
       >
         <button
