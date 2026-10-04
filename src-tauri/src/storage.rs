@@ -919,6 +919,18 @@ impl LibraryStorage {
     }
 
     fn delete_item(&self, id: &str) -> Result<(), StorageError> {
+        // Guard first: the row must exist and be archived before anything is
+        // removed from disk, otherwise a stale delete of a restored item
+        // would destroy its files while its row survives.
+        let deletable: i64 = self.connection.query_row(
+            "SELECT COUNT(*) FROM items WHERE id = ?1 AND archived = 1",
+            params![id],
+            |row| row.get(0),
+        )?;
+        if deletable == 0 {
+            return Err(StorageError::NotFound(id.to_owned()));
+        }
+
         // Item files live under assets/items/<id>. Remove them first so a
         // failed delete leaves the row and its files together. Ids are
         // restricted to ascii alphanumeric plus - and _, so the join below
@@ -4376,6 +4388,41 @@ mod tests {
 
         assert!(!item_directory.exists());
         assert!(storage.get_item(&item.id).unwrap().is_none());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn delete_item_leaves_files_when_item_not_archived() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let database_path = directory.join("library.sqlite3");
+        let storage = LibraryStorage::open(database_path).unwrap();
+        let item = storage
+            .save_file(SaveFileInput {
+                id: None,
+                file_name: "notes.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"archived bytes".to_vec(),
+            })
+            .unwrap();
+        let item_directory = directory.join("assets").join("items").join(&item.id);
+        assert!(item_directory.is_dir());
+
+        // Archive, then restore within the undo window: a pending delete must
+        // no longer be able to take the row's files with it.
+        storage.archive_item(&item.id, true).unwrap();
+        storage.archive_item(&item.id, false).unwrap();
+
+        assert!(matches!(
+            storage.delete_item(&item.id),
+            Err(StorageError::NotFound(_))
+        ));
+        assert!(item_directory.is_dir());
+        assert!(storage.get_item(&item.id).unwrap().is_some());
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();
