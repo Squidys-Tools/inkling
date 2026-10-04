@@ -698,10 +698,18 @@ impl LibraryStorage {
             serde_json::from_str(&current_metadata).unwrap_or_default();
         metadata.insert("faviconPath".into(), Value::String(relative_path.clone()));
         let metadata_json = serde_json::to_string(&Value::Object(metadata))?;
-        self.connection.execute(
+        let updated = self.connection.execute(
             "UPDATE items SET metadata = ?1 WHERE id = ?2",
             params![metadata_json, item_id],
         )?;
+
+        // The row can disappear between the check above and this write. An
+        // UPDATE that matched nothing means it did, and the bytes just written
+        // would be an orphan nothing ever cleans up.
+        if updated == 0 {
+            let _ = fs::remove_file(&favicon_path);
+            return Err(StorageError::NotFound(item_id));
+        }
 
         Ok(relative_path)
     }

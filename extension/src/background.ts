@@ -175,12 +175,32 @@ async function flushQueuedCaptures(): Promise<{ delivered: number; pending: numb
     await browser.storage.local.set({ [QUEUE_KEY]: queue });
     return queue.length;
   });
+  await reportDropped(dropped);
   return { delivered, pending, dropped };
 }
 
 // One flush at a time. Two concurrent flushes would deliver the same batch
 // twice. Deliberately not persisted: if the worker dies mid-flush the next flush
 // simply re-reads the whole queue.
+/**
+ * Record that queued captures were given up on.
+ *
+ * A permanent rejection during a background flush is the one loss path with no
+ * caller: the popup is not open and nothing awaits the result, so a capture the
+ * user made while offline would disappear with no trace at all. The live-save
+ * path always writes a status, so this makes the background path match.
+ */
+async function reportDropped(dropped: number): Promise<void> {
+  if (dropped <= 0) return;
+  await writeStatus({
+    state: "failed",
+    detail: `${dropped} queued ${
+      dropped === 1 ? "capture was" : "captures were"
+    } rejected by the app and could not be saved`,
+    at: new Date().toISOString(),
+  });
+}
+
 let flushInFlight: Promise<{ delivered: number; pending: number; dropped: number }> | null = null;
 
 export function flushQueue(): Promise<{ delivered: number; pending: number; dropped: number }> {
