@@ -42,6 +42,17 @@ describe("openableExternalUrl", () => {
     expect(openableExternalUrl(undefined)).toBeNull();
     expect(openableExternalUrl(null)).toBeNull();
   });
+
+  test("rejects credential-bearing URLs the browser would send on", () => {
+    // A saved source URL is untrusted stored metadata, and the system browser
+    // would hand these credentials to whatever host is named.
+    for (const url of [
+      "https://user:pass@example.com/article",
+      "https://user@example.com/article",
+    ]) {
+      expect(openableExternalUrl(url)).toBeNull();
+    }
+  });
 });
 
 describe("openExternalUrl", () => {
