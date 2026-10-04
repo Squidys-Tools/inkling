@@ -2082,18 +2082,31 @@ pub(crate) fn library_directory(app: &AppHandle) -> Result<PathBuf, StorageError
 }
 
 fn ensure_space_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
-    // Libraries created before manual collections have no `kind` column. Every
-    // existing Space was a saved search, so the default has to be Smart.
-    let present: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('spaces') WHERE name = 'kind'",
-        [],
-        |row| row.get(0),
-    )?;
-    if present == 0 {
-        connection.execute(
-            "ALTER TABLE spaces ADD COLUMN kind TEXT NOT NULL DEFAULT 'smart'",
-            [],
+    // `CREATE TABLE IF NOT EXISTS` in SPACES_SCHEMA is a no-op for a library
+    // that already has a `spaces` table, so every column added to that schema
+    // after the table shipped needs a branch here too. Two are missing that way
+    // a real library opened fine until the next Space was created and the
+    // insert named a column the old table did not have:
+    //
+    // - `kind`, for manual collections. Every existing Space was a saved
+    //   search, so the default has to be Smart.
+    // - `color`, which arrived with Space colors before this function existed.
+    //   Blue is the same default the schema declares.
+    for (column, definition) in [
+        ("kind", "TEXT NOT NULL DEFAULT 'smart'"),
+        ("color", "TEXT NOT NULL DEFAULT 'blue'"),
+    ] {
+        let present: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('spaces') WHERE name = ?1",
+            [column],
+            |row| row.get(0),
         )?;
+        if present == 0 {
+            connection.execute(
+                &format!("ALTER TABLE spaces ADD COLUMN {column} {definition}"),
+                [],
+            )?;
+        }
     }
     Ok(())
 }
@@ -4091,6 +4104,110 @@ mod tests {
             "legacy searchable body"
         );
         drop(reopened);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn a_library_without_space_items_gains_the_table_on_open() {
+        // `space_items` arrived with manual Spaces on a branch this one did not
+        // have, so a developer's existing library predates the table entirely.
+        // The schema batch has to add it to a real file, not just to a fresh
+        // one: the alternative is a regular Space that fails its first query on
+        // the user's own data.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-space-items-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("library.sqlite3");
+
+        // An older library: items present, spaces without the kind column, and
+        // no space_items table at all.
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE items (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    kind TEXT NOT NULL,
+                    title TEXT,
+                    description TEXT,
+                    source_url TEXT,
+                    source_label TEXT,
+                    local_asset_path TEXT,
+                    thumbnail_path TEXT,
+                    ocr_text TEXT NOT NULL DEFAULT '',
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    archived INTEGER NOT NULL DEFAULT 0,
+                    favorite INTEGER NOT NULL DEFAULT 0
+                );
+                INSERT INTO items(id, kind, title, description, metadata, created_at, updated_at)
+                VALUES ('kept-item', 'note', 'Kept', 'still here', '{}', 1, 1);
+                CREATE TABLE spaces (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL,
+                    query TEXT NOT NULL DEFAULT '{}',
+                    position INTEGER NOT NULL DEFAULT 0,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                );
+                PRAGMA user_version = 6;",
+            )
+            .unwrap();
+        drop(connection);
+
+        let storage = LibraryStorage::open(path.clone()).unwrap();
+
+        let tables: Vec<String> = storage
+            .connection
+            .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert!(
+            tables.iter().any(|name| name == "space_items"),
+            "space_items missing after upgrade: {tables:?}"
+        );
+
+        let indexes: Vec<String> = storage
+            .connection
+            .prepare("SELECT name FROM sqlite_master WHERE type = 'index'")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert!(
+            indexes.iter().any(|name| name == "idx_space_items_item"),
+            "space_items index missing after upgrade: {indexes:?}"
+        );
+
+        // The pre-existing row must survive the migration untouched, and the
+        // table has to be usable, not merely present.
+        assert_eq!(
+            storage
+                .get_item("kept-item")
+                .unwrap()
+                .unwrap()
+                .title
+                .as_deref(),
+            Some("Kept")
+        );
+        let space = storage
+            .create_space(CreateSpaceInput {
+                name: "Reading".into(),
+                color: None,
+                query: SmartSpaceQuery::default(),
+                kind: SpaceKind::Regular,
+            })
+            .unwrap();
+        storage.add_space_item(&space.id, "kept-item").unwrap();
+        let members = storage.list_space_member_items(&space.id, 10).unwrap();
+        assert_eq!(members.len(), 1, "manual membership did not round-trip");
+        assert_eq!(members[0].id, "kept-item");
+
+        drop(storage);
         fs::remove_dir_all(directory).unwrap();
     }
 
