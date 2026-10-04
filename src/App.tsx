@@ -1429,7 +1429,21 @@ function App() {
     }
   }, []);
 
+  const cancelPermanentDelete = useCallback((pending: PendingPermanentDelete) => {
+    const id = String(pending.item.id);
+    // Only the toast that scheduled a deletion may cancel it. Deleting the same
+    // item again stores a new record, and that older Undo has to stay a no-op.
+    if (pendingPermanentDeletesRef.current.get(id) !== pending) return false;
+    window.clearTimeout(pending.timer);
+    pendingPermanentDeletesRef.current.delete(id);
+    return true;
+  }, []);
+
   const restoreForgottenItem = useCallback(async (item: LibraryItem) => {
+    // A restore un-archives the row, so any scheduled permanent delete for it
+    // must be cancelled or its timer would still fire and destroy the assets.
+    const pending = pendingPermanentDeletesRef.current.get(String(item.id));
+    if (pending !== undefined) cancelPermanentDelete(pending);
     try {
       const restoredItem = canUseTauriBackend
         ? await archiveItem(String(item.id), false).then(async (storedItem) => {
@@ -1452,7 +1466,7 @@ function App() {
       toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
-  }, [canUseTauriBackend]);
+  }, [canUseTauriBackend, cancelPermanentDelete]);
 
   const forgetItem = useCallback(async (item: LibraryItem) => {
     setCaptureError(null);
@@ -3260,16 +3274,6 @@ function App() {
     return pending;
   }, [canUseTauriBackend, restoreArchivedItems]);
 
-  const cancelPermanentDelete = useCallback((pending: PendingPermanentDelete) => {
-    const id = String(pending.item.id);
-    // Only the toast that scheduled a deletion may cancel it. Deleting the same
-    // item again stores a new record, and that older Undo has to stay a no-op.
-    if (pendingPermanentDeletesRef.current.get(id) !== pending) return false;
-    window.clearTimeout(pending.timer);
-    pendingPermanentDeletesRef.current.delete(id);
-    return true;
-  }, []);
-
   const undoPermanentDelete = useCallback((pendingDeletes: PendingPermanentDelete[]) => {
     const restored = pendingDeletes.filter((pending) => cancelPermanentDelete(pending)).map((pending) => pending.item);
     restoreArchivedItems(restored);
@@ -3333,6 +3337,10 @@ function App() {
       // batched call instead of one round trip per restored item.
       const results = await Promise.allSettled(selectedItems.map(async (item) => {
         if (!canUseTauriBackend) return null;
+        // A restore un-archives the row, so cancel any scheduled permanent
+        // delete for it before the timer can fire and destroy its assets.
+        const pending = pendingPermanentDeletesRef.current.get(String(item.id));
+        if (pending !== undefined) cancelPermanentDelete(pending);
         return archiveItem(String(item.id), false);
       }));
       const restoredStored = results.flatMap((result) => result.status === "fulfilled" && result.value ? [result.value] : []);
@@ -3370,7 +3378,7 @@ function App() {
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
-  }, [archivedItems, selectedArchivedIds]);
+  }, [archivedItems, cancelPermanentDelete, selectedArchivedIds]);
 
   const deleteSelectedArchivedItems = useCallback(() => {
     const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
