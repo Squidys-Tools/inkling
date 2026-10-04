@@ -8,13 +8,16 @@
 
 const browserApi = globalThis.chrome ?? globalThis.browser;
 
-// Decoded-byte ceiling for one data URL, and the same number the receiver will
-// accept: `MAX_IMAGE_DATA_URL_BYTES` in src-tauri/src/capture_server.rs derives
-// it from the 5 MB JSON body budget, because base64 expands 4/3 inside that
-// body. Both sides have to agree — a data URL over it comes back 413, which this
-// extension treats as a permanent rejection and drops, so checking it here is
-// what turns a silent loss into an honest "too large" at save time.
-const MAX_DATA_URL_BYTES = 3_926_016;
+// Decoded-byte ceiling for one data URL, and the same number the receiver
+// accepts: `MAX_IMAGE_DATA_URL_BYTES` in src-tauri/src/capture_server.rs. The
+// receiver's JSON body budget is raised to hold a maximum-size image, because
+// this payload travels as base64 inside it and base64 expands by 4/3; a
+// compile-time assertion there keeps the two in step.
+//
+// Both sides still have to agree. A data URL over this comes back 413, which
+// this extension treats as a permanent rejection and drops, so checking it
+// here is what turns a silent loss into an honest "too large" at save time.
+const MAX_DATA_URL_BYTES = 5 * 1024 * 1024;
 
 // The worker re-injects this file on every capture. Register the listener once
 // per page: a duplicate would answer the same collect request twice.

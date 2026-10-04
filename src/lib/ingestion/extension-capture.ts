@@ -14,14 +14,13 @@ import { normalizeHttpUrl, normalizeText, parseHttpUrl } from "./url";
 
 const EXTENSION_SELECTION_TEXT_MAX_CHARS = 1500;
 const EXTENSION_ATTRIBUTION_MAX_CHARS = 240;
-/** Decoded-size ceiling for one data-URL image. Base64 expands by 4/3 and this
- *  travels inside the receiver's 5 MiB JSON body cap, so the budget is derived
- *  from that cap rather than restating it: at 5 MiB decoded every image above
- *  3.75 MiB was refused with a 413 the user could not act on. 8 KiB is held
- *  back for the JSON envelope. Must stay equal to MAX_IMAGE_DATA_URL_BYTES in
- *  src-tauri/src/capture_server.rs.
+/** Decoded-size ceiling for one data-URL image, and the same number the
+ *  receiver accepts: MAX_IMAGE_DATA_URL_BYTES in src-tauri/src/capture_server.rs.
+ *  Must stay equal to it. The receiver raises its JSON body budget to fit a
+ *  maximum-size image, because this travels as base64 inside that body and
+ *  base64 expands by 4/3; a compile-time assertion there keeps that honest.
  */
-export const EXTENSION_IMAGE_DATA_URL_MAX_BYTES = 3_926_016;
+export const EXTENSION_IMAGE_DATA_URL_MAX_BYTES = 5 * 1024 * 1024;
 
 export type ExtensionSelectionInput = {
   sourceUrl: string;
