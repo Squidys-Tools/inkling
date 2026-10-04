@@ -70,6 +70,11 @@ const FAVICON_WORKERS: usize = 2;
 const OEMBED_QUEUE_CAPACITY: usize = 16;
 const OEMBED_WORKERS: usize = 1;
 const MAX_OEMBED_BYTES: u64 = 512 * 1024;
+/// Per-field ceilings for enrichment, matching what the capture path accepts for
+/// the same columns, so a provider cannot write a title the capture would have
+/// refused.
+const MAX_OEMBED_TITLE_CHARS: usize = 500;
+const MAX_OEMBED_AUTHOR_CHARS: usize = 240;
 const IMAGE_QUEUE_CAPACITY: usize = 16;
 const IMAGE_WORKERS: usize = 2;
 
@@ -1592,18 +1597,23 @@ struct VideoOEmbed {
 fn fetch_video_oembed(source_url: &str) -> Option<VideoOEmbed> {
     let (provider_label, endpoint) = video_oembed_endpoint(source_url)?;
     let metadata = crate::http_fetch::fetch_public_json(&endpoint, MAX_OEMBED_BYTES).ok()?;
-    let text = |key: &str| {
+    // Bounded per field, not just per document. MAX_OEMBED_BYTES caps the whole
+    // response, so without this a single provider title or author could be
+    // nearly 512 KiB and land straight in the item's title column and the FTS
+    // index. These match the capture-side limits so a title cannot arrive from
+    // enrichment at a size the capture path would have refused.
+    let text = |key: &str, max: usize| {
         metadata
             .get(key)
             .and_then(serde_json::Value::as_str)
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .map(str::to_owned)
+            .map(|value| truncate_chars(value, max))
     };
     Some(VideoOEmbed {
         provider_label,
-        title: text("title"),
-        author: text("author_name"),
+        title: text("title", MAX_OEMBED_TITLE_CHARS),
+        author: text("author_name", MAX_OEMBED_AUTHOR_CHARS),
     })
 }
 
@@ -2490,6 +2500,33 @@ mod tests {
             panic!("expected video capture")
         };
         assert_eq!(title, None);
+    }
+
+    #[test]
+    fn oembed_fields_are_bounded_per_field_not_just_per_document() {
+        // MAX_OEMBED_BYTES bounds the whole response, so on its own a single
+        // provider title could be nearly 512 KiB and land in the item's title
+        // column and the FTS index. Both fields carry their own ceiling, and they
+        // match what the capture path accepts for the same columns.
+        assert_eq!(MAX_OEMBED_TITLE_CHARS, 500);
+        assert_eq!(MAX_OEMBED_AUTHOR_CHARS, 240);
+        assert!(
+            MAX_OEMBED_TITLE_CHARS < MAX_OEMBED_BYTES as usize,
+            "a per-field bound that exceeds the document bound is not a bound"
+        );
+
+        let long = "x".repeat(MAX_OEMBED_TITLE_CHARS * 2);
+        assert_eq!(
+            truncate_chars(&long, MAX_OEMBED_TITLE_CHARS)
+                .chars()
+                .count(),
+            MAX_OEMBED_TITLE_CHARS
+        );
+        // Counted in characters, so a multi-byte title is not cut mid-character.
+        let emoji = "🙂".repeat(MAX_OEMBED_TITLE_CHARS);
+        let trimmed = truncate_chars(&emoji, MAX_OEMBED_TITLE_CHARS);
+        assert_eq!(trimmed.chars().count(), MAX_OEMBED_TITLE_CHARS);
+        assert!(trimmed.chars().all(|c| c == '🙂'));
     }
 
     #[test]

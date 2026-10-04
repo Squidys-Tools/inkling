@@ -39,6 +39,36 @@ describe("extractFallback favicon", () => {
     const extraction = extractFallback(document, "https://example.com/posts/one");
     expect(extraction.favicon).toBe("https://example.com/favicon.ico");
   });
+
+  test("resolves a relative icon against the page's declared base", () => {
+    // A page that sets <base href> sends its icon somewhere else entirely.
+    // Resolving against the capture URL cached the wrong file, usually a 404.
+    const { document } = parseHTML(`<!doctype html><html><head><title>x</title>
+      <base href="https://cdn.example.org/assets/" />
+      <link rel="icon" href="icon.png" />
+      </head><body><p>hi</p></body></html>`);
+    const extraction = extractFallback(document, "https://example.com/posts/one");
+    expect(extraction.favicon).toBe("https://cdn.example.org/assets/icon.png");
+  });
+
+  test("the /favicon.ico guess stays on the site root despite a declared base", () => {
+    // /favicon.ico is a well-known path on the origin, so a <base> pointing at a
+    // subdirectory must not turn the guess into .../assets/favicon.ico.
+    const { document } = parseHTML(`<!doctype html><html><head><title>x</title>
+      <base href="https://example.com/app/" />
+      </head><body><p>hi</p></body></html>`);
+    const extraction = extractFallback(document, "https://example.com/posts/one");
+    expect(extraction.favicon).toBe("https://example.com/favicon.ico");
+  });
+
+  test("ignores a declared base that is not http(s)", () => {
+    const { document } = parseHTML(`<!doctype html><html><head><title>x</title>
+      <base href="javascript:alert(1)" />
+      <link rel="icon" href="icon.png" />
+      </head><body><p>hi</p></body></html>`);
+    const extraction = extractFallback(document, "https://example.com/posts/one");
+    expect(extraction.favicon).toBe("https://example.com/posts/icon.png");
+  });
 });
 
 describe("ingestUrl favicon", () => {

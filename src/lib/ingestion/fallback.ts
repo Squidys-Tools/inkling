@@ -59,13 +59,23 @@ function extractImageUrls(document: Document, baseUrl: string): string[] {
 // Prefer declared icons over a bare /favicon.ico guess — same idea as
 // Defuddle's getFavicon, but available on the fallback extractor path too.
 function extractFavicon(document: Document, baseUrl: string): string | undefined {
+  // A page's <base href> wins over the capture URL for relative icon hrefs, as
+  // it does for every other relative reference. Resolving against baseUrl alone
+  // caches the wrong icon on a page that sets one, which is usually a 404.
+  const declaredBase = document.querySelector("base[href]")?.getAttribute("href");
+  const iconBase = normalizeHttpUrl(declaredBase, baseUrl) ?? baseUrl;
   for (const link of document.querySelectorAll('link[rel~="icon" i], link[rel~="shortcut icon" i], link[rel~="apple-touch-icon" i]')) {
     const href = link.getAttribute("href");
-    const value = normalizeHttpUrl(href, baseUrl);
+    const value = normalizeHttpUrl(href, iconBase);
     if (value) return value;
   }
-  const meta = normalizeHttpUrl(metaContent(document, ["og:image:favicon", "msapplication-TileImage"]), baseUrl);
+  const meta = normalizeHttpUrl(
+    metaContent(document, ["og:image:favicon", "msapplication-TileImage"]),
+    iconBase,
+  );
   if (meta) return meta;
+  // The site root, not the declared base: /favicon.ico is a well-known path on
+  // the origin, so a page's <base> must not redirect the guess at a subdirectory.
   try {
     return normalizeHttpUrl("/favicon.ico", baseUrl) ?? undefined;
   } catch {
