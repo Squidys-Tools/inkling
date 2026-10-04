@@ -101,7 +101,13 @@ export function mapExtensionSelection(input: ExtensionSelectionInput): Selection
   return { body, attribution, sourceUrl, sanitizedHtml };
 }
 
-const DATA_URL_RE = /^data:(image\/(?:png|jpe?g|gif|webp|avif|bmp|svg\+xml));base64,([a-zA-Z0-9+/=\s]+)$/u;
+// Subtypes the receiver's decoder also accepts. Keep this a subset of
+// DECODABLE_IMAGE_MIME in src-tauri/src/http_fetch.rs: a data URL this accepts
+// but the receiver refuses becomes a capture the user sees fail after it was
+// reported as saved. `avif` and `svg+xml` are deliberately absent - nothing
+// decodes the former, and SVG is an active-content format the reader would
+// render.
+const DATA_URL_RE = /^data:(image\/(?:png|jpe?g|gif|webp|bmp));base64,([a-zA-Z0-9+/=\s]+)$/u;
 
 function base64ByteLength(payload: string): number {
   const compact = payload.replace(/\s/gu, "");

@@ -133,6 +133,11 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
    --article-hue is set inline by ArticleArtwork (deterministic hash of host).
    .article-art fills the .card-paper-art shell (grid) or the overlay media band. */
 .article-art { position: absolute; inset: 0; background: hsl(var(--article-hue, 28) 32% 16%); }
+/* List mode (and the list transition clones that copy its rules) drop position
+   on both media ancestors, so the artwork has to become the containing block
+   itself; left absolute it escapes the cell and covers the item text. */
+.list-mode .article-art,
+.library-transition-overlay.is-list .article-art { position: relative; inset: auto; width: 100%; height: 100%; }
 .featured-card .article-art { background: hsl(var(--article-hue, 28) 34% 18%); }
 .article-art .paper-line { background: hsl(var(--article-hue, 28) 18% 38%); opacity: .75; }
 .article-art .paper-seal { border-color: hsl(var(--article-hue, 28) 42% 52%); color: hsl(var(--article-hue, 28) 48% 72%); background: hsl(var(--article-hue, 28) 30% 22%); }

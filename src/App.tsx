@@ -2151,6 +2151,12 @@ function App() {
                 String(item.id) === storedItem.id ? { ...item, favicon } : item,
               ),
             );
+            // The expanded overlay renders `selectedItem`, not the collection, so
+            // a favicon that lands while that item is open would only show up
+            // after closing and reopening it.
+            setSelectedItem((current) =>
+              current && String(current.id) === storedItem.id ? { ...current, favicon } : current,
+            );
           })
           .catch(() => undefined);
       }
@@ -2198,12 +2204,15 @@ function App() {
     const title = knownTitle || hostname;
 
     if (canUseTauriBackend) {
+      // The card is the deliverable here: the URL, the domain, and any title the
+      // capture brought with it. Extraction already failed, and no job retries
+      // it, so the body stays empty on purpose rather than waiting for one.
       const storedItem = await createUrl({
         sourceUrl,
         title,
         description: "",
         body: "",
-        metadata: { captureSource, provisional: true },
+        metadata: { captureSource },
       });
       const libraryItem = await storedItemToLibraryItem(storedItem);
       setItems((current) => [libraryItem, ...current]);
