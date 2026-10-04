@@ -278,8 +278,20 @@ async function deliverDurably(payload: LoopbackCapturePayload, title?: string): 
   }
 
   // Delivered, or refused on its merits: either way this entry has served its
-  // purpose and a retry would only duplicate or re-refuse it. Removed by
-  // identity so a capture appended during the attempt survives.
+  // purpose. Removed by identity so a capture appended during the attempt
+  // survives.
+  //
+  // KNOWN GAP, deliberate for now: if the POST succeeds but this settle does
+  // not - a worker torn down, or storage refusing the write - the entry survives
+  // and the next flush delivers the same capture again, leaving two library
+  // items. Enqueue-first widened this window from "transport failure after the
+  // app committed", which already existed for the timeout path, to "any failure
+  // between the POST returning and this line". Closing it properly means
+  // server-side idempotency: a client-generated capture id in the payload and a
+  // bounded recent-id table in the receiver returning success on a repeat. That
+  // is a new subsystem on the capture protocol rather than a local fix, so it is
+  // recorded here instead of half-built. The trade is one rare duplicate in
+  // exchange for never losing a capture to a worker shutdown.
   await settle(payload).catch(() => undefined);
   const at = new Date().toISOString();
   return outcome.delivered
