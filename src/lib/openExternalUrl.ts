@@ -33,6 +33,11 @@ export function openableExternalUrl(url: string | null | undefined): string | nu
     return null;
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+  // Embedded credentials would be sent by the browser to whatever host is named
+  // here, and a saved source URL is untrusted input. The capture pipeline rejects
+  // them too, but this value reaches the reader straight from stored metadata,
+  // so the gate cannot rely on that having happened.
+  if (parsed.username || parsed.password) return null;
   return parsed.toString();
 }
 
@@ -47,9 +52,10 @@ export function openExternalUrl(url: string | null | undefined): boolean {
   const target = openableExternalUrl(url);
   if (!target) return false;
   if (isTauriRuntime()) {
-    void invoke("plugin:opener|open_url", { url: target }).catch(() => {
-      openInBrowser(target);
-    });
+    // No anchor fallback. Navigation is inert in the Tauri webview, so on
+    // failure this would report success while nothing opened - a link that
+    // silently does nothing is worse than one that visibly refuses.
+    void invoke("plugin:opener|open_url", { url: target }).catch(() => undefined);
     return true;
   }
   openInBrowser(target);

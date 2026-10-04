@@ -45,6 +45,10 @@ async function singleHop(
   timeoutMs: number,
   maxBytes: number,
 ): Promise<Response> {
+  // Checked before the invoke, not just raced against it. `withAbort` can
+  // abandon the promise but cannot un-send it, so a signal already aborted
+  // would otherwise start a native request the caller has given up on.
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
   const result = await withAbort(
     invoke<FetchHttpResult>("fetch_http", {
       url,
@@ -89,20 +93,33 @@ export async function tauriFetch(
   init?: RequestInit,
 ): Promise<Response> {
   const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
-  if (method !== "GET" && method !== "HEAD") {
+  // Only GET. `fetch_http` calls `agent.get(...)` and takes no method argument,
+  // so admitting HEAD here would return a full GET body under a HEAD request,
+  // which is worse than refusing it.
+  if (method !== "GET") {
     // `fetch_http` is a GET. Honouring the shape of `fetch` while sending
     // something else is the kind of bug that only shows up as missing data.
     throw new TypeError(`tauriFetch cannot send ${method}: fetch_http is a GET`);
   }
+  if (init?.body != null) {
+    throw new TypeError("tauriFetch cannot send a body: fetch_http is a GET");
+  }
   const url = requestUrl(input);
   const headers = mergeHeaders(input, init);
-  const signal = init?.signal ?? null;
-  const redirect = init?.redirect ?? "follow";
+  // A `Request` carries its own signal; falling back to it keeps the wrapper
+  // honest when a caller passes one and omits `init`.
+  const signal = init?.signal ?? (input instanceof Request ? input.signal : null);
+  // `redirect` lives on a `Request` too, so honour it when there is no init.
+  const redirect =
+    init?.redirect ?? (input instanceof Request ? input.redirect : "follow");
   const timeoutMs = DEFAULT_TIMEOUT_MS;
   const maxBytes = DEFAULT_MAX_RESPONSE_BYTES;
 
   let current = url;
-  for (let hop = 0; hop < MAX_REDIRECTS; hop += 1) {
+  // MAX_REDIRECTS counts redirects followed, so a chain of exactly that many
+  // needs one request more to reach the destination. Bounding the loop by
+  // MAX_REDIRECTS instead rejected a legal chain one hop early.
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     const response = await singleHop(current, headers, signal, timeoutMs, maxBytes);
     if (!isRedirectStatus(response.status)) return response;
     if (redirect === "manual") return response;

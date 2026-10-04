@@ -784,9 +784,13 @@ impl LibraryStorage {
 
         let current_title = item.title.as_deref().map(str::trim);
         let current_description = item.description.as_deref().map(str::trim);
+        // Only `None` means "the capture never set this". An empty current value is a
+        // user who deliberately cleared the field, and treating that as
+        // untouched let enrichment write the provider's text straight back over
+        // the deletion. Compare against the baseline verbatim.
         let untouched = |baseline: &Option<String>, current: Option<&str>| match baseline {
-            Some(original) => current == Some(original.trim()),
-            None => current.is_none_or(str::is_empty),
+            Some(original) => current == Some(original.as_str()),
+            None => current.is_none(),
         };
         let next_title = title.filter(|_| untouched(&baseline.title, current_title));
         let next_description =
@@ -3710,6 +3714,35 @@ mod tests {
         );
         // The description was never set by anyone, so it still gets enriched.
         assert_eq!(item.description.as_deref(), Some("A Channel"));
+    }
+
+    #[test]
+    fn video_enrichment_does_not_resurrect_a_cleared_description() {
+        // Clearing a field is an edit too. The baseline is None for a description
+        // the capture never set, and treating any empty current value as "still
+        // untouched" meant a user who deliberately cleared it got the provider's
+        // text written straight back over the deletion.
+        let (storage, id) = saved_video(Some("Watch later"));
+        storage
+            .update_item(UpdateItemInput {
+                id: id.clone(),
+                description: Some(String::new()),
+                ..Default::default()
+            })
+            .unwrap();
+
+        storage
+            .apply_video_oembed(&id, Some("A Real Video Title"), Some("A Channel"))
+            .unwrap();
+
+        let item = storage.get_item(&id).unwrap().unwrap();
+        assert_eq!(
+            item.description.as_deref(),
+            Some(""),
+            "a description the user cleared must stay cleared"
+        );
+        // The title was never touched, so it still enriches.
+        assert_eq!(item.title.as_deref(), Some("A Real Video Title"));
     }
 
     #[test]

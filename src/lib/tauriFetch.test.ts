@@ -120,11 +120,68 @@ describe("tauriFetch", () => {
     expect(hops).toHaveLength(0);
   });
 
-  test("still allows HEAD, which fetch_http can answer", async () => {
+  test("refuses HEAD, which fetch_http cannot answer", async () => {
+    // The Rust command calls `agent.get(...)` and takes no method argument, so
+    // a HEAD here would come back as a full GET body. Returning that under a HEAD
+    // request is worse than refusing, so only GET is admitted.
     hops.length = 0;
     responder = () => reply(200, "");
-    const response = await tauriFetch("https://example.com/ping", { method: "HEAD" });
-    expect(response.status).toBe(200);
+    await expect(
+      tauriFetch("https://example.com/ping", { method: "HEAD" }),
+    ).rejects.toThrow(/cannot send HEAD/);
+    expect(hops).toHaveLength(0);
+  });
+
+  test("refuses a body instead of dropping it", async () => {
+    hops.length = 0;
+    responder = () => reply(200, "");
+    await expect(
+      tauriFetch("https://example.com/p", { body: "a=1" }),
+    ).rejects.toThrow(/cannot send a body/);
+    expect(hops).toHaveLength(0);
+  });
+
+  test("takes a Request's own signal when init omits one", async () => {
+    hops.length = 0;
+    responder = () => reply(200, "ok");
+    const controller = new AbortController();
+    controller.abort();
+    const request = new Request("https://example.com/aborted", { signal: controller.signal });
+    // Already-aborted is rejected before any hop is requested, which is the
+    // behaviour worth pinning: the caller's own signal reaches the wrapper even
+    // with no `init` to carry it.
+    await expect(tauriFetch(request)).rejects.toThrow();
+    expect(hops).toHaveLength(0);
+  });
+
+  test("a Request's redirect mode is honoured when init omits one", async () => {
+    hops.length = 0;
+    responder = () => reply(301, "", { location: "https://example.com/moved" });
+    const request = new Request("https://example.com/start", { redirect: "manual" });
+    const response = await tauriFetch(request);
+    expect(response.status).toBe(301);
     expect(hops).toHaveLength(1);
+  });
+
+  test("follows a chain of exactly MAX_REDIRECTS hops", async () => {
+    hops.length = 0;
+    let served = 0;
+    responder = () => {
+      served += 1;
+      return served <= 20
+        ? reply(302, "", { location: `https://example.com/hop${served}` })
+        : reply(200, "arrived");
+    };
+    const response = await tauriFetch("https://example.com/0");
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("arrived");
+    // 20 redirects plus the request that lands on the destination.
+    expect(hops).toHaveLength(21);
+  });
+
+  test("still refuses a chain past the redirect limit", async () => {
+    hops.length = 0;
+    responder = () => reply(302, "", { location: "https://example.com/loop" });
+    await expect(tauriFetch("https://example.com/0")).rejects.toThrow(/too many redirects/);
   });
 });
