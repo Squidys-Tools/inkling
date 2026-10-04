@@ -94,6 +94,15 @@ test("settling a capture that is not queued is not an error", async () => {
   expect(await settle(payload(5))).toBe(false);
 });
 
+test("a queued capture the app refuses is settled, not left for every flush", async () => {
+  // The property the enqueue-first change depends on: a permanent rejection
+  // settles the entry, so a later flush does not deliver it again.
+  const capture = payload(3);
+  await enqueue(capture);
+  expect(await settle(capture)).toBe(true);
+  expect(await readQueue()).toEqual([]);
+});
+
 test("a capture appended during delivery survives the settle", async () => {
   const mine = payload(6);
   const later = payload(7);

@@ -266,20 +266,9 @@ async function deliverDurably(payload: LoopbackCapturePayload, title?: string): 
   }
 
   if (!outcome.delivered && !outcome.permanent) {
-    const at = new Date().toISOString();
-    // `enqueue` returning 0 means the capture was NOT stored - the queue was
-    // full and there was nothing older left to evict. Reporting "queued" then
-    // would be a status that lies about the only thing the user can act on.
-    if (pending === 0) {
-      return {
-        state: "failed",
-        title,
-        detail: `${outcome.reason} — and the pending queue was full, so it was not kept`,
-        at,
-      };
-    }
     // Transient with the entry safely stored: it stays exactly as it is, and the
     // next flush retries it.
+    const at = new Date().toISOString();
     return {
       state: "queued",
       title,

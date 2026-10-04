@@ -533,7 +533,10 @@ impl LibraryStorage {
                 "quote text cannot be empty".into(),
             ));
         }
-        if body.len() > 2000 {
+        // Counted in characters, like the attribution below and the receiver's
+        // `capped_string`. `len()` is bytes, so a 2000-character CJK or emoji
+        // quote was rejected for exceeding 2000 "characters".
+        if body.chars().count() > 2000 {
             return Err(StorageError::InvalidInput(
                 "quote text must be at most 2000 characters".into(),
             ));
