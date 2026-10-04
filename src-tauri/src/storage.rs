@@ -16,7 +16,10 @@ use tauri::{AppHandle, Manager, State};
 use url::Url;
 use uuid::Uuid;
 
-const SCHEMA_VERSION: i64 = 7;
+// 8 is regular Spaces. 7 was claimed by both that change and note bodies on
+// main; every column below is added by an idempotent presence check, so the
+// collision was survivable but the number lied about what had migrated.
+const SCHEMA_VERSION: i64 = 8;
 const BODY_FORMAT_MARKDOWN: &str = "md";
 const MAX_FILE_BYTES: usize = 50 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION: u32 = 20_000;
@@ -72,6 +75,7 @@ CREATE TABLE IF NOT EXISTS spaces (
     name TEXT NOT NULL,
     color TEXT NOT NULL DEFAULT 'blue',
     query TEXT NOT NULL DEFAULT '{}',
+    kind TEXT NOT NULL DEFAULT 'smart',
     position INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
@@ -79,6 +83,19 @@ CREATE TABLE IF NOT EXISTS spaces (
 
 CREATE INDEX IF NOT EXISTS idx_spaces_position
     ON spaces (position, created_at);
+
+-- Manual membership. Only Regular Spaces use it; a Smart Space derives its
+-- contents from its query instead. Rows survive archiving so a restored item
+-- rejoins the Space it was filed under.
+CREATE TABLE IF NOT EXISTS space_items (
+    space_id TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    added_at INTEGER NOT NULL,
+    PRIMARY KEY (space_id, item_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_space_items_item
+    ON space_items (item_id);
 "#;
 
 #[derive(Debug)]
@@ -296,13 +313,44 @@ pub struct SmartSpaceQuery {
     pub favorite: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+/// How a Space decides what is in it. A Smart Space re-runs its saved query;
+/// a Regular Space holds the items the user filed into it by hand. The kind is
+/// fixed at creation because converting either way would silently discard
+/// either the query or the membership.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SpaceKind {
+    #[default]
+    Smart,
+    Regular,
+}
+
+impl SpaceKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Smart => "smart",
+            Self::Regular => "regular",
+        }
+    }
+
+    /// Reads the stored column. An unrecognized value falls back to Smart,
+    /// which is what every Space was before manual collections existed.
+    fn from_column(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "regular" => Self::Regular,
+            _ => Self::Smart,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpaceDto {
     pub id: String,
     pub name: String,
     pub color: String,
     pub query: SmartSpaceQuery,
+    pub kind: SpaceKind,
     pub position: i64,
     pub created_at: i64,
     pub updated_at: i64,
@@ -315,6 +363,8 @@ pub struct CreateSpaceInput {
     pub color: Option<String>,
     #[serde(default)]
     pub query: SmartSpaceQuery,
+    #[serde(default)]
+    pub kind: SpaceKind,
 }
 
 #[derive(Debug, Deserialize)]
@@ -379,6 +429,7 @@ impl LibraryStorage {
         ensure_item_columns(&connection, version < SCHEMA_VERSION)?;
         connection.execute_batch(EMBEDDINGS_SCHEMA)?;
         connection.execute_batch(SPACES_SCHEMA)?;
+        ensure_space_columns(&connection)?;
         let fts5_enabled = setup_fts5(&connection);
         connection.pragma_update(None, "user_version", SCHEMA_VERSION)?;
 
@@ -888,6 +939,12 @@ impl LibraryStorage {
             return Err(StorageError::NotFound(id.to_owned()));
         }
 
+        // The item is gone for good, so drop it from every Regular Space it
+        // was filed in. Archiving keeps the rows, which is what lets a restore
+        // put the item back where it was.
+        self.connection
+            .execute("DELETE FROM space_items WHERE item_id = ?1", params![id])?;
+
         Ok(())
     }
 
@@ -1297,24 +1354,30 @@ impl LibraryStorage {
     fn space_from_row(row: &Row<'_>) -> rusqlite::Result<SpaceDto> {
         let query_json: String = row.get(3)?;
         let query = serde_json::from_str(&query_json).unwrap_or_default();
+        let kind: String = row.get(4)?;
 
         Ok(SpaceDto {
             id: row.get(0)?,
             name: row.get(1)?,
             color: row.get(2)?,
             query,
-            position: row.get(4)?,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
+            kind: SpaceKind::from_column(&kind),
+            position: row.get(5)?,
+            created_at: row.get(6)?,
+            updated_at: row.get(7)?,
         })
     }
 
+    /// Column list shared by every Space read, so `space_from_row`'s ordinals
+    /// stay in one place.
+    const SPACE_COLUMNS: &'static str =
+        "id, name, color, query, kind, position, created_at, updated_at";
+
     fn list_spaces(&self) -> Result<Vec<SpaceDto>, StorageError> {
-        let mut statement = self.connection.prepare(
-            "SELECT id, name, color, query, position, created_at, updated_at
-             FROM spaces
-             ORDER BY position, created_at",
-        )?;
+        let mut statement = self.connection.prepare(&format!(
+            "SELECT {0} FROM spaces ORDER BY position, created_at",
+            Self::SPACE_COLUMNS
+        ))?;
 
         let spaces = statement
             .query_map([], Self::space_from_row)?
@@ -1326,8 +1389,7 @@ impl LibraryStorage {
     fn get_space(&self, id: &str) -> Result<Option<SpaceDto>, StorageError> {
         self.connection
             .query_row(
-                "SELECT id, name, color, query, position, created_at, updated_at
-                 FROM spaces WHERE id = ?1",
+                &format!("SELECT {} FROM spaces WHERE id = ?1", Self::SPACE_COLUMNS),
                 params![id],
                 Self::space_from_row,
             )
@@ -1338,7 +1400,12 @@ impl LibraryStorage {
     fn create_space(&self, input: CreateSpaceInput) -> Result<SpaceDto, StorageError> {
         let name = normalize_space_name(&input.name)?;
         let color = normalize_space_color(input.color.as_deref());
-        let query = validate_smart_space_query(input.query)?;
+        // A Regular Space is defined by what the user puts in it, so a query
+        // captured from the search bar is not part of it.
+        let query = match input.kind {
+            SpaceKind::Smart => validate_smart_space_query(input.query)?,
+            SpaceKind::Regular => SmartSpaceQuery::default(),
+        };
         let query_json = serde_json::to_string(&query)?;
         let id = Uuid::new_v4().to_string();
         let timestamp = now_millis()?;
@@ -1349,9 +1416,17 @@ impl LibraryStorage {
         )?;
 
         self.connection.execute(
-            "INSERT INTO spaces (id, name, color, query, position, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
-            params![id, name, color, query_json, position, timestamp],
+            "INSERT INTO spaces (id, name, color, query, kind, position, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+            params![
+                id,
+                name,
+                color,
+                query_json,
+                input.kind.as_str(),
+                position,
+                timestamp
+            ],
         )?;
 
         self.get_space(&id)?.ok_or(StorageError::NotFound(id))
@@ -1366,6 +1441,18 @@ impl LibraryStorage {
             .color
             .as_deref()
             .map(|value| normalize_space_color(Some(value)));
+        if input.query.is_some() {
+            // A Regular Space has no query to edit; rejecting beats silently
+            // dropping a query the caller believed it saved.
+            let existing = self
+                .get_space(&input.id)?
+                .ok_or_else(|| StorageError::NotFound(input.id.clone()))?;
+            if existing.kind == SpaceKind::Regular {
+                return Err(StorageError::InvalidInput(
+                    "a Regular Space has no search query to change".into(),
+                ));
+            }
+        }
         let query_json = input
             .query
             .map(validate_smart_space_query)
@@ -1400,7 +1487,11 @@ impl LibraryStorage {
     }
 
     fn delete_space(&self, id: &str) -> Result<(), StorageError> {
-        // Deleting a Space never touches its items; only the saved search goes away.
+        // Deleting a Space never touches its items; only the saved search and
+        // the manual membership go away. Foreign keys are not enforced on this
+        // connection, so membership rows are cleared explicitly.
+        self.connection
+            .execute("DELETE FROM space_items WHERE space_id = ?1", params![id])?;
         let deleted = self
             .connection
             .execute("DELETE FROM spaces WHERE id = ?1", params![id])?;
@@ -1468,11 +1559,16 @@ impl LibraryStorage {
     }
 
     /// Lazy evaluation of a Smart Space: re-run the stored query on demand.
+    /// A Regular Space instead reads back exactly the items filed into it.
     fn list_space_items(&self, id: &str, limit: u32) -> Result<Vec<ItemDto>, StorageError> {
         let limit = usize::try_from(limit.clamp(1, 200)).unwrap_or(100);
         let space = self
             .get_space(id)?
             .ok_or_else(|| StorageError::NotFound(id.to_owned()))?;
+
+        if space.kind == SpaceKind::Regular {
+            return self.list_space_member_items(id, limit);
+        }
 
         let text = space.query.text.as_deref().unwrap_or("").trim();
         let candidates = if text.is_empty() {
@@ -1489,6 +1585,92 @@ impl LibraryStorage {
             .collect::<Vec<_>>();
 
         Ok(items)
+    }
+
+    /// The contents of a Regular Space: manual membership, most recently added
+    /// first. Archived items drop out of the listing but keep their membership
+    /// row, so restoring one returns it to the Space.
+    fn list_space_member_items(
+        &self,
+        id: &str,
+        limit: usize,
+    ) -> Result<Vec<ItemDto>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT i.id, i.kind, i.title, i.description, i.source_url, i.source_label,
+                    i.local_asset_path, i.thumbnail_path, i.ocr_text, i.metadata, i.created_at,
+                    i.updated_at, i.archived, i.favorite, NULL AS body, 'md' AS body_format
+             FROM space_items s
+             JOIN items i ON i.id = s.item_id
+             WHERE s.space_id = ?1 AND i.archived = 0
+             ORDER BY s.added_at DESC, i.id
+             LIMIT ?2",
+        )?;
+
+        let items = statement
+            .query_map(
+                params![id, i64::try_from(limit).unwrap_or(100)],
+                item_from_row,
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(items)
+    }
+
+    /// File an item into a Regular Space. Adding the same pair twice is a
+    /// no-op rather than an error, so a retried click cannot fail.
+    fn add_space_item(&self, space_id: &str, item_id: &str) -> Result<(), StorageError> {
+        let space = self
+            .get_space(space_id)?
+            .ok_or_else(|| StorageError::NotFound(space_id.to_owned()))?;
+        if space.kind != SpaceKind::Regular {
+            return Err(StorageError::InvalidInput(
+                "items can only be added to a Regular Space".into(),
+            ));
+        }
+        // space_items carries no foreign key, so nothing below would stop an
+        // unknown item id from becoming an orphan membership row.
+        if self.get_item(item_id)?.is_none() {
+            return Err(StorageError::NotFound(item_id.to_owned()));
+        }
+
+        self.connection.execute(
+            "INSERT OR IGNORE INTO space_items (space_id, item_id, added_at) VALUES (?1, ?2, ?3)",
+            params![space_id, item_id, now_millis()?],
+        )?;
+
+        Ok(())
+    }
+
+    /// Take an item back out of a Regular Space. Missing membership is a no-op.
+    fn remove_space_item(&self, space_id: &str, item_id: &str) -> Result<(), StorageError> {
+        if self.get_space(space_id)?.is_none() {
+            return Err(StorageError::NotFound(space_id.to_owned()));
+        }
+
+        self.connection.execute(
+            "DELETE FROM space_items WHERE space_id = ?1 AND item_id = ?2",
+            params![space_id, item_id],
+        )?;
+
+        Ok(())
+    }
+
+    /// Which Regular Spaces hold this item, in sidebar order. Smart Spaces are
+    /// left out: their contents come from the query and change on their own.
+    fn list_item_space_ids(&self, item_id: &str) -> Result<Vec<String>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT s.id
+             FROM space_items m
+             JOIN spaces s ON s.id = m.space_id
+             WHERE m.item_id = ?1
+             ORDER BY s.position, s.created_at",
+        )?;
+
+        let ids = statement
+            .query_map(params![item_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(ids)
     }
 }
 
@@ -1701,6 +1883,23 @@ fn ensure_job_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
                 [],
             )?;
         }
+    }
+    Ok(())
+}
+
+fn ensure_space_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
+    // Libraries created before manual collections have no `kind` column. Every
+    // existing Space was a saved search, so the default has to be Smart.
+    let present: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('spaces') WHERE name = 'kind'",
+        [],
+        |row| row.get(0),
+    )?;
+    if present == 0 {
+        connection.execute(
+            "ALTER TABLE spaces ADD COLUMN kind TEXT NOT NULL DEFAULT 'smart'",
+            [],
+        )?;
     }
     Ok(())
 }
@@ -2091,8 +2290,8 @@ pub fn swap_space_positions(
         .map_err(String::from)
 }
 
-/// Lazy Smart Space evaluation: items are computed from the saved query at
-/// read time, so new captures appear without any membership bookkeeping.
+/// Smart Spaces re-run their saved query at read time; Regular Spaces read
+/// back the items filed into them. Either way new captures need no bookkeeping.
 #[tauri::command]
 pub fn list_space_items(
     id: String,
@@ -2104,6 +2303,47 @@ pub fn list_space_items(
         .as_ref()
         .expect("require_storage guarantees initialization")
         .list_space_items(&id, limit.unwrap_or(100))
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn add_space_item(
+    space_id: String,
+    item_id: String,
+    state: State<'_, StorageState>,
+) -> Result<(), String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .add_space_item(&space_id, &item_id)
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn remove_space_item(
+    space_id: String,
+    item_id: String,
+    state: State<'_, StorageState>,
+) -> Result<(), String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .remove_space_item(&space_id, &item_id)
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn list_item_spaces(
+    item_id: String,
+    state: State<'_, StorageState>,
+) -> Result<Vec<String>, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .list_item_space_ids(&item_id)
         .map_err(String::from)
 }
 
@@ -3629,6 +3869,216 @@ mod tests {
     }
 
     #[test]
+    fn regular_spaces_hold_only_the_items_filed_into_them() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-manual-spaces-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let filed = storage
+            .create_note(CreateNoteInput {
+                title: Some("Filed".into()),
+                body: "goes in the space".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let left_out = storage
+            .create_note(CreateNoteInput {
+                title: Some("Left out".into()),
+                body: "stays in the library".into(),
+                metadata: None,
+            })
+            .unwrap();
+
+        // A search query captured in the create form must not become a manual
+        // Space's contents; only filed items do.
+        let space = storage
+            .create_space(CreateSpaceInput {
+                name: "Weekend reading".into(),
+                color: None,
+                kind: SpaceKind::Regular,
+                query: SmartSpaceQuery {
+                    text: Some("left out".into()),
+                    ..Default::default()
+                },
+            })
+            .unwrap();
+        assert_eq!(space.kind, SpaceKind::Regular);
+        assert!(storage.list_space_items(&space.id, 50).unwrap().is_empty());
+
+        storage.add_space_item(&space.id, &filed.id).unwrap();
+        let items = storage.list_space_items(&space.id, 50).unwrap();
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| item.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![filed.id.as_str()]
+        );
+        assert_eq!(
+            storage.list_item_space_ids(&filed.id).unwrap(),
+            vec![space.id.clone()]
+        );
+
+        // Filing the same item twice is a no-op, so a retried click cannot fail.
+        storage.add_space_item(&space.id, &filed.id).unwrap();
+        assert_eq!(storage.list_space_items(&space.id, 50).unwrap().len(), 1);
+
+        // Taking an item back out is a no-op when it was never in.
+        storage.remove_space_item(&space.id, &left_out.id).unwrap();
+        assert_eq!(storage.list_space_items(&space.id, 50).unwrap().len(), 1);
+        storage.remove_space_item(&space.id, &filed.id).unwrap();
+        assert!(storage.list_space_items(&space.id, 50).unwrap().is_empty());
+        assert!(storage.list_item_space_ids(&filed.id).unwrap().is_empty());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn filing_an_item_that_does_not_exist_is_refused() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-manual-missing-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let space = storage
+            .create_space(CreateSpaceInput {
+                name: "Weekend reading".into(),
+                color: None,
+                kind: SpaceKind::Regular,
+                query: SmartSpaceQuery::default(),
+            })
+            .unwrap();
+
+        // space_items has no foreign key, so nothing but this check stops a bad
+        // id from leaving an orphan row nothing will ever read or clean up.
+        assert!(matches!(
+            storage.add_space_item(&space.id, "no-such-item"),
+            Err(StorageError::NotFound(_))
+        ));
+        assert!(storage.list_space_items(&space.id, 50).unwrap().is_empty());
+
+        // A real item that was deleted for good is refused the same way.
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Gone".into()),
+                body: "deleted below".into(),
+                metadata: None,
+            })
+            .unwrap();
+        storage.archive_item(&item.id, true).unwrap();
+        storage.delete_item(&item.id).unwrap();
+        assert!(matches!(
+            storage.add_space_item(&space.id, &item.id),
+            Err(StorageError::NotFound(_))
+        ));
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn archiving_hides_a_filed_item_until_it_is_restored() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-manual-restore-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Filed".into()),
+                body: "belongs in the space".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let space = storage
+            .create_space(CreateSpaceInput {
+                name: "Weekend reading".into(),
+                color: None,
+                kind: SpaceKind::Regular,
+                query: SmartSpaceQuery::default(),
+            })
+            .unwrap();
+        storage.add_space_item(&space.id, &item.id).unwrap();
+        assert_eq!(storage.list_space_items(&space.id, 50).unwrap().len(), 1);
+
+        // Archiving is reversible, so membership survives it: the Space just
+        // stops listing the item until the user brings it back.
+        storage.archive_item(&item.id, true).unwrap();
+        assert!(storage.list_space_items(&space.id, 50).unwrap().is_empty());
+        storage.archive_item(&item.id, false).unwrap();
+        let items = storage.list_space_items(&space.id, 50).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, item.id);
+
+        // A permanent delete drops the membership, since the item is gone.
+        storage.archive_item(&item.id, true).unwrap();
+        storage.delete_item(&item.id).unwrap();
+        assert!(storage.list_item_space_ids(&item.id).unwrap().is_empty());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn smart_spaces_refuse_manual_membership() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-smart-membership-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Note".into()),
+                body: "text".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let smart = storage
+            .create_space(CreateSpaceInput {
+                name: "Top picks".into(),
+                color: None,
+                kind: SpaceKind::Smart,
+                query: SmartSpaceQuery::default(),
+            })
+            .unwrap();
+
+        // A Smart Space decides its own contents, so filing into it is rejected
+        // rather than silently ignored.
+        assert!(matches!(
+            storage.add_space_item(&smart.id, &item.id),
+            Err(StorageError::InvalidInput(_))
+        ));
+        // Regular Spaces have no query to edit, so a query update is rejected
+        // instead of being dropped.
+        let regular = storage
+            .create_space(CreateSpaceInput {
+                name: "Weekend reading".into(),
+                color: None,
+                kind: SpaceKind::Regular,
+                query: SmartSpaceQuery::default(),
+            })
+            .unwrap();
+        assert!(matches!(
+            storage.update_space(UpdateSpaceInput {
+                id: regular.id.clone(),
+                name: None,
+                color: None,
+                query: Some(SmartSpaceQuery::default()),
+                position: None,
+            }),
+            Err(StorageError::InvalidInput(_))
+        ));
+        // Membership writes still reach the database after a rejected update.
+        assert!(storage.add_space_item(&regular.id, &item.id).is_ok());
+        assert!(storage.remove_space_item(&regular.id, &item.id).is_ok());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn smart_spaces_evaluate_queries_lazily() {
         let directory =
             std::env::temp_dir().join(format!("inkling-spaces-test-{}", Uuid::new_v4()));
@@ -3669,6 +4119,7 @@ mod tests {
             .create_space(CreateSpaceInput {
                 name: "Design references".into(),
                 color: Some("orange".into()),
+                kind: SpaceKind::Smart,
                 query: SmartSpaceQuery {
                     tag: Some("reference".into()),
                     ..Default::default()
@@ -3689,6 +4140,7 @@ mod tests {
             .create_space(CreateSpaceInput {
                 name: "Top picks".into(),
                 color: None,
+                kind: SpaceKind::Smart,
                 query: SmartSpaceQuery {
                     favorite: Some(true),
                     ..Default::default()
@@ -3704,6 +4156,7 @@ mod tests {
             .create_space(CreateSpaceInput {
                 name: "Timber thinking".into(),
                 color: None,
+                kind: SpaceKind::Smart,
                 query: SmartSpaceQuery {
                     text: Some("timber".into()),
                     ..Default::default()
@@ -3719,6 +4172,7 @@ mod tests {
             .create_space(CreateSpaceInput {
                 name: "Everything space".into(),
                 color: None,
+                kind: SpaceKind::Smart,
                 query: SmartSpaceQuery::default(),
             })
             .unwrap();
@@ -3792,6 +4246,7 @@ mod tests {
             .create_space(CreateSpaceInput {
                 name: "Articles".into(),
                 color: None,
+                kind: SpaceKind::Smart,
                 query: SmartSpaceQuery {
                     kind: Some("article".into()),
                     ..Default::default()
@@ -4238,6 +4693,7 @@ mod tests {
             .create_space(CreateSpaceInput {
                 name: "Reading".into(),
                 color: None,
+                kind: SpaceKind::Smart,
                 query: SmartSpaceQuery::default(),
             })
             .unwrap();
