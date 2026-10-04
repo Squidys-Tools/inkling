@@ -42,6 +42,7 @@ import {
 import {
   assetUrl,
   archiveItem,
+  addSpaceItem,
   createQuote,
   createSpace,
   createUrl,
@@ -54,8 +55,10 @@ import {
   isTauriRuntime,
   listActiveItems,
   listArchivedItems,
+  listItemSpaces,
   listSpaceItems,
   listSpaces,
+  removeSpaceItem,
   getProcessingSummaries,
   getItemContent,
   retryProcessingJob,
@@ -72,6 +75,7 @@ import {
   type LibraryExportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
+  type SpaceKind,
   type StoredLibraryItem,
   type StoredSpace,
 } from "./lib/libraryApi";
@@ -677,6 +681,7 @@ const seedSpaces: StoredSpace[] = [
     name: "Design references",
     color: "orange",
     query: { tag: "reference" },
+    kind: "smart",
     position: 1,
     createdAt: 0,
     updatedAt: 0,
@@ -686,6 +691,7 @@ const seedSpaces: StoredSpace[] = [
     name: "Read later",
     color: "green",
     query: { tag: "essay" },
+    kind: "smart",
     position: 2,
     createdAt: 0,
     updatedAt: 0,
@@ -695,11 +701,30 @@ const seedSpaces: StoredSpace[] = [
     name: "Top picks",
     color: "blue",
     query: { favorite: true },
+    kind: "smart",
     position: 3,
     createdAt: 0,
     updatedAt: 0,
   },
+  {
+    id: "seed-weekend-reading",
+    name: "Weekend reading",
+    color: "pink",
+    query: {},
+    kind: "regular",
+    position: 4,
+    createdAt: 0,
+    updatedAt: 0,
+  },
 ];
+
+// Manual membership for the seeded Regular Space, so preview mode can exercise
+// the same add/remove flow the Tauri core serves from the database. These are
+// ids the demo seed actually keeps (5, 10, 12, 13); the archived copies in
+// previewArchivedItems are re-keyed, so the originals stay in the library.
+const seedSpaceItems: Record<string, string[]> = {
+  "seed-weekend-reading": ["5", "13"],
+};
 
 const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
 
@@ -1181,6 +1206,15 @@ function App() {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
+  const [newSpaceKind, setNewSpaceKind] = useState<SpaceKind>("smart");
+  // Manual membership, keyed by space id then item id. Only read in preview and
+  // seed mode; the Tauri core owns membership through the space item commands.
+  const [localSpaceItems, setLocalSpaceItems] = useState<Map<string, Set<string>>>(
+    () => new Map(Object.entries(seedSpaceItems).map(([spaceId, ids]) => [spaceId, new Set(ids)])),
+  );
+  // Which Regular Spaces hold the item open in the overlay, so its chips can
+  // render in the right state. Cleared whenever the overlay closes.
+  const [itemSpaceIds, setItemSpaceIds] = useState<string[]>([]);
   const [renamingSpaceId, setRenamingSpaceId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -1335,7 +1369,21 @@ function App() {
     }
   }, []);
 
+  const cancelPermanentDelete = useCallback((pending: PendingPermanentDelete) => {
+    const id = String(pending.item.id);
+    // Only the toast that scheduled a deletion may cancel it. Deleting the same
+    // item again stores a new record, and that older Undo has to stay a no-op.
+    if (pendingPermanentDeletesRef.current.get(id) !== pending) return false;
+    window.clearTimeout(pending.timer);
+    pendingPermanentDeletesRef.current.delete(id);
+    return true;
+  }, []);
+
   const restoreForgottenItem = useCallback(async (item: LibraryItem) => {
+    // A restore un-archives the row, so any scheduled permanent delete for it
+    // must be cancelled or its timer would still fire and destroy the assets.
+    const pending = pendingPermanentDeletesRef.current.get(String(item.id));
+    if (pending !== undefined) cancelPermanentDelete(pending);
     try {
       const restoredItem = canUseTauriBackend
         ? await archiveItem(String(item.id), false).then(async (storedItem) => {
@@ -1358,7 +1406,7 @@ function App() {
       toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
-  }, [canUseTauriBackend]);
+  }, [canUseTauriBackend, cancelPermanentDelete]);
 
   const forgetItem = useCallback(async (item: LibraryItem) => {
     setCaptureError(null);
@@ -1505,15 +1553,14 @@ function App() {
     rememberNoteBody(noteBodyCacheRef.current, String(item.id), nextBody);
   }, [canUseTauriBackend]);
 
-  // Pins are flipped from current state, not from the item the click captured,
+// Pins are flipped from current state, not from the item the click captured,
     // so a second click during a slow write reverses the first instead of
-    // repeating it. The in-flight id also keeps the control from reporting a
-    // toggle it has not applied yet.
-    const pendingPinIdsRef = useRef<Set<string>>(new Set());
+    // repeating it. Writes for one item chain instead of being dropped: the old
+    // guard returned early on an in-flight id, so undoing a pin needed a third
+    // click once the first write landed.
+    const pinWritesRef = useRef<Map<string, Promise<void>>>(new Map());
     const togglePinItem = useCallback(async (item: LibraryItem) => {
       const id = String(item.id);
-      if (pendingPinIdsRef.current.has(id)) return;
-      pendingPinIdsRef.current.add(id);
       // Read the live value so a repeat click reverses the previous one. An
       // archived item is not in the active list, so fall back to the item the
       // overlay handed over rather than treating it as unpinned.
@@ -1528,31 +1575,49 @@ function App() {
         setArchivedItems((current) => current.map(apply));
         setSelectedItem((current) => (current ? apply(current) : current));
       };
-      try {
-        // Optimistic, so a repeated click reads the new value. A refresh already
-        // in flight can land older data, so the pin is re-asserted until the
-        // backend confirms it.
-        pinnedOverridesRef.current.set(id, pinned);
-        show(pinned);
-        if (canUseTauriBackend) {
+      // Optimistic, so a repeated click reads the new value. A refresh already
+      // in flight can land older data, so the pin is re-applied until the
+      // backend confirms it.
+      pinnedOverridesRef.current.set(id, pinned);
+      show(pinned);
+
+      // A Space's rows come from its own query rather than a client-side
+      // filter, so a Smart Space that filters on the pin keeps showing the old
+      // contents until it is re-read. Only that case needs the extra load.
+      const openSpace = activeSpaceId !== null
+        ? spaces.find((space) => space.id === activeSpaceId)
+        : undefined;
+      const rereadsPins = openSpace?.kind === "smart" && openSpace.query.favorite != null;
+
+      const write = (pinWritesRef.current.get(id) ?? Promise.resolve())
+        .then(async () => {
+          if (!canUseTauriBackend) return;
           const confirmed = await updateItem({ id, favorite: pinned });
           // The stored value wins once it is known, including if it disagreed
           // with what was asked for.
-          const stored = confirmed.favorite === true;
-          pinnedOverridesRef.current.delete(id);
-          show(stored);
-        } else {
-          pinnedOverridesRef.current.delete(id);
-        }
-      } catch {
-        // A failed write must not leave the item looking pinned anywhere.
-        pinnedOverridesRef.current.delete(id);
-        show(wasPinned);
-        toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
-    } finally {
-      pendingPinIdsRef.current.delete(id);
-    }
-  }, [canUseTauriBackend]);
+          show(confirmed.favorite === true);
+          if (rereadsPins) loadItemsRef.current();
+        })
+        .catch(() => {
+          // A failed write must not leave the item looking pinned anywhere.
+          show(wasPinned);
+          // A later click already asked for something else and reports its own
+          // outcome, so a superseded failure stays quiet rather than blaming the
+          // user for a state that is no longer the one being written.
+          if (pinWritesRef.current.get(id) === write) {
+            toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
+          }
+        })
+        .finally(() => {
+          // Release the override only if no later click has claimed it in the
+          // meantime, and only clear this item's slot if it is still the tail of
+          // the chain.
+          if (pinnedOverridesRef.current.get(id) === pinned) pinnedOverridesRef.current.delete(id);
+          if (pinWritesRef.current.get(id) === write) pinWritesRef.current.delete(id);
+        });
+      pinWritesRef.current.set(id, write);
+      await write;
+  }, [activeSpaceId, canUseTauriBackend, spaces]);
 
   const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
     if (!item.articleHtml) return;
@@ -2345,6 +2410,7 @@ function App() {
 
   function beginSaveSearch() {
     setIsCreatingSpace(true);
+    setNewSpaceKind("smart");
     setNewSpaceName(query.trim());
   }
 
@@ -2353,18 +2419,22 @@ function App() {
     const name = newSpaceName.trim();
     if (!name) return;
 
-    const spaceQuery: SmartSpaceQuery = query.trim() ? { text: query.trim() } : {};
+    // A Regular Space is filled by hand, so the search behind the sidebar "+"
+    // does not become its query.
+    const spaceQuery: SmartSpaceQuery =
+      newSpaceKind === "smart" && query.trim() ? { text: query.trim() } : {};
     const color = SPACE_COLORS[spaces.length % SPACE_COLORS.length];
     setCaptureError(null);
 
     try {
       const created = canUseTauriBackend
-        ? await createSpace({ name, color, query: spaceQuery })
+        ? await createSpace({ name, color, query: spaceQuery, kind: newSpaceKind })
         : {
             id: `local-space-${Date.now()}`,
             name,
             color,
             query: spaceQuery,
+            kind: newSpaceKind,
             position: spaces.length + 1,
             createdAt: Date.now(),
             updatedAt: Date.now(),
@@ -2372,17 +2442,88 @@ function App() {
       setSpaces((current) => [...current, created]);
       setIsCreatingSpace(false);
       setNewSpaceName("");
+      setNewSpaceKind("smart");
       selectSpace(created);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }
 
+  // The chips toggle from live membership, so this has to stay a stable
+  // callback: the overlay actions memo closes over it, and a plain function
+  // would leave that memo holding a pre-toggle membership read and turn
+  // "Remove from" into a second add.
+  //
+  // The direction is applied before the write rather than after it, because a
+  // second click while the first write is in flight has to reverse the first
+  // instead of repeating it. Two writes for one Space are chained so the
+  // reversal cannot land before the write it reverses.
+  const spaceWritesRef = useRef<Map<string, Promise<void>>>(new Map());
+  // Bumped by every chip toggle. A membership read already in flight carries the
+  // value it saw here and drops its result if a toggle has landed since, so an
+  // older read cannot roll back the chip the user just changed.
+  const spaceMembershipEpochRef = useRef(0);
+  const handleToggleItemInSpace = useCallback(async (item: LibraryItem, spaceId: string) => {
+    const itemId = String(item.id);
+    const wasMember = itemSpaceIds.includes(spaceId);
+    // `adding` is the state being moved to, not the one being left. Naming it
+    // after the destination keeps the write and the optimistic apply reading the
+    // same way round, which is the trap the previous `member` name walked into.
+    const adding = !wasMember;
+    const show = (next: boolean) => {
+      setItemSpaceIds((current) => {
+        if (next) return current.includes(spaceId) ? current : [...current, spaceId];
+        return current.filter((id) => id !== spaceId);
+      });
+    };
+    setCaptureError(null);
+    if (!canUseTauriBackend) {
+      // Preview keeps membership in local state and an effect mirrors that into
+      // itemSpaceIds, so there is no write to make and none to chain.
+      setLocalSpaceItems((current) => {
+        const next = new Map(current);
+        const members = new Set(next.get(spaceId) ?? []);
+        if (adding) members.add(itemId);
+        else members.delete(itemId);
+        next.set(spaceId, members);
+        return next;
+      });
+      return;
+    }
+
+    spaceMembershipEpochRef.current += 1;
+    show(adding);
+    const write = (spaceWritesRef.current.get(spaceId) ?? Promise.resolve())
+      .then(async () => {
+        if (adding) await addSpaceItem(spaceId, itemId);
+        else await removeSpaceItem(spaceId, itemId);
+        // The open Space lists its own members, so its grid has to re-read.
+        if (activeSpaceId === spaceId) loadItemsRef.current();
+      })
+      .catch((error: unknown) => {
+        // A failed write must not leave the chip claiming a membership the
+        // library does not have.
+        show(wasMember);
+        setCaptureError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        if (spaceWritesRef.current.get(spaceId) === write) spaceWritesRef.current.delete(spaceId);
+      });
+    spaceWritesRef.current.set(spaceId, write);
+    await write;
+  }, [activeSpaceId, canUseTauriBackend, itemSpaceIds]);
+
   async function handleDeleteSpace(space: StoredSpace) {
     setCaptureError(null);
     try {
       if (canUseTauriBackend) await deleteSpace(space.id);
       setSpaces((current) => current.filter((candidate) => candidate.id !== space.id));
+      setLocalSpaceItems((current) => {
+        const next = new Map(current);
+        next.delete(space.id);
+        return next;
+      });
+      setItemSpaceIds((current) => current.filter((id) => id !== space.id));
       if (activeSpaceId === space.id) clearToDefaultView();
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
@@ -2612,6 +2753,44 @@ function App() {
     };
   }, []);
 
+  // Manual membership for the open overlay, read only while an item is open so
+  // the grid load stays a single query.
+  useEffect(() => {
+    const itemId = selectedItem ? String(selectedItem.id) : null;
+    if (!itemId) {
+      setItemSpaceIds([]);
+      return;
+    }
+    if (shouldUseSeedLibrary()) {
+      setItemSpaceIds(
+        [...localSpaceItems]
+          .filter(([, members]) => members.has(itemId))
+          .map(([spaceId]) => spaceId),
+      );
+      return;
+    }
+    let cancelled = false;
+    const issuedAt = spaceMembershipEpochRef.current;
+    // One guard for both outcomes. A read a chip toggle has superseded has
+    // nothing to report either way: the toggle's own write is now the
+    // authoritative answer and reports its own failure. Checking the epoch on
+    // the success path only would leave a stale rejection raising an error for
+    // a read whose result nobody can use any more.
+    const superseded = () => cancelled || issuedAt !== spaceMembershipEpochRef.current;
+    listItemSpaces(itemId)
+      .then((ids) => {
+        if (superseded()) return;
+        setItemSpaceIds(ids);
+      })
+      .catch((error: unknown) => {
+        if (superseded()) return;
+        setCaptureError(error instanceof Error ? error.message : String(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [localSpaceItems, selectedItem?.id]);
+
   useEffect(() => {
     if (shouldUseSeedLibrary()) return;
     let cancelled = false;
@@ -2785,11 +2964,28 @@ function App() {
         activeView === "Everything" ||
           (activeView === "Top of mind" && matchesPinsView(item)) ||
         (activeSpace
-          ? canUseTauriBackend || itemMatchesSmartQuery(item, activeSpace.query)
+          ? canUseTauriBackend
+            ? true
+            : activeSpace.kind === "regular"
+              // Mirror of the core's membership read for browser (seed) mode.
+              ? (localSpaceItems.get(activeSpace.id)?.has(String(item.id)) ?? false)
+              : itemMatchesSmartQuery(item, activeSpace.query)
           : false);
       return matchesQuery && matchesView;
     });
-  }, [activeSpace, activeSpaceId, activeView, canUseTauriBackend, isSerendipityView, items, query, serendipityBatch, similaritySource]);
+  }, [activeSpace, activeSpaceId, activeView, canUseTauriBackend, isSerendipityView, items, localSpaceItems, query, serendipityBatch, similaritySource]);
+
+  // The Regular Spaces an item can be filed into, and whether it already is.
+  // Smart Spaces are excluded: their contents come from the query, so a chip
+  // for them would be a claim that goes stale on its own.
+  const manualSpaces = useMemo(
+    () => spaces.filter((space) => space.kind === "regular"),
+    [spaces],
+  );
+  const selectedItemSpaces = useMemo(
+    () => manualSpaces.map((space) => ({ ...space, member: itemSpaceIds.includes(space.id) })),
+    [itemSpaceIds, manualSpaces],
+  );
 
   // VirtuosoMasonry keys rows by position, so a new result set must remount
   // the grid. Otherwise card state (video playback, embeds) sticks to the
@@ -2934,16 +3130,6 @@ function App() {
     return pending;
   }, [canUseTauriBackend, restoreArchivedItems]);
 
-  const cancelPermanentDelete = useCallback((pending: PendingPermanentDelete) => {
-    const id = String(pending.item.id);
-    // Only the toast that scheduled a deletion may cancel it. Deleting the same
-    // item again stores a new record, and that older Undo has to stay a no-op.
-    if (pendingPermanentDeletesRef.current.get(id) !== pending) return false;
-    window.clearTimeout(pending.timer);
-    pendingPermanentDeletesRef.current.delete(id);
-    return true;
-  }, []);
-
   const undoPermanentDelete = useCallback((pendingDeletes: PendingPermanentDelete[]) => {
     const restored = pendingDeletes.filter((pending) => cancelPermanentDelete(pending)).map((pending) => pending.item);
     restoreArchivedItems(restored);
@@ -3007,6 +3193,10 @@ function App() {
       // batched call instead of one round trip per restored item.
       const results = await Promise.allSettled(selectedItems.map(async (item) => {
         if (!canUseTauriBackend) return null;
+        // A restore un-archives the row, so cancel any scheduled permanent
+        // delete for it before the timer can fire and destroy its assets.
+        const pending = pendingPermanentDeletesRef.current.get(String(item.id));
+        if (pending !== undefined) cancelPermanentDelete(pending);
         return archiveItem(String(item.id), false);
       }));
       const restoredStored = results.flatMap((result) => result.status === "fulfilled" && result.value ? [result.value] : []);
@@ -3044,7 +3234,7 @@ function App() {
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
-  }, [archivedItems, selectedArchivedIds]);
+  }, [archivedItems, cancelPermanentDelete, selectedArchivedIds]);
 
   const deleteSelectedArchivedItems = useCallback(() => {
     const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
@@ -3090,8 +3280,9 @@ function App() {
     onRetryJob: retryJob,
     onAddTag: addTagToItem,
     onUpdateNote: updateNote,
+    onToggleSpace: (item, spaceId) => void handleToggleItemInSpace(item, spaceId),
     isFindingSimilar,
-  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob, togglePinItem, updateNote]);
+  }), [addTagToItem, forgetItem, handleToggleItemInSpace, isFindingSimilar, openReader, retryJob, togglePinItem, updateNote]);
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
@@ -3278,10 +3469,11 @@ function App() {
             <button
               className="icon-button small"
               aria-label="Add a Space"
-              title="Add a Smart Space"
+              title="Add a Space"
               onClick={() => {
                 setIsCreatingSpace((current) => !current);
                 setNewSpaceName("");
+                setNewSpaceKind("smart");
               }}
             >
               <HugeiconsIcon icon={PlusSignIcon} size={16} />
@@ -3412,14 +3604,39 @@ function App() {
                 autoFocus
                 value={newSpaceName}
                 onChange={(event) => setNewSpaceName(event.target.value)}
-                placeholder={query.trim() ? `Save “${query.trim()}” as…` : "Name this space"}
+                placeholder={newSpaceKind === "smart" && query.trim() ? `Save “${query.trim()}” as…` : "Name this space"}
                 aria-label="Space name"
                 maxLength={80}
               />
-              <p className="space-form-hint">
-                {query.trim()
-                  ? "A Smart Space that updates automatically as items match this search."
-                  : "An empty Smart Space matches everything you have saved."}
+              {/* Native radios rather than role="radio" buttons: the group gets
+                  arrow-key selection, one tab stop and group semantics from the
+                  platform instead of from ARIA we would then have to maintain. */}
+              <fieldset className="space-kind">
+                <legend className="visually-hidden">How this Space fills</legend>
+                {(["smart", "regular"] as const).map((kind) => (
+                  <label
+                    key={kind}
+                    className={`space-kind-option ${newSpaceKind === kind ? "is-active" : ""}`}
+                  >
+                    <input
+                      type="radio"
+                      name="space-kind"
+                      className="visually-hidden"
+                      value={kind}
+                      checked={newSpaceKind === kind}
+                      aria-describedby="space-kind-hint"
+                      onChange={() => setNewSpaceKind(kind)}
+                    />
+                    {kind === "smart" ? "Smart" : "Regular"}
+                  </label>
+                ))}
+              </fieldset>
+              <p className="space-form-hint" id="space-kind-hint">
+                {newSpaceKind === "regular"
+                  ? "Holds only the items you file into it. Open an item and pick a Space to add it."
+                  : query.trim()
+                    ? "A Smart Space that updates automatically as items match this search."
+                    : "An empty Smart Space matches everything you have saved."}
               </p>
               <div className="space-form-actions">
                 <button
@@ -3778,7 +3995,12 @@ function App() {
             {filteredItems.length === 0 && (
               <div className="empty-state">
                 <div className="empty-icon"><HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} /></div>
-                {similaritySource ? (
+                {activeSpace?.kind === "regular" ? (
+                  <>
+                    <h2>{activeSpace.name} is empty.</h2>
+                    <p>Open anything in your library and pick {activeSpace.name} to file it in here.</p>
+                  </>
+                ) : similaritySource ? (
                   <>
                     <h2>Nothing similar yet.</h2>
                     <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
@@ -3794,7 +4016,7 @@ function App() {
                     <p>Try another word, or save something new to your mind.</p>
                   </>
                 )}
-                {!pinsViewIsEmpty && (
+                {activeSpace?.kind !== "regular" && !pinsViewIsEmpty && (
                   <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
                 )}
               </div>
@@ -4037,6 +4259,7 @@ function App() {
             key="expanded-item-overlay"
             item={selectedItem}
             actions={expandedOverlayActions}
+            spaces={selectedItemSpaces}
             originRectsRef={selectionRectsRef}
             contentAreaRef={libraryScrollRef}
             selectionScrollRef={selectionScrollRef}
