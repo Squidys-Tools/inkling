@@ -429,40 +429,72 @@ async function collectFromTab(tabId: number, collect: "selection" | "image" | "v
   }
 }
 
-browser.runtime.onInstalled.addListener(({ reason }) => {
-  // Menus survive an extension update and contextMenus.create rejects a
-  // duplicate id, so only the first install creates them. Recreating on every
-  // update was an unhandled rejection per menu and left the browser's
-  // last-error report pointing at an extension doing nothing wrong.
-  if (reason === "install") {
-    fireAndForget(browser.contextMenus.create({
-      id: "inkling-save-page",
-      title: "Save page to inkling",
-      contexts: ["page"],
-    }));
-    fireAndForget(browser.contextMenus.create({
-      id: INKLING_MENU_SAVE_SELECTION,
-      title: "Save selection as quote",
-      contexts: ["selection"],
-    }));
-    fireAndForget(browser.contextMenus.create({
-      id: INKLING_MENU_SAVE_IMAGE,
-      title: "Save image to inkling",
-      contexts: ["image"],
-    }));
-    fireAndForget(browser.contextMenus.create({
-      id: INKLING_MENU_SAVE_VIDEO,
-      title: "Save video to inkling",
-      contexts: ["page", "video"],
-    }));
-  }
+/**
+ * Recreate the context menus, idempotently.
+ *
+ * removeAll first is what makes this safe to run on every worker start: a bare
+ * create rejects on a duplicate id, which is why this used to run only on the
+ * first install - and that removed the self-healing. A single unrecoverable
+ * attempt was enough to leave a user with no menus at all, because the failure
+ * was swallowed and nothing ever retried it. Some Chromium forks do not reliably
+ * register menus created before the worker is fully ready, so the first attempt
+ * is exactly the one that can fail.
+ *
+ * The user's symptom is a missing "Save image to inkling" on an image
+ * right-click, with no error anywhere: every path that could have repaired it
+ * was gated behind `reason === "install"`.
+ */
+function ensureContextMenus(): void {
+  // The leading Promise.resolve() is load-bearing: this runs at module scope, so
+  // a synchronous throw from the menus API - absent on a partial host, or during
+  // a browser shutdown - would abort the rest of this module and leave the
+  // worker with no click handler at all. Deferring turns that into a rejection
+  // fireAndForget discards, which is the correct trade: a lost menu instead of a
+  // dead extension.
+  fireAndForget(
+    Promise.resolve()
+      .then(() => browser.contextMenus.removeAll())
+      .then(() =>
+        Promise.all([
+          browser.contextMenus.create({
+            id: "inkling-save-page",
+            title: "Save page to inkling",
+            contexts: ["page"],
+          }),
+          browser.contextMenus.create({
+            id: INKLING_MENU_SAVE_SELECTION,
+            title: "Save selection as quote",
+            contexts: ["selection"],
+          }),
+          browser.contextMenus.create({
+            id: INKLING_MENU_SAVE_IMAGE,
+            title: "Save image to inkling",
+            contexts: ["image"],
+          }),
+          browser.contextMenus.create({
+            id: INKLING_MENU_SAVE_VIDEO,
+            title: "Save video to inkling",
+            contexts: ["page", "video"],
+          }),
+        ]),
+      ),
+  );
+}
+
+browser.runtime.onInstalled.addListener(() => {
+  ensureContextMenus();
   // Opportunistic drain: a previously queued save may now be deliverable.
   fireAndForget(flushQueue());
 });
 
 browser.runtime.onStartup.addListener(() => {
+  ensureContextMenus();
   fireAndForget(flushQueue());
 });
+
+// The worker also wakes for messages, alarms and fetches with neither event
+// firing, and Chromium can drop the menus when it evicts a stopped worker.
+ensureContextMenus();
 
 browser.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "inkling-save-page") {

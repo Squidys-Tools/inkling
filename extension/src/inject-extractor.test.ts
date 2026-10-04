@@ -40,7 +40,11 @@ mock.module("webextension-polyfill", () => ({
       onStartup: { addListener: () => {} },
       onMessage: { addListener: () => {} },
     },
-    contextMenus: { create: () => {}, onClicked: { addListener: () => {} } },
+    contextMenus: {
+      create: () => {},
+      removeAll: async () => {},
+      onClicked: { addListener: () => {} },
+    },
     commands: { onCommand: { addListener: () => {} } },
     tabs: {
       create: async () => ({}),
