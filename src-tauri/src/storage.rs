@@ -3659,7 +3659,10 @@ mod tests {
         (directory, storage)
     }
 
-    fn saved_video(baseline_title: Option<&str>) -> (LibraryStorage, String) {
+    /// Returns the scratch directory alongside the storage so each caller can
+    /// remove it. Dropping the storage alone leaves the directory behind, so
+    /// every run of every enrichment test was accumulating one.
+    fn saved_video(baseline_title: Option<&str>) -> (PathBuf, LibraryStorage, String) {
         let (directory, storage) = test_storage();
         let item = storage
             .create_url(CreateUrlInput {
@@ -3674,13 +3677,12 @@ mod tests {
                 })),
             })
             .unwrap();
-        let _ = directory;
-        (storage, item.id)
+        (directory, storage, item.id)
     }
 
     #[test]
     fn video_enrichment_fills_an_untouched_title() {
-        let (storage, id) = saved_video(Some("Watch later"));
+        let (directory, storage, id) = saved_video(Some("Watch later"));
         storage
             .apply_video_oembed(&id, Some("A Real Video Title"), Some("A Channel"))
             .unwrap();
@@ -3688,13 +3690,14 @@ mod tests {
         assert_eq!(item.title.as_deref(), Some("A Real Video Title"));
         assert_eq!(item.description.as_deref(), Some("A Channel"));
         drop(storage);
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
     fn video_enrichment_never_overwrites_a_user_edit() {
         // Regression: oEmbed runs in the background, so a user can rename the
         // item first. The provider's values used to win and the edit was lost.
-        let (storage, id) = saved_video(Some("Watch later"));
+        let (directory, storage, id) = saved_video(Some("Watch later"));
         storage
             .update_item(UpdateItemInput {
                 id: id.clone(),
@@ -3714,6 +3717,9 @@ mod tests {
         );
         // The description was never set by anyone, so it still gets enriched.
         assert_eq!(item.description.as_deref(), Some("A Channel"));
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
@@ -3722,7 +3728,7 @@ mod tests {
         // the capture never set, and treating any empty current value as "still
         // untouched" meant a user who deliberately cleared it got the provider's
         // text written straight back over the deletion.
-        let (storage, id) = saved_video(Some("Watch later"));
+        let (directory, storage, id) = saved_video(Some("Watch later"));
         storage
             .update_item(UpdateItemInput {
                 id: id.clone(),
@@ -3743,13 +3749,16 @@ mod tests {
         );
         // The title was never touched, so it still enriches.
         assert_eq!(item.title.as_deref(), Some("A Real Video Title"));
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
     fn video_enrichment_is_dropped_once_applied() {
         // The baseline is consumed, so a retry cannot re-apply provider values
         // over a later edit.
-        let (storage, id) = saved_video(Some("Watch later"));
+        let (directory, storage, id) = saved_video(Some("Watch later"));
         storage
             .apply_video_oembed(&id, Some("A Real Video Title"), None)
             .unwrap();
@@ -3759,6 +3768,7 @@ mod tests {
         let item = storage.get_item(&id).unwrap().unwrap();
         assert_eq!(item.title.as_deref(), Some("A Real Video Title"));
         drop(storage);
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

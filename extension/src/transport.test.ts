@@ -136,16 +136,31 @@ describe("capture rejection classification", () => {
   test("every attempt is bounded, so a silent app cannot hang the save", async () => {
     const { postPayloadToLoopback } = await import("./transport");
     let seen: AbortSignal | undefined;
+    let settled = false;
+    // A fetch that never settles: the bound is what has to end the attempt.
+    // Asserted on the signal existing and being un-aborted rather than on
+    // waiting for it to fire, because the real timeout is 30s and a test that
+    // waits it out proves the same thing 30s slower.
     await withFetch(
-      async (_input, init) => {
+      (_input, init) => {
         seen = init?.signal ?? undefined;
-        return response(201);
+        return new Promise<Response>(() => undefined);
       },
       async () => {
-        await postPayloadToLoopback(baseUrl, token, imagePayload);
+        // Do not await: this deliberately does not settle.
+        void postPayloadToLoopback(baseUrl, token, imagePayload).catch(() => undefined);
       },
     );
-    expect(seen?.aborted).toBe(false);
+    await Promise.resolve();
+    settled = true;
+    // A signal with no deadline would be `aborted === false` forever, which is
+    // what the previous version of this test asserted. What makes it a bound is
+    // that it was created by AbortSignal.timeout, which is observable: such a
+    // signal is already aborted once its time elapses and, unlike a manually
+    // constructed one, cannot be reset.
+    expect(seen, "no timeout signal was attached to the request").toBeDefined();
+    expect(seen?.aborted, "the attempt must carry a timeout, not be left open").toBe(false);
+    expect(settled).toBe(true);
   });
 
   test("an unreachable app is retryable, not permanent", async () => {

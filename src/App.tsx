@@ -2164,6 +2164,10 @@ function App() {
 
   async function persistArticle(sourceUrl: string, captureSource: string, knownTitle?: string) {
     const { ingestUrl, isUrlIngestionError } = await import("./lib/ingestion");
+    // Only used on the failure path. `ingestUrl` already falls back to the
+    // hostname, so on success `article.title` is never empty and a hint would
+    // never be reached; preferring it there would override a real page title
+    // with whatever the capture surface happened to have.
     const titleHint = knownTitle?.trim() || undefined;
     let article;
     try {
@@ -2195,6 +2199,9 @@ function App() {
       social: article.social,
       captureSource,
     };
+    // `titleHint` is unreachable here: ingestUrl guarantees a title, falling back
+    // to the hostname. Kept as a guard rather than removed, since an empty title
+    // must never reach the item's title column.
     const articleTitle = article.title || titleHint || new URL(article.canonicalUrl).hostname;
 
     if (canUseTauriBackend) {
