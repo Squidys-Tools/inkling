@@ -539,9 +539,14 @@ impl LibraryStorage {
             ));
         }
         let attribution = input.attribution.and_then(non_empty_string);
+        // Counted in characters, to match the message and the receiver's
+        // `capped_string`. A byte count refused a 240-character CJK or emoji
+        // attribution that the capture server had already accepted, so the
+        // capture failed end to end for exactly the text the byte fix was meant
+        // to admit.
         if attribution
             .as_deref()
-            .is_some_and(|value| value.len() > 240)
+            .is_some_and(|value| value.chars().count() > 240)
         {
             return Err(StorageError::InvalidInput(
                 "quote attribution must be at most 240 characters".into(),
@@ -3962,6 +3967,47 @@ mod tests {
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn quote_attribution_counts_characters_not_bytes() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-quote-attribution-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        // The capture server's `capped_string` counts characters, so a
+        // 240-character CJK title passes the receiver and reaches here. A byte
+        // count refused it as "too many characters" and failed the capture for
+        // exactly the multi-byte text the byte fix was meant to admit.
+        let cjk = "文".repeat(240);
+        assert_eq!(cjk.chars().count(), 240);
+        assert_eq!(cjk.len(), 720, "the fixture must actually be multi-byte");
+
+        let quote = storage
+            .create_quote(CreateQuoteInput {
+                body: "a passage".into(),
+                attribution: Some(cjk.clone()),
+                source_url: None,
+                metadata: None,
+            })
+            .expect("a 240-character attribution must be accepted, not refused as over 240 bytes");
+        assert_eq!(quote.description.as_deref(), Some(cjk.as_str()));
+
+        // Genuinely over the limit is still refused, in both directions.
+        let over = "文".repeat(241);
+        let error = storage
+            .create_quote(CreateQuoteInput {
+                body: "a passage".into(),
+                attribution: Some(over),
+                source_url: None,
+                metadata: None,
+            })
+            .unwrap_err();
+        assert!(
+            error.to_string().contains("240 characters"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]

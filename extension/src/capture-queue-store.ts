@@ -46,14 +46,6 @@ function isStorageQuotaError(error: unknown): boolean {
 }
 
 /**
- * Add a capture to the pending queue and report how many are waiting. Returns
- * 0 when storage would not take even the newest entry: nothing older is left to
- * drop, so the caller has to report a failure instead of a phantom entry. A
- * successful enqueue always reports at least 1. Throws when the write failed for
- * a reason eviction cannot fix, so the caller reports that rather than blaming
- * the queue.
- */
-/**
  * Remove one settled entry, matched by identity rather than position.
  *
  * A capture can be appended while its own delivery is in flight, so the entry
@@ -76,6 +68,14 @@ export async function settle(payload: QueuedCapturePayload): Promise<boolean> {
   });
 }
 
+/**
+ * Add a capture to the pending queue and report how many are waiting. Returns
+ * 0 when storage would not take even the newest entry: nothing older is left to
+ * drop, so the caller has to report a failure instead of a phantom entry. A
+ * successful enqueue always reports at least 1. Throws when the write failed for
+ * a reason eviction cannot fix, so the caller reports that rather than blaming
+ * the queue.
+ */
 export async function enqueue(payload: QueuedCapturePayload): Promise<number> {
   return withQueueLock(async () => {
     const queue = await readQueue();

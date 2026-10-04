@@ -211,11 +211,6 @@ export function flushQueue(): Promise<{ delivered: number; pending: number; drop
 }
 
 /**
- * A capture the app would not take right now: keep it for the next flush, or
- * report honestly when local storage has no room left to keep it in.
- */
-
-/**
  * Deliver a capture that was written to the queue before the attempt, removing
  * it again once the attempt settles for good.
  *
@@ -254,9 +249,37 @@ async function deliverDurably(payload: LoopbackCapturePayload, title?: string): 
   }
 
   const outcome = await attemptDelivery(payload);
-  if (!outcome.delivered && !outcome.permanent) {
-    // Transient: the entry stays exactly as it is, and the next flush retries it.
+  if (pending === 0) {
+    // `enqueue` reports 0 only when storage had no room for even this entry, so
+    // there is no durable record behind this attempt. Nothing will retry it, and
+    // nothing of ours is queued to settle: reporting "queued" would promise a
+    // retry that can never happen, and settling would remove an older capture
+    // that merely happens to be byte-identical to this one.
     const at = new Date().toISOString();
+    if (outcome.delivered) return { state: "saved", title, at };
+    return {
+      state: "failed",
+      title,
+      detail: `${outcome.reason} — and it could not be saved: local storage is full`,
+      at,
+    };
+  }
+
+  if (!outcome.delivered && !outcome.permanent) {
+    const at = new Date().toISOString();
+    // `enqueue` returning 0 means the capture was NOT stored - the queue was
+    // full and there was nothing older left to evict. Reporting "queued" then
+    // would be a status that lies about the only thing the user can act on.
+    if (pending === 0) {
+      return {
+        state: "failed",
+        title,
+        detail: `${outcome.reason} — and the pending queue was full, so it was not kept`,
+        at,
+      };
+    }
+    // Transient with the entry safely stored: it stays exactly as it is, and the
+    // next flush retries it.
     return {
       state: "queued",
       title,

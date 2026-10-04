@@ -78,9 +78,13 @@ describe("openExternalUrl", () => {
     // suites in this run may have set, so the runtime is pinned explicitly here
     // rather than assumed.
     const hadTauri = "__TAURI_INTERNALS__" in host;
+    // Captured, not defaulted: another suite in this run may have installed a
+    // real bridge stub, and restoring `{}` here would clobber it.
+    const priorTauriGlobal = host.__TAURI_INTERNALS__;
     delete host.__TAURI_INTERNALS__;
     const win = (globalThis as unknown as { window?: Record<string, unknown> }).window;
     const hadTauriOnWindow = typeof win === "object" && win !== null && "__TAURI_INTERNALS__" in win;
+    const priorTauriWindow = typeof win === "object" && win !== null ? win.__TAURI_INTERNALS__ : undefined;
     if (typeof win === "object" && win !== null) delete win.__TAURI_INTERNALS__;
     host.document = {
       createElement: () => ({
@@ -99,8 +103,8 @@ describe("openExternalUrl", () => {
         "preview must activate the anchor rather than only construct it",
       ).toEqual(["https://example.com/article"]);
     } finally {
-      if (hadTauri) host.__TAURI_INTERNALS__ = {};
-      if (hadTauriOnWindow && typeof win === "object" && win !== null) win.__TAURI_INTERNALS__ = {};
+      if (hadTauri) host.__TAURI_INTERNALS__ = priorTauriGlobal;
+      if (hadTauriOnWindow && typeof win === "object" && win !== null) win.__TAURI_INTERNALS__ = priorTauriWindow;
       if (originalDocument === undefined) {
         delete host.document;
       } else {

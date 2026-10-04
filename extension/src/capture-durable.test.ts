@@ -31,7 +31,7 @@ mock.module("webextension-polyfill", () => ({
   default: { storage: { local: { get: localGet, set: localSet } } },
 }));
 
-const { QUEUE_KEY, enqueue, readQueue, settle } = await import("./capture-queue-store");
+const { enqueue, readQueue, settle } = await import("./capture-queue-store");
 
 function payload(id: number): PageCapturePayloadV1 {
   return {
@@ -107,14 +107,30 @@ test("a capture appended during delivery survives the settle", async () => {
   ]);
 });
 
-test("settling does not evict older captures when storage is full", async () => {
+test("a full queue drops the oldest capture to make room for the newest", async () => {
   const older = payload(8);
   await enqueue(older);
+  // The write fails once with a real quota error, so the store has to evict.
   writeFailure = { message: "QUOTA_BYTES quota exceeded", writes: 1 };
-  await enqueue(payload(9));
+  const newest = payload(9);
+  const pending = await enqueue(newest);
   writeFailure = null;
 
-  // The older capture was evicted to make room, which is the documented
-  // behaviour for a real quota failure and is why settle reports honestly.
-  expect(Array.isArray(storage[QUEUE_KEY])).toBe(true);
+  // Eviction is oldest-first and always keeps the newest: the capture the user
+  // just made is the one that must survive, since it is the one still in hand.
+  expect(pending).toBe(1);
+  expect(await readQueue()).toEqual([newest]);
+  expect(await readQueue()).not.toContain(older);
+});
+
+test("a capture storage will not take at all reports zero rather than a phantom entry", async () => {
+  // Nothing older is left to evict, so the store cannot make room. Reporting a
+  // nonzero count here is what let a transient delivery failure announce
+  // `state: "queued"` for a payload no flush will ever find again.
+  writeFailure = { message: "QUOTA_BYTES quota exceeded", writes: 1 };
+  const pending = await enqueue(payload(10));
+  writeFailure = null;
+
+  expect(pending).toBe(0);
+  expect(await readQueue()).toEqual([]);
 });
