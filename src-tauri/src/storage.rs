@@ -873,7 +873,7 @@ impl LibraryStorage {
         let original_path = item_directory.join(&file_name);
         fs::write(&original_path, &input.bytes)?;
 
-        let thumbnail_path = if let Some(thumbnail_data) = thumbnail.as_ref() {
+        let thumbnail_file = if let Some(thumbnail_data) = thumbnail.as_ref() {
             let path = item_directory.join("thumbnail.webp");
             fs::write(&path, &thumbnail_data.bytes)?;
             Some(path)
@@ -882,7 +882,7 @@ impl LibraryStorage {
         };
 
         let local_asset_path = relative_asset_path(&original_path, &self.assets_root())?;
-        let thumbnail_path = thumbnail_path
+        let thumbnail_path = thumbnail_file
             .as_ref()
             .map(|path| relative_asset_path(path, &self.assets_root()))
             .transpose()?;
@@ -912,7 +912,7 @@ impl LibraryStorage {
         // a user who archived the card while a download ran did not ask for it
         // to come back.
         if attaching {
-            self.connection.execute(
+            let updated = self.connection.execute(
                 "UPDATE items
                  SET kind = ?2, title = ?3, description = NULL, body = '', body_format = ?9,
                      source_label = ?4, local_asset_path = ?5, thumbnail_path = ?6,
@@ -930,6 +930,15 @@ impl LibraryStorage {
                     BODY_FORMAT_MARKDOWN,
                 ],
             )?;
+            // The row can vanish between the check above and this write, and the
+            // bytes are already on disk by then. An UPDATE that matched nothing
+            // means the user deleted the item mid-flight, and without this the
+            // original and its thumbnail are orphans the delete path never
+            // cleans up. Same guard as `store_favicon`, widened to both files.
+            if updated == 0 {
+                discard_written_assets(&item_directory, &original_path, thumbnail_file.as_deref());
+                return Err(StorageError::NotFound(id));
+            }
         } else {
             self.connection.execute(
                 "INSERT INTO items (
@@ -3346,6 +3355,24 @@ fn file_metadata(
     Value::Object(metadata)
 }
 
+/// Undo the on-disk writes of an attach whose row disappeared underneath it.
+///
+/// The item directory is removed non-recursively, and that is the whole point:
+/// when attaching, the directory may already hold assets written by an earlier
+/// save, and a recursive remove would take those with it. A non-recursive
+/// `remove_dir` simply fails when anything else is still there.
+fn discard_written_assets(
+    item_directory: &Path,
+    original_path: &Path,
+    thumbnail_file: Option<&Path>,
+) {
+    let _ = fs::remove_file(original_path);
+    if let Some(path) = thumbnail_file {
+        let _ = fs::remove_file(path);
+    }
+    let _ = fs::remove_dir(item_directory);
+}
+
 fn relative_asset_path(
     path: &std::path::Path,
     assets_root: &std::path::Path,
@@ -3817,6 +3844,59 @@ mod tests {
         let item = storage.get_item(&item.id).unwrap().unwrap();
         assert_eq!(item.title.as_deref(), Some("Something"));
         drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn discarding_written_assets_keeps_assets_written_earlier() {
+        // The attach path writes into a directory that may already hold an
+        // earlier save's assets. When the row vanishes mid-attach, only this
+        // call's two files may go; a recursive remove would delete the older
+        // ones too, turning a recoverable race into data loss.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-discard-test-{}", Uuid::new_v4()));
+        let item_directory = directory.join("item");
+        fs::create_dir_all(&item_directory).unwrap();
+
+        let original = item_directory.join("new.bin");
+        let thumbnail = item_directory.join("thumbnail.webp");
+        let earlier = item_directory.join("earlier.bin");
+        fs::write(&original, b"new").unwrap();
+        fs::write(&thumbnail, b"thumb").unwrap();
+        fs::write(&earlier, b"earlier").unwrap();
+
+        discard_written_assets(&item_directory, &original, Some(&thumbnail));
+
+        assert!(!original.exists(), "this attach's original was left behind");
+        assert!(
+            !thumbnail.exists(),
+            "this attach's thumbnail was left behind"
+        );
+        assert!(
+            earlier.exists(),
+            "an asset written before this attach was deleted"
+        );
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn discarding_written_assets_removes_an_otherwise_empty_directory() {
+        // The common case: nothing else was ever written for this item, so the
+        // directory itself should not survive as an orphan.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-discard-empty-test-{}", Uuid::new_v4()));
+        let item_directory = directory.join("item");
+        fs::create_dir_all(&item_directory).unwrap();
+        let original = item_directory.join("new.bin");
+        fs::write(&original, b"new").unwrap();
+
+        discard_written_assets(&item_directory, &original, None);
+
+        assert!(
+            !item_directory.exists(),
+            "an empty asset directory was orphaned"
+        );
         fs::remove_dir_all(directory).unwrap();
     }
 
