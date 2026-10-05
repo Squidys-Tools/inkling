@@ -114,6 +114,20 @@ describe("roam space", () => {
     expect(far).toBeGreaterThan(150);
   });
 
+  test("a relocation that has nowhere far enough does not shuffle next door", () => {
+    // Only a 10x10 pocket is free, and every point in it is within the
+    // distance a relocation has to clear, so farPoint must give up.
+    const terrain: Terrain = {
+      room: { left: 0, top: 0, right: 100, bottom: 100 },
+      walls: [
+        { left: 10, top: 0, right: 100, bottom: 100 },
+        { left: 0, top: 10, right: 10, bottom: 100 },
+      ],
+    };
+    expect(hasRoom(terrain)).toBe(true);
+    expect(farPoint(terrain, { x: 5, y: 5 }, createSeededRandom(9))).toBeNull();
+  });
+
   test("a grid that fills the panel leaves nowhere, and the mascot stays home", () => {
     const filled = terrainFor(PANEL, [{ left: PANEL.left, top: PANEL.top, right: PANEL.right, bottom: PANEL.bottom }]);
     expect(hasRoom(filled)).toBe(false);

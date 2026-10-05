@@ -35,8 +35,6 @@ export interface RoamAction {
   target: RoamTarget;
   /** ms until the mascot decides again */
   duration: number;
-  /** ms the move itself takes; 0 while the mascot holds its place */
-  travel: number;
   /** face held for the whole step */
   expression: string;
 }
@@ -219,7 +217,7 @@ function pickActionKind(rand: Rand, mood: RoamMood, tiredness: number): RoamMove
 
 function homeAction(rand: Rand, expression: string): RoamAction {
   const travel = Math.round(between(rand, HOME_MS));
-  return { kind: "go-home", target: "home", duration: travel, travel, expression };
+  return { kind: "go-home", target: "home", duration: travel, expression };
 }
 
 export function createRoamState(now: number, rand: Rand): RoamState {
@@ -297,7 +295,7 @@ export function tickRoam(state: RoamState, signals: RoamSignals, rand: Rand): Ro
         expressionAt: now,
         lastKind: null,
       },
-      action: { kind: "arrive", target: "home", duration: 0, travel: 0, expression: "neutre" },
+      action: { kind: "arrive", target: "home", duration: 0, expression: "neutre" },
     };
   }
 
@@ -374,7 +372,7 @@ function step(next: RoamState, signals: RoamSignals, rand: Rand, departing: bool
       lastKind: kind,
       due: now + Math.max(duration, 300),
     },
-    action: { kind, target, duration: Math.max(duration, 300), travel: Math.min(travel, Math.max(duration, 300)), expression },
+    action: { kind, target, duration: Math.max(duration, 300), expression },
   };
 }
 

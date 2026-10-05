@@ -35,7 +35,7 @@ function run(from: DriftState, aim: number | null, seconds: number, terrain = TE
 
 describe("drift", () => {
   test("it goes the way it was pointed, and turns at a limited rate", () => {
-    const start: DriftState = { x: 700, y: 400, vx: 0, vy: 0 };
+    const start: DriftState = { x: 700, y: 120, vx: 0, vy: 0 };
     const right = drift(start, TERRAIN, 0.1, 0, 0, CRUISE_SPEED, 0);
     expect(right.vx).toBeGreaterThan(0);
     expect(Math.abs(right.vy)).toBeLessThan(0.5);
@@ -44,6 +44,9 @@ describe("drift", () => {
     const reversed = drift({ ...start, vx: 60, vy: 0 }, TERRAIN, 0.1, 0, Math.PI, CRUISE_SPEED, 0);
     const turned = Math.abs(headingOf(reversed) - headingOf({ ...start, vx: 60, vy: 0 }));
     expect(turned).toBeLessThanOrEqual(TURN_RATE * 0.1 + 1e-9);
+    // A clamped-to-zero turn would pass the bound above vacuously; the aim was
+    // reversed, so the turn has to be real.
+    expect(turned).toBeGreaterThan(0);
   });
 
   test("it never goes over the grid, however long it drifts", () => {

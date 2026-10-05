@@ -126,7 +126,9 @@ export function farPoint(terrain: Terrain, from: Vec, rand: Rand, tries = 40): V
     if (!point) return null;
     if (Math.hypot(point.x - from.x, point.y - from.y) > far) return point;
   }
-  return freePoint(terrain, rand, 8);
+  // Nowhere far enough is not a nearby point: the caller keeps the current
+  // leg, and a "relocation" that lands next door is a shuffle.
+  return null;
 }
 
 /**

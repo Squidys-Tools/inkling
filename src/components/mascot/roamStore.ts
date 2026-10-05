@@ -385,7 +385,10 @@ function advance(now: number, force = false) {
   const action = tick.action;
 
   if (action.kind === "arrive") {
-    hopOut();
+    // go-home already started the hop out, so this is the controller catching up
+    // on its own return schedule rather than a second one. hopOut bumps the hop
+    // generation, so a live timer means the mascot is already on its way.
+    if (hopTimer === null) hopOut();
     return;
   }
 
@@ -399,9 +402,13 @@ function advance(now: number, force = false) {
   if (action.kind === "go-home") {
     looking = null;
     pushMascotLook(null);
-    aim = Math.atan2(layout!.home.y - motion.y, layout!.home.x - motion.x);
-    legStartedAt = now;
+    // It goes home the way it relocates: a squash where it stands. Aiming at
+    // the slot and waiting out the return was a half-measure, because the
+    // return is scheduled by the clock rather than by arriving - at this speed
+    // it cleared some twenty pixels and then blinked out wherever it happened
+    // to be, which could be most of the library away.
     publish({ phase: "returning", stops: state.stops, last: describe(action) });
+    hopOut();
     return;
   }
 
@@ -467,6 +474,9 @@ function onClock(clock: number) {
     virtualNow += elapsedMs * clockScale;
     lastRaw = raw;
   }
+  // Applied every frame, manual frames included: a write that finds no node
+  // happens on the next frame, and a stepped outing gets no frame of its own.
+  applyScale();
   if (manual) return;
 
   if (snapshot.away && terrain) {
@@ -486,9 +496,6 @@ function onClock(clock: number) {
       paint(motion.x, motion.y);
     }
   }
-  // Applied every frame whether or not the mascot is out, so a squash requested
-  // in the same tick the overlay mounts lands on the first frame that has a node.
-  applyScale();
   advance(virtualNow);
 }
 
@@ -528,8 +535,9 @@ export function watchRoamInputs(): () => void {
   window.addEventListener("pointermove", track, capture);
   window.addEventListener("resize", invalidate, { passive: true });
 
-  // The grid changes height as items arrive or leave, which moves the wall the
-  // mascot is drifting along without a scroll or a resize.
+  // The grid is a fixed-height virtualised scroller, so its own rect does not
+  // move as items come and go. What moves is the panel around it, when the
+  // sidebar collapses or the window resizes.
   const observer = typeof ResizeObserver === "function" ? new ResizeObserver(invalidate) : null;
   const container = document.querySelector(CONTAINER_SELECTOR);
   if (observer && container) observer.observe(container);
@@ -539,6 +547,14 @@ export function watchRoamInputs(): () => void {
   const onMotion = (event: MediaQueryListEvent) => {
     reducedMotion = event.matches;
     invalidate();
+    // The engine clock stops with this setting, so a tick that would end a
+    // live outing never comes: end it here or it stays frozen where it was.
+    // hopOut also bumps the hop generation, so a pending shrink-grow timer
+    // cannot swell the mascot back afterwards.
+    if (event.matches && state && state.phase !== "home") {
+      state = { ...state, phase: "home", awakeMs: 0, stops: 0, lastKind: null };
+      hopOut();
+    }
   };
   motionQuery?.addEventListener("change", onMotion);
 

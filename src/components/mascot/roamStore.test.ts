@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   getRoamState,
   roamMotion,
+  setRoamBody,
   setRoamCaptureFailed,
+  setRoamManual,
+  setRoamNode,
   setRoamSeed,
   setRoamSpeed,
   stepRoam,
@@ -41,6 +44,7 @@ let rafCb: FrameRequestCallback | null = null;
 let clock = 0;
 let saved: Array<[string, PropertyDescriptor | undefined]> = [];
 let stopWatching: (() => void) | null = null;
+let motionHandlers: Array<(event: { matches: boolean }) => void> = [];
 
 /** One frame of the store's own clock, driven by hand. */
 function frame(ms: number) {
@@ -58,11 +62,16 @@ function stubBrowser() {
       selector === ".app-shell" ? shell : selector === ".brand-mark" ? mark : null,
     addEventListener: () => {},
   });
+  motionHandlers = [];
   define("window", {
     innerWidth: 1600,
     addEventListener: () => {},
     removeEventListener: () => {},
-    matchMedia: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
+    matchMedia: () => ({
+      matches: false,
+      addEventListener: (_type: string, fn: (event: { matches: boolean }) => void) => motionHandlers.push(fn),
+      removeEventListener: () => {},
+    }),
   });
   define("requestAnimationFrame", (cb: FrameRequestCallback) => {
     rafCb = cb;
@@ -77,16 +86,37 @@ function stubBrowser() {
  * clock, so the clock is what has to move: a fast multiplier and a long frame
  * each, bounded by the loop rather than by a sleep.
  */
-function goHome() {
+async function goHome() {
   setRoamSpeed(600);
   for (let i = 0; i < 500 && getRoamState()?.phase !== "home"; i++) {
     frame(1000);
     stepRoam();
   }
   setRoamSpeed(1);
+  // The hop out of the slot finishes on a real timer. Left pending, it lands
+  // in the middle of the next test and zeroes the motion it is measuring, so
+  // wait for the departure to actually finish rather than for a fixed delay.
+  return until(settled);
 }
 
-beforeEach(() => {
+/** An outing has ended: finishOuting parks the motion back at the slot. */
+function settled() {
+  const { x, y } = roamMotion();
+  return x === 0 && y === 0;
+}
+
+/** Resolve when `done` is true, or give up rather than hang the suite. */
+function until(done: () => boolean, tries = 100): Promise<void> {
+  return new Promise((resolve) => {
+    const tick = (left: number) => {
+      if (done() || left === 0) resolve();
+      else setTimeout(() => tick(left - 1), 10);
+    };
+    tick(tries);
+  });
+}
+
+beforeEach(async () => {
   saved = STUBBED.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
   rafCb = null;
   clock = 0;
@@ -95,7 +125,7 @@ beforeEach(() => {
   // of them on one frame cancels the interval these tests are measuring.
   stopWatching = watchRoamInputs();
   setRoamSeed(3);
-  goHome();
+  await goHome();
 });
 
 afterEach(() => {
@@ -141,5 +171,51 @@ describe("roam store", () => {
 
     expect(large).toBeGreaterThan(small * 1.5);
     expect(stall).toBeLessThanOrEqual(large * 1.5);
+  });
+
+  test("going home hops out where it stands, rather than walking a return it cannot finish", async () => {
+    stepRoam();
+    expect(getRoamState()?.phase).toBe("away");
+    // Drift well clear of the slot, so a timed return could not reach it.
+    for (let i = 0; i < 200; i++) frame(16);
+    const before = roamMotion();
+
+    // Run the controller forward until it decides to go home. Going home is a
+    // weighted choice, so it is driven to rather than assumed.
+    for (let i = 0; i < 400 && getRoamState()?.phase !== "returning"; i++) {
+      frame(16);
+      stepRoam();
+    }
+    expect(getRoamState()?.phase).toBe("returning");
+    const after = roamMotion();
+    // The point of the hop: it must not set off toward the slot and travel.
+    expect(Math.hypot(after.x - before.x, after.y - before.y)).toBeLessThan(
+      Math.hypot(before.x, before.y) * 0.5,
+    );
+    // And it must actually leave, without waiting out the return schedule.
+    await until(settled);
+    expect(settled()).toBe(true);
+  });
+
+  test("a squash requested before the overlay mounted lands once the node registers, even stepping by hand", () => {
+    setRoamManual(true);
+    stepRoam();
+    expect(getRoamState()?.phase).toBe("away");
+    // No body yet: the grow-in write had nothing to land on.
+    const bodyEl = { style: {} as { transform?: string } };
+    setRoamBody(bodyEl as unknown as HTMLDivElement);
+    setRoamNode({ style: {} } as unknown as HTMLDivElement);
+    frame(16);
+    expect(bodyEl.style.transform).toBe("scale(1)");
+    setRoamManual(false);
+    setRoamNode(null);
+    setRoamBody(null);
+  });
+
+  test("turning reduced motion on ends a live outing without another frame", () => {
+    stepRoam();
+    expect(getRoamState()?.phase).toBe("away");
+    for (const handler of motionHandlers) handler({ matches: true });
+    expect(getRoamState()?.phase).toBe("home");
   });
 });

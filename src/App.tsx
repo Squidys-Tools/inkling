@@ -2288,7 +2288,7 @@ function App() {
 
   async function captureScreenshot() {
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      setCaptureError("Screenshot capture is not available in this window.");
+      failCapture("Screenshot capture is not available in this window.");
       return;
     }
 
@@ -3355,7 +3355,8 @@ function App() {
     readingItem !== null ||
     Boolean(pdfViewerItem?.fileUrl) ||
     isSerendipityView ||
-    isDragActive;
+    isDragActive ||
+    isCapturing;
   useEffect(() => {
     setRoamBusy(isOverlayOpen);
   }, [isOverlayOpen]);
