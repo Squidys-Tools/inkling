@@ -119,6 +119,17 @@ describe("roam space", () => {
     expect(hasRoom(filled)).toBe(false);
   });
 
+  test("a blocker selector that matches nothing is free ground, not the whole panel", () => {
+    // An empty library has no `.library-grid` to measure. Passing the panel in
+    // for a missing blocker stalls the mascot; dropping it is the whole room.
+    const missing = terrainFor(PANEL, [null]);
+    expect(missing.walls).toHaveLength(0);
+    expect(hasRoom(missing)).toBe(true);
+    // The opposite stays: a grid that really covers the panel leaves nowhere.
+    const filled = terrainFor(PANEL, [{ left: PANEL.left, top: PANEL.top, right: PANEL.right, bottom: PANEL.bottom }]);
+    expect(hasRoom(filled)).toBe(false);
+  });
+
   test("a library with no grid laid out yet is an empty room", () => {
     const none = terrainFor(PANEL, []);
     expect(none.walls).toHaveLength(0);

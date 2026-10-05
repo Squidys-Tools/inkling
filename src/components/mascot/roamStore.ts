@@ -179,7 +179,8 @@ function paint(x: number, y: number) {
 
 // --- measuring ------------------------------------------------------------
 
-function toRect(element: Element): Rect | null {
+function toRect(element: Element | null): Rect | null {
+  if (!element) return null;
   const box = element.getBoundingClientRect();
   if (box.width <= 0 || box.height <= 0) return null;
   return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
@@ -208,7 +209,7 @@ function measure(): Layout | null {
   if (mark.right < 0 || mark.left > window.innerWidth) return null;
   return {
     panel,
-    terrain: terrainFor(panel, BLOCKER_SELECTORS.map((selector) => toRect(document.querySelector(selector) ?? panelElement))),
+    terrain: terrainFor(panel, BLOCKER_SELECTORS.map((selector) => toRect(document.querySelector(selector)))),
     cards: cardRects(panelElement),
     home: { x: (mark.left + mark.right) / 2, y: (mark.top + mark.bottom) / 2 },
   };
@@ -371,7 +372,11 @@ function advance(now: number, force = false) {
   if (!state) state = createRoamState(now, rand);
   if (needsCheck && (force || now - lastCheckAt >= RECHECK_MS)) refreshLayout();
 
+  const wasHome = state.phase === "home";
   const tick = tickRoam(state, signals(force), rand);
+  // The departure tick blanks the flag in its own signals, so the stored one
+  // must not outlive it: left set, it ends the new outing at its first decision.
+  if (wasHome && tick.state.phase === "away") captureFailed = false;
   if (!tick.action) {
     state = tick.state;
     return;
@@ -452,18 +457,20 @@ function describe(action: RoamAction): RoamSnapshot["last"] {
  */
 function onClock(clock: number) {
   const raw = clock * 1000;
+  let elapsedMs = 0;
   if (!started) {
     started = true;
     lastRaw = raw;
     virtualNow = raw;
   } else {
-    virtualNow += (raw - lastRaw) * clockScale;
+    elapsedMs = raw - lastRaw;
+    virtualNow += elapsedMs * clockScale;
     lastRaw = raw;
   }
   if (manual) return;
 
   if (snapshot.away && terrain) {
-    const seconds = Math.min((raw - lastRaw) / 1000, 0.05) || 0.016;
+    const seconds = Math.min(elapsedMs / 1000, 0.05) || 0.016;
     if (needsCheck && virtualNow - lastCheckAt >= RECHECK_MS) refreshLayout();
     if (terrain) {
       motion = holding()
