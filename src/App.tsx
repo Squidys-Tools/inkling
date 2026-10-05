@@ -109,6 +109,7 @@ const ReaderView = lazy(() =>
 import type { ReaderItem, ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
+import { truncate } from "./lib/truncate";
 import { markdownToPlainText, normalizeNoteBody, NOTE_BODY_FORMAT } from "./lib/notes";
 import { serendipityItems } from "./lib/serendipity";
 import { isEmptyPinsView, matchesPinsView } from "./lib/pinsView";
@@ -320,7 +321,9 @@ async function storedItemToLibraryItem(
   // holds nothing. The receiver records the reason there; carry it so the card
   // can say so instead of showing a placeholder as if it were the picture.
   const captureError =
-    typeof item.metadata.captureError === "string" ? item.metadata.captureError.trim().slice(0, 240) : "";
+    typeof item.metadata.captureError === "string"
+      ? truncate(item.metadata.captureError.trim(), 240)
+      : "";
 
   const remoteImage = Array.isArray(item.metadata.imageUrls)
     ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")

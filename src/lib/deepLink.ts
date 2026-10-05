@@ -1,4 +1,5 @@
 import { parseHttpUrl } from "./ingestion/url";
+import { truncate } from "./truncate";
 
 // Mirror of the backend create_quote limits (storage.rs): selections longer
 // than this are truncated before capture so deep links never fail validation.
@@ -18,14 +19,10 @@ function hostnameOf(url: string): string {
   }
 }
 
-// Truncate by code point. `String.slice` cuts on UTF-16 units, so a limit that
-// lands between the halves of an astral character (an emoji in a title, a rare
-// CJK glyph in a selection) stores a lone surrogate and renders as a replacement
-// character.
-function truncate(value: string, max: number): string {
-  const codePoints = Array.from(value);
-  return codePoints.length > max ? codePoints.slice(0, max).join("") : value;
-}
+// Truncate by code point lives in ./truncate: `String.slice` cuts on UTF-16
+// units, so a limit that lands between the halves of an astral character (an
+// emoji in a title, a rare CJK glyph in a selection) stores a lone surrogate and
+// renders as a replacement character.
 
 // Parses an extension fallback link: inkling://capture?url=&title=&selection=
 // (quote), or inkling://capture?url=&image=&alt= (image). URLSearchParams.get
