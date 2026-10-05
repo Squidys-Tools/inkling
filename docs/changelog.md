@@ -50,6 +50,7 @@ Guardrails:
 - Fixed the README mascot drifting off the page and disappearing mid-turn on some browsers: the turn is now baked into the path keyframes instead of a CSS `rotate()` on an ambiguous `transform-box: view-box` origin, and the loop point repeats the first outline so the seam stays invisible (`src/components/mascot/readmeMascot.ts`, `docs/assets/mascots/inkling-splash-loop.svg`) (#93)
 
 - "Find similar" now works for text items, not just images: notes, quotes, articles, and saved links rank by their text embeddings across kinds, with the button offered in the expanded item view and a dedicated empty state while indexing finishes (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`, `src/lib/libraryApi.ts`, `src-tauri/src/storage.rs`) (#55)
+- The mascot wanders the library on its own: 90 to 180 seconds after startup, and again after a long cooldown, it leaves the sidebar slot and drifts through the app, wearing a random expression at each stop and looking toward cards and recent pointer activity before going back. It never travels between points: it is given a direction and left to get on with it, with a turn rate that makes a change of mind a curve and a very small sway layered on the heading, so the path is unhurried, mostly straight and never the same twice. It never goes over the card grid - that is a wall it slides along rather than a filter on where it may stop - and the rest of the app, the sidebar and the strips of controls included, is somewhere it is allowed to be. It wanders in one part for a few seconds before it will consider blinking somewhere else, and it squashes out and swells up somewhere new and sets off again. It watches what the user does without being cancelled by it, holds still under overlays, dialogs, the expanded item, Serendipity and an in-flight drag, goes home sad when a capture fails, and never leaves home under reduced motion, plus a dev board at `?mascot-roam` (SQU-58) (`src/components/mascot/roam.ts`, `src/components/mascot/drift.ts`, `src/components/mascot/roamSpace.ts`, `src/components/mascot/roamStore.ts`)
 - Regular Spaces: manual collections alongside saved searches. The Space create form chooses Smart or Regular, a Regular Space holds only the items you file into it from the expanded item view, and the chips there show current membership and take an item back out. Deleting a Space still leaves its items alone (SQU-4, `src-tauri/src/storage.rs`, `src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
 - Top of Mind: items can be pinned and unpinned from their details view, and the Top of mind view collects them. That view explains itself when nothing is pinned yet, and the main library stays a plain list of everything (SQU-9) (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
 
@@ -204,3 +205,6 @@ Guardrails:
 - Safe embed allowlists (YouTube, Vimeo, direct media)
 - Ingestion pipeline with HTML sanitization (`src/lib/ingestion/`)
 - MIT License
+
+
+
