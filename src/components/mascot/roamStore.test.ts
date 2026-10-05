@@ -10,8 +10,10 @@ import {
 } from "./roamStore";
 
 // The store is a module singleton written for a real browser, so these tests
-// fake the few globals it reads. They are put back afterwards: a stubbed
-// document or requestAnimationFrame left behind would reach every later file.
+// fake the few globals it reads and put them back afterwards: a stubbed document
+// or requestAnimationFrame left behind would reach every later test file.
+// Bun exposes some of these as readonly accessors, so they are defined and
+// restored by descriptor rather than assigned.
 const STUBBED = ["document", "window", "requestAnimationFrame", "cancelAnimationFrame"] as const;
 
 const rect = (left: number, top: number, right: number, bottom: number) => ({
@@ -31,9 +33,13 @@ function stubElement(box: ReturnType<typeof rect>) {
   } as unknown as Element;
 }
 
+function define(key: string, value: unknown) {
+  Object.defineProperty(globalThis, key, { configurable: true, value });
+}
+
 let rafCb: FrameRequestCallback | null = null;
 let clock = 0;
-let saved: Array<[string, unknown]> = [];
+let saved: Array<[string, PropertyDescriptor | undefined]> = [];
 let stopWatching: (() => void) | null = null;
 
 /** One frame of the store's own clock, driven by hand. */
@@ -46,24 +52,23 @@ function frame(ms: number) {
 function stubBrowser() {
   const shell = stubElement(rect(0, 0, 1600, 900));
   const mark = stubElement(rect(80, 40, 120, 80));
-  const g = globalThis as Record<string, unknown>;
-  g.document = {
+  define("document", {
     hidden: false,
     querySelector: (selector: string) =>
       selector === ".app-shell" ? shell : selector === ".brand-mark" ? mark : null,
     addEventListener: () => {},
-  };
-  g.window = {
+  });
+  define("window", {
     innerWidth: 1600,
     addEventListener: () => {},
     removeEventListener: () => {},
     matchMedia: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
-  };
-  g.requestAnimationFrame = (cb: FrameRequestCallback) => {
+  });
+  define("requestAnimationFrame", (cb: FrameRequestCallback) => {
     rafCb = cb;
     return 1;
-  };
-  g.cancelAnimationFrame = () => {};
+  });
+  define("cancelAnimationFrame", () => {});
 }
 
 /**
@@ -82,7 +87,7 @@ function goHome() {
 }
 
 beforeEach(() => {
-  saved = STUBBED.map((key) => [key, (globalThis as Record<string, unknown>)[key]]);
+  saved = STUBBED.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
   rafCb = null;
   clock = 0;
   stubBrowser();
@@ -96,9 +101,9 @@ beforeEach(() => {
 afterEach(() => {
   stopWatching?.();
   stopWatching = null;
-  for (const [key, value] of saved) {
-    if (value === undefined) delete (globalThis as Record<string, unknown>)[key];
-    else (globalThis as Record<string, unknown>)[key] = value;
+  for (const [key, descriptor] of saved) {
+    if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+    else Reflect.deleteProperty(globalThis, key);
   }
   saved = [];
 });
