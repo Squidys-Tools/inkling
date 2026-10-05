@@ -527,7 +527,6 @@ export function watchRoamInputs(): () => void {
   window.addEventListener("scroll", invalidate, capture);
   window.addEventListener("pointermove", track, capture);
   window.addEventListener("resize", invalidate, { passive: true });
-  window.addEventListener("scroll", invalidate, capture);
 
   // The grid changes height as items arrive or leave, which moves the wall the
   // mascot is drifting along without a scroll or a resize.
