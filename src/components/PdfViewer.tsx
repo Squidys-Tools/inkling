@@ -165,15 +165,21 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
   return (
     <div
       ref={dialogRef}
-      className="pdf-viewer-overlay"
+      className="pdf-viewer-overlay fixed inset-0 z-[60] grid place-items-center p-7 bg-[rgba(36,35,32,.55)]"
       {...rootProps}
       onClick={onClose}
     >
-      <div className="pdf-viewer" onClick={(event) => event.stopPropagation()}>
-        <header className="pdf-viewer-header">
-          <span className="pdf-viewer-title" title={title}>{title}</span>
-          <div className="pdf-viewer-toolbar">
-            <div className="pdf-viewer-group">
+      <div
+        className="pdf-viewer flex h-full w-[min(920px,100%)] flex-col overflow-hidden bg-paper border border-rule rounded-[14px] shadow-[0_24px_70px_rgba(36,35,32,.35)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="pdf-viewer-header flex items-center gap-3.5 border-b border-rule bg-[#fbfbfa] px-3.5 py-2.5">
+          <span
+            className="pdf-viewer-title min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-[family-name:'Libre_Baskerville',Georgia,serif] text-[14px] font-bold tracking-[-.02em] text-ink"
+            title={title}
+          >{title}</span>
+          <div className="pdf-viewer-toolbar flex items-center gap-2.5">
+            <div className="pdf-viewer-group flex items-center gap-1 rounded-lg border border-rule bg-[#fff] p-[3px]">
               <button
                 type="button"
                 className="icon-button small"
@@ -182,7 +188,7 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
               >
                 <HugeiconsIcon icon={MinusSignIcon} size={15} />
               </button>
-              <span className="pdf-viewer-zoom">{zoomLabel}</span>
+              <span className="pdf-viewer-zoom min-w-[74px] text-center font-mono text-[11px] text-muted">{zoomLabel}</span>
               <button
                 type="button"
                 className="icon-button small"
@@ -191,9 +197,9 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
               >
                 <HugeiconsIcon icon={PlusSignIcon} size={15} />
               </button>
-              <button type="button" className="text-button" onClick={() => setZoom(null)}>Fit</button>
+              <button type="button" className="text-button ml-0.5 text-[11px]" onClick={() => setZoom(null)}>Fit</button>
             </div>
-            <div className="pdf-viewer-group">
+            <div className="pdf-viewer-group flex items-center gap-1 rounded-lg border border-rule bg-[#fff] p-[3px]">
               <button
                 type="button"
                 className="icon-button small"
@@ -203,7 +209,7 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
               >
                 <HugeiconsIcon icon={ChevronLeftIcon} size={15} />
               </button>
-              <span className="pdf-viewer-page">
+              <span className="pdf-viewer-page flex items-center gap-[5px] font-mono text-[11px] text-muted">
                 {state.phase === "ready" ? (
                   <>
                     <input
@@ -220,6 +226,7 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
                         else if (pageNumber > pageCount) setPageNumber(pageCount);
                       }}
                       aria-label="Page number"
+                      className="w-[42px] [appearance:textfield] px-[5px] py-1 bg-transparent text-right text-ink rounded-md border border-transparent focus-visible:outline-offset-0"
                     />
                     <span> / {pageCount}</span>
                   </>
@@ -242,19 +249,26 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
             </button>
           </div>
         </header>
-        <div className="pdf-viewer-body" ref={containerRef}>
+        <div className="pdf-viewer-body relative flex-1 grid [place-items:start_center] overflow-auto bg-surface-strong px-5 pt-[26px] pb-10" ref={containerRef}>
           {state.phase === "loading" && (
-            <div className="pdf-viewer-status" role="status">
-              <HugeiconsIcon icon={Loading01Icon} size={18} className="spin" />
+            <div className="pdf-viewer-status absolute inset-0 flex flex-col items-center justify-center gap-2.5 font-mono text-[12px] text-muted" role="status">
+              <HugeiconsIcon icon={Loading01Icon} size={18} className="spin animate-spin-slow" />
               <span>{state.percent != null ? `Loading ${state.percent}%` : "Loading…"}</span>
             </div>
           )}
           {state.phase === "error" && (
-            <div className="pdf-viewer-status failed" role="alert">
+            <div
+              className="pdf-viewer-status failed absolute inset-0 flex flex-col items-center justify-center gap-2.5 font-mono text-[12px] text-[#a4472e]"
+              role="alert"
+            >
               <span>{state.message}</span>
             </div>
           )}
-          <canvas ref={canvasRef} className="pdf-viewer-canvas" hidden={state.phase !== "ready"} />
+          <canvas
+            ref={canvasRef}
+            className="pdf-viewer-canvas max-w-full rounded bg-[#fff] shadow-[0_8px_30px_rgba(36,35,32,.22)]"
+            hidden={state.phase !== "ready"}
+          />
         </div>
       </div>
     </div>

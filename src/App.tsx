@@ -2627,7 +2627,7 @@ function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className={`app-shell ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+      <div className={`app-shell relative flex h-full min-h-screen overflow-hidden bg-paper ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
         <AnimatePresence>
           {isSidebarOpen && (
             <motion.button
@@ -2653,8 +2653,8 @@ function App() {
           </div>
         )}
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
-          <div className="brand-lockup" data-tauri-drag-region>
-          <div className={`brand-mark${isSearchFocused ? " is-away" : ""}`} aria-hidden="true">
+          <div className="brand-lockup flex items-center gap-[11px] px-[10px] pt-0 pb-3" data-tauri-drag-region>
+          <div className={`brand-mark h-11 w-11 flex-none overflow-hidden ${isSearchFocused ? "is-away" : ""}`} aria-hidden="true">
             <LiveMascotFigure size={44} />
           </div>
           <div>
@@ -2861,7 +2861,7 @@ function App() {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="capture-save">Create Space</button>
+                <button type="submit" className="capture-save cursor-pointer rounded-[6px] border-0 bg-green px-3 py-2 text-xs text-[#14201a] transition-[background,transform] duration-150 hover:bg-[#91b19d] active:scale-[.96] disabled:cursor-wait disabled:opacity-65">Create Space</button>
               </div>
               </motion.form>
             )}
@@ -2893,7 +2893,7 @@ function App() {
         <section className="library-header">
         </section>
 
-        <section className="capture-bar" aria-label="Capture and search">
+        <section className="capture-bar relative flex flex-none items-stretch gap-2.5 max-[780px]:gap-2" aria-label="Capture and search">
           {!isSidebarOpen && (
             <button
               type="button"
@@ -2934,9 +2934,9 @@ function App() {
             />
             <kbd><span>/</span> to search</kbd>
           </div>
-          <button className="add-button" onClick={openCaptureModal} disabled={isCapturing} title="Add something to your library">
+          <button className="add-button flex h-[50px] flex-none cursor-pointer items-center gap-[9px] rounded-search border border-ink bg-ink px-[17px] text-[13px] font-semibold text-paper transition-[background,border-color,transform] duration-150 hover:bg-[#f2ece1] hover:border-ink active:scale-[.96] disabled:cursor-wait disabled:opacity-65 max-[780px]:flex-none max-[780px]:justify-center max-[780px]:px-[14px] max-[360px]:w-[50px] max-[360px]:px-0" onClick={openCaptureModal} disabled={isCapturing} title="Add something to your library">
             <HugeiconsIcon icon={PlusSignIcon} size={18} />
-            <span>{isCapturing ? "Saving…" : "Add"}</span>
+            <span className="max-[360px]:hidden">{isCapturing ? "Saving…" : "Add"}</span>
           </button>
         </section>
 
@@ -2965,22 +2965,22 @@ function App() {
           fileInputRef={fileInputRef}
         />
 
-        {captureError && !isAdding && <p className="capture-error">Couldn’t save this yet: {captureError}</p>}
+        {captureError && !isAdding && <p className="capture-error mt-3 mb-0 flex-none text-[12px] text-[#d07055]">Couldn’t save this yet: {captureError}</p>}
 
-        <div className="library-toolbar">
-          <div className="result-context">
+        <div className="library-toolbar flex flex-none items-center justify-between pt-4 pb-[10px]">
+          <div className="result-context font-mono text-[11px] text-[#8d867c]">
             {isSerendipityView ? (
               <>
-                <span className="result-count">{filteredItems.length}</span> older {filteredItems.length === 1 ? "save" : "saves"} in this walk
+                <span className="result-count font-medium text-ink">{filteredItems.length}</span> older {filteredItems.length === 1 ? "save" : "saves"} in this walk
               </>
             ) : (
               <>
-                <span className="result-count">{filteredItems.length}</span> items in library
+                <span className="result-count font-medium text-ink">{filteredItems.length}</span> items in library
                 {similaritySource ? (
-                  <span className="search-context">similar to “{similaritySource.title}”</span>
+                  <span className="search-context ml-[5px] text-orange">similar to “{similaritySource.title}”</span>
                 ) : query.trim() ? (
                   <>
-                    <span className="search-context">for “{query}”</span>
+                    <span className="search-context ml-[5px] text-orange">for “{query}”</span>
                     <button type="button" className="quiet-link save-space-link" onClick={beginSaveSearch}>
                       <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
                     </button>
@@ -2991,7 +2991,7 @@ function App() {
           </div>
           {!isSerendipityView && (
             <div className="toolbar-actions">
-              <div className="view-controls" aria-label="View options">
+              <div className="view-controls relative flex gap-0.5 rounded-toggle border border-rule bg-surface p-[3px]" aria-label="View options">
                 <motion.span
                   className="view-selection"
                   aria-hidden="true"
@@ -2999,8 +2999,8 @@ function App() {
                   animate={{ transform: viewSelectionListMode ? "translateX(30px)" : "translateX(0px)" }}
                   transition={{ duration: LIBRARY_VIEW_TRANSITION_MS / 1000, ease: [0.77, 0, 0.175, 1] }}
                 />
-                <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><HugeiconsIcon icon={Grid2X2Icon} size={16} /></button>
-                <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><HugeiconsIcon icon={ListViewIcon} size={16} /></button>
+                <button className={`view-button relative z-[1] grid h-[25px] w-7 cursor-pointer place-items-center rounded-[calc(var(--toggle-radius)-3px)] border-0 bg-transparent text-[#8d867c] transition-[color,transform] duration-150 active:scale-[.96] ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><HugeiconsIcon icon={Grid2X2Icon} size={16} /></button>
+                <button className={`view-button relative z-[1] grid h-[25px] w-7 cursor-pointer place-items-center rounded-[calc(var(--toggle-radius)-3px)] border-0 bg-transparent text-[#8d867c] transition-[color,transform] duration-150 active:scale-[.96] ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><HugeiconsIcon icon={ListViewIcon} size={16} /></button>
               </div>
             </div>
           )}
@@ -3072,7 +3072,7 @@ function App() {
               </div>
             ) : (
               <div className="serendipity-complete" data-testid="serendipity-complete">
-                <div className="empty-icon"><HugeiconsIcon icon={Clock01Icon} size={20} /></div>
+                <div className="empty-icon mx-auto mb-4 grid h-[42px] w-[42px] place-items-center rounded-full bg-surface text-muted"><HugeiconsIcon icon={Clock01Icon} size={20} /></div>
                 <h2>That is the whole walk.</h2>
                 <p>You have seen every older item still in your library. Save something new, or come back later.</p>
                 <button type="button" className="text-button" onClick={clearToDefaultView}>Back to Everything</button>
@@ -3094,8 +3094,8 @@ function App() {
             )}
 
             {filteredItems.length === 0 && (
-              <div className="empty-state">
-                <div className="empty-icon"><HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} /></div>
+              <div className="empty-state rounded-[14px] border border-dashed border-rule px-5 py-20 text-center">
+                <div className="empty-icon mx-auto mb-4 grid h-[42px] w-[42px] place-items-center rounded-full bg-surface text-muted"><HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} /></div>
                 {similaritySource ? (
                   <>
                     <h2>Nothing similar yet.</h2>

@@ -42,6 +42,67 @@ const PAPER_SEAL_CLASS =
   "paper-seal absolute right-[12%] bottom-[15%] grid size-[58px] place-items-center rounded-full border border-[#a06b4e] " +
   "font-sans text-[26px] text-[#d98d68] [transform:rotate(-13deg)]";
 
+/* The `card-*` hooks stay because App.css still addresses these elements from
+   the outside: the kind-scoped overrides (`.note-card .card-kicker`), the list
+   and FLIP rules (`.library-transition-overlay.is-list .card-content`), the
+   transition selectors, and the archive button's two-class overlap. The
+   utilities below mirror the base rules App.css declares for them, so the
+   layout reads from the JSX while those hooks keep working. */
+const CARD_VIDEO_SCRIM_CLASS =
+  "card-video-scrim absolute inset-0 bg-[linear-gradient(180deg,rgba(12,12,10,.02)_40%,rgba(12,12,10,.5))] pointer-events-none";
+
+const CARD_PLAY_CLASS =
+  "card-play absolute inset-0 z-[1] m-auto grid size-[42px] place-items-center rounded-full text-[#f2ede2] " +
+  "bg-[rgba(18,18,16,.78)] shadow-[0_8px_24px_rgba(0,0,0,.45),inset_0_0_0_1px_rgba(255,255,255,.22)] " +
+  "pointer-events-none transition-[transform,background] duration-[.2s] ease-[ease]";
+
+const CARD_VIDEO_BADGE_CLASS =
+  "card-video-badge absolute bottom-2.5 left-2.5 inline-flex items-center rounded-full px-[9px] py-[4px] " +
+  "text-[#d8d2c6] font-sans text-[10px] font-medium tracking-[.03em] bg-[rgba(14,14,12,.72)] backdrop-blur-[6px] pointer-events-none";
+
+const CARD_KICKER_CLASS =
+  "card-kicker flex items-center justify-between gap-3 text-muted font-mono text-[10px] uppercase tracking-[.045em]";
+
+const CARD_KICKER_LABEL_CLASS = "flex items-center gap-1.5 text-muted";
+
+const CARD_TITLE_CLASS = "my-[13px] mb-[7px] font-sans text-[18px] font-medium leading-[1.22] tracking-[-.035em]";
+
+const CARD_DESCRIPTION_CLASS = "max-w-[56ch] min-h-[37px] m-0 text-muted text-[12px] leading-[1.52]";
+
+const CARD_FOOTER_CLASS =
+  "card-footer flex items-center justify-between gap-2.5 mt-[18px] pt-[11px] text-muted border-t border-rule";
+
+const CARD_SOURCE_CLASS = "card-source overflow-hidden whitespace-nowrap text-ellipsis font-mono text-[10px]";
+
+const CARD_READ_CLASS =
+  "card-read inline-flex items-center gap-1 rounded-full px-[9px] py-[4px] text-muted font-sans text-[10px] " +
+  "font-medium tracking-[.02em] bg-transparent border border-rule cursor-pointer " +
+  "transition-[color,border-color,background] duration-[.15s] ease-[ease] " +
+  "hover:not-disabled:border-[#4a4842] hover:not-disabled:bg-surface hover:not-disabled:text-ink disabled:cursor-default disabled:opacity-45";
+
+/* Green while the job runs, red once it failed: the two call sites below differ
+   only in that colour and in whether the label hugs the top. */
+const CARD_PROCESSING_CLASS = "flex items-center gap-[7px] mt-[13px] font-mono text-[10px] leading-[1.35]";
+
+/* The archive button wears both sets at once in selection mode, and App.css
+   settles that overlap by source order. Tailwind emits the utilities in the
+   same order (arbitrary values ahead of named ones), so the layers agree.
+   `transform` rather than `scale` on :active: App.css still animates
+   `transform` there, and the two properties would compose. */
+const ARCHIVE_CARD_DELETE_CLASS =
+  "absolute top-2.5 right-2.5 z-[4] grid size-[30px] place-items-center rounded-[8px] cursor-pointer text-ink " +
+  "bg-[rgba(12,12,11,.72)] border border-[rgba(229,221,210,.24)] opacity-88 backdrop-blur-[8px] " +
+  "transition-[background,border-color,color,transform,opacity] duration-[.18s] ease-[ease] " +
+  "hover:border-[#bd7b5c] hover:bg-[#3a251d] hover:text-[#f0b095] active:[transform:scale(.96)]";
+
+const ARCHIVE_CARD_SELECT_CLASS =
+  "archive-card-select rounded-full border-0 bg-transparent text-muted opacity-92 " +
+  "hover:border-0 hover:bg-[rgba(229,221,210,.08)] hover:text-ink hover:opacity-100 " +
+  "[&.is-selected]:border-0 [&.is-selected]:bg-transparent [&.is-selected]:text-orange [&.is-selected]:opacity-100";
+
+const ARCHIVE_CARD_SELECTED_CLASS =
+  "[&.archive-card-selected]:border-[#b0714f]! [&.archive-card-selected]:shadow-[0_0_0_1px_#b0714f]";
+
 function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }) {
   if (!item.video && !item.fileUrl && !item.image) {
     return <div className={CARD_PAPER_ART_CLASS} aria-hidden="true"><span className="video-paper-play"><HugeiconsIcon icon={PlayIcon} size={20} /></span></div>;
@@ -66,9 +127,9 @@ function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }
           }}
         />
       ) : null}
-      <span className="card-video-scrim" aria-hidden="true" />
-      <span className="card-play" aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={16} /></span>
-      <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
+      <span className={CARD_VIDEO_SCRIM_CLASS} aria-hidden="true" />
+      <span className={CARD_PLAY_CLASS} aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={16} /></span>
+      <span className={CARD_VIDEO_BADGE_CLASS}>{item.video ? providerLabel(item.video.provider) : "Video"}</span>
     </div>
   );
 }
@@ -170,7 +231,7 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
   return (
     <div className={`${LIBRARY_CARD_SLOT_CLASS} ${slotClassName ?? ""}`} data-library-index={index}>
       <article
-        className={`${LIBRARY_CARD_CLASS} ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? "archive-card-selected" : ""}`}
+        className={`${LIBRARY_CARD_CLASS} ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? `archive-card-selected ${ARCHIVE_CARD_SELECTED_CLASS}` : ""}`}
         data-library-item-id={String(item.id)}
         style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
         onClick={handleCardSelect}
@@ -188,7 +249,7 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
         {context.onDeleteArchivedItem && (
           <button
             type="button"
-            className={`archive-card-delete ${archiveSelectionMode ? "archive-card-select" : ""} ${isArchivedItemSelected ? "is-selected" : ""}`}
+            className={`archive-card-delete ${ARCHIVE_CARD_DELETE_CLASS} ${archiveSelectionMode ? `archive-card-select ${ARCHIVE_CARD_SELECT_CLASS}` : ""} ${isArchivedItemSelected ? "is-selected" : ""}`}
             aria-label={archiveSelectionMode ? `${isArchivedItemSelected ? "Deselect" : "Select"} ${item.title}` : `Delete ${item.title}`}
             aria-pressed={archiveSelectionMode ? isArchivedItemSelected : undefined}
             title={archiveSelectionMode ? (isArchivedItemSelected ? "Deselect item" : "Select item") : "Delete permanently"}
@@ -232,20 +293,20 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
             </div>
           )}
         </div>
-        <div className={`card-content hidden ${item.kind === "Quote" ? "quote-content" : item.kind === "Note" ? "note-content" : ""}`}>
-          <div className="card-kicker"><span><KindIcon kind={item.kind} />{item.kind}</span><span>{item.date}</span></div>
-          <h2 className={item.kind === "Quote" ? "quote-title" : ""}>{item.kind === "Quote" ? (/^["“]/u.test(item.title.trim()) ? item.title : `“${item.title}”`) : item.title}</h2>
-          <p className={item.kind === "Quote" ? "quote-attribution" : ""}>{item.description ? (item.kind === "Quote" && !item.description.trim().startsWith("—") ? `— ${item.description}` : item.description) : (item.kind === "Quote" ? "" : item.description)}</p>
+        <div className={`card-content hidden p-[17px_18px_16px] ${item.kind === "Quote" ? "quote-content" : item.kind === "Note" ? "note-content" : ""}`}>
+          <div className={CARD_KICKER_CLASS}><span className={CARD_KICKER_LABEL_CLASS}><KindIcon kind={item.kind} />{item.kind}</span><span>{item.date}</span></div>
+          <h2 className={`${item.kind === "Quote" ? "quote-title" : ""} ${CARD_TITLE_CLASS}`}>{item.kind === "Quote" ? (/^["“]/u.test(item.title.trim()) ? item.title : `“${item.title}”`) : item.title}</h2>
+          <p className={`${item.kind === "Quote" ? "quote-attribution" : ""} ${CARD_DESCRIPTION_CLASS}`}>{item.description ? (item.kind === "Quote" && !item.description.trim().startsWith("—") ? `— ${item.description}` : item.description) : (item.kind === "Quote" ? "" : item.description)}</p>
           {item.processing?.active && (
-            <div className="card-processing" role="status">
-              <HugeiconsIcon icon={Loading01Icon} size={13} />
+            <div className={`card-processing ${CARD_PROCESSING_CLASS} text-green`} role="status">
+              <HugeiconsIcon icon={Loading01Icon} size={13} className="animate-spin-slow" />
               <span>{item.processing.message ?? "Processing"}</span>
-              {item.processing.progressTotal != null && <span>{item.processing.progressCurrent}/{item.processing.progressTotal}</span>}
+              {item.processing.progressTotal != null && <span className="ml-auto text-muted">{item.processing.progressCurrent}/{item.processing.progressTotal}</span>}
             </div>
           )}
           {item.processing?.failedJob && (
-            <div className="card-processing failed" role="alert">
-              <HugeiconsIcon icon={AlertCircleIcon} size={13} />
+            <div className={`card-processing failed ${CARD_PROCESSING_CLASS} items-start text-[#d07055]`} role="alert">
+              <HugeiconsIcon icon={AlertCircleIcon} size={13} className="animate-spin-slow" />
               <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
               <button
                 type="button"
@@ -259,12 +320,12 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
               </button>
             </div>
           )}
-          <div className="card-footer">
-            <span className="card-source">{item.source}</span>
+          <div className={CARD_FOOTER_CLASS}>
+            <span className={CARD_SOURCE_CLASS}>{item.source}</span>
             {item.kind === "Article" && (
               <button
                 type="button"
-                className="card-read"
+                className={CARD_READ_CLASS}
                 onClick={(event) => {
                   event.stopPropagation();
                   const rect = event.currentTarget.getBoundingClientRect();
@@ -286,7 +347,7 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
             {item.kind === "Video" && item.video && (
               <button
                 type="button"
-                className="card-read"
+                className={CARD_READ_CLASS}
                 onClick={(event) => {
                   event.stopPropagation();
                   const card = event.currentTarget.closest<HTMLElement>(".library-card");

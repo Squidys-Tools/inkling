@@ -177,7 +177,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
 function OverlayMedia({ item }: { item: LibraryItem }) {
   if (item.social?.provider === "x") {
     return (
-      <div className="expanded-overlay-media detail-x-post">
+      <div className="expanded-overlay-media detail-x-post relative h-full flex-none overflow-hidden bg-[#fff]">
         <XPostEmbed
           social={item.social}
           fallback={item.post ? <PostArtwork post={item.post} /> : <div className="detail-art ink">Post preview unavailable.</div>}
@@ -188,7 +188,7 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.kind === "Video") {
     return (
-      <div className="expanded-overlay-media">
+      <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
         <DetailVideoMedia item={item} />
       </div>
     );
@@ -196,7 +196,7 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.kind === "PDF") {
     return (
-      <div className="expanded-overlay-media">
+      <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
         <PdfArtwork item={item} />
       </div>
     );
@@ -204,17 +204,17 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.image) {
     return (
-      <div className="expanded-overlay-media">
-        <img src={item.image} alt={item.imageAlt ?? item.title} className="detail-image" />
+      <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
+        <img src={item.image} alt={item.imageAlt ?? item.title} className="detail-image block h-full w-full object-cover" />
       </div>
     );
   }
 
   if (item.kind === "Quote") {
     return (
-      <div className="expanded-overlay-media">
-        <div className="detail-art detail-quote-art paper-yellow">
-          <span className="detail-quote-mark">“</span>
+      <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
+        <div className="detail-art detail-quote-art paper-yellow bg-yellow-soft text-[#b3ad8d]">
+          <span className="detail-quote-mark block font-[Georgia,serif] text-[64px] leading-[.8] text-[#b3ad8d]">“</span>
           <span>{item.kind}</span>
         </div>
       </div>
@@ -223,14 +223,14 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.kind === "Post" && item.post) {
     return (
-      <div className="expanded-overlay-media">
+      <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
         <PostArtwork post={item.post} />
       </div>
     );
   }
 
   return (
-    <div className="expanded-overlay-media">
+    <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
       <div className={`detail-art ${item.accent ?? "ink"}`}>
         <KindIcon kind={item.kind} />
         <span>{item.kind}</span>
@@ -725,7 +725,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
       {shownItem.sourceUrl && (
         <button
           type="button"
-          className="toolbar-icon"
+          className="toolbar-icon flex w-[44px] flex-none cursor-pointer items-center justify-center rounded-[9px] bg-transparent border border-[#4a4842] text-ink hover:bg-surface-strong hover:border-[#5a5750] hover:text-ink"
           onClick={copySourceLink}
           aria-label="Copy link to original"
           title={linkCopied ? "Copied" : linkCopyFailed ? "Copy failed" : "Copy link"}
@@ -735,7 +735,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
       )}
       <button
         type="button"
-        className="toolbar-icon"
+        className="toolbar-icon flex w-[44px] flex-none cursor-pointer items-center justify-center rounded-[9px] bg-transparent border border-[#4a4842] text-ink hover:bg-surface-strong hover:border-[#5a5750] hover:text-ink"
         onClick={() => void actions.onTogglePin(shownItem)}
         aria-label={isPinned ? "Unpin from Top of mind" : "Pin to Top of mind"}
         aria-pressed={isPinned}
@@ -745,7 +745,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
       </button>
       <button
         type="button"
-        className="toolbar-icon toolbar-icon-muted"
+        className="toolbar-icon toolbar-icon-muted flex w-[44px] flex-none cursor-pointer items-center justify-center rounded-[9px] bg-transparent border border-[#4a4842] text-muted hover:bg-surface-strong hover:border-[#5a5750] hover:text-ink"
         onClick={() => void actions.onForget(shownItem)}
         aria-label="Forget this item"
         title="Forget"
@@ -775,17 +775,17 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   }
 
   return (
-    <div className="expanded-overlay-layer" ref={layerRef}>
+    <div className="expanded-overlay-layer fixed inset-0 z-[6] grid place-items-center p-[clamp(16px,4vh,40px)_clamp(16px,3vw,48px)] pointer-events-none" ref={layerRef}>
       <section
         ref={dialogRef}
-        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""}`}
+        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""} relative pointer-events-auto flex w-[min(680px,100%)] max-h-full flex-col overflow-hidden bg-surface border border-[#4a4842] rounded-[24px] shadow-[0_30px_80px_rgba(0,0,0,.55)]`}
         {...rootProps}
         style={dialogFlying ? undefined : placedStyle}
       >
         <button
           type="button"
           ref={closeButtonRef}
-          className="expanded-overlay-close"
+          className="expanded-overlay-close absolute top-[14px] right-[14px] z-[5] inline-grid size-[30px] flex-none place-items-center cursor-pointer bg-[rgba(59,58,53,.86)] border border-[#5a5750] rounded-[7px] text-ink shadow-[0_5px_16px_rgba(0,0,0,.3)] backdrop-blur-[8px] [transition:background_.18s_ease,color_.18s_ease,border-color_.18s_ease,transform_.18s_cubic-bezier(.23,1,.32,1)] hover:bg-[#4a4842] hover:border-[#716d64] active:scale-[.96]"
           onClick={requestClose}
           aria-label="Close details"
         >
@@ -793,7 +793,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
         </button>
 
         <div
-          className="expanded-overlay-media"
+          className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]"
           ref={mediaRef}
           style={dialogFlying ? undefined : ({ height: destination ? overlayMediaHeight(shownItem, destination.frame.width, window.innerHeight) : undefined } as CSSProperties)}
         >
@@ -801,30 +801,30 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
         </div>
 
         <div
-          className="expanded-overlay-body"
+          className="expanded-overlay-body min-h-0 overflow-x-hidden overflow-y-auto p-[18px_20px_24px] [scrollbar-width:none]"
           ref={bodyRef}
           style={dialogFlying && destination ? { width: destination.frame.width } : undefined}
         >
           {shownItem.kind === "Quote" ? (
             <>
-              <blockquote className="detail-quote">“{shownItem.title}”</blockquote>
-              {shownItem.description && <p className="detail-attribution">— {shownItem.description.replace(/^—\s*/u, "")}</p>}
+              <blockquote className="detail-quote m-[16px_0_8px] font-[family-name:'Libre_Baskerville',Georgia,serif] text-[22px] leading-[1.35] font-normal italic text-ink">“{shownItem.title}”</blockquote>
+              {shownItem.description && <p className="detail-attribution m-0 mb-[8px] font-mono text-[12px] leading-[1.5] text-muted">— {shownItem.description.replace(/^—\s*/u, "")}</p>}
             </>
           ) : (
             <>
-              <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
-              {shownItem.description && <p className="expanded-overlay-description">{shownItem.description}</p>}
+              <h2 className="expanded-overlay-title m-0 mb-[9px] font-[family-name:Georgia,'Times_New_Roman',serif] text-[26px] leading-[1.18] font-normal tracking-[-.02em]">{detailTitleFor(shownItem)}</h2>
+              {shownItem.description && <p className="expanded-overlay-description m-0 max-w-[60ch] text-[13px] leading-[1.55] text-muted">{shownItem.description}</p>}
             </>
           )}
           {shownItem.processing?.active && (
-            <div className="detail-processing" role="status">
+            <div className="detail-processing mt-[13px] flex items-center gap-[7px] font-mono text-[10px] leading-[1.35] text-green [&>svg]:animate-spin-slow" role="status">
               <HugeiconsIcon icon={Loading01Icon} size={14} />
               <span>{shownItem.processing.message ?? "Processing"}</span>
               {shownItem.processing.progressTotal != null && <span>{shownItem.processing.progressCurrent}/{shownItem.processing.progressTotal}</span>}
             </div>
           )}
           {shownItem.processing?.failedJob && (
-            <div className="detail-processing failed" role="alert">
+            <div className="detail-processing failed mt-[13px] flex items-start gap-[7px] font-mono text-[10px] leading-[1.35] text-[#d07055] [&>svg]:animate-spin-slow" role="alert">
               <HugeiconsIcon icon={AlertCircleIcon} size={14} />
               <span>{shownItem.processing.failedJob.errorMessage ?? "Processing failed"}</span>
               <button type="button" className="retry-button" onClick={() => void actions.onRetryJob(shownItem.processing?.failedJob?.id ?? "")}>
@@ -832,17 +832,17 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
               </button>
             </div>
           )}
-          <div className="detail-meta">
-            <div className="detail-filemeta">
-              <span className="filemeta-type">{fileTypeFor(shownItem)}</span>
-              <span className="filemeta-dot" aria-hidden="true" />
-              <span className="filemeta-saved">{savedLabelFor(shownItem.date)}</span>
+          <div className="detail-meta flex w-full flex-col gap-[8px] pt-[7px] pb-[6px]">
+            <div className="detail-filemeta flex items-center gap-[8px]">
+              <span className="filemeta-type font-mono text-[10px] tracking-[.08em] text-muted">{fileTypeFor(shownItem)}</span>
+              <span className="filemeta-dot size-[2px] flex-none rounded-full bg-[#4a4842]" aria-hidden="true" />
+              <span className="filemeta-saved font-mono text-[10px] tracking-[.08em] text-[#605d68]">{savedLabelFor(shownItem.date)}</span>
             </div>
-            <div className="detail-tags">
-              {allTags.map((tag) => <span key={tag} className="detail-tag">#{tag}</span>)}
+            <div className="detail-tags flex flex-wrap items-center gap-x-[10px] gap-y-[4px] pt-[2px]">
+              {allTags.map((tag) => <span key={tag} className="detail-tag p-[4px_0] font-mono text-[10px] text-orange">#{tag}</span>)}
               {isAddingTag ? (
                 <input
-                  className="detail-tag-input"
+                  className="detail-tag-input w-[110px] bg-paper p-[4px_8px] font-mono text-[10px] text-ink rounded-[6px] border border-rule outline-none focus:border-orange"
                   value={tagDraft}
                   autoFocus
                   placeholder="tag name"
@@ -860,7 +860,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
                   onBlur={submitTag}
                 />
               ) : (
-                <button type="button" className="detail-tag-add" onClick={() => setIsAddingTag(true)}>
+                <button type="button" className="detail-tag-add inline-flex items-center gap-[3px] cursor-pointer border-0 bg-transparent p-[4px_0] font-mono text-[10px] text-[#605d68] hover:text-ink" onClick={() => setIsAddingTag(true)}>
                   <HugeiconsIcon icon={PlusSignIcon} size={11} /> Add
                 </button>
               )}
@@ -868,12 +868,12 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           </div>
 
           {isReadRow && otherActions.some((action) => action.key === "find-similar") && (
-            <div className="expanded-overlay-actions">
+            <div className="expanded-overlay-actions mt-[25px] flex flex-wrap gap-[10px]">
               {otherActions.filter((action) => action.key === "find-similar").map((action) => (
                 <button
                   type="button"
                   key={action.key}
-                  className="overlay-action-secondary"
+                  className="overlay-action-secondary flex flex-[1_1_auto] items-center justify-center gap-[8px] cursor-pointer rounded-[8px] bg-transparent border border-rule p-[12px_16px] text-[12px] text-ink [transition:transform_.16s_cubic-bezier(.23,1,.32,1),background_.18s_ease,border-color_.18s_ease] enabled:hover:bg-surface-strong enabled:hover:border-[#4a4842] enabled:active:scale-[.96] disabled:cursor-default disabled:opacity-50"
                   onClick={action.onClick}
                   disabled={action.disabled}
                 >
@@ -884,10 +884,10 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           )}
 
           {isReadRow && readAction ? (
-            <div className="expanded-overlay-toolbar is-read-row">
+            <div className="expanded-overlay-toolbar is-read-row mt-[16px] flex w-full gap-[8px]">
               <button
                 type="button"
-                className="toolbar-primary toolbar-reading"
+                className="toolbar-primary toolbar-reading flex min-w-0 flex-[1_1_0%] cursor-pointer items-center justify-center gap-[8px] overflow-hidden whitespace-nowrap bg-[#222a26] border border-[#2e3a34] rounded-[9px] p-[13px_16px] text-[12px] font-medium text-[#8a978e] enabled:hover:bg-[#262e29] enabled:hover:border-[#3a4a40] enabled:hover:text-[#a8bfb0] enabled:active:scale-[.98] disabled:cursor-default disabled:opacity-50"
                 onClick={readAction.onClick}
                 disabled={readAction.disabled}
                 title={readAction.title ?? (readAction.disabled ? "No saved content to read" : readAction.label)}
@@ -897,7 +897,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
               {sourceAction && (
                 <button
                   type="button"
-                  className="toolbar-primary"
+                  className="toolbar-primary flex min-w-0 flex-[1_1_0%] cursor-pointer items-center justify-center gap-[8px] overflow-hidden whitespace-nowrap bg-green-soft border border-[#35443c] rounded-[9px] p-[13px_16px] text-[12px] font-semibold text-[#9dbfa9] enabled:hover:bg-[#2b382f] enabled:hover:border-[#4a5c50] disabled:cursor-default disabled:opacity-50"
                   onClick={sourceAction.onClick}
                   disabled={sourceAction.disabled}
                   title={sourceAction.disabled ? "No source link saved" : `Open ${sourceAction.label}`}
@@ -910,12 +910,12 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           ) : (
             <>
               {otherActions.length > 0 && (
-                <div className="expanded-overlay-actions">
+                <div className="expanded-overlay-actions mt-[25px] flex flex-wrap gap-[10px]">
                   {otherActions.map((action, index) => (
                     <button
                       type="button"
                       key={action.key}
-                      className={index === 0 ? "overlay-action-primary" : "overlay-action-secondary"}
+                      className={index === 0 ? "overlay-action-primary flex flex-[1_1_auto] items-center justify-center gap-[8px] cursor-pointer rounded-[8px] bg-green-soft border border-[#35443c] p-[12px_16px] text-[12px] text-[#9dbfa9] [transition:transform_.16s_cubic-bezier(.23,1,.32,1),background_.18s_ease,border-color_.18s_ease] enabled:hover:bg-[#2b382f] enabled:hover:border-[#4a5c50] enabled:active:scale-[.96] disabled:cursor-default disabled:opacity-50" : "overlay-action-secondary flex flex-[1_1_auto] items-center justify-center gap-[8px] cursor-pointer rounded-[8px] bg-transparent border border-rule p-[12px_16px] text-[12px] text-ink [transition:transform_.16s_cubic-bezier(.23,1,.32,1),background_.18s_ease,border-color_.18s_ease] enabled:hover:bg-surface-strong enabled:hover:border-[#4a4842] enabled:active:scale-[.96] disabled:cursor-default disabled:opacity-50"}
                       onClick={action.onClick}
                       disabled={action.disabled}
                       title={action.title}
@@ -926,11 +926,11 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
                 </div>
               )}
 
-              <div className="expanded-overlay-toolbar">
+              <div className="expanded-overlay-toolbar mt-[16px] flex w-full gap-[8px]">
                 {sourceAction && (
                   <button
                     type="button"
-                    className="toolbar-primary"
+                    className="toolbar-primary flex min-w-0 flex-[1_1_0%] cursor-pointer items-center justify-center gap-[8px] overflow-hidden whitespace-nowrap bg-green-soft border border-[#35443c] rounded-[9px] p-[13px_16px] text-[12px] font-semibold text-[#9dbfa9] enabled:hover:bg-[#2b382f] enabled:hover:border-[#4a5c50] disabled:cursor-default disabled:opacity-50"
                     onClick={sourceAction.onClick}
                     disabled={sourceAction.disabled}
                     title={sourceAction.disabled ? "No source link saved" : `Open ${sourceAction.label}`}
