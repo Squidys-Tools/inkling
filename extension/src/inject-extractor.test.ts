@@ -157,6 +157,20 @@ describe("injectExtractor", () => {
 
     await expect(injectExtractor(7)).rejects.toThrow("defuddle failed");
   });
+
+  test("blames the page, not the extractor, when extraction returns junk", async () => {
+    // The extractor ran and answered, so "extractor returned no result" named
+    // the wrong culprit. This is the case saveTab's removed guard used to
+    // describe, which is why the message now has to be produced here.
+    installExtractor(async () => ({ nothing: "shaped like a capture" }));
+
+    await expect(injectExtractor(7)).rejects.toThrow("page extraction produced no usable content");
+  });
+
+  test("still reports an absent extractor as an absent extractor", async () => {
+    // The counterpart, so the split above cannot collapse back into one message.
+    await expect(injectExtractor(7)).rejects.toThrow("extractor returned no result");
+  });
 });
 
 test("the isolated bundle installs the extractor under the same name", async () => {

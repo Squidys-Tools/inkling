@@ -61,7 +61,7 @@ async function writeStatus(status: SaveStatus): Promise<void> {
   await browser.storage.local.set({ [LAST_STATUS_KEY]: status });
 }
 
-export async function injectExtractor(tabId: number): Promise<unknown> {
+export async function injectExtractor(tabId: number): Promise<PageCapturePayloadV1> {
   await browser.scripting.executeScript({
     target: { tabId },
     files: [CONTENT_MAIN_FILE],
@@ -106,7 +106,17 @@ export async function injectExtractor(tabId: number): Promise<unknown> {
     throw new Error(error instanceof Error ? error.message : "page extraction failed");
   }
   if (isPageCapturePayload(result)) return result;
-  throw new Error("extractor returned no result");
+  // Two failures that mean different things to the user. No result at all is
+  // the extractor being absent or silent; a result that is not a payload is a
+  // page that yielded nothing worth saving. saveTab used to tell these apart
+  // after the fact, but it could not - this function had already collapsed them
+  // into one throw - so a page with unusable content reported "extractor
+  // returned no result", naming the wrong culprit.
+  throw new Error(
+    result === undefined || result === null
+      ? "extractor returned no result"
+      : "page extraction produced no usable content",
+  );
 }
 
 async function readLoopbackConfig(): Promise<{ baseUrl: string; token: string } | null> {
@@ -301,25 +311,17 @@ async function deliverDurably(payload: LoopbackCapturePayload, title?: string): 
 
 export async function saveTab(tabId: number): Promise<SaveStatus> {
   fireAndForget(flushQueue());
-  let raw: unknown;
+  // injectExtractor either returns a payload or throws, so there is no
+  // invalid-value case to handle here any more. The guard that used to sit
+  // below this catch was unreachable, and its more specific message could never
+  // reach the user; the distinction now lives at the throw that produces it.
+  let raw: PageCapturePayloadV1;
   try {
     raw = await injectExtractor(tabId);
   } catch (error) {
     const status: SaveStatus = {
       state: "failed",
       detail: error instanceof Error ? error.message : "injection failed",
-      at: new Date().toISOString(),
-    };
-    await writeStatus(status);
-    return status;
-  }
-  if (!isPageCapturePayload(raw)) {
-    const status: SaveStatus = {
-      state: "failed",
-      detail:
-        raw === undefined
-          ? "extractor returned no result"
-          : "page extraction produced no usable content",
       at: new Date().toISOString(),
     };
     await writeStatus(status);
