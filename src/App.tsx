@@ -94,12 +94,18 @@ const MascotBoard = lazy(() =>
 const AliveBoard = lazy(() =>
   import("./components/mascot/AliveBoard").then((module) => ({ default: module.AliveBoard })),
 );
+const RoamBoard = lazy(() =>
+  import("./components/mascot/RoamBoard").then((module) => ({ default: module.RoamBoard })),
+);
 const ExpandedItemOverlay = lazy(() =>
   import("./components/ExpandedItemOverlay").then((module) => ({
     default: module.ExpandedItemOverlay,
   })),
 );
-import { LiveMascotFigure, LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
+import { LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
+import { MascotHomeSlot } from "./components/mascot/MascotHomeSlot";
+import { MascotRoamLayer } from "./components/mascot/MascotRoamLayer";
+import { setRoamBusy, setRoamCaptureFailed } from "./components/mascot/roamStore";
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
 import { ArticleArtwork, KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
@@ -2175,7 +2181,7 @@ function App() {
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      failCapture(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -2333,7 +2339,7 @@ function App() {
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      failCapture(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -2345,7 +2351,7 @@ function App() {
     try {
       await persistText(text, captureSource);
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      failCapture(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -2436,7 +2442,7 @@ function App() {
 
   async function captureScreenshot() {
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      setCaptureError("Screenshot capture is not available in this window.");
+      failCapture("Screenshot capture is not available in this window.");
       return;
     }
 
@@ -2461,7 +2467,7 @@ function App() {
       await persistFile(file, "screenshot");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      failCapture(error instanceof Error ? error.message : String(error));
     } finally {
       stream?.getTracks().forEach((track) => track.stop());
       setIsCapturing(false);
@@ -3174,7 +3180,7 @@ function App() {
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      failCapture(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -3450,6 +3456,16 @@ function App() {
   // notification pastille; errors drop to idle so the sad face can show
   // (drift carries its own fixed face). Error beats busyness beats attention.
   const isMascotBusy = items.some((item) => item.processing?.active);
+  // `captureError` is the shared error channel for the whole app, so it cannot
+  // also mean "a save the user asked for failed" — a retried job, a renamed
+  // Space, and the archive all write to it, and "Find similar" in the web
+  // preview writes to it on purpose. Captures get their own count, and the
+  // mascot spends one on a single sad walk home.
+  const [captureFailures, setCaptureFailures] = useState(0);
+  const failCapture = useCallback((message: string) => {
+    setCaptureError(message);
+    setCaptureFailures((count) => count + 1);
+  }, []);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -3476,6 +3492,33 @@ function App() {
     });
   }, [isMascotBusy, captureError, isSearchFocused, query, prefersReducedMotion]);
 
+  // Roaming reads two things from the app, and nothing else. A view that owns
+  // the screen makes the mascot hold still without spending the awake time it
+  // has left, and a capture that failed is the one event that ends an outing.
+  //
+  // Serendipity and an in-flight drag are in that list for the same reason the
+  // reader is: both hand the whole stage to one decision. Serendipity is a
+  // single item with Keep and Forget on it, and dropping a file over the window
+  // is a capture in progress. Neither is a reason to end the walk, only to stop
+  // moving through it. Background indexing is deliberately not here — a mascot
+  // that vanishes every time an item finishes processing reads as broken, and
+  // the point of it is to stay quietly alive while the user works.
+  const isOverlayOpen =
+    isAdding ||
+    isSettingsOpen ||
+    selectedItem !== null ||
+    readingItem !== null ||
+    Boolean(pdfViewerItem?.fileUrl) ||
+    isSerendipityView ||
+    isDragActive ||
+    isCapturing;
+  useEffect(() => {
+    setRoamBusy(isOverlayOpen);
+  }, [isOverlayOpen]);
+  useEffect(() => {
+    if (captureFailures > 0) setRoamCaptureFailed(true);
+  }, [captureFailures]);
+
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);
 
   // Dev-only mascot board (vendored bloub engine + inkling skins). Not linked
@@ -3484,6 +3527,13 @@ function App() {
     return (
       <Suspense fallback={null}>
         <AliveBoard />
+      </Suspense>
+    );
+  }
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mascot-roam")) {
+    return (
+      <Suspense fallback={null}>
+        <RoamBoard />
       </Suspense>
     );
   }
@@ -3524,9 +3574,7 @@ function App() {
         )}
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup" data-tauri-drag-region>
-          <div className={`brand-mark${isSearchFocused ? " is-away" : ""}`} aria-hidden="true">
-            <LiveMascotFigure size={44} />
-          </div>
+          <MascotHomeSlot isSearchFocused={isSearchFocused} />
           <div>
             <strong>inkling</strong>
           </div>
@@ -4416,6 +4464,7 @@ function App() {
         )}
       </AnimatePresence>
       </div>
+      <MascotRoamLayer />
       <Toaster
         position="top-right"
         offset={{ top: 48, right: 16 }}
