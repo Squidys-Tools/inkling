@@ -1,6 +1,7 @@
 import { htmlToText, sanitizeHtml } from "./html-safety";
 import { videoLinkFromSourceUrl, type VideoLinkEmbed } from "./video-links";
 import { normalizeHttpUrl, normalizeText, parseHttpUrl } from "./url";
+import { truncate } from "../truncate";
 
 // TODO(phase1): share payload types + caps with extension/src/payload.ts via
 // packages/ingestion-shared. Field names are identical on both sides so the
@@ -138,7 +139,7 @@ function imageFileName(srcUrl: string, alt: string, mimeType: string | null): st
 export function mapExtensionImage(input: ExtensionImageInput): ImageReceipt | null {
   const pageUrl = httpUrl(input.pageUrl);
   if (!pageUrl) return null;
-  const alt = normalizeText(input.alt).slice(0, 240);
+  const alt = truncate(normalizeText(input.alt), 240);
 
   const downloadUrl = normalizeHttpUrl(input.srcUrl, pageUrl);
   if (downloadUrl) {

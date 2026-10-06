@@ -68,6 +68,21 @@ describe("mapExtensionImage", () => {
     });
   });
 
+  test("a long alt text is cut without splitting an astral character", () => {
+    // The alt is stored on the image record, so a unit-based cut at 240 left a
+    // lone surrogate in the database rather than only in a rendered preview.
+    // One leading ASCII character puts the cut in the middle of the emoji.
+    const receipt = mapExtensionImage({
+      pageUrl: "https://example.com/post",
+      srcUrl: "https://cdn.example.com/photo.jpg",
+      alt: `A${"\u{1F600}".repeat(300)}`,
+    });
+    const alt = receipt?.alt ?? "";
+    expect(Array.from(alt)).toHaveLength(240);
+    expect(alt).toBe(`A${"\u{1F600}".repeat(239)}`);
+    expect(/[\uD800-\uDFFF]/u.test(alt)).toBe(false);
+  });
+
   test("blob sources use the dataUrl fallback under the cap", () => {
     const receipt = mapExtensionImage({
       pageUrl: "https://example.com/canvas",

@@ -355,7 +355,7 @@ async function storedItemToLibraryItem(
   // eat the brackets in prose that happens to look like a link.
   const rawDescription =
     item.description?.trim() ||
-    item.ocrText?.trim().slice(0, 180) ||
+    truncate(item.ocrText?.trim() ?? "", 180) ||
     (isQuote ? "" : "Saved to your mind.");
 
   return {
@@ -828,7 +828,9 @@ function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }
 
 function cardPreviewText(value: string | undefined, fallback: string): string {
   const text = value?.replace(/\s+/gu, " ").trim() || fallback;
-  return text.length > 72 ? `${text.slice(0, 69)}…` : text;
+  // Threshold in code points, and `truncate` for the cut, so the ellipsis can
+  // never land between the halves of an astral character.
+  return Array.from(text).length > 72 ? `${truncate(text, 69)}…` : text;
 }
 
 type LibraryCardContext = {
@@ -937,7 +939,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
               {item.kind === "Article" && <ArticleArtwork item={item} />}
               {item.kind === "Note" && <NoteArtwork item={item} />}
               {item.kind === "PDF" && <PdfArtwork item={item} />}
-              {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-preview">{cardPreviewText(item.title, "Saved quote")}</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
+              {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-preview">{cardPreviewText(item.title, "Saved quote")}</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${truncate(item.description, 48)}` : ""}</span></>}
             </div>
           )}
         </div>
