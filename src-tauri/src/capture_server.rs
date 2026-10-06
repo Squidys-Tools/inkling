@@ -497,10 +497,16 @@ fn origin_allowed(origin: Option<&str>) -> bool {
             return false;
         };
         rest == "tauri.localhost"
-            || rest
-                .strip_prefix("tauri.localhost:")
-                // `u16` rejects anything above 65535; zero is not a port.
-                .is_some_and(|port| port.parse::<u16>().is_ok_and(|value| value != 0))
+            || rest.strip_prefix("tauri.localhost:").is_some_and(|port| {
+                // Digits only, then `u16` for the range and non-zero. `parse`
+                // already rejects trailing characters - unlike JavaScript's
+                // parseInt, which would read "8080abc" as 8080 - but FromStr
+                // does accept a leading `+`, and no browser sends that as a
+                // port. Checking the bytes keeps this matching the comment.
+                !port.is_empty()
+                    && port.bytes().all(|byte| byte.is_ascii_digit())
+                    && port.parse::<u16>().is_ok_and(|value| value != 0)
+            })
     }
     tauri_localhost_http(origin, "https://") || tauri_localhost_http(origin, "http://")
 }
@@ -2171,6 +2177,14 @@ mod tests {
         assert!(!origin_allowed(Some("https://tauri.localhost:")));
         assert!(!origin_allowed(Some("https://tauri.localhost:80a")));
         assert!(!origin_allowed(Some("https://tauri.localhost.evil.com")));
+        // `str::parse` requires the whole string to be digits, unlike
+        // JavaScript's parseInt, which stops at the first non-digit and would
+        // read "8080abc" as 8080. Worth pinning, because reading it the
+        // JavaScript way makes this look like it accepts trailing junk.
+        assert!("8080abc".parse::<u16>().is_err());
+        assert!(!origin_allowed(Some("https://tauri.localhost:8080abc")));
+        assert!(!origin_allowed(Some("https://tauri.localhost:+1420")));
+        assert!(!origin_allowed(Some("https://tauri.localhost:1420/")));
     }
 
     #[test]
