@@ -43,7 +43,7 @@ Content consumption and creation experiences.
 
 - [x] Distraction-free article reader with clean typography
 - [ ] Focus Mode for long-form writing
-- [ ] Rich note editor (headings, bold, links, todos)
+- [x] Rich note editor (headings, bold, links, todos)
 - [x] Quote cards with source attribution
 - [x] Video link cards with previews
 - [x] PDF viewer with page navigation
@@ -58,6 +58,7 @@ Surfacing forgotten material through browsing and curation.
 - [x] Top of Mind (pinned items gathered into their own view)
 - [x] Trash and recoverable archive
 - [x] Space management (create, rename, reorder, recolor, delete)
+- [x] Regular Spaces (manual collections)
 - [ ] Wire the already-registered `enqueue_ocr_job` and `count_active_jobs` Tauri commands to UI (backend ships them, no frontend caller yet)
 - [x] Export and backup (database snapshot + referenced assets + manifest)
 - [ ] Import and restore from an export
@@ -80,16 +81,9 @@ On-device AI for summaries and deeper understanding.
 Production readiness and first release.
 
 - [ ] First-run onboarding (local-first, AI, export)
+- [x] Mascot that wanders the library on its own, drifting around the card grid and looking at things (SQU-58)
 - [ ] Keyboard-first operation across all surfaces
 - [ ] Accessibility audit (contrast, focus indicators, screen readers)
 - [ ] Windows installer and update mechanism
 - [ ] Web version portability (frontend + domain boundaries)
 - [ ] Performance and refactoring pass, then establish the frontend bundle-size baseline and add a bundle-size PR comment check (deferred until the bundle is feature-complete; `pdfjs-dist` / `tesseract.js` chunking is the main risk)
-
-## TBD
-
-**Status: unknown**
-
-Future features under consideration
-
-- [ ] Regular Spaces (manual collections)

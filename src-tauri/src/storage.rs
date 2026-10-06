@@ -8,6 +8,7 @@ use std::{
 };
 
 use image::{GenericImageView, ImageFormat, ImageReader};
+use pulldown_cmark::{Event, Parser, Tag};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -15,7 +16,11 @@ use tauri::{AppHandle, Manager, State};
 use url::Url;
 use uuid::Uuid;
 
-const SCHEMA_VERSION: i64 = 6;
+// 8 is regular Spaces. 7 was claimed by both that change and note bodies on
+// main; every column below is added by an idempotent presence check, so the
+// collision was survivable but the number lied about what had migrated.
+const SCHEMA_VERSION: i64 = 8;
+const BODY_FORMAT_MARKDOWN: &str = "md";
 const MAX_FILE_BYTES: usize = 50 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION: u32 = 20_000;
 const MAX_IMAGE_ALLOC_BYTES: u64 = 256 * 1024 * 1024;
@@ -27,6 +32,8 @@ CREATE TABLE IF NOT EXISTS items (
     kind TEXT NOT NULL,
     title TEXT,
     description TEXT,
+    body TEXT NOT NULL DEFAULT '',
+    body_format TEXT NOT NULL DEFAULT 'md',
     source_url TEXT,
     source_label TEXT,
     local_asset_path TEXT,
@@ -68,6 +75,7 @@ CREATE TABLE IF NOT EXISTS spaces (
     name TEXT NOT NULL,
     color TEXT NOT NULL DEFAULT 'blue',
     query TEXT NOT NULL DEFAULT '{}',
+    kind TEXT NOT NULL DEFAULT 'smart',
     position INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
@@ -75,6 +83,19 @@ CREATE TABLE IF NOT EXISTS spaces (
 
 CREATE INDEX IF NOT EXISTS idx_spaces_position
     ON spaces (position, created_at);
+
+-- Manual membership. Only Regular Spaces use it; a Smart Space derives its
+-- contents from its query instead. Rows survive archiving so a restored item
+-- rejoins the Space it was filed under.
+CREATE TABLE IF NOT EXISTS space_items (
+    space_id TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    added_at INTEGER NOT NULL,
+    PRIMARY KEY (space_id, item_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_space_items_item
+    ON space_items (item_id);
 "#;
 
 #[derive(Debug)]
@@ -201,6 +222,10 @@ pub struct ItemDto {
     pub kind: String,
     pub title: Option<String>,
     pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_format: Option<String>,
     pub source_url: Option<String>,
     pub source_label: Option<String>,
     pub local_asset_path: Option<String>,
@@ -211,6 +236,14 @@ pub struct ItemDto {
     pub updated_at: i64,
     pub archived: bool,
     pub favorite: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemContentDto {
+    pub id: String,
+    pub body: String,
+    pub body_format: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -257,6 +290,8 @@ pub struct UpdateItemInput {
     pub id: String,
     pub title: Option<String>,
     pub description: Option<String>,
+    pub body: Option<String>,
+    pub body_format: Option<String>,
     pub source_url: Option<String>,
     pub source_label: Option<String>,
     pub local_asset_path: Option<String>,
@@ -278,13 +313,44 @@ pub struct SmartSpaceQuery {
     pub favorite: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+/// How a Space decides what is in it. A Smart Space re-runs its saved query;
+/// a Regular Space holds the items the user filed into it by hand. The kind is
+/// fixed at creation because converting either way would silently discard
+/// either the query or the membership.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SpaceKind {
+    #[default]
+    Smart,
+    Regular,
+}
+
+impl SpaceKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Smart => "smart",
+            Self::Regular => "regular",
+        }
+    }
+
+    /// Reads the stored column. An unrecognized value falls back to Smart,
+    /// which is what every Space was before manual collections existed.
+    fn from_column(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "regular" => Self::Regular,
+            _ => Self::Smart,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpaceDto {
     pub id: String,
     pub name: String,
     pub color: String,
     pub query: SmartSpaceQuery,
+    pub kind: SpaceKind,
     pub position: i64,
     pub created_at: i64,
     pub updated_at: i64,
@@ -297,6 +363,8 @@ pub struct CreateSpaceInput {
     pub color: Option<String>,
     #[serde(default)]
     pub query: SmartSpaceQuery,
+    #[serde(default)]
+    pub kind: SpaceKind,
 }
 
 #[derive(Debug, Deserialize)]
@@ -358,8 +426,10 @@ impl LibraryStorage {
 
         connection.execute_batch(crate::jobs::JOBS_SCHEMA)?;
         ensure_job_columns(&connection)?;
+        ensure_item_columns(&connection, version < SCHEMA_VERSION)?;
         connection.execute_batch(EMBEDDINGS_SCHEMA)?;
         connection.execute_batch(SPACES_SCHEMA)?;
+        ensure_space_columns(&connection)?;
         let fts5_enabled = setup_fts5(&connection);
         connection.pragma_update(None, "user_version", SCHEMA_VERSION)?;
 
@@ -382,7 +452,7 @@ impl LibraryStorage {
         let mut statement = self.connection.prepare(
             "SELECT id, kind, title, description, source_url, source_label,
                     local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
-                    updated_at, archived, favorite
+                    updated_at, archived, favorite, NULL AS body, 'md' AS body_format
              FROM items
              WHERE archived = 0
              ORDER BY updated_at DESC, created_at DESC",
@@ -399,7 +469,7 @@ impl LibraryStorage {
         let mut statement = self.connection.prepare(
             "SELECT id, kind, title, description, source_url, source_label,
                     local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
-                    updated_at, archived, favorite
+                    updated_at, archived, favorite, NULL AS body, 'md' AS body_format
              FROM items
              WHERE archived = 1
              ORDER BY updated_at DESC, created_at DESC",
@@ -423,15 +493,24 @@ impl LibraryStorage {
         let id = Uuid::new_v4().to_string();
         let timestamp = now_millis()?;
         let title = input.title.and_then(non_empty_string);
+        let description = markdown_to_plain_text(&body);
         let metadata = input.metadata.unwrap_or_else(|| Value::Object(Map::new()));
         let metadata_json = serde_json::to_string(&metadata)?;
 
         self.connection.execute(
             "INSERT INTO items (
-                id, kind, title, description, metadata, ocr_text,
+                id, kind, title, description, body, body_format, metadata, ocr_text,
                 created_at, updated_at
-             ) VALUES (?1, 'note', ?2, ?3, ?4, '', ?5, ?5)",
-            params![id, title, body, metadata_json, timestamp],
+             ) VALUES (?1, 'note', ?2, ?3, ?4, ?5, ?6, '', ?7, ?7)",
+            params![
+                id,
+                title,
+                description,
+                body,
+                BODY_FORMAT_MARKDOWN,
+                metadata_json,
+                timestamp
+            ],
         )?;
 
         self.get_item(&id)?.ok_or(StorageError::NotFound(id))
@@ -501,11 +580,14 @@ impl LibraryStorage {
         let title = Some(body.clone());
         let description = attribution.clone();
 
+        // The body column belongs to notes. A quote already keeps its text in
+        // title, quoteText, and the searchable metadata text, so writing it a
+        // fourth time here would only duplicate it in the search index.
         self.connection.execute(
             "INSERT INTO items (
-                id, kind, title, description, source_url, source_label,
+                id, kind, title, description, body, body_format, source_url, source_label,
                 metadata, ocr_text, created_at, updated_at
-             ) VALUES (?1, 'quote', ?2, ?3, ?4, ?5, ?6, '', ?7, ?7)",
+             ) VALUES (?1, 'quote', ?2, ?3, '', '', ?4, ?5, ?6, '', ?7, ?7)",
             params![
                 id,
                 title,
@@ -536,11 +618,14 @@ impl LibraryStorage {
         let id = Uuid::new_v4().to_string();
         let timestamp = now_millis()?;
 
+        // body stays empty for a url: the frontend sends the extracted article
+        // text under this name as transport for the metadata below, and only
+        // notes carry a body the app reads back.
         self.connection.execute(
             "INSERT INTO items (
-                id, kind, title, description, source_url, source_label,
+                id, kind, title, description, body, body_format, source_url, source_label,
                 metadata, ocr_text, created_at, updated_at
-             ) VALUES (?1, 'url', ?2, ?3, ?4, ?5, ?6, '', ?7, ?7)",
+             ) VALUES (?1, 'url', ?2, ?3, '', '', ?4, ?5, ?6, '', ?7, ?7)",
             params![
                 id,
                 title,
@@ -548,7 +633,7 @@ impl LibraryStorage {
                 source_url,
                 source_label,
                 metadata_json,
-                timestamp,
+                timestamp
             ],
         )?;
 
@@ -628,8 +713,8 @@ impl LibraryStorage {
         if existing.is_some() {
             self.connection.execute(
                 "UPDATE items
-                 SET kind = ?2, title = ?3, source_label = ?4,
-                     local_asset_path = ?5, thumbnail_path = ?6,
+                 SET kind = ?2, title = ?3, description = NULL, body = '', body_format = ?9,
+                     source_label = ?4, local_asset_path = ?5, thumbnail_path = ?6,
                      ocr_text = '', metadata = ?7, archived = 0, updated_at = ?8
                   WHERE id = ?1",
                 params![
@@ -641,18 +726,20 @@ impl LibraryStorage {
                     thumbnail_path,
                     metadata_json,
                     timestamp,
+                    BODY_FORMAT_MARKDOWN,
                 ],
             )?;
         } else {
             self.connection.execute(
                 "INSERT INTO items (
-                    id, kind, title, source_label, local_asset_path,
+                    id, kind, title, body, body_format, source_label, local_asset_path,
                     thumbnail_path, metadata, ocr_text, created_at, updated_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, '', ?8, ?8)",
+                 ) VALUES (?1, ?2, ?3, '', ?4, ?5, ?6, ?7, ?8, '', ?9, ?9)",
                 params![
                     id,
                     kind,
                     title,
+                    BODY_FORMAT_MARKDOWN,
                     source_label,
                     local_asset_path,
                     thumbnail_path,
@@ -751,25 +838,54 @@ impl LibraryStorage {
             .map(|metadata| serde_json::to_string(&metadata))
             .transpose()?;
         let title = input.title.as_deref().map(str::trim);
-        let description = input.description.as_deref().map(str::trim);
+        let body = match input.body {
+            Some(value) => {
+                let value = value.trim();
+                if value.is_empty() {
+                    return Err(StorageError::InvalidInput("body cannot be empty".into()));
+                }
+                Some(value.to_owned())
+            }
+            None => None,
+        };
+        let body_format = match input.body_format.as_deref().map(str::trim) {
+            Some(value) if value.is_empty() || value.eq_ignore_ascii_case(BODY_FORMAT_MARKDOWN) => {
+                Some(BODY_FORMAT_MARKDOWN.to_owned())
+            }
+            Some(_) => return Err(StorageError::InvalidInput("bodyFormat must be 'md'".into())),
+            None => body.as_ref().map(|_| BODY_FORMAT_MARKDOWN.to_owned()),
+        };
+        // An explicit description is what the caller asked for and wins; the
+        // projection over the body is only a fallback for callers that omit it,
+        // which is how a note save re-derives it from the new body.
+        let description = input
+            .description
+            .as_deref()
+            .map(str::trim)
+            .map(str::to_owned)
+            .or_else(|| body.as_deref().map(markdown_to_plain_text));
         let now = now_millis()?;
 
         let updated = self.connection.execute(
             "UPDATE items
              SET title = COALESCE(?2, title),
                  description = COALESCE(?3, description),
-                 source_url = COALESCE(?4, source_url),
-                 source_label = COALESCE(?5, source_label),
-                 local_asset_path = COALESCE(?6, local_asset_path),
-                 thumbnail_path = COALESCE(?7, thumbnail_path),
-                 metadata = COALESCE(?8, metadata),
-                 favorite = COALESCE(?9, favorite),
-                 updated_at = ?10
+                 body = COALESCE(?4, body),
+                 body_format = COALESCE(?5, body_format),
+                 source_url = COALESCE(?6, source_url),
+                 source_label = COALESCE(?7, source_label),
+                 local_asset_path = COALESCE(?8, local_asset_path),
+                 thumbnail_path = COALESCE(?9, thumbnail_path),
+                 metadata = COALESCE(?10, metadata),
+                 favorite = COALESCE(?11, favorite),
+                 updated_at = ?12
              WHERE id = ?1",
             params![
                 input.id,
                 title,
                 description,
+                body,
+                body_format,
                 input.source_url,
                 input.source_label,
                 input.local_asset_path,
@@ -803,6 +919,18 @@ impl LibraryStorage {
     }
 
     fn delete_item(&self, id: &str) -> Result<(), StorageError> {
+        // Guard first: the row must exist and be archived before anything is
+        // removed from disk, otherwise a stale delete of a restored item
+        // would destroy its files while its row survives.
+        let deletable: i64 = self.connection.query_row(
+            "SELECT COUNT(*) FROM items WHERE id = ?1 AND archived = 1",
+            params![id],
+            |row| row.get(0),
+        )?;
+        if deletable == 0 {
+            return Err(StorageError::NotFound(id.to_owned()));
+        }
+
         // Item files live under assets/items/<id>. Remove them first so a
         // failed delete leaves the row and its files together. Ids are
         // restricted to ascii alphanumeric plus - and _, so the join below
@@ -822,6 +950,12 @@ impl LibraryStorage {
         if deleted == 0 {
             return Err(StorageError::NotFound(id.to_owned()));
         }
+
+        // The item is gone for good, so drop it from every Regular Space it
+        // was filed in. Archiving keeps the rows, which is what lets a restore
+        // put the item back where it was.
+        self.connection
+            .execute("DELETE FROM space_items WHERE item_id = ?1", params![id])?;
 
         Ok(())
     }
@@ -1004,8 +1138,9 @@ impl LibraryStorage {
                 let mut statement = self.connection.prepare(
                     "SELECT i.id, i.kind, i.title, i.description, i.source_url,
                             i.source_label, i.local_asset_path, i.thumbnail_path,
-                            i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
-                            i.favorite
+                             i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
+                             i.favorite, NULL AS body, 'md' AS body_format
+
                      FROM items_fts f
                      JOIN items i ON i.id = f.item_id
                      WHERE i.archived = 0 AND items_fts MATCH ?1
@@ -1021,12 +1156,13 @@ impl LibraryStorage {
             let mut statement = self.connection.prepare(
                 "SELECT id, kind, title, description, source_url, source_label,
                         local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
-                        updated_at, archived, favorite
+                        updated_at, archived, favorite, NULL AS body, 'md' AS body_format
                  FROM items
                  WHERE archived = 0
                    AND (title LIKE ?1 COLLATE NOCASE
-                        OR description LIKE ?1 COLLATE NOCASE
-                        OR source_label LIKE ?1 COLLATE NOCASE
+                         OR description LIKE ?1 COLLATE NOCASE
+                         OR body LIKE ?1 COLLATE NOCASE
+                         OR source_label LIKE ?1 COLLATE NOCASE
                         OR ocr_text LIKE ?1 COLLATE NOCASE
                         OR metadata LIKE ?1 COLLATE NOCASE)
                  ORDER BY updated_at DESC, created_at DESC
@@ -1052,8 +1188,9 @@ impl LibraryStorage {
             let mut statement = self.connection.prepare(
                 "SELECT i.id, i.kind, i.title, i.description, i.source_url,
                         i.source_label, i.local_asset_path, i.thumbnail_path,
-                        i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
-                        i.favorite, e.dimension, e.vector
+                         i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
+                         i.favorite, NULL AS body, 'md' AS body_format, e.dimension, e.vector
+
                  FROM item_embeddings e
                  JOIN items i ON i.id = e.item_id
                  WHERE i.archived = 0
@@ -1066,8 +1203,8 @@ impl LibraryStorage {
             ])?;
             while let Some(row) = rows.next()? {
                 let item = item_from_row(row)?;
-                let dimension = row.get::<_, i64>(14)?;
-                let bytes = row.get::<_, Vec<u8>>(15)?;
+                let dimension = row.get::<_, i64>(16)?;
+                let bytes = row.get::<_, Vec<u8>>(17)?;
                 let vector = match crate::embeddings::decode_f32(&bytes) {
                     Ok(vector) if vector.len() == usize::try_from(dimension).unwrap_or(0) => vector,
                     _ => continue,
@@ -1143,8 +1280,9 @@ impl LibraryStorage {
         let mut statement = self.connection.prepare(
             "SELECT i.id, i.kind, i.title, i.description, i.source_url,
                     i.source_label, i.local_asset_path, i.thumbnail_path,
-                    i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
-                    i.favorite, e.dimension, e.vector
+                     i.ocr_text, i.metadata, i.created_at, i.updated_at, i.archived,
+                     i.favorite, NULL AS body, 'md' AS body_format, e.dimension, e.vector
+
              FROM item_embeddings e
              JOIN items i ON i.id = e.item_id
              WHERE i.archived = 0 AND i.id != ?1
@@ -1156,8 +1294,8 @@ impl LibraryStorage {
         let mut ranked = Vec::new();
         while let Some(row) = rows.next()? {
             let item = item_from_row(row)?;
-            let dimension = row.get::<_, i64>(14)?;
-            let bytes = row.get::<_, Vec<u8>>(15)?;
+            let dimension = row.get::<_, i64>(16)?;
+            let bytes = row.get::<_, Vec<u8>>(17)?;
             let vector = match crate::embeddings::decode_f32(&bytes) {
                 Ok(vector) if vector.len() == usize::try_from(dimension).unwrap_or(0) => vector,
                 _ => continue,
@@ -1179,7 +1317,7 @@ impl LibraryStorage {
         let mut statement = self.connection.prepare(
             "SELECT id, kind, title, description, source_url, source_label,
                     local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
-                    updated_at, archived, favorite
+                    updated_at, archived, favorite, NULL AS body, 'md' AS body_format
              FROM items
              WHERE archived = 0
              ORDER BY updated_at DESC, created_at DESC
@@ -1197,7 +1335,7 @@ impl LibraryStorage {
             .query_row(
                 "SELECT id, kind, title, description, source_url, source_label,
                         local_asset_path, thumbnail_path, ocr_text, metadata, created_at,
-                        updated_at, archived, favorite
+                        updated_at, archived, favorite, body, body_format
                  FROM items WHERE id = ?1",
                 params![id],
                 item_from_row,
@@ -1206,27 +1344,52 @@ impl LibraryStorage {
             .map_err(StorageError::from)
     }
 
+    pub(crate) fn get_item_content(&self, id: &str) -> Result<ItemContentDto, StorageError> {
+        self.connection
+            .query_row(
+                "SELECT id, body, body_format FROM items WHERE id = ?1",
+                params![id],
+                |row| {
+                    Ok(ItemContentDto {
+                        id: row.get(0)?,
+                        body: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                        body_format: row
+                            .get::<_, Option<String>>(2)?
+                            .unwrap_or_else(|| BODY_FORMAT_MARKDOWN.to_owned()),
+                    })
+                },
+            )
+            .optional()?
+            .ok_or_else(|| StorageError::NotFound(id.to_owned()))
+    }
+
     fn space_from_row(row: &Row<'_>) -> rusqlite::Result<SpaceDto> {
         let query_json: String = row.get(3)?;
         let query = serde_json::from_str(&query_json).unwrap_or_default();
+        let kind: String = row.get(4)?;
 
         Ok(SpaceDto {
             id: row.get(0)?,
             name: row.get(1)?,
             color: row.get(2)?,
             query,
-            position: row.get(4)?,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
+            kind: SpaceKind::from_column(&kind),
+            position: row.get(5)?,
+            created_at: row.get(6)?,
+            updated_at: row.get(7)?,
         })
     }
 
+    /// Column list shared by every Space read, so `space_from_row`'s ordinals
+    /// stay in one place.
+    const SPACE_COLUMNS: &'static str =
+        "id, name, color, query, kind, position, created_at, updated_at";
+
     fn list_spaces(&self) -> Result<Vec<SpaceDto>, StorageError> {
-        let mut statement = self.connection.prepare(
-            "SELECT id, name, color, query, position, created_at, updated_at
-             FROM spaces
-             ORDER BY position, created_at",
-        )?;
+        let mut statement = self.connection.prepare(&format!(
+            "SELECT {0} FROM spaces ORDER BY position, created_at",
+            Self::SPACE_COLUMNS
+        ))?;
 
         let spaces = statement
             .query_map([], Self::space_from_row)?
@@ -1238,8 +1401,7 @@ impl LibraryStorage {
     fn get_space(&self, id: &str) -> Result<Option<SpaceDto>, StorageError> {
         self.connection
             .query_row(
-                "SELECT id, name, color, query, position, created_at, updated_at
-                 FROM spaces WHERE id = ?1",
+                &format!("SELECT {} FROM spaces WHERE id = ?1", Self::SPACE_COLUMNS),
                 params![id],
                 Self::space_from_row,
             )
@@ -1250,7 +1412,12 @@ impl LibraryStorage {
     fn create_space(&self, input: CreateSpaceInput) -> Result<SpaceDto, StorageError> {
         let name = normalize_space_name(&input.name)?;
         let color = normalize_space_color(input.color.as_deref());
-        let query = validate_smart_space_query(input.query)?;
+        // A Regular Space is defined by what the user puts in it, so a query
+        // captured from the search bar is not part of it.
+        let query = match input.kind {
+            SpaceKind::Smart => validate_smart_space_query(input.query)?,
+            SpaceKind::Regular => SmartSpaceQuery::default(),
+        };
         let query_json = serde_json::to_string(&query)?;
         let id = Uuid::new_v4().to_string();
         let timestamp = now_millis()?;
@@ -1261,9 +1428,17 @@ impl LibraryStorage {
         )?;
 
         self.connection.execute(
-            "INSERT INTO spaces (id, name, color, query, position, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
-            params![id, name, color, query_json, position, timestamp],
+            "INSERT INTO spaces (id, name, color, query, kind, position, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+            params![
+                id,
+                name,
+                color,
+                query_json,
+                input.kind.as_str(),
+                position,
+                timestamp
+            ],
         )?;
 
         self.get_space(&id)?.ok_or(StorageError::NotFound(id))
@@ -1278,6 +1453,18 @@ impl LibraryStorage {
             .color
             .as_deref()
             .map(|value| normalize_space_color(Some(value)));
+        if input.query.is_some() {
+            // A Regular Space has no query to edit; rejecting beats silently
+            // dropping a query the caller believed it saved.
+            let existing = self
+                .get_space(&input.id)?
+                .ok_or_else(|| StorageError::NotFound(input.id.clone()))?;
+            if existing.kind == SpaceKind::Regular {
+                return Err(StorageError::InvalidInput(
+                    "a Regular Space has no search query to change".into(),
+                ));
+            }
+        }
         let query_json = input
             .query
             .map(validate_smart_space_query)
@@ -1312,7 +1499,11 @@ impl LibraryStorage {
     }
 
     fn delete_space(&self, id: &str) -> Result<(), StorageError> {
-        // Deleting a Space never touches its items; only the saved search goes away.
+        // Deleting a Space never touches its items; only the saved search and
+        // the manual membership go away. Foreign keys are not enforced on this
+        // connection, so membership rows are cleared explicitly.
+        self.connection
+            .execute("DELETE FROM space_items WHERE space_id = ?1", params![id])?;
         let deleted = self
             .connection
             .execute("DELETE FROM spaces WHERE id = ?1", params![id])?;
@@ -1380,11 +1571,16 @@ impl LibraryStorage {
     }
 
     /// Lazy evaluation of a Smart Space: re-run the stored query on demand.
+    /// A Regular Space instead reads back exactly the items filed into it.
     fn list_space_items(&self, id: &str, limit: u32) -> Result<Vec<ItemDto>, StorageError> {
         let limit = usize::try_from(limit.clamp(1, 200)).unwrap_or(100);
         let space = self
             .get_space(id)?
             .ok_or_else(|| StorageError::NotFound(id.to_owned()))?;
+
+        if space.kind == SpaceKind::Regular {
+            return self.list_space_member_items(id, limit);
+        }
 
         let text = space.query.text.as_deref().unwrap_or("").trim();
         let candidates = if text.is_empty() {
@@ -1401,6 +1597,92 @@ impl LibraryStorage {
             .collect::<Vec<_>>();
 
         Ok(items)
+    }
+
+    /// The contents of a Regular Space: manual membership, most recently added
+    /// first. Archived items drop out of the listing but keep their membership
+    /// row, so restoring one returns it to the Space.
+    fn list_space_member_items(
+        &self,
+        id: &str,
+        limit: usize,
+    ) -> Result<Vec<ItemDto>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT i.id, i.kind, i.title, i.description, i.source_url, i.source_label,
+                    i.local_asset_path, i.thumbnail_path, i.ocr_text, i.metadata, i.created_at,
+                    i.updated_at, i.archived, i.favorite, NULL AS body, 'md' AS body_format
+             FROM space_items s
+             JOIN items i ON i.id = s.item_id
+             WHERE s.space_id = ?1 AND i.archived = 0
+             ORDER BY s.added_at DESC, i.id
+             LIMIT ?2",
+        )?;
+
+        let items = statement
+            .query_map(
+                params![id, i64::try_from(limit).unwrap_or(100)],
+                item_from_row,
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(items)
+    }
+
+    /// File an item into a Regular Space. Adding the same pair twice is a
+    /// no-op rather than an error, so a retried click cannot fail.
+    fn add_space_item(&self, space_id: &str, item_id: &str) -> Result<(), StorageError> {
+        let space = self
+            .get_space(space_id)?
+            .ok_or_else(|| StorageError::NotFound(space_id.to_owned()))?;
+        if space.kind != SpaceKind::Regular {
+            return Err(StorageError::InvalidInput(
+                "items can only be added to a Regular Space".into(),
+            ));
+        }
+        // space_items carries no foreign key, so nothing below would stop an
+        // unknown item id from becoming an orphan membership row.
+        if self.get_item(item_id)?.is_none() {
+            return Err(StorageError::NotFound(item_id.to_owned()));
+        }
+
+        self.connection.execute(
+            "INSERT OR IGNORE INTO space_items (space_id, item_id, added_at) VALUES (?1, ?2, ?3)",
+            params![space_id, item_id, now_millis()?],
+        )?;
+
+        Ok(())
+    }
+
+    /// Take an item back out of a Regular Space. Missing membership is a no-op.
+    fn remove_space_item(&self, space_id: &str, item_id: &str) -> Result<(), StorageError> {
+        if self.get_space(space_id)?.is_none() {
+            return Err(StorageError::NotFound(space_id.to_owned()));
+        }
+
+        self.connection.execute(
+            "DELETE FROM space_items WHERE space_id = ?1 AND item_id = ?2",
+            params![space_id, item_id],
+        )?;
+
+        Ok(())
+    }
+
+    /// Which Regular Spaces hold this item, in sidebar order. Smart Spaces are
+    /// left out: their contents come from the query and change on their own.
+    fn list_item_space_ids(&self, item_id: &str) -> Result<Vec<String>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT s.id
+             FROM space_items m
+             JOIN spaces s ON s.id = m.space_id
+             WHERE m.item_id = ?1
+             ORDER BY s.position, s.created_at",
+        )?;
+
+        let ids = statement
+            .query_map(params![item_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(ids)
     }
 }
 
@@ -1507,6 +1789,93 @@ fn normalize_space_color(color: Option<&str>) -> String {
     }
 }
 
+fn ensure_item_columns(
+    connection: &Connection,
+    migration_needed: bool,
+) -> Result<(), rusqlite::Error> {
+    let mut added_column = false;
+    for (name, alter) in [
+        (
+            "body",
+            "ALTER TABLE items ADD COLUMN body TEXT NOT NULL DEFAULT ''",
+        ),
+        (
+            "body_format",
+            "ALTER TABLE items ADD COLUMN body_format TEXT NOT NULL DEFAULT 'md'",
+        ),
+    ] {
+        let present: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('items') WHERE name = ?1",
+            params![name],
+            |row| row.get(0),
+        )?;
+        if present == 0 {
+            connection.execute(alter, [])?;
+            added_column = true;
+        }
+    }
+
+    let needs_backfill = if migration_needed || added_column {
+        true
+    } else {
+        connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM items WHERE body IS NULL OR body_format IS NULL)",
+            [],
+            |row| row.get::<_, i64>(0),
+        )? != 0
+    };
+    if !needs_backfill {
+        return Ok(());
+    }
+
+    let query = if migration_needed || added_column {
+        "SELECT id, kind, description, body, body_format FROM items"
+    } else {
+        "SELECT id, kind, description, body, body_format
+         FROM items
+         WHERE body IS NULL OR body_format IS NULL"
+    };
+    let transaction = connection.unchecked_transaction()?;
+    let rows = {
+        let mut statement = transaction.prepare(query)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+
+    for (id, kind, description, body, body_format) in rows {
+        // The body column belongs to notes. A legacy note kept its text in
+        // description, so that stays the only fallback; quotes and urls already
+        // hold theirs in title and searchable metadata.
+        let body = body
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| match kind.as_str() {
+                "note" => description.clone(),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let body_format = body_format
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| BODY_FORMAT_MARKDOWN.to_owned());
+        transaction.execute(
+            "UPDATE items SET body = ?1, body_format = ?2 WHERE id = ?3",
+            params![body, body_format, id],
+        )?;
+    }
+    transaction.commit()?;
+
+    Ok(())
+}
+
 fn ensure_job_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
     for (name, definition) in [
         ("worker_id", "TEXT"),
@@ -1526,6 +1895,23 @@ fn ensure_job_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
                 [],
             )?;
         }
+    }
+    Ok(())
+}
+
+fn ensure_space_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
+    // Libraries created before manual collections have no `kind` column. Every
+    // existing Space was a saved search, so the default has to be Smart.
+    let present: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('spaces') WHERE name = 'kind'",
+        [],
+        |row| row.get(0),
+    )?;
+    if present == 0 {
+        connection.execute(
+            "ALTER TABLE spaces ADD COLUMN kind TEXT NOT NULL DEFAULT 'smart'",
+            [],
+        )?;
     }
     Ok(())
 }
@@ -1580,6 +1966,19 @@ pub fn list_archived_items(state: State<'_, StorageState>) -> Result<Vec<ItemDto
         .as_ref()
         .expect("require_storage guarantees initialization")
         .list_archived_items()
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn get_item_content(
+    id: String,
+    state: State<'_, StorageState>,
+) -> Result<ItemContentDto, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .get_item_content(&id)
         .map_err(String::from)
 }
 
@@ -1718,6 +2117,8 @@ pub fn update_item(
 ) -> Result<ItemDto, String> {
     let should_reembed = input.title.is_some()
         || input.description.is_some()
+        || input.body.is_some()
+        || input.body_format.is_some()
         || input.metadata.is_some()
         || input.add_tag.is_some()
         || input.local_asset_path.is_some();
@@ -1901,8 +2302,8 @@ pub fn swap_space_positions(
         .map_err(String::from)
 }
 
-/// Lazy Smart Space evaluation: items are computed from the saved query at
-/// read time, so new captures appear without any membership bookkeeping.
+/// Smart Spaces re-run their saved query at read time; Regular Spaces read
+/// back the items filed into them. Either way new captures need no bookkeeping.
 #[tauri::command]
 pub fn list_space_items(
     id: String,
@@ -1917,6 +2318,47 @@ pub fn list_space_items(
         .map_err(String::from)
 }
 
+#[tauri::command]
+pub fn add_space_item(
+    space_id: String,
+    item_id: String,
+    state: State<'_, StorageState>,
+) -> Result<(), String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .add_space_item(&space_id, &item_id)
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn remove_space_item(
+    space_id: String,
+    item_id: String,
+    state: State<'_, StorageState>,
+) -> Result<(), String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .remove_space_item(&space_id, &item_id)
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn list_item_spaces(
+    item_id: String,
+    state: State<'_, StorageState>,
+) -> Result<Vec<String>, String> {
+    let database = state.require_storage().map_err(String::from)?;
+    database
+        .as_ref()
+        .expect("require_storage guarantees initialization")
+        .list_item_space_ids(&item_id)
+        .map_err(String::from)
+}
+
 fn setup_fts5(connection: &Connection) -> bool {
     let result = (|| -> rusqlite::Result<()> {
         let transaction = rusqlite::Transaction::new_unchecked(
@@ -1928,9 +2370,23 @@ fn setup_fts5(connection: &Connection) -> bool {
             [],
             |row| row.get(0),
         )?;
-        // Drop and recreate the triggers every open so a missing trigger is
-        // restored and a stale definition can never linger. DDL only: this
-        // writes no index rows, so a healthy reopen stays a no-op below.
+        let body_column_count: i64 = if exists {
+            transaction.query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('items_fts') WHERE name = 'body'",
+                [],
+                |row| row.get(0),
+            )?
+        } else {
+            0
+        };
+        if exists && body_column_count == 0 {
+            transaction.execute_batch(
+                "DROP TRIGGER IF EXISTS items_fts_after_insert;
+                 DROP TRIGGER IF EXISTS items_fts_after_update;
+                 DROP TRIGGER IF EXISTS items_fts_after_delete;
+                 DROP TABLE IF EXISTS items_fts;",
+            )?;
+        }
         transaction.execute_batch(
         r#"
         CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
@@ -1939,14 +2395,15 @@ fn setup_fts5(connection: &Connection) -> bool {
             description,
             source_label,
             ocr_text,
-            metadata
+            metadata,
+            body
         );
 
         DROP TRIGGER IF EXISTS items_fts_after_insert;
         CREATE TRIGGER items_fts_after_insert
         AFTER INSERT ON items BEGIN
-            INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
-            VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata);
+            INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
+            VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata, new.body);
         END;
 
         DROP TRIGGER IF EXISTS items_fts_after_delete;
@@ -1959,26 +2416,21 @@ fn setup_fts5(connection: &Connection) -> bool {
         CREATE TRIGGER items_fts_after_update
         AFTER UPDATE ON items BEGIN
             DELETE FROM items_fts WHERE item_id = old.id;
-            INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
-            VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata);
+            INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
+            VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata, new.body);
         END;
 
         "#,
         )?;
-        // A present table is not proof of a healthy index: a crash between
-        // the table create and the backfill leaves a partial index behind.
-        // Repair past content by comparing row counts and rebuilding only on
-        // mismatch. This catches missing or extra rows, not same-count
-        // staleness; triggers above keep all future writes covered.
         let item_count: i64 =
             transaction.query_row("SELECT COUNT(*) FROM items", [], |row| row.get(0))?;
         let indexed_count: i64 =
             transaction.query_row("SELECT COUNT(*) FROM items_fts", [], |row| row.get(0))?;
-        if !exists || item_count != indexed_count {
+        if !exists || body_column_count == 0 || item_count != indexed_count {
             transaction.execute_batch(
                 "DELETE FROM items_fts;
-                 INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
-                 SELECT id, title, description, source_label, ocr_text, metadata FROM items;",
+                 INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
+                 SELECT id, title, description, source_label, ocr_text, metadata, body FROM items;",
             )?;
         }
         transaction.commit()
@@ -2012,6 +2464,8 @@ fn item_from_row(row: &Row<'_>) -> rusqlite::Result<ItemDto> {
         updated_at: row.get(11)?,
         archived: row.get::<_, i64>(12)? != 0,
         favorite: row.get::<_, i64>(13)? != 0,
+        body: row.get(14)?,
+        body_format: row.get(15)?,
     })
 }
 
@@ -2033,6 +2487,68 @@ fn dot_product(left: &[f32], right: &[f32]) -> f32 {
         .zip(right)
         .map(|(left, right)| left * right)
         .sum()
+}
+
+pub(crate) fn markdown_to_plain_text(markdown: &str) -> String {
+    let mut plain = String::new();
+    // Tasklist support is what drops `- [x]` markers: the parser reports each one
+    // as its own event instead of text, so nothing is matched against the joined
+    // string afterwards.
+    let options = pulldown_cmark::Options::ENABLE_TASKLISTS;
+    for event in Parser::new_ext(markdown, options) {
+        match event {
+            // Adjacent inline runs belong to the same word or phrase, so they are
+            // appended as they came. A parser that splits `[x]` into three events
+            // must not become `[ x ]`.
+            Event::Text(value) | Event::Code(value) => plain.push_str(&value),
+            Event::SoftBreak | Event::HardBreak => plain.push(' '),
+            Event::Start(tag) if starts_block(&tag) => plain.push(' '),
+            Event::InlineHtml(raw) if is_void_tag(&raw) => plain.push(' '),
+            _ => continue,
+        }
+    }
+    plain
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace(" .", ".")
+        .replace(" ,", ",")
+        .replace(" ;", ";")
+        .replace(" :", ":")
+        .replace(" !", "!")
+        .replace(" ?", "?")
+}
+
+fn starts_block(tag: &Tag) -> bool {
+    matches!(
+        tag,
+        Tag::Paragraph
+            | Tag::Heading { .. }
+            | Tag::BlockQuote(_)
+            | Tag::CodeBlock(_)
+            | Tag::Item
+            | Tag::Table(_)
+            | Tag::TableRow
+            | Tag::TableCell
+    )
+}
+
+// A void inline element ends a line, so `foo<br>bar` must not come back as
+// `foobar`. An inline wrapper such as `<em>` only marks up a run and must not
+// split it; a word-internal hint like `<wbr>` is a break opportunity, not a
+// boundary, and treating either as one splits a word in half.
+fn is_void_tag(raw: &str) -> bool {
+    let name: String = raw
+        .trim()
+        .trim_start_matches('<')
+        .trim_start_matches('/')
+        .chars()
+        .take_while(char::is_ascii_alphanumeric)
+        .collect();
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "br" | "hr" | "img" | "input"
+    )
 }
 
 fn non_empty_string(value: String) -> Option<String> {
@@ -2890,6 +3406,404 @@ mod tests {
     }
 
     #[test]
+    fn note_body_round_trips_and_updates_search_index() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-note-body-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Reading list".into()),
+                body: "# Reading list\n\n**Ship** the editor and [read the docs](https://example.com).".into(),
+                metadata: None,
+            })
+            .unwrap();
+
+        assert_eq!(
+            item.body.as_deref(),
+            Some("# Reading list\n\n**Ship** the editor and [read the docs](https://example.com).")
+        );
+        assert_eq!(item.body_format.as_deref(), Some(BODY_FORMAT_MARKDOWN));
+        assert_eq!(
+            item.description.as_deref(),
+            Some("Reading list Ship the editor and read the docs.")
+        );
+        assert!(storage
+            .search_items("Ship", 10)
+            .unwrap()
+            .iter()
+            .any(|result| result.id == item.id));
+        assert!(storage
+            .list_active_items()
+            .unwrap()
+            .iter()
+            .all(|result| result.body.is_none()));
+
+        let updated = storage
+            .update_item(UpdateItemInput {
+                id: item.id.clone(),
+                body: Some("## Next\n\n- [x] Verify the preview".into()),
+                body_format: Some(BODY_FORMAT_MARKDOWN.into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            updated.description.as_deref(),
+            Some("Next Verify the preview")
+        );
+        assert!(storage
+            .search_items("Ship", 10)
+            .unwrap()
+            .iter()
+            .all(|result| result.id != item.id));
+        assert!(storage
+            .search_items("preview", 10)
+            .unwrap()
+            .iter()
+            .any(|result| result.id == item.id));
+        assert_eq!(
+            storage.get_item_content(&item.id).unwrap().body,
+            "## Next\n\n- [x] Verify the preview"
+        );
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn an_explicit_description_outranks_the_body_projection() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-description-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Field notes".into()),
+                body: "first draft".into(),
+                metadata: None,
+            })
+            .unwrap();
+
+        // A caller that sends no description gets the projection, which is how
+        // the note editor re-derives it from the body it just saved.
+        let derived = storage
+            .update_item(UpdateItemInput {
+                id: item.id.clone(),
+                body: Some("## Second\n\nA sharper line.".into()),
+                body_format: Some(BODY_FORMAT_MARKDOWN.into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            derived.description.as_deref(),
+            Some("Second A sharper line.")
+        );
+
+        // A caller that sends both gets the description it asked for, and the
+        // body still lands.
+        let explicit = storage
+            .update_item(UpdateItemInput {
+                id: item.id.clone(),
+                description: Some("A hand written summary".into()),
+                body: Some("## Third\n\nDifferent text again.".into()),
+                body_format: Some(BODY_FORMAT_MARKDOWN.into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            explicit.description.as_deref(),
+            Some("A hand written summary")
+        );
+        assert_eq!(
+            storage.get_item_content(&item.id).unwrap().body,
+            "## Third\n\nDifferent text again."
+        );
+
+        // A description on its own is still a plain description write.
+        let described = storage
+            .update_item(UpdateItemInput {
+                id: item.id.clone(),
+                description: Some("  Trimmed summary  ".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(described.description.as_deref(), Some("Trimmed summary"));
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn only_notes_carry_a_body_column() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-body-scope-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        // The frontend sends the primary text of every kind under the same
+        // `body` name, so the storage layer has to keep the column note-only or
+        // a quote ends up storing its text four times.
+        let note = storage
+            .create_note(CreateNoteInput {
+                title: Some("A note".into()),
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let quote = storage
+            .create_quote(CreateQuoteInput {
+                body: "warm light".into(),
+                attribution: Some("Ada".into()),
+                source_url: None,
+                metadata: None,
+            })
+            .unwrap();
+        let article = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://example.com/warm-light".into(),
+                title: Some("An article".into()),
+                description: None,
+                body: "warm light".into(),
+                metadata: None,
+            })
+            .unwrap();
+
+        assert_eq!(note.body.as_deref(), Some("warm light"));
+        assert_eq!(note.body_format.as_deref(), Some(BODY_FORMAT_MARKDOWN));
+        assert_eq!(quote.body.as_deref(), Some(""));
+        assert_eq!(quote.body_format.as_deref(), Some(""));
+        assert_eq!(article.body.as_deref(), Some(""));
+        assert_eq!(article.body_format.as_deref(), Some(""));
+
+        // The quote keeps its text where the rest of the app reads it.
+        assert_eq!(quote.title.as_deref(), Some("warm light"));
+        assert_eq!(quote.description.as_deref(), Some("Ada"));
+        assert!(storage
+            .search_items("warm", 10)
+            .unwrap()
+            .iter()
+            .any(|result| result.id == quote.id));
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn plain_text_drops_task_markers_but_keeps_brackets_written_as_prose() {
+        assert_eq!(
+            markdown_to_plain_text("- [x] Measure the wall\n- [ ] Order the chairs"),
+            "Measure the wall Order the chairs"
+        );
+        assert_eq!(
+            markdown_to_plain_text("The prompt prints [X] when the step passes."),
+            "The prompt prints [X] when the step passes."
+        );
+        assert_eq!(
+            markdown_to_plain_text("Toggle between [ ] and [x] in the list."),
+            "Toggle between [ ] and [x] in the list."
+        );
+    }
+
+    #[test]
+    fn plain_text_keeps_words_apart_across_void_inline_tags() {
+        assert_eq!(markdown_to_plain_text("foo<br>bar"), "foo bar");
+        assert_eq!(markdown_to_plain_text("one<br/>two"), "one two");
+        assert_eq!(markdown_to_plain_text("a<em>bc</em>d"), "abcd");
+        // A word-internal break hint must not become a space in search text.
+        assert_eq!(markdown_to_plain_text("hy<wbr>phen"), "hyphen");
+    }
+
+    #[test]
+    fn old_item_schema_is_migrated_and_old_fts_is_rebuilt() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-note-migration-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("library.sqlite3");
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE items (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    kind TEXT NOT NULL,
+                    title TEXT,
+                    description TEXT,
+                    source_url TEXT,
+                    source_label TEXT,
+                    local_asset_path TEXT,
+                    thumbnail_path TEXT,
+                    ocr_text TEXT NOT NULL DEFAULT '',
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    archived INTEGER NOT NULL DEFAULT 0,
+                    favorite INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE VIRTUAL TABLE items_fts USING fts5(
+                    item_id UNINDEXED,
+                    title,
+                    description,
+                    source_label,
+                    ocr_text,
+                    metadata
+                );
+                CREATE TRIGGER items_fts_after_insert
+                AFTER INSERT ON items BEGIN
+                    INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
+                    VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata);
+                END;
+                CREATE TRIGGER items_fts_after_update
+                AFTER UPDATE ON items BEGIN
+                    DELETE FROM items_fts WHERE item_id = old.id;
+                    INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata)
+                    VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata);
+                END;
+                CREATE TRIGGER items_fts_after_delete
+                AFTER DELETE ON items BEGIN
+                    DELETE FROM items_fts WHERE item_id = old.id;
+                END;
+                INSERT INTO items(id, kind, title, description, metadata, ocr_text, created_at, updated_at)
+                VALUES ('legacy-note', 'note', 'Legacy note', 'legacy searchable body', '{}', '', 1, 1);
+                INSERT INTO items(id, kind, title, description, source_url, source_label, metadata, ocr_text, created_at, updated_at)
+                VALUES (
+                    'legacy-quote', 'quote', 'A library is a promise to the future', 'Ada Lovelace',
+                    NULL, NULL,
+                    '{\"quoteText\":\"A library is a promise to the future\",\"attribution\":\"Ada Lovelace\",\"text\":\"A library is a promise to the future. Ada Lovelace\"}',
+                    '', 1, 1
+                );
+                INSERT INTO items(id, kind, title, description, source_url, source_label, metadata, ocr_text, created_at, updated_at)
+                VALUES (
+                    'legacy-url', 'url', 'On writing well', NULL,
+                    'https://example.com/writing', 'example.com',
+                    '{\"sourceUrl\":\"https://example.com/writing\",\"text\":\"Extracted article text that should not be duplicated into the body column.\",\"html\":\"\"}',
+                    '', 1, 1
+                );
+                PRAGMA user_version = 6;",
+            )
+            .unwrap();
+        drop(connection);
+
+        let storage = LibraryStorage::open(path.clone()).unwrap();
+        let migrated = storage.get_item("legacy-note").unwrap().unwrap();
+        assert_eq!(migrated.body.as_deref(), Some("legacy searchable body"));
+        assert_eq!(migrated.body_format.as_deref(), Some(BODY_FORMAT_MARKDOWN));
+        assert!(storage
+            .search_items("searchable", 10)
+            .unwrap()
+            .iter()
+            .any(|item| item.id == "legacy-note"));
+
+        // A migrated quote and url keep their text where the create paths put it
+        // and must not gain a second copy in body.
+        let migrated_quote = storage.get_item("legacy-quote").unwrap().unwrap();
+        assert_eq!(migrated_quote.body.as_deref(), Some(""));
+        assert_eq!(
+            migrated_quote.title.as_deref(),
+            Some("A library is a promise to the future")
+        );
+        assert_eq!(
+            migrated_quote
+                .metadata
+                .get("quoteText")
+                .and_then(Value::as_str),
+            Some("A library is a promise to the future")
+        );
+        let migrated_url = storage.get_item("legacy-url").unwrap().unwrap();
+        assert_eq!(migrated_url.body.as_deref(), Some(""));
+        assert_eq!(
+            migrated_url.metadata.get("text").and_then(Value::as_str),
+            Some("Extracted article text that should not be duplicated into the body column.")
+        );
+        assert!(storage
+            .search_items("Lovelace", 10)
+            .unwrap()
+            .iter()
+            .any(|item| item.id == "legacy-quote"));
+
+        let body_columns: i64 = storage
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('items') WHERE name IN ('body', 'body_format')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(body_columns, 2);
+        drop(storage);
+
+        let reopened = LibraryStorage::open(path).unwrap();
+        assert_eq!(
+            reopened.get_item_content("legacy-note").unwrap().body,
+            "legacy searchable body"
+        );
+        drop(reopened);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn migrated_item_bodies_are_not_rewritten_on_every_open() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-note-backfill-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("library.sqlite3");
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE items (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    kind TEXT NOT NULL,
+                    title TEXT,
+                    description TEXT,
+                    source_url TEXT,
+                    source_label TEXT,
+                    local_asset_path TEXT,
+                    thumbnail_path TEXT,
+                    ocr_text TEXT NOT NULL DEFAULT '',
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    archived INTEGER NOT NULL DEFAULT 0,
+                    favorite INTEGER NOT NULL DEFAULT 0
+                );
+                INSERT INTO items(id, kind, title, description, metadata, created_at, updated_at)
+                VALUES ('legacy-note', 'note', 'Legacy note', 'legacy searchable body', '{}', 1, 1);
+                PRAGMA user_version = 6;",
+            )
+            .unwrap();
+        drop(connection);
+
+        let storage = LibraryStorage::open(path.clone()).unwrap();
+        assert_eq!(
+            storage.get_item_content("legacy-note").unwrap().body,
+            "legacy searchable body"
+        );
+        storage
+            .connection
+            .execute_batch(
+                "CREATE TABLE body_writes (id INTEGER PRIMARY KEY);
+                 CREATE TRIGGER log_body_writes
+                 AFTER UPDATE OF body, body_format ON items
+                 BEGIN
+                     INSERT INTO body_writes (id) VALUES (NULL);
+                 END;",
+            )
+            .unwrap();
+        drop(storage);
+
+        let reopened = LibraryStorage::open(path).unwrap();
+        let rewrites: i64 = reopened
+            .connection
+            .query_row("SELECT COUNT(*) FROM body_writes", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rewrites, 0);
+        assert_eq!(
+            reopened.get_item_content("legacy-note").unwrap().body,
+            "legacy searchable body"
+        );
+        drop(reopened);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn semantic_search_reads_stored_text_embeddings() {
         let directory =
             std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
@@ -2967,6 +3881,216 @@ mod tests {
     }
 
     #[test]
+    fn regular_spaces_hold_only_the_items_filed_into_them() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-manual-spaces-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let filed = storage
+            .create_note(CreateNoteInput {
+                title: Some("Filed".into()),
+                body: "goes in the space".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let left_out = storage
+            .create_note(CreateNoteInput {
+                title: Some("Left out".into()),
+                body: "stays in the library".into(),
+                metadata: None,
+            })
+            .unwrap();
+
+        // A search query captured in the create form must not become a manual
+        // Space's contents; only filed items do.
+        let space = storage
+            .create_space(CreateSpaceInput {
+                name: "Weekend reading".into(),
+                color: None,
+                kind: SpaceKind::Regular,
+                query: SmartSpaceQuery {
+                    text: Some("left out".into()),
+                    ..Default::default()
+                },
+            })
+            .unwrap();
+        assert_eq!(space.kind, SpaceKind::Regular);
+        assert!(storage.list_space_items(&space.id, 50).unwrap().is_empty());
+
+        storage.add_space_item(&space.id, &filed.id).unwrap();
+        let items = storage.list_space_items(&space.id, 50).unwrap();
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| item.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![filed.id.as_str()]
+        );
+        assert_eq!(
+            storage.list_item_space_ids(&filed.id).unwrap(),
+            vec![space.id.clone()]
+        );
+
+        // Filing the same item twice is a no-op, so a retried click cannot fail.
+        storage.add_space_item(&space.id, &filed.id).unwrap();
+        assert_eq!(storage.list_space_items(&space.id, 50).unwrap().len(), 1);
+
+        // Taking an item back out is a no-op when it was never in.
+        storage.remove_space_item(&space.id, &left_out.id).unwrap();
+        assert_eq!(storage.list_space_items(&space.id, 50).unwrap().len(), 1);
+        storage.remove_space_item(&space.id, &filed.id).unwrap();
+        assert!(storage.list_space_items(&space.id, 50).unwrap().is_empty());
+        assert!(storage.list_item_space_ids(&filed.id).unwrap().is_empty());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn filing_an_item_that_does_not_exist_is_refused() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-manual-missing-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let space = storage
+            .create_space(CreateSpaceInput {
+                name: "Weekend reading".into(),
+                color: None,
+                kind: SpaceKind::Regular,
+                query: SmartSpaceQuery::default(),
+            })
+            .unwrap();
+
+        // space_items has no foreign key, so nothing but this check stops a bad
+        // id from leaving an orphan row nothing will ever read or clean up.
+        assert!(matches!(
+            storage.add_space_item(&space.id, "no-such-item"),
+            Err(StorageError::NotFound(_))
+        ));
+        assert!(storage.list_space_items(&space.id, 50).unwrap().is_empty());
+
+        // A real item that was deleted for good is refused the same way.
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Gone".into()),
+                body: "deleted below".into(),
+                metadata: None,
+            })
+            .unwrap();
+        storage.archive_item(&item.id, true).unwrap();
+        storage.delete_item(&item.id).unwrap();
+        assert!(matches!(
+            storage.add_space_item(&space.id, &item.id),
+            Err(StorageError::NotFound(_))
+        ));
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn archiving_hides_a_filed_item_until_it_is_restored() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-manual-restore-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Filed".into()),
+                body: "belongs in the space".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let space = storage
+            .create_space(CreateSpaceInput {
+                name: "Weekend reading".into(),
+                color: None,
+                kind: SpaceKind::Regular,
+                query: SmartSpaceQuery::default(),
+            })
+            .unwrap();
+        storage.add_space_item(&space.id, &item.id).unwrap();
+        assert_eq!(storage.list_space_items(&space.id, 50).unwrap().len(), 1);
+
+        // Archiving is reversible, so membership survives it: the Space just
+        // stops listing the item until the user brings it back.
+        storage.archive_item(&item.id, true).unwrap();
+        assert!(storage.list_space_items(&space.id, 50).unwrap().is_empty());
+        storage.archive_item(&item.id, false).unwrap();
+        let items = storage.list_space_items(&space.id, 50).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, item.id);
+
+        // A permanent delete drops the membership, since the item is gone.
+        storage.archive_item(&item.id, true).unwrap();
+        storage.delete_item(&item.id).unwrap();
+        assert!(storage.list_item_space_ids(&item.id).unwrap().is_empty());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn smart_spaces_refuse_manual_membership() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-smart-membership-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        let item = storage
+            .create_note(CreateNoteInput {
+                title: Some("Note".into()),
+                body: "text".into(),
+                metadata: None,
+            })
+            .unwrap();
+        let smart = storage
+            .create_space(CreateSpaceInput {
+                name: "Top picks".into(),
+                color: None,
+                kind: SpaceKind::Smart,
+                query: SmartSpaceQuery::default(),
+            })
+            .unwrap();
+
+        // A Smart Space decides its own contents, so filing into it is rejected
+        // rather than silently ignored.
+        assert!(matches!(
+            storage.add_space_item(&smart.id, &item.id),
+            Err(StorageError::InvalidInput(_))
+        ));
+        // Regular Spaces have no query to edit, so a query update is rejected
+        // instead of being dropped.
+        let regular = storage
+            .create_space(CreateSpaceInput {
+                name: "Weekend reading".into(),
+                color: None,
+                kind: SpaceKind::Regular,
+                query: SmartSpaceQuery::default(),
+            })
+            .unwrap();
+        assert!(matches!(
+            storage.update_space(UpdateSpaceInput {
+                id: regular.id.clone(),
+                name: None,
+                color: None,
+                query: Some(SmartSpaceQuery::default()),
+                position: None,
+            }),
+            Err(StorageError::InvalidInput(_))
+        ));
+        // Membership writes still reach the database after a rejected update.
+        assert!(storage.add_space_item(&regular.id, &item.id).is_ok());
+        assert!(storage.remove_space_item(&regular.id, &item.id).is_ok());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn smart_spaces_evaluate_queries_lazily() {
         let directory =
             std::env::temp_dir().join(format!("inkling-spaces-test-{}", Uuid::new_v4()));
@@ -3007,6 +4131,7 @@ mod tests {
             .create_space(CreateSpaceInput {
                 name: "Design references".into(),
                 color: Some("orange".into()),
+                kind: SpaceKind::Smart,
                 query: SmartSpaceQuery {
                     tag: Some("reference".into()),
                     ..Default::default()
@@ -3027,6 +4152,7 @@ mod tests {
             .create_space(CreateSpaceInput {
                 name: "Top picks".into(),
                 color: None,
+                kind: SpaceKind::Smart,
                 query: SmartSpaceQuery {
                     favorite: Some(true),
                     ..Default::default()
@@ -3042,6 +4168,7 @@ mod tests {
             .create_space(CreateSpaceInput {
                 name: "Timber thinking".into(),
                 color: None,
+                kind: SpaceKind::Smart,
                 query: SmartSpaceQuery {
                     text: Some("timber".into()),
                     ..Default::default()
@@ -3057,6 +4184,7 @@ mod tests {
             .create_space(CreateSpaceInput {
                 name: "Everything space".into(),
                 color: None,
+                kind: SpaceKind::Smart,
                 query: SmartSpaceQuery::default(),
             })
             .unwrap();
@@ -3130,6 +4258,7 @@ mod tests {
             .create_space(CreateSpaceInput {
                 name: "Articles".into(),
                 color: None,
+                kind: SpaceKind::Smart,
                 query: SmartSpaceQuery {
                     kind: Some("article".into()),
                     ..Default::default()
@@ -3259,6 +4388,41 @@ mod tests {
 
         assert!(!item_directory.exists());
         assert!(storage.get_item(&item.id).unwrap().is_none());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn delete_item_leaves_files_when_item_not_archived() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let database_path = directory.join("library.sqlite3");
+        let storage = LibraryStorage::open(database_path).unwrap();
+        let item = storage
+            .save_file(SaveFileInput {
+                id: None,
+                file_name: "notes.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"archived bytes".to_vec(),
+            })
+            .unwrap();
+        let item_directory = directory.join("assets").join("items").join(&item.id);
+        assert!(item_directory.is_dir());
+
+        // Archive, then restore within the undo window: a pending delete must
+        // no longer be able to take the row's files with it.
+        storage.archive_item(&item.id, true).unwrap();
+        storage.archive_item(&item.id, false).unwrap();
+
+        assert!(matches!(
+            storage.delete_item(&item.id),
+            Err(StorageError::NotFound(_))
+        ));
+        assert!(item_directory.is_dir());
+        assert!(storage.get_item(&item.id).unwrap().is_some());
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();
@@ -3576,6 +4740,7 @@ mod tests {
             .create_space(CreateSpaceInput {
                 name: "Reading".into(),
                 color: None,
+                kind: SpaceKind::Smart,
                 query: SmartSpaceQuery::default(),
             })
             .unwrap();

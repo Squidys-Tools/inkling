@@ -6,7 +6,7 @@ inkling is a quiet little home for everything you want to keep: articles, images
 
 Everything lives on your own computer. Nothing leaves ever leaves.
 
-<img src="docs/assets/mascots/inkling-splash-loop.svg" alt="inkling mascot, a small ink blot with eyes that turns, drifts and blinks" width="160">
+<img src="docs/assets/mascots/inkling-splash-loop.svg" alt="inkling mascot, a small ink blot that drifts, blinks and changes expression" width="160">
 
 ![Your inkling library — a visual grid of saved articles, images, quotes, and videos](docs/assets/screenshots/library.png)
 
@@ -67,7 +67,7 @@ Short clips say more than paragraphs. (Placeholders for now, real ones soon.)
 
 ## Meet the mascot
 
-A small ink blot lives in the sidebar and pops into the search bar while you type. It drifts when idle, perks up when there's background work, and looks sad when a save fails. It's also the app icon.
+A small ink blot lives in the sidebar and pops into the search bar while you type. It drifts when idle, perks up when there's background work, looks sad when a save fails, and now takes quiet walks around the library on its own. It's also the app icon.
 
 <p>
   <img src="docs/assets/mascots/inkling-splash-idle.svg" alt="inkling mascot idling" width="120">

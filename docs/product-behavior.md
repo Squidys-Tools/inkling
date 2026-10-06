@@ -121,7 +121,9 @@ Smart Spaces update automatically whenever an item matches their query. They can
 
 ### Regular Spaces
 
-Regular Spaces contain items manually added by the user. This is meant more for compatability with other apps and to create a more seamless flow and transfer of the user to this app.
+Regular Spaces hold items the user adds by hand. Opening an item shows its Regular Spaces as chips; choosing one files the item in, and choosing it again takes the item back out. Whether a Space is Smart or Regular is chosen when it is created and does not change afterwards.
+
+Archiving an item hides it from a Regular Space without removing it, so restoring the item returns it to the Space it was filed in. Deleting an item for good removes it from every Space.
 
 Users should be able to create, rename, reorder, recolor, and delete Spaces. Deleting a Space must not delete its items.
 

@@ -8,6 +8,8 @@ export type StoredLibraryItem = {
   kind: StoredItemKind | string;
   title: string | null;
   description: string | null;
+  body?: string | null;
+  bodyFormat?: string | null;
   sourceUrl: string | null;
   sourceLabel: string | null;
   localAssetPath: string | null;
@@ -18,6 +20,12 @@ export type StoredLibraryItem = {
   updatedAt: number;
   archived: boolean;
   favorite: boolean;
+};
+
+export type StoredItemContent = {
+  id: string;
+  body: string;
+  bodyFormat: string;
 };
 
 export type CreateNoteInput = {
@@ -45,6 +53,8 @@ type UpdateItemInput = {
   id: string;
   title?: string;
   description?: string;
+  body?: string;
+  bodyFormat?: string;
   sourceUrl?: string;
   sourceLabel?: string;
   localAssetPath?: string;
@@ -97,11 +107,16 @@ export type SmartSpaceQuery = {
   favorite?: boolean | null;
 };
 
+/** A "smart" Space re-runs its saved query; a "regular" Space holds the items
+ *  the user filed into it. Fixed at creation. */
+export type SpaceKind = "smart" | "regular";
+
 export type StoredSpace = {
   id: string;
   name: string;
   color: string;
   query: SmartSpaceQuery;
+  kind: SpaceKind;
   position: number;
   createdAt: number;
   updatedAt: number;
@@ -111,6 +126,7 @@ export type CreateSpaceInput = {
   name: string;
   color?: string;
   query?: SmartSpaceQuery;
+  kind?: SpaceKind;
 };
 
 export type UpdateSpaceInput = {
@@ -186,6 +202,10 @@ export async function listArchivedItems() {
   return invoke<StoredLibraryItem[]>("list_archived_items");
 }
 
+export async function getItemContent(id: string) {
+  return invoke<StoredItemContent>("get_item_content", { id });
+}
+
 export async function searchItems(query: string) {
   return invoke<StoredLibraryItem[]>("search_items", { query, limit: 100 });
 }
@@ -215,9 +235,22 @@ export async function swapSpacePositions(firstId: string, secondId: string) {
   return withInitializedStorage(() => invoke<StoredSpace[]>("swap_space_positions", { firstId, secondId }));
 }
 
-// Smart Spaces evaluate lazily: the backend re-runs the saved query on every call.
+// Smart Spaces evaluate lazily: the backend re-runs the saved query on every
+// call. Regular Spaces read back the items filed into them.
 export async function listSpaceItems(id: string) {
   return withInitializedStorage(() => invoke<StoredLibraryItem[]>("list_space_items", { id, limit: 100 }));
+}
+
+export async function addSpaceItem(spaceId: string, itemId: string) {
+  await withInitializedStorage(() => invoke<void>("add_space_item", { spaceId, itemId }));
+}
+
+export async function removeSpaceItem(spaceId: string, itemId: string) {
+  await withInitializedStorage(() => invoke<void>("remove_space_item", { spaceId, itemId }));
+}
+
+export async function listItemSpaces(itemId: string) {
+  return withInitializedStorage(() => invoke<string[]>("list_item_spaces", { itemId }));
 }
 
 export async function createNote(input: CreateNoteInput) {

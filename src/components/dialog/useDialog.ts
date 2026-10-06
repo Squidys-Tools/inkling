@@ -81,6 +81,9 @@ export function useDialog<TElement extends HTMLElement = HTMLElement>(
     // Capture phase, so the topmost dialog answers Escape before anything
     // listening further down the tree can act on the same press.
     const onKeyDown = (event: KeyboardEvent) => {
+      // A focused plain input (the new-tag field, or the editor's link-URL
+      // editor) owns its own Escape; the topmost dialog must not claim it.
+      if (event.key === "Escape" && event.target instanceof HTMLInputElement) return;
       handleEscape(entry, event);
     };
 

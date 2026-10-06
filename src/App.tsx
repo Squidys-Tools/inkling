@@ -29,6 +29,7 @@ import {  Archive01Icon,
 import {
   assetUrl,
   archiveItem,
+  addSpaceItem,
   createQuote,
   createSpace,
   createUrl,
@@ -41,9 +42,12 @@ import {
   isTauriRuntime,
   listActiveItems,
   listArchivedItems,
+  listItemSpaces,
   listSpaceItems,
   listSpaces,
+  removeSpaceItem,
   getProcessingSummaries,
+  getItemContent,
   retryProcessingJob,
   saveFile,
   deleteItem,
@@ -54,6 +58,7 @@ import {
   type LibraryExportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
+  type SpaceKind,
   type StoredLibraryItem,
   type StoredSpace,
 } from "./lib/libraryApi";
@@ -70,12 +75,18 @@ const MascotBoard = lazy(() =>
 const AliveBoard = lazy(() =>
   import("./components/mascot/AliveBoard").then((module) => ({ default: module.AliveBoard })),
 );
+const RoamBoard = lazy(() =>
+  import("./components/mascot/RoamBoard").then((module) => ({ default: module.RoamBoard })),
+);
 const ExpandedItemOverlay = lazy(() =>
   import("./components/ExpandedItemOverlay").then((module) => ({
     default: module.ExpandedItemOverlay,
   })),
 );
-import { LiveMascotFigure, LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
+import { LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
+import { MascotHomeSlot } from "./components/mascot/MascotHomeSlot";
+import { MascotRoamLayer } from "./components/mascot/MascotRoamLayer";
+import { setRoamBusy, setRoamCaptureFailed } from "./components/mascot/roamStore";
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import { useDialog } from "./components/dialog/useDialog";
 import { CaptureModal, type CaptureMode } from "./components/CaptureModal";
@@ -107,6 +118,7 @@ const ReaderView = lazy(() =>
 import type { ReaderItem, ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
+import { markdownToPlainText, normalizeNoteBody, NOTE_BODY_FORMAT } from "./lib/notes";
 import { serendipityItems } from "./lib/serendipity";
 import { isEmptyPinsView, matchesPinsView } from "./lib/pinsView";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
@@ -138,6 +150,7 @@ export type LibraryItem = {
   kind: ItemKind;
   title: string;
   description: string;
+  noteBody?: string;
   source: string;
   date: string;
   createdAt?: number;
@@ -317,7 +330,12 @@ async function storedItemToLibraryItem(
     : item.sourceLabel || item.sourceUrl || "Quick note";
 
   const isQuote = kind === "Quote";
+  const noteBody = kind === "Note" && typeof item.body === "string" ? normalizeNoteBody(item.body) : undefined;
   const rawTitle = item.title?.trim() || "Untitled note";
+  // The backend already stored `markdown_to_plain_text(body)` as the
+  // description, so a note's plain text arrives ready to read. Projecting the
+  // body again here would only ever disagree with the stored row, and would
+  // eat the brackets in prose that happens to look like a link.
   const rawDescription =
     item.description?.trim() ||
     item.ocrText?.trim().slice(0, 180) ||
@@ -328,6 +346,7 @@ async function storedItemToLibraryItem(
     kind,
     title: rawTitle,
     description: social?.text?.trim() || rawDescription,
+    noteBody,
     source,
     sourceUrl: item.sourceUrl ?? undefined,
     date: formatItemDate(item.createdAt),
@@ -545,6 +564,8 @@ const seedItems: LibraryItem[] = [
     title: "Books to reread this fall",
     description:
       "Pilgrim at Tinker Creek, The Design of Everyday Things, Seeing Like a State. Start with the Dillard.",
+    noteBody:
+      "# Books to reread this fall\n\n- [ ] Pilgrim at Tinker Creek\n- [ ] The Design of Everyday Things\n- [ ] Seeing Like a State\n\nStart with the Dillard.",
     source: "Quick note",
     date: "Jul 19",
     tags: ["books", "life"],
@@ -665,6 +686,7 @@ const seedSpaces: StoredSpace[] = [
     name: "Design references",
     color: "orange",
     query: { tag: "reference" },
+    kind: "smart",
     position: 1,
     createdAt: 0,
     updatedAt: 0,
@@ -674,6 +696,7 @@ const seedSpaces: StoredSpace[] = [
     name: "Read later",
     color: "green",
     query: { tag: "essay" },
+    kind: "smart",
     position: 2,
     createdAt: 0,
     updatedAt: 0,
@@ -683,11 +706,30 @@ const seedSpaces: StoredSpace[] = [
     name: "Top picks",
     color: "blue",
     query: { favorite: true },
+    kind: "smart",
     position: 3,
     createdAt: 0,
     updatedAt: 0,
   },
+  {
+    id: "seed-weekend-reading",
+    name: "Weekend reading",
+    color: "pink",
+    query: {},
+    kind: "regular",
+    position: 4,
+    createdAt: 0,
+    updatedAt: 0,
+  },
 ];
+
+// Manual membership for the seeded Regular Space, so preview mode can exercise
+// the same add/remove flow the Tauri core serves from the database. These are
+// ids the demo seed actually keeps (5, 10, 12, 13); the archived copies in
+// previewArchivedItems are re-keyed, so the originals stay in the library.
+const seedSpaceItems: Record<string, string[]> = {
+  "seed-weekend-reading": ["5", "13"],
+};
 
 const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
 
@@ -757,6 +799,13 @@ type LibraryCardPosition = {
   height: number;
 };
 
+// One accepted archive delete: the timer waiting out the undo window, plus the
+// item that timer needs to restore or reconcile if the delete does not land.
+type PendingPermanentDelete = {
+  timer: number;
+  item: LibraryItem;
+};
+
 function clearLibraryTransitionTargetStyle(target: HTMLElement) {
   for (const property of ["position", "box-sizing", "left", "top", "width", "height", "min-width", "min-height", "max-width", "max-height", "aspect-ratio"]) {
     target.style.removeProperty(property);
@@ -785,6 +834,19 @@ function clearLibraryTransitionMediaStyle(clone: HTMLElement) {
 
 
 
+// Note bodies are cached so an opened note is not re-fetched and a refresh does
+// not drop a body the list query never carries. Same LRU shape as the asset URL
+// cache: writes re-insert, so the oldest key is the least recently used body.
+const NOTE_BODY_CACHE_LIMIT = 200;
+function rememberNoteBody(cache: Map<string, string>, id: string, body: string) {
+  cache.delete(id);
+  if (cache.size >= NOTE_BODY_CACHE_LIMIT) {
+    const oldest = cache.keys().next();
+    if (oldest.value !== undefined) cache.delete(oldest.value);
+  }
+  cache.set(id, body);
+}
+
 function App() {
   const canUseTauriBackend = isTauriRuntime() && !shouldUseSeedLibrary();
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
@@ -804,6 +866,15 @@ function App() {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
+  const [newSpaceKind, setNewSpaceKind] = useState<SpaceKind>("smart");
+  // Manual membership, keyed by space id then item id. Only read in preview and
+  // seed mode; the Tauri core owns membership through the space item commands.
+  const [localSpaceItems, setLocalSpaceItems] = useState<Map<string, Set<string>>>(
+    () => new Map(Object.entries(seedSpaceItems).map(([spaceId, ids]) => [spaceId, new Set(ids)])),
+  );
+  // Which Regular Spaces hold the item open in the overlay, so its chips can
+  // render in the right state. Cleared whenever the overlay closes.
+  const [itemSpaceIds, setItemSpaceIds] = useState<string[]>([]);
   const [renamingSpaceId, setRenamingSpaceId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -833,6 +904,36 @@ function App() {
       void import("./components/PdfViewer");
     }
   }, [selectedItem]);
+  const noteContentRequestsRef = useRef(new Set<string>());
+  const noteBodyCacheRef = useRef(new Map<string, string>());
+  useEffect(() => {
+    if (!canUseTauriBackend || selectedItem?.kind !== "Note" || selectedItem.noteBody !== undefined) return;
+    const id = String(selectedItem.id);
+    if (noteContentRequestsRef.current.has(id)) return;
+    noteContentRequestsRef.current.add(id);
+    let cancelled = false;
+    void getItemContent(id)
+      .then((content) => {
+        if (cancelled) return;
+        const noteBody = normalizeNoteBody(content.body);
+        rememberNoteBody(noteBodyCacheRef.current, id, noteBody);
+        // The body is the only thing still missing here. Its description came
+        // back already projected, so the fetched content only fills the gap.
+        const apply = (item: LibraryItem) => (String(item.id) === id ? { ...item, noteBody } : item);
+        setItems((current) => current.map(apply));
+        setArchivedItems((current) => current.map(apply));
+        setSelectedItem((current) => (current ? apply(current) : current));
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        noteContentRequestsRef.current.delete(id);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseTauriBackend, selectedItem?.id, selectedItem?.kind, selectedItem?.noteBody]);
   const [listMode, setListMode] = useState(false);
   const [isLibraryViewTransitioning, setIsLibraryViewTransitioning] = useState(false);
   const [viewSelectionListMode, setViewSelectionListMode] = useState(false);
@@ -850,7 +951,13 @@ function App() {
   const pendingLibraryViewPositionsRef = useRef<Map<string, LibraryCardPosition> | null>(null);
   const libraryViewAnimationsRef = useRef<Array<ReturnType<typeof gsap.timeline>>>([]);
   const libraryViewPreparationTimerRef = useRef<number | null>(null);
-  const pendingPermanentDeletesRef = useRef<Map<string, number>>(new Map());
+  const pendingPermanentDeletesRef = useRef<Map<string, PendingPermanentDelete>>(new Map());
+  // Latest active list, mirrored so a delete that fails ten seconds from now
+  // reads the library as it is then, not as it was when the timer was set.
+  const activeItemsRef = useRef<LibraryItem[]>(items);
+  useEffect(() => {
+    activeItemsRef.current = items;
+  }, [items]);
   const libraryViewTransitionRunRef = useRef(0);
   const selectionRectsRef = useRef<SourceRects | null>(null);
   const selectionRunRef = useRef(0);
@@ -922,7 +1029,21 @@ function App() {
     }
   }, []);
 
+  const cancelPermanentDelete = useCallback((pending: PendingPermanentDelete) => {
+    const id = String(pending.item.id);
+    // Only the toast that scheduled a deletion may cancel it. Deleting the same
+    // item again stores a new record, and that older Undo has to stay a no-op.
+    if (pendingPermanentDeletesRef.current.get(id) !== pending) return false;
+    window.clearTimeout(pending.timer);
+    pendingPermanentDeletesRef.current.delete(id);
+    return true;
+  }, []);
+
   const restoreForgottenItem = useCallback(async (item: LibraryItem) => {
+    // A restore un-archives the row, so any scheduled permanent delete for it
+    // must be cancelled or its timer would still fire and destroy the assets.
+    const pending = pendingPermanentDeletesRef.current.get(String(item.id));
+    if (pending !== undefined) cancelPermanentDelete(pending);
     try {
       const restoredItem = canUseTauriBackend
         ? await archiveItem(String(item.id), false).then(async (storedItem) => {
@@ -930,15 +1051,22 @@ function App() {
             return storedItemToLibraryItem(storedItem, summary);
           })
         : { ...item, archived: false };
+      const cachedNoteBody = noteBodyCacheRef.current.get(String(item.id));
+      // The restore response carries the description the backend already
+      // projected; the cache only holds a body this session edited, so it
+      // re-attaches the body without re-deriving the description.
+      const restoredLibraryItem = cachedNoteBody === undefined
+        ? restoredItem
+        : { ...restoredItem, noteBody: cachedNoteBody };
       setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
         ? current
-        : [restoredItem, ...current]);
+        : [restoredLibraryItem, ...current]);
       setArchivedItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
     } catch (error) {
       toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
-  }, [canUseTauriBackend]);
+  }, [canUseTauriBackend, cancelPermanentDelete]);
 
   const forgetItem = useCallback(async (item: LibraryItem) => {
     setCaptureError(null);
@@ -1046,15 +1174,53 @@ function App() {
     }
   }, [canUseTauriBackend]);
 
-    // Pins are flipped from current state, not from the item the click captured,
+  const updateNote = useCallback(async (item: LibraryItem, body: string) => {
+    const nextBody = normalizeNoteBody(body);
+    if (!nextBody) throw new Error("A note needs some text before it can be saved.");
+
+    let nextItem: LibraryItem;
+    if (canUseTauriBackend) {
+      const storedItem = await updateItem({
+        id: String(item.id),
+        body: nextBody,
+        bodyFormat: NOTE_BODY_FORMAT,
+      });
+      const summary = (await getProcessingSummaries([storedItem.id])).get(storedItem.id);
+      nextItem = {
+        ...(await storedItemToLibraryItem(storedItem, summary)),
+        noteBody: nextBody,
+      };
+    } else {
+      nextItem = {
+        ...item,
+        description: markdownToPlainText(nextBody),
+        noteBody: nextBody,
+      };
+    }
+
+    // The saved response carries the row's pin as it was before an in-flight
+    // write landed, so a pin the backend has not confirmed yet wins over it,
+    // the same way a refresh re-applies its overrides.
+    const apply = (current: LibraryItem) => {
+      if (String(current.id) !== String(item.id)) return current;
+      const saved = { ...current, ...nextItem, id: current.id };
+      const pinned = pinnedOverridesRef.current.get(String(item.id));
+      return pinned === undefined ? saved : { ...saved, favorite: pinned };
+    };
+    setItems((current) => current.map(apply));
+    setArchivedItems((current) => current.map(apply));
+    setSelectedItem((current) => (current ? apply(current) : current));
+    rememberNoteBody(noteBodyCacheRef.current, String(item.id), nextBody);
+  }, [canUseTauriBackend]);
+
+// Pins are flipped from current state, not from the item the click captured,
     // so a second click during a slow write reverses the first instead of
-    // repeating it. The in-flight id also keeps the control from reporting a
-    // toggle it has not applied yet.
-    const pendingPinIdsRef = useRef<Set<string>>(new Set());
+    // repeating it. Writes for one item chain instead of being dropped: the old
+    // guard returned early on an in-flight id, so undoing a pin needed a third
+    // click once the first write landed.
+    const pinWritesRef = useRef<Map<string, Promise<void>>>(new Map());
     const togglePinItem = useCallback(async (item: LibraryItem) => {
       const id = String(item.id);
-      if (pendingPinIdsRef.current.has(id)) return;
-      pendingPinIdsRef.current.add(id);
       // Read the live value so a repeat click reverses the previous one. An
       // archived item is not in the active list, so fall back to the item the
       // overlay handed over rather than treating it as unpinned.
@@ -1069,31 +1235,49 @@ function App() {
         setArchivedItems((current) => current.map(apply));
         setSelectedItem((current) => (current ? apply(current) : current));
       };
-      try {
-        // Optimistic, so a repeated click reads the new value. A refresh already
-        // in flight can land older data, so the pin is re-asserted until the
-        // backend confirms it.
-        pinnedOverridesRef.current.set(id, pinned);
-        show(pinned);
-        if (canUseTauriBackend) {
+      // Optimistic, so a repeated click reads the new value. A refresh already
+      // in flight can land older data, so the pin is re-applied until the
+      // backend confirms it.
+      pinnedOverridesRef.current.set(id, pinned);
+      show(pinned);
+
+      // A Space's rows come from its own query rather than a client-side
+      // filter, so a Smart Space that filters on the pin keeps showing the old
+      // contents until it is re-read. Only that case needs the extra load.
+      const openSpace = activeSpaceId !== null
+        ? spaces.find((space) => space.id === activeSpaceId)
+        : undefined;
+      const rereadsPins = openSpace?.kind === "smart" && openSpace.query.favorite != null;
+
+      const write = (pinWritesRef.current.get(id) ?? Promise.resolve())
+        .then(async () => {
+          if (!canUseTauriBackend) return;
           const confirmed = await updateItem({ id, favorite: pinned });
           // The stored value wins once it is known, including if it disagreed
           // with what was asked for.
-          const stored = confirmed.favorite === true;
-          pinnedOverridesRef.current.delete(id);
-          show(stored);
-        } else {
-          pinnedOverridesRef.current.delete(id);
-        }
-      } catch {
-        // A failed write must not leave the item looking pinned anywhere.
-        pinnedOverridesRef.current.delete(id);
-        show(wasPinned);
-        toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
-      } finally {
-        pendingPinIdsRef.current.delete(id);
-      }
-    }, [canUseTauriBackend]);
+          show(confirmed.favorite === true);
+          if (rereadsPins) loadItemsRef.current();
+        })
+        .catch(() => {
+          // A failed write must not leave the item looking pinned anywhere.
+          show(wasPinned);
+          // A later click already asked for something else and reports its own
+          // outcome, so a superseded failure stays quiet rather than blaming the
+          // user for a state that is no longer the one being written.
+          if (pinWritesRef.current.get(id) === write) {
+            toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
+          }
+        })
+        .finally(() => {
+          // Release the override only if no later click has claimed it in the
+          // meantime, and only clear this item's slot if it is still the tail of
+          // the chain.
+          if (pinnedOverridesRef.current.get(id) === pinned) pinnedOverridesRef.current.delete(id);
+          if (pinWritesRef.current.get(id) === write) pinWritesRef.current.delete(id);
+        });
+      pinWritesRef.current.set(id, write);
+      await write;
+  }, [activeSpaceId, canUseTauriBackend, spaces]);
 
   const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
     if (!item.articleHtml) return;
@@ -1584,7 +1768,7 @@ function App() {
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      failCapture(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -1659,7 +1843,7 @@ function App() {
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      failCapture(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -1671,7 +1855,7 @@ function App() {
     try {
       await persistText(text, captureSource);
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      failCapture(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -1699,7 +1883,8 @@ function App() {
       id: Date.now(),
       kind: "Note",
       title: value,
-      description: "Saved from the clipboard.",
+      description: markdownToPlainText(value),
+      noteBody: normalizeNoteBody(value),
       source: captureSource,
       date: "Just now",
       tags: [],
@@ -1761,7 +1946,7 @@ function App() {
 
   async function captureScreenshot() {
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      setCaptureError("Screenshot capture is not available in this window.");
+      failCapture("Screenshot capture is not available in this window.");
       return;
     }
 
@@ -1786,7 +1971,7 @@ function App() {
       await persistFile(file, "screenshot");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      failCapture(error instanceof Error ? error.message : String(error));
     } finally {
       stream?.getTracks().forEach((track) => track.stop());
       setIsCapturing(false);
@@ -1883,6 +2068,7 @@ function App() {
 
   function beginSaveSearch() {
     setIsCreatingSpace(true);
+    setNewSpaceKind("smart");
     setNewSpaceName(query.trim());
   }
 
@@ -1891,18 +2077,22 @@ function App() {
     const name = newSpaceName.trim();
     if (!name) return;
 
-    const spaceQuery: SmartSpaceQuery = query.trim() ? { text: query.trim() } : {};
+    // A Regular Space is filled by hand, so the search behind the sidebar "+"
+    // does not become its query.
+    const spaceQuery: SmartSpaceQuery =
+      newSpaceKind === "smart" && query.trim() ? { text: query.trim() } : {};
     const color = SPACE_COLORS[spaces.length % SPACE_COLORS.length];
     setCaptureError(null);
 
     try {
       const created = canUseTauriBackend
-        ? await createSpace({ name, color, query: spaceQuery })
+        ? await createSpace({ name, color, query: spaceQuery, kind: newSpaceKind })
         : {
             id: `local-space-${Date.now()}`,
             name,
             color,
             query: spaceQuery,
+            kind: newSpaceKind,
             position: spaces.length + 1,
             createdAt: Date.now(),
             updatedAt: Date.now(),
@@ -1910,17 +2100,88 @@ function App() {
       setSpaces((current) => [...current, created]);
       setIsCreatingSpace(false);
       setNewSpaceName("");
+      setNewSpaceKind("smart");
       selectSpace(created);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }
 
+  // The chips toggle from live membership, so this has to stay a stable
+  // callback: the overlay actions memo closes over it, and a plain function
+  // would leave that memo holding a pre-toggle membership read and turn
+  // "Remove from" into a second add.
+  //
+  // The direction is applied before the write rather than after it, because a
+  // second click while the first write is in flight has to reverse the first
+  // instead of repeating it. Two writes for one Space are chained so the
+  // reversal cannot land before the write it reverses.
+  const spaceWritesRef = useRef<Map<string, Promise<void>>>(new Map());
+  // Bumped by every chip toggle. A membership read already in flight carries the
+  // value it saw here and drops its result if a toggle has landed since, so an
+  // older read cannot roll back the chip the user just changed.
+  const spaceMembershipEpochRef = useRef(0);
+  const handleToggleItemInSpace = useCallback(async (item: LibraryItem, spaceId: string) => {
+    const itemId = String(item.id);
+    const wasMember = itemSpaceIds.includes(spaceId);
+    // `adding` is the state being moved to, not the one being left. Naming it
+    // after the destination keeps the write and the optimistic apply reading the
+    // same way round, which is the trap the previous `member` name walked into.
+    const adding = !wasMember;
+    const show = (next: boolean) => {
+      setItemSpaceIds((current) => {
+        if (next) return current.includes(spaceId) ? current : [...current, spaceId];
+        return current.filter((id) => id !== spaceId);
+      });
+    };
+    setCaptureError(null);
+    if (!canUseTauriBackend) {
+      // Preview keeps membership in local state and an effect mirrors that into
+      // itemSpaceIds, so there is no write to make and none to chain.
+      setLocalSpaceItems((current) => {
+        const next = new Map(current);
+        const members = new Set(next.get(spaceId) ?? []);
+        if (adding) members.add(itemId);
+        else members.delete(itemId);
+        next.set(spaceId, members);
+        return next;
+      });
+      return;
+    }
+
+    spaceMembershipEpochRef.current += 1;
+    show(adding);
+    const write = (spaceWritesRef.current.get(spaceId) ?? Promise.resolve())
+      .then(async () => {
+        if (adding) await addSpaceItem(spaceId, itemId);
+        else await removeSpaceItem(spaceId, itemId);
+        // The open Space lists its own members, so its grid has to re-read.
+        if (activeSpaceId === spaceId) loadItemsRef.current();
+      })
+      .catch((error: unknown) => {
+        // A failed write must not leave the chip claiming a membership the
+        // library does not have.
+        show(wasMember);
+        setCaptureError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        if (spaceWritesRef.current.get(spaceId) === write) spaceWritesRef.current.delete(spaceId);
+      });
+    spaceWritesRef.current.set(spaceId, write);
+    await write;
+  }, [activeSpaceId, canUseTauriBackend, itemSpaceIds]);
+
   async function handleDeleteSpace(space: StoredSpace) {
     setCaptureError(null);
     try {
       if (canUseTauriBackend) await deleteSpace(space.id);
       setSpaces((current) => current.filter((candidate) => candidate.id !== space.id));
+      setLocalSpaceItems((current) => {
+        const next = new Map(current);
+        next.delete(space.id);
+        return next;
+      });
+      setItemSpaceIds((current) => current.filter((id) => id !== space.id));
       if (activeSpaceId === space.id) clearToDefaultView();
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
@@ -2120,6 +2381,44 @@ function App() {
     };
   }, []);
 
+  // Manual membership for the open overlay, read only while an item is open so
+  // the grid load stays a single query.
+  useEffect(() => {
+    const itemId = selectedItem ? String(selectedItem.id) : null;
+    if (!itemId) {
+      setItemSpaceIds([]);
+      return;
+    }
+    if (shouldUseSeedLibrary()) {
+      setItemSpaceIds(
+        [...localSpaceItems]
+          .filter(([, members]) => members.has(itemId))
+          .map(([spaceId]) => spaceId),
+      );
+      return;
+    }
+    let cancelled = false;
+    const issuedAt = spaceMembershipEpochRef.current;
+    // One guard for both outcomes. A read a chip toggle has superseded has
+    // nothing to report either way: the toggle's own write is now the
+    // authoritative answer and reports its own failure. Checking the epoch on
+    // the success path only would leave a stale rejection raising an error for
+    // a read whose result nobody can use any more.
+    const superseded = () => cancelled || issuedAt !== spaceMembershipEpochRef.current;
+    listItemSpaces(itemId)
+      .then((ids) => {
+        if (superseded()) return;
+        setItemSpaceIds(ids);
+      })
+      .catch((error: unknown) => {
+        if (superseded()) return;
+        setCaptureError(error instanceof Error ? error.message : String(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [localSpaceItems, selectedItem?.id]);
+
   useEffect(() => {
     if (shouldUseSeedLibrary()) return;
     let cancelled = false;
@@ -2149,16 +2448,18 @@ function App() {
           storedItemToLibraryItem(item, summaries.get(item.id)),
         ));
         if (!cancelled) {
-          // A refresh can resolve with a pin state older than a write this
-          // session has already applied. Re-assert the unconfirmed pins so the
-          // overlay and Top of mind cannot disagree until the backend catches up.
+          // A refresh can resolve with data older than two writes this session
+          // already made: a note body still in the cache, and a pin the backend
+          // has not confirmed. Both are re-applied so the grid, the overlay, and
+          // Top of mind cannot disagree with what the user just did.
+          const noteBodies = noteBodyCacheRef.current;
           const overrides = pinnedOverridesRef.current;
-          setItems(overrides.size === 0
-            ? libraryItems
-            : libraryItems.map((candidate) => {
-              const pinned = overrides.get(String(candidate.id));
-              return pinned === undefined ? candidate : { ...candidate, favorite: pinned };
-            }));
+          setItems(libraryItems.map((item) => {
+            const noteBody = noteBodies.get(String(item.id));
+            const pinned = overrides.get(String(item.id));
+            const withNote = noteBody === undefined ? item : { ...item, noteBody };
+            return pinned === undefined ? withNote : { ...withNote, favorite: pinned };
+          }));
         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -2214,10 +2515,15 @@ function App() {
         await initializeStorage();
         const storedItems = await listArchivedItems();
         const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
-        const nextItems = await Promise.all(storedItems.map((item) =>
-          storedItemToLibraryItem(item, summaries.get(item.id)),
-        ));
-        if (!cancelled) setArchivedItems(nextItems);
+         const nextItems = await Promise.all(storedItems.map((item) =>
+           storedItemToLibraryItem(item, summaries.get(item.id)),
+         ));
+         if (!cancelled) {
+           setArchivedItems(nextItems.map((item) => {
+             const noteBody = noteBodyCacheRef.current.get(String(item.id));
+             return noteBody === undefined ? item : { ...item, noteBody };
+           }));
+         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
       }
@@ -2286,11 +2592,28 @@ function App() {
         activeView === "Everything" ||
           (activeView === "Top of mind" && matchesPinsView(item)) ||
         (activeSpace
-          ? canUseTauriBackend || itemMatchesSmartQuery(item, activeSpace.query)
+          ? canUseTauriBackend
+            ? true
+            : activeSpace.kind === "regular"
+              // Mirror of the core's membership read for browser (seed) mode.
+              ? (localSpaceItems.get(activeSpace.id)?.has(String(item.id)) ?? false)
+              : itemMatchesSmartQuery(item, activeSpace.query)
           : false);
       return matchesQuery && matchesView;
     });
-  }, [activeSpace, activeSpaceId, activeView, canUseTauriBackend, isSerendipityView, items, query, serendipityBatch, similaritySource]);
+  }, [activeSpace, activeSpaceId, activeView, canUseTauriBackend, isSerendipityView, items, localSpaceItems, query, serendipityBatch, similaritySource]);
+
+  // The Regular Spaces an item can be filed into, and whether it already is.
+  // Smart Spaces are excluded: their contents come from the query, so a chip
+  // for them would be a claim that goes stale on its own.
+  const manualSpaces = useMemo(
+    () => spaces.filter((space) => space.kind === "regular"),
+    [spaces],
+  );
+  const selectedItemSpaces = useMemo(
+    () => manualSpaces.map((space) => ({ ...space, member: itemSpaceIds.includes(space.id) })),
+    [itemSpaceIds, manualSpaces],
+  );
 
   // VirtuosoMasonry keys rows by position, so a new result set must remount
   // the grid. Otherwise card state (video playback, embeds) sticks to the
@@ -2330,7 +2653,7 @@ function App() {
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      failCapture(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -2400,42 +2723,62 @@ function App() {
     onRetryJob: retryJob,
   }), [openReader, retryJob, selectLibraryItem]);
 
-  const schedulePermanentDelete = useCallback((id: string) => {
-    const existingTimer = pendingPermanentDeletesRef.current.get(id);
-    if (existingTimer !== undefined) window.clearTimeout(existingTimer);
-    const timer = window.setTimeout(() => {
+  const restoreArchivedItems = useCallback((restoredItems: LibraryItem[]) => {
+    if (restoredItems.length === 0) return;
+    // A settings reload can re-add a row that is still stored, so restore by
+    // presence instead of blind prepending a second copy of the same item.
+    setArchivedItems((current) => {
+      const absent = restoredItems.filter((item) => !current.some((candidate) => String(candidate.id) === String(item.id)));
+      return absent.length === 0 ? current : [...absent, ...current];
+    });
+  }, []);
+
+  const schedulePermanentDelete = useCallback((item: LibraryItem) => {
+    const id = String(item.id);
+    const previous = pendingPermanentDeletesRef.current.get(id);
+    if (previous !== undefined) window.clearTimeout(previous.timer);
+    const pending: PendingPermanentDelete = { timer: 0, item };
+    pending.timer = window.setTimeout(() => {
       pendingPermanentDeletesRef.current.delete(id);
       if (!canUseTauriBackend) return;
-      void deleteItem(id).catch((error) => {
+      void deleteItem(id).then(() => {
+        // The row is still in the database during the undo window, so a reload
+        // can bring the card back; drop it again now the delete has landed.
+        setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== id));
+      }).catch((error) => {
+        // A recovered item is no longer archived, so its delete fails on
+        // purpose: leaving it out is already the desired end state and the error
+        // would only confuse. An item that is still archived comes back here.
+        if (activeItemsRef.current.some((candidate) => String(candidate.id) === id)) return;
+        restoreArchivedItems([item]);
         setCaptureError(error instanceof Error ? error.message : String(error));
       });
     }, 10000);
-    pendingPermanentDeletesRef.current.set(id, timer);
-  }, [canUseTauriBackend]);
+    pendingPermanentDeletesRef.current.set(id, pending);
+    return pending;
+  }, [canUseTauriBackend, restoreArchivedItems]);
 
-  const cancelPermanentDelete = useCallback((id: string) => {
-    const timer = pendingPermanentDeletesRef.current.get(id);
-    if (timer === undefined) return false;
-    window.clearTimeout(timer);
-    pendingPermanentDeletesRef.current.delete(id);
-    return true;
-  }, []);
-
-  const undoPermanentDelete = useCallback((deletedItems: LibraryItem[]) => {
-    const restoredItems = deletedItems.filter((item) => cancelPermanentDelete(String(item.id)));
-    if (restoredItems.length === 0) return;
-    setArchivedItems((current) => [...restoredItems, ...current]);
-  }, [cancelPermanentDelete]);
+  const undoPermanentDelete = useCallback((pendingDeletes: PendingPermanentDelete[]) => {
+    const restored = pendingDeletes.filter((pending) => cancelPermanentDelete(pending)).map((pending) => pending.item);
+    restoreArchivedItems(restored);
+  }, [cancelPermanentDelete, restoreArchivedItems]);
 
   useEffect(() => () => {
-    for (const timer of pendingPermanentDeletesRef.current.values()) window.clearTimeout(timer);
+    // A pending delete is finalized by its own timer, and unmounting must not
+    // run it: a remount (StrictMode, HMR) would flush real deletes, and closing
+    // the window tears the webview down without unmounting anyway. Dropping the
+    // timers leaves those items archived and recoverable, which is the state
+    // the delete never left.
+    for (const pending of pendingPermanentDeletesRef.current.values()) {
+      window.clearTimeout(pending.timer);
+    }
     pendingPermanentDeletesRef.current.clear();
   }, []);
 
   const deleteArchivedLibraryItem = useCallback((item: LibraryItem) => {
     setCaptureError(null);
     const itemId = String(item.id);
-    schedulePermanentDelete(itemId);
+    const pending = schedulePermanentDelete(item);
     setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== itemId));
     if (selectedItem && String(selectedItem.id) === itemId) setSelectedItem(null);
     toast("Deleted permanently", {
@@ -2443,9 +2786,9 @@ function App() {
       duration: 10000,
       closeButton: true,
       className: "library-toast",
-      action: { label: "Undo", onClick: () => undoPermanentDelete([item]) },
+      action: { label: "Undo", onClick: () => undoPermanentDelete([pending]) },
     });
-  }, [cancelPermanentDelete, schedulePermanentDelete, selectedItem, undoPermanentDelete]);
+  }, [schedulePermanentDelete, selectedItem, undoPermanentDelete]);
 
   const toggleArchiveSelectionMode = useCallback(() => {
     setIsArchiveSelectionMode((current) => {
@@ -2478,6 +2821,10 @@ function App() {
       // batched call instead of one round trip per restored item.
       const results = await Promise.allSettled(selectedItems.map(async (item) => {
         if (!canUseTauriBackend) return null;
+        // A restore un-archives the row, so cancel any scheduled permanent
+        // delete for it before the timer can fire and destroy its assets.
+        const pending = pendingPermanentDeletesRef.current.get(String(item.id));
+        if (pending !== undefined) cancelPermanentDelete(pending);
         return archiveItem(String(item.id), false);
       }));
       const restoredStored = results.flatMap((result) => result.status === "fulfilled" && result.value ? [result.value] : []);
@@ -2515,14 +2862,14 @@ function App() {
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
-  }, [archivedItems, selectedArchivedIds]);
+  }, [archivedItems, cancelPermanentDelete, selectedArchivedIds]);
 
   const deleteSelectedArchivedItems = useCallback(() => {
     const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
     if (selectedItems.length === 0) return;
     setCaptureError(null);
     const deletedIds = new Set(selectedItems.map((item) => String(item.id)));
-    for (const item of selectedItems) schedulePermanentDelete(String(item.id));
+    const pendingDeletes = selectedItems.map((item) => schedulePermanentDelete(item));
     setArchivedItems((current) => current.filter((item) => !deletedIds.has(String(item.id))));
     if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
     setSelectedArchivedIds(new Set());
@@ -2531,7 +2878,7 @@ function App() {
       duration: 10000,
       closeButton: true,
       className: "library-toast",
-      action: { label: "Undo", onClick: () => undoPermanentDelete(selectedItems) },
+      action: { label: "Undo", onClick: () => undoPermanentDelete(pendingDeletes) },
     });
   }, [archivedItems, schedulePermanentDelete, selectedArchivedIds, selectedItem, undoPermanentDelete]);
 
@@ -2560,8 +2907,10 @@ function App() {
     onTogglePin: togglePinItem,
     onRetryJob: retryJob,
     onAddTag: addTagToItem,
+    onUpdateNote: updateNote,
+    onToggleSpace: (item, spaceId) => void handleToggleItemInSpace(item, spaceId),
     isFindingSimilar,
-  }), [addTagToItem, forgetItem, isFindingSimilar, openReader, retryJob, togglePinItem]);
+  }), [addTagToItem, forgetItem, handleToggleItemInSpace, isFindingSimilar, openReader, retryJob, togglePinItem, updateNote]);
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
@@ -2580,6 +2929,16 @@ function App() {
   // notification pastille; errors drop to idle so the sad face can show
   // (drift carries its own fixed face). Error beats busyness beats attention.
   const isMascotBusy = items.some((item) => item.processing?.active);
+  // `captureError` is the shared error channel for the whole app, so it cannot
+  // also mean "a save the user asked for failed" — a retried job, a renamed
+  // Space, and the archive all write to it, and "Find similar" in the web
+  // preview writes to it on purpose. Captures get their own count, and the
+  // mascot spends one on a single sad walk home.
+  const [captureFailures, setCaptureFailures] = useState(0);
+  const failCapture = useCallback((message: string) => {
+    setCaptureError(message);
+    setCaptureFailures((count) => count + 1);
+  }, []);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -2606,6 +2965,33 @@ function App() {
     });
   }, [isMascotBusy, captureError, isSearchFocused, query, prefersReducedMotion]);
 
+  // Roaming reads two things from the app, and nothing else. A view that owns
+  // the screen makes the mascot hold still without spending the awake time it
+  // has left, and a capture that failed is the one event that ends an outing.
+  //
+  // Serendipity and an in-flight drag are in that list for the same reason the
+  // reader is: both hand the whole stage to one decision. Serendipity is a
+  // single item with Keep and Forget on it, and dropping a file over the window
+  // is a capture in progress. Neither is a reason to end the walk, only to stop
+  // moving through it. Background indexing is deliberately not here — a mascot
+  // that vanishes every time an item finishes processing reads as broken, and
+  // the point of it is to stay quietly alive while the user works.
+  const isOverlayOpen =
+    isAdding ||
+    isSettingsOpen ||
+    selectedItem !== null ||
+    readingItem !== null ||
+    Boolean(pdfViewerItem?.fileUrl) ||
+    isSerendipityView ||
+    isDragActive ||
+    isCapturing;
+  useEffect(() => {
+    setRoamBusy(isOverlayOpen);
+  }, [isOverlayOpen]);
+  useEffect(() => {
+    if (captureFailures > 0) setRoamCaptureFailed(true);
+  }, [captureFailures]);
+
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);
 
   // Dev-only mascot board (vendored bloub engine + inkling skins). Not linked
@@ -2614,6 +3000,13 @@ function App() {
     return (
       <Suspense fallback={null}>
         <AliveBoard />
+      </Suspense>
+    );
+  }
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mascot-roam")) {
+    return (
+      <Suspense fallback={null}>
+        <RoamBoard />
       </Suspense>
     );
   }
@@ -2654,9 +3047,7 @@ function App() {
         )}
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup flex items-center gap-[11px] px-[10px] pt-0 pb-3" data-tauri-drag-region>
-          <div className={`brand-mark h-11 w-11 flex-none overflow-hidden ${isSearchFocused ? "is-away" : ""}`} aria-hidden="true">
-            <LiveMascotFigure size={44} />
-          </div>
+          <MascotHomeSlot isSearchFocused={isSearchFocused} />
           <div>
             <strong>inkling</strong>
           </div>
@@ -2707,10 +3098,11 @@ function App() {
             <button
               className="icon-button small"
               aria-label="Add a Space"
-              title="Add a Smart Space"
+              title="Add a Space"
               onClick={() => {
                 setIsCreatingSpace((current) => !current);
                 setNewSpaceName("");
+                setNewSpaceKind("smart");
               }}
             >
               <HugeiconsIcon icon={PlusSignIcon} size={16} />
@@ -2841,14 +3233,39 @@ function App() {
                 autoFocus
                 value={newSpaceName}
                 onChange={(event) => setNewSpaceName(event.target.value)}
-                placeholder={query.trim() ? `Save “${query.trim()}” as…` : "Name this space"}
+                placeholder={newSpaceKind === "smart" && query.trim() ? `Save “${query.trim()}” as…` : "Name this space"}
                 aria-label="Space name"
                 maxLength={80}
               />
-              <p className="space-form-hint">
-                {query.trim()
-                  ? "A Smart Space that updates automatically as items match this search."
-                  : "An empty Smart Space matches everything you have saved."}
+              {/* Native radios rather than role="radio" buttons: the group gets
+                  arrow-key selection, one tab stop and group semantics from the
+                  platform instead of from ARIA we would then have to maintain. */}
+              <fieldset className="space-kind">
+                <legend className="visually-hidden">How this Space fills</legend>
+                {(["smart", "regular"] as const).map((kind) => (
+                  <label
+                    key={kind}
+                    className={`space-kind-option ${newSpaceKind === kind ? "is-active" : ""}`}
+                  >
+                    <input
+                      type="radio"
+                      name="space-kind"
+                      className="visually-hidden"
+                      value={kind}
+                      checked={newSpaceKind === kind}
+                      aria-describedby="space-kind-hint"
+                      onChange={() => setNewSpaceKind(kind)}
+                    />
+                    {kind === "smart" ? "Smart" : "Regular"}
+                  </label>
+                ))}
+              </fieldset>
+              <p className="space-form-hint" id="space-kind-hint">
+                {newSpaceKind === "regular"
+                  ? "Holds only the items you file into it. Open an item and pick a Space to add it."
+                  : query.trim()
+                    ? "A Smart Space that updates automatically as items match this search."
+                    : "An empty Smart Space matches everything you have saved."}
               </p>
               <div className="space-form-actions">
                 <button
@@ -3096,7 +3513,12 @@ function App() {
             {filteredItems.length === 0 && (
               <div className="empty-state rounded-[14px] border border-dashed border-rule px-5 py-20 text-center">
                 <div className="empty-icon mx-auto mb-4 grid h-[42px] w-[42px] place-items-center rounded-full bg-surface text-muted"><HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} /></div>
-                {similaritySource ? (
+                {activeSpace?.kind === "regular" ? (
+                  <>
+                    <h2>{activeSpace.name} is empty.</h2>
+                    <p>Open anything in your library and pick {activeSpace.name} to file it in here.</p>
+                  </>
+                ) : similaritySource ? (
                   <>
                     <h2>Nothing similar yet.</h2>
                     <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
@@ -3112,7 +3534,7 @@ function App() {
                     <p>Try another word, or save something new to your mind.</p>
                   </>
                 )}
-                {!pinsViewIsEmpty && (
+                {activeSpace?.kind !== "regular" && !pinsViewIsEmpty && (
                   <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
                 )}
               </div>
@@ -3399,6 +3821,7 @@ function App() {
             key="expanded-item-overlay"
             item={selectedItem}
             actions={expandedOverlayActions}
+            spaces={selectedItemSpaces}
             originRectsRef={selectionRectsRef}
             contentAreaRef={libraryScrollRef}
             selectionScrollRef={selectionScrollRef}
@@ -3447,6 +3870,7 @@ function App() {
         )}
       </AnimatePresence>
       </div>
+      <MascotRoamLayer />
       <Toaster
         position="top-right"
         offset={{ top: 48, right: 16 }}

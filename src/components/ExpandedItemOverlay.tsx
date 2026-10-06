@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { gsap } from "gsap";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -20,7 +20,7 @@ import {
 import type { LibraryItem } from "../App";
 import { isTauriRuntime } from "../lib/libraryApi";
 import type { ReaderOrigin } from "../ReaderView";
-import { KindIcon, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
+import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
 import { useDialog } from "./dialog/useDialog";
 import {
   OVERLAY_EASE,
@@ -37,6 +37,10 @@ import {
   type SourceRects,
 } from "./overlayMotion";
 
+const RichNoteEditor = lazy(() =>
+  import("./RichNoteEditor").then((module) => ({ default: module.RichNoteEditor })),
+);
+
 export type ExpandedOverlayActions = {
   onClose: () => void;
   onOpenPdf: (item: LibraryItem) => void;
@@ -46,7 +50,18 @@ export type ExpandedOverlayActions = {
   onTogglePin: (item: LibraryItem) => void | Promise<void>;
   onRetryJob: (jobId: string) => void | Promise<void>;
   onAddTag?: (item: LibraryItem, tag: string) => void | Promise<void>;
+  onUpdateNote: (item: LibraryItem, body: string) => void | Promise<void>;
+  onToggleSpace?: (item: LibraryItem, spaceId: string) => void | Promise<void>;
   isFindingSimilar: boolean;
+};
+
+/** A Regular Space chip: filing an item in and taking it back out happen in the
+ *  same place, so one toggle carries both directions. */
+export type OverlaySpaceChip = {
+  id: string;
+  name: string;
+  color: string;
+  member: boolean;
 };
 
 type OverlayAction = {
@@ -175,6 +190,14 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
 }
 
 function OverlayMedia({ item }: { item: LibraryItem }) {
+  if (item.kind === "Note" && !item.image) {
+    return (
+      <div className="expanded-overlay-media note-detail-media">
+        <NoteArtwork item={item} />
+      </div>
+    );
+  }
+
   if (item.social?.provider === "x") {
     return (
       <div className="expanded-overlay-media detail-x-post relative h-full flex-none overflow-hidden bg-[#fff]">
@@ -246,12 +269,14 @@ function detailTitleFor(item: LibraryItem): string {
 type ExpandedItemOverlayProps = {
   item: LibraryItem;
   actions: ExpandedOverlayActions;
+  /** Regular Spaces available to file this item in. Empty hides the row. */
+  spaces?: OverlaySpaceChip[];
   originRectsRef: RefObject<SourceRects | null>;
   contentAreaRef: RefObject<HTMLElement | null>;
   selectionScrollRef: RefObject<boolean>;
 };
 
-export function ExpandedItemOverlay({ item, actions, originRectsRef, contentAreaRef, selectionScrollRef }: ExpandedItemOverlayProps) {
+export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, contentAreaRef, selectionScrollRef }: ExpandedItemOverlayProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
@@ -266,11 +291,14 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   const destinationRef = useRef<OverlayDestination | null>(null);
   const cancelPendingOpenRef = useRef(false);
   const hasSettledOnceRef = useRef(false);
+  const actionsRef = useRef(actions);
   const [destination, setDestination] = useState<OverlayDestination | null>(null);
   const [flight, setFlight] = useState<Flight | null>(null);
   const [pendingOpen, setPendingOpen] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkCopyFailed, setLinkCopyFailed] = useState(false);
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const isEditingNoteRef = useRef(false);
 
   // Mirror props into refs inside an effect, never during render, so a
   // concurrent render cannot publish a half-updated set. This runs before
@@ -280,6 +308,10 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     itemRef.current = item;
     flightRef.current = flight;
   }, [item, flight]);
+
+  useLayoutEffect(() => {
+    isEditingNoteRef.current = isEditingNote;
+  }, [isEditingNote]);
 
   // The item whose content the dialog shows. During a closing flight that was
   // triggered by switching items, the dialog flies back displaying the item it
@@ -491,6 +523,12 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     const previous = previousItemRef.current;
     if (previous.id === item.id) return;
     previousItemRef.current = item;
+    if (isEditingNoteRef.current) {
+      // Card presses are absorbed while a note is being written, so this only
+      // catches a switch that arrived another way (Enter on a focused card).
+      // Leave the editor rather than carry the draft onto another item.
+      setIsEditingNote(false);
+    }
 
     const activeFlight = flightRef.current;
     if (activeFlight?.kind === "close") return;
@@ -553,7 +591,6 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     closeButtonRef.current?.focus({ preventScroll: true });
   }, [flight, destination]);
 
-  const actionsRef = useRef(actions);
   actionsRef.current = actions;
 
   const beginCloseFlight = (closingItem: LibraryItem, toRects: SourceRects | null, thenOpen: boolean) => {
@@ -628,6 +665,14 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     beginCloseFlight(itemRef.current, rects, false);
   };
 
+  const handleOverlayClose = () => {
+    if (isEditingNoteRef.current) {
+      setIsEditingNote(false);
+      return;
+    }
+    requestClose();
+  };
+
   // Escape and the accessible name come from the shared primitive, which
   // arbitrates Escape so a reader opened from here closes before this does.
   // Everything else stays local: this overlay is modeless on purpose, so it
@@ -635,7 +680,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   // settled the panel, and looks its source card up on the way out.
   const { rootProps } = useDialog({
     open: true,
-    onClose: requestClose,
+    onClose: handleOverlayClose,
     label: detailTitleFor(shownItem),
     trapFocus: false,
     restoreFocus: false,
@@ -645,6 +690,9 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   useEffect(() => {
     const checkSourceVisibility = () => {
       if (selectionScrollRef.current) return;
+      // While a note is being written the source card is irrelevant: closing on
+      // scroll or resize would throw away the draft without a word.
+      if (isEditingNoteRef.current) return;
       const contentArea = contentAreaRef.current;
       const viewport = scrollViewport(contentArea);
       const rects = queryCardRects(itemIdRef.current);
@@ -666,15 +714,48 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
   // clicks on cards fall through to the card's own handler, which switches
   // the overlay to that item.
   useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (dialogRef.current?.contains(target)) return;
-      if (target instanceof Element && target.closest(".library-card")) return;
-      requestClose();
+    // True for presses the panel answers itself: anything outside the dialog,
+    // plus the cards too while a note is being written, so a stray press cannot
+    // navigate the overlay off an unsaved draft.
+    const shouldHandlePress = (target: EventTarget | null) => {
+      if (!(target instanceof Node)) return false;
+      if (dialogRef.current?.contains(target)) return false;
+      const onCard = target instanceof Element && target.closest(".library-card") !== null;
+      return !onCard || isEditingNoteRef.current;
     };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!shouldHandlePress(event.target)) return;
+      if (!isEditingNoteRef.current) {
+        requestClose();
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    // A control behind the panel can answer the press, the release, or the
+    // click, and those are separate events, so the press alone is not enough to
+    // absorb the interaction. mousedown is included rather than relying on the
+    // pointerdown cancel to suppress it.
+    const absorbHandledPress = (event: Event) => {
+      if (!isEditingNoteRef.current || !shouldHandlePress(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
     document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("mousedown", absorbHandledPress, true);
+    document.addEventListener("pointerup", absorbHandledPress, true);
+    document.addEventListener("mouseup", absorbHandledPress, true);
+    document.addEventListener("click", absorbHandledPress, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("mousedown", absorbHandledPress, true);
+      document.removeEventListener("pointerup", absorbHandledPress, true);
+      document.removeEventListener("mouseup", absorbHandledPress, true);
+      document.removeEventListener("click", absorbHandledPress, true);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -774,11 +855,13 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
     setIsAddingTag(false);
   }
 
+  const isEditingNoteView = isEditingNote && shownItem.kind === "Note";
+
   return (
     <div className="expanded-overlay-layer fixed inset-0 z-[6] grid place-items-center p-[clamp(16px,4vh,40px)_clamp(16px,3vw,48px)] pointer-events-none" ref={layerRef}>
       <section
         ref={dialogRef}
-        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""} relative pointer-events-auto flex w-[min(680px,100%)] max-h-full flex-col overflow-hidden bg-surface border border-[#4a4842] rounded-[24px] shadow-[0_30px_80px_rgba(0,0,0,.55)]`}
+        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""} relative pointer-events-auto flex w-[min(680px,100%)] max-h-full flex-col overflow-hidden bg-surface border border-[#4a4842] rounded-[24px] shadow-[0_30px_80px_rgba(0,0,0,.55)]`}
         {...rootProps}
         style={dialogFlying ? undefined : placedStyle}
       >
@@ -786,14 +869,14 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           type="button"
           ref={closeButtonRef}
           className="expanded-overlay-close absolute top-[14px] right-[14px] z-[5] inline-grid size-[30px] flex-none place-items-center cursor-pointer bg-[rgba(59,58,53,.86)] border border-[#5a5750] rounded-[7px] text-ink shadow-[0_5px_16px_rgba(0,0,0,.3)] backdrop-blur-[8px] [transition:background_.18s_ease,color_.18s_ease,border-color_.18s_ease,transform_.18s_cubic-bezier(.23,1,.32,1)] hover:bg-[#4a4842] hover:border-[#716d64] active:scale-[.96]"
-          onClick={requestClose}
-          aria-label="Close details"
+          onClick={handleOverlayClose}
+          aria-label={isEditingNoteView ? "Close editor" : "Close details"}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={16} />
         </button>
 
         <div
-          className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]"
+          className={`expanded-overlay-media relative flex-none overflow-hidden bg-[#101010] ${shownItem.kind === "Note" && !shownItem.image ? "note-detail-media-band" : ""}`}
           ref={mediaRef}
           style={dialogFlying ? undefined : ({ height: destination ? overlayMediaHeight(shownItem, destination.frame.width, window.innerHeight) : undefined } as CSSProperties)}
         >
@@ -805,25 +888,38 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
           ref={bodyRef}
           style={dialogFlying && destination ? { width: destination.frame.width } : undefined}
         >
-          {shownItem.kind === "Quote" ? (
+          {isEditingNoteView ? (
+            <Suspense fallback={<p className="expanded-overlay-description" role="status">Loading editor…</p>}>
+              <RichNoteEditor
+                key={`edit-${shownItem.id}`}
+                embedded
+                body={shownItem.noteBody}
+                title={shownItem.title}
+                onSave={(body) => actions.onUpdateNote(shownItem, body)}
+                onEditingChange={setIsEditingNote}
+              />
+            </Suspense>
+          ) : shownItem.kind === "Quote" ? (
             <>
               <blockquote className="detail-quote m-[16px_0_8px] font-[family-name:'Libre_Baskerville',Georgia,serif] text-[22px] leading-[1.35] font-normal italic text-ink">“{shownItem.title}”</blockquote>
               {shownItem.description && <p className="detail-attribution m-0 mb-[8px] font-mono text-[12px] leading-[1.5] text-muted">— {shownItem.description.replace(/^—\s*/u, "")}</p>}
             </>
+          ) : shownItem.kind === "Note" ? (
+            <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
           ) : (
             <>
               <h2 className="expanded-overlay-title m-0 mb-[9px] font-[family-name:Georgia,'Times_New_Roman',serif] text-[26px] leading-[1.18] font-normal tracking-[-.02em]">{detailTitleFor(shownItem)}</h2>
               {shownItem.description && <p className="expanded-overlay-description m-0 max-w-[60ch] text-[13px] leading-[1.55] text-muted">{shownItem.description}</p>}
             </>
           )}
-          {shownItem.processing?.active && (
+          {!isEditingNoteView && shownItem.processing?.active && (
             <div className="detail-processing mt-[13px] flex items-center gap-[7px] font-mono text-[10px] leading-[1.35] text-green [&>svg]:animate-spin-slow" role="status">
               <HugeiconsIcon icon={Loading01Icon} size={14} />
               <span>{shownItem.processing.message ?? "Processing"}</span>
               {shownItem.processing.progressTotal != null && <span>{shownItem.processing.progressCurrent}/{shownItem.processing.progressTotal}</span>}
             </div>
           )}
-          {shownItem.processing?.failedJob && (
+          {!isEditingNoteView && shownItem.processing?.failedJob && (
             <div className="detail-processing failed mt-[13px] flex items-start gap-[7px] font-mono text-[10px] leading-[1.35] text-[#d07055] [&>svg]:animate-spin-slow" role="alert">
               <HugeiconsIcon icon={AlertCircleIcon} size={14} />
               <span>{shownItem.processing.failedJob.errorMessage ?? "Processing failed"}</span>
@@ -832,6 +928,7 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
               </button>
             </div>
           )}
+          {!isEditingNoteView && (
           <div className="detail-meta flex w-full flex-col gap-[8px] pt-[7px] pb-[6px]">
             <div className="detail-filemeta flex items-center gap-[8px]">
               <span className="filemeta-type font-mono text-[10px] tracking-[.08em] text-muted">{fileTypeFor(shownItem)}</span>
@@ -865,7 +962,29 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
                 </button>
               )}
             </div>
+            {spaces && spaces.length > 0 && (
+              <div className="detail-spaces" role="group" aria-label="Regular Spaces">
+                {spaces.map((space) => (
+                  <button
+                    key={space.id}
+                    type="button"
+                    className={`detail-space ${space.member ? "is-member" : ""}`}
+                    aria-pressed={space.member}
+                    title={
+                      space.member
+                        ? `Remove from ${space.name}`
+                        : `Add to ${space.name}`
+                    }
+                    onClick={() => void actions.onToggleSpace?.(shownItem, space.id)}
+                  >
+                    <span className={`detail-space-dot ${space.color}`} aria-hidden="true" />
+                    <span className="detail-space-name">{space.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+          )}
 
           {isReadRow && otherActions.some((action) => action.key === "find-similar") && (
             <div className="expanded-overlay-actions mt-[25px] flex flex-wrap gap-[10px]">
@@ -927,6 +1046,16 @@ export function ExpandedItemOverlay({ item, actions, originRectsRef, contentArea
               )}
 
               <div className="expanded-overlay-toolbar mt-[16px] flex w-full gap-[8px]">
+                {shownItem.kind === "Note" && (
+                  <button
+                    type="button"
+                    className="toolbar-primary flex min-w-0 flex-[1_1_0%] cursor-pointer items-center justify-center gap-[8px] overflow-hidden whitespace-nowrap bg-green-soft border border-[#35443c] rounded-[9px] p-[13px_16px] text-[12px] font-semibold text-[#9dbfa9] enabled:hover:bg-[#2b382f] enabled:hover:border-[#4a5c50] disabled:cursor-default disabled:opacity-50"
+                    onClick={() => setIsEditingNote(true)}
+                    aria-label="Edit note"
+                  >
+                    Edit note
+                  </button>
+                )}
                 {sourceAction && (
                   <button
                     type="button"
