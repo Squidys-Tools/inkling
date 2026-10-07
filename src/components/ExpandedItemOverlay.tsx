@@ -297,7 +297,9 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkCopyFailed, setLinkCopyFailed] = useState(false);
   const [isEditingNote, setIsEditingNote] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
   const isEditingNoteRef = useRef(false);
+  const isFocusModeRef = useRef(false);
 
   // Mirror props into refs inside an effect, never during render, so a
   // concurrent render cannot publish a half-updated set. This runs before
@@ -310,7 +312,8 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
 
   useLayoutEffect(() => {
     isEditingNoteRef.current = isEditingNote;
-  }, [isEditingNote]);
+    isFocusModeRef.current = isFocusMode;
+  }, [isEditingNote, isFocusMode]);
 
   // The item whose content the dialog shows. During a closing flight that was
   // triggered by switching items, the dialog flies back displaying the item it
@@ -527,6 +530,7 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
       // catches a switch that arrived another way (Enter on a focused card).
       // Leave the editor rather than carry the draft onto another item.
       setIsEditingNote(false);
+      setIsFocusMode(false);
     }
 
     const activeFlight = flightRef.current;
@@ -665,6 +669,10 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
   };
 
   const handleOverlayClose = () => {
+    if (isFocusModeRef.current) {
+      setIsFocusMode(false);
+      return;
+    }
     if (isEditingNoteRef.current) {
       setIsEditingNote(false);
       return;
@@ -703,6 +711,10 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
       // runs in the capture phase, before their handlers get a chance to.
       if (event.target instanceof HTMLInputElement) return;
       event.stopPropagation();
+      if (isFocusModeRef.current) {
+        setIsFocusMode(false);
+        return;
+      }
       if (isEditingNoteRef.current) {
         setIsEditingNote(false);
         return;
@@ -863,23 +875,26 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
   }
 
   const isEditingNoteView = isEditingNote && shownItem.kind === "Note";
+  const isFocusModeView = isFocusMode && isEditingNoteView;
 
   return (
-    <div className="expanded-overlay-layer" ref={layerRef}>
+    <div className={`expanded-overlay-layer ${isFocusModeView ? "is-focus-mode" : ""}`} ref={layerRef}>
       <section
         ref={dialogRef}
-        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""}`}
+        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""} ${isFocusModeView ? "is-focus-mode" : ""}`}
         role="dialog"
         aria-modal={false}
         aria-label={detailTitleFor(shownItem)}
-        style={dialogFlying ? undefined : placedStyle}
+        style={isFocusModeView
+          ? { position: "relative", left: "auto", top: "auto", width: "min(100%, 1060px)", height: "100%" }
+          : dialogFlying ? undefined : placedStyle}
       >
         <button
           type="button"
           ref={closeButtonRef}
           className="expanded-overlay-close"
-           onClick={handleOverlayClose}
-           aria-label={isEditingNoteView ? "Close editor" : "Close details"}
+          onClick={handleOverlayClose}
+          aria-label={isFocusModeView ? "Exit focus mode" : isEditingNoteView ? "Close editor" : "Close details"}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={16} />
         </button>
@@ -905,7 +920,12 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
                 body={shownItem.noteBody}
                 title={shownItem.title}
                 onSave={(body) => actions.onUpdateNote(shownItem, body)}
-                onEditingChange={setIsEditingNote}
+                onEditingChange={(editing) => {
+                  setIsEditingNote(editing);
+                  if (!editing) setIsFocusMode(false);
+                }}
+                focusMode={isFocusModeView}
+                onFocusModeChange={setIsFocusMode}
               />
             </Suspense>
           ) : shownItem.kind === "Quote" ? (
@@ -1059,7 +1079,10 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
                   <button
                     type="button"
                     className="toolbar-primary"
-                    onClick={() => setIsEditingNote(true)}
+                    onClick={() => {
+                      setIsFocusMode(false);
+                      setIsEditingNote(true);
+                    }}
                     aria-label="Edit note"
                   >
                     Edit note

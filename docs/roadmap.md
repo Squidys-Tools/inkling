@@ -42,7 +42,7 @@ Vertical slice from capture through semantic understanding and search.
 Content consumption and creation experiences.
 
 - [x] Distraction-free article reader with clean typography
-- [ ] Focus Mode for long-form writing
+- [x] Focus Mode for long-form writing
 - [x] Rich note editor (headings, bold, links, todos)
 - [x] Quote cards with source attribution
 - [x] Video link cards with previews
