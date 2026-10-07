@@ -12,6 +12,9 @@ benchmarks/
   manifest.json
   generate-corpus.ps1
   fetch-macrumors.ts
+  embedding_comparison.py
+  embedding_comparison_queries.json
+  requirements-embedding-comparison.txt
   harness/
     index.ts
     manifest.ts
@@ -112,6 +115,22 @@ Each corpus item should have a stable ID, relative path or URL, content type, la
 - Model download size
 - Cold-start time
 - Batch processing time
+
+## Compare embedding models locally
+
+`embedding_comparison.py` compares the pinned Nomic ONNX pair with Google's quantized EmbeddingGemma 2 text-and-vision LiteRT model. It uses only the generated fixtures in this directory, including page renders of the PDFs and six pairs of synthetic chart/layout pages generated in the cache. Each pair has identical OCR text but a different visual arrangement, so the visual queries test whether the image embedding distinguishes page content rather than matching shared words. The runner never opens Inkling's database or a user's library. It compares Nomic's current text/OCR indexing with an optional Nomic PDF-page-image path and EmbeddingGemma 2 at 70 and 140 vision tokens per image. It scores vector rankings only; it does not include FTS5 or the app's hybrid ranking.
+
+On Windows, create a separate environment and run the benchmark:
+
+```powershell
+py -3.12 -m venv .venv-embedding
+.\.venv-embedding\Scripts\python.exe -m pip install -r benchmarks/requirements-embedding-comparison.txt
+.\.venv-embedding\Scripts\python.exe benchmarks/embedding_comparison.py
+```
+
+The first run downloads about 620 MB of model artifacts, checks each file against a pinned SHA-256 digest, and caches the weights and rendered pages under the operating system's user cache directory. The JSON report is written there too; pass `--output <path>` to choose another report destination. It includes per-group Hit@1/Hit@3/MRR, image-similarity results, model file sizes, inference timings, and process RSS. The committed PDFs are single-page; the runner processes every page if more are added.
+
+The default compares both models on CPU. `--gemma-backend gpu` or `--gemma-backend npu` can measure LiteRT acceleration when supported, but Nomic still runs on CPU, so those timings are not a like-for-like backend comparison. The fixed OCR expectation files make the Nomic text baseline repeatable; this benchmark does not time or score Windows OCR itself.
 
 ## Workflow
 
@@ -214,4 +233,3 @@ the manifest, rewrites only the `article-live-macrumors-*` entries, and
 verifies every fixture through the production ingestion pipeline before
 updating the manifest. Delete the `corpus/live/macrumors/*.html` files and
 the `article-live-macrumors-*` manifest entries to drop them.
-

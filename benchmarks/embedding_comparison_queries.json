@@ -1,0 +1,177 @@
+{
+  "queries": [
+    {
+      "query": "Which field guide says a personal library should still work when the internet is unavailable?",
+      "relevant": ["pdf-native-text-01"],
+      "group": "pdf-text"
+    },
+    {
+      "query": "How does the note describe a rapid save that avoids choosing a category first?",
+      "relevant": ["pdf-native-text-01"],
+      "group": "pdf-text"
+    },
+    {
+      "query": "Which memo describes boxes that could not be scanned because of dust and a rack that needs a new count?",
+      "relevant": ["pdf-scanned-01"],
+      "group": "pdf-text"
+    },
+    {
+      "query": "What unexpected bulbs are growing in the warehouse crates?",
+      "relevant": ["pdf-scanned-01"],
+      "group": "pdf-text"
+    },
+    {
+      "query": "Which document compares quarterly revenue with expenses in a table?",
+      "relevant": ["pdf-tables-01"],
+      "group": "pdf-text"
+    },
+    {
+      "query": "Which quarter has the highest sales in the financial summary?",
+      "relevant": ["pdf-tables-01", "visual-doc-quarterly-chart-b"],
+      "group": "pdf-text"
+    },
+    {
+      "query": "Find the newspaper-layout notes about two separate columns and margins.",
+      "relevant": ["pdf-multicolumn-01"],
+      "group": "pdf-text"
+    },
+    {
+      "query": "Where did operations plant oak trees while preserving a corridor for wildflowers?",
+      "relevant": ["pdf-images-captions-01"],
+      "group": "pdf-text"
+    },
+    {
+      "query": "Find the report describing a new line of trees after a frost in a meadow.",
+      "relevant": ["pdf-images-captions-01"],
+      "group": "pdf-text"
+    },
+    {
+      "query": "Which PDF says it was supplied without a title, author, or metadata?",
+      "relevant": ["pdf-bad-metadata-01"],
+      "group": "pdf-text"
+    },
+    {
+      "query": "Which PDF has an illustration of a rust-orange circle above two green peaks on a beige background?",
+      "relevant": ["pdf-images-captions-01"],
+      "group": "pdf-visual"
+    },
+    {
+      "query": "Find the page with a flat landscape drawing: a round orange sun and twin green triangular mountains.",
+      "relevant": ["pdf-images-captions-01"],
+      "group": "pdf-visual"
+    },
+    {
+      "query": "Which page's orange Q4 bar is visibly taller than the other three quarter bars?",
+      "relevant": ["visual-doc-quarterly-chart-b"],
+      "group": "pdf-visual"
+    },
+    {
+      "query": "Find a floor plan with the garden below the study and kitchen in the upper-left room.",
+      "relevant": ["visual-doc-studio-plan-b"],
+      "group": "pdf-visual"
+    },
+    {
+      "query": "Which route diagram shows red and blue lines crossing at a central station?",
+      "relevant": ["visual-doc-transit-map-b"],
+      "group": "pdf-visual"
+    },
+    {
+      "query": "Find a pipeline diagram whose arrows carry images through OCR and vector embeddings to search.",
+      "relevant": ["visual-doc-capture-workflow-b"],
+      "group": "pdf-visual"
+    },
+    {
+      "query": "Which heat map has warm red cells clustered toward the east and cool blue cells toward the west?",
+      "relevant": ["visual-doc-temperature-map-b"],
+      "group": "pdf-visual"
+    },
+    {
+      "query": "Find the timeline ordered plan, scan, index, then search.",
+      "relevant": ["visual-doc-project-timeline-b"],
+      "group": "pdf-visual"
+    },
+    {
+      "query": "Where is a browser screenshot listing PDFs, notes, an archive, and a spreadsheet by date?",
+      "relevant": ["screenshot-small-text-01"],
+      "group": "screenshot"
+    },
+    {
+      "query": "Find the page that curates one essay each Friday for a quieter web.",
+      "relevant": ["screenshot-large-text-01"],
+      "group": "screenshot"
+    },
+    {
+      "query": "Which picture describes dictionaries deliberately shelved out of order and notes growing in margins?",
+      "relevant": ["image-columns-01"],
+      "group": "visual-text"
+    },
+    {
+      "query": "Find the handwritten reminder to water plants and finish the reading list.",
+      "relevant": ["image-handwriting-01"],
+      "group": "visual-text"
+    },
+    {
+      "query": "Which meme begins with saving one link but ends with 47 browser tabs?",
+      "relevant": ["image-meme-01"],
+      "group": "visual-text"
+    },
+    {
+      "query": "Which expedition notes describe traveling before dawn with no network coverage and a paper map?",
+      "relevant": ["image-rotated-01"],
+      "group": "visual-text"
+    },
+    {
+      "query": "Which design reference shows a pastel palette and swatches?",
+      "relevant": ["image-design-ref-01"],
+      "group": "photo"
+    },
+    {
+      "query": "Find a warm living room with a chair, plant, and bright window.",
+      "relevant": ["image-similar-01", "image-similar-02"],
+      "group": "photo"
+    },
+    {
+      "query": "Find the matching interior reference in cooler colors.",
+      "relevant": ["image-similar-02"],
+      "group": "photo"
+    },
+    {
+      "query": "Find the pair of desert dune studies with a dusk sky.",
+      "relevant": ["image-similar-03", "image-similar-04"],
+      "group": "photo"
+    },
+    {
+      "query": "What is a mountain landscape with the sun setting at dusk?",
+      "relevant": ["image-photo-01"],
+      "group": "photo"
+    },
+    {
+      "query": "Find the moon above dark ocean waves at night.",
+      "relevant": ["image-distractor-01"],
+      "group": "photo"
+    },
+    {
+      "query": "Where is the low-resolution fruit picture showing an apple on a table?",
+      "relevant": ["image-lowres-01"],
+      "group": "photo"
+    }
+  ],
+  "similarity_pairs": [
+    {
+      "source": "image-similar-01",
+      "relevant": ["image-similar-02"]
+    },
+    {
+      "source": "image-similar-02",
+      "relevant": ["image-similar-01"]
+    },
+    {
+      "source": "image-similar-03",
+      "relevant": ["image-similar-04"]
+    },
+    {
+      "source": "image-similar-04",
+      "relevant": ["image-similar-03"]
+    }
+  ]
+}
