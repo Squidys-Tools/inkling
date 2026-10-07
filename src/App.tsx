@@ -1151,7 +1151,7 @@ function ExtensionPairing() {
             borderRadius: 10,
             background: "var(--surface-strong)",
             color: "var(--ink)",
-            font: "12px 'DM Mono', monospace",
+            font: "12px var(--font-ui)",
             letterSpacing: "0.02em",
             overflow: "hidden",
             textOverflow: "ellipsis",
