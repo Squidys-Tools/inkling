@@ -1248,12 +1248,28 @@ function App() {
     }
   }, [selectedItem]);
   const noteContentRequestsRef = useRef(new Set<string>());
+  const processingSummaryRequestsRef = useRef(new Set<string>());
   const pendingOcrRequestsRef = useRef(new Set<string>());
   const noteBodyCacheRef = useRef(new Map<string, string>());
   useEffect(() => {
-    if (!canUseTauriBackend || !selectedItem?.processing) return;
+    if (!canUseTauriBackend || !selectedItem) return;
     const itemId = String(selectedItem.id);
-    if (selectedItem.processing?.hasOcrJob) {
+    if (!selectedItem.processing) {
+      if (processingSummaryRequestsRef.current.has(itemId)) return;
+      processingSummaryRequestsRef.current.add(itemId);
+      void getProcessingSummaries([itemId])
+        .then((summaries) => {
+          const processing = summaries.get(itemId);
+          if (!processing) return;
+          setSelectedItem((current) => current && String(current.id) === itemId
+            ? { ...current, processing }
+            : current);
+        })
+        .catch(() => {})
+        .finally(() => processingSummaryRequestsRef.current.delete(itemId));
+      return;
+    }
+    if (selectedItem.processing.hasOcrJob) {
       pendingOcrRequestsRef.current.delete(itemId);
       return;
     }

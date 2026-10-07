@@ -13,6 +13,7 @@ mock.module("@tauri-apps/api/core", () => ({
     if (command === "list_spaces") return [];
     if (command === "list_item_spaces") return ["space-1"];
     if (command === "add_space_item" || command === "remove_space_item") return null;
+    if (command === "get_jobs_for_items") return [];
     if (command === "count_active_jobs") return 2;
     if (command === "enqueue_ocr_job") return "job-2";
     throw new Error(`Unexpected command: ${command}`);
@@ -28,6 +29,7 @@ const {
   addSpaceItem,
   countActiveJobs,
   enqueueOcrJob,
+  getProcessingSummaries,
   listItemSpaces,
   listSpaces,
   removeSpaceItem,
@@ -138,6 +140,18 @@ test("the UI can read the library-wide active job count", async () => {
 
   expect(await countActiveJobs()).toBe(2);
   expect(invokeCalls[invokeCalls.length - 1]?.command).toBe("count_active_jobs");
+});
+
+test("the UI can hydrate job state for an item before deciding to enqueue OCR", async () => {
+  invokeCalls.length = 0;
+
+  const summaries = await getProcessingSummaries(["item-7"]);
+
+  expect(summaries.get("item-7")?.hasOcrJob).toBe(false);
+  expect(invokeCalls[invokeCalls.length - 1]).toEqual({
+    command: "get_jobs_for_items",
+    args: { itemIds: ["item-7"] },
+  });
 });
 
 test("the UI can enqueue OCR for a selected image or PDF", async () => {
