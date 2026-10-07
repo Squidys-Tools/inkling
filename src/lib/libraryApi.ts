@@ -92,6 +92,7 @@ export type ProcessingJob = {
 
 export type ProcessingSummary = {
   active: boolean;
+  hasOcrJob: boolean;
   completed: number;
   total: number;
   progressCurrent: number;
@@ -159,6 +160,7 @@ function summarizeProcessingJobs(jobs: ProcessingJob[]): ProcessingSummary {
 
   return {
     active: activeJobs.length > 0,
+    hasOcrJob: latestJobs.some((job) => job.kind === "ocr_image" || job.kind === "ocr_pdf_page"),
     completed,
     total: latestJobs.length,
     progressCurrent,
@@ -329,6 +331,14 @@ export async function getProcessingSummaries(itemIds: string[]) {
     ? await invoke<ProcessingJob[]>("get_jobs_for_items", { itemIds })
     : [];
   return summariesFromJobs(itemIds, jobs);
+}
+
+export async function countActiveJobs() {
+  return withInitializedStorage(() => invoke<number>("count_active_jobs"));
+}
+
+export async function enqueueOcrJob(itemId: string) {
+  return withInitializedStorage(() => invoke<string>("enqueue_ocr_job", { itemId }));
 }
 
 export async function retryProcessingJob(jobId: string) {

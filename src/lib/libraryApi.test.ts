@@ -13,6 +13,8 @@ mock.module("@tauri-apps/api/core", () => ({
     if (command === "list_spaces") return [];
     if (command === "list_item_spaces") return ["space-1"];
     if (command === "add_space_item" || command === "remove_space_item") return null;
+    if (command === "count_active_jobs") return 2;
+    if (command === "enqueue_ocr_job") return "job-2";
     throw new Error(`Unexpected command: ${command}`);
   },
 }));
@@ -24,6 +26,8 @@ Object.defineProperty(globalThis, "window", {
 
 const {
   addSpaceItem,
+  countActiveJobs,
+  enqueueOcrJob,
   listItemSpaces,
   listSpaces,
   removeSpaceItem,
@@ -63,10 +67,12 @@ test("groups jobs by item and summarizes each", () => {
   expect(a?.progressCurrent).toBe(2);
   expect(a?.progressTotal).toBe(4);
   expect(a?.message).toBe("OCR");
+  expect(a?.hasOcrJob).toBe(true);
   expect(a?.completed).toBe(1);
   const b = summaries.get("b");
   expect(b?.active).toBe(false);
   expect(b?.failedJob?.errorMessage).toBe("boom");
+  expect(b?.hasOcrJob).toBe(true);
 });
 
 test("items without jobs get a quiet default summary", () => {
@@ -74,7 +80,16 @@ test("items without jobs get a quiet default summary", () => {
   const summary = summaries.get("missing");
   expect(summary?.active).toBe(false);
   expect(summary?.total).toBe(0);
+  expect(summary?.hasOcrJob).toBe(false);
   expect(summary?.failedJob).toBe(null);
+});
+
+test("processing summaries distinguish OCR jobs from embedding jobs", () => {
+  const summaries = summariesFromJobs(
+    ["image"],
+    [job({ itemId: "image", kind: "generate_embedding", status: "completed" })],
+  );
+  expect(summaries.get("image")?.hasOcrJob).toBe(false);
 });
 
 test("the newest failed job surfaces for its item", () => {
@@ -116,4 +131,18 @@ test("reading an item's Spaces returns the ids the overlay renders from", async 
   expect(await listItemSpaces("item-7")).toEqual(["space-1"]);
   expect(invokeCalls.map((call) => call.command)).toEqual(["list_item_spaces"]);
   expect(invokeCalls[0]?.args).toEqual({ itemId: "item-7" });
+});
+
+test("the UI can read the library-wide active job count", async () => {
+  invokeCalls.length = 0;
+
+  expect(await countActiveJobs()).toBe(2);
+  expect(invokeCalls[invokeCalls.length - 1]?.command).toBe("count_active_jobs");
+});
+
+test("the UI can enqueue OCR for a selected image or PDF", async () => {
+  invokeCalls.length = 0;
+
+  expect(await enqueueOcrJob("item-7")).toBe("job-2");
+  expect(invokeCalls[invokeCalls.length - 1]).toEqual({ command: "enqueue_ocr_job", args: { itemId: "item-7" } });
 });

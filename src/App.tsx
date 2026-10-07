@@ -43,6 +43,7 @@ import {
   assetUrl,
   archiveItem,
   addSpaceItem,
+  countActiveJobs,
   createQuote,
   createSpace,
   createUrl,
@@ -60,6 +61,7 @@ import {
   listSpaces,
   removeSpaceItem,
   getProcessingSummaries,
+  enqueueOcrJob,
   getItemContent,
   retryProcessingJob,
   getCaptureStatus,
@@ -1190,6 +1192,7 @@ function rememberNoteBody(cache: Map<string, string>, id: string, body: string) 
 function App() {
   const canUseTauriBackend = isTauriRuntime() && !shouldUseSeedLibrary();
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
+  const [activeJobCount, setActiveJobCount] = useState<number | null>(null);
   const [spaces, setSpaces] = useState<StoredSpace[]>(shouldUseSeedLibrary() ? seedSpaces : []);
   const [query, setQuery] = useState("");
   // Debounced copy of the search box. The input stays instant; only the
@@ -1245,7 +1248,25 @@ function App() {
     }
   }, [selectedItem]);
   const noteContentRequestsRef = useRef(new Set<string>());
+  const pendingOcrRequestsRef = useRef(new Set<string>());
   const noteBodyCacheRef = useRef(new Map<string, string>());
+  useEffect(() => {
+    if (!canUseTauriBackend || !selectedItem?.processing) return;
+    const itemId = String(selectedItem.id);
+    if (selectedItem.processing?.hasOcrJob) {
+      pendingOcrRequestsRef.current.delete(itemId);
+      return;
+    }
+    if (
+      (selectedItem.kind !== "Image" && selectedItem.kind !== "PDF") ||
+      selectedItem.ocrText?.trim() ||
+      pendingOcrRequestsRef.current.has(itemId)
+    ) return;
+    pendingOcrRequestsRef.current.add(itemId);
+    void enqueueOcrJob(itemId).catch(() => {
+      pendingOcrRequestsRef.current.delete(itemId);
+    });
+  }, [canUseTauriBackend, selectedItem?.id, selectedItem?.kind, selectedItem?.ocrText, selectedItem?.processing?.hasOcrJob]);
   useEffect(() => {
     if (!canUseTauriBackend || selectedItem?.kind !== "Note" || selectedItem.noteBody !== undefined) return;
     const id = String(selectedItem.id);
@@ -2814,12 +2835,16 @@ function App() {
             : debouncedQuery.trim()
               ? searchItems(debouncedQuery)
               : listActiveItems();
-        const storedItems = await storedItemsPromise;
+        const activeJobsPromise = canUseTauriBackend
+          ? countActiveJobs().catch(() => null)
+          : Promise.resolve(null);
+        const [storedItems, activeJobs] = await Promise.all([storedItemsPromise, activeJobsPromise]);
         const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
         const libraryItems = await Promise.all(storedItems.map((item) =>
           storedItemToLibraryItem(item, summaries.get(item.id)),
         ));
         if (!cancelled) {
+          if (activeJobs !== null) setActiveJobCount(activeJobs);
           // A refresh can resolve with data older than two writes this session
           // already made: a note body still in the cache, and a pin the backend
           // has not confirmed. Both are re-applied so the grid, the overlay, and
@@ -3300,7 +3325,9 @@ function App() {
   // commuting to the search field while it is focused. Busy shows the
   // notification pastille; errors drop to idle so the sad face can show
   // (drift carries its own fixed face). Error beats busyness beats attention.
-  const isMascotBusy = items.some((item) => item.processing?.active);
+  const isMascotBusy = canUseTauriBackend && activeJobCount !== null
+    ? activeJobCount > 0
+    : items.some((item) => item.processing?.active);
   // `captureError` is the shared error channel for the whole app, so it cannot
   // also mean "a save the user asked for failed" — a retried job, a renamed
   // Space, and the archive all write to it, and "Find similar" in the web
