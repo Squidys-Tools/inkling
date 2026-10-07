@@ -59,6 +59,13 @@ import {
   type StoredSpace,
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
+import {
+  createLinearIssue,
+  fetchLinearTeams,
+  hasLinearApiKey,
+  type CreatedLinearIssue,
+  type LinearTeam,
+} from "./lib/linear";
 import { autoplayEmbedUrl, providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 import PdfViewer from "./components/PdfViewer";
 import { ReaderView, type ReaderItem, type ReaderOrigin } from "./ReaderView";
@@ -850,6 +857,12 @@ function App() {
   const [isDragActive, setIsDragActive] = useState(false);
   const [isFindingSimilar, setIsFindingSimilar] = useState(false);
   const [similaritySource, setSimilaritySource] = useState<{ id: string; title: string } | null>(null);
+  const [linearPanelOpen, setLinearPanelOpen] = useState(false);
+  const [linearTeams, setLinearTeams] = useState<LinearTeam[] | null>(null);
+  const [linearTeamId, setLinearTeamId] = useState("");
+  const [isLinearBusy, setIsLinearBusy] = useState(false);
+  const [linearError, setLinearError] = useState<string | null>(null);
+  const [linearIssue, setLinearIssue] = useState<CreatedLinearIssue | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1135,6 +1148,73 @@ function App() {
       if (!retried) setCaptureError("That processing job is no longer available to retry.");
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  // A success message or error from one item must not carry over to the next.
+  useEffect(() => {
+    setLinearPanelOpen(false);
+    setLinearIssue(null);
+    setLinearError(null);
+  }, [selectedItem?.id]);
+
+  async function toggleLinearPanel() {
+    if (isLinearBusy) return;
+    const next = !linearPanelOpen;
+    setLinearPanelOpen(next);
+    setLinearIssue(null);
+    setLinearError(null);
+    if (!next) return;
+    if (!hasLinearApiKey()) {
+      setLinearError("LINEAR_API_KEY is not set. Add it in the Keys tab, then reload.");
+      return;
+    }
+    if (linearTeams !== null) return;
+    setIsLinearBusy(true);
+    try {
+      const teams = await fetchLinearTeams();
+      setLinearTeams(teams);
+      setLinearTeamId((current) => current || teams[0]?.id || "");
+      if (teams.length === 0) setLinearError("No Linear teams are visible to this API key.");
+    } catch (error) {
+      setLinearError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsLinearBusy(false);
+    }
+  }
+
+  async function sendItemToLinear() {
+    const item = selectedItem;
+    if (!item || isLinearBusy) return;
+    setLinearError(null);
+    setIsLinearBusy(true);
+    try {
+      if (!hasLinearApiKey()) {
+        throw new Error("LINEAR_API_KEY is not set. Add it in the Keys tab, then reload.");
+      }
+      let teams = linearTeams;
+      if (!teams) {
+        teams = await fetchLinearTeams();
+        setLinearTeams(teams);
+      }
+      if (teams.length === 0) throw new Error("No Linear teams are visible to this API key.");
+      const teamId = linearTeamId || teams[0].id;
+      setLinearTeamId(teamId);
+      const description = [
+        item.description?.trim() || "",
+        "",
+        `Saved from inkling — ${item.kind} · ${item.source}`,
+        item.sourceUrl ? `Original: ${item.sourceUrl}` : "",
+        item.tags.length ? `Tags: ${item.tags.map((tag) => `#${tag}`).join(" ")}` : "",
+      ]
+        .join("\n")
+        .trim();
+      const issue = await createLinearIssue({ teamId, title: item.title, description });
+      setLinearIssue(issue);
+    } catch (error) {
+      setLinearError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsLinearBusy(false);
     }
   }
 
@@ -1995,6 +2075,52 @@ function App() {
               >
                 <BookOpen size={15} /> Read
               </button>
+            )}
+            <button
+              className="open-source"
+              type="button"
+              onClick={() => void toggleLinearPanel()}
+              disabled={isLinearBusy && !linearPanelOpen}
+            >
+              <Share2 size={15} /> {linearPanelOpen ? "Hide Linear" : "Send to Linear"}
+            </button>
+            {linearPanelOpen && (
+              <div className="linear-panel">
+                {linearTeams && linearTeams.length > 1 && !linearIssue && (
+                  <label className="linear-team">
+                    <span>Team</span>
+                    <select
+                      value={linearTeamId}
+                      onChange={(event) => setLinearTeamId(event.target.value)}
+                      aria-label="Linear team"
+                    >
+                      {linearTeams.map((team) => (
+                        <option key={team.id} value={team.id}>
+                          {team.key} · {team.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <button
+                  className="capture-save"
+                  type="button"
+                  onClick={() => void sendItemToLinear()}
+                  disabled={isLinearBusy || Boolean(linearIssue)}
+                >
+                  {isLinearBusy ? "Sending…" : linearIssue ? "Issue created" : "Create issue"}
+                </button>
+                {linearIssue && (
+                  <p className="linear-status" role="status">
+                    Created{" "}
+                    <a href={linearIssue.url} target="_blank" rel="noreferrer">
+                      {linearIssue.identifier}
+                    </a>{" "}
+                    in Linear.
+                  </p>
+                )}
+                {linearError && <p className="capture-error" role="alert">{linearError}</p>}
+              </div>
             )}
             <button
               className="open-source"

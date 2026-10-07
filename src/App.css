@@ -222,6 +222,15 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .x-post-loading { display: grid; min-height: 180px; place-items: center; color: #6b8589; font: 10px "DM Mono", monospace; letter-spacing: .05em; text-transform: uppercase; }
 .x-post-inspector .x-post-loading { min-height: 320px; }
 .open-source:disabled { cursor: not-allowed; opacity: .48; }
+.linear-panel { display: grid; gap: 10px; margin-top: 12px; padding: 12px; border: 1px solid var(--rule); border-radius: 9px; background: #20201e; }
+.linear-team { display: grid; gap: 6px; color: var(--muted); font: 11px "DM Mono", monospace; letter-spacing: .06em; text-transform: uppercase; }
+.linear-team select { width: 100%; height: 34px; padding: 0 9px; border: 1px solid var(--rule); border-radius: 7px; background: #191917; color: var(--ink); font: 13px "DM Sans", ui-sans-serif, sans-serif; letter-spacing: normal; text-transform: none; outline: none; }
+.linear-team select:focus { border-color: var(--orange); }
+.linear-panel .capture-save { justify-self: start; }
+.linear-status { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.linear-status a { color: var(--orange); text-decoration: none; }
+.linear-status a:hover { text-decoration: underline; }
+.linear-panel .capture-error { margin: 0; }
 
 .post-art { padding: 20px; background: #edf4f5; }
 .post-avatar { position: relative; overflow: hidden; }
