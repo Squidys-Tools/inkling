@@ -57,6 +57,7 @@ Guardrails:
 
 ### Changed
 
+- Paper Mono is now the default interface typeface, bundled locally under the SIL Open Font License.
 - GitHub Actions moved off paid Blacksmith runners to the free GitHub-hosted ones (`.github/workflows/ci.yml`, `.github/workflows/security.yml`, `.github/workflows/release.yml`)
 - CI now lints Rust with `cargo clippy --all-targets -- -D warnings`, typechecks the extension and shared package workspaces, builds the browser extension, and verifies the Bun version pin; frontend paths under `extension/` and `packages/` trigger the frontend job (`.github/workflows/ci.yml`)
 - Toasts restyled as a catalog drawer slip for Undo actions and a compact ink-slip chip for success/error (shared palette, plain content, HugeIcons close control, top-right entry/exit, 5s status auto-dismiss, persistent Undo) (SQU-6, `src/App.tsx`, `src/App.css`)
