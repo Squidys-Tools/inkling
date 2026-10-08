@@ -59,7 +59,7 @@ Surfacing forgotten material through browsing and curation.
 - [x] Trash and recoverable archive
 - [x] Space management (create, rename, reorder, recolor, delete)
 - [x] Regular Spaces (manual collections)
-- [ ] Wire the already-registered `enqueue_ocr_job` and `count_active_jobs` Tauri commands to UI (backend ships them, no frontend caller yet)
+- [x] Wire the already-registered `enqueue_ocr_job` and `count_active_jobs` Tauri commands to UI (backend ships them, no frontend caller yet)
 - [x] Export and backup (database snapshot + referenced assets + manifest)
 - [ ] Import and restore from an export
 
