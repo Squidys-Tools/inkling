@@ -29,10 +29,12 @@ Guardrails:
 ### Added
 
 - Article cards without an Open Graph image get a host-derived placeholder: a deterministic hue tinted by the source hostname, and a seal badge that shows the site favicon when the capture pipeline found one (else the host initial) instead of a fixed letter (`src/components/ItemMedia.tsx`, `src/App.css`, `src/App.tsx`, `src/lib/ingestion/`, `packages/ingestion-shared/`, `extension/`, `src-tauri/src/capture_server.rs`, `src-tauri/src/storage.rs`)
+- Background OCR for older images and PDFs when first opened, with the mascot's quiet activity state reflecting the full job queue (SQU-5).
 - Library export from Settings (Data tab): writes a dated folder with a consistent SQLite snapshot, the asset files the saved items reference, and a manifest of counts and sizes, after picking a destination folder in a native dialog.
 - Browser extension store prep: Firefox MV3 manifest, local mascot icons, options token field, and store copy draft (`extension/`).
 - Portable Windows PR previews build a self-contained review folder with pinned ONNX Runtime and embedding models, isolated database/assets/models, and a `preview:win` artifact link.
 - Serendipity now walks through older saves one at a time, with Keep and recoverable Forget actions, session-safe batching, and a clear end state (SQU-3).
+- Focus Mode for note writing expands the existing Tiptap Markdown editor into a full-screen, long-form surface with a fixed formatting and save bar; drafts and storage remain in the same note editor (SQU-2).
 - Rich note editing with a lazy-loaded Tiptap Markdown editor inside the note detail overlay, plain-text search projection, body-aware FTS, and background re-embedding (SQU-1)
 - Unit tests for the note card word-count logic, run via `bun test` in CI and the local frontend check (`src/components/ItemMedia.test.ts`)
 - Inkling mascot engine vendored from the MIT-licensed bloub avatar project (framework-free SVG morph engine only, no Vue shell) with a Paper-derived ink-blot shape (`inkling-splash`), a React mascot component wired into the sidebar brand mark (slow drift live, gentle sway under reduced motion, notification pastille while background work runs, sad eyes on capture errors), a dev-only board at `?mascot`, and frozen-frame SVGs under `docs/assets/mascots/` (`src/components/mascot/`, `scripts/mascot-board.ts`)
@@ -57,6 +59,7 @@ Guardrails:
 
 ### Changed
 
+- Paper Mono is now the default interface typeface, bundled locally under the SIL Open Font License.
 - GitHub Actions moved off paid Blacksmith runners to the free GitHub-hosted ones (`.github/workflows/ci.yml`, `.github/workflows/security.yml`, `.github/workflows/release.yml`)
 - CI now lints Rust with `cargo clippy --all-targets -- -D warnings`, typechecks the extension and shared package workspaces, builds the browser extension, and verifies the Bun version pin; frontend paths under `extension/` and `packages/` trigger the frontend job (`.github/workflows/ci.yml`)
 - Toasts restyled as a catalog drawer slip for Undo actions and a compact ink-slip chip for success/error (shared palette, plain content, HugeIcons close control, top-right entry/exit, 5s status auto-dismiss, persistent Undo) (SQU-6, `src/App.tsx`, `src/App.css`)

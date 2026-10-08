@@ -1,5 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Lora:ital,wght@0,400;0,600;1,400&family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Cormorant+Garamond:ital,wght@0,500;1,500&family=Vollkorn:ital,wght@0,400;0,600;1,400&family=Spectral:ital,wght@0,400;0,600;0,700;1,400&family=PT+Serif:ital,wght@0,400;0,700;1,400&family=Bitter:ital,wght@0,400;0,600;1,400&family=Gelasio:ital,wght@0,400;0,600;1,400&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Playfair+Display:ital,wght@1,500&family=Zilla+Slab:ital,wght@0,400;0,600;1,400&family=Space+Grotesk:wght@500;700&family=Libre+Baskerville:ital,wght@0,400;1,400&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto:ital,wght@0,400;0,700;1,400&family=Arimo:ital,wght@0,400;0,700;1,400&family=Noto+Sans:ital,wght@0,400;0,700;1,400&family=Nunito+Sans:ital,wght@0,400;0,700;0,900;1,400&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=PT+Sans:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto:ital,wght@0,400;0,700;1,400&family=Arimo:ital,wght@0,400;0,700;1,400&family=Noto+Sans:ital,wght@0,400;0,700;1,400&family=Nunito+Sans:ital,wght@0,400;0,700;0,900;1,400&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=PT+Sans:ital,wght@0,400;0,700;1,400&display=swap");
 
 .reader-overlay {
   --reader-bg: #0c0c0b;
@@ -97,7 +97,7 @@
   padding: 3px 7px;
   border-radius: 5px;
   background: var(--reader-code-bg);
-  font: 500 10px "DM Mono", monospace;
+  font: 500 10px var(--font-ui);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -297,7 +297,7 @@
   border: 1px solid var(--reader-rule);
   border-radius: 10px;
   background: var(--reader-code-bg);
-  font-family: "DM Mono", ui-monospace, monospace;
+  font-family: var(--font-ui);
   font-size: 0.82em;
   line-height: 1.6;
 }
@@ -306,7 +306,7 @@
   padding: 0.1em 0.35em;
   border-radius: 4px;
   background: var(--reader-code-bg);
-  font-family: "DM Mono", ui-monospace, monospace;
+  font-family: var(--font-ui);
   font-size: 0.85em;
 }
 
@@ -398,7 +398,7 @@
 
 .reader-font-picker span {
   color: var(--reader-faint);
-  font: 10px "DM Mono", monospace;
+  font: 10px var(--font-ui);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -408,7 +408,7 @@
   outline: none;
   background: transparent;
   color: var(--reader-ink);
-  font: 12px "DM Sans", ui-sans-serif, sans-serif;
+  font: 12px var(--font-ui);
   cursor: pointer;
 }
 
@@ -417,7 +417,7 @@
   --reader-font-body: "Source Serif 4", Georgia, serif;
   --reader-font-quote: "Newsreader", Georgia, serif;
   --reader-font-list: "Lora", Georgia, serif;
-  --reader-font-meta: "DM Mono", monospace;
+  --reader-font-meta: var(--font-ui);
   --reader-heading-weight: 600;
   --reader-heading-tracking: -0.01em;
   --reader-body-size: 19px;

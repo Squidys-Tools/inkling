@@ -22,6 +22,8 @@ type RichNoteEditorProps = {
   onSave: (body: string) => void | Promise<void>;
   onEditingChange?: (editing: boolean) => void;
   embedded?: boolean;
+  focusMode?: boolean;
+  onFocusModeChange?: (focusMode: boolean) => void;
 };
 
 const IDLE_TOOLBAR = {
@@ -44,7 +46,15 @@ const IDLE_TOOLBAR = {
 // Editing only happens inside the expanded overlay, which owns when the editor
 // opens. This component only ever edits; rendering a stored note as sanitized
 // HTML is a separate concern, if the product ever asks for it.
-export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded = false }: RichNoteEditorProps) {
+export function RichNoteEditor({
+  body,
+  title,
+  onSave,
+  onEditingChange,
+  embedded = false,
+  focusMode = false,
+  onFocusModeChange,
+}: RichNoteEditorProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
@@ -166,10 +176,14 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
   };
 
   return (
-    <div ref={editorRootRef} className={`note-editor is-editing ${embedded ? "note-embedded-editor" : ""}`} data-testid="rich-note-editor">
+    <div
+      ref={editorRootRef}
+      className={`note-editor is-editing ${embedded ? "note-embedded-editor" : ""} ${focusMode ? "note-focus-editor" : ""}`}
+      data-testid="rich-note-editor"
+    >
       {embedded && (
-        <div className="note-embedded-orientation">
-          <span className="note-embedded-kicker">Editing</span>
+        <div className={`note-embedded-orientation ${focusMode ? "is-focus-orientation" : ""}`}>
+          <span className="note-embedded-kicker">{focusMode ? "Focus mode" : "Editing"}</span>
           <span className="note-embedded-divider" />
           <span className="note-embedded-name">{title}</span>
         </div>
@@ -253,6 +267,16 @@ export function RichNoteEditor({ body, title, onSave, onEditingChange, embedded 
                 Remove
               </button>
             </div>
+          )}
+          {embedded && (
+            <button
+              type="button"
+              className="note-editor-focus-toggle"
+              aria-pressed={focusMode}
+              onClick={() => onFocusModeChange?.(!focusMode)}
+            >
+              {focusMode ? "Exit focus" : "Focus mode"}
+            </button>
           )}
           <button
             type="button"
