@@ -10,7 +10,6 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-.venv-embedding/
 *.local
 .artifacts/
 
@@ -23,6 +22,9 @@ eng.traineddata
 
 # Agent scratch and implementation plans stay out of the repo
 .plans/
+
+benchmarks/embedding-comparison/.gradle/
+benchmarks/embedding-comparison/build/
 
 # Editor directories and files
 .vscode/*
