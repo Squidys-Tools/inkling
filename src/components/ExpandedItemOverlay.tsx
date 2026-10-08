@@ -298,7 +298,9 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkCopyFailed, setLinkCopyFailed] = useState(false);
   const [isEditingNote, setIsEditingNote] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
   const isEditingNoteRef = useRef(false);
+  const isFocusModeRef = useRef(false);
 
   // Mirror props into refs inside an effect, never during render, so a
   // concurrent render cannot publish a half-updated set. This runs before
@@ -311,7 +313,8 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
 
   useLayoutEffect(() => {
     isEditingNoteRef.current = isEditingNote;
-  }, [isEditingNote]);
+    isFocusModeRef.current = isFocusMode;
+  }, [isEditingNote, isFocusMode]);
 
   // The item whose content the dialog shows. During a closing flight that was
   // triggered by switching items, the dialog flies back displaying the item it
@@ -528,6 +531,7 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
       // catches a switch that arrived another way (Enter on a focused card).
       // Leave the editor rather than carry the draft onto another item.
       setIsEditingNote(false);
+      setIsFocusMode(false);
     }
 
     const activeFlight = flightRef.current;
@@ -666,6 +670,10 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
   };
 
   const handleOverlayClose = () => {
+    if (isFocusModeRef.current) {
+      setIsFocusMode(false);
+      return;
+    }
     if (isEditingNoteRef.current) {
       setIsEditingNote(false);
       return;
@@ -856,21 +864,24 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
   }
 
   const isEditingNoteView = isEditingNote && shownItem.kind === "Note";
+  const isFocusModeView = isFocusMode && isEditingNoteView;
 
   return (
-    <div className="expanded-overlay-layer fixed inset-0 z-[6] grid place-items-center p-[clamp(16px,4vh,40px)_clamp(16px,3vw,48px)] pointer-events-none" ref={layerRef}>
+    <div className={`expanded-overlay-layer fixed inset-0 z-[6] grid place-items-center p-[clamp(16px,4vh,40px)_clamp(16px,3vw,48px)] pointer-events-none ${isFocusModeView ? "is-focus-mode" : ""}`} ref={layerRef}>
       <section
         ref={dialogRef}
-        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""} relative pointer-events-auto flex w-[min(680px,100%)] max-h-full flex-col overflow-hidden bg-surface border border-[#4a4842] rounded-[24px] shadow-[0_30px_80px_rgba(0,0,0,.55)]`}
+        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""} ${isFocusModeView ? "is-focus-mode" : ""} relative pointer-events-auto flex w-[min(680px,100%)] max-h-full flex-col overflow-hidden bg-surface border border-[#4a4842] rounded-[24px] shadow-[0_30px_80px_rgba(0,0,0,.55)]`}
         {...rootProps}
-        style={dialogFlying ? undefined : placedStyle}
+        style={isFocusModeView
+          ? { position: "relative", left: "auto", top: "auto", width: "min(100%, 1060px)", height: "100%" }
+          : dialogFlying ? undefined : placedStyle}
       >
         <button
           type="button"
           ref={closeButtonRef}
           className="expanded-overlay-close absolute top-[14px] right-[14px] z-[5] inline-grid size-[30px] flex-none place-items-center cursor-pointer bg-[rgba(59,58,53,.86)] border border-[#5a5750] rounded-[7px] text-ink shadow-[0_5px_16px_rgba(0,0,0,.3)] backdrop-blur-[8px] [transition:background_.18s_ease,color_.18s_ease,border-color_.18s_ease,transform_.18s_cubic-bezier(.23,1,.32,1)] hover:bg-[#4a4842] hover:border-[#716d64] active:scale-[.96]"
           onClick={handleOverlayClose}
-          aria-label={isEditingNoteView ? "Close editor" : "Close details"}
+          aria-label={isFocusModeView ? "Exit focus mode" : isEditingNoteView ? "Close editor" : "Close details"}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={16} />
         </button>
@@ -896,7 +907,12 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
                 body={shownItem.noteBody}
                 title={shownItem.title}
                 onSave={(body) => actions.onUpdateNote(shownItem, body)}
-                onEditingChange={setIsEditingNote}
+                onEditingChange={(editing) => {
+                  setIsEditingNote(editing);
+                  if (!editing) setIsFocusMode(false);
+                }}
+                focusMode={isFocusModeView}
+                onFocusModeChange={setIsFocusMode}
               />
             </Suspense>
           ) : shownItem.kind === "Quote" ? (
@@ -1050,7 +1066,10 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
                   <button
                     type="button"
                     className="toolbar-primary flex min-w-0 flex-[1_1_0%] cursor-pointer items-center justify-center gap-[8px] overflow-hidden whitespace-nowrap bg-green-soft border border-[#35443c] rounded-[9px] p-[13px_16px] text-[12px] font-semibold text-[#9dbfa9] enabled:hover:bg-[#2b382f] enabled:hover:border-[#4a5c50] disabled:cursor-default disabled:opacity-50"
-                    onClick={() => setIsEditingNote(true)}
+                    onClick={() => {
+                      setIsFocusMode(false);
+                      setIsEditingNote(true);
+                    }}
                     aria-label="Edit note"
                   >
                     Edit note

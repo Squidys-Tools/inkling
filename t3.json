@@ -1,0 +1,59 @@
+{
+  "$schema": "https://t3.codes/schema/t3.json",
+  "scripts": [
+    {
+      "name": "Install dependencies",
+      "command": "bun install --frozen-lockfile --ignore-scripts",
+      "icon": "configure",
+      "runOnWorktreeCreate": true
+    },
+    {
+      "name": "Run desktop app dev",
+      "command": "bun run tauri dev",
+      "icon": "play",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Run web preview",
+      "command": "bun run dev",
+      "icon": "play",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Fast local checks",
+      "command": "bun run check",
+      "icon": "test",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Check Bun version",
+      "command": "bun run check:bun-version",
+      "icon": "debug",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Format Rust",
+      "command": "bun run fmt",
+      "icon": "configure",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Build Windows review app",
+      "command": "bun run preview:win",
+      "icon": "build",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Clean Rust build artifacts",
+      "command": "cargo clean --manifest-path src-tauri/Cargo.toml",
+      "icon": "debug",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Clean project JS dependencies",
+      "command": "bun -e \"import { rmSync } from 'node:fs'; for (const path of ['node_modules', 'extension/node_modules']) rmSync(path, { recursive: true, force: true })\"",
+      "icon": "debug",
+      "runOnWorktreeCreate": false
+    }
+  ]
+}

@@ -5,7 +5,8 @@ import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
 import { gsap } from "gsap";
 import { Toaster, toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {  Archive01Icon,
+import {
+  Archive01Icon,
   ArrowDown01Icon,
   ArrowUp01Icon,
   ArrowUpRight01Icon,
@@ -19,17 +20,22 @@ import {  Archive01Icon,
   Link01Icon,
   ListViewIcon,
   Loading01Icon,
-  PlusSignIcon,  PinIcon,  Search01Icon,
+  PlusSignIcon,
+  PinIcon,
+  Search01Icon,
   Settings01Icon,
   SidebarLeftIcon,
-  SparklesIcon,  ViewSidebarLeftIcon,
+  SparklesIcon,
+  ViewSidebarLeftIcon,
   Cancel01Icon,
-  CircleCheckIcon,  CheckListIcon,
+  CircleCheckIcon,
+  CheckListIcon,
 } from "@hugeicons/core-free-icons";
 import {
   assetUrl,
   archiveItem,
   addSpaceItem,
+  countActiveJobs,
   createQuote,
   createSpace,
   createUrl,
@@ -47,6 +53,7 @@ import {
   listSpaces,
   removeSpaceItem,
   getProcessingSummaries,
+  enqueueOcrJob,
   getItemContent,
   retryProcessingJob,
   saveFile,
@@ -850,6 +857,7 @@ function rememberNoteBody(cache: Map<string, string>, id: string, body: string) 
 function App() {
   const canUseTauriBackend = isTauriRuntime() && !shouldUseSeedLibrary();
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
+  const [activeJobCount, setActiveJobCount] = useState<number | null>(null);
   const [spaces, setSpaces] = useState<StoredSpace[]>(shouldUseSeedLibrary() ? seedSpaces : []);
   const [query, setQuery] = useState("");
   // Debounced copy of the search box. The input stays instant; only the
@@ -905,7 +913,41 @@ function App() {
     }
   }, [selectedItem]);
   const noteContentRequestsRef = useRef(new Set<string>());
+  const processingSummaryRequestsRef = useRef(new Set<string>());
+  const pendingOcrRequestsRef = useRef(new Set<string>());
   const noteBodyCacheRef = useRef(new Map<string, string>());
+  useEffect(() => {
+    if (!canUseTauriBackend || !selectedItem) return;
+    const itemId = String(selectedItem.id);
+    if (!selectedItem.processing) {
+      if (processingSummaryRequestsRef.current.has(itemId)) return;
+      processingSummaryRequestsRef.current.add(itemId);
+      void getProcessingSummaries([itemId])
+        .then((summaries) => {
+          const processing = summaries.get(itemId);
+          if (!processing) return;
+          setSelectedItem((current) => current && String(current.id) === itemId
+            ? { ...current, processing }
+            : current);
+        })
+        .catch(() => {})
+        .finally(() => processingSummaryRequestsRef.current.delete(itemId));
+      return;
+    }
+    if (selectedItem.processing.hasOcrJob) {
+      pendingOcrRequestsRef.current.delete(itemId);
+      return;
+    }
+    if (
+      (selectedItem.kind !== "Image" && selectedItem.kind !== "PDF") ||
+      selectedItem.ocrText?.trim() ||
+      pendingOcrRequestsRef.current.has(itemId)
+    ) return;
+    pendingOcrRequestsRef.current.add(itemId);
+    void enqueueOcrJob(itemId).catch(() => {
+      pendingOcrRequestsRef.current.delete(itemId);
+    });
+  }, [canUseTauriBackend, selectedItem?.id, selectedItem?.kind, selectedItem?.ocrText, selectedItem?.processing?.hasOcrJob]);
   useEffect(() => {
     if (!canUseTauriBackend || selectedItem?.kind !== "Note" || selectedItem.noteBody !== undefined) return;
     const id = String(selectedItem.id);
@@ -2442,12 +2484,16 @@ function App() {
             : debouncedQuery.trim()
               ? searchItems(debouncedQuery)
               : listActiveItems();
-        const storedItems = await storedItemsPromise;
+        const activeJobsPromise = canUseTauriBackend
+          ? countActiveJobs().catch(() => null)
+          : Promise.resolve(null);
+        const [storedItems, activeJobs] = await Promise.all([storedItemsPromise, activeJobsPromise]);
         const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
         const libraryItems = await Promise.all(storedItems.map((item) =>
           storedItemToLibraryItem(item, summaries.get(item.id)),
         ));
         if (!cancelled) {
+          if (activeJobs !== null) setActiveJobCount(activeJobs);
           // A refresh can resolve with data older than two writes this session
           // already made: a note body still in the cache, and a pin the backend
           // has not confirmed. Both are re-applied so the grid, the overlay, and
@@ -2928,7 +2974,9 @@ function App() {
   // commuting to the search field while it is focused. Busy shows the
   // notification pastille; errors drop to idle so the sad face can show
   // (drift carries its own fixed face). Error beats busyness beats attention.
-  const isMascotBusy = items.some((item) => item.processing?.active);
+  const isMascotBusy = canUseTauriBackend && activeJobCount !== null
+    ? activeJobCount > 0
+    : items.some((item) => item.processing?.active);
   // `captureError` is the shared error channel for the whole app, so it cannot
   // also mean "a save the user asked for failed" — a retried job, a renamed
   // Space, and the archive all write to it, and "Find similar" in the web

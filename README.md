@@ -6,6 +6,8 @@ inkling is a quiet little home for everything you want to keep: articles, images
 
 Everything lives on your own computer. Nothing leaves ever leaves.
 
+The interface uses [Paper Mono](https://github.com/paper-design/paper-mono) by Paper Design, bundled locally under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL). Paper Mono is based on Geist Mono by Vercel and basement.studio; the font's copyright and license notice is included in [public/fonts/OFL.txt](public/fonts/OFL.txt).
+
 <img src="docs/assets/mascots/inkling-splash-loop.svg" alt="inkling mascot, a small ink blot that drifts, blinks and changes expression" width="160">
 
 ![Your inkling library — a visual grid of saved articles, images, quotes, and videos](docs/assets/screenshots/library.png)
@@ -81,7 +83,6 @@ A small ink blot lives in the sidebar and pops into the search bar while you typ
 Little by little, inkling is growing toward:
 
 - Search that understands meaning even better, and "find more like this image"
-- Focus Mode for long-form writing and a richer note editor
 - Trash with undo and backups, first-run onboarding, then import and restore from an export
 - A Windows installer with updates
 - Possibly cross platform support in the future if I can get money for a macbook and find some time to test it on linux. Likely distros will be Ubuntu, Arch, and Debain for the widest range of support up-front.
