@@ -1,0 +1,21 @@
+check any open prs first but then make me a t3.json for this project of commands that I would actually need to run myself. including a cleanup command for when I settle a thread and need it to cleanup the worktree to save on storage.
+
+---
+
+no not all worktrees, just the worktree the t3 code thread will be in, like deleting node modules and cargo cache or anything else like that
+
+---
+
+can you also add a running desktop app dev command
+
+---
+
+can we not use a script for cleanup command?
+
+---
+
+can you not instead just make it like a cargo cleanup or bun cleanup command?
+
+---
+
+no i want it to just clean the projects cache not machine wide
