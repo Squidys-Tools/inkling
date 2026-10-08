@@ -110,6 +110,10 @@ Guardrails:
 - While a note is being written, scrolling, resizing, and a click on the library — empty space or another card — no longer throw the draft away: the press is absorbed rather than cancelling the note, moving the panel to another card, or pressing whatever sits behind it, so the close button, Escape and Save are the ways out (SQU-1)
 - Escape inside the note editor's link field, or inside the detail view's new-tag field, now cancels only that field instead of leaving the note editor or closing the panel (SQU-1)
 - Deleting from the archive, one item or a selection, now hides the cards immediately and keeps them recoverable for ten seconds behind an Undo action before the delete is finalized (`src/App.tsx`)
+- Keyboard focus no longer escapes the app's dialogs. The add sheet, reader, PDF viewer and item overlay all declared themselves modal but only the settings modal trapped Tab, so tabbing walked through the library behind an overlay that looked modal; all five now share one dialog primitive that contains Tab, moves focus in on open and returns it to the control that opened the dialog on close (`src/components/dialog/`)
+- Pressing Escape now closes one dialog instead of two. The reader and item overlay both listened on `window` and called `stopPropagation()`, which cannot stop a sibling listener on the same node, so a single press dismissed both; the topmost open dialog now answers Escape and the ones underneath stay put.
+- The settings dialog no longer announces itself through a dangling `aria-labelledby` that pointed at an id no element carried, leaving screen readers with no accessible name for it (`src/App.tsx`)
+- Tab inside a dialog no longer becomes stuck when the dialog has nothing focusable in it, such as the add sheet while its form is between the exit and enter of a mode switch
 
 ---
 

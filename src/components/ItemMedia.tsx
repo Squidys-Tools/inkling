@@ -80,13 +80,13 @@ export function pdfPreviewTitle(value: string): string {
 
 export function PdfArtwork({ item }: { item: LibraryItem }) {
   return (
-    <div className="pdf-artwork">
-      <img src={pdfPointillismOptionB} alt="" className="pdf-shader" />
-      <span className="pdf-label">PDF</span>
-      <span className="pdf-mark" aria-hidden="true" />
-      <span className="pdf-title">{pdfPreviewTitle(item.title) || "Document"}</span>
-      <div className="pdf-legend" aria-hidden="true"><span /><span /><span /></div>
-      <span className="pdf-page-count">{item.pdfPageCount ? `${item.pdfPageCount} PAGES` : "PDF"}</span>
+    <div className="pdf-artwork absolute inset-0 isolate overflow-hidden bg-paper">
+      <img src={pdfPointillismOptionB} alt="" className="pdf-shader pointer-events-none absolute inset-0 z-0 size-full object-cover" />
+      <span className="pdf-label absolute top-[16%] left-[11%] z-2 font-mono text-[9px] tracking-[.15em] text-muted">PDF</span>
+      <span className="pdf-mark absolute top-[15%] right-[13%] z-2 size-[20px] rounded-full border border-muted opacity-85" aria-hidden="true" />
+      <span className="pdf-title [display:-webkit-box] absolute top-[35%] right-[16%] left-[11%] z-2 overflow-hidden font-sans text-[17px] font-semibold leading-[1.16] tracking-[-.025em] uppercase text-ink [-webkit-box-orient:vertical] [-webkit-line-clamp:3]">{pdfPreviewTitle(item.title) || "Document"}</span>
+      <div className="pdf-legend absolute top-[59%] left-[11%] z-2 flex items-center gap-[7px]" aria-hidden="true"><span className="size-[9px] rounded-full bg-orange" /><span className="size-[9px] rounded-full bg-yellow-soft" /><span className="size-[9px] rounded-full bg-green" /></div>
+      <span className="pdf-page-count absolute right-[11%] bottom-[11%] z-2 font-mono text-[10px] tracking-[.08em] text-muted">{item.pdfPageCount ? `${item.pdfPageCount} PAGES` : "PDF"}</span>
     </div>
   );
 }
@@ -107,35 +107,41 @@ export function noteWordCount(value: string | undefined): number {
 export function NoteArtwork({ item }: { item: LibraryItem }) {
   const words = noteWordCount(item.noteBody === undefined ? item.description : markdownToPlainText(item.noteBody));
   return (
-    <div className="pdf-artwork">
-      <img src={pdfPointillismOptionB} alt="" className="pdf-shader" />
-      <span className="pdf-label">NOTE</span>
-      <span className="pdf-mark" aria-hidden="true" />
-      <span className="pdf-title">{item.title?.trim() || "Untitled note"}</span>
-      <div className="pdf-legend" aria-hidden="true"><span /><span /><span /></div>
-      <span className="pdf-page-count">{words > 0 ? `${words} WORDS` : "NOTE"}</span>
+    <div className="pdf-artwork absolute inset-0 isolate overflow-hidden bg-paper">
+      <img src={pdfPointillismOptionB} alt="" className="pdf-shader pointer-events-none absolute inset-0 z-0 size-full object-cover" />
+      <span className="pdf-label absolute top-[16%] left-[11%] z-2 font-mono text-[9px] tracking-[.15em] text-muted">NOTE</span>
+      <span className="pdf-mark absolute top-[15%] right-[13%] z-2 size-[20px] rounded-full border border-muted opacity-85" aria-hidden="true" />
+      <span className="pdf-title [display:-webkit-box] absolute top-[35%] right-[16%] left-[11%] z-2 overflow-hidden font-sans text-[17px] font-semibold leading-[1.16] tracking-[-.025em] uppercase text-ink [-webkit-box-orient:vertical] [-webkit-line-clamp:3]">{item.title?.trim() || "Untitled note"}</span>
+      <div className="pdf-legend absolute top-[59%] left-[11%] z-2 flex items-center gap-[7px]" aria-hidden="true"><span className="size-[9px] rounded-full bg-orange" /><span className="size-[9px] rounded-full bg-yellow-soft" /><span className="size-[9px] rounded-full bg-green" /></div>
+      <span className="pdf-page-count absolute right-[11%] bottom-[11%] z-2 font-mono text-[10px] tracking-[.08em] text-muted">{words > 0 ? `${words} WORDS` : "NOTE"}</span>
     </div>
   );
 }
 
+// The card's X-post fallback is a bare `.post-art` with no post data, so it has
+// to paint the same surface as the real artwork. One constant, so the two
+// cannot drift.
+export const POST_ART_CLASS =
+  "post-art flex min-h-[185px] flex-col overflow-hidden p-5 bg-[#edf4f5] text-[#243d42]";
+
 export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }) {
   return (
-    <div className="post-art" aria-hidden="true">
-      <div className="post-author">
-        <span className="post-avatar">
-          <span>j</span>
-          {post.avatarUrl && <img src={post.avatarUrl} alt="" />}
+    <div className={POST_ART_CLASS} aria-hidden="true">
+      <div className="post-author flex items-center gap-[9px]">
+        <span className="post-avatar relative grid size-[28px] shrink-0 place-items-center overflow-hidden rounded-full bg-[#243d42] font-sans text-[15px] font-medium leading-[1] text-[#e8f0f2]">
+          <span className="relative z-0">j</span>
+          {post.avatarUrl && <img src={post.avatarUrl} alt="" className="absolute inset-0 z-1 size-full object-cover" />}
         </span>
-        <span>
-          <strong>{post.displayName}</strong>
+        <span className="grid min-w-0 grid-cols-[auto_auto] items-center gap-x-[4px]">
+          <strong className="text-[12px] font-semibold">{post.displayName}</strong>
           <HugeiconsIcon icon={CheckmarkBadge01Icon} size={13} />
-          <small>{post.handle}</small>
+          <small className="col-span-full font-mono text-[10px] text-[#6b8589]">{post.handle}</small>
         </span>
-        <span className="post-platform">X</span>
+        <span className="post-platform ml-auto font-sans text-[17px] font-bold leading-[1] tracking-[-.1em] text-[#243d42]">X</span>
       </div>
-      <p>{post.body}</p>
-      <div className="post-date">{post.published}</div>
-      <div className="post-actions">
+      <p className="mt-auto mx-0 mb-[13px] min-h-0 max-w-[22ch] font-sans text-[20px] font-medium leading-[1.2] tracking-[-.035em] text-[#243d42]">{post.body}</p>
+      <div className="post-date border-t border-[rgba(36,61,66,.16)] pt-[10px] font-mono text-[10px] text-[#6b8589]">{post.published}</div>
+      <div className="post-actions mt-[13px] flex gap-[17px] text-[#6b8589]">
         <HugeiconsIcon icon={Message01Icon} size={14} />
         <HugeiconsIcon icon={RepeatIcon} size={14} />
         <HugeiconsIcon icon={HeartIcon} size={14} />
@@ -155,9 +161,10 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
   if (item.video) {
     const poster = item.image ?? item.video.posterUrl;
     return (
-      <div className="detail-video">
+      <div className="detail-video relative h-full overflow-hidden bg-[#101010]">
         {isPlaying ? (
           <iframe
+            className="block size-full border-0"
             src={autoplayEmbedUrl(item.video.embedUrl)}
             title={item.title}
             allow={VIDEO_IFRAME_ALLOW}
@@ -166,13 +173,13 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
         ) : (
           <button
             type="button"
-            className="video-poster"
+            className="video-poster group relative block size-full cursor-pointer border-0 bg-[#101010] p-0"
             onClick={() => setIsPlaying(true)}
             aria-label={`Play video: ${item.title}`}
           >
-            {poster && <img src={poster} alt="" loading="lazy" decoding="async" />}
-            <span className="video-poster-play" aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={21} /></span>
-            <span className="video-provider">{providerLabel(item.video.provider)}</span>
+            {poster && <img src={poster} alt="" loading="lazy" decoding="async" className="size-full object-cover opacity-[.88] [transition:opacity_.2s_ease] hover:opacity-100" />}
+            <span className="video-poster-play absolute inset-0 m-auto grid size-[54px] place-items-center rounded-full bg-[rgba(18,18,16,.8)] text-[#f2ede2] shadow-[0_10px_28px_rgba(0,0,0,.5),inset_0_0_0_1px_rgba(255,255,255,.22)] [transition:transform_.2s_ease] group-hover:scale-[1.08]" aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={21} /></span>
+            <span className="video-provider pointer-events-none absolute bottom-[11px] left-[12px] font-mono text-[9px] tracking-[.13em] text-[#b3ad8d] uppercase text-shadow-[0_1px_6px_rgba(0,0,0,.7)]">{providerLabel(item.video.provider)}</span>
           </button>
         )}
       </div>
@@ -181,8 +188,8 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
 
   if (item.fileUrl) {
     return (
-      <div className="detail-video">
-        <video className="detail-native-video" src={item.fileUrl} controls preload="metadata" />
+      <div className="detail-video relative h-full overflow-hidden bg-[#101010]">
+        <video className="detail-native-video block size-full object-contain bg-[#000]" src={item.fileUrl} controls preload="metadata" />
       </div>
     );
   }
@@ -426,7 +433,7 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
   }, [embedHtml, shouldLoad]);
 
   return (
-    <div className="x-post-embed" ref={hostRef} data-x-status={status}>
+    <div className="x-post-embed w-full" ref={hostRef} data-x-status={status}>
       <div className={`x-post-native ${status === "ready" ? "is-ready" : ""}`} ref={nativeRef} aria-hidden={status !== "ready"} />
       {status !== "ready" && <div className="x-post-fallback">{fallback}</div>}
     </div>

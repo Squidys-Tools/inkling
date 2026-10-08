@@ -1,4 +1,4 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
@@ -6,38 +6,30 @@ import { gsap } from "gsap";
 import { Toaster, toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  AlertCircleIcon,
   Archive01Icon,
   ArrowDown01Icon,
   ArrowUp01Icon,
   ArrowUpRight01Icon,
   Bookmark01Icon,
-  Camera01Icon,
   Clock01Icon,
   Database02Icon,
   Grid2X2Icon,
   Edit01Icon,
   HelpCircleIcon,
-  Image01Icon,
   Layers01Icon,
   Link01Icon,
   ListViewIcon,
   Loading01Icon,
   PlusSignIcon,
-  PlayIcon,
   PinIcon,
-  RotateCwIcon,
   Search01Icon,
   Settings01Icon,
   SidebarLeftIcon,
   SparklesIcon,
-  Delete02Icon,
   ViewSidebarLeftIcon,
   Cancel01Icon,
   CircleCheckIcon,
-  CircleIcon,
   CheckListIcon,
-  FileTextIcon,
 } from "@hugeicons/core-free-icons";
 import {
   assetUrl,
@@ -64,16 +56,12 @@ import {
   enqueueOcrJob,
   getItemContent,
   retryProcessingJob,
-  getCaptureStatus,
-  getPairingToken,
-  regeneratePairingToken,
   saveFile,
   deleteItem,
   exportLibrary,
   searchItems,
   searchSimilarItems,
   updateItem,
-  type CaptureStatus,
   type LibraryExportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
@@ -83,7 +71,7 @@ import {
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { parseDeepLinkCapture } from "./lib/deepLink";
-import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
+import { videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
 // local disk on first open (Suspense fallback null: no spinner, no layout
 // shift — the chunk resolves in milliseconds).
@@ -107,8 +95,30 @@ import { MascotHomeSlot } from "./components/mascot/MascotHomeSlot";
 import { MascotRoamLayer } from "./components/mascot/MascotRoamLayer";
 import { setRoamBusy, setRoamCaptureFailed } from "./components/mascot/roamStore";
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
+import { useDialog } from "./components/dialog/useDialog";
+import { CaptureModal, type CaptureMode } from "./components/CaptureModal";
+import {
+  CARD_MEDIA_CHILDREN_SELECTOR,
+  CARD_MEDIA_SELECTOR,
+  CARD_TRANSITION_TARGET_SELECTOR,
+  LIBRARY_CARD_ITEM_SELECTOR,
+  SELECTED_LIBRARY_CARD_SELECTOR,
+  VirtualizedLibraryItem,
+  libraryCardSelectorFor,
+  type LibraryCardContext,
+} from "./components/LibraryCard";
+import { ExtensionPairing } from "./components/ExtensionPairing";
+import {
+  SETTINGS_BATCH_BUTTON_CLASS,
+  SETTINGS_CLOSE_BUTTON_CLASS,
+  SETTINGS_SCROLL_CLASS,
+  SETTINGS_SELECT_BUTTON_ACTIVE_CLASS,
+  SETTINGS_SELECT_BUTTON_CLASS,
+  SETTINGS_TAB_ACTIVE_CLASS,
+  SETTINGS_TAB_CLASS,
+} from "./components/settingsClasses";
 import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
-import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, mediaAspectRatioFor } from "./components/ItemMedia";
+import { KindIcon } from "./components/ItemMedia";
 const ReaderView = lazy(() =>
   import("./ReaderView").then((module) => ({ default: module.ReaderView })),
 );
@@ -140,7 +150,7 @@ const localSeedItems: LibraryItem[] =
 import "./App.css";
 
 export type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
-type CaptureMode = "note" | "url" | "file" | "quote";
+
 
 export type LibraryItem = {
   id: string | number;
@@ -773,223 +783,6 @@ function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
   return true;
 }
 
-function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }) {
-  if (!item.video && !item.fileUrl && !item.image) {
-    return <div className="card-paper-art" aria-hidden="true"><span className="video-paper-play"><HugeiconsIcon icon={PlayIcon} size={20} /></span></div>;
-  }
-
-  // Cards are static thumbnails that open the details overlay on click. The
-  // play badge is a purely visual affordance — playback happens in the overlay.
-  return (
-    <div className="card-image-wrap">
-      {item.image ? (
-        <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" fetchPriority={index < 6 ? "high" : undefined} />
-      ) : item.fileUrl ? (
-        <video
-          className="card-image"
-          src={item.fileUrl}
-          muted
-          playsInline
-          preload="metadata"
-          aria-label={item.title}
-          onLoadedMetadata={(event) => {
-            event.currentTarget.currentTime = 0.01;
-          }}
-        />
-      ) : null}
-      <span className="card-video-scrim" aria-hidden="true" />
-      <span className="card-play" aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={16} /></span>
-      <span className="card-video-badge">{item.video ? providerLabel(item.video.provider) : "Video"}</span>
-    </div>
-  );
-}
-
-function cardPreviewText(value: string | undefined, fallback: string): string {
-  const text = value?.replace(/\s+/gu, " ").trim() || fallback;
-  return text.length > 72 ? `${text.slice(0, 69)}…` : text;
-}
-
-type LibraryCardContext = {
-  onSelectItem: (item: LibraryItem, rects?: SourceRects) => void;
-  onOpenReader: (item: LibraryItem, origin?: ReaderOrigin) => void;
-  onRetryJob: (jobId: string) => void | Promise<void>;
-  onDeleteArchivedItem?: (item: LibraryItem) => void | Promise<void>;
-  archiveSelectionMode?: boolean;
-  isArchivedItemSelected?: (item: LibraryItem) => boolean;
-  onToggleArchivedItem?: (item: LibraryItem) => void;
-};
-
-// Captures the card and its media box before selection state changes, so the
-// overlay's opening flight starts from the card's exact position.
-function cardRectsFor(card: HTMLElement): SourceRects {
-  const cardRect = card.getBoundingClientRect();
-  const mediaRect = card.querySelector<HTMLElement>(".library-card-media")?.getBoundingClientRect();
-  return {
-    card: { left: cardRect.left, top: cardRect.top, width: cardRect.width, height: cardRect.height },
-    media: mediaRect
-      ? { left: mediaRect.left, top: mediaRect.top, width: mediaRect.width, height: mediaRect.height }
-      : { left: cardRect.left, top: cardRect.top, width: cardRect.width, height: 0 },
-  };
-}
-
-type VirtualizedLibraryItemProps = {
-  data: LibraryItem;
-  index: number;
-  context: LibraryCardContext;
-};
-
-const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
-  data: item,
-  index,
-  context,
-}: VirtualizedLibraryItemProps) {
-  const archiveSelectionMode = context.archiveSelectionMode === true;
-  const isArchivedItemSelected = context.isArchivedItemSelected?.(item) ?? false;
-  const handleCardSelect = (event: React.MouseEvent<HTMLElement>) => {
-    if (archiveSelectionMode) {
-      event.preventDefault();
-      context.onToggleArchivedItem?.(item);
-      return;
-    }
-    context.onSelectItem(item, cardRectsFor(event.currentTarget));
-  };
-
-  return (
-    <div className="library-card-slot" data-library-index={index}>
-      <article
-        className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? "archive-card-selected" : ""}`}
-        data-library-item-id={String(item.id)}
-        style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
-        onClick={handleCardSelect}
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          if (archiveSelectionMode) {
-            context.onToggleArchivedItem?.(item);
-          } else {
-            context.onSelectItem(item, cardRectsFor(event.currentTarget));
-          }
-        }}
-      >
-        {context.onDeleteArchivedItem && (
-          <button
-            type="button"
-            className={`archive-card-delete ${archiveSelectionMode ? "archive-card-select" : ""} ${isArchivedItemSelected ? "is-selected" : ""}`}
-            aria-label={archiveSelectionMode ? `${isArchivedItemSelected ? "Deselect" : "Select"} ${item.title}` : `Delete ${item.title}`}
-            aria-pressed={archiveSelectionMode ? isArchivedItemSelected : undefined}
-            title={archiveSelectionMode ? (isArchivedItemSelected ? "Deselect item" : "Select item") : "Delete permanently"}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (archiveSelectionMode) {
-                context.onToggleArchivedItem?.(item);
-              } else {
-                void context.onDeleteArchivedItem?.(item);
-              }
-            }}
-          >
-            <HugeiconsIcon
-              icon={archiveSelectionMode ? (isArchivedItemSelected ? CircleCheckIcon : CircleIcon) : Delete02Icon}
-              size={archiveSelectionMode ? 24 : 15}
-            />
-          </button>
-        )}
-        <div className="library-card-media">
-          {item.social?.provider === "x" ? (
-            <div className="x-post-art">
-              <XPostEmbed
-                social={item.social}
-                fallback={item.post ? <PostArtwork post={item.post} /> : <div className="post-art">Post preview unavailable.</div>}
-              />
-            </div>
-          ) : item.kind === "Video" ? (
-            <LibraryVideoMedia item={item} index={index} />
-          ) : item.image ? (
-            <div className="card-image-wrap">
-              <img src={item.image} alt={item.imageAlt ?? item.title} className="card-image" loading="lazy" decoding="async" fetchPriority={index < 6 ? "high" : undefined} />
-            </div>
-          ) : item.kind === "Post" && item.post ? (
-            <PostArtwork post={item.post} />
-          ) : (
-            <div className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : item.accent ?? ""}`} aria-hidden="true">
-              {item.kind === "Article" && <><span className="paper-line line-one" /><span className="paper-line line-two" /><span className="paper-seal">m</span></>}
-              {item.kind === "Note" && <NoteArtwork item={item} />}
-              {item.kind === "PDF" && <PdfArtwork item={item} />}
-              {item.kind === "Quote" && <><span className="quote-mark">“</span><span className="quote-preview">{cardPreviewText(item.title, "Saved quote")}</span><span className="quote-line" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
-            </div>
-          )}
-        </div>
-        <div className={`card-content ${item.kind === "Quote" ? "quote-content" : item.kind === "Note" ? "note-content" : ""}`}>
-          <div className="card-kicker"><span><KindIcon kind={item.kind} />{item.kind}</span><span>{item.date}</span></div>
-          <h2 className={item.kind === "Quote" ? "quote-title" : ""}>{item.kind === "Quote" ? (/^["“]/u.test(item.title.trim()) ? item.title : `“${item.title}”`) : item.title}</h2>
-          <p className={item.kind === "Quote" ? "quote-attribution" : ""}>{item.description ? (item.kind === "Quote" && !item.description.trim().startsWith("—") ? `— ${item.description}` : item.description) : (item.kind === "Quote" ? "" : item.description)}</p>
-          {item.processing?.active && (
-            <div className="card-processing" role="status">
-              <HugeiconsIcon icon={Loading01Icon} size={13} />
-              <span>{item.processing.message ?? "Processing"}</span>
-              {item.processing.progressTotal != null && <span>{item.processing.progressCurrent}/{item.processing.progressTotal}</span>}
-            </div>
-          )}
-          {item.processing?.failedJob && (
-            <div className="card-processing failed" role="alert">
-              <HugeiconsIcon icon={AlertCircleIcon} size={13} />
-              <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
-              <button
-                type="button"
-                className="retry-button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void context.onRetryJob(item.processing?.failedJob?.id ?? "");
-                }}
-              >
-                <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
-              </button>
-            </div>
-          )}
-          <div className="card-footer">
-            <span className="card-source">{item.source}</span>
-            {item.kind === "Article" && (
-              <button
-                type="button"
-                className="card-read"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  const rect = event.currentTarget.getBoundingClientRect();
-                  context.onOpenReader(item, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
-                }}
-                onKeyDown={(event) => {
-                  event.stopPropagation();
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    context.onOpenReader(item);
-                  }
-                }}
-                disabled={!item.articleHtml}
-                title={item.articleHtml ? "Open reader" : "No saved article text"}
-              >
-                Read <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
-              </button>
-            )}
-            {item.kind === "Video" && item.video && (
-              <button
-                type="button"
-                className="card-read"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  const card = event.currentTarget.closest<HTMLElement>(".library-card");
-                  context.onSelectItem(item, card ? cardRectsFor(card) : undefined);
-                }}
-              >
-                Watch <HugeiconsIcon icon={PlayIcon} size={11} />
-              </button>
-            )}
-            {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />}
-          </div>
-        </div>
-      </article>
-    </div>
-  );
-});
 
 // Column count for the masonry grid. Small screens keep their existing
 // breakpoints; wide grids add columns so cards stay close to a target width
@@ -1020,9 +813,6 @@ type PendingPermanentDelete = {
   item: LibraryItem;
 };
 
-const LIBRARY_TRANSITION_TARGET_SELECTOR =
-  ".library-card-media > .card-image-wrap, .library-card-media > .card-paper-art, .library-card-media > .post-art, .library-card-media > .x-post-art, .card-content";
-
 function clearLibraryTransitionTargetStyle(target: HTMLElement) {
   for (const property of ["position", "box-sizing", "left", "top", "width", "height", "min-width", "min-height", "max-width", "max-height", "aspect-ratio"]) {
     target.style.removeProperty(property);
@@ -1044,137 +834,12 @@ function setLibraryTransitionTargetStyle(target: HTMLElement, left: number, top:
 }
 
 function clearLibraryTransitionMediaStyle(clone: HTMLElement) {
-  const mediaFrame = clone.querySelector<HTMLElement>(".library-card-media");
+  const mediaFrame = clone.querySelector<HTMLElement>(CARD_MEDIA_SELECTOR);
   mediaFrame?.style.removeProperty("height");
   mediaFrame?.style.removeProperty("min-height");
 }
 
-// Pairing panel inside the existing Settings modal. Shows the per-install
-// pairing token for the browser extension (reveal-on-click, never rendered
-// by default) with copy, renew, and a live check against /v1/health.
-function ExtensionPairing() {
-  const [status, setStatus] = useState<CaptureStatus | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isRevealed, setIsRevealed] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
 
-  useEffect(() => {
-    if (!isTauriRuntime()) return;
-    void getCaptureStatus()
-      .then(setStatus)
-      .catch(() => setStatus(null));
-  }, []);
-
-  if (!isTauriRuntime()) {
-    return (
-      <div className="settings-empty-state">
-        <div className="settings-empty-icon"><HugeiconsIcon icon={Link01Icon} size={19} /></div>
-        <h4>Pairing needs the desktop app.</h4>
-        <p>Open Settings in the installed app to pair the browser extension.</p>
-      </div>
-    );
-  }
-
-  const revealToken = () => {
-    if (isRevealed) {
-      setIsRevealed(false);
-      setToken(null);
-      return;
-    }
-    void getPairingToken()
-      .then((value) => {
-        setToken(value);
-        setIsRevealed(true);
-      })
-      .catch(() => toast.error("Could not load the pairing token.", { duration: 5000 }));
-  };
-
-  const copyToken = () => {
-    if (!token) return;
-    void navigator.clipboard.writeText(token)
-      .then(() => toast.success("Pairing token copied. Paste it into the extension."))
-      .catch(() => toast.error("Copy failed. Reveal the token and copy it by hand.", { duration: 5000 }));
-  };
-
-  const renewToken = () => {
-    if (!window.confirm("Renew the pairing token? The extension will need the new token.")) return;
-    void regeneratePairingToken()
-      .then((value) => {
-        setToken(value);
-        setIsRevealed(true);
-        toast.success("New pairing token issued. Update the extension.");
-      })
-      .catch(() => toast.error("Could not renew the pairing token.", { duration: 5000 }));
-  };
-
-  const testConnection = () => {
-    const healthUrl = status?.healthUrl;
-    if (!healthUrl || isTesting) return;
-    setIsTesting(true);
-    const check = async () => {
-      const bearer = token ?? await getPairingToken();
-      const response = await fetch(healthUrl, {
-        headers: { Authorization: `Bearer ${bearer}` },
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    };
-    void check()
-      .then(() => toast.success("Extension receiver is reachable."))
-      .catch(() => toast.error("No answer from the receiver. Is the app running?", { duration: 5000 }))
-      .finally(() => setIsTesting(false));
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "22px 2px" }}>
-      <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, lineHeight: 1.6, maxWidth: "52ch" }}>
-        Paste this token into the browser extension once. Saves go straight to this library
-        over a local connection; nothing leaves the machine.
-      </p>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span className="settings-panel-count" role="status">
-          {status ? (status.running ? `Listening on 127.0.0.1:${status.port}` : "Receiver not running") : "Checking receiver…"}
-        </span>
-        <button
-          type="button"
-          className="settings-batch-button"
-          disabled={!status?.healthUrl || isTesting}
-          onClick={testConnection}
-        >
-          {isTesting ? "Testing…" : "Test connection"}
-        </button>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <code
-          aria-label={isRevealed ? "Pairing token" : "Pairing token hidden"}
-          style={{
-            flex: "1 1 220px",
-            padding: "9px 12px",
-            border: "1px solid var(--rule)",
-            borderRadius: 10,
-            background: "var(--surface-strong)",
-            color: "var(--ink)",
-            font: "12px var(--font-ui)",
-            letterSpacing: "0.02em",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {isRevealed && token ? token : "••••••••••••••••••••••••"}
-        </code>
-        <button type="button" className="settings-batch-button" onClick={revealToken}>
-          {isRevealed ? "Hide" : "Reveal"}
-        </button>
-        <button type="button" className="settings-batch-button" disabled={!isRevealed || !token} onClick={copyToken}>
-          Copy
-        </button>
-        <button type="button" className="settings-batch-button settings-batch-delete" onClick={renewToken}>
-          Renew
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // Note bodies are cached so an opened note is not re-fetched and a refresh does
 // not drop a body the list query never carries. Same LRU shape as the asset URL
@@ -1666,7 +1331,7 @@ function App() {
     if (!root) return new Map<string, LibraryCardPosition>();
 
     return new Map(
-      Array.from(root.querySelectorAll<HTMLElement>(".library-grid .library-card[data-library-item-id]"))
+      Array.from(root.querySelectorAll<HTMLElement>(LIBRARY_CARD_ITEM_SELECTOR))
         .map((card) => {
           const id = card.dataset.libraryItemId;
           if (!id) return null;
@@ -1709,7 +1374,7 @@ function App() {
     overlay.replaceChildren();
     overlay.classList.toggle("is-list", sourceListMode);
 
-    for (const card of root.querySelectorAll<HTMLElement>(".library-grid .library-card[data-library-item-id]")) {
+    for (const card of root.querySelectorAll<HTMLElement>(LIBRARY_CARD_ITEM_SELECTOR)) {
       const id = card.dataset.libraryItemId;
       const source = id ? sourcePositions.get(id) : undefined;
       if (!id || !source) continue;
@@ -1738,10 +1403,8 @@ function App() {
       overlay.appendChild(clone);
 
       const cloneRect = clone.getBoundingClientRect();
-      const transitionTargets = Array.from(clone.querySelectorAll<HTMLElement>(LIBRARY_TRANSITION_TARGET_SELECTOR));
-      const mediaTarget = clone.querySelector<HTMLElement>(
-        ".library-card-media > .card-image-wrap, .library-card-media > .card-paper-art, .library-card-media > .post-art, .library-card-media > .x-post-art",
-      );
+      const transitionTargets = Array.from(clone.querySelectorAll<HTMLElement>(CARD_TRANSITION_TARGET_SELECTOR));
+      const mediaTarget = clone.querySelector<HTMLElement>(CARD_MEDIA_CHILDREN_SELECTOR);
       const mediaFrame = mediaTarget?.parentElement;
       for (const target of transitionTargets) {
         if (target !== mediaTarget) continue;
@@ -1915,7 +1578,7 @@ function App() {
         }
 
         const sourceCardRect = clone.getBoundingClientRect();
-        const sourceTargets = Array.from(clone.querySelectorAll<HTMLElement>(LIBRARY_TRANSITION_TARGET_SELECTOR));
+        const sourceTargets = Array.from(clone.querySelectorAll<HTMLElement>(CARD_TRANSITION_TARGET_SELECTOR));
         const sourceBoxes = sourceTargets.map((target) => {
           const rect = target.getBoundingClientRect();
           return {
@@ -2672,48 +2335,18 @@ function App() {
         event.preventDefault();
         searchRef.current?.focus();
       }
-      if (event.key === "Escape") {
-        if (isSettingsOpen) setIsSettingsOpen(false);
-        setIsAdding(false);
-        setCaptureMode(null);
-      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isSettingsOpen, readingItem]);
+  }, [readingItem]);
 
-  useEffect(() => {
-    if (!isSettingsOpen) return;
-
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const focusTimer = window.setTimeout(() => settingsCloseRef.current?.focus(), 0);
-
-    const onSettingsKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
-      const modal = document.querySelector<HTMLElement>(".settings-modal");
-      if (!modal) return;
-      const focusable = Array.from(modal.querySelectorAll<HTMLElement>(
-        "button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex=\"-1\"])",
-      ));
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener("keydown", onSettingsKeyDown);
-    return () => {
-      window.clearTimeout(focusTimer);
-      document.removeEventListener("keydown", onSettingsKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [isSettingsOpen]);
+  // Escape belongs to whichever dialog is on top, so each one owns it rather
+  // than a handler here guessing at which surfaces happen to be open.
+  const settingsDialog = useDialog({
+    open: isSettingsOpen,
+    onClose: () => setIsSettingsOpen(false),
+    initialFocus: settingsCloseRef,
+  });
 
   // Settings reopens on Archive, the way it behaved while that was the only tab.
   useEffect(() => {
@@ -3328,11 +2961,11 @@ function App() {
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
   useEffect(() => {
-    const selectedCards = document.querySelectorAll<HTMLElement>(".library-card.is-selected");
+    const selectedCards = document.querySelectorAll<HTMLElement>(SELECTED_LIBRARY_CARD_SELECTOR);
     for (const card of selectedCards) card.classList.remove("is-selected");
     if (!selectedItem) return;
     const source = document.querySelector<HTMLElement>(
-      `.library-card[data-library-item-id="${CSS.escape(String(selectedItem.id))}"]`,
+      libraryCardSelectorFor(String(selectedItem.id)),
     );
     source?.classList.add("is-selected");
   }, [selectedItem]);
@@ -3435,7 +3068,7 @@ function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className={`app-shell ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+      <div className={`app-shell relative flex h-full min-h-screen overflow-hidden bg-paper ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
         <AnimatePresence>
           {isSidebarOpen && (
             <motion.button
@@ -3461,7 +3094,7 @@ function App() {
           </div>
         )}
       <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
-          <div className="brand-lockup" data-tauri-drag-region>
+          <div className="brand-lockup flex items-center gap-[11px] px-[10px] pt-0 pb-3" data-tauri-drag-region>
           <MascotHomeSlot isSearchFocused={isSearchFocused} />
           <div>
             <strong>inkling</strong>
@@ -3693,7 +3326,7 @@ function App() {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="capture-save">Create Space</button>
+                <button type="submit" className="capture-save cursor-pointer rounded-[6px] border-0 bg-green px-3 py-2 text-xs text-[#14201a] transition-[background,transform] duration-150 hover:bg-[#91b19d] active:scale-[.96] disabled:cursor-wait disabled:opacity-65">Create Space</button>
               </div>
               </motion.form>
             )}
@@ -3725,7 +3358,7 @@ function App() {
         <section className="library-header">
         </section>
 
-        <section className="capture-bar" aria-label="Capture and search">
+        <section className="capture-bar relative flex flex-none items-stretch gap-2.5 max-[780px]:gap-2" aria-label="Capture and search">
           {!isSidebarOpen && (
             <button
               type="button"
@@ -3766,164 +3399,53 @@ function App() {
             />
             <kbd><span>/</span> to search</kbd>
           </div>
-          <button className="add-button" onClick={openCaptureModal} disabled={isCapturing} title="Add something to your library">
+          <button className="add-button flex h-[50px] flex-none cursor-pointer items-center gap-[9px] rounded-search border border-ink bg-ink px-[17px] text-[13px] font-semibold text-paper transition-[background,border-color,transform] duration-150 hover:bg-[#f2ece1] hover:border-ink active:scale-[.96] disabled:cursor-wait disabled:opacity-65 max-[780px]:flex-none max-[780px]:justify-center max-[780px]:px-[14px] max-[360px]:w-[50px] max-[360px]:px-0" onClick={openCaptureModal} disabled={isCapturing} title="Add something to your library">
             <HugeiconsIcon icon={PlusSignIcon} size={18} />
-            <span>{isCapturing ? "Saving…" : "Add"}</span>
+            <span className="max-[360px]:hidden">{isCapturing ? "Saving…" : "Add"}</span>
           </button>
         </section>
 
-        <AnimatePresence>
-          {isAdding && (
-            <motion.div
-              key="capture-modal"
-              className="capture-modal-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-              onMouseDown={(event) => event.target === event.currentTarget && closeCaptureModal()}
-            >
-              <motion.section
-                className="capture-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="capture-modal-title"
-                initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
-                exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-              >
-              <header className="capture-modal-header">
-                <div>
-                  <h2 id="capture-modal-title">Add to your library</h2>
-                  <p>Choose what you want to save.</p>
-                </div>
-                <button className="icon-button small" type="button" onClick={closeCaptureModal} aria-label="Close add menu"><HugeiconsIcon icon={Cancel01Icon} size={16} /></button>
-              </header>
+        <CaptureModal
+          open={isAdding}
+          captureMode={captureMode}
+          onSelectMode={selectCaptureMode}
+          onCloseMode={() => setCaptureMode(null)}
+          onClose={closeCaptureModal}
+          onStartScreenshot={startScreenshotCapture}
+          onSubmit={saveCapture}
+          isCapturing={isCapturing}
+          error={captureError}
+          note={newTitle}
+          onNoteChange={setNewTitle}
+          url={captureUrl}
+          onUrlChange={setCaptureUrl}
+          quoteText={newQuoteText}
+          onQuoteTextChange={setNewQuoteText}
+          quoteAttribution={newQuoteAttribution}
+          onQuoteAttributionChange={setNewQuoteAttribution}
+          quoteSourceUrl={newQuoteSourceUrl}
+          onQuoteSourceUrlChange={setNewQuoteSourceUrl}
+          file={selectedFile}
+          onFileChange={setSelectedFile}
+          fileInputRef={fileInputRef}
+        />
 
-              <div className="capture-options" aria-label="Add options">
-                <button type="button" className={`capture-option ${captureMode === "note" ? "selected" : ""}`} onClick={() => selectCaptureMode("note")} aria-pressed={captureMode === "note"}>
-                  <span className="capture-option-icon"><HugeiconsIcon icon={FileTextIcon} size={18} /></span>
-                  <span className="capture-option-copy"><strong>Note</strong><span>Write something to remember.</span></span>
-                </button>
-                <button type="button" className={`capture-option ${captureMode === "url" ? "selected" : ""}`} onClick={() => selectCaptureMode("url")} aria-pressed={captureMode === "url"}>
-                  <span className="capture-option-icon"><HugeiconsIcon icon={Link01Icon} size={18} /></span>
-                  <span className="capture-option-copy"><strong>Link</strong><span>Save an article, page, or X post.</span></span>
-                </button>
-                <button type="button" className={`capture-option ${captureMode === "file" ? "selected" : ""}`} onClick={() => selectCaptureMode("file")} aria-pressed={captureMode === "file"}>
-                  <span className="capture-option-icon"><HugeiconsIcon icon={Image01Icon} size={18} /></span>
-                  <span className="capture-option-copy"><strong>File</strong><span>Upload an image, PDF, or video.</span></span>
-                </button>
-                <button type="button" className={`capture-option ${captureMode === "quote" ? "selected" : ""}`} onClick={() => selectCaptureMode("quote")} aria-pressed={captureMode === "quote"}>
-                  <span className="capture-option-icon"><HugeiconsIcon icon={Bookmark01Icon} size={18} /></span>
-                  <span className="capture-option-copy"><strong>Quote</strong><span>Save a passage with its source.</span></span>
-                </button>
-                <button type="button" className="capture-option" onClick={startScreenshotCapture} disabled={isCapturing}>
-                  <span className="capture-option-icon"><HugeiconsIcon icon={Camera01Icon} size={18} /></span>
-                  <span className="capture-option-copy"><strong>Screenshot</strong><span>Capture a window or display.</span></span>
-                </button>
-              </div>
+        {captureError && !isAdding && <p className="capture-error mt-3 mb-0 flex-none text-[12px] text-[#d07055]">Couldn’t save this yet: {captureError}</p>}
 
-              <AnimatePresence mode="wait">
-                {captureMode && (
-                  <motion.form
-                    key={captureMode}
-                    className="capture-editor"
-                    initial={{ opacity: 0, transform: "translateY(6px)" }}
-                    animate={{ opacity: 1, transform: "translateY(0)" }}
-                    exit={{ opacity: 0, transform: "translateY(-4px)" }}
-                    transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-                    onSubmit={saveCapture}
-                  >
-                  <div className="capture-editor-heading">
-                    <strong>{captureMode === "note" ? "New note" : captureMode === "quote" ? "New quote" : captureMode === "url" ? "Save a link" : "Upload a file"}</strong>
-                  </div>
-                  {captureMode === "note" && <input
-                    autoFocus
-                    value={newTitle}
-                    onChange={(event) => setNewTitle(event.target.value)}
-                    placeholder="A thought, a link, a small beginning…"
-                    aria-label="New note"
-                  />}
-                  {captureMode === "url" && <input
-                    autoFocus
-                    type="text"
-                    inputMode="url"
-                    value={captureUrl}
-                    onChange={(event) => setCaptureUrl(event.target.value)}
-                    placeholder="Paste a link to save and read later (example.com works too)…"
-                    aria-label="URL to save"
-                  />}
-                  {captureMode === "quote" && <div className="quote-capture-fields">
-                    <textarea
-                      autoFocus
-                      value={newQuoteText}
-                      onChange={(event) => setNewQuoteText(event.target.value)}
-                      placeholder="“The mind is a place with weather…”"
-                      aria-label="Quote text"
-                      rows={3}
-                      maxLength={2000}
-                    />
-                    <div className="quote-capture-row">
-                      <input
-                        value={newQuoteAttribution}
-                        onChange={(event) => setNewQuoteAttribution(event.target.value)}
-                        placeholder="Attribution"
-                        aria-label="Quote attribution"
-                        maxLength={240}
-                      />
-                      <input
-                        type="text"
-                        value={newQuoteSourceUrl}
-                        onChange={(event) => setNewQuoteSourceUrl(event.target.value)}
-                        placeholder="Source URL (optional)"
-                        aria-label="Quote source URL"
-                        inputMode="url"
-                      />
-                    </div>
-                  </div>}
-                  {captureMode === "file" && <>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      className="visually-hidden"
-                      accept="image/*,application/pdf,video/*"
-                      onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-                    />
-                    <button type="button" className="file-picker" onClick={() => fileInputRef.current?.click()}>
-                      {selectedFile ? selectedFile.name : "Choose an image, PDF, or video"}
-                    </button>
-                  </>}
-                  <div className="capture-editor-actions">
-                    <button className="capture-cancel" type="button" onClick={() => setCaptureMode(null)}>Back</button>
-                    <button className="capture-save" type="submit" disabled={isCapturing}>{isCapturing ? "Saving…" : "Save to library"}</button>
-                  </div>
-                  </motion.form>
-                )}
-              </AnimatePresence>
-
-              {captureError && <p className="capture-error" role="alert">Couldn’t save this yet: {captureError}</p>}
-              </motion.section>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {captureError && !isAdding && <p className="capture-error">Couldn’t save this yet: {captureError}</p>}
-
-        <div className="library-toolbar">
-          <div className="result-context">
+        <div className="library-toolbar flex flex-none items-center justify-between pt-4 pb-[10px]">
+          <div className="result-context font-mono text-[11px] text-[#8d867c]">
             {isSerendipityView ? (
               <>
-                <span className="result-count">{filteredItems.length}</span> older {filteredItems.length === 1 ? "save" : "saves"} in this walk
+                <span className="result-count font-medium text-ink">{filteredItems.length}</span> older {filteredItems.length === 1 ? "save" : "saves"} in this walk
               </>
             ) : (
               <>
-                <span className="result-count">{filteredItems.length}</span> items in library
+                <span className="result-count font-medium text-ink">{filteredItems.length}</span> items in library
                 {similaritySource ? (
-                  <span className="search-context">similar to “{similaritySource.title}”</span>
+                  <span className="search-context ml-[5px] text-orange">similar to “{similaritySource.title}”</span>
                 ) : query.trim() ? (
                   <>
-                    <span className="search-context">for “{query}”</span>
+                    <span className="search-context ml-[5px] text-orange">for “{query}”</span>
                     <button type="button" className="quiet-link save-space-link" onClick={beginSaveSearch}>
                       <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
                     </button>
@@ -3934,7 +3456,7 @@ function App() {
           </div>
           {!isSerendipityView && (
             <div className="toolbar-actions">
-              <div className="view-controls" aria-label="View options">
+              <div className="view-controls relative flex gap-0.5 rounded-toggle border border-rule bg-surface p-[3px]" aria-label="View options">
                 <motion.span
                   className="view-selection"
                   aria-hidden="true"
@@ -3942,8 +3464,8 @@ function App() {
                   animate={{ transform: viewSelectionListMode ? "translateX(30px)" : "translateX(0px)" }}
                   transition={{ duration: LIBRARY_VIEW_TRANSITION_MS / 1000, ease: [0.77, 0, 0.175, 1] }}
                 />
-                <button className={`view-button ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><HugeiconsIcon icon={Grid2X2Icon} size={16} /></button>
-                <button className={`view-button ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><HugeiconsIcon icon={ListViewIcon} size={16} /></button>
+                <button className={`view-button relative z-[1] grid h-[25px] w-7 cursor-pointer place-items-center rounded-[calc(var(--toggle-radius)-3px)] border-0 bg-transparent text-[#8d867c] transition-[color,transform] duration-150 active:scale-[.96] ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><HugeiconsIcon icon={Grid2X2Icon} size={16} /></button>
+                <button className={`view-button relative z-[1] grid h-[25px] w-7 cursor-pointer place-items-center rounded-[calc(var(--toggle-radius)-3px)] border-0 bg-transparent text-[#8d867c] transition-[color,transform] duration-150 active:scale-[.96] ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><HugeiconsIcon icon={ListViewIcon} size={16} /></button>
               </div>
             </div>
           )}
@@ -4015,7 +3537,7 @@ function App() {
               </div>
             ) : (
               <div className="serendipity-complete" data-testid="serendipity-complete">
-                <div className="empty-icon"><HugeiconsIcon icon={Clock01Icon} size={20} /></div>
+                <div className="empty-icon mx-auto mb-4 grid h-[42px] w-[42px] place-items-center rounded-full bg-surface text-muted"><HugeiconsIcon icon={Clock01Icon} size={20} /></div>
                 <h2>That is the whole walk.</h2>
                 <p>You have seen every older item still in your library. Save something new, or come back later.</p>
                 <button type="button" className="text-button" onClick={clearToDefaultView}>Back to Everything</button>
@@ -4037,8 +3559,8 @@ function App() {
             )}
 
             {filteredItems.length === 0 && (
-              <div className="empty-state">
-                <div className="empty-icon"><HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} /></div>
+              <div className="empty-state rounded-[14px] border border-dashed border-rule px-5 py-20 text-center">
+                <div className="empty-icon mx-auto mb-4 grid h-[42px] w-[42px] place-items-center rounded-full bg-surface text-muted"><HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} /></div>
                 {activeSpace?.kind === "regular" ? (
                   <>
                     <h2>{activeSpace.name} is empty.</h2>
@@ -4076,7 +3598,7 @@ function App() {
         {isSettingsOpen && (
           <motion.div
             key="settings-modal-backdrop"
-            className="settings-modal-backdrop"
+            className="fixed inset-0 z-[110] grid place-items-center bg-[rgba(10,10,9,.76)] p-[clamp(16px,4vh,40px)_clamp(16px,3vw,48px)] max-[700px]:p-3"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -4086,70 +3608,84 @@ function App() {
             }}
           >
             <motion.section
+              ref={settingsDialog.dialogRef}
               id="settings-modal"
-              className="settings-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="settings-modal-title"
+              className="flex h-[min(760px,100%)] min-h-0 w-[min(1180px,100%)] overflow-hidden rounded-[24px] border border-rule bg-paper text-ink shadow-[0_30px_80px_rgba(0,0,0,.55)] max-[700px]:h-[min(720px,100%)] max-[700px]:flex-col max-[700px]:rounded-[18px]"
+              {...settingsDialog.rootProps}
               initial={{ opacity: 0, transform: "translateY(10px) scale(0.98)" }}
               animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
               exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
               transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
             >
-              <aside className="settings-modal-sidebar" aria-label="Settings sections">
-                <header className="settings-sidebar-header">
-                  <h2>Settings</h2>
+              <aside
+                className="flex w-56 min-w-56 min-h-0 shrink-0 flex-col border-r border-rule bg-paper p-[26px_16px_22px] max-[700px]:w-auto max-[700px]:min-w-0 max-[700px]:border-r-0 max-[700px]:border-b max-[700px]:border-rule max-[700px]:p-[18px_14px_12px]"
+                aria-label="Settings sections"
+              >
+                <header className="flex items-center justify-between gap-3 px-[10px] pb-[26px] max-[700px]:px-[4px] max-[700px]:pb-[14px]">
+                  <h2 {...settingsDialog.labelProps} className="m-0 font-sans text-base font-semibold leading-[1.2] tracking-[-.02em] text-ink">Settings</h2>
                 </header>
-                <div className="settings-sidebar-content">
+                <div>
                   <button
                     type="button"
-                    className={`settings-tab ${settingsTab === "archive" ? "active" : ""}`}
+                    className={`${SETTINGS_TAB_CLASS} ${settingsTab === "archive" ? SETTINGS_TAB_ACTIVE_CLASS : ""}`}
                     aria-current={settingsTab === "archive" ? "page" : undefined}
                     onClick={() => setSettingsTab("archive")}
                   >
                     <HugeiconsIcon icon={Archive01Icon} size={16} />
-                    <span>Archive</span>
-                    <span className="settings-tab-count">{archivedItems.length}</span>
+                    <span className="grow">Archive</span>
+                    <span className="font-mono text-[10px] text-muted">{archivedItems.length}</span>
                   </button>
                   <button
                     type="button"
-                    className={`settings-tab ${settingsTab === "data" ? "active" : ""}`}
+                    className={`${SETTINGS_TAB_CLASS} ${settingsTab === "data" ? SETTINGS_TAB_ACTIVE_CLASS : ""}`}
                     aria-current={settingsTab === "data" ? "page" : undefined}
                     onClick={() => setSettingsTab("data")}
                   >
                     <HugeiconsIcon icon={Database02Icon} size={16} />
-                    <span>Data</span>
+                    <span className="grow">Data</span>
                   </button>
                   <button
                     type="button"
-                    className={`settings-tab ${settingsTab === "extension" ? "active" : ""}`}
+                    className={`${SETTINGS_TAB_CLASS} ${settingsTab === "extension" ? SETTINGS_TAB_ACTIVE_CLASS : ""}`}
                     aria-current={settingsTab === "extension" ? "page" : undefined}
                     onClick={() => setSettingsTab("extension")}
                   >
                     <HugeiconsIcon icon={Link01Icon} size={16} />
-                    <span>Extension</span>
+                    <span className="grow">Extension</span>
                   </button>
                 </div>
               </aside>
 
               {settingsTab === "archive" ? (
-              <section className="settings-panel" aria-labelledby="archive-panel-title">
-                <header className="settings-panel-header">
-                  <div className="settings-panel-header-content">
-                    <div className="settings-panel-heading">
-                      <h2 id="archive-panel-title">Archived items</h2>
+              <section
+                className="flex min-h-0 min-w-0 flex-auto flex-col p-[28px_30px] max-[700px]:p-[20px_18px_24px]"
+                aria-labelledby="archive-panel-title"
+              >
+                <header className="flex items-start justify-between gap-[18px] border-b border-rule">
+                  <div className="flex min-w-0 flex-auto flex-col items-start gap-[9px]">
+                    <div className="flex flex-col gap-[7px]">
+                      <h2
+                        id="archive-panel-title"
+                        className="m-0 font-sans text-[24px] font-medium leading-[1.1] tracking-[-.04em] text-ink"
+                      >
+                        Archived items
+                      </h2>
                     </div>
-                    <div className="settings-panel-count-row">
-                      <span className="settings-panel-count">{archivedItems.length} {archivedItems.length === 1 ? "item" : "items"} in archive</span>
-                      <div className="settings-archive-actions" aria-label="Archive actions">
+                    <div className="flex min-h-[27px] items-center justify-between gap-[14px] self-stretch max-[700px]:items-start">
+                      <span className="font-mono text-[10px] text-muted">{archivedItems.length} {archivedItems.length === 1 ? "item" : "items"} in archive</span>
+                      <div className="flex flex-wrap items-center justify-end gap-2 max-[700px]:gap-1.5" aria-label="Archive actions">
                         {isArchiveSelectionMode && (
                           <>
-                            <span className="settings-selected-count" role="status" aria-live="polite">
+                            <span
+                              className="inline-flex h-[27px] items-center justify-center rounded-[20px] whitespace-nowrap border-0 bg-transparent p-0 font-mono text-[10px] font-medium text-ink"
+                              role="status"
+                              aria-live="polite"
+                            >
                               {selectedArchivedIds.size} selected
                             </span>
                             <button
                               type="button"
-                              className="settings-batch-button settings-batch-recover"
+                              className={SETTINGS_BATCH_BUTTON_CLASS + " bg-green-soft text-green hover:border-green"}
                               disabled={selectedArchivedIds.size === 0}
                               onClick={() => void recoverSelectedArchivedItems()}
                             >
@@ -4157,7 +3693,7 @@ function App() {
                             </button>
                             <button
                               type="button"
-                              className="settings-batch-button settings-batch-delete"
+                              className={SETTINGS_BATCH_BUTTON_CLASS + " bg-orange-soft text-orange hover:border-orange"}
                               disabled={selectedArchivedIds.size === 0}
                               onClick={() => void deleteSelectedArchivedItems()}
                             >
@@ -4167,7 +3703,11 @@ function App() {
                         )}
                         <button
                           type="button"
-                          className={`settings-select-button ${isArchiveSelectionMode ? "is-active" : ""}`}
+                          className={
+                            isArchiveSelectionMode
+                              ? SETTINGS_SELECT_BUTTON_ACTIVE_CLASS
+                              : SETTINGS_SELECT_BUTTON_CLASS
+                          }
                           aria-pressed={isArchiveSelectionMode}
                           aria-label={isArchiveSelectionMode ? "Exit multi-select mode" : "Select archived items"}
                           onClick={toggleArchiveSelectionMode}
@@ -4181,7 +3721,7 @@ function App() {
                   <button
                     ref={settingsCloseRef}
                     type="button"
-                    className="icon-button small settings-close"
+                    className={SETTINGS_CLOSE_BUTTON_CLASS}
                     onClick={() => setIsSettingsOpen(false)}
                     aria-label="Close settings"
                   >
@@ -4189,42 +3729,51 @@ function App() {
                   </button>
                 </header>
 
-                <div className="settings-archive-scroll">
+                <div className={SETTINGS_SCROLL_CLASS}>
                   {archivedItems.length > 0 ? (
-                    <div className="settings-archive-grid">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(205px,1fr))] items-start gap-[14px]">
                       {archivedItems.map((item, index) => (
                         <VirtualizedLibraryItem
                           key={String(item.id)}
                           data={item}
                           index={index}
                           context={archivedCardContext}
+                          slotClassName="min-w-0 pb-0"
                         />
                       ))}
                     </div>
                   ) : (
-                    <div className="settings-empty-state">
-                      <div className="settings-empty-icon"><HugeiconsIcon icon={Archive01Icon} size={19} /></div>
-                      <h4>Your archive is empty.</h4>
-                      <p>Items you forget from the library will appear here.</p>
+                    <div className="grid min-h-[260px] place-items-center content-center rounded-2xl border border-dashed border-rule p-[40px_24px] text-center">
+                      <div className="mb-3.5 grid size-[42px] place-items-center rounded-full bg-surface-strong text-muted"><HugeiconsIcon icon={Archive01Icon} size={19} /></div>
+                      <h4 className="m-0 font-sans text-[17px] font-medium leading-[1.2] text-ink">Your archive is empty.</h4>
+                      <p className="mt-2 mb-0 max-w-[32ch] text-[12px] leading-[1.5] text-muted">Items you forget from the library will appear here.</p>
                     </div>
                   )}
                 </div>
               </section>
               ) : settingsTab === "data" ? (
-                <section className="settings-panel" aria-labelledby="data-panel-title">
-                  <header className="settings-panel-header">
-                    <div className="settings-panel-header-content">
-                      <div className="settings-panel-heading">
-                        <h2 id="data-panel-title">Your library</h2>
+                <section
+                  className="flex min-h-0 min-w-0 flex-auto flex-col p-[28px_30px] max-[700px]:p-[20px_18px_24px]"
+                  aria-labelledby="data-panel-title"
+                >
+                  <header className="flex items-start justify-between gap-[18px] border-b border-rule">
+                    <div className="flex min-w-0 flex-auto flex-col items-start gap-[9px]">
+                      <div className="flex flex-col gap-[7px]">
+                        <h2
+                          id="data-panel-title"
+                          className="m-0 font-sans text-[24px] font-medium leading-[1.1] tracking-[-.04em] text-ink"
+                        >
+                          Your library
+                        </h2>
                       </div>
-                      <p className="settings-panel-note">
+                      <p className="m-0 max-w-[62ch] text-[12px] leading-[1.55] text-muted">
                         Everything inkling saves stays on this machine. An export writes a copy you can keep somewhere else.
                       </p>
                     </div>
                     <button
                       ref={settingsCloseRef}
                       type="button"
-                      className="icon-button small settings-close"
+                      className={SETTINGS_CLOSE_BUTTON_CLASS}
                       onClick={() => setIsSettingsOpen(false)}
                       aria-label="Close settings"
                     >
@@ -4232,19 +3781,24 @@ function App() {
                     </button>
                   </header>
 
-                  <div className="settings-data-scroll">
-                    <div className="settings-data-card">
-                      <div className="settings-data-heading">
+                  <div className={SETTINGS_SCROLL_CLASS}>
+                    <div className="flex max-w-[560px] flex-col gap-3 rounded-2xl border border-rule bg-surface p-5">
+                      <div className="flex items-center gap-[9px] text-ink">
                         <HugeiconsIcon icon={Database02Icon} size={17} />
-                        <h3>Export a copy</h3>
+                        <h3 className="m-0 font-sans text-[15px] font-medium leading-[1.2] tracking-[-.02em]">Export a copy</h3>
                       </div>
-                      <p>
+                      <p className="m-0 text-[12px] leading-[1.6] text-muted">
                         Writes a dated folder holding a snapshot of the database, the files your items point at, and a manifest
                         describing both. Keep it on another drive to back the library up.
                       </p>
                       <button
                         type="button"
-                        className={`settings-data-button ${isExportingLibrary ? "is-busy" : ""}`}
+                        className={
+                          "inline-flex h-[34px] self-start items-center gap-2 rounded-[20px] border border-ink bg-ink px-[15px] text-paper cursor-pointer " +
+                          "font-sans text-[12px] font-medium transition-[transform,opacity] duration-[.18s] ease-out " +
+                          "hover:opacity-90 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-45 " +
+                          (isExportingLibrary ? "[&_svg]:animate-spin-slow" : "")
+                        }
                         disabled={!canUseTauriBackend || isExportingLibrary}
                         onClick={() => void exportLibraryToFolder()}
                       >
@@ -4252,45 +3806,57 @@ function App() {
                         <span>{isExportingLibrary ? "Exporting…" : "Choose folder and export"}</span>
                       </button>
                       {!canUseTauriBackend ? (
-                        <p className="settings-data-hint">Export runs in the desktop app.</p>
+                        <p className="m-0 font-mono text-[12px] leading-[1.6] text-muted">Export runs in the desktop app.</p>
                       ) : null}
                       {lastExport ? (
-                        <div className="settings-data-result" role="status" aria-live="polite">
-                          <span className="settings-data-summary">
+                        <div
+                          className="flex flex-col gap-1.5 rounded-xl border border-dashed border-rule p-[12px_14px]"
+                          role="status"
+                          aria-live="polite"
+                        >
+                          <span className="font-mono text-[11px] font-medium text-ink">
                             {formatExportSummary(lastExport)}
                           </span>
-                          <span className="settings-data-path">{lastExport.directory}</span>
+                          <span className="font-mono text-[11px] leading-[1.5] text-muted [overflow-wrap:anywhere]">{lastExport.directory}</span>
                         </div>
                       ) : null}
                     </div>
                   </div>
                 </section>
               ) : (
-              <section className="settings-panel" aria-labelledby="extension-panel-title">
-                <header className="settings-panel-header">
-                  <div className="settings-panel-header-content">
-                    <div className="settings-panel-heading">
-                      <h2 id="extension-panel-title">Browser extension</h2>
+<section
+                  className="flex min-h-0 min-w-0 flex-auto flex-col p-[28px_30px] max-[700px]:p-[20px_18px_24px]"
+                  aria-labelledby="extension-panel-title"
+                >
+                  <header className="flex items-start justify-between gap-[18px] border-b border-rule">
+                    <div className="flex min-w-0 flex-auto flex-col items-start gap-[9px]">
+                      <div className="flex flex-col gap-[7px]">
+                        <h2
+                          id="extension-panel-title"
+                          className="m-0 font-sans text-[24px] font-medium leading-[1.1] tracking-[-.04em] text-ink"
+                        >
+                          Browser extension
+                        </h2>
+                      </div>
+                      <div className="flex min-h-[27px] items-center justify-between gap-[14px] self-stretch max-[700px]:items-start">
+                        <span className="font-mono text-[10px] text-muted">Save pages without leaving the browser</span>
+                      </div>
                     </div>
-                    <div className="settings-panel-count-row">
-                      <span className="settings-panel-count">Save pages without leaving the browser</span>
-                    </div>
-                  </div>
-                  <button
-                    ref={settingsCloseRef}
-                    type="button"
-                    className="icon-button small settings-close"
-                    onClick={() => setIsSettingsOpen(false)}
-                    aria-label="Close settings"
-                  >
-                    <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                  </button>
-                </header>
+                    <button
+                      ref={settingsCloseRef}
+                      type="button"
+                      className={SETTINGS_CLOSE_BUTTON_CLASS}
+                      onClick={() => setIsSettingsOpen(false)}
+                      aria-label="Close settings"
+                    >
+                      <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                    </button>
+                  </header>
 
-                <div className="settings-archive-scroll">
-                  <ExtensionPairing />
-                </div>
-              </section>
+                  <div className={SETTINGS_SCROLL_CLASS}>
+                    <ExtensionPairing />
+                  </div>
+                </section>
               )}
             </motion.section>
           </motion.div>

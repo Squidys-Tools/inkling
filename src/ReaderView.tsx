@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { useDialog } from "./components/dialog/useDialog";
 import "./reader.css";
 
 export type ReaderOrigin = { x: number; y: number };
@@ -58,6 +59,11 @@ type ReaderViewProps = {
 export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
   const [fontSet, setFontSet] = useState<ReaderFontSet>(loadFontSet);
   const shouldReduceMotion = useReducedMotion() ?? false;
+  const { dialogRef, rootProps } = useDialog<HTMLDivElement>({
+    open: true,
+    onClose: onRequestClose,
+    label: item.title,
+  });
 
   useEffect(() => {
     try {
@@ -66,17 +72,6 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
       return;
     }
   }, [fontSet]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        onRequestClose();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [onRequestClose]);
 
   const bylineParts = [item.author, item.publishedDate ?? item.savedDate].filter(Boolean);
   const host = hostnameOf(item.sourceUrl);
@@ -88,9 +83,8 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
   return (
     <motion.div
       className={`reader-overlay reader-font-${fontSet}`}
-      role="dialog"
-      aria-modal="true"
-      aria-label={item.title}
+      ref={dialogRef}
+      {...rootProps}
       style={{ "--reader-origin-x": `${origin.x}px`, "--reader-origin-y": `${origin.y}px` } as React.CSSProperties}
       initial={{ opacity: 0, clipPath: shouldReduceMotion ? readerOpenClip : readerClosedClip }}
       animate={{ opacity: 1, clipPath: readerOpenClip }}
