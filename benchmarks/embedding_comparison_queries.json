@@ -154,6 +154,81 @@
       "query": "Where is the low-resolution fruit picture showing an apple on a table?",
       "relevant": ["image-lowres-01"],
       "group": "photo"
+    },
+    {
+      "query": "What does the longer journal note say about the difference between saving and filing?",
+      "relevant": ["note-long-01"],
+      "group": "note-text"
+    },
+    {
+      "query": "What should be bought during the morning walk?",
+      "relevant": ["note-quick-01"],
+      "group": "note-text"
+    },
+    {
+      "query": "Which note discusses FTS5, offline search, and background processing?",
+      "relevant": ["note-markdown-01"],
+      "group": "note-text"
+    },
+    {
+      "query": "Which renovation checklist mentions warm paper, sage, or chalk as paint colors?",
+      "relevant": ["note-todo-01"],
+      "group": "note-text"
+    },
+    {
+      "query": "Find the sourced Annie Dillard quote from Pilgrim at Tinker Creek.",
+      "relevant": ["quote-source-01"],
+      "group": "note-text"
+    },
+    {
+      "query": "Which quote compares attention with generosity?",
+      "relevant": ["quote-nosource-01"],
+      "group": "note-text"
+    },
+    {
+      "query": "Find the short article arguing for a slower approach to news and less over-information.",
+      "relevant": ["article-short-01"],
+      "group": "article-text"
+    },
+    {
+      "query": "Which essay reflects on attention, bookmarks, archives, and serendipity?",
+      "relevant": ["article-long-essay-01"],
+      "group": "article-text"
+    },
+    {
+      "query": "What transit project did the city council approve for the riverfront and Eastgate?",
+      "relevant": ["article-news-01"],
+      "group": "article-text"
+    },
+    {
+      "query": "Find the one-pan recipe that combines miso butter, salmon, and leeks.",
+      "relevant": ["article-recipe-01"],
+      "group": "article-text"
+    },
+    {
+      "query": "Which technical page explains SQLite FTS5, BM25 ranking, and virtual tables?",
+      "relevant": ["article-docs-01"],
+      "group": "article-text"
+    },
+    {
+      "query": "Find the story about a library that grew a door, with footnotes and a reading room.",
+      "relevant": ["article-footnotes-01"],
+      "group": "article-text"
+    },
+    {
+      "query": "Which article explains parsing dates with ISO formats and a schema.org example?",
+      "relevant": ["article-codeblocks-01"],
+      "group": "article-text"
+    },
+    {
+      "query": "Find the gallery of seven rooms with warm light and interior references.",
+      "relevant": ["article-gallery-01"],
+      "group": "article-text"
+    },
+    {
+      "query": "Which article describes a rendering kitchen and server-side content for a JavaScript-heavy page?",
+      "relevant": ["article-js-heavy-01"],
+      "group": "article-text"
     }
   ],
   "similarity_pairs": [

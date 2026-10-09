@@ -118,12 +118,44 @@ Each corpus item should have a stable ID, relative path or URL, content type, la
 
 ## Compare embedding models locally
 
-`embedding_comparison.py` compares the pinned Nomic ONNX pair with Google's quantized EmbeddingGemma 2 text-and-vision LiteRT model. It uses only the generated fixtures in this directory, including page renders of the PDFs and six pairs of synthetic chart/layout pages generated in the cache. Each pair has identical OCR text but a different visual arrangement, so the visual queries test whether the image embedding distinguishes page content rather than matching shared words. The runner never opens Inkling's database or a user's library. It compares Nomic's current text/OCR indexing with an optional Nomic PDF-page-image path and EmbeddingGemma 2 at 70 and 140 vision tokens per image. It scores vector rankings only; it does not include FTS5 or the app's hybrid ranking.
+`embedding_comparison.py` compares the pinned Nomic ONNX pair with Google's quantized EmbeddingGemma 2 text-and-vision LiteRT model. The bundled run includes ordinary article/note/quote text, images and screenshots, and PDFs scored separately for text and visual queries. It also includes page renders of the PDFs and six synthetic chart/layout pairs with identical OCR text but different visual arrangements. It compares Nomic's current text/OCR indexing with an optional Nomic PDF-page-image path and EmbeddingGemma 2 at 70 and 140 vision tokens per image. It scores vector rankings only; it does not include FTS5 or the app's hybrid ranking.
+
+To include items from your library, first copy a small, representative selection into a folder outside this repository. The runner reads those copies and never opens the live SQLite database or the library's asset store. Use `.txt` or `.md` files for notes, quotes, and article text; image files for photos and screenshots; and PDFs for documents. PDFs use their text layer by default. For scanned PDFs or images, add a `.txt` `text_path` containing the OCR text you want to evaluate. The manifest uses generic IDs, and each query names the relevant sample IDs:
+
+```json
+{
+  "version": 1,
+  "items": [
+    {"id": "sample-note-01", "type": "note", "path": "items/note.md"},
+    {"id": "sample-photo-01", "type": "image", "path": "items/photo.jpg"},
+    {
+      "id": "sample-pdf-01",
+      "type": "pdf",
+      "path": "items/report.pdf",
+      "text_path": "items/report-text.txt"
+    }
+  ],
+  "queries": [
+    {"query": "What does the note say about planting herbs?", "relevant": ["sample-note-01"], "group": "library-text"},
+    {"query": "Find the photo of the garden.", "relevant": ["sample-photo-01"], "group": "library-image"},
+    {"query": "What does the report say about the project deadline?", "relevant": ["sample-pdf-01"], "group": "library-pdf-text"},
+    {"query": "Find the report page with a map.", "relevant": ["sample-pdf-01"], "group": "library-pdf-visual"}
+  ]
+}
+```
+
+Supported query groups are `library-text`, `library-image`, `library-screenshot`, `library-pdf-text`, and `library-pdf-visual`. Paths must stay inside the folder containing the manifest. Library queries are ranked against the selected library samples only, separately from the bundled fixtures, so generated documents cannot skew the local-sample scores. Index timings cover both fixture and sample inputs. Do not put the selected files or manifest in the repository, and do not share them. When a library manifest is used, the JSON report keeps aggregate scores and timings but omits per-query text, item IDs, and individual rankings. Rendered PDF pages stay in the benchmark cache alongside model files; remove that cache after the run if you want to delete those derived copies.
 
 On Windows, run it with your existing Python 3.11 through `uv`:
 
 ```powershell
 uv run --no-project --no-managed-python --python 3.11 --with-requirements benchmarks/requirements-embedding-comparison.txt benchmarks/embedding_comparison.py
+```
+
+For a local sample bundle, add the manifest path:
+
+```powershell
+uv run --no-project --no-managed-python --python 3.11 --with-requirements benchmarks/requirements-embedding-comparison.txt benchmarks/embedding_comparison.py --library-manifest "C:\Users\you\Documents\inkling-samples\manifest.json"
 ```
 
 `--no-managed-python` prevents `uv` from downloading another Python interpreter; the command uses the installed 3.11 and installs the pinned packages into uv's cache, not system-wide. The first run downloads about 620 MB of model artifacts, checks each file against a pinned SHA-256 digest, and caches the weights and rendered pages under the operating system's user cache directory. The JSON report is written there too; pass `--output <path>` after the script name to choose another report destination. It includes per-group Hit@1/Hit@3/MRR, image-similarity results, model file sizes, inference timings, and process RSS. The committed PDFs are single-page; the runner processes every page if more are added.
