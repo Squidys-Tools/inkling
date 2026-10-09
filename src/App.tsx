@@ -83,6 +83,7 @@ import {
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { parseDeepLinkCapture } from "./lib/deepLink";
+import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
 import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./lib/ingestion/video-links";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
 // local disk on first open (Suspense fallback null: no spinner, no layout
@@ -863,6 +864,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
         onClick={handleCardSelect}
         tabIndex={0}
         onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
           if (event.key !== "Enter" && event.key !== " ") return;
           event.preventDefault();
           if (archiveSelectionMode) {
@@ -1189,6 +1191,27 @@ function rememberNoteBody(cache: Map<string, string>, id: string, body: string) 
   cache.set(id, body);
 }
 
+function keepTabFocusInside(event: KeyboardEvent, dialog: HTMLElement) {
+  if (event.key !== "Tab") return;
+  const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+    "button:not([disabled]), a[href], input:not([disabled]):not([type=\"file\"]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex=\"-1\"])",
+  )).filter((element) => element.getClientRects().length > 0);
+  if (focusable.length === 0) {
+    event.preventDefault();
+    dialog.focus();
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 function App() {
   const canUseTauriBackend = isTauriRuntime() && !shouldUseSeedLibrary();
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
@@ -1222,6 +1245,7 @@ function App() {
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("archive");
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? browserArchivedItems : []);
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
@@ -1320,6 +1344,10 @@ function App() {
   const [isFindingSimilar, setIsFindingSimilar] = useState(false);
   const [similaritySource, setSimilaritySource] = useState<{ id: string; title: string; kind: "image" | "text" } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const captureModalRef = useRef<HTMLElement | null>(null);
+  const captureReturnFocusRef = useRef<HTMLElement | null>(null);
+  const shortcutsModalRef = useRef<HTMLElement | null>(null);
+  const shortcutsCloseRef = useRef<HTMLButtonElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const settingsCloseRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2667,20 +2695,79 @@ function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (readingItem) return;
-      if (event.key === "/" && document.activeElement?.tagName !== "INPUT") {
+      if (event.key === "Escape" && isShortcutsOpen) {
         event.preventDefault();
-        searchRef.current?.focus();
+        setIsShortcutsOpen(false);
+        return;
       }
+      if (readingItem || selectedItem || pdfViewerItem) return;
       if (event.key === "Escape") {
-        if (isSettingsOpen) setIsSettingsOpen(false);
-        setIsAdding(false);
-        setCaptureMode(null);
+        if (isSettingsOpen) {
+          event.preventDefault();
+          setIsSettingsOpen(false);
+        } else if (isAdding && captureMode) {
+          event.preventDefault();
+          setCaptureMode(null);
+        } else if (isAdding) {
+          event.preventDefault();
+          closeCaptureModal();
+        }
+        return;
       }
+      if (isShortcutsOpen || isSettingsOpen || isAdding) return;
+      const target = event.target;
+      const isEditableTarget = target instanceof HTMLElement && (
+        target.isContentEditable || target.matches("input, textarea, select, [role=\"textbox\"]")
+      );
+      const shortcut = appKeyboardShortcut(event, isEditableTarget);
+      if (!shortcut) return;
+      event.preventDefault();
+      if (shortcut === "search") searchRef.current?.focus();
+      else if (shortcut === "new-note" && !isCapturing) openCapture("note");
+      else if (shortcut === "help") setIsShortcutsOpen(true);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isSettingsOpen, readingItem]);
+  }, [captureMode, isAdding, isCapturing, isSettingsOpen, isShortcutsOpen, pdfViewerItem, readingItem, selectedItem]);
+
+  useEffect(() => {
+    if (!isAdding) return;
+    const previouslyFocused = captureReturnFocusRef.current;
+    const dialog = captureModalRef.current;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (dialog) keepTabFocusInside(event, dialog);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [isAdding]);
+
+  useEffect(() => {
+    if (!isAdding) return;
+    const selector = captureMode === "file"
+      ? ".file-picker"
+      : captureMode
+        ? "[autofocus]"
+        : ".capture-option";
+    captureModalRef.current?.querySelector<HTMLElement>(selector)?.focus();
+  }, [captureMode, isAdding]);
+
+  useEffect(() => {
+    if (!isShortcutsOpen) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = shortcutsModalRef.current;
+    shortcutsCloseRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (dialog) keepTabFocusInside(event, dialog);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [isShortcutsOpen]);
 
   useEffect(() => {
     if (!isSettingsOpen) return;
@@ -2689,22 +2776,8 @@ function App() {
     const focusTimer = window.setTimeout(() => settingsCloseRef.current?.focus(), 0);
 
     const onSettingsKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
       const modal = document.querySelector<HTMLElement>(".settings-modal");
-      if (!modal) return;
-      const focusable = Array.from(modal.querySelectorAll<HTMLElement>(
-        "button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex=\"-1\"])",
-      ));
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
+      if (modal) keepTabFocusInside(event, modal);
     };
 
     document.addEventListener("keydown", onSettingsKeyDown);
@@ -3076,6 +3149,7 @@ function App() {
   }
 
   function openCapture(mode: CaptureMode | null = null) {
+    captureReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setCaptureError(null);
     setSelectedFile(null);
     setCaptureMode(mode);
@@ -3535,7 +3609,11 @@ function App() {
                 }}
                 onKeyDown={(event) => {
                   if (renamingSpaceId === space.id) return;
-                  if (event.key === "Enter") selectSpace(space);
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    selectSpace(space);
+                  }
                 }}
               >
                 <span
@@ -3714,7 +3792,15 @@ function App() {
             <HugeiconsIcon icon={Settings01Icon} size={17} />
             <span>Settings</span>
           </button>
-          <button className="nav-item footer-item" aria-label="Help & shortcuts" title="Help & shortcuts">
+          <button
+            type="button"
+            className="nav-item footer-item"
+            aria-label="Help & shortcuts"
+            aria-haspopup="dialog"
+            aria-controls="shortcuts-modal"
+            title="Help & shortcuts"
+            onClick={() => setIsShortcutsOpen(true)}
+          >
             <HugeiconsIcon icon={HelpCircleIcon} size={17} />
             <span>Help & shortcuts</span>
           </button>
@@ -3784,6 +3870,7 @@ function App() {
               onMouseDown={(event) => event.target === event.currentTarget && closeCaptureModal()}
             >
               <motion.section
+                ref={captureModalRef}
                 className="capture-modal"
                 role="dialog"
                 aria-modal="true"
@@ -3903,6 +3990,58 @@ function App() {
               </AnimatePresence>
 
               {captureError && <p className="capture-error" role="alert">Couldn’t save this yet: {captureError}</p>}
+              </motion.section>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {isShortcutsOpen && (
+            <motion.div
+              key="shortcuts-modal-backdrop"
+              className="shortcuts-modal-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setIsShortcutsOpen(false);
+              }}
+            >
+              <motion.section
+                ref={shortcutsModalRef}
+                id="shortcuts-modal"
+                className="shortcuts-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="shortcuts-modal-title"
+                initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
+                animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
+                exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+              >
+                <header className="shortcuts-modal-header">
+                  <div>
+                    <h2 id="shortcuts-modal-title">Keyboard shortcuts</h2>
+                    <p>Use these when you’re not typing in a field.</p>
+                  </div>
+                  <button
+                    ref={shortcutsCloseRef}
+                    type="button"
+                    className="icon-button small"
+                    onClick={() => setIsShortcutsOpen(false)}
+                    aria-label="Close keyboard shortcuts"
+                  >
+                    <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                  </button>
+                </header>
+                <dl className="shortcut-list">
+                  <div><dt><kbd>/</kbd></dt><dd>Focus search</dd></div>
+                  <div><dt><kbd>Ctrl</kbd> or <kbd>⌘</kbd> + <kbd>K</kbd></dt><dd>Focus search</dd></div>
+                  <div><dt><kbd>N</kbd></dt><dd>Start a new note</dd></div>
+                  <div><dt><kbd>?</kbd></dt><dd>Show keyboard shortcuts</dd></div>
+                  <div><dt><kbd>Esc</kbd></dt><dd>Close a panel or return to capture options</dd></div>
+                </dl>
               </motion.section>
             </motion.div>
           )}
