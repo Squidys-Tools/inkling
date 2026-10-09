@@ -1,5 +1,5 @@
 litert-lm-api==0.18.0
-numpy==2.5.3
+numpy==2.4.6
 onnxruntime==1.23.2
 pillow==12.3.0
 psutil==7.2.2
