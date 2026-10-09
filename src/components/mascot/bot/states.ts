@@ -87,6 +87,54 @@ function base(over: Partial<Pose> = {}): Pose {
   }
 }
 
+/**
+ * The body of `inkling-drift`, shared verbatim with `inkling-drift-faced`.
+ *
+ * One copy, on purpose. The two states differ by one flag, and a second copy of
+ * this arithmetic is a second thing to forget: the README would end up showing a
+ * mascot that no longer moves like the sidebar one, which is the exact thing it
+ * exists to avoid. The reasoning behind the share is on `inkling-drift-faced`,
+ * where the loop that never needed closing is described.
+ */
+function driftBody(t: number): Pose {
+  const wave = (base: number, depth: number, period: number, phase: number) =>
+    base + depth * Math.sin((t * TAU) / period + phase)
+  // Amplitudes : chacune s'eteint presque puis revient, a son heure.
+  const a5 = wave(0.055, 0.032, 14, 0)
+  const a3 = wave(0.04, 0.022, 10, 2.1)
+  const a2 = wave(0.03, 0.016, 21, 4.2)
+  const a7 = wave(0.012, 0.006, 6, 1.3)
+  // Phases : les lobes 5 et 3 circulent en sens inverse, les autres
+  // glissent lentement — la figure ne repasse jamais deux fois pareille.
+  const p5 = 0.8 + (t * TAU) / 26
+  const p3 = 2.0 - (t * TAU) / 17
+  const p2 = 2.0 + 0.3 * Math.sin((t * TAU) / 15)
+  const p7 = (t * TAU) / 8
+  const raw = Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
+    const a = (i / PROFILE_SAMPLES) * TAU
+    return (
+      1 +
+      a5 * Math.cos(5 * a + p5) +
+      a3 * Math.cos(3 * a + p3) +
+      a2 * Math.cos(2 * a + p2) +
+      a7 * Math.cos(7 * a + p7)
+    )
+  })
+  // Poids visuel constant : seule la forme change, jamais la taille.
+  const peak = Math.max(...raw)
+  const radii = raw.map((r) => (r * 1.06) / peak)
+  // Visage propre a la derive (comme wink/wide portent le leur) : meme
+  // regard et memes gelules que le repos, mais resserre (split 10.5 contre
+  // 15.46) et recentre (yaw 15 contre 28.49) pour rendre aux yeux la marge
+  // que la rotation leur reprendrait au bord droit.
+  return base({
+    sil: { radii, rot: (t * TAU) / 24, cx: 0, cy: 0, sx: 1, sy: 1 },
+    gaze: { ...REST_GAZE, yaw: 15 },
+    split: 10.5,
+    eyes: pair(EYE_W, EYE_H)
+  })
+}
+
 /* --------------------------------------------------- formes non radiales */
 
 /**
@@ -170,7 +218,7 @@ export type StateId =
   | 'inkling-sway'
   | 'inkling-jelly'
   | 'inkling-drift'
-  | 'inkling-drift-loop'
+  | 'inkling-drift-faced'
 
 export interface StateDef {
   id: StateId
@@ -621,10 +669,10 @@ export const STATES: StateDef[] = [
     }
   },
   {
-    // Visage propre a la derive (comme wink/wide portent le leur) : meme
-    // regard et memes gelules que le repos, mais resserre (split 10.5 contre
-    // 15.46) et recentre (yaw 15 contre 28.49) pour rendre aux yeux la marge
-    // que la rotation leur reprendrait au bord droit.
+    // The sidebar default: ink stirring, one turn every 24s. `baseFace: false`
+    // because drift carries its OWN tightened face — a steady face under a
+    // turning body — so an expression cannot replace it. That is why the README
+    // needs `inkling-drift-faced` below rather than this state.
     id: 'inkling-drift',
     duration: 24,
     morph: 0.8,
@@ -632,99 +680,39 @@ export const STATES: StateDef[] = [
     baseFace: false,
     baseBody: false,
     steadyFace: true,
-    pose: (t) => {
-      const wave = (base: number, depth: number, period: number, phase: number) =>
-        base + depth * Math.sin((t * TAU) / period + phase)
-      // Amplitudes : chacune s'eteint presque puis revient, a son heure.
-      const a5 = wave(0.055, 0.032, 14, 0)
-      const a3 = wave(0.04, 0.022, 10, 2.1)
-      const a2 = wave(0.03, 0.016, 21, 4.2)
-      const a7 = wave(0.012, 0.006, 6, 1.3)
-      // Phases : les lobes 5 et 3 circulent en sens inverse, les autres
-      // glissent lentement — la figure ne repasse jamais deux fois pareille.
-      const p5 = 0.8 + (t * TAU) / 26
-      const p3 = 2.0 - (t * TAU) / 17
-      const p2 = 2.0 + 0.3 * Math.sin((t * TAU) / 15)
-      const p7 = (t * TAU) / 8
-      const raw = Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
-        const a = (i / PROFILE_SAMPLES) * TAU
-        return (
-          1 +
-          a5 * Math.cos(5 * a + p5) +
-          a3 * Math.cos(3 * a + p3) +
-          a2 * Math.cos(2 * a + p2) +
-          a7 * Math.cos(7 * a + p7)
-        )
-      })
-      // Poids visuel constant : seule la forme change, jamais la taille.
-      const peak = Math.max(...raw)
-      const radii = raw.map((r) => (r * 1.06) / peak)
-      return base({
-        sil: { radii, rot: (t * TAU) / 24, cx: 0, cy: 0, sx: 1, sy: 1 },
-        gaze: { ...REST_GAZE, yaw: 15 },
-        split: 10.5,
-        eyes: pair(EYE_W, EYE_H)
-      })
-    }
+    pose: driftBody
   },
   {
-    // INKLING EXTENSION — see StateId above. Not a sidebar state: this one
-    // exists so the README mascot can DRIFT the way the sidebar does while
-    // still coming back to where it started, and WEAR the expression the README
-    // script hands it.
+    // INKLING EXTENSION — see StateId above. Not a sidebar state: `inkling-drift`
+    // with `baseFace: true`, so a caller can put an expression on it. The README
+    // is that caller, and it is the only one.
     //
-    // `inkling-drift` runs on a free clock, where never repeating is the whole
-    // point, and its nine periods (24, 26, 21, 17, 15, 14, 10, 8, 6) have a
-    // least common multiple of days. An SVG has to loop, so every period here
-    // is the nearest divisor of 24 instead: the turn keeps its exact 24s period
-    // and the lobe drift keeps its speeds to within a second or two, but the
-    // state at t and t+24 is now identical to the digit.
+    // The pose below is the sidebar's, shared, not a re-timed copy. The state does
+    // NOT close on itself: `inkling-drift`'s nine periods (24, 26, 21, 17, 15, 14,
+    // 10, 8, 6) have a least common multiple of days, and snapping them to divisors
+    // of a loop is what left the README mascot looking unlike the sidebar one —
+    // every lobe beat against the turn on 12s, so the silhouette recurred while
+    // the body took twice as long to come round.
     //
-    // `baseFace` is what lets the face change at all: the pose below is the
-    // FALLBACK, the one an unexpressed mascot wears, and it is the tightened
-    // placement the turning body needs — not the round one `neutre` asks for,
-    // which walks the eyes into a lobe as the blob rotates. A caller that wants
-    // an expression passes one and the engine swaps in its gaze, split and eyes;
-    // the README does, and pins the gaze back down itself for the same reason.
+    // It does not have to close here. The README's `d` track pastes the opening
+    // outline at 100%, so the browser interpolates its last keyframe to the start
+    // across the final second — a straight line covering that second's 15deg turn
+    // either way, with ~2.3px of lobe drift folded into it. Unmeasurable next to
+    // the 13px the outline already travels in that second.
     //
-    // Read it as the same figure on a 24s clock, not as the sidebar's motion.
-    id: 'inkling-drift-loop',
+    // `baseFace: true` also makes the pose's own face a FALLBACK: the tightened
+    // placement, not the round one `neutre` asks for, which walks the eyes into a
+    // lobe as the blob rotates. A caller that passes an expression gets its gaze,
+    // split and eyes; the README does, and pins the gaze back down itself for the
+    // same reason.
+    id: 'inkling-drift-faced',
     duration: 24,
     morph: 0.8,
     blinkIn: false,
     baseFace: true,
     baseBody: false,
     steadyFace: true,
-    pose: (t) => {
-      const wave = (base: number, depth: number, period: number, phase: number) =>
-        base + depth * Math.sin((t * TAU) / period + phase)
-      const a5 = wave(0.055, 0.032, 12, 0)
-      const a3 = wave(0.04, 0.022, 12, 2.1)
-      const a2 = wave(0.03, 0.016, 24, 4.2)
-      const a7 = wave(0.012, 0.006, 6, 1.3)
-      const p5 = 0.8 + (t * TAU) / 24
-      const p3 = 2.0 - (t * TAU) / 12
-      const p2 = 2.0 + 0.3 * Math.sin((t * TAU) / 12)
-      const p7 = (t * TAU) / 8
-      const raw = Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
-        const a = (i / PROFILE_SAMPLES) * TAU
-        return (
-          1 +
-          a5 * Math.cos(5 * a + p5) +
-          a3 * Math.cos(3 * a + p3) +
-          a2 * Math.cos(2 * a + p2) +
-          a7 * Math.cos(7 * a + p7)
-        )
-      })
-      const peak = Math.max(...raw)
-      const radii = raw.map((r) => (r * 1.06) / peak)
-      return base({
-        sil: { radii, rot: (t * TAU) / 24, cx: 0, cy: 0, sx: 1, sy: 1 },
-        gaze: { ...REST_GAZE, yaw: 15 },
-        split: 10.5,
-        eyes: pair(EYE_W, EYE_H)
-      })
-    }
+    pose: driftBody
   }
 ]
 
