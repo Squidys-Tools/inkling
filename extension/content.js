@@ -1,34 +1,43 @@
-// inkling content script — Phase 3 collectors (selection / image / video).
+// inkling collector (selection / image / video) — injected on invoke by
+// background.ts, which then asks for a collect over runtime messaging.
 //
 // Collects v1 payloads (see extension/src/payload.ts for the contract; field
-// names must match exactly) and replies to the background worker. Validation
-// and deep-link encoding happen background-side in payload.ts — this script
-// only reads the page and keeps every read capped so capture stays instant.
+// names must match exactly). Validation and delivery happen background-side —
+// this script only reads the page and keeps every read capped so capture stays
+// instant.
+
+const browserApi = globalThis.chrome ?? globalThis.browser;
+
+// Decoded-byte ceiling for one data URL, and the same number the receiver
+// accepts: `MAX_IMAGE_DATA_URL_BYTES` in src-tauri/src/capture_server.rs. The
+// receiver's JSON body budget is raised to hold a maximum-size image, because
+// this payload travels as base64 inside it and base64 expands by 4/3; a
+// compile-time assertion there keeps the two in step.
 //
-// Manifest wiring (mechanical, owned by the manifest author):
-//   "content_scripts": [{ "matches": ["<all_urls>"], "js": ["content.js"] }]
-// plus the "contextMenus" permission for the background worker.
+// Both sides still have to agree. A data URL over this comes back 413, which
+// this extension treats as a permanent rejection and drops, so checking it
+// here is what turns a silent loss into an honest "too large" at save time.
+const MAX_DATA_URL_BYTES = 5 * 1024 * 1024;
 
-// Last right-clicked image: contextmenu fires before the worker's onClicked,
-// so stash the target here for the later collect request.
-let lastContextImage = null;
+// The worker re-injects this file on every capture. Register the listener once
+// per page: a duplicate would answer the same collect request twice.
+const firstInjection = !globalThis.__inklingCollectInstalled;
+globalThis.__inklingCollectInstalled = true;
 
-function imageFromElement(element) {
-  if (!element) return null;
-  if (element.tagName === "IMG") return element;
-  return element.closest ? element.closest("img") : null;
+function readImage(requestedSrc) {
+  // The worker passes the srcUrl Chrome reported for the right-clicked image.
+  // Nothing is stashed from a contextmenu listener: this script is injected
+  // after that event, so a stash would always be empty.
+  const src = (requestedSrc || "").trim();
+  if (!src) return null;
+  // blob:/canvas sources cannot be fetched by the app; rasterize small ones to
+  // a dataUrl fallback, capped at MAX_DATA_URL_BYTES. http(s) sources download
+  // directly and never need this path.
+  if (src.startsWith("blob:") || src.startsWith("data:image/")) {
+    return { src, needsDataUrl: true };
+  }
+  return { src, needsDataUrl: false };
 }
-
-document.addEventListener(
-  "contextmenu",
-  (event) => {
-    const image = imageFromElement(event.target);
-    lastContextImage = image
-      ? { src: image.currentSrc || image.src || "", alt: image.getAttribute("alt") || "" }
-      : null;
-  },
-  true,
-);
 
 function readSelection() {
   const selection = window.getSelection();
@@ -49,20 +58,6 @@ function readSelection() {
   return { selectedText, selectedHtml };
 }
 
-function readImage(requestedSrc) {
-  const fromMenu = lastContextImage;
-  const src = (requestedSrc || (fromMenu && fromMenu.src) || "").trim();
-  if (!src) return null;
-  const alt = ((fromMenu && fromMenu.alt) || "").replace(/\s+/g, " ").trim().slice(0, 240);
-  // blob:/canvas sources cannot be fetched by the app; rasterize small ones
-  // to a dataUrl fallback, capped at ~5MB. http(s) sources download directly
-  // and never need this path.
-  if (src.startsWith("blob:") || src.startsWith("data:image/")) {
-    return { src, alt, needsDataUrl: true };
-  }
-  return { src, alt, needsDataUrl: false };
-}
-
 function imageToDataUrl(url) {
   return fetch(url, { mode: "cors", credentials: "omit" })
     .then((response) => {
@@ -72,8 +67,8 @@ function imageToDataUrl(url) {
     .then(
       (blob) =>
         new Promise((resolve, reject) => {
-          if (blob.size > 5 * 1024 * 1024) {
-            reject(new Error("image fallback exceeds the 5MB dataUrl cap"));
+          if (blob.size > MAX_DATA_URL_BYTES) {
+            reject(new Error("image fallback exceeds the dataUrl size cap"));
             return;
           }
           const reader = new FileReader();
@@ -100,9 +95,7 @@ function readVideo() {
   return window.location.href;
 }
 
-const browserApi = globalThis.chrome ?? globalThis.browser;
-
-browserApi?.runtime?.onMessage.addListener((message, _sender, sendResponse) => {
+function handleCollectMessage(message, _sender, sendResponse) {
   if (!message || message.type !== "inkling/collect") return undefined;
 
   if (message.collect === "selection") {
@@ -134,7 +127,6 @@ browserApi?.runtime?.onMessage.addListener((message, _sender, sendResponse) => {
       kind: "image",
       pageUrl: window.location.href,
       srcUrl: found.src,
-      ...(found.alt ? { alt: found.alt } : {}),
     };
     if (!found.needsDataUrl) {
       sendResponse({ type: "inkling/capture", payload });
@@ -153,9 +145,20 @@ browserApi?.runtime?.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ type: "inkling/capture-error", reason: "not-a-video-page" });
       return true;
     }
-    sendResponse({ type: "inkling/capture", payload: { kind: "video", sourceUrl } });
+    sendResponse({
+      type: "inkling/capture",
+      payload: {
+        kind: "video",
+        sourceUrl,
+        title: document.title ? document.title.trim().slice(0, 240) : undefined,
+      },
+    });
     return true;
   }
 
   return undefined;
-});
+}
+
+if (firstInjection) {
+  browserApi?.runtime?.onMessage.addListener(handleCollectMessage);
+}

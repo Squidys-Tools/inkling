@@ -30,48 +30,19 @@ type ExtensionImagePayload = {
   dataUrl?: string;
 };
 
-// A video page itself (YouTube/Vimeo watch URL). Pass-through: the app routes
-// it through the existing video-links.ts path, same as pasting the URL.
+// A video page itself (YouTube/Vimeo watch URL). The app stores the URL and
+// renders the provider embed from it; `title` is the page title the content
+// script already read, so the card is not stuck on a bare hostname.
 type ExtensionVideoPayload = {
   kind: "video";
   sourceUrl: string;
+  title?: string;
 };
 
 export type ExtensionCapturePayload =
   | ExtensionSelectionPayload
   | ExtensionImagePayload
   | ExtensionVideoPayload;
-
-function isHttpUrlString(value: string | null | undefined): boolean {
-  if (!value) return false;
-  try {
-    const parsed = new URL(value.trim());
-    return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.hostname.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-// Deep-link encoders. The app already handles url-only links (article/video)
-// and url+title+selection links (quote). dataUrl never travels by deep link:
-// it is too large for a URL and goes through the local companion POST path.
-export function payloadToDeepLink(payload: ExtensionCapturePayload): string | null {
-  if (payload.kind === "selection") {
-    const params = new URLSearchParams({
-      url: payload.sourceUrl,
-      ...(payload.title ? { title: payload.title } : {}),
-      selection: payload.selectedText || payload.selectedHtml,
-    });
-    return `inkling://capture?${params.toString()}`;
-  }
-  if (payload.kind === "video") {
-    return `inkling://capture?url=${encodeURIComponent(payload.sourceUrl)}`;
-  }
-  if (!isHttpUrlString(payload.srcUrl)) return null;
-  const params = new URLSearchParams({ url: payload.pageUrl, image: payload.srcUrl });
-  if (payload.alt) params.set("alt", payload.alt);
-  return `inkling://capture?${params.toString()}`;
-}
 
 // Background/popup wiring (pure data + router; the service worker owns the
 // chrome.* calls). Keep these ids stable: menus persist across updates.
@@ -88,9 +59,39 @@ export function isCaptureMessage(value: unknown): value is ExtensionCaptureMessa
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
   if (record.type !== "inkling/capture" || !record.payload || typeof record.payload !== "object") return false;
-  return (["selection", "image", "video"] as string[]).includes(
-    (record.payload as Record<string, unknown>).kind as string,
-  );
+  return isExtensionCapturePayload(record.payload);
+}
+
+/**
+ * Structural check for a media capture. The queued payloads come back out of
+ * storage, so the shape has to be verified rather than assumed — an image
+ * without its `srcUrl` would be POSTed and rejected by the app with a
+ * confusing error, long after the user's save. Every optional field is checked
+ * too: a `null` where a string is declared reaches the app as JSON and lands in
+ * a column the app did not promise to accept. Every required field is checked
+ * for the same reason: the narrowing has to hold for the type it claims.
+ */
+export function isExtensionCapturePayload(value: unknown): value is ExtensionCapturePayload {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  const kind = record.kind;
+  const optionalString = (field: string) => record[field] === undefined || typeof record[field] === "string";
+  if (kind === "selection") {
+    return typeof record.sourceUrl === "string"
+      && typeof record.selectedHtml === "string"
+      && typeof record.selectedText === "string"
+      && optionalString("title");
+  }
+  if (kind === "image") {
+    return typeof record.pageUrl === "string"
+      && typeof record.srcUrl === "string"
+      && optionalString("alt")
+      && optionalString("dataUrl");
+  }
+  if (kind === "video") {
+    return typeof record.sourceUrl === "string" && optionalString("title");
+  }
+  return false;
 }
 
 // Thin wiring the background worker applies (mechanical; no logic here):
@@ -98,5 +99,5 @@ export function isCaptureMessage(value: unknown): value is ExtensionCaptureMessa
 //   chrome.contextMenus.create({ id: INKLING_MENU_SAVE_IMAGE, title: "Save image to inkling", contexts: ["image"] });
 //   // onClicked → tabs.sendMessage(tab.id, { type: "inkling/collect", menuItemId }) ;
 //   // content.js collects and replies with { type: "inkling/capture", payload };
-//   // background validates with isCaptureMessage, then opens
-//   // payloadToDeepLink(payload) so capture works even when the app is cold.
+//   // background validates with isCaptureMessage, then sends the payload
+//   // through the authenticated local receiver.

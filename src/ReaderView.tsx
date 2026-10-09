@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { openExternalUrl, openableExternalUrl } from "./lib/openExternalUrl";
 import "./reader.css";
 
 export type ReaderOrigin = { x: number; y: number };
@@ -79,7 +80,12 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
   }, [onRequestClose]);
 
   const bylineParts = [item.author, item.publishedDate ?? item.savedDate].filter(Boolean);
-  const host = hostnameOf(item.sourceUrl);
+  // The saved source URL is untrusted input, and our click handler is only one
+  // way out of this footer: middle-click, open in new tab, and copy link address
+  // all read the rendered href. Bind the validated address and leave nothing to
+  // activate when it is not http(s).
+  const sourceHref = openableExternalUrl(item.sourceUrl);
+  const host = sourceHref ? hostnameOf(sourceHref) : "";
 
   const readerOrigin = "var(--reader-origin-x) var(--reader-origin-y)";
   const readerOpenClip = `circle(150% at ${readerOrigin})`;
@@ -117,11 +123,21 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
 
           <div className="reader-content" dangerouslySetInnerHTML={{ __html: item.html }} />
 
-          <footer className="reader-footer">
-            <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer">
-              Continue reading at {host} <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />
-            </a>
-          </footer>
+          {sourceHref ? (
+            <footer className="reader-footer">
+              <a
+                href={sourceHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => {
+                  event.preventDefault();
+                  openExternalUrl(sourceHref);
+                }}
+              >
+                Continue reading at {host} <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />
+              </a>
+            </footer>
+          ) : null}
         </article>
       </div>
 

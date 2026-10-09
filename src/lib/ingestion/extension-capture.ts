@@ -1,6 +1,7 @@
 import { htmlToText, sanitizeHtml } from "./html-safety";
 import { videoLinkFromSourceUrl, type VideoLinkEmbed } from "./video-links";
 import { normalizeHttpUrl, normalizeText, parseHttpUrl } from "./url";
+import { truncate } from "../truncate";
 
 // TODO(phase1): share payload types + caps with extension/src/payload.ts via
 // packages/ingestion-shared. Field names are identical on both sides so the
@@ -14,6 +15,12 @@ import { normalizeHttpUrl, normalizeText, parseHttpUrl } from "./url";
 
 const EXTENSION_SELECTION_TEXT_MAX_CHARS = 1500;
 const EXTENSION_ATTRIBUTION_MAX_CHARS = 240;
+/** Decoded-size ceiling for one data-URL image, and the same number the
+ *  receiver accepts: MAX_IMAGE_DATA_URL_BYTES in src-tauri/src/capture_server.rs.
+ *  Must stay equal to it. The receiver raises its JSON body budget to fit a
+ *  maximum-size image, because this travels as base64 inside that body and
+ *  base64 expands by 4/3; a compile-time assertion there keeps that honest.
+ */
 export const EXTENSION_IMAGE_DATA_URL_MAX_BYTES = 5 * 1024 * 1024;
 
 export type ExtensionSelectionInput = {
@@ -101,7 +108,13 @@ export function mapExtensionSelection(input: ExtensionSelectionInput): Selection
   return { body, attribution, sourceUrl, sanitizedHtml };
 }
 
-const DATA_URL_RE = /^data:(image\/(?:png|jpe?g|gif|webp|avif|bmp|svg\+xml));base64,([a-zA-Z0-9+/=\s]+)$/u;
+// Subtypes the receiver's decoder also accepts. Keep this a subset of
+// DECODABLE_IMAGE_MIME in src-tauri/src/http_fetch.rs: a data URL this accepts
+// but the receiver refuses becomes a capture the user sees fail after it was
+// reported as saved. `avif` and `svg+xml` are deliberately absent - nothing
+// decodes the former, and SVG is an active-content format the reader would
+// render.
+const DATA_URL_RE = /^data:(image\/(?:png|jpe?g|gif|webp|bmp));base64,([a-zA-Z0-9+/=\s]+)$/u;
 
 function base64ByteLength(payload: string): number {
   const compact = payload.replace(/\s/gu, "");
@@ -126,7 +139,7 @@ function imageFileName(srcUrl: string, alt: string, mimeType: string | null): st
 export function mapExtensionImage(input: ExtensionImageInput): ImageReceipt | null {
   const pageUrl = httpUrl(input.pageUrl);
   if (!pageUrl) return null;
-  const alt = normalizeText(input.alt).slice(0, 240);
+  const alt = truncate(normalizeText(input.alt), 240);
 
   const downloadUrl = normalizeHttpUrl(input.srcUrl, pageUrl);
   if (downloadUrl) {

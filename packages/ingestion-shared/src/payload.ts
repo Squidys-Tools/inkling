@@ -22,10 +22,25 @@ export interface PageCapturePayloadV1 {
   author?: string;
   publishedDate?: string | null;
   imageUrls: string[];
+  /** Absolute http(s) favicon for the seal badge; omitted when unknown. */
+  favicon?: string;
 }
 
 /** Upper bound so a single capture cannot exhaust chrome.storage.local quota. */
 export const MAX_DEFUDDLED_HTML_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Per-field bounds for the untrusted strings a page can inflate. They mirror
+ * the receiver's caps in `src-tauri/src/capture_server.rs` so a producer and
+ * the app agree on what a payload costs. Oversized values are truncated, not
+ * rejected, because the receiver truncates too: the user keeps the capture and
+ * loses only the tail the app was going to drop anyway.
+ */
+export const MAX_URL_LENGTH = 8192;
+export const MAX_TITLE_LENGTH = 500;
+export const MAX_TEXT_LENGTH = 200_000;
+export const MAX_AUTHOR_LENGTH = 240;
+export const MAX_PUBLISHED_DATE_LENGTH = 64;
 
 export class PayloadValidationError extends Error {
   readonly field: string;
@@ -41,6 +56,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Keep a prefix of an untrusted string without splitting a surrogate pair. */
+function clamp(value: string, max: number): string {
+  if (value.length <= max) return value;
+  const cut = value.slice(0, max);
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+}
+
 function httpUrl(value: unknown, field: string): string {
   if (typeof value !== "string" || !value) {
     throw new PayloadValidationError(field, "expected a non-empty string");
@@ -53,6 +76,9 @@ function httpUrl(value: unknown, field: string): string {
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new PayloadValidationError(field, "expected an http(s) URL");
+  }
+  if (parsed.href.length > MAX_URL_LENGTH) {
+    throw new PayloadValidationError(field, "URL exceeds the payload size limit");
   }
   return parsed.toString();
 }
@@ -72,6 +98,7 @@ function cleanImageUrls(value: unknown): string[] {
       continue;
     }
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") continue;
+    if (parsed.href.length > MAX_URL_LENGTH) continue;
     const normalized = parsed.toString();
     if (!seen.has(normalized)) seen.add(normalized);
     if (seen.size >= 200) break;
@@ -118,13 +145,24 @@ export function parsePageCapturePayload(value: unknown): PageCapturePayloadV1 {
     version: 1,
     kind: "page",
     url,
-    title: value.title,
+    title: clamp(value.title, MAX_TITLE_LENGTH),
     defuddledHtml: value.defuddledHtml,
-    text: value.text,
+    text: clamp(value.text, MAX_TEXT_LENGTH),
     imageUrls: cleanImageUrls(value.imageUrls),
   };
-  if (value.author !== undefined) payload.author = value.author;
-  if (value.publishedDate !== undefined) payload.publishedDate = value.publishedDate;
+  if (value.author !== undefined) payload.author = clamp(value.author, MAX_AUTHOR_LENGTH);
+  if (typeof value.publishedDate === "string") {
+    payload.publishedDate = clamp(value.publishedDate, MAX_PUBLISHED_DATE_LENGTH);
+  } else if (value.publishedDate === null) {
+    payload.publishedDate = null;
+  }
+  if (value.favicon !== undefined && value.favicon !== null && value.favicon !== "") {
+    try {
+      payload.favicon = httpUrl(value.favicon, "favicon");
+    } catch {
+      // Forgiving like image URLs: a bad favicon never fails the capture.
+    }
+  }
   return payload;
 }
 
@@ -145,6 +183,7 @@ export interface BuildPagePayloadInput {
   author?: string;
   publishedDate?: string | null;
   imageUrls?: string[];
+  favicon?: string;
 }
 
 /**
@@ -165,5 +204,6 @@ export function buildPageCapturePayload(input: BuildPagePayloadInput): PageCaptu
     ...(input.author !== undefined ? { author: input.author } : {}),
     ...(input.publishedDate !== undefined ? { publishedDate: input.publishedDate } : {}),
     imageUrls: input.imageUrls ?? [],
+    ...(input.favicon !== undefined ? { favicon: input.favicon } : {}),
   });
 }

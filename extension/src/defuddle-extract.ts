@@ -55,6 +55,28 @@ function imageUrlsFromContent(contentHtml: string, pageUrl: string, limit = 40):
   return urls;
 }
 
+/**
+ * Defuddle reports no favicon on a page that declares no icon, but the app's own
+ * fallback path still finds one — a declared icon, then a bare /favicon.ico guess
+ * — and an extension capture without it loses the favicon seal for no reason.
+ * Read the same inert snapshot Defuddle was handed, never the live document.
+ */
+function declaredFavicon(document: Document, baseUrl: string): string | null {
+  const links = document.querySelectorAll(
+    'link[rel~="icon" i], link[rel~="shortcut icon" i], link[rel~="apple-touch-icon" i]',
+  );
+  for (const link of links) {
+    const declared = absoluteUrl(link.getAttribute("href"), baseUrl);
+    if (declared) return declared;
+  }
+  for (const name of ["og:image:favicon", "msapplication-tileimage"]) {
+    const meta = document.querySelector(`meta[name="${name}" i], meta[property="${name}" i]`);
+    const declared = absoluteUrl(meta?.getAttribute("content"), baseUrl);
+    if (declared) return declared;
+  }
+  return absoluteUrl("/favicon.ico", baseUrl);
+}
+
 // Ask the MAIN-world stamper to flatten open shadow roots, then proceed
 // whether it answers or not (CSP or injection failure must not block capture:
 // a URL + title + best-effort content beats an error card).
@@ -77,14 +99,15 @@ function requestShadowFlatten(timeoutMs = 600): Promise<void> {
 }
 
 /**
- * Extract the current page into a v1 capture payload. Runs against a CLONE of
- * the live document — Defuddle strips scripts/styles from the document it is
- * handed, and that must never touch the user's open page.
+ * Extract the current page into a v1 capture payload. Runs against an inert
+ * DOMParser snapshot of the live document — Defuddle strips scripts/styles from
+ * the document it is handed, and that must never touch the user's open page.
  */
 export async function extractCurrentPage(): Promise<ExtractResult> {
   const pageUrl = window.location.href;
   await requestShadowFlatten();
-  const clone = document.cloneNode(true) as Document;
+  const snapshot = document.documentElement?.outerHTML ?? "";
+  const clone = new DOMParser().parseFromString(snapshot, "text/html");
   const result = new Defuddle(clone, {
     url: pageUrl,
     ...INKLING_DEFUDDLE_OPTIONS,
@@ -94,6 +117,10 @@ export async function extractCurrentPage(): Promise<ExtractResult> {
   const imageFromMeta = absoluteUrl(result.image, pageUrl);
   const imageUrls = imageUrlsFromContent(contentHtml, pageUrl);
   if (imageFromMeta && !imageUrls.includes(imageFromMeta)) imageUrls.unshift(imageFromMeta);
+  const favicon =
+    absoluteUrl(typeof result.favicon === "string" ? result.favicon : null, pageUrl)
+    ?? declaredFavicon(clone, pageUrl)
+    ?? undefined;
 
   const payload = buildPageCapturePayload({
     url: pageUrl,
@@ -103,6 +130,7 @@ export async function extractCurrentPage(): Promise<ExtractResult> {
     author: result.author || undefined,
     publishedDate: result.published || null,
     imageUrls,
+    ...(favicon ? { favicon } : {}),
   });
   return { ok: true, payload };
 }

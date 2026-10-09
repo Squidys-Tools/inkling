@@ -919,15 +919,24 @@ fn start_job_lease_heartbeat(
     (stop_tx, handle)
 }
 
+/// The OCR job an item kind needs, or None when it has no extractable page
+/// content. Single definition: the enqueue side and the wake side must agree or
+/// the worker sleeps on a row nobody signalled.
+pub(crate) fn ocr_kind_for(item_kind: &str) -> Option<JobKind> {
+    match item_kind {
+        "image" => Some(JobKind::OcrImage),
+        "pdf" => Some(JobKind::OcrPdfPage),
+        _ => None,
+    }
+}
+
 pub(crate) fn enqueue_ocr_for_item(
     conn: &Connection,
     item_id: &str,
     item_kind: &str,
 ) -> rusqlite::Result<Option<String>> {
-    let kind = match item_kind {
-        "image" => JobKind::OcrImage,
-        "pdf" => JobKind::OcrPdfPage,
-        _ => return Ok(None),
+    let Some(kind) = ocr_kind_for(item_kind) else {
+        return Ok(None);
     };
 
     JobQueue::enqueue_job(conn, item_id, kind).map(Some)
@@ -1059,6 +1068,53 @@ mod tests {
             )
             .unwrap();
         connection
+    }
+
+    #[test]
+    fn saved_images_enqueue_ocr_as_well_as_an_embedding() {
+        // Regression: an image captured through the browser extension used to
+        // get an embedding job only, so text inside the picture was never
+        // indexed and never searchable.
+        assert_eq!(ocr_kind_for("image"), Some(JobKind::OcrImage));
+        assert_eq!(ocr_kind_for("pdf"), Some(JobKind::OcrPdfPage));
+        assert_eq!(ocr_kind_for("article"), None);
+
+        let conn = test_connection();
+        conn.execute("INSERT INTO items (id) VALUES ('img1')", [])
+            .unwrap();
+        let ocr = enqueue_ocr_for_item(&conn, "img1", "image").unwrap();
+        assert!(ocr.is_some(), "an image must get an OCR job row");
+        enqueue_embedding_for_item(&conn, "img1").unwrap();
+
+        let kinds: Vec<String> = conn
+            .prepare("SELECT kind FROM jobs WHERE item_id = 'img1'")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(
+            kinds.len(),
+            2,
+            "expected OCR and embedding rows, got {kinds:?}"
+        );
+        assert!(kinds.iter().any(|kind| kind.contains("ocr_image")));
+        assert!(kinds.iter().any(|kind| kind.contains("embedding")));
+    }
+
+    #[test]
+    fn non_visual_items_get_no_ocr_row() {
+        let conn = test_connection();
+        conn.execute("INSERT INTO items (id) VALUES ('note1')", [])
+            .unwrap();
+        for kind in ["article", "note", "quote", "url", "video"] {
+            let ocr = enqueue_ocr_for_item(&conn, "note1", kind).unwrap();
+            assert!(ocr.is_none(), "{kind} must not get an OCR job, got {ocr:?}");
+        }
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM jobs", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 0, "a non-visual item must leave the jobs table empty");
     }
 
     #[test]

@@ -7,7 +7,7 @@
       "ignore": ["src/bun-test.d.ts"]
     },
     "extension": {
-      "entry": ["content.js", "options.js", "src/background.ts", "src/popup.ts", "src/**/*.test.ts"]
+      "entry": ["options.js", "src/background.ts", "src/popup.ts", "src/**/*.test.ts"]
     },
     "packages/*": {}
   }

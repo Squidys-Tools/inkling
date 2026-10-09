@@ -284,6 +284,16 @@ pub struct SaveFileInput {
     pub bytes: Vec<u8>,
 }
 
+/// What a video capture originally stored, recorded so background oEmbed
+/// enrichment can tell an untouched field from one the user has since edited.
+/// Enrichment only ever fills a field that still equals this value.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoOembedBaseline {
+    pub title: Option<String>,
+    pub description: Option<String>,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateItemInput {
@@ -516,22 +526,30 @@ impl LibraryStorage {
         self.get_item(&id)?.ok_or(StorageError::NotFound(id))
     }
 
-    fn create_quote(&self, input: CreateQuoteInput) -> Result<ItemDto, StorageError> {
+    pub(crate) fn create_quote(&self, input: CreateQuoteInput) -> Result<ItemDto, StorageError> {
         let body = input.body.trim().to_owned();
         if body.is_empty() {
             return Err(StorageError::InvalidInput(
                 "quote text cannot be empty".into(),
             ));
         }
-        if body.len() > 2000 {
+        // Counted in characters, like the attribution below and the receiver's
+        // `capped_string`. `len()` is bytes, so a 2000-character CJK or emoji
+        // quote was rejected for exceeding 2000 "characters".
+        if body.chars().count() > 2000 {
             return Err(StorageError::InvalidInput(
                 "quote text must be at most 2000 characters".into(),
             ));
         }
         let attribution = input.attribution.and_then(non_empty_string);
+        // Counted in characters, to match the message and the receiver's
+        // `capped_string`. A byte count refused a 240-character CJK or emoji
+        // attribution that the capture server had already accepted, so the
+        // capture failed end to end for exactly the text the byte fix was meant
+        // to admit.
         if attribution
             .as_deref()
-            .is_some_and(|value| value.len() > 240)
+            .is_some_and(|value| value.chars().count() > 240)
         {
             return Err(StorageError::InvalidInput(
                 "quote attribution must be at most 240 characters".into(),
@@ -640,6 +658,174 @@ impl LibraryStorage {
         self.get_item(&id)?.ok_or(StorageError::NotFound(id))
     }
 
+    pub(crate) fn store_favicon(
+        &self,
+        item_id: &str,
+        bytes: &[u8],
+        extension: &str,
+    ) -> Result<String, StorageError> {
+        let item_id = validate_item_id(item_id.to_owned())?;
+        let extension = extension.trim().to_ascii_lowercase();
+        if !matches!(
+            extension.as_str(),
+            "ico" | "png" | "svg" | "jpg" | "webp" | "gif"
+        ) {
+            return Err(StorageError::InvalidInput(
+                "favicon extension is not supported".into(),
+            ));
+        }
+        if bytes.is_empty() {
+            return Err(StorageError::InvalidInput(
+                "favicon bytes cannot be empty".into(),
+            ));
+        }
+
+        // Confirm the item still exists before writing anything. The favicon
+        // download runs in the background, so the user can delete the item
+        // mid-flight; writing first would recreate the deleted item's asset
+        // directory and leave an orphaned file the delete path never cleans up.
+        let current_metadata: String = self
+            .connection
+            .query_row(
+                "SELECT metadata FROM items WHERE id = ?1",
+                params![item_id],
+                |row| row.get::<_, String>(0),
+            )
+            .map_err(|error| match error {
+                rusqlite::Error::QueryReturnedNoRows => StorageError::NotFound(item_id.clone()),
+                other => StorageError::Sql(other),
+            })?;
+
+        let item_directory = self.assets_directory().join(&item_id);
+        fs::create_dir_all(&item_directory)?;
+        let favicon_path = item_directory.join(format!("favicon.{extension}"));
+        fs::write(&favicon_path, bytes)?;
+        let relative_path = relative_asset_path(&favicon_path, &self.assets_root())?;
+
+        let mut metadata: Map<String, Value> =
+            serde_json::from_str(&current_metadata).unwrap_or_default();
+        metadata.insert("faviconPath".into(), Value::String(relative_path.clone()));
+        let metadata_json = serde_json::to_string(&Value::Object(metadata))?;
+        let updated = self.connection.execute(
+            "UPDATE items SET metadata = ?1 WHERE id = ?2",
+            params![metadata_json, item_id],
+        )?;
+
+        // The row can disappear between the check above and this write. An
+        // UPDATE that matched nothing means it did, and the bytes just written
+        // would be an orphan nothing ever cleans up.
+        if updated == 0 {
+            let _ = fs::remove_file(&favicon_path);
+            return Err(StorageError::NotFound(item_id));
+        }
+
+        Ok(relative_path)
+    }
+
+    /// Record why a capture could not be completed.
+    ///
+    /// Capture answers before the slow work, so an image whose download failed
+    /// still has a row — and the response that would have carried the reason is
+    /// long gone. The item is the only durable place left for it, which is why
+    /// this is metadata on the row rather than an in-memory notice.
+    pub(crate) fn record_capture_error(
+        &self,
+        item_id: &str,
+        reason: &str,
+    ) -> Result<(), StorageError> {
+        let item_id = validate_item_id(item_id.to_owned())?;
+        let reason = reason.trim();
+        if reason.is_empty() {
+            return Err(StorageError::InvalidInput(
+                "capture error reason cannot be empty".into(),
+            ));
+        }
+        let item = self
+            .get_item(&item_id)?
+            .ok_or(StorageError::NotFound(item_id.clone()))?;
+        let mut metadata: Map<String, Value> = match item.metadata {
+            Value::Object(map) => map,
+            _ => Map::new(),
+        };
+        metadata.insert("captureError".into(), Value::String(reason.to_owned()));
+        let metadata_json = serde_json::to_string(&Value::Object(metadata))?;
+        self.connection.execute(
+            "UPDATE items SET metadata = ?1 WHERE id = ?2",
+            params![metadata_json, item_id],
+        )?;
+        Ok(())
+    }
+
+    /// Apply provider title/description to a saved video page, but only to the
+    /// fields the user has not touched since the capture. Background
+    /// enrichment rather than a user edit, so `updated_at` is left alone and
+    /// the card does not jump to the top of the library when it lands.
+    ///
+    /// The enrichment runs in the background after the response is sent, so a
+    /// user can rename the item first. A blind `COALESCE` write would discard
+    /// that edit. The capture records what it originally stored in
+    /// `oEmbedBaseline`; a field is enriched only while it still equals that
+    /// baseline, so an edit always wins. The baseline must therefore name the
+    /// value the row really holds, including a derived default such as the
+    /// hostname fallback in `create_url`.
+    pub(crate) fn apply_video_oembed(
+        &self,
+        item_id: &str,
+        title: Option<&str>,
+        description: Option<&str>,
+    ) -> Result<(), StorageError> {
+        let item_id = validate_item_id(item_id.to_owned())?;
+        let title = title.map(str::trim).filter(|value| !value.is_empty());
+        let description = description.map(str::trim).filter(|value| !value.is_empty());
+        if title.is_none() && description.is_none() {
+            return Ok(());
+        }
+        let item = self
+            .get_item(&item_id)?
+            .ok_or_else(|| StorageError::NotFound(item_id.clone()))?;
+
+        let mut metadata: Map<String, Value> = match &item.metadata {
+            Value::Object(map) => map.clone(),
+            _ => Map::new(),
+        };
+        let baseline: Option<VideoOembedBaseline> = metadata
+            .remove("oEmbedBaseline")
+            .and_then(|value| serde_json::from_value(value).ok());
+
+        // No baseline means the item predates this field or came from another
+        // capture path; leave it entirely alone rather than guess.
+        let Some(baseline) = baseline else {
+            return Ok(());
+        };
+
+        let current_title = item.title.as_deref().map(str::trim);
+        let current_description = item.description.as_deref().map(str::trim);
+        // Only `None` means "the capture never set this". An empty current value is a
+        // user who deliberately cleared the field, and treating that as
+        // untouched let enrichment write the provider's text straight back over
+        // the deletion. Compare against the baseline verbatim.
+        let untouched = |baseline: &Option<String>, current: Option<&str>| match baseline {
+            Some(original) => current == Some(original.as_str()),
+            None => current.is_none(),
+        };
+        let next_title = title.filter(|_| untouched(&baseline.title, current_title));
+        let next_description =
+            description.filter(|_| untouched(&baseline.description, current_description));
+
+        // The baseline is always dropped, so a retry of the same enrichment
+        // cannot re-apply after the user has edited the item.
+        let metadata_json = serde_json::to_string(&Value::Object(metadata))?;
+        self.connection.execute(
+            "UPDATE items
+             SET title = COALESCE(?2, title),
+                 description = COALESCE(?3, description),
+                 metadata = ?4
+             WHERE id = ?1",
+            params![item_id, next_title, next_description, metadata_json],
+        )?;
+        Ok(())
+    }
+
     pub(crate) fn save_file(&self, input: SaveFileInput) -> Result<ItemDto, StorageError> {
         if input.bytes.len() > MAX_FILE_BYTES {
             return Err(StorageError::InvalidInput(format!(
@@ -654,8 +840,20 @@ impl LibraryStorage {
         }
 
         let file_name = sanitize_file_name(&input.file_name)?;
-        let id = match input.id {
-            Some(id) => validate_item_id(id)?,
+        // A caller-supplied id means "attach to this item". If the row is gone,
+        // the user deleted it while the work was in flight: writing anyway
+        // resurrects the item and leaves an asset directory nothing will ever
+        // clean up. Checked before any write, the way `store_favicon` does,
+        // because the background image and OCR jobs both get here after a
+        // capture has already been acknowledged.
+        let attaching = input.id.is_some();
+        let id = match input.id.as_deref() {
+            Some(id) => {
+                let validated = validate_item_id(id.to_owned())?;
+                self.get_item(&validated)?
+                    .ok_or_else(|| StorageError::NotFound(validated.clone()))?;
+                validated
+            }
             None => Uuid::new_v4().to_string(),
         };
         let mime_type = input
@@ -675,7 +873,7 @@ impl LibraryStorage {
         let original_path = item_directory.join(&file_name);
         fs::write(&original_path, &input.bytes)?;
 
-        let thumbnail_path = if let Some(thumbnail_data) = thumbnail.as_ref() {
+        let thumbnail_file = if let Some(thumbnail_data) = thumbnail.as_ref() {
             let path = item_directory.join("thumbnail.webp");
             fs::write(&path, &thumbnail_data.bytes)?;
             Some(path)
@@ -684,7 +882,7 @@ impl LibraryStorage {
         };
 
         let local_asset_path = relative_asset_path(&original_path, &self.assets_root())?;
-        let thumbnail_path = thumbnail_path
+        let thumbnail_path = thumbnail_file
             .as_ref()
             .map(|path| relative_asset_path(path, &self.assets_root()))
             .transpose()?;
@@ -709,14 +907,17 @@ impl LibraryStorage {
         let title = Some(pdf_title.unwrap_or_else(|| file_name.clone()));
         let source_label = mime_type.clone();
 
-        let existing = self.get_item(&id)?;
-        if existing.is_some() {
-            self.connection.execute(
+        // `attaching` was decided by finding the row above, so this only writes
+        // over an item that still exists. `archived` is deliberately left alone:
+        // a user who archived the card while a download ran did not ask for it
+        // to come back.
+        if attaching {
+            let updated = self.connection.execute(
                 "UPDATE items
                  SET kind = ?2, title = ?3, description = NULL, body = '', body_format = ?9,
                      source_label = ?4, local_asset_path = ?5, thumbnail_path = ?6,
-                     ocr_text = '', metadata = ?7, archived = 0, updated_at = ?8
-                  WHERE id = ?1",
+                     ocr_text = '', metadata = ?7, updated_at = ?8
+                 WHERE id = ?1",
                 params![
                     id,
                     kind,
@@ -729,6 +930,15 @@ impl LibraryStorage {
                     BODY_FORMAT_MARKDOWN,
                 ],
             )?;
+            // The row can vanish between the check above and this write, and the
+            // bytes are already on disk by then. An UPDATE that matched nothing
+            // means the user deleted the item mid-flight, and without this the
+            // original and its thumbnail are orphans the delete path never
+            // cleans up. Same guard as `store_favicon`, widened to both files.
+            if updated == 0 {
+                discard_written_assets(&item_directory, &original_path, thumbnail_file.as_deref());
+                return Err(StorageError::NotFound(id));
+            }
         } else {
             self.connection.execute(
                 "INSERT INTO items (
@@ -1899,19 +2109,45 @@ fn ensure_job_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
+/// Single source of truth for where the library (and its sibling files, such
+/// as the pairing token) live. Portable-preview builds use `data/` beside the
+/// executable; every other build uses the Tauri app-data dir. Never gates on
+/// whether `library.sqlite3` already exists — that would flip the directory
+/// after a move/delete and strand the pairing token in the wrong home.
+pub(crate) fn library_directory(app: &AppHandle) -> Result<PathBuf, StorageError> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|executable| portable_data_directory(&executable))
+        .or_else(|| app.path().app_data_dir().ok())
+        .ok_or_else(|| StorageError::InvalidInput("cannot determine the library directory".into()))
+}
+
 fn ensure_space_columns(connection: &Connection) -> Result<(), rusqlite::Error> {
-    // Libraries created before manual collections have no `kind` column. Every
-    // existing Space was a saved search, so the default has to be Smart.
-    let present: i64 = connection.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('spaces') WHERE name = 'kind'",
-        [],
-        |row| row.get(0),
-    )?;
-    if present == 0 {
-        connection.execute(
-            "ALTER TABLE spaces ADD COLUMN kind TEXT NOT NULL DEFAULT 'smart'",
-            [],
+    // `CREATE TABLE IF NOT EXISTS` in SPACES_SCHEMA is a no-op for a library
+    // that already has a `spaces` table, so every column added to that schema
+    // after the table shipped needs a branch here too. Two are missing that way
+    // a real library opened fine until the next Space was created and the
+    // insert named a column the old table did not have:
+    //
+    // - `kind`, for manual collections. Every existing Space was a saved
+    //   search, so the default has to be Smart.
+    // - `color`, which arrived with Space colors before this function existed.
+    //   Blue is the same default the schema declares.
+    for (column, definition) in [
+        ("kind", "TEXT NOT NULL DEFAULT 'smart'"),
+        ("color", "TEXT NOT NULL DEFAULT 'blue'"),
+    ] {
+        let present: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('spaces') WHERE name = ?1",
+            [column],
+            |row| row.get(0),
         )?;
+        if present == 0 {
+            connection.execute(
+                &format!("ALTER TABLE spaces ADD COLUMN {column} {definition}"),
+                [],
+            )?;
+        }
     }
     Ok(())
 }
@@ -1922,13 +2158,7 @@ pub fn initialize_storage(
     state: State<'_, StorageState>,
     processing: State<'_, crate::jobs::ProcessingState>,
 ) -> Result<StorageStatus, String> {
-    let database_directory = std::env::current_exe()
-        .ok()
-        .and_then(|executable| portable_data_directory(&executable))
-        .or_else(|| app.path().app_data_dir().ok())
-        .ok_or_else(|| {
-            StorageError::InvalidInput("cannot determine the library directory".into())
-        })?;
+    let database_directory = library_directory(&app).map_err(String::from)?;
     fs::create_dir_all(&database_directory).map_err(StorageError::from)?;
 
     let database_path = database_directory.join("library.sqlite3");
@@ -2106,6 +2336,31 @@ pub fn resolve_asset_path(path: String, state: State<'_, StorageState>) -> Resul
         .as_ref()
         .expect("require_storage guarantees initialization")
         .resolve_asset_path(&path)
+        .map_err(String::from)
+}
+
+/// Async because `cache_favicon_in_background` blocks on the favicon download.
+/// A sync command would run it on the main thread and freeze the window for the
+/// request, which is why the receiver's own favicon path uses a dedicated
+/// worker instead of this command.
+#[tauri::command(async)]
+pub fn cache_favicon(item_id: String, url: String, app: AppHandle) -> Result<String, String> {
+    cache_favicon_in_background(&app, &item_id, &url)
+}
+
+pub(crate) fn cache_favicon_in_background(
+    app: &AppHandle,
+    item_id: &str,
+    url: &str,
+) -> Result<String, String> {
+    let (bytes, extension) = crate::http_fetch::download_favicon(url)?;
+    let state = app.state::<StorageState>();
+    let guard = state.lock().map_err(String::from)?;
+    let storage = guard
+        .as_ref()
+        .ok_or_else(|| StorageError::NotInitialized.to_string())?;
+    storage
+        .store_favicon(item_id, &bytes, &extension)
         .map_err(String::from)
 }
 
@@ -2597,6 +2852,34 @@ fn article_metadata(
     metadata
         .entry("html")
         .or_insert_with(|| Value::String(String::new()));
+    // Card seal favicon: keep only an absolute http(s) URL; drop anything else
+    // rather than failing the capture (same forgiving rule as image URLs).
+    if let Some(Value::String(favicon)) = metadata.get("favicon").cloned() {
+        let cleaned = url::Url::parse(favicon.trim())
+            .ok()
+            .filter(|url| matches!(url.scheme(), "http" | "https"))
+            .map(|url| Value::String(url.to_string()));
+        match cleaned {
+            Some(value) => {
+                metadata.insert("favicon".into(), value);
+            }
+            None => {
+                metadata.remove("favicon");
+            }
+        }
+    } else {
+        metadata.remove("favicon");
+    }
+    if let Some(Value::String(path)) = metadata.get("faviconPath").cloned() {
+        let normalized = path.replace('\\', "/");
+        if normalized.starts_with("assets/") && !normalized.contains("..") {
+            metadata.insert("faviconPath".into(), Value::String(normalized));
+        } else {
+            metadata.remove("faviconPath");
+        }
+    } else {
+        metadata.remove("faviconPath");
+    }
 
     Ok(Value::Object(metadata))
 }
@@ -3072,6 +3355,24 @@ fn file_metadata(
     Value::Object(metadata)
 }
 
+/// Undo the on-disk writes of an attach whose row disappeared underneath it.
+///
+/// The item directory is removed non-recursively, and that is the whole point:
+/// when attaching, the directory may already hold assets written by an earlier
+/// save, and a recursive remove would take those with it. A non-recursive
+/// `remove_dir` simply fails when anything else is still there.
+fn discard_written_assets(
+    item_directory: &Path,
+    original_path: &Path,
+    thumbnail_file: Option<&Path>,
+) {
+    let _ = fs::remove_file(original_path);
+    if let Some(path) = thumbnail_file {
+        let _ = fs::remove_file(path);
+    }
+    let _ = fs::remove_dir(item_directory);
+}
+
 fn relative_asset_path(
     path: &std::path::Path,
     assets_root: &std::path::Path,
@@ -3405,6 +3706,224 @@ mod tests {
         fs::remove_dir_all(directory).unwrap();
     }
 
+    fn test_storage() -> (std::path::PathBuf, LibraryStorage) {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        (directory, storage)
+    }
+
+    /// Returns the scratch directory alongside the storage so each caller can
+    /// remove it. Dropping the storage alone leaves the directory behind, so
+    /// every run of every enrichment test was accumulating one.
+    fn saved_video(baseline_title: Option<&str>) -> (PathBuf, LibraryStorage, String) {
+        let (directory, storage) = test_storage();
+        let item = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://www.youtube.com/watch?v=abc12345678".into(),
+                title: baseline_title.map(str::to_owned),
+                description: None,
+                body: String::new(),
+                metadata: Some(serde_json::json!({
+                    "origin": "browser-extension",
+                    "sourceKind": "video",
+                    "oEmbedBaseline": { "title": baseline_title, "description": null },
+                })),
+            })
+            .unwrap();
+        (directory, storage, item.id)
+    }
+
+    #[test]
+    fn video_enrichment_fills_an_untouched_title() {
+        let (directory, storage, id) = saved_video(Some("Watch later"));
+        storage
+            .apply_video_oembed(&id, Some("A Real Video Title"), Some("A Channel"))
+            .unwrap();
+        let item = storage.get_item(&id).unwrap().unwrap();
+        assert_eq!(item.title.as_deref(), Some("A Real Video Title"));
+        assert_eq!(item.description.as_deref(), Some("A Channel"));
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn video_enrichment_never_overwrites_a_user_edit() {
+        // Regression: oEmbed runs in the background, so a user can rename the
+        // item first. The provider's values used to win and the edit was lost.
+        let (directory, storage, id) = saved_video(Some("Watch later"));
+        storage
+            .update_item(UpdateItemInput {
+                id: id.clone(),
+                title: Some("My own name for this".into()),
+                ..Default::default()
+            })
+            .unwrap();
+
+        storage
+            .apply_video_oembed(&id, Some("A Real Video Title"), Some("A Channel"))
+            .unwrap();
+        let item = storage.get_item(&id).unwrap().unwrap();
+        assert_eq!(
+            item.title.as_deref(),
+            Some("My own name for this"),
+            "the user's title must survive background enrichment"
+        );
+        // The description was never set by anyone, so it still gets enriched.
+        assert_eq!(item.description.as_deref(), Some("A Channel"));
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn video_enrichment_does_not_resurrect_a_cleared_description() {
+        // Clearing a field is an edit too. The baseline is None for a description
+        // the capture never set, and treating any empty current value as "still
+        // untouched" meant a user who deliberately cleared it got the provider's
+        // text written straight back over the deletion.
+        let (directory, storage, id) = saved_video(Some("Watch later"));
+        storage
+            .update_item(UpdateItemInput {
+                id: id.clone(),
+                description: Some(String::new()),
+                ..Default::default()
+            })
+            .unwrap();
+
+        storage
+            .apply_video_oembed(&id, Some("A Real Video Title"), Some("A Channel"))
+            .unwrap();
+
+        let item = storage.get_item(&id).unwrap().unwrap();
+        assert_eq!(
+            item.description.as_deref(),
+            Some(""),
+            "a description the user cleared must stay cleared"
+        );
+        // The title was never touched, so it still enriches.
+        assert_eq!(item.title.as_deref(), Some("A Real Video Title"));
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn video_enrichment_is_dropped_once_applied() {
+        // The baseline is consumed, so a retry cannot re-apply provider values
+        // over a later edit.
+        let (directory, storage, id) = saved_video(Some("Watch later"));
+        storage
+            .apply_video_oembed(&id, Some("A Real Video Title"), None)
+            .unwrap();
+        storage
+            .apply_video_oembed(&id, Some("Retried Title"), None)
+            .unwrap();
+        let item = storage.get_item(&id).unwrap().unwrap();
+        assert_eq!(item.title.as_deref(), Some("A Real Video Title"));
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn video_enrichment_leaves_items_without_a_baseline_alone() {
+        let (directory, storage) = test_storage();
+        let item = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://www.youtube.com/watch?v=abc12345678".into(),
+                title: Some("Something".into()),
+                description: None,
+                body: String::new(),
+                metadata: None,
+            })
+            .unwrap();
+        storage
+            .apply_video_oembed(&item.id, Some("Provider Title"), None)
+            .unwrap();
+        let item = storage.get_item(&item.id).unwrap().unwrap();
+        assert_eq!(item.title.as_deref(), Some("Something"));
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn discarding_written_assets_keeps_assets_written_earlier() {
+        // The attach path writes into a directory that may already hold an
+        // earlier save's assets. When the row vanishes mid-attach, only this
+        // call's two files may go; a recursive remove would delete the older
+        // ones too, turning a recoverable race into data loss.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-discard-test-{}", Uuid::new_v4()));
+        let item_directory = directory.join("item");
+        fs::create_dir_all(&item_directory).unwrap();
+
+        let original = item_directory.join("new.bin");
+        let thumbnail = item_directory.join("thumbnail.webp");
+        let earlier = item_directory.join("earlier.bin");
+        fs::write(&original, b"new").unwrap();
+        fs::write(&thumbnail, b"thumb").unwrap();
+        fs::write(&earlier, b"earlier").unwrap();
+
+        discard_written_assets(&item_directory, &original, Some(&thumbnail));
+
+        assert!(!original.exists(), "this attach's original was left behind");
+        assert!(
+            !thumbnail.exists(),
+            "this attach's thumbnail was left behind"
+        );
+        assert!(
+            earlier.exists(),
+            "an asset written before this attach was deleted"
+        );
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn discarding_written_assets_removes_an_otherwise_empty_directory() {
+        // The common case: nothing else was ever written for this item, so the
+        // directory itself should not survive as an orphan.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-discard-empty-test-{}", Uuid::new_v4()));
+        let item_directory = directory.join("item");
+        fs::create_dir_all(&item_directory).unwrap();
+        let original = item_directory.join("new.bin");
+        fs::write(&original, b"new").unwrap();
+
+        discard_written_assets(&item_directory, &original, None);
+
+        assert!(
+            !item_directory.exists(),
+            "an empty asset directory was orphaned"
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn storing_a_favicon_for_a_deleted_item_writes_nothing() {
+        // Regression: the favicon download runs in the background, so the item
+        // can be deleted mid-flight. Writing the file first recreated the
+        // deleted item's asset directory and left an orphan behind.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let assets = storage.assets_directory();
+
+        let result = storage.store_favicon("deleted-item-id", b"\x00\x01", "png");
+        assert!(
+            matches!(result, Err(StorageError::NotFound(_))),
+            "expected NotFound, got {result:?}"
+        );
+        assert!(
+            !assets.join("deleted-item-id").exists(),
+            "no asset directory may be created for an item that no longer exists"
+        );
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
     #[test]
     fn note_body_round_trips_and_updates_search_index() {
         let directory =
@@ -3531,6 +4050,47 @@ mod tests {
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn quote_attribution_counts_characters_not_bytes() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-quote-attribution-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+
+        // The capture server's `capped_string` counts characters, so a
+        // 240-character CJK title passes the receiver and reaches here. A byte
+        // count refused it as "too many characters" and failed the capture for
+        // exactly the multi-byte text the byte fix was meant to admit.
+        let cjk = "文".repeat(240);
+        assert_eq!(cjk.chars().count(), 240);
+        assert_eq!(cjk.len(), 720, "the fixture must actually be multi-byte");
+
+        let quote = storage
+            .create_quote(CreateQuoteInput {
+                body: "a passage".into(),
+                attribution: Some(cjk.clone()),
+                source_url: None,
+                metadata: None,
+            })
+            .expect("a 240-character attribution must be accepted, not refused as over 240 bytes");
+        assert_eq!(quote.description.as_deref(), Some(cjk.as_str()));
+
+        // Genuinely over the limit is still refused, in both directions.
+        let over = "文".repeat(241);
+        let error = storage
+            .create_quote(CreateQuoteInput {
+                body: "a passage".into(),
+                attribution: Some(over),
+                source_url: None,
+                metadata: None,
+            })
+            .unwrap_err();
+        assert!(
+            error.to_string().contains("240 characters"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]
@@ -3736,6 +4296,110 @@ mod tests {
             "legacy searchable body"
         );
         drop(reopened);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn a_library_without_space_items_gains_the_table_on_open() {
+        // `space_items` arrived with manual Spaces on a branch this one did not
+        // have, so a developer's existing library predates the table entirely.
+        // The schema batch has to add it to a real file, not just to a fresh
+        // one: the alternative is a regular Space that fails its first query on
+        // the user's own data.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-space-items-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("library.sqlite3");
+
+        // An older library: items present, spaces without the kind column, and
+        // no space_items table at all.
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE items (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    kind TEXT NOT NULL,
+                    title TEXT,
+                    description TEXT,
+                    source_url TEXT,
+                    source_label TEXT,
+                    local_asset_path TEXT,
+                    thumbnail_path TEXT,
+                    ocr_text TEXT NOT NULL DEFAULT '',
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    archived INTEGER NOT NULL DEFAULT 0,
+                    favorite INTEGER NOT NULL DEFAULT 0
+                );
+                INSERT INTO items(id, kind, title, description, metadata, created_at, updated_at)
+                VALUES ('kept-item', 'note', 'Kept', 'still here', '{}', 1, 1);
+                CREATE TABLE spaces (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL,
+                    query TEXT NOT NULL DEFAULT '{}',
+                    position INTEGER NOT NULL DEFAULT 0,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                );
+                PRAGMA user_version = 6;",
+            )
+            .unwrap();
+        drop(connection);
+
+        let storage = LibraryStorage::open(path.clone()).unwrap();
+
+        let tables: Vec<String> = storage
+            .connection
+            .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert!(
+            tables.iter().any(|name| name == "space_items"),
+            "space_items missing after upgrade: {tables:?}"
+        );
+
+        let indexes: Vec<String> = storage
+            .connection
+            .prepare("SELECT name FROM sqlite_master WHERE type = 'index'")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert!(
+            indexes.iter().any(|name| name == "idx_space_items_item"),
+            "space_items index missing after upgrade: {indexes:?}"
+        );
+
+        // The pre-existing row must survive the migration untouched, and the
+        // table has to be usable, not merely present.
+        assert_eq!(
+            storage
+                .get_item("kept-item")
+                .unwrap()
+                .unwrap()
+                .title
+                .as_deref(),
+            Some("Kept")
+        );
+        let space = storage
+            .create_space(CreateSpaceInput {
+                name: "Reading".into(),
+                color: None,
+                query: SmartSpaceQuery::default(),
+                kind: SpaceKind::Regular,
+            })
+            .unwrap();
+        storage.add_space_item(&space.id, "kept-item").unwrap();
+        let members = storage.list_space_member_items(&space.id, 10).unwrap();
+        assert_eq!(members.len(), 1, "manual membership did not round-trip");
+        assert_eq!(members[0].id, "kept-item");
+
+        drop(storage);
         fs::remove_dir_all(directory).unwrap();
     }
 
@@ -4274,6 +4938,72 @@ mod tests {
     }
 
     #[test]
+    fn stores_favicon_asset_without_changing_item_timestamp() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-favicon-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://example.com/article".into(),
+                title: Some("Article".into()),
+                description: None,
+                body: "body".into(),
+                metadata: Some(serde_json::json!({ "favicon": "https://example.com/favicon.png" })),
+            })
+            .unwrap();
+        let path = storage
+            .store_favicon(&item.id, b"favicon-bytes", "png")
+            .unwrap();
+        let stored = storage.get_item(&item.id).unwrap().unwrap();
+
+        assert_eq!(path, format!("assets/items/{}/favicon.png", item.id));
+        assert_eq!(stored.metadata["faviconPath"], path);
+        assert_eq!(stored.updated_at, item.updated_at);
+        assert_eq!(fs::read(directory.join(path)).unwrap(), b"favicon-bytes");
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn video_oembed_enrichment_keeps_the_item_timestamp() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-oembed-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .create_url(CreateUrlInput {
+                source_url: "https://www.youtube.com/watch?v=abc".into(),
+                title: Some("Some video - YouTube".into()),
+                description: None,
+                body: String::new(),
+                metadata: Some(serde_json::json!({
+                    "sourceKind": "video",
+                    "oEmbedBaseline": { "title": "Some video - YouTube", "description": null },
+                })),
+            })
+            .unwrap();
+
+        storage
+            .apply_video_oembed(&item.id, Some("Some video"), Some("YouTube · inkling"))
+            .unwrap();
+        let enriched = storage.get_item(&item.id).unwrap().unwrap();
+        assert_eq!(enriched.title.as_deref(), Some("Some video"));
+        assert_eq!(enriched.description.as_deref(), Some("YouTube · inkling"));
+        assert_eq!(enriched.updated_at, item.updated_at);
+
+        // A retry with nothing to say must not blank what is already stored.
+        storage.apply_video_oembed(&item.id, None, None).unwrap();
+        let untouched = storage.get_item(&item.id).unwrap().unwrap();
+        assert_eq!(untouched.title.as_deref(), Some("Some video"));
+        assert_eq!(untouched.updated_at, item.updated_at);
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn tag_update_persists_after_reopen() {
         let directory =
             std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
@@ -4388,6 +5118,105 @@ mod tests {
 
         assert!(!item_directory.exists());
         assert!(storage.get_item(&item.id).unwrap().is_none());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn attaching_a_file_never_resurrects_a_deleted_item() {
+        // The background image and OCR jobs both attach to an item that was
+        // already acknowledged, so the row can be gone by the time the bytes
+        // arrive. Writing anyway would put the deleted item back and leave an
+        // asset directory nothing cleans up.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .save_file(SaveFileInput {
+                id: None,
+                file_name: "notes.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"attached bytes".to_vec(),
+            })
+            .unwrap();
+        let id = item.id.clone();
+        // Trash is two steps in this model: archived first, then purged.
+        storage.archive_item(&id, true).unwrap();
+        storage.delete_item(&id).unwrap();
+
+        let error = storage
+            .save_file(SaveFileInput {
+                id: Some(id.clone()),
+                file_name: "notes.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"attached bytes".to_vec(),
+            })
+            .unwrap_err();
+        assert!(
+            matches!(error, StorageError::NotFound(ref missing) if missing == &id),
+            "expected NotFound, got {error:?}"
+        );
+
+        assert!(storage.get_item(&id).unwrap().is_none(), "item came back");
+        assert!(
+            !directory.join("assets").join("items").join(&id).exists(),
+            "an orphaned asset directory was left behind"
+        );
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn attaching_a_file_does_not_unarchive_an_archived_item() {
+        // The user archived the card while the download was still running.
+        // Completing that download is not a request to bring it back.
+        let directory =
+            std::env::temp_dir().join(format!("inkling-storage-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let item = storage
+            .save_file(SaveFileInput {
+                id: None,
+                file_name: "notes.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"attached bytes".to_vec(),
+            })
+            .unwrap();
+        storage.archive_item(&item.id, true).unwrap();
+
+        storage
+            .save_file(SaveFileInput {
+                id: Some(item.id.clone()),
+                file_name: "notes.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"attached bytes".to_vec(),
+            })
+            .unwrap();
+
+        let stored = storage.get_item(&item.id).unwrap().unwrap();
+        assert!(
+            stored.metadata.get("archived").is_none(),
+            "metadata should not claim a non-archived item"
+        );
+        let archived: i64 = storage
+            .connection
+            .query_row(
+                "SELECT archived FROM items WHERE id = ?1",
+                [&item.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            archived, 1,
+            "the archived item was unarchived by a download"
+        );
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();

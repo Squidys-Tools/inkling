@@ -3,6 +3,7 @@ import type { PageCapturePayloadV1 } from "@inkling/ingestion-shared";
 import {
   MAX_CAPTURE_QUEUE_BYTES,
   MAX_CAPTURE_QUEUE_ITEMS,
+  removeSettledCaptureEntries,
   trimCaptureQueue,
 } from "./capture-queue";
 
@@ -52,5 +53,53 @@ describe("trimCaptureQueue", () => {
     trimCaptureQueue(queue);
     expect(queue).toHaveLength(1);
     expect(queue[0]!.url).toContain("/2");
+  });
+});
+
+describe("removeSettledCaptureEntries", () => {
+  test("removes exactly the entries a flush settled", () => {
+    const queue = [payload(1, 10), payload(2, 10), payload(3, 10)];
+    removeSettledCaptureEntries(queue, [payload(1, 10), payload(3, 10)]);
+    expect(queue).toHaveLength(1);
+    expect((queue[0] as PageCapturePayloadV1).url).toContain("/2");
+  });
+
+  test("keeps a capture appended while the flush was delivering", () => {
+    // The flush delivers outside the queue lock, so a capture enqueued mid-flush
+    // is at the tail of the stored queue by the time the flush writes. Dropping
+    // by position would take it with the batch.
+    const batched = payload(1, 10);
+    const late = payload(2, 10);
+    const queue = [batched, late];
+    // The stored copy is a fresh deserialization, not the same object.
+    removeSettledCaptureEntries(queue, [payload(1, 10)]);
+    expect(queue).toHaveLength(1);
+    expect((queue[0] as PageCapturePayloadV1).url).toContain("/2");
+  });
+
+  test("two byte-identical captures do not take each other's place", () => {
+    const twin = payload(1, 10);
+    const queue = [twin, { ...twin }, payload(2, 10)];
+    removeSettledCaptureEntries(queue, [payload(1, 10)]);
+    expect(queue).toHaveLength(2);
+    expect((queue[0] as PageCapturePayloadV1).url).toContain("/1");
+    expect((queue[1] as PageCapturePayloadV1).url).toContain("/2");
+  });
+
+  test("empties the queue when two identical captures both settled", () => {
+    // The same page saved twice, or one save retried: the queue holds two
+    // byte-identical entries and the flush delivers both. Settling the shared
+    // key once left the twin queued and delivered it again on the next flush,
+    // creating a duplicate item in the library.
+    const twin = payload(1, 10);
+    const queue = [twin, { ...twin }];
+    removeSettledCaptureEntries(queue, [{ ...twin }, { ...twin }]);
+    expect(queue).toHaveLength(0);
+  });
+
+  test("leaves the queue alone when nothing settled", () => {
+    const queue = [payload(1, 10), payload(2, 10)];
+    removeSettledCaptureEntries(queue, []);
+    expect(queue).toHaveLength(2);
   });
 });

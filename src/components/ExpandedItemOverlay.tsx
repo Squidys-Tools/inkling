@@ -19,8 +19,9 @@ import {
 } from "@hugeicons/core-free-icons";
 import type { LibraryItem } from "../App";
 import { isTauriRuntime } from "../lib/libraryApi";
+import { openExternalUrl, openableExternalUrl } from "../lib/openExternalUrl";
 import type { ReaderOrigin } from "../ReaderView";
-import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
+import { ArticleArtwork, KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
 import {
   OVERLAY_EASE,
   OVERLAY_FLIGHT_MS,
@@ -98,7 +99,7 @@ function clickOrigin(event: React.MouseEvent<HTMLElement>): ReaderOrigin {
 // itself: the file/media type comes from the pipeline (image extension or
 // kind), and the saved date is the item's own date. Tags render from the
 // item's tag list with an inline + Add affordance.
-function hostnameForUrl(url: string | undefined): string | null {
+function hostnameForUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   try {
     return new URL(url).hostname.replace(/^www\./u, "");
@@ -143,15 +144,20 @@ function savedLabelFor(date: string): string {
 // entry renders in the secondary slot.
 function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): OverlayAction[] {
   const list: OverlayAction[] = [];
-  const sourceHost = hostnameForUrl(item.sourceUrl);
+  // Gated with the same check the click goes through, so the control is never
+  // enabled for a URL `openExternalUrl` will refuse. `sourceUrl` is untrusted
+  // stored metadata: a credential-bearing or non-http(s) value would otherwise
+  // render an "Open original" button that silently does nothing.
+  const openableSource = openableExternalUrl(item.sourceUrl);
+  const sourceHost = hostnameForUrl(openableSource);
   const openOriginal: OverlayAction = {
     key: "open-original",
     label: sourceHost ?? item.source ?? "Open original",
     icon: sourceHost
       ? <HugeiconsIcon icon={Globe02Icon} size={15} />
       : <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />,
-    onClick: () => item.sourceUrl && window.open(item.sourceUrl, "_blank", "noopener,noreferrer"),
-    disabled: !item.sourceUrl,
+    onClick: () => openableSource && openExternalUrl(openableSource),
+    disabled: !openableSource,
   };
 
   if (item.kind === "PDF" && item.fileUrl) {
@@ -243,6 +249,16 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
     );
   }
 
+  if (item.kind === "Article") {
+    return (
+      <div className="expanded-overlay-media">
+        <ArticleArtwork item={item} />
+      </div>
+    );
+  }
+
+  // No Note branch: an imageless note returned at the top, and a note with an
+  // image returned at `item.image` above.
   if (item.kind === "Post" && item.post) {
     return (
       <div className="expanded-overlay-media">
@@ -955,6 +971,12 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
               <button type="button" className="retry-button" onClick={() => void actions.onRetryJob(shownItem.processing?.failedJob?.id ?? "")}>
                 <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
               </button>
+            </div>
+          )}
+          {!isEditingNoteView && shownItem.captureError && (
+            <div className="detail-processing failed" role="alert">
+              <HugeiconsIcon icon={AlertCircleIcon} size={14} />
+              <span>{shownItem.captureError}</span>
             </div>
           )}
           {!isEditingNoteView && (

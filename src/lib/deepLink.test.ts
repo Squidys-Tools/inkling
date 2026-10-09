@@ -5,11 +5,33 @@ import {
   parseDeepLinkCapture,
 } from "./deepLink";
 
+/** A UTF-16 unit in the surrogate range: half of a character nothing can render. */
+const LONE_SURROGATE = /[\uD800-\uDFFF]/u;
+
 describe("parseDeepLinkCapture", () => {
   test("url-only inkling link keeps working", () => {
     expect(parseDeepLinkCapture("inkling://capture?url=https%3A%2F%2Fexample.com%2Farticle")).toEqual({
       kind: "url",
       url: "https://example.com/article",
+    });
+  });
+
+  test("url capture keeps the title for a provisional card", () => {
+    expect(
+      parseDeepLinkCapture("inkling://capture?url=https%3A%2F%2Fexample.com%2Farticle&title=Great%20Essay&via=extension"),
+    ).toEqual({
+      kind: "url",
+      url: "https://example.com/article",
+      title: "Great Essay",
+    });
+  });
+
+  test("blank title is omitted rather than kept empty", () => {
+    expect(
+      parseDeepLinkCapture("inkling://capture?url=https%3A%2F%2Fexample.com%2F&title=%20%20"),
+    ).toEqual({
+      kind: "url",
+      url: "https://example.com/",
     });
   });
 
@@ -103,6 +125,32 @@ describe("parseDeepLinkCapture", () => {
     } else {
       throw new Error("expected a quote capture");
     }
+  });
+
+  test("truncation never splits an astral character", () => {
+    // The one leading ASCII character puts the 240-code-point cut in the middle
+    // of the emoji that follows it. `String.slice(0, 240)` cut on UTF-16 units
+    // there and stored a lone high surrogate, which renders as U+FFFD in the
+    // provisional card's title.
+    const astral = "\u{1F600}"; // U+1F600: one code point, two UTF-16 units
+    const title = `A${astral.repeat(DEEP_LINK_ATTRIBUTION_MAX_LENGTH)}`;
+    const parsed = parseDeepLinkCapture(
+      `inkling://capture?url=https%3A%2F%2Fexample.com%2F&title=${encodeURIComponent(title)}`,
+    );
+    if (parsed?.kind !== "url") throw new Error("expected a url capture");
+    expect(parsed.title).toBe(`A${astral.repeat(DEEP_LINK_ATTRIBUTION_MAX_LENGTH - 1)}`);
+    expect(LONE_SURROGATE.test(parsed.title ?? "")).toBe(false);
+  });
+
+  test("an emoji selection truncates by code point, not by UTF-16 unit", () => {
+    const astral = "\u{1F4A1}";
+    const selection = `B${astral.repeat(DEEP_LINK_SELECTION_MAX_LENGTH)}`;
+    const parsed = parseDeepLinkCapture(
+      `inkling://capture?url=https%3A%2F%2Fexample.com%2F&selection=${encodeURIComponent(selection)}`,
+    );
+    if (parsed?.kind !== "quote") throw new Error("expected a quote capture");
+    expect(parsed.selection).toBe(`B${astral.repeat(DEEP_LINK_SELECTION_MAX_LENGTH - 1)}`);
+    expect(LONE_SURROGATE.test(parsed.selection)).toBe(false);
   });
 
   test("blank selection keeps url behavior", () => {
