@@ -12,7 +12,7 @@ export function appKeyboardShortcut(event: ShortcutEvent, isEditableTarget: bool
     return !event.shiftKey && event.key.toLowerCase() === "k" ? "search" : null;
   }
 
-  if (event.key === "?" && event.shiftKey) return "help";
+  if (event.key === "?" || (event.key === "/" && event.shiftKey)) return "help";
   if (event.shiftKey) return null;
   if (event.key === "/") return "search";
   if (event.key.toLowerCase() === "n") return "new-note";

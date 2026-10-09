@@ -24,6 +24,8 @@ describe("appKeyboardShortcut", () => {
     expect(appKeyboardShortcut(keyEvent("n"), false)).toBe("new-note");
     expect(appKeyboardShortcut(keyEvent("N"), false)).toBe("new-note");
     expect(appKeyboardShortcut(keyEvent("?", { shiftKey: true }), false)).toBe("help");
+    expect(appKeyboardShortcut(keyEvent("?"), false)).toBe("help");
+    expect(appKeyboardShortcut(keyEvent("/", { shiftKey: true }), false)).toBe("help");
   });
 
   test("does not steal keys from editors or modified text input", () => {
