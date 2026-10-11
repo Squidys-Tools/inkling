@@ -25,7 +25,6 @@ export type { Rect, Terrain, Vec };
  */
 const EDGE_INSET = 18;
 
-
 /**
  * The room, and the things inside it the mascot must not be on.
  *
@@ -75,14 +74,15 @@ export function freeArea(terrain: Terrain): number {
   return Math.max(0, total - blocked);
 }
 
-
 /** Whether there is anywhere at all for the mascot to be. */
 export function hasRoom(terrain: Terrain): boolean {
   const { room, walls } = terrain;
   if (room.right - room.left < 24 || room.bottom - room.top < 24) return false;
   // A wall that fills the room leaves nothing. Anything short of the whole room
   // still leaves a band somewhere, which the drift will find.
-  return !walls.some((w) => w.right - w.left >= room.right - room.left && w.bottom - w.top >= room.bottom - room.top);
+  return !walls.some(
+    (w) => w.right - w.left >= room.right - room.left && w.bottom - w.top >= room.bottom - room.top,
+  );
 }
 
 function inside(point: Vec, rect: Rect): boolean {
@@ -147,5 +147,3 @@ export function lookTargets(panel: Rect, cards: Rect[], from: Vec, limit = 6): V
     .sort((a, b) => Math.hypot(a.x - from.x, a.y - from.y) - Math.hypot(b.x - from.x, b.y - from.y))
     .slice(0, limit);
 }
-
-

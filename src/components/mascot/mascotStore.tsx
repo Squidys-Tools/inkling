@@ -147,10 +147,14 @@ export function getMascotFrame(): BotFrame {
  */
 function apply() {
   const active = roamParams ?? homeParams;
-  if (active.state === appliedParams.state && active.expression === appliedParams.expression) return;
+  if (active.state === appliedParams.state && active.expression === appliedParams.expression)
+    return;
   appliedParams = active;
   engine.setState(active.state, clock);
-  engine.setExpression(EXPRESSION_BY_ID.get(active.expression) ?? EXPRESSION_BY_ID.get(DEFAULT_EXPRESSION) ?? null, clock);
+  engine.setExpression(
+    EXPRESSION_BY_ID.get(active.expression) ?? EXPRESSION_BY_ID.get(DEFAULT_EXPRESSION) ?? null,
+    clock,
+  );
   if (!running) {
     frame = engine.sample(clock);
     emit();
@@ -202,7 +206,9 @@ export function LiveMascotFigure({
   className?: string;
 }) {
   const liveFrame = useMascotFrame();
-  return <MascotFigure frame={liveFrame} size={size} ink={ink} paper={paper} className={className} />;
+  return (
+    <MascotFigure frame={liveFrame} size={size} ink={ink} paper={paper} className={className} />
+  );
 }
 
 /** Search-bar fit. Tight crop around the drift gaze so it sits centered in 50px. */

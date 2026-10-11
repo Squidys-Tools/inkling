@@ -62,9 +62,7 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
         setState({
           phase: "error",
           message:
-            error instanceof Error && error.message
-              ? error.message
-              : "Could not open this PDF.",
+            error instanceof Error && error.message ? error.message : "Could not open this PDF.",
         });
       },
     );
@@ -118,7 +116,8 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
       if (cancelled) return;
       setState({
         phase: "error",
-        message: error instanceof Error && error.message ? error.message : "Could not render this page.",
+        message:
+          error instanceof Error && error.message ? error.message : "Could not render this page.",
       });
     });
     return () => {
@@ -159,22 +158,27 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
     zoom === null ? `Fit · ${Math.round(renderedScale * 100)}%` : `${Math.round(zoom * 100)}%`;
 
   return (
-    <div
-      className="pdf-viewer-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`PDF viewer: ${title}`}
-      onClick={onClose}
-    >
-      <div className="pdf-viewer" onClick={(event) => event.stopPropagation()}>
+    <div className="pdf-viewer-overlay">
+      <button
+        type="button"
+        className="pdf-viewer-backdrop"
+        aria-label="Close PDF viewer"
+        tabIndex={-1}
+        onClick={onClose}
+      />
+      <section className="pdf-viewer" role="dialog" aria-modal="true" aria-label={title}>
         <header className="pdf-viewer-header">
-          <span className="pdf-viewer-title" title={title}>{title}</span>
+          <span className="pdf-viewer-title" title={title}>
+            {title}
+          </span>
           <div className="pdf-viewer-toolbar">
             <div className="pdf-viewer-group">
               <button
                 type="button"
                 className="icon-button small"
-                onClick={() => setZoom((current) => clampZoom((current ?? renderedScale) - ZOOM_STEP))}
+                onClick={() =>
+                  setZoom((current) => clampZoom((current ?? renderedScale) - ZOOM_STEP))
+                }
                 aria-label="Zoom out"
               >
                 <HugeiconsIcon icon={MinusSignIcon} size={15} />
@@ -183,12 +187,16 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
               <button
                 type="button"
                 className="icon-button small"
-                onClick={() => setZoom((current) => clampZoom((current ?? renderedScale) + ZOOM_STEP))}
+                onClick={() =>
+                  setZoom((current) => clampZoom((current ?? renderedScale) + ZOOM_STEP))
+                }
                 aria-label="Zoom in"
               >
                 <HugeiconsIcon icon={PlusSignIcon} size={15} />
               </button>
-              <button type="button" className="text-button" onClick={() => setZoom(null)}>Fit</button>
+              <button type="button" className="text-button" onClick={() => setZoom(null)}>
+                Fit
+              </button>
             </div>
             <div className="pdf-viewer-group">
               <button
@@ -234,7 +242,12 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
                 <HugeiconsIcon icon={ChevronRightIcon} size={15} />
               </button>
             </div>
-            <button type="button" className="icon-button small" onClick={onClose} aria-label="Close viewer">
+            <button
+              type="button"
+              className="icon-button small"
+              onClick={onClose}
+              aria-label="Close viewer"
+            >
               <HugeiconsIcon icon={Cancel01Icon} size={16} />
             </button>
           </div>
@@ -253,7 +266,7 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
           )}
           <canvas ref={canvasRef} className="pdf-viewer-canvas" hidden={state.phase !== "ready"} />
         </div>
-      </div>
+      </section>
     </div>
   );
 }

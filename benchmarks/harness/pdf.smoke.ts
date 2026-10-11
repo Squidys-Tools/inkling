@@ -4,16 +4,16 @@ import { join } from "node:path";
 import { extractPdf } from "./pdf";
 
 function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error("PDF smoke assertion failed: " + message);
+  if (!condition) throw new Error(`PDF smoke assertion failed: ${message}`);
 }
 
 const directory = mkdtempSync(join(tmpdir(), "inkling-pdf-smoke-"));
 try {
   const filePath = join(directory, "regex.pdf");
-  const malformedArray = "[" + "()".repeat(2_000) + "x";
+  const malformedArray = `[${"()".repeat(2_000)}x`;
   writeFileSync(
     filePath,
-    "%PDF-1.4\nstream\n[(Hello) 120 (world)] TJ\n" + malformedArray + "\nendstream\nendobj\n",
+    `%PDF-1.4\nstream\n[(Hello) 120 (world)] TJ\n${malformedArray}\nendstream\nendobj\n`,
     "latin1",
   );
 

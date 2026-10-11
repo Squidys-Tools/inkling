@@ -69,7 +69,8 @@ function stubBrowser() {
     removeEventListener: () => {},
     matchMedia: () => ({
       matches: false,
-      addEventListener: (_type: string, fn: (event: { matches: boolean }) => void) => motionHandlers.push(fn),
+      addEventListener: (_type: string, fn: (event: { matches: boolean }) => void) =>
+        motionHandlers.push(fn),
       removeEventListener: () => {},
     }),
   });

@@ -3,7 +3,13 @@ import { sanitizeHtml } from "./html-safety";
 import { normalizeHttpUrl, normalizePublishedDate, normalizeText } from "./url";
 import type { XPostMetadata } from "./types";
 
-const X_HOSTS = new Set(["x.com", "www.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com"]);
+const X_HOSTS = new Set([
+  "x.com",
+  "www.x.com",
+  "twitter.com",
+  "www.twitter.com",
+  "mobile.twitter.com",
+]);
 const POST_ID_PATTERN = /^\d{1,30}$/u;
 
 export type XPostUrl = {
@@ -68,7 +74,10 @@ export function xPostOEmbedUrl(postUrl: string): string {
   return `https://publish.x.com/oembed?${params.toString()}`;
 }
 
-export function normalizeXPostOEmbed(sourceUrl: string, response: XPostOEmbedResponse): XPostMetadata | null {
+export function normalizeXPostOEmbed(
+  sourceUrl: string,
+  response: XPostOEmbedResponse,
+): XPostMetadata | null {
   const parsedUrl = parseXPostUrl(sourceUrl);
   const rawHtml = textValue(response.html);
   if (!parsedUrl || !rawHtml) return null;
@@ -79,11 +88,14 @@ export function normalizeXPostOEmbed(sourceUrl: string, response: XPostOEmbedRes
   const { document } = parseHTML(`<html><body>${embedHtml}</body></html>`);
   const blockquote = document.querySelector("blockquote.twitter-tweet");
   const text = normalizeText(blockquote?.querySelector("p")?.textContent);
-  const dateLink = [...(blockquote?.querySelectorAll("a") ?? [])]
-    .find((anchor) => anchor.getAttribute("href")?.includes(`/status/${parsedUrl.postId}`));
-  const authorUrl = normalizeHttpUrl(textValue(response.author_url), parsedUrl.postUrl) ?? undefined;
+  const dateLink = [...(blockquote?.querySelectorAll("a") ?? [])].find((anchor) =>
+    anchor.getAttribute("href")?.includes(`/status/${parsedUrl.postId}`),
+  );
+  const authorUrl =
+    normalizeHttpUrl(textValue(response.author_url), parsedUrl.postUrl) ?? undefined;
   const authorName = textValue(response.author_name);
-  const width = typeof response.width === "number" && Number.isFinite(response.width) ? response.width : null;
+  const width =
+    typeof response.width === "number" && Number.isFinite(response.width) ? response.width : null;
 
   return {
     provider: "x",

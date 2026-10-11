@@ -21,7 +21,6 @@
 
 import { DEMI_VIEWBOX, RAYON } from "./bot/repere";
 
-
 /** The one size the mascot is drawn at, in every slot and in the library. */
 export const MASCOT_SIZE = 44;
 
@@ -42,7 +41,6 @@ const MASCOT_BODY = Math.ceil((2 * 1.06 * RAYON * MASCOT_SIZE) / (2 * DEMI_VIEWB
  * wide as the blot is wide, so the centre test passes and the blot does not.
  */
 export const BODY_RADIUS = MASCOT_BODY / 2;
-
 
 export interface Vec {
   x: number;
@@ -101,7 +99,6 @@ const DEFLECTION_ANGLE = 1.2;
  */
 export const STALL_FRACTION = 0.3;
 
-
 /** The room it is in, and everything inside the room it cannot be inside. */
 export interface Terrain {
   room: Rect;
@@ -155,7 +152,7 @@ export function drift(
   const step = Math.min(seconds, 0.05);
 
   let speed = Math.hypot(state.vx, state.vy);
-  let heading = speed > 0.001 ? Math.atan2(state.vy, state.vx) : aim ?? 0;
+  let heading = speed > 0.001 ? Math.atan2(state.vy, state.vx) : (aim ?? 0);
 
   if (aim !== null) {
     // Turn toward the aim at a limited rate. A change of mind is a curve.
@@ -176,10 +173,22 @@ export function drift(
 
   // The room. Reflect the normal component, which is a slide, not a stop.
   const pad = 6;
-  if (x < terrain.room.left + pad) { x = terrain.room.left + pad; vx = Math.abs(vx); }
-  if (x > terrain.room.right - pad) { x = terrain.room.right - pad; vx = -Math.abs(vx); }
-  if (y < terrain.room.top + pad) { y = terrain.room.top + pad; vy = Math.abs(vy); }
-  if (y > terrain.room.bottom - pad) { y = terrain.room.bottom - pad; vy = -Math.abs(vy); }
+  if (x < terrain.room.left + pad) {
+    x = terrain.room.left + pad;
+    vx = Math.abs(vx);
+  }
+  if (x > terrain.room.right - pad) {
+    x = terrain.room.right - pad;
+    vx = -Math.abs(vx);
+  }
+  if (y < terrain.room.top + pad) {
+    y = terrain.room.top + pad;
+    vy = Math.abs(vy);
+  }
+  if (y > terrain.room.bottom - pad) {
+    y = terrain.room.bottom - pad;
+    vy = -Math.abs(vy);
+  }
 
   // The walls, which at the moment is the card grid. Steps are a fraction of a
   // pixel at this pace, so nothing can tunnel through one.
@@ -195,12 +204,20 @@ export function drift(
     const outTop = y - wall.top;
     const outBottom = wall.bottom - y;
     const least = Math.min(outLeft, outRight, outTop, outBottom);
-    if (least === outLeft) { x = wall.left; vx = 0; }
-    else if (least === outRight) { x = wall.right; vx = 0; }
-    else if (least === outTop) { y = wall.top; vy = 0; }
-    else { y = wall.bottom; vy = 0; }
+    if (least === outLeft) {
+      x = wall.left;
+      vx = 0;
+    } else if (least === outRight) {
+      x = wall.right;
+      vx = 0;
+    } else if (least === outTop) {
+      y = wall.top;
+      vy = 0;
+    } else {
+      y = wall.bottom;
+      vy = 0;
+    }
   }
-
 
   return { x, y, vx, vy };
 }
@@ -233,7 +250,3 @@ export function deflectedAim(aim: number | null, state: DriftState): number | nu
   if (aim === null || speedOf(state) <= 1) return aim;
   return Math.abs(shortestAngle(headingOf(state), aim)) > DEFLECTION_ANGLE ? headingOf(state) : aim;
 }
-
-
-
-

@@ -81,7 +81,10 @@ export function RichNoteEditor({
 
   useEffect(() => {
     if (!editor) return;
-    editor.commands.setContent(noteBodyForEditor(body, title), { contentType: "markdown", emitUpdate: false });
+    editor.commands.setContent(noteBodyForEditor(body, title), {
+      contentType: "markdown",
+      emitUpdate: false,
+    });
     setError(null);
     setLinkDraft(null);
   }, [body, editor, title]);
@@ -124,11 +127,19 @@ export function RichNoteEditor({
   });
 
   if (body === undefined) {
-    return <p className="note-editor-loading" role="status">Loading note…</p>;
+    return (
+      <p className="note-editor-loading" role="status">
+        Loading note…
+      </p>
+    );
   }
 
   if (!editor) {
-    return <p className="note-editor-loading" role="status">Loading editor…</p>;
+    return (
+      <p className="note-editor-loading" role="status">
+        Loading editor…
+      </p>
+    );
   }
 
   const run = (command: () => void) => {
@@ -191,7 +202,11 @@ export function RichNoteEditor({
       <div className="note-embedded-editor-surface">
         <EditorContent editor={editor} />
       </div>
-      {error && <p className="note-editor-error" role="alert">{error}</p>}
+      {error && (
+        <p className="note-editor-error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="note-editor-actions">
         <div
           className="note-editor-toolbar"
@@ -200,48 +215,124 @@ export function RichNoteEditor({
           onMouseDown={(event) => event.preventDefault()}
         >
           <span className="note-heading-group">
-            <button type="button" aria-label="Heading 1" aria-pressed={toolbar?.h1} onClick={() => run(() => editor.chain().toggleHeading({ level: 1 }).run())}>H1</button>
-            <button type="button" aria-label="Heading 2" aria-pressed={toolbar?.h2} onClick={() => run(() => editor.chain().toggleHeading({ level: 2 }).run())}>H2</button>
-            <button type="button" aria-label="Heading 3" aria-pressed={toolbar?.h3} onClick={() => run(() => editor.chain().toggleHeading({ level: 3 }).run())}>H3</button>
+            <button
+              type="button"
+              aria-label="Heading 1"
+              aria-pressed={toolbar?.h1}
+              onClick={() => run(() => editor.chain().toggleHeading({ level: 1 }).run())}
+            >
+              H1
+            </button>
+            <button
+              type="button"
+              aria-label="Heading 2"
+              aria-pressed={toolbar?.h2}
+              onClick={() => run(() => editor.chain().toggleHeading({ level: 2 }).run())}
+            >
+              H2
+            </button>
+            <button
+              type="button"
+              aria-label="Heading 3"
+              aria-pressed={toolbar?.h3}
+              onClick={() => run(() => editor.chain().toggleHeading({ level: 3 }).run())}
+            >
+              H3
+            </button>
           </span>
           <span className="note-control-divider" />
-          <button type="button" aria-label="Bold" aria-pressed={toolbar?.bold} onClick={() => run(() => editor.chain().toggleBold().run())}>
+          <button
+            type="button"
+            aria-label="Bold"
+            aria-pressed={toolbar?.bold}
+            onClick={() => run(() => editor.chain().toggleBold().run())}
+          >
             <HugeiconsIcon icon={BoldIcon} size={15} />
           </button>
-          <button type="button" aria-label="Italic" aria-pressed={toolbar?.italic} onClick={() => run(() => editor.chain().toggleItalic().run())}>
+          <button
+            type="button"
+            aria-label="Italic"
+            aria-pressed={toolbar?.italic}
+            onClick={() => run(() => editor.chain().toggleItalic().run())}
+          >
             <HugeiconsIcon icon={ItalicIcon} size={15} />
           </button>
           <span className="note-control-divider" />
-          <button type="button" aria-label="Quote" aria-pressed={toolbar?.quote} onClick={() => run(() => editor.chain().toggleBlockquote().run())}>
+          <button
+            type="button"
+            aria-label="Quote"
+            aria-pressed={toolbar?.quote}
+            onClick={() => run(() => editor.chain().toggleBlockquote().run())}
+          >
             <HugeiconsIcon icon={QuoteIcon} size={15} />
           </button>
-          <button type="button" aria-label="Code block" aria-pressed={toolbar?.code} onClick={() => run(() => editor.chain().toggleCodeBlock().run())}>
+          <button
+            type="button"
+            aria-label="Code block"
+            aria-pressed={toolbar?.code}
+            onClick={() => run(() => editor.chain().toggleCodeBlock().run())}
+          >
             <HugeiconsIcon icon={CodeIcon} size={15} />
           </button>
-          <button type="button" aria-label="Bulleted list" aria-pressed={toolbar?.bullet} onClick={() => run(() => editor.chain().toggleBulletList().run())}>
+          <button
+            type="button"
+            aria-label="Bulleted list"
+            aria-pressed={toolbar?.bullet}
+            onClick={() => run(() => editor.chain().toggleBulletList().run())}
+          >
             <HugeiconsIcon icon={ListIcon} size={15} />
           </button>
-          <button type="button" aria-label="Numbered list" aria-pressed={toolbar?.ordered} onClick={() => run(() => editor.chain().toggleOrderedList().run())}>
+          <button
+            type="button"
+            aria-label="Numbered list"
+            aria-pressed={toolbar?.ordered}
+            onClick={() => run(() => editor.chain().toggleOrderedList().run())}
+          >
             <HugeiconsIcon icon={ListOrderedIcon} size={15} />
           </button>
-          <button type="button" aria-label="Todo list" aria-pressed={toolbar?.task} onClick={() => run(() => editor.chain().toggleTaskList().run())}>
+          <button
+            type="button"
+            aria-label="Todo list"
+            aria-pressed={toolbar?.task}
+            onClick={() => run(() => editor.chain().toggleTaskList().run())}
+          >
             <HugeiconsIcon icon={ListTodoIcon} size={15} />
           </button>
-          <button type="button" aria-label="Link" aria-pressed={toolbar?.link} disabled={!toolbar?.hasSelection} onClick={openLinkEditor}>
+          <button
+            type="button"
+            aria-label="Link"
+            aria-pressed={toolbar?.link}
+            disabled={!toolbar?.hasSelection}
+            onClick={openLinkEditor}
+          >
             <HugeiconsIcon icon={Link01Icon} size={15} />
           </button>
           <span className="note-control-divider" />
-          <button type="button" aria-label="Undo" disabled={!toolbar?.canUndo} onClick={() => run(() => editor.chain().undo().run())}>
+          <button
+            type="button"
+            aria-label="Undo"
+            disabled={!toolbar?.canUndo}
+            onClick={() => run(() => editor.chain().undo().run())}
+          >
             <HugeiconsIcon icon={RefreshCcwIcon} size={15} />
           </button>
-          <button type="button" aria-label="Redo" disabled={!toolbar?.canRedo} onClick={() => run(() => editor.chain().redo().run())}>
+          <button
+            type="button"
+            aria-label="Redo"
+            disabled={!toolbar?.canRedo}
+            onClick={() => run(() => editor.chain().redo().run())}
+          >
             <HugeiconsIcon icon={RefreshCwIcon} size={15} />
           </button>
         </div>
         <div className="note-editor-save-cluster">
-          {isSaving && <span className="note-editor-status" role="status">Saving…</span>}
+          {isSaving && (
+            <span className="note-editor-status" role="status">
+              Saving…
+            </span>
+          )}
           {linkDraft !== null && (
-            <div className="note-link-popover" role="group" aria-label="Link">
+            <div className="note-link-popover">
               <input
                 ref={linkInputRef}
                 className="note-link-input"
@@ -260,10 +351,22 @@ export function RichNoteEditor({
                   }
                 }}
               />
-              <button type="button" className="note-link-apply" aria-label="Apply link" disabled={!isSafeNoteLink(linkDraft.trim())} onClick={applyLink}>
+              <button
+                type="button"
+                className="note-link-apply"
+                aria-label="Apply link"
+                disabled={!isSafeNoteLink(linkDraft.trim())}
+                onClick={applyLink}
+              >
                 Apply
               </button>
-              <button type="button" className="note-link-remove" aria-label="Remove link" disabled={!toolbar?.link} onClick={removeLink}>
+              <button
+                type="button"
+                className="note-link-remove"
+                aria-label="Remove link"
+                disabled={!toolbar?.link}
+                onClick={removeLink}
+              >
                 Remove
               </button>
             </div>
@@ -283,7 +386,10 @@ export function RichNoteEditor({
             className="note-editor-cancel"
             aria-label="Cancel note editing"
             onClick={() => {
-              editor.commands.setContent(noteBodyForEditor(body, title), { contentType: "markdown", emitUpdate: false });
+              editor.commands.setContent(noteBodyForEditor(body, title), {
+                contentType: "markdown",
+                emitUpdate: false,
+              });
               setError(null);
               setLinkDraft(null);
               onEditingChange?.(false);
@@ -291,7 +397,13 @@ export function RichNoteEditor({
           >
             Cancel
           </button>
-          <button type="button" className="note-editor-save" aria-label="Save note" disabled={isSaving} onClick={() => void save()}>
+          <button
+            type="button"
+            className="note-editor-save"
+            aria-label="Save note"
+            disabled={isSaving}
+            onClick={() => void save()}
+          >
             {isSaving ? "Saving…" : "Save note"}
           </button>
         </div>

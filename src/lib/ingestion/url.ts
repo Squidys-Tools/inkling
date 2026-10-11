@@ -20,16 +20,18 @@ function parseIpv4(hostname: string): Ipv4Address | null {
 
 function isPrivateIpv4(address: Ipv4Address): boolean {
   const [first, second] = address;
-  return first === 0
-    || first === 10
-    || first === 100 && second >= 64 && second <= 127
-    || first === 127
-    || first === 169 && second === 254
-    || first === 172 && second >= 16 && second <= 31
-    || first === 192 && (second === 0 || second === 2 || second === 168)
-    || first === 198 && (second === 18 || second === 19 || second === 51)
-    || first === 203 && second === 0
-    || first >= 224;
+  return (
+    first === 0 ||
+    first === 10 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && (second === 0 || second === 2 || second === 168)) ||
+    (first === 198 && (second === 18 || second === 19 || second === 51)) ||
+    (first === 203 && second === 0) ||
+    first >= 224
+  );
 }
 
 function parseIpv6Part(part: string): number[] | null {
@@ -68,7 +70,12 @@ function parseIpv6(hostname: string): number[] | null {
 
 function isPrivateNetworkHostname(hostname: string): boolean {
   const value = hostname.toLowerCase().replace(/^\[/u, "").replace(/\]$/u, "").replace(/\.$/u, "");
-  if (value === "localhost" || value.endsWith(".localhost") || value.endsWith(".local") || value.endsWith(".internal")) {
+  if (
+    value === "localhost" ||
+    value.endsWith(".localhost") ||
+    value.endsWith(".local") ||
+    value.endsWith(".internal")
+  ) {
     return true;
   }
 
@@ -88,12 +95,7 @@ function isPrivateNetworkHostname(hostname: string): boolean {
   const compatibleIpv4 = ipv6.slice(0, 6).every((group) => group === 0);
   if (!mappedIpv4 && !compatibleIpv4) return false;
 
-  const embedded: Ipv4Address = [
-    ipv6[6] >> 8,
-    ipv6[6] & 0xff,
-    ipv6[7] >> 8,
-    ipv6[7] & 0xff,
-  ];
+  const embedded: Ipv4Address = [ipv6[6] >> 8, ipv6[6] & 0xff, ipv6[7] >> 8, ipv6[7] & 0xff];
   return isPrivateIpv4(embedded);
 }
 
@@ -124,27 +126,41 @@ export function parseHttpUrl(input: string, options: HttpUrlOptions = {}): URL {
   try {
     parsed = new URL(value);
   } catch (cause) {
-    throw new UrlIngestionError("invalid-url", "The URL could not be parsed.", { cause, url: input });
-  }
-
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new UrlIngestionError("invalid-url", "Only HTTP and HTTPS URLs can be saved.", { url: input });
-  }
-
-  if (parsed.username || parsed.password || !parsed.hostname) {
-    throw new UrlIngestionError("invalid-url", "The URL contains unsupported credentials or a missing host.", {
+    throw new UrlIngestionError("invalid-url", "The URL could not be parsed.", {
+      cause,
       url: input,
     });
   }
 
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new UrlIngestionError("invalid-url", "Only HTTP and HTTPS URLs can be saved.", {
+      url: input,
+    });
+  }
+
+  if (parsed.username || parsed.password || !parsed.hostname) {
+    throw new UrlIngestionError(
+      "invalid-url",
+      "The URL contains unsupported credentials or a missing host.",
+      {
+        url: input,
+      },
+    );
+  }
+
   if (!options.allowPrivateNetwork && isPrivateNetworkHostname(parsed.hostname)) {
-    throw new UrlIngestionError("invalid-url", "Private network URLs are not supported.", { url: input });
+    throw new UrlIngestionError("invalid-url", "Private network URLs are not supported.", {
+      url: input,
+    });
   }
 
   return parsed;
 }
 
-export function normalizeHttpUrl(value: string | null | undefined, baseUrl?: string): string | null {
+export function normalizeHttpUrl(
+  value: string | null | undefined,
+  baseUrl?: string,
+): string | null {
   const candidate = value?.trim();
   if (!candidate || candidate.startsWith("#")) {
     return null;

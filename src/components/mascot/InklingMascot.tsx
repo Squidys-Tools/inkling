@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BotEngine, type BotFrame } from "./bot/engine";
 import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION } from "./bot/expressions";
 import { COLOR_BY_ID, SHAPE_BY_ID, DEFAULT_SHAPE } from "./bot/skins";
@@ -41,12 +41,7 @@ export function InklingMascot({
   const ink = COLOR_BY_ID.get(color)?.hex ?? "#1a1a1a";
   const expr = EXPRESSION_BY_ID.get(expression) ?? null;
 
-  const engine = useMemo(
-    () => new BotEngine(RAYON, state, shapeRadii, expr),
-    // Engine identity follows its initial conditions; transitions go through setters below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
+  const [engine] = useState(() => new BotEngine(RAYON, state, shapeRadii, expr));
   const [frame, setFrame] = useState<BotFrame>(() => engine.sample(frozenAt ?? 0));
   // Running clock, shared with the transition setters below. Dating a change
   // at a stale time (e.g. always 0) completes its morph instantly and reads

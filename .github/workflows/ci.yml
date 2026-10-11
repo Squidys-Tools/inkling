@@ -73,6 +73,7 @@ jobs:
               - '.bun-version'
               - 'vite.config.ts'
               - 'knip.json'
+              - 'biome.jsonc'
               - 'scripts/assert-no-demo-seed.ts'
               - 'scripts/assert-no-demo-seed.test.ts'
               - 'tsconfig.json'
@@ -118,6 +119,9 @@ jobs:
 
       - name: Check for unused code
         run: bun run knip:check
+
+      - name: Lint and format frontend
+        run: bun run lint
 
       - name: Build frontend
         run: bun run build
