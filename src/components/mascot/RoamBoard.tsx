@@ -121,7 +121,7 @@ export function RoamBoard() {
           border: "1px solid #3b3934",
           background: "#141311",
           color: "#e5ddd2",
-          font: "12px/1.5 'DM Sans', system-ui, sans-serif",
+          font: "12px/1.5 var(--font-ui)",
         }}
       >
         <strong style={{ display: "block", marginBottom: 8 }}>Wandering mascot</strong>

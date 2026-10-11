@@ -37,10 +37,12 @@
   --radius-toggle: 12px;
   --radius-sidebar: 14px;
 
-  /* Matches the font stack App.css sets on :root. Preflight is not loaded, so
-     naming these here only makes `font-sans`/`font-mono` available as utilities. */
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "DM Mono", ui-monospace, monospace;
+  /* Paper Mono is the product's single UI face (App.css's `:root` sets
+     `--font-ui`). Both utility names resolve to it so a migrated utility never
+     renders a face the rest of the app does not use. Decorative serifs stay
+     explicit as arbitrary values. */
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-ui);
 
   --animate-spin-slow: spin 1.2s linear infinite;
 

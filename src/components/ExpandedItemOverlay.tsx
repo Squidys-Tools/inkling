@@ -873,7 +873,10 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
         className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""} ${isFocusModeView ? "is-focus-mode" : ""} relative pointer-events-auto flex w-[min(680px,100%)] max-h-full flex-col overflow-hidden bg-surface border border-[#4a4842] rounded-[24px] shadow-[0_30px_80px_rgba(0,0,0,.55)]`}
         {...rootProps}
         style={isFocusModeView
-          ? { position: "relative", left: "auto", top: "auto", width: "min(100%, 1060px)", height: "100%" }
+          // The FLIP pass writes `border-radius` inline on this node, and an
+          // inline value outranks the class rule that flattens the panel for
+          // focus mode. Reset it here too, or the panel keeps the card's radius.
+          ? { position: "relative", left: "auto", top: "auto", width: "min(100%, 1060px)", height: "100%", borderRadius: 0, boxShadow: "none", background: "transparent" }
           : dialogFlying ? undefined : placedStyle}
       >
         <button
