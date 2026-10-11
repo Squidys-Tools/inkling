@@ -28,6 +28,7 @@ Guardrails:
 
 ### Added
 
+- Keyboard shortcuts for search, new-note capture, and shortcut help, with contained dialog focus and keyboard-operated Spaces and cards (SQU-19).
 - Background OCR for older images and PDFs when first opened, with the mascot's quiet activity state reflecting the full job queue (SQU-5).
 - Library export from Settings (Data tab): writes a dated folder with a consistent SQLite snapshot, the asset files the saved items reference, and a manifest of counts and sizes, after picking a destination folder in a native dialog.
 - Browser extension store prep: Firefox MV3 manifest, local mascot icons, options token field, and store copy draft (`extension/`).

@@ -38,7 +38,7 @@ html, body, #root { height: 100%; }
 body { margin: 0; min-width: 320px; min-height: 100vh; overflow: hidden; }
 button, input { font: inherit; }
 button { color: inherit; padding: 0; }
-button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; }
 .sidebar { top: 0; z-index: 30; width: 248px; height: 100vh; min-height: 0; padding: 39px 18px 21px; border-right: 1px solid var(--rule); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; background: #0c0c0b; transition: width .3s cubic-bezier(.4,0,.2,1), min-width .3s cubic-bezier(.4,0,.2,1), padding .3s cubic-bezier(.4,0,.2,1), border-color .3s ease, opacity .2s ease; }
 .sidebar:not(.is-open) { width: 0; min-width: 0; padding-left: 0; padding-right: 0; border-right-color: transparent; opacity: 0; }
 .brand-lockup strong { display: block; font-family: "Gloria Hallelujah", var(--font-ui), cursive; font-size: 23px; font-weight: 400; letter-spacing: 0; color: var(--ink); }
@@ -122,6 +122,11 @@ button:focus-visible, input:focus-visible, article:focus-visible { outline: 2px 
 .search-field kbd span { margin-right: 5px; color: #8d867c; }
 .add-button:disabled { cursor: wait; opacity: .65; }
 .capture-modal::-webkit-scrollbar { display: none; }
+.search-field:has(input:focus-visible) { outline: 2px solid var(--orange); outline-offset: 3px; }
+.shortcuts-modal-backdrop { position: fixed; inset: 0; z-index: 110; display: grid; place-items: center; padding: 24px; background: rgba(10,10,9,.72); }
+.shortcuts-modal { width: min(420px, 100%); padding: 20px; border: 1px solid #4a4842; border-radius: 14px; background: #161412; box-shadow: 0 24px 70px rgba(0,0,0,.5); }
+.shortcuts-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }.shortcuts-modal-header h2 { margin: 0; color: var(--ink); font: 500 20px/1.15 var(--font-ui); letter-spacing: -.03em; }.shortcuts-modal-header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.shortcut-list { display: grid; gap: 12px; margin: 16px 0 0; }.shortcut-list > div { display: grid; grid-template-columns: minmax(150px, 1fr) 1fr; align-items: center; gap: 12px; }.shortcut-list dt { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; }.shortcut-list dd { margin: 0; color: var(--ink); font-size: 12px; }.shortcut-list kbd { min-width: 23px; padding: 4px 6px; border: 1px solid #3e3a36; border-radius: 5px; background: #0c0c0b; color: var(--ink); text-align: center; font: 10px var(--font-ui); }
 .capture-editor-heading span { color: var(--muted); font: 10px var(--font-ui); }
 .capture-type { color: #8fae9b; font: 10px var(--font-ui); }
 .toolbar-actions { display: flex; align-items: center; gap: 8px; }
