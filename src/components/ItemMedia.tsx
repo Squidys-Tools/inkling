@@ -369,7 +369,6 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
   }, []);
 
   useEffect(() => {
-    setShouldLoad(false);
     setEmbedHtml(social.embedHtml);
     setStatus("idle");
   }, [social.embedHtml]);

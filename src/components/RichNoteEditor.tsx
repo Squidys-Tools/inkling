@@ -332,7 +332,7 @@ export function RichNoteEditor({
             </span>
           )}
           {linkDraft !== null && (
-            <div className="note-link-popover">
+            <fieldset className="note-link-popover" aria-label="Link">
               <input
                 ref={linkInputRef}
                 className="note-link-input"
@@ -369,7 +369,7 @@ export function RichNoteEditor({
               >
                 Remove
               </button>
-            </div>
+            </fieldset>
           )}
           {embedded && (
             <button
