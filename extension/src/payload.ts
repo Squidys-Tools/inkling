@@ -46,7 +46,9 @@ function isHttpUrlString(value: string | null | undefined): boolean {
   if (!value) return false;
   try {
     const parsed = new URL(value.trim());
-    return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.hostname.length > 0;
+    return (
+      (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.hostname.length > 0
+    );
   } catch {
     return false;
   }
@@ -87,7 +89,8 @@ export type ExtensionCaptureMessage = {
 export function isCaptureMessage(value: unknown): value is ExtensionCaptureMessage {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
-  if (record.type !== "inkling/capture" || !record.payload || typeof record.payload !== "object") return false;
+  if (record.type !== "inkling/capture" || !record.payload || typeof record.payload !== "object")
+    return false;
   return (["selection", "image", "video"] as string[]).includes(
     (record.payload as Record<string, unknown>).kind as string,
   );

@@ -9,8 +9,22 @@ export interface WaveOpts {
   speed2: number;
 }
 
-export const CALM_WAVE: WaveOpts = { amp1: 1.2, wave1: 320, amp2: 0.5, wave2: 130, speed1: 0.7, speed2: 1.1 };
-export const LIVE_WAVE: WaveOpts = { amp1: 2.0, wave1: 300, amp2: 0.8, wave2: 120, speed1: 1.8, speed2: 2.6 };
+export const CALM_WAVE: WaveOpts = {
+  amp1: 1.2,
+  wave1: 320,
+  amp2: 0.5,
+  wave2: 130,
+  speed1: 0.7,
+  speed2: 1.1,
+};
+export const LIVE_WAVE: WaveOpts = {
+  amp1: 2.0,
+  wave1: 300,
+  amp2: 0.8,
+  wave2: 120,
+  speed1: 1.8,
+  speed2: 2.6,
+};
 
 const TAU = Math.PI * 2;
 const SAMPLES = 160;
@@ -75,7 +89,14 @@ function walkRoundedRect(w: number, h: number, r: number): Walked[] {
  * Wavy outline path in pixel space. Pure — two summed sines along the
  * perimeter. `gain` eases the whole wave 0 (straight) to 1 (full).
  */
-export function wavyOutlinePath(w: number, h: number, r: number, t: number, o: WaveOpts, gain = 1): string {
+export function wavyOutlinePath(
+  w: number,
+  h: number,
+  r: number,
+  t: number,
+  o: WaveOpts,
+  gain = 1,
+): string {
   const moved: Point[] = walkRoundedRect(w, h, r).map(({ x, y, nx, ny, s }) => {
     const off =
       gain *

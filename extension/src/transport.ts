@@ -13,9 +13,7 @@ import type { PageCapturePayloadV1 } from "@inkling/ingestion-shared";
 // alias for the target URL, so reusing that name would corrupt parsing.
 const CAPTURE_VIA = "extension" as const;
 
-export function buildCaptureDeepLink(
-  payload: Pick<PageCapturePayloadV1, "url" | "title">,
-): string {
+export function buildCaptureDeepLink(payload: Pick<PageCapturePayloadV1, "url" | "title">): string {
   const params = new URLSearchParams({
     url: payload.url,
     title: payload.title,

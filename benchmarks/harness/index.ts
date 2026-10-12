@@ -69,12 +69,14 @@ function scoreExtraction(item: ManifestItem, outcome: ExtractionOutcome): ItemRe
   if (exp.author) {
     const value = stringScore(exp.author, outcome.author ?? "");
     parts.push(value);
-    if (value < 1) messages.push(`author mismatch: expected "${exp.author}", got "${outcome.author}"`);
+    if (value < 1)
+      messages.push(`author mismatch: expected "${exp.author}", got "${outcome.author}"`);
   }
   if (exp.search_terms?.length) {
     const matches = termMatches(searchable, exp.search_terms);
     parts.push(matches.filter((m) => m.found).length / matches.length);
-    for (const m of matches.filter((m) => !m.found)) messages.push(`search term not found: "${m.term}"`);
+    for (const m of matches.filter((m) => !m.found))
+      messages.push(`search term not found: "${m.term}"`);
   }
   const banned = bannedTermHits(searchable, exp.must_not_match ?? []);
   for (const term of banned) messages.push(`banned term found in extracted text: "${term}"`);
@@ -83,7 +85,8 @@ function scoreExtraction(item: ManifestItem, outcome: ExtractionOutcome): ItemRe
   if (exp.image_urls_min != null) {
     const value = Math.min(1, outcome.imageUrls.length / exp.image_urls_min);
     parts.push(value);
-    if (value < 1) messages.push(`expected >= ${exp.image_urls_min} images, got ${outcome.imageUrls.length}`);
+    if (value < 1)
+      messages.push(`expected >= ${exp.image_urls_min} images, got ${outcome.imageUrls.length}`);
   }
   if (exp.safe_embeds?.length) {
     for (const req of exp.safe_embeds) {
@@ -127,7 +130,8 @@ function scorePlainText(item: ManifestItem, text: string, engine: string): ItemR
   if (exp.search_terms?.length) {
     const matches = termMatches(text, exp.search_terms);
     parts.push(matches.filter((m) => m.found).length / matches.length);
-    for (const m of matches.filter((m) => !m.found)) messages.push(`search term not found: "${m.term}"`);
+    for (const m of matches.filter((m) => !m.found))
+      messages.push(`search term not found: "${m.term}"`);
   }
   const banned = bannedTermHits(text, exp.must_not_match ?? []);
   for (const term of banned) messages.push(`banned term found: "${term}"`);
@@ -159,7 +163,8 @@ function scorePdf(
   if (exp.search_terms?.length) {
     const matches = termMatches(text, exp.search_terms);
     parts.push(matches.filter((m) => m.found).length / matches.length);
-    for (const m of matches.filter((m) => !m.found)) messages.push(`search term not found: "${m.term}"`);
+    for (const m of matches.filter((m) => !m.found))
+      messages.push(`search term not found: "${m.term}"`);
   }
   const banned = bannedTermHits(text, exp.must_not_match ?? []);
   for (const term of banned) messages.push(`banned term found: "${term}"`);
@@ -168,14 +173,17 @@ function scorePdf(
   if (exp.embedded_images_min != null) {
     const value = Math.min(1, naive.embeddedImages / exp.embedded_images_min);
     parts.push(value);
-    if (value < 1) messages.push(`expected >= ${exp.embedded_images_min} embedded image(s), got ${naive.embeddedImages}`);
+    if (value < 1)
+      messages.push(
+        `expected >= ${exp.embedded_images_min} embedded image(s), got ${naive.embeddedImages}`,
+      );
   }
 
   const score = average(parts);
   return {
     id: item.id,
     type: item.type,
-    engine: naive.text ? "naive-streams" : ocrEngine ?? "none",
+    engine: naive.text ? "naive-streams" : (ocrEngine ?? "none"),
     status: statusFor(score),
     score,
     metrics: {
@@ -187,12 +195,19 @@ function scorePdf(
   };
 }
 
-function scoreOcr(item: ManifestItem, expectedText: string, actualText: string, engine: string): ItemResult {
+function scoreOcr(
+  item: ManifestItem,
+  expectedText: string,
+  actualText: string,
+  engine: string,
+): ItemResult {
   const stats = tokenStats(expectedText, actualText);
   const score = (stats.recall + stats.precision) / 2;
   const messages: string[] = [];
   if (stats.recall < 1) {
-    const missing = [...new Set(tokenize(expectedText))].filter((t) => !tokenize(actualText).includes(t));
+    const missing = [...new Set(tokenize(expectedText))].filter(
+      (t) => !tokenize(actualText).includes(t),
+    );
     messages.push(`OCR recall ${stats.recall.toFixed(2)} (${stats.expectedCount} expected tokens)`);
     messages.push(`missing tokens (sample): ${missing.slice(0, 8).join(", ")}`);
   }
@@ -208,12 +223,17 @@ function scoreOcr(item: ManifestItem, expectedText: string, actualText: string, 
   };
 }
 
-async function tryOcr(engine: OcrEngine, filePath: string): Promise<{ text: string; engine: string } | null> {
+async function tryOcr(
+  engine: OcrEngine,
+  filePath: string,
+): Promise<{ text: string; engine: string } | null> {
   try {
     const text = await engine.run(filePath);
     return { text, engine: engine.name };
   } catch (cause) {
-    console.warn(`  [ocr] ${engine.name} failed for ${filePath}: ${cause instanceof Error ? cause.message : String(cause)}`);
+    console.warn(
+      `  [ocr] ${engine.name} failed for ${filePath}: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
     return null;
   }
 }
@@ -275,7 +295,10 @@ async function runItem(
       }
     }
     if (!naive.text && !ocrText && exp.ocr_text_file) {
-      return skipResult(item, "scanned PDF: no OCR engine available (Windows.Media.Ocr or tesseract.js)");
+      return skipResult(
+        item,
+        "scanned PDF: no OCR engine available (Windows.Media.Ocr or tesseract.js)",
+      );
     }
     return scorePdf(item, naive, ocrText, ocrEngine);
   }
@@ -290,7 +313,8 @@ async function runItem(
         const scored = scoreOcr(item, expectedText, result.text, result.engine);
         if (!best || scored.score > best.score) best = scored;
       }
-      if (!best) return skipResult(item, "no OCR engine available (Windows.Media.Ocr or tesseract.js)");
+      if (!best)
+        return skipResult(item, "no OCR engine available (Windows.Media.Ocr or tesseract.js)");
       return best;
     }
     return skipResult(item, "vision/similarity scoring not implemented (embeddings benchmark)");
@@ -330,12 +354,16 @@ function writeSummaryMarkdown(report: {
   lines.push("# Benchmark results");
   lines.push(`Generated: ${report.generatedAt}`);
   lines.push("");
-  lines.push(`## Overall: score ${report.overall.avgScore.toFixed(3)} — pass ${report.overall.pass}, partial ${report.overall.partial}, fail ${report.overall.fail}, skip ${report.overall.skip}`);
+  lines.push(
+    `## Overall: score ${report.overall.avgScore.toFixed(3)} — pass ${report.overall.pass}, partial ${report.overall.partial}, fail ${report.overall.fail}, skip ${report.overall.skip}`,
+  );
   lines.push("");
   lines.push("| Type | Score | Pass | Partial | Fail | Skip | Total |");
   lines.push("| --- | --- | --- | --- | --- | --- | --- |");
   for (const [type, s] of Object.entries(report.byType)) {
-    lines.push(`| ${type} | ${s.avgScore.toFixed(3)} | ${s.pass} | ${s.partial} | ${s.fail} | ${s.skip} | ${s.total} |`);
+    lines.push(
+      `| ${type} | ${s.avgScore.toFixed(3)} | ${s.pass} | ${s.partial} | ${s.fail} | ${s.skip} | ${s.total} |`,
+    );
   }
   lines.push("");
   lines.push("## Items");
@@ -364,7 +392,9 @@ async function main(): Promise<void> {
     new WindowsOcrEngine(join(import.meta.dir, "win-ocr.ps1")),
     new TesseractJsEngine(),
   ]);
-  console.log(`OCR engines: ${ocrEngines.length ? ocrEngines.map((e) => e.name).join(", ") : "none (screenshots/scan OCR skipped)"}`);
+  console.log(
+    `OCR engines: ${ocrEngines.length ? ocrEngines.map((e) => e.name).join(", ") : "none (screenshots/scan OCR skipped)"}`,
+  );
   console.log("");
 
   const items: ItemResult[] = [];
@@ -372,13 +402,16 @@ async function main(): Promise<void> {
     process.stdout.write(`  ${item.id} ... `);
     const result = await runItem(item, server.baseUrl, ocrEngines);
     items.push(result);
-    console.log(`[${result.status}] score ${result.score.toFixed(3)} ${result.messages.length ? `(${result.messages[0]})` : ""}`);
+    console.log(
+      `[${result.status}] score ${result.score.toFixed(3)} ${result.messages.length ? `(${result.messages[0]})` : ""}`,
+    );
   }
   server.stop();
 
   const byType: Record<string, Summary> = {};
   for (const item of manifest.items) {
-    if (!byType[item.type]) byType[item.type] = { total: 0, pass: 0, partial: 0, fail: 0, skip: 0, avgScore: 0 };
+    if (!byType[item.type])
+      byType[item.type] = { total: 0, pass: 0, partial: 0, fail: 0, skip: 0, avgScore: 0 };
   }
   for (const r of items) {
     const s = byType[r.type];
@@ -406,7 +439,9 @@ async function main(): Promise<void> {
   writeFileSync(join(resultsDir, "summary.md"), writeSummaryMarkdown(report));
 
   console.log("");
-  console.log(`Overall score: ${overall.avgScore.toFixed(3)} (pass ${overall.pass}, partial ${overall.partial}, fail ${overall.fail}, skip ${overall.skip})`);
+  console.log(
+    `Overall score: ${overall.avgScore.toFixed(3)} (pass ${overall.pass}, partial ${overall.partial}, fail ${overall.fail}, skip ${overall.skip})`,
+  );
   console.log(`Results written to benchmarks/results/`);
 }
 

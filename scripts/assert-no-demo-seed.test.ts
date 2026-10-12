@@ -22,8 +22,7 @@ describe("findSeedLeaks", () => {
 
   test("flags bundled code that still references the seed path", () => {
     const files = ["assets/index-abc123.js"];
-    const read = (path: string) =>
-      path === files[0] ? 'const s="/seed-demo/photo.jpg";' : "";
+    const read = (path: string) => (path === files[0] ? 'const s="/seed-demo/photo.jpg";' : "");
     const findings = findSeedLeaks(files, noDirs, read);
     expect(findings).toHaveLength(1);
     expect(findings[0]?.path).toBe(files[0]);
@@ -38,8 +37,7 @@ describe("findSeedLeaks", () => {
 
   test("reports every leak rather than stopping at the first", () => {
     const files = ["assets/a.js", "assets/b.js"];
-    const read = (path: string) =>
-      files.includes(path) ? '"/seed-demo/x.jpg"' : "";
+    const read = (path: string) => (files.includes(path) ? '"/seed-demo/x.jpg"' : "");
     expect(findSeedLeaks(files, leaked(read), read)).toHaveLength(3);
   });
 

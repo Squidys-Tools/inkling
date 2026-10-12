@@ -32,7 +32,10 @@ document.addEventListener(
 
 function readSelection() {
   const selection = window.getSelection();
-  const selectedText = (selection ? selection.toString() : "").replace(/\s+/g, " ").trim().slice(0, 1500);
+  const selectedText = (selection ? selection.toString() : "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1500);
   let selectedHtml = "";
   try {
     if (selection && selection.rangeCount > 0 && selectedText) {
@@ -51,9 +54,9 @@ function readSelection() {
 
 function readImage(requestedSrc) {
   const fromMenu = lastContextImage;
-  const src = (requestedSrc || (fromMenu && fromMenu.src) || "").trim();
+  const src = (requestedSrc || fromMenu?.src || "").trim();
   if (!src) return null;
-  const alt = ((fromMenu && fromMenu.alt) || "").replace(/\s+/g, " ").trim().slice(0, 240);
+  const alt = (fromMenu?.alt || "").replace(/\s+/g, " ").trim().slice(0, 240);
   // blob:/canvas sources cannot be fetched by the app; rasterize small ones
   // to a dataUrl fallback, capped at ~5MB. http(s) sources download directly
   // and never need this path.
@@ -103,7 +106,7 @@ function readVideo() {
 const browserApi = globalThis.chrome ?? globalThis.browser;
 
 browserApi?.runtime?.onMessage.addListener((message, _sender, sendResponse) => {
-  if (!message || message.type !== "inkling/collect") return undefined;
+  if (message?.type !== "inkling/collect") return undefined;
 
   if (message.collect === "selection") {
     const { selectedText, selectedHtml } = readSelection();

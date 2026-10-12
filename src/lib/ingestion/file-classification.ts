@@ -22,17 +22,7 @@ const IMAGE_EXTENSIONS = new Set([
   "webp",
 ]);
 
-const VIDEO_EXTENSIONS = new Set([
-  "avi",
-  "m4v",
-  "mkv",
-  "mov",
-  "mp4",
-  "mpeg",
-  "mpg",
-  "ogv",
-  "webm",
-]);
+const VIDEO_EXTENSIONS = new Set(["avi", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "ogv", "webm"]);
 
 function fileExtension(name: string | null | undefined): string {
   const lastSegment = (name ?? "").split(/[\\/]/u).pop() ?? "";

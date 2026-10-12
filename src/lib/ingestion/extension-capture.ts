@@ -101,7 +101,8 @@ export function mapExtensionSelection(input: ExtensionSelectionInput): Selection
   return { body, attribution, sourceUrl, sanitizedHtml };
 }
 
-const DATA_URL_RE = /^data:(image\/(?:png|jpe?g|gif|webp|avif|bmp|svg\+xml));base64,([a-zA-Z0-9+/=\s]+)$/u;
+const DATA_URL_RE =
+  /^data:(image\/(?:png|jpe?g|gif|webp|avif|bmp|svg\+xml));base64,([a-zA-Z0-9+/=\s]+)$/u;
 
 function base64ByteLength(payload: string): number {
   const compact = payload.replace(/\s/gu, "");
@@ -113,8 +114,13 @@ function imageFileName(srcUrl: string, alt: string, mimeType: string | null): st
   const segment = srcUrl.split("?")[0].split("#")[0].split("/").filter(Boolean).pop() ?? "";
   const clean = segment.replace(/[^a-zA-Z0-9._-]+/gu, "_").slice(0, 80);
   if (clean.includes(".")) return clean;
-  const extension = mimeType === "image/jpeg" ? "jpg" : mimeType?.split("/")[1]?.replace("svg+xml", "svg");
-  const stemSource = alt.toLowerCase().replace(/[^a-z0-9]+/gu, "-").replace(/^-+|-+$/gu, "").slice(0, 40);
+  const extension =
+    mimeType === "image/jpeg" ? "jpg" : mimeType?.split("/")[1]?.replace("svg+xml", "svg");
+  const stemSource = alt
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, "-")
+    .replace(/^-+|-+$/gu, "")
+    .slice(0, 40);
   return `${stemSource || "inkling-image"}.${extension || "png"}`;
 }
 
@@ -166,7 +172,9 @@ export function mapExtensionVideo(input: ExtensionVideoInput): VideoLinkEmbed | 
 // path; the other three arrive through the mappers above.
 export type ExtensionCardKind = "Quote" | "Image" | "Video" | "Article";
 
-export function cardKindForExtensionCapture(kind: "selection" | "image" | "video" | "article"): ExtensionCardKind {
+export function cardKindForExtensionCapture(
+  kind: "selection" | "image" | "video" | "article",
+): ExtensionCardKind {
   switch (kind) {
     case "selection":
       return "Quote";

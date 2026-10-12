@@ -1,10 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  getMascotFrame,
-  pushMascotParams,
-  sampleMascotAt,
-  subscribeMascot,
-} from "./mascotStore";
+import { getMascotFrame, pushMascotParams, sampleMascotAt, subscribeMascot } from "./mascotStore";
 
 describe("mascotStore", () => {
   test("pushing params notifies subscribers even without rAF", () => {

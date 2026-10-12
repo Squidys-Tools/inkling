@@ -48,12 +48,7 @@ const TRACKS = [
 /** The classes that carry them. An eye drives two tracks from one rule, because
  *  `animation` is a shorthand and a second rule on the same element would wipe
  *  the first — the eye would sit on its t=0 matrix for the whole loop. */
-const CLASSES = [
-  "inkling-flicker",
-  "inkling-blink",
-  "inkling-eye-0",
-  "inkling-eye-1",
-] as const;
+const CLASSES = ["inkling-flicker", "inkling-blink", "inkling-eye-0", "inkling-eye-1"] as const;
 
 /** Area centroid of a closed polygon given its on-curve points. The blob is a
  *  closed path of cubic segments, and the on-curve points trace it, so this is
@@ -156,10 +151,15 @@ describe("readme mascot svg", () => {
     const selectors = [...rules.matchAll(/\.([\w-]+)\s*\{/g)].map(([, name]) => name!);
     for (const name of CLASSES) {
       const hits = selectors.filter((s) => s === name);
-      expect(hits.length, `.${name} is declared ${hits.length} times, so one rule erases the other`).toBe(1);
+      expect(
+        hits.length,
+        `.${name} is declared ${hits.length} times, so one rule erases the other`,
+      ).toBe(1);
     }
     // The eye rule names both of its tracks, comma separated, in one shorthand.
-    const bodies = new Map([...rules.matchAll(/\.([\w-]+)\{([^}]*)\}/g)].map(([, name, body]) => [name!, body!]));
+    const bodies = new Map(
+      [...rules.matchAll(/\.([\w-]+)\{([^}]*)\}/g)].map(([, name, body]) => [name!, body!]),
+    );
     for (const [eye, look, shape] of [
       ["inkling-eye-0", "inkling-look-0", "inkling-shape-0"],
       ["inkling-eye-1", "inkling-look-1", "inkling-shape-1"],
@@ -232,7 +232,9 @@ describe("readme mascot svg", () => {
     expect(shut).toBeGreaterThanOrEqual(6);
     // Flat open between blinks, and never mid-blink at an instant that is not
     // one of the three that describe it.
-    const closed = lids.filter((d) => d !== "transform:scaleY(1)" && d !== "transform:scaleY(0.06)");
+    const closed = lids.filter(
+      (d) => d !== "transform:scaleY(1)" && d !== "transform:scaleY(0.06)",
+    );
     expect(closed).toEqual([]);
     // The cadence is the engine's calendar, so the gaps are irregular the way a
     // real blink rate is. A metronome here is the giveaway that this is a loop
@@ -240,7 +242,7 @@ describe("readme mascot svg", () => {
     const times = lids
       .map((d, i) => (d === "transform:scaleY(0.06)" ? i : -1))
       .filter((i) => i >= 0)
-      .map((i) => Number((blocks().get("inkling-blink")?.[i]?.[0] ?? "0")) / 100);
+      .map((i) => Number(blocks().get("inkling-blink")?.[i]?.[0] ?? "0") / 100);
     const gaps = times.slice(1).map((t, i) => t - times[i]!);
     expect(new Set(gaps.map((g) => g.toFixed(1))).size).toBeGreaterThan(1);
   });
@@ -365,7 +367,9 @@ describe("readme mascot svg", () => {
     for (let i = 0; i < times.length; i++) {
       const t = times[i]!;
       const poly = toPoints(state.pose(Math.min(t, 24 - 1e-6)).sil, RAYON);
-      const matrix = look[i]![1].match(/matrix\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)/);
+      const matrix = look[i]![1].match(
+        /matrix\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)/,
+      );
       if (!matrix) continue;
       const [, a, b, c, d, tx, ty] = matrix.map(Number) as unknown as number[];
       // The capsule this keyframe belongs to: the shape held at that instant.
@@ -398,7 +402,8 @@ describe("readme mascot svg", () => {
     expect(rule).toContain("animation:none");
   });
 
-  test("the still the loop rests on is the engine's own, eyes and outline", () => {    const frame = readmeMascotFrame();
+  test("the still the loop rests on is the engine's own, eyes and outline", () => {
+    const frame = readmeMascotFrame();
     // The eyes are holes cut from a real frame, not invented here.
     expect(frame.eyes).toHaveLength(2);
     const still = readmeMascotSvg(frame, "#1a1a1a", "#faf9f6", "M0 0Z");
@@ -410,7 +415,11 @@ describe("readme mascot svg", () => {
     // rather than a rough stand-in for it. Compared numerically, because the
     // asset rounds coordinates to save bytes and the engine does not.
     const numbers = (d: string) => (d.match(/-?\d+\.?\d*/g) ?? []).map(Number);
-    const resting = numbers(blocks().get("inkling-flicker")?.[0]?.[1].match(/path\("([^"]*)"\)/)?.[1] ?? "");
+    const resting = numbers(
+      blocks()
+        .get("inkling-flicker")?.[0]?.[1]
+        .match(/path\("([^"]*)"\)/)?.[1] ?? "",
+    );
     const engineOutline = numbers(frame.bodyPath);
     expect(resting.length).toBe(engineOutline.length);
     for (const [i, value] of resting.entries()) {

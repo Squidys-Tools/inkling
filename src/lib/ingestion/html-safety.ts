@@ -31,8 +31,16 @@ function urlsFromSrcSet(value: string | null, pageUrl: string): string[] {
 
 function providerForHost(hostname: string): SafeEmbedProvider | null {
   const host = hostname.toLowerCase();
-  if (host === "youtube.com" || host === "www.youtube.com" || host === "youtube-nocookie.com" || host === "www.youtube-nocookie.com" || host === "youtu.be") return "youtube";
-  if (host === "vimeo.com" || host === "www.vimeo.com" || host === "player.vimeo.com") return "vimeo";
+  if (
+    host === "youtube.com" ||
+    host === "www.youtube.com" ||
+    host === "youtube-nocookie.com" ||
+    host === "www.youtube-nocookie.com" ||
+    host === "youtu.be"
+  )
+    return "youtube";
+  if (host === "vimeo.com" || host === "www.vimeo.com" || host === "player.vimeo.com")
+    return "vimeo";
   if (host === "loom.com" || host === "www.loom.com") return "loom";
   if (host === "open.spotify.com") return "spotify";
   if (host === "soundcloud.com" || host === "w.soundcloud.com") return "soundcloud";
@@ -45,13 +53,16 @@ function providerEmbedUrl(url: URL, provider: SafeEmbedProvider): string | null 
 
   if (provider === "youtube") {
     const host = url.hostname.toLowerCase();
-    const id = host === "youtu.be"
-      ? pathParts.length === 1 ? pathParts[0] : null
-      : url.pathname === "/watch"
-        ? url.searchParams.get("v")
-        : ["shorts", "embed", "live", "v"].includes(pathParts[0] ?? "") && pathParts.length === 2
-          ? pathParts[1]
-          : null;
+    const id =
+      host === "youtu.be"
+        ? pathParts.length === 1
+          ? pathParts[0]
+          : null
+        : url.pathname === "/watch"
+          ? url.searchParams.get("v")
+          : ["shorts", "embed", "live", "v"].includes(pathParts[0] ?? "") && pathParts.length === 2
+            ? pathParts[1]
+            : null;
     return id && /^[a-zA-Z0-9_-]{6,32}$/u.test(id)
       ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}`
       : null;
@@ -59,7 +70,9 @@ function providerEmbedUrl(url: URL, provider: SafeEmbedProvider): string | null 
 
   if (provider === "vimeo") {
     const id = pathParts[pathParts.length - 1];
-    return id && /^\d{1,20}$/u.test(id) ? `https://player.vimeo.com/video/${encodeURIComponent(id)}` : null;
+    return id && /^\d{1,20}$/u.test(id)
+      ? `https://player.vimeo.com/video/${encodeURIComponent(id)}`
+      : null;
   }
 
   if (provider === "loom") {
@@ -71,8 +84,20 @@ function providerEmbedUrl(url: URL, provider: SafeEmbedProvider): string | null 
 
   if (provider === "spotify") {
     const [type, id] = pathParts;
-    const validTypes = new Set(["album", "artist", "audiobook", "episode", "playlist", "show", "track"]);
-    return type && id && pathParts.length === 2 && validTypes.has(type) && /^[a-zA-Z0-9]+$/u.test(id)
+    const validTypes = new Set([
+      "album",
+      "artist",
+      "audiobook",
+      "episode",
+      "playlist",
+      "show",
+      "track",
+    ]);
+    return type &&
+      id &&
+      pathParts.length === 2 &&
+      validTypes.has(type) &&
+      /^[a-zA-Z0-9]+$/u.test(id)
       ? `https://open.spotify.com/embed/${encodeURIComponent(type)}/${encodeURIComponent(id)}`
       : null;
   }
@@ -134,23 +159,45 @@ export function collectSafeEmbeds(document: Document, pageUrl: string): SafeEmbe
 
   for (const element of document.querySelectorAll("iframe[src], video[src], audio[src]")) {
     const tagName = element.tagName.toLowerCase();
-    const kind: SafeEmbedKind = tagName === "iframe" ? "iframe" : tagName === "audio" ? "audio" : "video";
-    const candidate = candidateFromUrl(element.getAttribute("src"), kind, titleFor(element), pageUrl);
+    const kind: SafeEmbedKind =
+      tagName === "iframe" ? "iframe" : tagName === "audio" ? "audio" : "video";
+    const candidate = candidateFromUrl(
+      element.getAttribute("src"),
+      kind,
+      titleFor(element),
+      pageUrl,
+    );
     if (candidate) candidates.push(candidate);
   }
 
-  for (const element of document.querySelectorAll("video[poster], video source[src], audio source[src]")) {
+  for (const element of document.querySelectorAll(
+    "video[poster], video source[src], audio source[src]",
+  )) {
     const tagName = element.tagName.toLowerCase();
     const parentName = element.parentElement?.tagName.toLowerCase();
     const kind: SafeEmbedKind = tagName === "audio" || parentName === "audio" ? "audio" : "video";
-    const candidate = candidateFromUrl(element.getAttribute("src"), kind, titleFor(element), pageUrl);
+    const candidate = candidateFromUrl(
+      element.getAttribute("src"),
+      kind,
+      titleFor(element),
+      pageUrl,
+    );
     if (candidate) candidates.push(candidate);
   }
 
   for (const element of document.querySelectorAll("meta[property], meta[name]")) {
-    const key = (element.getAttribute("property") ?? element.getAttribute("name") ?? "").toLowerCase();
+    const key = (
+      element.getAttribute("property") ??
+      element.getAttribute("name") ??
+      ""
+    ).toLowerCase();
     if (key === "og:video" || key === "og:video:url" || key === "twitter:player") {
-      const candidate = candidateFromUrl(element.getAttribute("content"), "iframe", undefined, pageUrl);
+      const candidate = candidateFromUrl(
+        element.getAttribute("content"),
+        "iframe",
+        undefined,
+        pageUrl,
+      );
       if (candidate) candidates.push(candidate);
     }
   }
@@ -186,7 +233,12 @@ function sanitizeElement(element: Element, pageUrl: string): void {
   element.removeAttribute("srcset");
 
   if (tagName === "iframe") {
-    const candidate = candidateFromUrl(element.getAttribute("src"), "iframe", titleFor(element), pageUrl);
+    const candidate = candidateFromUrl(
+      element.getAttribute("src"),
+      "iframe",
+      titleFor(element),
+      pageUrl,
+    );
     if (!candidate) {
       element.remove();
       return;
@@ -199,8 +251,11 @@ function sanitizeElement(element: Element, pageUrl: string): void {
   }
 
   const mediaParent = element.parentElement?.tagName.toLowerCase();
-  if (tagName === "video" || tagName === "audio" ||
-      (tagName === "source" && (mediaParent === "video" || mediaParent === "audio"))) {
+  if (
+    tagName === "video" ||
+    tagName === "audio" ||
+    (tagName === "source" && (mediaParent === "video" || mediaParent === "audio"))
+  ) {
     const rawSource = element.getAttribute("src");
     const kind: SafeEmbedKind = tagName === "audio" || mediaParent === "audio" ? "audio" : "video";
     if (rawSource && !candidateFromUrl(rawSource, kind, titleFor(element), pageUrl)) {
@@ -218,7 +273,16 @@ export function sanitizeHtml(html: string, pageUrl: string): string {
     while (element.firstChild) parent.insertBefore(element.firstChild, element);
     element.remove();
   }
-  for (const selector of ["script", "template", "style", "link", "meta", "object", "embed", "form"]) {
+  for (const selector of [
+    "script",
+    "template",
+    "style",
+    "link",
+    "meta",
+    "object",
+    "embed",
+    "form",
+  ]) {
     for (const element of document.querySelectorAll(selector)) element.remove();
   }
   for (const element of document.querySelectorAll("*")) sanitizeElement(element, pageUrl);
@@ -239,7 +303,9 @@ export function hasReadableText(html: string | undefined | null): boolean {
 export function collectImageUrls(document: Document, pageUrl: string): string[] {
   const values: string[] = [];
 
-  for (const element of document.querySelectorAll("img[src], source[src], video[poster], img[srcset], source[srcset]")) {
+  for (const element of document.querySelectorAll(
+    "img[src], source[src], video[poster], img[srcset], source[srcset]",
+  )) {
     const raw = element.getAttribute("src") ?? element.getAttribute("poster");
     const normalized = normalizeHttpUrl(raw, pageUrl);
     if (normalized) values.push(normalized);
@@ -247,7 +313,11 @@ export function collectImageUrls(document: Document, pageUrl: string): string[] 
   }
 
   for (const element of document.querySelectorAll("meta[property], meta[name]")) {
-    const key = (element.getAttribute("property") ?? element.getAttribute("name") ?? "").toLowerCase();
+    const key = (
+      element.getAttribute("property") ??
+      element.getAttribute("name") ??
+      ""
+    ).toLowerCase();
     if (!key.includes("image")) continue;
     const normalized = normalizeHttpUrl(element.getAttribute("content"), pageUrl);
     if (normalized) values.push(normalized);

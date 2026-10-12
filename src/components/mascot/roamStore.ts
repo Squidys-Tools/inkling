@@ -209,7 +209,10 @@ function measure(): Layout | null {
   if (mark.right < 0 || mark.left > window.innerWidth) return null;
   return {
     panel,
-    terrain: terrainFor(panel, BLOCKER_SELECTORS.map((selector) => toRect(document.querySelector(selector)))),
+    terrain: terrainFor(
+      panel,
+      BLOCKER_SELECTORS.map((selector) => toRect(document.querySelector(selector))),
+    ),
     cards: cardRects(panelElement),
     home: { x: (mark.left + mark.right) / 2, y: (mark.top + mark.bottom) / 2 },
   };
@@ -340,7 +343,6 @@ function finishOuting() {
   publish({ away: false, phase: "home", stops: 0, last: null });
 }
 
-
 // --- the loop -------------------------------------------------------------
 
 /**
@@ -414,7 +416,7 @@ function advance(now: number, force = false) {
 
   // A glance, and a new direction to carry on in. Looking is not a place.
   if (action.target === "item" || action.target === "activity") {
-    const point = action.target === "activity" ? pointer ?? pickGazePoint() : pickGazePoint();
+    const point = action.target === "activity" ? (pointer ?? pickGazePoint()) : pickGazePoint();
     looking = point ? gaze(motion, point, 0.85) : null;
     pushMascotLook(looking);
   }
@@ -430,7 +432,6 @@ function advance(now: number, force = false) {
     return;
   }
 
-
   // A crossing or a drift to the margins is a request to be somewhere else, and
   // the only way to be somewhere else without crossing the grid is to go there.
   // Not while the user is mid-dialog, and not before it has been here a while: a
@@ -438,7 +439,8 @@ function advance(now: number, force = false) {
   // every two seconds, which is not roaming, it is teleporting with a delay. It
   // wanders in one part for a few seconds first, and only then moves.
   const settled = virtualNow - lastPlacedAt >= MIN_DWELL_MS;
-  const relocating = settled && !holding() && (action.target === "across" || action.target === "margin");
+  const relocating =
+    settled && !holding() && (action.target === "across" || action.target === "margin");
   if (relocating) {
     const elsewhere = farPoint(terrain, motion, rand);
     if (elsewhere) {
@@ -447,7 +449,6 @@ function advance(now: number, force = false) {
       return;
     }
   }
-
 
   chooseLeg(motion);
   publish({ phase: "away", stops: state.stops, last: describe(action) });
@@ -485,7 +486,15 @@ function onClock(clock: number) {
     if (terrain) {
       motion = holding()
         ? motion
-        : drift(motion, terrain, seconds, (virtualNow - legStartedAt) / 1000, aim, cruise, swayPhase);
+        : drift(
+            motion,
+            terrain,
+            seconds,
+            (virtualNow - legStartedAt) / 1000,
+            aim,
+            cruise,
+            swayPhase,
+          );
       // A wall pushes the mascot off its heading. Take the deflected direction as
       // the new aim, so it slides along the grid and carries on instead of
       // pressing into it for the rest of the leg, which reads as stuck. And if it
@@ -498,7 +507,6 @@ function onClock(clock: number) {
   }
   advance(virtualNow);
 }
-
 
 // --- inputs ---------------------------------------------------------------
 
@@ -543,7 +551,9 @@ export function watchRoamInputs(): () => void {
   if (observer && container) observer.observe(container);
 
   const motionQuery =
-    typeof window.matchMedia === "function" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+    typeof window.matchMedia === "function"
+      ? window.matchMedia("(prefers-reduced-motion: reduce)")
+      : null;
   const onMotion = (event: MediaQueryListEvent) => {
     reducedMotion = event.matches;
     invalidate();
@@ -598,7 +608,12 @@ export function roamAwakeLeft(): number {
 
 /** Where it is and how fast, for the dev board. */
 export function roamMotion(): { x: number; y: number; speed: number; heading: number } {
-  return { x: Math.round(motion.x), y: Math.round(motion.y), speed: +speedOf(motion).toFixed(1), heading: +headingOf(motion).toFixed(2) };
+  return {
+    x: Math.round(motion.x),
+    y: Math.round(motion.y),
+    speed: +speedOf(motion).toFixed(1),
+    heading: +headingOf(motion).toFixed(2),
+  };
 }
 
 // --- dev board controls ---------------------------------------------------
@@ -645,8 +660,3 @@ function getRoamSnapshot(): RoamSnapshot {
 export function useRoam(): RoamSnapshot {
   return useSyncExternalStore(subscribeRoam, getRoamSnapshot);
 }
-
-
-
-
-

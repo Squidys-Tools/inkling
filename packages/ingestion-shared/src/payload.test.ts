@@ -79,7 +79,12 @@ describe("parsePageCapturePayload", () => {
 
   test("rejects oversized content so storage writes stay bounded", () => {
     expect(() =>
-      parsePageCapturePayload({ ...BASE, version: 1, kind: "page", defuddledHtml: "x".repeat(3 * 1024 * 1024) }),
+      parsePageCapturePayload({
+        ...BASE,
+        version: 1,
+        kind: "page",
+        defuddledHtml: "x".repeat(3 * 1024 * 1024),
+      }),
     ).toThrow(PayloadValidationError);
   });
 });

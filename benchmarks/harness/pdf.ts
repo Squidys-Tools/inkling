@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noAssignInExpressions: the exec loop owns regex.lastIndex while scanning PDF streams.
 import { readFileSync } from "node:fs";
 
 export interface PdfExtraction {
@@ -16,13 +17,25 @@ function decodePdfString(raw: string): string {
       continue;
     }
     const next = raw[i + 1];
-    if (next === "n") { out += "\n"; i++; }
-    else if (next === "r") { out += "\r"; i++; }
-    else if (next === "t") { out += "\t"; i++; }
-    else if (next === "b") { out += "\b"; i++; }
-    else if (next === "f") { out += "\f"; i++; }
-    else if (next === "(" || next === ")" || next === "\\") { out += next; i++; }
-    else if (next >= "0" && next <= "7") {
+    if (next === "n") {
+      out += "\n";
+      i++;
+    } else if (next === "r") {
+      out += "\r";
+      i++;
+    } else if (next === "t") {
+      out += "\t";
+      i++;
+    } else if (next === "b") {
+      out += "\b";
+      i++;
+    } else if (next === "f") {
+      out += "\f";
+      i++;
+    } else if (next === "(" || next === ")" || next === "\\") {
+      out += next;
+      i++;
+    } else if (next >= "0" && next <= "7") {
       let octal = "";
       let j = i + 1;
       while (j < raw.length && octal.length < 3 && raw[j] >= "0" && raw[j] <= "7") {

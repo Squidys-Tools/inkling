@@ -31,6 +31,3 @@ export function MascotRoamLayer() {
     </div>
   );
 }
-
-
-

@@ -91,13 +91,24 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
       role="dialog"
       aria-modal="true"
       aria-label={item.title}
-      style={{ "--reader-origin-x": `${origin.x}px`, "--reader-origin-y": `${origin.y}px` } as React.CSSProperties}
+      style={
+        {
+          "--reader-origin-x": `${origin.x}px`,
+          "--reader-origin-y": `${origin.y}px`,
+        } as React.CSSProperties
+      }
       initial={{ opacity: 0, clipPath: shouldReduceMotion ? readerOpenClip : readerClosedClip }}
       animate={{ opacity: 1, clipPath: readerOpenClip }}
       exit={{ opacity: 0, clipPath: shouldReduceMotion ? readerOpenClip : readerClosedClip }}
       transition={{ duration: shouldReduceMotion ? 0.18 : 0.55, ease: [0.4, 0, 0.2, 1] }}
     >
-      <button type="button" className="reader-close" onClick={onRequestClose} title="Close reader" aria-label="Close reader (Escape)">
+      <button
+        type="button"
+        className="reader-close"
+        onClick={onRequestClose}
+        title="Close reader"
+        aria-label="Close reader (Escape)"
+      >
         <span className="reader-close-esc">Esc</span>
         <HugeiconsIcon icon={Cancel01Icon} size={16} />
       </button>
@@ -109,6 +120,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
             {bylineParts.length > 0 && (
               <p className="reader-byline">
                 {bylineParts.map((part, index) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: bylineParts is a stable split of one string; it never reorders.
                   <span key={index}>{part}</span>
                 ))}
               </p>
@@ -125,10 +137,13 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
         </article>
       </div>
 
-      <div className="reader-font-picker" aria-label="Reader typography">
+      <div className="reader-font-picker">
         <label>
           <span>Typeface</span>
-          <select value={fontSet} onChange={(event) => setFontSet(event.target.value as ReaderFontSet)}>
+          <select
+            value={fontSet}
+            onChange={(event) => setFontSet(event.target.value as ReaderFontSet)}
+          >
             {READER_FONT_SETS.map((set) => (
               <option key={set.id} value={set.id}>
                 {set.label}

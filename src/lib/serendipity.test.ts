@@ -14,7 +14,10 @@ describe("serendipityItems", () => {
   });
 
   test("caps the batch at 12", () => {
-    const rows = Array.from({ length: 30 }, (_, index) => ({ id: String(index), createdAt: index + 1 }));
+    const rows = Array.from({ length: 30 }, (_, index) => ({
+      id: String(index),
+      createdAt: index + 1,
+    }));
     expect(serendipityItems(rows)).toHaveLength(12);
   });
 
@@ -40,19 +43,21 @@ describe("serendipityItems", () => {
     ];
     const snapshot = [...rows];
 
-    expect(serendipityItems(rows, { excludedIds: new Set(["old"]), limit: 2 }).map((row) => row.id)).toEqual([
-      "middle",
-      "new",
-    ]);
+    expect(
+      serendipityItems(rows, { excludedIds: new Set(["old"]), limit: 2 }).map((row) => row.id),
+    ).toEqual(["middle", "new"]);
     expect(rows).toEqual(snapshot);
   });
 
   test("refills a capped batch after earlier items are kept", () => {
-    const rows = Array.from({ length: 14 }, (_, index) => ({ id: String(index), createdAt: index + 1 }));
+    const rows = Array.from({ length: 14 }, (_, index) => ({
+      id: String(index),
+      createdAt: index + 1,
+    }));
 
-    expect(serendipityItems(rows, { excludedIds: new Set(["0", "1"]), limit: 12 }).map((row) => row.id)).toEqual(
-      Array.from({ length: 12 }, (_, index) => String(index + 2)),
-    );
+    expect(
+      serendipityItems(rows, { excludedIds: new Set(["0", "1"]), limit: 12 }).map((row) => row.id),
+    ).toEqual(Array.from({ length: 12 }, (_, index) => String(index + 2)));
   });
 
   test("supports an empty limit", () => {

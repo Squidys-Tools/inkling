@@ -6,10 +6,20 @@ import { RAYON } from "./bot/repere";
 import { InklingMascot, type StateId } from "./InklingMascot";
 import { MascotFigure } from "./MascotFigure";
 
-function Tile({ title, body, children }: { title: string; body: string; children: React.ReactNode }) {
+function Tile({
+  title,
+  body,
+  children,
+}: {
+  title: string;
+  body: string;
+  children: React.ReactNode;
+}) {
   return (
     <div style={{ background: "#fff", borderRadius: 16, padding: 20, width: 280 }}>
-      <div style={{ display: "flex", justifyContent: "center", padding: "8px 0 16px" }}>{children}</div>
+      <div style={{ display: "flex", justifyContent: "center", padding: "8px 0 16px" }}>
+        {children}
+      </div>
       <div style={{ fontSize: 15, fontWeight: 650 }}>{title}</div>
       <div style={{ fontSize: 13, color: "#6b6b6b", marginTop: 4, lineHeight: 1.45 }}>{body}</div>
     </div>
@@ -70,9 +80,24 @@ function WatcherTile() {
         if (e.pointerType === "touch") return;
         const box = boxRef.current?.getBoundingClientRect();
         if (!box || box.width === 0) return;
-        const nx = Math.max(-1, Math.min(1, (e.clientX - (box.left + box.width / 2)) / Math.max(1, window.innerWidth / 2)));
-        const ny = Math.max(-1, Math.min(1, (e.clientY - (box.top + box.height / 2)) / Math.max(1, window.innerHeight / 2)));
-        engine.setLook({ yaw: nx * 35, pitch: ny * 22, mix: 0.85, spin: 0, wander: 0.2 }, clockRef.current);
+        const nx = Math.max(
+          -1,
+          Math.min(
+            1,
+            (e.clientX - (box.left + box.width / 2)) / Math.max(1, window.innerWidth / 2),
+          ),
+        );
+        const ny = Math.max(
+          -1,
+          Math.min(
+            1,
+            (e.clientY - (box.top + box.height / 2)) / Math.max(1, window.innerHeight / 2),
+          ),
+        );
+        engine.setLook(
+          { yaw: nx * 35, pitch: ny * 22, mix: 0.85, spin: 0, wander: 0.2 },
+          clockRef.current,
+        );
       }}
       onPointerLeave={() => engine.setLook(null, clockRef.current)}
     >
@@ -87,11 +112,18 @@ function WatcherTile() {
  */
 export function AliveBoard() {
   return (
-    <div style={{ padding: 32, fontFamily: "system-ui, sans-serif", background: "#faf9f6", minHeight: "100vh" }}>
+    <div
+      style={{
+        padding: 32,
+        fontFamily: "system-ui, sans-serif",
+        background: "#faf9f6",
+        minHeight: "100vh",
+      }}
+    >
       <h1 style={{ fontSize: 20, marginBottom: 4 }}>Splash aliveness variations</h1>
       <p style={{ color: "#6b6b6b", fontSize: 14, marginBottom: 16, maxWidth: 640 }}>
-        Five ways to make the sidebar body live. Sway and jelly are new looping engine states;
-        the rest reuse measured states and pointer tracking. Move your cursor over the watcher.
+        Five ways to make the sidebar body live. Sway and jelly are new looping engine states; the
+        rest reuse measured states and pointer tracking. Move your cursor over the watcher.
       </p>
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
         <Tile

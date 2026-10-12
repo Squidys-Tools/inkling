@@ -11,7 +11,7 @@ const r2 = (n: number) => String(Math.round(n * 100) / 100);
 export function frameToSvgString(frame: BotFrame, ink: string, paper: string): string {
   const VB = DEMI_VIEWBOX;
   const dots = frame.dots
-    .map((dot, i) => {
+    .map((dot) => {
       const fill = dot.color ?? (dot.depth === undefined ? ink : mixHex(paper, ink, dot.depth));
       const attrs = `fill="${fill}" opacity="${r2(dot.opacity)}"`;
       return dot.d

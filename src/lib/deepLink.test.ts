@@ -7,7 +7,9 @@ import {
 
 describe("parseDeepLinkCapture", () => {
   test("url-only inkling link keeps working", () => {
-    expect(parseDeepLinkCapture("inkling://capture?url=https%3A%2F%2Fexample.com%2Farticle")).toEqual({
+    expect(
+      parseDeepLinkCapture("inkling://capture?url=https%3A%2F%2Fexample.com%2Farticle"),
+    ).toEqual({
       kind: "url",
       url: "https://example.com/article",
     });
@@ -89,7 +91,8 @@ describe("parseDeepLinkCapture", () => {
       `inkling://capture?url=https%3A%2F%2Fexample.com%2F&selection=${long}`,
     );
     expect(parsed?.kind).toBe("quote");
-    if (parsed?.kind === "quote") expect(parsed.selection).toBe("x".repeat(DEEP_LINK_SELECTION_MAX_LENGTH));
+    if (parsed?.kind === "quote")
+      expect(parsed.selection).toBe("x".repeat(DEEP_LINK_SELECTION_MAX_LENGTH));
   });
 
   test("attribution truncates to the backend-safe limit", () => {
@@ -118,10 +121,14 @@ describe("parseDeepLinkCapture", () => {
   });
 
   test("rejects wrong scheme, host, and missing url", () => {
-    expect(parseDeepLinkCapture("https://example.com/?url=https%3A%2F%2Fexample.com%2F")).toBeNull();
+    expect(
+      parseDeepLinkCapture("https://example.com/?url=https%3A%2F%2Fexample.com%2F"),
+    ).toBeNull();
     expect(parseDeepLinkCapture("inkling://open?url=https%3A%2F%2Fexample.com%2F")).toBeNull();
     expect(parseDeepLinkCapture("inkling://capture?title=No%20url")).toBeNull();
-    expect(parseDeepLinkCapture("inkling://capture?image=https%3A%2F%2Fexample.com%2Fphoto.jpg")).toBeNull();
+    expect(
+      parseDeepLinkCapture("inkling://capture?image=https%3A%2F%2Fexample.com%2Fphoto.jpg"),
+    ).toBeNull();
     expect(parseDeepLinkCapture("not a url")).toBeNull();
   });
 });

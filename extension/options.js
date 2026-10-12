@@ -21,7 +21,8 @@ async function load() {
   if (baseUrlEl && typeof stored["inkling.base-url"] === "string") {
     baseUrlEl.value = stored["inkling.base-url"];
   }
-  if (tokenEl && typeof stored["inkling.token"] === "string") tokenEl.value = stored["inkling.token"];
+  if (tokenEl && typeof stored["inkling.token"] === "string")
+    tokenEl.value = stored["inkling.token"];
 }
 
 saveEl?.addEventListener("click", async () => {

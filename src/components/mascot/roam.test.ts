@@ -199,7 +199,9 @@ describe("roaming controller", () => {
     const found = outings(steps);
     expect(found.length).toBeGreaterThan(0);
     // A user working in the library is something to watch, not a reason to leave.
-    expect(found.some((outing) => outing.some((step) => step.action.target === "activity"))).toBe(true);
+    expect(found.some((outing) => outing.some((step) => step.action.target === "activity"))).toBe(
+      true,
+    );
     for (const outing of found) expect(outing[outing.length - 1]!.action.kind).toBe("go-home");
   });
 
@@ -224,7 +226,9 @@ describe("roaming controller", () => {
     const { steps } = fromFirstOuting(3, (start) => (now) => ({
       captureFailed: now >= start + 2_000 && now < start + 12_000,
     }));
-    const sad = steps.filter((step) => step.action.kind === "go-home" && step.action.expression === "triste");
+    const sad = steps.filter(
+      (step) => step.action.kind === "go-home" && step.action.expression === "triste",
+    );
     expect(sad.length).toBe(1);
     expect(sad[0]!.at).toBeGreaterThanOrEqual(2_000);
     const back = steps.find((step) => step.action.kind === "arrive")!;
@@ -235,7 +239,9 @@ describe("roaming controller", () => {
     // The app already wears the sad face at home, and the failure is spent on one
     // walk home. But a mascot that steps out and turns straight round reads as a
     // glitch, not a mood, so the first step out is never the sad one.
-    const { steps } = fromFirstOuting(3, (start) => (now) => ({ captureFailed: now < start + 2_000 }));
+    const { steps } = fromFirstOuting(3, (start) => (now) => ({
+      captureFailed: now < start + 2_000,
+    }));
     const first = steps[0]!;
     expect(["wander", "cross", "drift"]).toContain(first.action.kind);
     expect(first.action.expression).not.toBe("triste");
@@ -248,7 +254,9 @@ describe("roaming controller", () => {
   });
 
   test("reduced motion mid-outing ends the walk without a scene", () => {
-    const { steps } = fromFirstOuting(9, (start) => (now) => ({ reducedMotion: now >= start + 4_000 }));
+    const { steps } = fromFirstOuting(9, (start) => (now) => ({
+      reducedMotion: now >= start + 4_000,
+    }));
     const back = steps.find((step) => step.action.kind === "go-home")!;
     expect(back.at).toBeGreaterThanOrEqual(4_000);
     expect(back.action.expression).not.toBe("triste");
@@ -279,16 +287,20 @@ describe("roaming controller", () => {
   test("forcing an outing skips the wait without changing the rest", () => {
     const rand = createSeededRandom(21);
     let state = createRoamState(0, rand);
-    const first = tickRoam(state, {
-      now: 1_000,
-      lastActivityAt: -Infinity,
-      occupied: false,
-      reducedMotion: false,
-      hidden: false,
-      captureFailed: false,
-      canRoam: true,
-      force: true,
-    }, rand);
+    const first = tickRoam(
+      state,
+      {
+        now: 1_000,
+        lastActivityAt: -Infinity,
+        occupied: false,
+        reducedMotion: false,
+        hidden: false,
+        captureFailed: false,
+        canRoam: true,
+        force: true,
+      },
+      rand,
+    );
     expect(first.action).not.toBeNull();
     state = first.state;
     expect(state.phase).toBe("away");

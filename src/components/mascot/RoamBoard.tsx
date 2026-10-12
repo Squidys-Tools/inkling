@@ -27,9 +27,20 @@ const CARD_TONES = ["#2a2724", "#1d1b19", "#332f2a", "#211f1c", "#2c2926"];
 function FakeCard({ index }: { index: number }) {
   return (
     <div className="library-card-slot" style={{ paddingBottom: 14 }}>
-      <div className="library-card" style={{ height: 321, background: CARD_TONES[index % CARD_TONES.length] }}>
+      <div
+        className="library-card"
+        style={{ height: 321, background: CARD_TONES[index % CARD_TONES.length] }}
+      >
         <div style={{ padding: 14, display: "grid", gap: 8 }}>
-          <span className="card-kicker" style={{ fontSize: 10, letterSpacing: ".12em", color: "#8d867c", textTransform: "uppercase" }}>
+          <span
+            className="card-kicker"
+            style={{
+              fontSize: 10,
+              letterSpacing: ".12em",
+              color: "#8d867c",
+              textTransform: "uppercase",
+            }}
+          >
             {["image", "article", "pdf", "note", "quote"][index % 5]}
           </span>
           <span style={{ fontSize: 15, lineHeight: 1.3, color: "#e5ddd2" }}>
@@ -89,12 +100,18 @@ export function RoamBoard() {
       <main className="main-content" style={{ marginLeft: 248, height: "100vh" }}>
         <section className="library-header" />
         <div className="capture-bar" style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <div className="search-field" style={{ flex: 1, height: 50, border: "1px solid #4a4842", borderRadius: 12 }} />
+          <div
+            className="search-field"
+            style={{ flex: 1, height: 50, border: "1px solid #4a4842", borderRadius: 12 }}
+          />
           <div className="add-button" style={{ height: 50, padding: "0 17px" }}>
             Add
           </div>
         </div>
-        <div className="library-toolbar" style={{ display: "flex", justifyContent: "space-between", padding: "16px 0 10px" }}>
+        <div
+          className="library-toolbar"
+          style={{ display: "flex", justifyContent: "space-between", padding: "16px 0 10px" }}
+        >
           <span className="result-count">28 items</span>
         </div>
         <div className="library-scroll" style={{ flex: 1, minHeight: 0, position: "relative" }}>
@@ -103,6 +120,7 @@ export function RoamBoard() {
             style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, 257px)", gap: 14 }}
           >
             {Array.from({ length: 28 }, (_, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: a fixed 28-card placeholder grid; index is the identity.
               <FakeCard key={index} index={index} />
             ))}
           </div>
@@ -175,13 +193,22 @@ export function RoamBoard() {
               setSeed(value);
               if (Number.isFinite(value)) setRoamSeed(value);
             }}
-            style={{ width: 70, background: "#1d1b19", border: "1px solid #3b3934", borderRadius: 6, color: "#e5ddd2", padding: "4px 6px" }}
+            style={{
+              width: 70,
+              background: "#1d1b19",
+              border: "1px solid #3b3934",
+              borderRadius: 6,
+              color: "#e5ddd2",
+              padding: "4px 6px",
+            }}
           />
           <span style={{ color: "#8d867c" }}>· {seed} in use</span>
         </div>
         <div style={{ color: "#8d867c", marginBottom: 8 }}>
-          away {String(roam.away)} · phase {roam.phase} · mood {getRoamState()?.mood ?? "—"} · stops {roam.stops} ·
-          at {roamMotion().x},{roamMotion().y} &#183; {roamMotion().speed}px/s &#183; awake {(roamAwakeLeft() / 1000).toFixed(1)}s &#183; {manual ? "manual" : "auto"} &#183; {MASCOT_SIZE}px
+          away {String(roam.away)} · phase {roam.phase} · mood {getRoamState()?.mood ?? "—"} · stops{" "}
+          {roam.stops} · at {roamMotion().x},{roamMotion().y} &#183; {roamMotion().speed}px/s &#183;
+          awake {(roamAwakeLeft() / 1000).toFixed(1)}s &#183; {manual ? "manual" : "auto"} &#183;{" "}
+          {MASCOT_SIZE}px
         </div>
         <ol style={{ margin: 0, paddingLeft: 18, color: "#c9c2b6" }}>
           {lines.map((line) => (
@@ -204,6 +231,3 @@ const button: CSSProperties = {
   cursor: "pointer",
   font: "inherit",
 };
-
-
-

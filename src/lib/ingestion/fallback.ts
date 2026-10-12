@@ -40,7 +40,11 @@ function extractImageUrls(document: Document, baseUrl: string): string[] {
   const values: string[] = [];
 
   for (const element of document.querySelectorAll("meta[property], meta[name]")) {
-    const key = (element.getAttribute("property") ?? element.getAttribute("name") ?? "").toLowerCase();
+    const key = (
+      element.getAttribute("property") ??
+      element.getAttribute("name") ??
+      ""
+    ).toLowerCase();
     if (key.includes("image")) {
       const value = normalizeHttpUrl(element.getAttribute("content"), baseUrl);
       if (value) values.push(value);
@@ -73,8 +77,12 @@ function extractImageDimensions(document: Document, baseUrl: string): ImageDimen
   }
 
   const openGraphUrl = normalizeHttpUrl(metaContent(document, ["og:image"]), baseUrl);
-  const openGraphWidth = positiveDimension(metaContent(document, ["og:image:width", "twitter:image:width"]));
-  const openGraphHeight = positiveDimension(metaContent(document, ["og:image:height", "twitter:image:height"]));
+  const openGraphWidth = positiveDimension(
+    metaContent(document, ["og:image:width", "twitter:image:width"]),
+  );
+  const openGraphHeight = positiveDimension(
+    metaContent(document, ["og:image:height", "twitter:image:height"]),
+  );
   if (openGraphUrl && openGraphWidth && openGraphHeight) {
     values.push({ url: openGraphUrl, width: openGraphWidth, height: openGraphHeight });
   }
@@ -94,7 +102,11 @@ function contentRoot(document: Document): Element | null {
     ...document.querySelectorAll('[role="main"]'),
   ];
 
-  return candidates.find((candidate) => normalizeText(candidate.textContent).length > 80) ?? candidates[0] ?? document.body;
+  return (
+    candidates.find((candidate) => normalizeText(candidate.textContent).length > 80) ??
+    candidates[0] ??
+    document.body
+  );
 }
 
 const BYLINE_SELECTOR = [
@@ -186,7 +198,10 @@ function bylineAuthor(document: Document): string {
 
 export function extractFallback(document: Document, url: string): RawArticleExtraction {
   const root = contentRoot(document);
-  const canonical = normalizeHttpUrl(document.querySelector('link[rel="canonical"]')?.getAttribute("href"), url);
+  const canonical = normalizeHttpUrl(
+    document.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+    url,
+  );
   const published =
     metaContent(document, META_DATE_NAMES) ??
     document.querySelector("time[datetime]")?.getAttribute("datetime") ??
@@ -200,17 +215,11 @@ export function extractFallback(document: Document, url: string): RawArticleExtr
       firstMeaningfulText(document, ["h1", "title"]) ??
       new URL(url).hostname,
     description: structured.description ?? metaContent(document, META_DESCRIPTION_NAMES) ?? "",
-    author:
-      structured.author ??
-      metaContent(document, META_AUTHOR_NAMES) ??
-      bylineAuthor(document),
+    author: structured.author ?? metaContent(document, META_AUTHOR_NAMES) ?? bylineAuthor(document),
     publishedDate: normalizePublishedDate(structured.publishedDate ?? published),
     canonicalUrl: canonical ?? url,
     contentHtml: root?.innerHTML ?? "",
-    imageUrls: uniqueStrings([
-      ...(structured.imageUrls ?? []),
-      ...extractImageUrls(document, url),
-    ]),
+    imageUrls: uniqueStrings([...(structured.imageUrls ?? []), ...extractImageUrls(document, url)]),
     imageDimensions: extractImageDimensions(document, url),
   };
 }

@@ -22,7 +22,11 @@ import type { ItemKind, LibraryItem } from "../App";
 import pdfPointillismOptionB from "../assets/pdf-pointillism-option-b.png";
 
 export function mediaAspectRatioFor(item: LibraryItem): number {
-  if (item.mediaAspectRatio && Number.isFinite(item.mediaAspectRatio) && item.mediaAspectRatio > 0) {
+  if (
+    item.mediaAspectRatio &&
+    Number.isFinite(item.mediaAspectRatio) &&
+    item.mediaAspectRatio > 0
+  ) {
     return item.mediaAspectRatio;
   }
   if (item.mediaWidth && item.mediaHeight && item.mediaWidth > 0 && item.mediaHeight > 0) {
@@ -85,8 +89,14 @@ export function PdfArtwork({ item }: { item: LibraryItem }) {
       <span className="pdf-label">PDF</span>
       <span className="pdf-mark" aria-hidden="true" />
       <span className="pdf-title">{pdfPreviewTitle(item.title) || "Document"}</span>
-      <div className="pdf-legend" aria-hidden="true"><span /><span /><span /></div>
-      <span className="pdf-page-count">{item.pdfPageCount ? `${item.pdfPageCount} PAGES` : "PDF"}</span>
+      <div className="pdf-legend" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <span className="pdf-page-count">
+        {item.pdfPageCount ? `${item.pdfPageCount} PAGES` : "PDF"}
+      </span>
     </div>
   );
 }
@@ -105,14 +115,20 @@ export function noteWordCount(value: string | undefined): number {
 // note's own indexed content: the pipeline title and the description's word
 // count in place of the PDF page count.
 export function NoteArtwork({ item }: { item: LibraryItem }) {
-  const words = noteWordCount(item.noteBody === undefined ? item.description : markdownToPlainText(item.noteBody));
+  const words = noteWordCount(
+    item.noteBody === undefined ? item.description : markdownToPlainText(item.noteBody),
+  );
   return (
     <div className="pdf-artwork">
       <img src={pdfPointillismOptionB} alt="" className="pdf-shader" />
       <span className="pdf-label">NOTE</span>
       <span className="pdf-mark" aria-hidden="true" />
       <span className="pdf-title">{item.title?.trim() || "Untitled note"}</span>
-      <div className="pdf-legend" aria-hidden="true"><span /><span /><span /></div>
+      <div className="pdf-legend" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
       <span className="pdf-page-count">{words > 0 ? `${words} WORDS` : "NOTE"}</span>
     </div>
   );
@@ -150,6 +166,8 @@ const VIDEO_IFRAME_ALLOW =
 
 export function DetailVideoMedia({ item }: { item: LibraryItem }) {
   const [isPlaying, setIsPlaying] = useState(false);
+  // Item identity is a reset trigger; the effect intentionally reads no item data.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Changing items must stop the previous video's playback.
   useEffect(() => setIsPlaying(false), [item.id]);
 
   if (item.video) {
@@ -171,7 +189,9 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
             aria-label={`Play video: ${item.title}`}
           >
             {poster && <img src={poster} alt="" loading="lazy" decoding="async" />}
-            <span className="video-poster-play" aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={21} /></span>
+            <span className="video-poster-play" aria-hidden="true">
+              <HugeiconsIcon icon={PlayIcon} size={21} />
+            </span>
             <span className="video-provider">{providerLabel(item.video.provider)}</span>
           </button>
         )}
@@ -182,13 +202,18 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
   if (item.fileUrl) {
     return (
       <div className="detail-video">
+        {/* This local upload has no caption metadata in the item model; do not fabricate an empty track. */}
+        {/* biome-ignore lint/a11y/useMediaCaption: Captions are unavailable for this user-supplied file. */}
         <video className="detail-native-video" src={item.fileUrl} controls preload="metadata" />
       </div>
     );
   }
 
   return (
-    <div className={`detail-art ${item.accent ?? "ink"}`}><KindIcon kind={item.kind} /><span>{item.kind}</span></div>
+    <div className={`detail-art ${item.accent ?? "ink"}`}>
+      <KindIcon kind={item.kind} />
+      <span>{item.kind}</span>
+    </div>
   );
 }
 
@@ -341,13 +366,12 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
       observer.disconnect();
       cancelScheduledLoad?.();
     };
-  }, [social.postUrl]);
+  }, []);
 
   useEffect(() => {
-    setShouldLoad(false);
     setEmbedHtml(social.embedHtml);
     setStatus("idle");
-  }, [social.embedHtml, social.postUrl]);
+  }, [social.embedHtml]);
 
   useEffect(() => {
     if (!shouldLoad) return;
@@ -368,7 +392,10 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
       })
       .then((payload) => {
         if (cancelled) return;
-        const normalized = normalizeXPostOEmbed(social.postUrl, payload as Parameters<typeof normalizeXPostOEmbed>[1]);
+        const normalized = normalizeXPostOEmbed(
+          social.postUrl,
+          payload as Parameters<typeof normalizeXPostOEmbed>[1],
+        );
         if (!normalized?.embedHtml) throw new Error("X did not return embed markup.");
         setEmbedHtml(normalized.embedHtml);
       })
@@ -382,6 +409,7 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
   }, [shouldLoad, social.embedHtml, social.postUrl]);
 
   useEffect(() => {
+    if (!shouldLoad) return;
     const root = nativeRef.current;
     if (!root || !embedHtml) return;
 
@@ -397,11 +425,14 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
         return;
       }
 
-      root.querySelector<HTMLElement>("blockquote.twitter-tweet")?.setAttribute("data-width", String(width));
+      root
+        .querySelector<HTMLElement>("blockquote.twitter-tweet")
+        ?.setAttribute("data-width", String(width));
     };
 
     updateEmbedWidth();
-    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateEmbedWidth);
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateEmbedWidth);
     resizeObserver?.observe(root);
     window.addEventListener("resize", updateEmbedWidth);
     let cancelled = false;
@@ -427,7 +458,11 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
 
   return (
     <div className="x-post-embed" ref={hostRef} data-x-status={status}>
-      <div className={`x-post-native ${status === "ready" ? "is-ready" : ""}`} ref={nativeRef} aria-hidden={status !== "ready"} />
+      <div
+        className={`x-post-native ${status === "ready" ? "is-ready" : ""}`}
+        ref={nativeRef}
+        aria-hidden={status !== "ready"}
+      />
       {status !== "ready" && <div className="x-post-fallback">{fallback}</div>}
     </div>
   );

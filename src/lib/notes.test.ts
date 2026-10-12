@@ -22,9 +22,7 @@ describe("markdownToPlainText", () => {
   });
 
   test("keeps code content and removes raw HTML", () => {
-    expect(markdownToPlainText("`<tag>`\n\n<script>alert(1)</script>")).toBe(
-      "<tag> alert(1)",
-    );
+    expect(markdownToPlainText("`<tag>`\n\n<script>alert(1)</script>")).toBe("<tag> alert(1)");
   });
 
   // These pin the Rust semantics in `markdown_to_plain_text`
@@ -53,7 +51,9 @@ describe("markdownToPlainText", () => {
   });
 
   test("keeps punctuation tight against the word it follows", () => {
-    expect(markdownToPlainText("One line\n\nTwo, and three; done?")).toBe("One line Two, and three; done?");
+    expect(markdownToPlainText("One line\n\nTwo, and three; done?")).toBe(
+      "One line Two, and three; done?",
+    );
   });
 
   // Documented divergence, tracked on the Rust side: it handles `Event::Html`
@@ -104,7 +104,9 @@ describe("markdownToPlainText", () => {
   });
 
   test("unwraps autolinks to their inner text", () => {
-    expect(markdownToPlainText("see <https://example.com> now")).toBe("see https://example.com now");
+    expect(markdownToPlainText("see <https://example.com> now")).toBe(
+      "see https://example.com now",
+    );
     expect(markdownToPlainText("<https://example.com>")).toBe("https://example.com");
     expect(markdownToPlainText("<http://example.com>")).toBe("http://example.com");
     expect(markdownToPlainText("<user@example.com>")).toBe("user@example.com");

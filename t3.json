@@ -26,6 +26,18 @@
       "runOnWorktreeCreate": false
     },
     {
+      "name": "Lint frontend",
+      "command": "bun run lint",
+      "icon": "test",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Fix frontend lint and format",
+      "command": "bun run lint:fix",
+      "icon": "configure",
+      "runOnWorktreeCreate": false
+    },
+    {
       "name": "Check Bun version",
       "command": "bun run check:bun-version",
       "icon": "debug",
