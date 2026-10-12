@@ -59,6 +59,7 @@ Guardrails:
 
 ### Changed
 
+- Biome now formats and lints project files locally, and frontend CI enforces those checks (#109).
 - Paper Mono is now the default interface typeface, bundled locally under the SIL Open Font License.
 - GitHub Actions moved off paid Blacksmith runners to the free GitHub-hosted ones (`.github/workflows/ci.yml`, `.github/workflows/security.yml`, `.github/workflows/release.yml`)
 - CI now lints Rust with `cargo clippy --all-targets -- -D warnings`, typechecks the extension and shared package workspaces, builds the browser extension, and verifies the Bun version pin; frontend paths under `extension/` and `packages/` trigger the frontend job (`.github/workflows/ci.yml`)
