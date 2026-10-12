@@ -4448,7 +4448,7 @@ function App() {
                               data={item}
                               index={index}
                               context={archivedCardContext}
-                              slotClassName="min-w-0 pb-0"
+                              slotClassName="min-w-0 pb-0!"
                             />
                           ))}
                         </div>

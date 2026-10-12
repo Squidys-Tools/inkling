@@ -336,6 +336,7 @@ export function RichNoteEditor({
               <input
                 ref={linkInputRef}
                 className="note-link-input"
+                data-dialog-escape="owned"
                 aria-label="Link URL"
                 value={linkDraft}
                 placeholder="https://"

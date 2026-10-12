@@ -223,7 +223,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
 function OverlayMedia({ item }: { item: LibraryItem }) {
   if (item.kind === "Note" && !item.image) {
     return (
-      <div className="expanded-overlay-media note-detail-media">
+      <div className="expanded-overlay-media note-detail-media h-full">
         <NoteArtwork item={item} />
       </div>
     );
@@ -249,7 +249,7 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.kind === "Video") {
     return (
-      <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
+      <div className="expanded-overlay-media relative h-full flex-none overflow-hidden bg-[#101010]">
         <DetailVideoMedia item={item} />
       </div>
     );
@@ -257,7 +257,7 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.kind === "PDF") {
     return (
-      <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
+      <div className="expanded-overlay-media relative h-full flex-none overflow-hidden bg-[#101010]">
         <PdfArtwork item={item} />
       </div>
     );
@@ -265,7 +265,7 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.image) {
     return (
-      <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
+      <div className="expanded-overlay-media relative h-full flex-none overflow-hidden bg-[#101010]">
         <img
           src={item.image}
           alt={item.imageAlt ?? item.title}
@@ -277,7 +277,7 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.kind === "Quote") {
     return (
-      <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
+      <div className="expanded-overlay-media relative h-full flex-none overflow-hidden bg-[#101010]">
         <div className="detail-art detail-quote-art paper-yellow bg-yellow-soft text-[#b3ad8d]">
           <span className="detail-quote-mark block font-[Georgia,serif] text-[64px] leading-[.8] text-[#b3ad8d]">
             “
@@ -290,14 +290,14 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.kind === "Post" && item.post) {
     return (
-      <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
+      <div className="expanded-overlay-media relative h-full flex-none overflow-hidden bg-[#101010]">
         <PostArtwork post={item.post} />
       </div>
     );
   }
 
   return (
-    <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
+    <div className="expanded-overlay-media relative h-full flex-none overflow-hidden bg-[#101010]">
       <div className={`detail-art ${item.accent ?? "ink"}`}>
         <KindIcon kind={item.kind} />
         <span>{item.kind}</span>
@@ -1155,6 +1155,7 @@ export function ExpandedItemOverlay({
                     ref={tagInputRef}
                     placeholder="tag name"
                     aria-label="New tag name"
+                    data-dialog-escape="owned"
                     onChange={(event) => setTagDraft(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {

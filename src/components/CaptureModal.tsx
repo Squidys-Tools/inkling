@@ -293,6 +293,7 @@ export function CaptureModal(props: CaptureModalProps) {
                       <input
                         ref={fileInputRef}
                         type="file"
+                        tabIndex={-1}
                         className="visually-hidden absolute h-px w-px overflow-hidden whitespace-nowrap [clip:rect(0_0_0_0)] [clip-path:inset(50%)]"
                         accept="image/*,application/pdf,video/*"
                         onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
