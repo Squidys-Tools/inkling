@@ -41,18 +41,12 @@ export default defineConfig(async ({ mode }) => {
   const includeSeed = mode !== "app";
 
   return {
-    plugins: [
-      react(),
-      tailwindcss(),
-      ...(includeSeed ? [] : [excludeSeedFromAppBuild()]),
-    ],
+    plugins: [react(), tailwindcss(), ...(includeSeed ? [] : [excludeSeedFromAppBuild()])],
 
     // Read by the seed glob in src/App.tsx. A `define` rather than a runtime
     // check, so the false branch is dropped and the seed module is never
     // bundled into a shipped build.
-    define: includeSeed
-      ? {}
-      : { "import.meta.env.VITE_INKLING_SEED": JSON.stringify("0") },
+    define: includeSeed ? {} : { "import.meta.env.VITE_INKLING_SEED": JSON.stringify("0") },
 
     build: {
       // Tauri ships an evergreen Chromium webview (WebView2), so build for

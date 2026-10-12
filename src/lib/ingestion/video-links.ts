@@ -26,11 +26,13 @@ function posterUrl(descriptor: VideoIframeDescriptor): string | undefined {
  * Recognizes saved links that point at a video page itself (YouTube, Vimeo).
  * Articles that merely embed a video keep their original kind.
  */
-export function videoLinkFromSourceUrl(sourceUrl: string | null | undefined): VideoLinkEmbed | null {
+export function videoLinkFromSourceUrl(
+  sourceUrl: string | null | undefined,
+): VideoLinkEmbed | null {
   const trimmed = sourceUrl?.trim();
   if (!trimmed) return null;
   const descriptor = sanitizeEmbedUrl(trimmed);
-  if (!descriptor || descriptor.type !== "iframe") return null;
+  if (descriptor?.type !== "iframe") return null;
   return {
     provider: descriptor.provider,
     embedUrl: descriptor.src,

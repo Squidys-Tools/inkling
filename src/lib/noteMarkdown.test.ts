@@ -14,7 +14,8 @@ function countOccurrences(haystack: string, needle: string) {
 
 describe("note markdown", () => {
   test("round-trips headings, emphasis, links, and tasks", () => {
-    const source = "# Heading\n\n**Bold** and [docs](https://example.com).\n\n- [x] done\n- [ ] next";
+    const source =
+      "# Heading\n\n**Bold** and [docs](https://example.com).\n\n- [x] done\n- [ ] next";
     const document = parseNoteMarkdown(source);
     const serialized = serializeNoteDocument(document);
 

@@ -1,10 +1,6 @@
 import type { LibraryFileKind } from "./file-classification";
 
-type ThumbnailMode =
-  | "image-raster"
-  | "pdf-first-page"
-  | "video-first-frame"
-  | "none";
+type ThumbnailMode = "image-raster" | "pdf-first-page" | "video-first-frame" | "none";
 
 interface ThumbnailPolicy {
   kind: LibraryFileKind;
@@ -70,21 +66,24 @@ export interface AssetPathOptions {
 
 /** Produces one safe, case-insensitive path segment. */
 export function sanitizeAssetSegment(value: string, fallback = "asset"): string {
-  const sanitize = (candidate: string): string => candidate
-    .normalize("NFKC")
-    .trim()
-    .toLowerCase()
-    .replace(/[\\/]/gu, "-")
-    .replace(/[^a-z0-9._-]/gu, "-")
-    .replace(/-+/gu, "-")
-    .replace(/^\.+/u, "")
-    .replace(/\.+$/u, "");
+  const sanitize = (candidate: string): string =>
+    candidate
+      .normalize("NFKC")
+      .trim()
+      .toLowerCase()
+      .replace(/[\\/]/gu, "-")
+      .replace(/[^a-z0-9._-]/gu, "-")
+      .replace(/-+/gu, "-")
+      .replace(/^\.+/u, "")
+      .replace(/\.+$/u, "");
 
   const safe = sanitize(value);
   if (safe.length > 0 && safe !== "." && safe !== "..") return safe;
 
   const safeFallback = sanitize(fallback);
-  return safeFallback.length > 0 && safeFallback !== "." && safeFallback !== ".." ? safeFallback : "asset";
+  return safeFallback.length > 0 && safeFallback !== "." && safeFallback !== ".."
+    ? safeFallback
+    : "asset";
 }
 
 function safeExtension(extension: string): string {
@@ -102,10 +101,7 @@ export function assetRelativePath(options: AssetPathOptions): string {
   return `items/${sanitizeAssetSegment(options.itemId)}/${assetFileName(options)}`;
 }
 
-export function thumbnailRelativePath(
-  itemId: string,
-  kind: LibraryFileKind,
-): string | null {
+export function thumbnailRelativePath(itemId: string, kind: LibraryFileKind): string | null {
   const policy = thumbnailPolicyFor(kind);
   return policy.outputExtension
     ? assetRelativePath({

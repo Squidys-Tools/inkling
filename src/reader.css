@@ -84,7 +84,9 @@
   backdrop-filter: blur(12px);
   color: var(--reader-muted);
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
   animation: reader-fade 0.7s ease 0.32s both;
 }
 
@@ -225,12 +227,20 @@
   color: var(--reader-ink);
 }
 
-.reader-content h1 { font-size: 1.55em; }
-.reader-content h2 { font-size: 1.35em; }
-.reader-content h3 { font-size: 1.15em; }
+.reader-content h1 {
+  font-size: 1.55em;
+}
+.reader-content h2 {
+  font-size: 1.35em;
+}
+.reader-content h3 {
+  font-size: 1.15em;
+}
 .reader-content h4,
 .reader-content h5,
-.reader-content h6 { font-size: 1em; }
+.reader-content h6 {
+  font-size: 1em;
+}
 
 .reader-content > h1:first-child,
 .reader-content > h2:first-child,
@@ -366,7 +376,9 @@
   font-family: var(--reader-font-meta);
   font-size: 13px;
   text-decoration: none;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
 }
 
 .reader-footer a:hover {

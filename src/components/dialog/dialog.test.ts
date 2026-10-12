@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { parseHTML } from "linkedom";
-import { dialogRootProps, escapeOwner, focusableWithin, handleEscape, registerDialog } from "./dialog";
+import {
+  dialogRootProps,
+  escapeOwner,
+  focusableWithin,
+  handleEscape,
+  registerDialog,
+} from "./dialog";
 
 // The defects these cover were all shipped and all silent: one Escape press
 // closing two dialogs at once, a dialog announcing itself through an id that

@@ -28,9 +28,7 @@ describe("trimCaptureQueue", () => {
   });
 
   test("drops oldest past the item cap", () => {
-    const queue = Array.from({ length: MAX_CAPTURE_QUEUE_ITEMS + 5 }, (_, i) =>
-      payload(i, 10),
-    );
+    const queue = Array.from({ length: MAX_CAPTURE_QUEUE_ITEMS + 5 }, (_, i) => payload(i, 10));
     trimCaptureQueue(queue);
     expect(queue).toHaveLength(MAX_CAPTURE_QUEUE_ITEMS);
     expect(queue[0].url).toContain("/5");

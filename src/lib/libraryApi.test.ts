@@ -60,7 +60,15 @@ test("groups jobs by item and summarizes each", () => {
     ["a", "b"],
     [
       job({ id: "1", itemId: "a", kind: "generate_embedding", status: "completed" }),
-      job({ id: "2", itemId: "a", kind: "ocr_image", status: "processing", progressCurrent: 2, progressTotal: 4, progressMessage: "OCR" }),
+      job({
+        id: "2",
+        itemId: "a",
+        kind: "ocr_image",
+        status: "processing",
+        progressCurrent: 2,
+        progressTotal: 4,
+        progressMessage: "OCR",
+      }),
       job({ id: "3", itemId: "b", status: "failed", errorMessage: "boom" }),
     ],
   );
@@ -98,8 +106,22 @@ test("the newest failed job surfaces for its item", () => {
   const summaries = summariesFromJobs(
     ["a"],
     [
-      job({ id: "1", itemId: "a", kind: "generate_embedding", status: "failed", errorMessage: "older failure", createdAt: 1 }),
-      job({ id: "2", itemId: "a", kind: "generate_embedding", status: "failed", errorMessage: "newest failure", createdAt: 2 }),
+      job({
+        id: "1",
+        itemId: "a",
+        kind: "generate_embedding",
+        status: "failed",
+        errorMessage: "older failure",
+        createdAt: 1,
+      }),
+      job({
+        id: "2",
+        itemId: "a",
+        kind: "generate_embedding",
+        status: "failed",
+        errorMessage: "newest failure",
+        createdAt: 2,
+      }),
     ],
   );
   expect(summaries.get("a")?.failedJob?.errorMessage).toBe("newest failure");
@@ -119,10 +141,7 @@ test("filing an item in and out of a Space sends the space and item ids", async 
   await addSpaceItem("space-1", "item-7");
   await removeSpaceItem("space-1", "item-7");
 
-  expect(invokeCalls.map((call) => call.command)).toEqual([
-    "add_space_item",
-    "remove_space_item",
-  ]);
+  expect(invokeCalls.map((call) => call.command)).toEqual(["add_space_item", "remove_space_item"]);
   expect(invokeCalls[0]?.args).toEqual({ spaceId: "space-1", itemId: "item-7" });
   expect(invokeCalls[1]?.args).toEqual({ spaceId: "space-1", itemId: "item-7" });
 });
@@ -158,5 +177,8 @@ test("the UI can enqueue OCR for a selected image or PDF", async () => {
   invokeCalls.length = 0;
 
   expect(await enqueueOcrJob("item-7")).toBe("job-2");
-  expect(invokeCalls[invokeCalls.length - 1]).toEqual({ command: "enqueue_ocr_job", args: { itemId: "item-7" } });
+  expect(invokeCalls[invokeCalls.length - 1]).toEqual({
+    command: "enqueue_ocr_job",
+    args: { itemId: "item-7" },
+  });
 });

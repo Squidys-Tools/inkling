@@ -38,11 +38,22 @@ export class WindowsOcrEngine implements OcrEngine {
 
   async run(imagePath: string): Promise<string> {
     const result = Bun.spawnSync(
-      ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", this.scriptPath, "-ImagePath", imagePath],
+      [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        this.scriptPath,
+        "-ImagePath",
+        imagePath,
+      ],
       { stdout: "pipe", stderr: "pipe" },
     );
     if (result.exitCode !== 0) {
-      throw new Error(`Windows OCR failed (exit ${result.exitCode}): ${result.stderr.toString("utf8")}`);
+      throw new Error(
+        `Windows OCR failed (exit ${result.exitCode}): ${result.stderr.toString("utf8")}`,
+      );
     }
     return result.stdout.toString("utf8").trim();
   }
@@ -76,7 +87,9 @@ export class TesseractJsEngine implements OcrEngine {
       const existing = process.env.NODE_PATH ?? "";
       this.modules = existing.split(/[;:]/).includes(projectModules)
         ? existing
-        : existing ? `${existing}${process.platform === "win32" ? ";" : ":"}${projectModules}` : projectModules;
+        : existing
+          ? `${existing}${process.platform === "win32" ? ";" : ":"}${projectModules}`
+          : projectModules;
       process.env.NODE_PATH = this.modules;
     }
 

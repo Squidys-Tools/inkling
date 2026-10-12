@@ -1,4 +1,15 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+// biome-ignore-all lint/a11y/noStaticElementInteractions: The app shell accepts file drops and the search wrapper forwards clicks to its input.
+// biome-ignore-all lint/a11y/useSemanticElements: Space rows contain nested controls, so they cannot become single buttons.
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
@@ -118,7 +129,13 @@ import {
   SETTINGS_TAB_ACTIVE_CLASS,
   SETTINGS_TAB_CLASS,
 } from "./components/settingsClasses";
-import { isCardTooFarOffscreen, queryCardRects, rectFrom, scrollViewport, type SourceRects } from "./components/overlayMotion";
+import {
+  isCardTooFarOffscreen,
+  queryCardRects,
+  rectFrom,
+  scrollViewport,
+  type SourceRects,
+} from "./components/overlayMotion";
 import { KindIcon } from "./components/ItemMedia";
 const ReaderView = lazy(() =>
   import("./ReaderView").then((module) => ({ default: module.ReaderView })),
@@ -151,7 +168,6 @@ const localSeedItems: LibraryItem[] =
 import "./App.css";
 
 export type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
-
 
 export type LibraryItem = {
   id: string | number;
@@ -186,10 +202,10 @@ export type LibraryItem = {
   favorite?: boolean;
   archived?: boolean;
   processing?: ProcessingSummary;
-   articleHtml?: string;
-   articleAuthor?: string;
-   publishedDate?: string;
-   video?: VideoLinkEmbed;
+  articleHtml?: string;
+  articleAuthor?: string;
+  publishedDate?: string;
+  video?: VideoLinkEmbed;
 };
 
 function displayKind(kind: string): ItemKind {
@@ -248,7 +264,11 @@ function formatExportSummary(report: LibraryExportReport) {
 function readXPostMetadata(value: unknown): XPostMetadata | undefined {
   if (!value || typeof value !== "object") return undefined;
   const record = value as Record<string, unknown>;
-  if (record.provider !== "x" || typeof record.postUrl !== "string" || typeof record.postId !== "string") {
+  if (
+    record.provider !== "x" ||
+    typeof record.postUrl !== "string" ||
+    typeof record.postId !== "string"
+  ) {
     return undefined;
   }
 
@@ -268,7 +288,11 @@ function readXPostMetadata(value: unknown): XPostMetadata | undefined {
 
 function postFallbackFromMetadata(social: XPostMetadata): NonNullable<LibraryItem["post"]> {
   const published = social.publishedDate
-    ? new Date(social.publishedDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    ? new Date(social.publishedDate).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
     : "On X";
   return {
     displayName: social.authorName ?? "X user",
@@ -308,37 +332,50 @@ async function storedItemToLibraryItem(
     ? metadataTags.filter((tag): tag is string => typeof tag === "string")
     : [];
   const metadataHtml = typeof item.metadata.html === "string" ? item.metadata.html : undefined;
-  const metadataAuthor = typeof item.metadata.author === "string" ? item.metadata.author : undefined;
+  const metadataAuthor =
+    typeof item.metadata.author === "string" ? item.metadata.author : undefined;
   const metadataPublishedDate =
     typeof item.metadata.publishedDate === "string" ? item.metadata.publishedDate : undefined;
-  const pdfPageCount = baseKind === "PDF" && typeof item.metadata.pdfPageCount === "number" && Number.isInteger(item.metadata.pdfPageCount) && item.metadata.pdfPageCount > 0
-    ? item.metadata.pdfPageCount
-    : undefined;
+  const pdfPageCount =
+    baseKind === "PDF" &&
+    typeof item.metadata.pdfPageCount === "number" &&
+    Number.isInteger(item.metadata.pdfPageCount) &&
+    item.metadata.pdfPageCount > 0
+      ? item.metadata.pdfPageCount
+      : undefined;
 
   const remoteImage = Array.isArray(item.metadata.imageUrls)
     ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")
     : undefined;
   const indexedImageDimensions = Array.isArray(item.metadata.imageDimensions)
     ? item.metadata.imageDimensions.find((value): value is Record<string, unknown> => {
-      if (!value || typeof value !== "object") return false;
-      const record = value as Record<string, unknown>;
-      return (!remoteImage || record.url === remoteImage) && positiveNumber(record.width) !== undefined && positiveNumber(record.height) !== undefined;
-    })
+        if (!value || typeof value !== "object") return false;
+        const record = value as Record<string, unknown>;
+        return (
+          (!remoteImage || record.url === remoteImage) &&
+          positiveNumber(record.width) !== undefined &&
+          positiveNumber(record.height) !== undefined
+        );
+      })
     : undefined;
-  const mediaWidth = positiveNumber(item.metadata.mediaWidth) ?? positiveNumber(indexedImageDimensions?.width);
-  const mediaHeight = positiveNumber(item.metadata.mediaHeight) ?? positiveNumber(indexedImageDimensions?.height);
+  const mediaWidth =
+    positiveNumber(item.metadata.mediaWidth) ?? positiveNumber(indexedImageDimensions?.width);
+  const mediaHeight =
+    positiveNumber(item.metadata.mediaHeight) ?? positiveNumber(indexedImageDimensions?.height);
   const storedAspectRatio = positiveNumber(item.metadata.mediaAspectRatio);
   const image =
     (await assetUrl(item.thumbnailPath ?? (kind === "Image" ? item.localAssetPath : null))) ??
     remoteImage ??
     videoLink?.posterUrl;
-  const fileUrl = kind === "PDF" || kind === "Video" ? await assetUrl(item.localAssetPath) : undefined;
+  const fileUrl =
+    kind === "PDF" || kind === "Video" ? await assetUrl(item.localAssetPath) : undefined;
   const source = social
     ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
     : item.sourceLabel || item.sourceUrl || "Quick note";
 
   const isQuote = kind === "Quote";
-  const noteBody = kind === "Note" && typeof item.body === "string" ? normalizeNoteBody(item.body) : undefined;
+  const noteBody =
+    kind === "Note" && typeof item.body === "string" ? normalizeNoteBody(item.body) : undefined;
   const rawTitle = item.title?.trim() || "Untitled note";
   // The backend already stored `markdown_to_plain_text(body)` as the
   // description, so a note's plain text arrives ready to read. Projecting the
@@ -364,7 +401,8 @@ async function storedItemToLibraryItem(
     image,
     mediaWidth,
     mediaHeight,
-    mediaAspectRatio: storedAspectRatio ?? (mediaWidth && mediaHeight ? mediaWidth / mediaHeight : undefined),
+    mediaAspectRatio:
+      storedAspectRatio ?? (mediaWidth && mediaHeight ? mediaWidth / mediaHeight : undefined),
     pdfPageCount,
     fileUrl,
     imageAlt: item.title?.trim() || undefined,
@@ -374,13 +412,12 @@ async function storedItemToLibraryItem(
     favorite: item.favorite,
     archived: item.archived,
     processing,
-    articleHtml: metadataHtml && metadataHtml.trim() ? metadataHtml : undefined,
+    articleHtml: metadataHtml?.trim() ? metadataHtml : undefined,
     articleAuthor: metadataAuthor,
     publishedDate: metadataPublishedDate,
     video: videoLink ?? undefined,
   };
 }
-
 
 const seedItems: LibraryItem[] = [
   {
@@ -409,7 +446,8 @@ const seedItems: LibraryItem[] = [
     title: "Lago di Braies, Dolomites",
     description: "The boathouse at the north shore, before the day-trippers arrive.",
     source: "Unsplash",
-    sourceUrl: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1800&q=90",
+    sourceUrl:
+      "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1800&q=90",
     date: "Yesterday",
     tags: ["landscape", "reference"],
     image:
@@ -427,7 +465,8 @@ const seedItems: LibraryItem[] = [
     source: "Paul Graham",
     sourceUrl: "https://paulgraham.com/greatwork.html",
     author: "Paul Graham",
-    image: "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1000&q=85",
+    image:
+      "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1000&q=85",
     mediaAspectRatio: 3 / 2,
     imageAlt: "A notebook and coffee on a desk, a quiet setting for doing great work",
     date: "Aug 20",
@@ -438,9 +477,11 @@ const seedItems: LibraryItem[] = [
     id: 4,
     kind: "Image",
     title: "Wireframes on a design desk",
-    description: "A real product sketch: paper prototypes, a pencil, and the first shape of a flow.",
+    description:
+      "A real product sketch: paper prototypes, a pencil, and the first shape of a flow.",
     source: "Unsplash",
-    sourceUrl: "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?auto=format&fit=crop&w=1800&q=90",
+    sourceUrl:
+      "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?auto=format&fit=crop&w=1800&q=90",
     date: "Aug 18",
     tags: ["ui", "reference"],
     image:
@@ -476,9 +517,11 @@ const seedItems: LibraryItem[] = [
     id: 6,
     kind: "Image",
     title: "A dashboard worth studying",
-    description: "Dark UI, dense information, and just enough color to make the important number pop.",
+    description:
+      "Dark UI, dense information, and just enough color to make the important number pop.",
     source: "Unsplash",
-    sourceUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1800&q=90",
+    sourceUrl:
+      "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1800&q=90",
     date: "Aug 12",
     tags: ["ui", "reference"],
     image:
@@ -495,7 +538,8 @@ const seedItems: LibraryItem[] = [
     source: "Nielsen Norman Group",
     sourceUrl: "https://www.nngroup.com/articles/ten-usability-heuristics/",
     author: "Jakob Nielsen",
-    image: "https://media.nngroup.com/media/articles/opengraph_images/Updated10HeuristicSocialCard-36.png",
+    image:
+      "https://media.nngroup.com/media/articles/opengraph_images/Updated10HeuristicSocialCard-36.png",
     mediaWidth: 1200,
     mediaHeight: 630,
     imageAlt: "Nielsen Norman Group social card for the ten usability heuristics",
@@ -529,7 +573,8 @@ const seedItems: LibraryItem[] = [
     title: "Peaks above a sea of clouds",
     description: "Alpine dusk from above the cloud layer.",
     source: "Unsplash",
-    sourceUrl: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1800&q=90",
+    sourceUrl:
+      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1800&q=90",
     date: "Aug 02",
     tags: ["landscape", "color"],
     image:
@@ -556,9 +601,11 @@ const seedItems: LibraryItem[] = [
     id: 11,
     kind: "Image",
     title: "A web layout in the wild",
-    description: "A product page on a laptop: editorial spacing, a strong image, and a single clear action.",
+    description:
+      "A product page on a laptop: editorial spacing, a strong image, and a single clear action.",
     source: "Unsplash",
-    sourceUrl: "https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?auto=format&fit=crop&w=1800&q=90",
+    sourceUrl:
+      "https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?auto=format&fit=crop&w=1800&q=90",
     date: "Jul 24",
     tags: ["web", "ui", "reference"],
     image:
@@ -777,13 +824,18 @@ function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
   if (spaceQuery.kind && canonicalKind(item.kind) !== canonicalKind(spaceQuery.kind)) return false;
 
   const text = spaceQuery.text?.trim().toLowerCase();
-  if (text && ![item.title, item.description, item.source, ...item.tags].join(" ").toLowerCase().includes(text)) {
+  if (
+    text &&
+    ![item.title, item.description, item.source, ...item.tags]
+      .join(" ")
+      .toLowerCase()
+      .includes(text)
+  ) {
     return false;
   }
 
   return true;
 }
-
 
 // Column count for the masonry grid. Small screens keep their existing
 // breakpoints; wide grids add columns so cards stay close to a target width
@@ -815,12 +867,30 @@ type PendingPermanentDelete = {
 };
 
 function clearLibraryTransitionTargetStyle(target: HTMLElement) {
-  for (const property of ["position", "box-sizing", "left", "top", "width", "height", "min-width", "min-height", "max-width", "max-height", "aspect-ratio"]) {
+  for (const property of [
+    "position",
+    "box-sizing",
+    "left",
+    "top",
+    "width",
+    "height",
+    "min-width",
+    "min-height",
+    "max-width",
+    "max-height",
+    "aspect-ratio",
+  ]) {
     target.style.removeProperty(property);
   }
 }
 
-function setLibraryTransitionTargetStyle(target: HTMLElement, left: number, top: number, width: number, height: number) {
+function setLibraryTransitionTargetStyle(
+  target: HTMLElement,
+  left: number,
+  top: number,
+  width: number,
+  height: number,
+) {
   target.style.position = "absolute";
   target.style.boxSizing = "border-box";
   target.style.left = `${left}px`;
@@ -840,8 +910,6 @@ function clearLibraryTransitionMediaStyle(clone: HTMLElement) {
   mediaFrame?.style.removeProperty("min-height");
 }
 
-
-
 // Note bodies are cached so an opened note is not re-fetched and a refresh does
 // not drop a body the list query never carries. Same LRU shape as the asset URL
 // cache: writes re-insert, so the oldest key is the least recently used body.
@@ -857,9 +925,11 @@ function rememberNoteBody(cache: Map<string, string>, id: string, body: string) 
 
 function keepTabFocusInside(event: KeyboardEvent, dialog: HTMLElement) {
   if (event.key !== "Tab") return;
-  const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
-    "button:not([disabled]), a[href], input:not([disabled]):not([type=\"file\"]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex=\"-1\"])",
-  )).filter((element) => element.getClientRects().length > 0);
+  const focusable = Array.from(
+    dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]):not([type="file"]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => element.getClientRects().length > 0);
   if (focusable.length === 0) {
     event.preventDefault();
     dialog.focus();
@@ -896,6 +966,7 @@ function App() {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
+  const createSpaceInputRef = useRef<HTMLInputElement>(null);
   const [newSpaceKind, setNewSpaceKind] = useState<SpaceKind>("smart");
   // Manual membership, keyed by space id then item id. Only read in preview and
   // seed mode; the Tauri core owns membership through the space item commands.
@@ -906,12 +977,21 @@ function App() {
   // render in the right state. Cleared whenever the overlay closes.
   const [itemSpaceIds, setItemSpaceIds] = useState<string[]>([]);
   const [renamingSpaceId, setRenamingSpaceId] = useState<string | null>(null);
+  const renameSpaceInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (isCreatingSpace) createSpaceInputRef.current?.focus();
+  }, [isCreatingSpace]);
+  useEffect(() => {
+    if (renamingSpaceId) renameSpaceInputRef.current?.focus();
+  }, [renamingSpaceId]);
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("archive");
-  const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? browserArchivedItems : []);
+  const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(
+    shouldUseSeedLibrary() ? browserArchivedItems : [],
+  );
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
   const [isExportingLibrary, setIsExportingLibrary] = useState(false);
   const [lastExport, setLastExport] = useState<LibraryExportReport | null>(null);
@@ -926,7 +1006,10 @@ function App() {
   const [newQuoteSourceUrl, setNewQuoteSourceUrl] = useState("");
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
   const [pdfViewerItem, setPdfViewerItem] = useState<LibraryItem | null>(null);
-  const [readingItem, setReadingItem] = useState<{ item: LibraryItem; origin: ReaderOrigin } | null>(null);
+  const [readingItem, setReadingItem] = useState<{
+    item: LibraryItem;
+    origin: ReaderOrigin;
+  } | null>(null);
   // Warm the PDF viewer chunk while a PDF's overlay is open, so the first
   // open fades together with the backdrop instead of popping in after it.
   // Same chunk the lazy viewer resolves; this only moves the fetch earlier.
@@ -939,40 +1022,52 @@ function App() {
   const processingSummaryRequestsRef = useRef(new Set<string>());
   const pendingOcrRequestsRef = useRef(new Set<string>());
   const noteBodyCacheRef = useRef(new Map<string, string>());
+  const selectedItemId = selectedItem ? String(selectedItem.id) : null;
+  const selectedItemKind = selectedItem?.kind;
+  const selectedItemOcrText = selectedItem?.ocrText;
+  const selectedItemProcessing = selectedItem?.processing;
   useEffect(() => {
-    if (!canUseTauriBackend || !selectedItem) return;
-    const itemId = String(selectedItem.id);
-    if (!selectedItem.processing) {
+    if (!canUseTauriBackend || !selectedItemId) return;
+    const itemId = selectedItemId;
+    if (!selectedItemProcessing) {
       if (processingSummaryRequestsRef.current.has(itemId)) return;
       processingSummaryRequestsRef.current.add(itemId);
       void getProcessingSummaries([itemId])
         .then((summaries) => {
           const processing = summaries.get(itemId);
           if (!processing) return;
-          setSelectedItem((current) => current && String(current.id) === itemId
-            ? { ...current, processing }
-            : current);
+          setSelectedItem((current) =>
+            current && String(current.id) === itemId ? { ...current, processing } : current,
+          );
         })
         .catch(() => {})
         .finally(() => processingSummaryRequestsRef.current.delete(itemId));
       return;
     }
-    if (selectedItem.processing.hasOcrJob) {
+    if (selectedItemProcessing.hasOcrJob) {
       pendingOcrRequestsRef.current.delete(itemId);
       return;
     }
     if (
-      (selectedItem.kind !== "Image" && selectedItem.kind !== "PDF") ||
-      selectedItem.ocrText?.trim() ||
+      (selectedItemKind !== "Image" && selectedItemKind !== "PDF") ||
+      selectedItemOcrText?.trim() ||
       pendingOcrRequestsRef.current.has(itemId)
-    ) return;
+    )
+      return;
     pendingOcrRequestsRef.current.add(itemId);
     void enqueueOcrJob(itemId).catch(() => {
       pendingOcrRequestsRef.current.delete(itemId);
     });
-  }, [canUseTauriBackend, selectedItem?.id, selectedItem?.kind, selectedItem?.ocrText, selectedItem?.processing?.hasOcrJob]);
+  }, [
+    canUseTauriBackend,
+    selectedItemId,
+    selectedItemKind,
+    selectedItemOcrText,
+    selectedItemProcessing,
+  ]);
   useEffect(() => {
-    if (!canUseTauriBackend || selectedItem?.kind !== "Note" || selectedItem.noteBody !== undefined) return;
+    if (!canUseTauriBackend || selectedItem?.kind !== "Note" || selectedItem.noteBody !== undefined)
+      return;
     const id = String(selectedItem.id);
     if (noteContentRequestsRef.current.has(id)) return;
     noteContentRequestsRef.current.add(id);
@@ -984,7 +1079,8 @@ function App() {
         rememberNoteBody(noteBodyCacheRef.current, id, noteBody);
         // The body is the only thing still missing here. Its description came
         // back already projected, so the fetched content only fills the gap.
-        const apply = (item: LibraryItem) => (String(item.id) === id ? { ...item, noteBody } : item);
+        const apply = (item: LibraryItem) =>
+          String(item.id) === id ? { ...item, noteBody } : item;
         setItems((current) => current.map(apply));
         setArchivedItems((current) => current.map(apply));
         setSelectedItem((current) => (current ? apply(current) : current));
@@ -1006,7 +1102,11 @@ function App() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [isFindingSimilar, setIsFindingSimilar] = useState(false);
-  const [similaritySource, setSimilaritySource] = useState<{ id: string; title: string; kind: "image" | "text" } | null>(null);
+  const [similaritySource, setSimilaritySource] = useState<{
+    id: string;
+    title: string;
+    kind: "image" | "text";
+  } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const captureReturnFocusRef = useRef<HTMLElement | null>(null);
   const shortcutsModalRef = useRef<HTMLElement | null>(null);
@@ -1035,14 +1135,14 @@ function App() {
   const loadItemsRef = useRef<() => void>(() => {});
   // Generation counter for space moves: only the latest move may apply its
   // backend result; older ones resync, so rapid clicks cannot overwrite newer state.
-    const spaceMoveSeqRef = useRef(0);
-    // Mirror of `items` for callbacks that must read the newest value without
-    // being rebuilt on every load.
-    const itemsRef = useRef<LibraryItem[]>([]);
-    // Pins whose write has not been confirmed by the backend yet. A refresh that
-    // was already in flight can resolve with the pre-pin value, so these are
-    // re-applied when it lands.
-    const pinnedOverridesRef = useRef<Map<string, boolean>>(new Map());
+  const spaceMoveSeqRef = useRef(0);
+  // Mirror of `items` for callbacks that must read the newest value without
+  // being rebuilt on every load.
+  const itemsRef = useRef<LibraryItem[]>([]);
+  // Pins whose write has not been confirmed by the backend yet. A refresh that
+  // was already in flight can resolve with the pre-pin value, so these are
+  // re-applied when it lands.
+  const pinnedOverridesRef = useRef<Map<string, boolean>>(new Map());
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
     typeof window === "undefined" ? 960 : window.innerWidth,
   );
@@ -1052,7 +1152,11 @@ function App() {
     const sourceRects = rects ?? queryCardRects(item.id);
     const contentArea = libraryScrollRef.current;
     const scrollElement = scrollViewport(contentArea);
-    if (!sourceRects || !scrollElement || !isCardTooFarOffscreen(sourceRects.card, rectFrom(scrollElement.getBoundingClientRect()))) {
+    if (
+      !sourceRects ||
+      !scrollElement ||
+      !isCardTooFarOffscreen(sourceRects.card, rectFrom(scrollElement.getBoundingClientRect()))
+    ) {
       selectionScrollRef.current = false;
       selectionRectsRef.current = sourceRects;
       setSelectedItem(item);
@@ -1060,7 +1164,10 @@ function App() {
     }
 
     const viewportRect = scrollElement.getBoundingClientRect();
-    const nextScrollTop = Math.max(0, scrollElement.scrollTop + sourceRects.card.top - viewportRect.top - 16);
+    const nextScrollTop = Math.max(
+      0,
+      scrollElement.scrollTop + sourceRects.card.top - viewportRect.top - 16,
+    );
     selectionScrollRef.current = true;
 
     // The card is scrolled into view with an eased, smooth motion before the
@@ -1107,64 +1214,79 @@ function App() {
     return true;
   }, []);
 
-  const restoreForgottenItem = useCallback(async (item: LibraryItem) => {
-    // A restore un-archives the row, so any scheduled permanent delete for it
-    // must be cancelled or its timer would still fire and destroy the assets.
-    const pending = pendingPermanentDeletesRef.current.get(String(item.id));
-    if (pending !== undefined) cancelPermanentDelete(pending);
-    try {
-      const restoredItem = canUseTauriBackend
-        ? await archiveItem(String(item.id), false).then(async (storedItem) => {
-            const summary = (await getProcessingSummaries([storedItem.id])).get(storedItem.id);
-            return storedItemToLibraryItem(storedItem, summary);
-          })
-        : { ...item, archived: false };
-      const cachedNoteBody = noteBodyCacheRef.current.get(String(item.id));
-      // The restore response carries the description the backend already
-      // projected; the cache only holds a body this session edited, so it
-      // re-attaches the body without re-deriving the description.
-      const restoredLibraryItem = cachedNoteBody === undefined
-        ? restoredItem
-        : { ...restoredItem, noteBody: cachedNoteBody };
-      setItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
-        ? current
-        : [restoredLibraryItem, ...current]);
-      setArchivedItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
-    } catch (error) {
-      toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    }
-  }, [canUseTauriBackend, cancelPermanentDelete]);
-
-  const forgetItem = useCallback(async (item: LibraryItem) => {
-    setCaptureError(null);
-    try {
-      if (canUseTauriBackend) {
-        await archiveItem(String(item.id));
-      } else {
-        setArchivedItems((current) => current.some((currentItem) => String(currentItem.id) === String(item.id))
-          ? current
-          : [{ ...item, archived: true }, ...current]);
+  const restoreForgottenItem = useCallback(
+    async (item: LibraryItem) => {
+      // A restore un-archives the row, so any scheduled permanent delete for it
+      // must be cancelled or its timer would still fire and destroy the assets.
+      const pending = pendingPermanentDeletesRef.current.get(String(item.id));
+      if (pending !== undefined) cancelPermanentDelete(pending);
+      try {
+        const restoredItem = canUseTauriBackend
+          ? await archiveItem(String(item.id), false).then(async (storedItem) => {
+              const summary = (await getProcessingSummaries([storedItem.id])).get(storedItem.id);
+              return storedItemToLibraryItem(storedItem, summary);
+            })
+          : { ...item, archived: false };
+        const cachedNoteBody = noteBodyCacheRef.current.get(String(item.id));
+        // The restore response carries the description the backend already
+        // projected; the cache only holds a body this session edited, so it
+        // re-attaches the body without re-deriving the description.
+        const restoredLibraryItem =
+          cachedNoteBody === undefined
+            ? restoredItem
+            : { ...restoredItem, noteBody: cachedNoteBody };
+        setItems((current) =>
+          current.some((currentItem) => String(currentItem.id) === String(item.id))
+            ? current
+            : [restoredLibraryItem, ...current],
+        );
+        setArchivedItems((current) =>
+          current.filter((currentItem) => String(currentItem.id) !== String(item.id)),
+        );
+      } catch (error) {
+        toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
+        setCaptureError(error instanceof Error ? error.message : String(error));
       }
-      setItems((current) => current.filter((currentItem) => String(currentItem.id) !== String(item.id)));
-      setSelectedItem(null);
+    },
+    [canUseTauriBackend, cancelPermanentDelete],
+  );
 
-      const toastId = `forgot-${String(item.id)}-${Date.now()}`;
-      toast("Forgotten from your library", {
-        id: toastId,
-        description: item.title,
-        duration: Infinity,
-        closeButton: true,
-        className: "library-toast",
-        action: {
-          label: "Undo",
-          onClick: () => void restoreForgottenItem(item),
-        },
-      });
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    }
-  }, [canUseTauriBackend, restoreForgottenItem]);
+  const forgetItem = useCallback(
+    async (item: LibraryItem) => {
+      setCaptureError(null);
+      try {
+        if (canUseTauriBackend) {
+          await archiveItem(String(item.id));
+        } else {
+          setArchivedItems((current) =>
+            current.some((currentItem) => String(currentItem.id) === String(item.id))
+              ? current
+              : [{ ...item, archived: true }, ...current],
+          );
+        }
+        setItems((current) =>
+          current.filter((currentItem) => String(currentItem.id) !== String(item.id)),
+        );
+        setSelectedItem(null);
+
+        const toastId = `forgot-${String(item.id)}-${Date.now()}`;
+        toast("Forgotten from your library", {
+          id: toastId,
+          description: item.title,
+          duration: Infinity,
+          closeButton: true,
+          className: "library-toast",
+          action: {
+            label: "Undo",
+            onClick: () => void restoreForgottenItem(item),
+          },
+        });
+      } catch (error) {
+        setCaptureError(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [canUseTauriBackend, restoreForgottenItem],
+  );
 
   const keepSerendipityItem = useCallback((item: LibraryItem) => {
     setSerendipityKeptIds((current) => {
@@ -1184,7 +1306,11 @@ function App() {
     let destination: string | null = null;
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
-      const selection = await open({ directory: true, multiple: false, title: "Choose where to save the export" });
+      const selection = await open({
+        directory: true,
+        multiple: false,
+        title: "Choose where to save the export",
+      });
       destination = typeof selection === "string" ? selection : null;
     } catch (error) {
       toast.error("Could not open the folder picker", {
@@ -1196,16 +1322,21 @@ function App() {
     if (!destination) return;
 
     setIsExportingLibrary(true);
-    const toastId = toast.loading("Exporting library…", { description: "Copying the database and its files" });
+    const toastId = toast.loading("Exporting library…", {
+      description: "Copying the database and its files",
+    });
     try {
       const report = await exportLibrary(destination);
       setLastExport(report);
-      toast.success(report.skippedAssets > 0 ? "Library exported with skipped assets" : "Library exported", {
-        id: toastId,
-        description: formatExportSummary(report),
-        duration: 4000,
-        closeButton: true,
-      });
+      toast.success(
+        report.skippedAssets > 0 ? "Library exported with skipped assets" : "Library exported",
+        {
+          id: toastId,
+          description: formatExportSummary(report),
+          duration: 4000,
+          closeButton: true,
+        },
+      );
     } catch (error) {
       toast.error("Export failed", {
         id: toastId,
@@ -1218,76 +1349,87 @@ function App() {
     }
   }, [canUseTauriBackend, isExportingLibrary]);
 
-  const addTagToItem = useCallback(async (item: LibraryItem, tag: string) => {
-    const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
-    if (!clean) return;
-    try {
-      let tags = canUseTauriBackend ? [] : [...item.tags, clean];
-      if (canUseTauriBackend) {
-        const storedItem = await updateItem({ id: String(item.id), addTag: clean });
-        tags = Array.isArray(storedItem.metadata.tags)
-          ? storedItem.metadata.tags.filter((value): value is string => typeof value === "string")
-          : [];
+  const addTagToItem = useCallback(
+    async (item: LibraryItem, tag: string) => {
+      const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
+      if (!clean) return;
+      try {
+        let tags = canUseTauriBackend ? [] : [...item.tags, clean];
+        if (canUseTauriBackend) {
+          const storedItem = await updateItem({ id: String(item.id), addTag: clean });
+          tags = Array.isArray(storedItem.metadata.tags)
+            ? storedItem.metadata.tags.filter((value): value is string => typeof value === "string")
+            : [];
+        }
+        const apply = (current: LibraryItem) => ({
+          ...current,
+          tags,
+        });
+        setItems((current) =>
+          current.map((currentItem) =>
+            String(currentItem.id) === String(item.id) ? apply(currentItem) : currentItem,
+          ),
+        );
+        setSelectedItem((current) =>
+          current && String(current.id) === String(item.id) ? apply(current) : current,
+        );
+      } catch {
+        toast.error("Unable to save this tag", { duration: 5000 });
       }
-      const apply = (current: LibraryItem) => ({
-        ...current,
-        tags,
-      });
-      setItems((current) =>
-        current.map((currentItem) => (String(currentItem.id) === String(item.id) ? apply(currentItem) : currentItem)),
-      );
-      setSelectedItem((current) => (current && String(current.id) === String(item.id) ? apply(current) : current));
-    } catch (error) {
-      toast.error("Unable to save this tag", { duration: 5000 });
-    }
-  }, [canUseTauriBackend]);
+    },
+    [canUseTauriBackend],
+  );
 
-  const updateNote = useCallback(async (item: LibraryItem, body: string) => {
-    const nextBody = normalizeNoteBody(body);
-    if (!nextBody) throw new Error("A note needs some text before it can be saved.");
+  const updateNote = useCallback(
+    async (item: LibraryItem, body: string) => {
+      const nextBody = normalizeNoteBody(body);
+      if (!nextBody) throw new Error("A note needs some text before it can be saved.");
 
-    let nextItem: LibraryItem;
-    if (canUseTauriBackend) {
-      const storedItem = await updateItem({
-        id: String(item.id),
-        body: nextBody,
-        bodyFormat: NOTE_BODY_FORMAT,
-      });
-      const summary = (await getProcessingSummaries([storedItem.id])).get(storedItem.id);
-      nextItem = {
-        ...(await storedItemToLibraryItem(storedItem, summary)),
-        noteBody: nextBody,
+      let nextItem: LibraryItem;
+      if (canUseTauriBackend) {
+        const storedItem = await updateItem({
+          id: String(item.id),
+          body: nextBody,
+          bodyFormat: NOTE_BODY_FORMAT,
+        });
+        const summary = (await getProcessingSummaries([storedItem.id])).get(storedItem.id);
+        nextItem = {
+          ...(await storedItemToLibraryItem(storedItem, summary)),
+          noteBody: nextBody,
+        };
+      } else {
+        nextItem = {
+          ...item,
+          description: markdownToPlainText(nextBody),
+          noteBody: nextBody,
+        };
+      }
+
+      // The saved response carries the row's pin as it was before an in-flight
+      // write landed, so a pin the backend has not confirmed yet wins over it,
+      // the same way a refresh re-applies its overrides.
+      const apply = (current: LibraryItem) => {
+        if (String(current.id) !== String(item.id)) return current;
+        const saved = { ...current, ...nextItem, id: current.id };
+        const pinned = pinnedOverridesRef.current.get(String(item.id));
+        return pinned === undefined ? saved : { ...saved, favorite: pinned };
       };
-    } else {
-      nextItem = {
-        ...item,
-        description: markdownToPlainText(nextBody),
-        noteBody: nextBody,
-      };
-    }
+      setItems((current) => current.map(apply));
+      setArchivedItems((current) => current.map(apply));
+      setSelectedItem((current) => (current ? apply(current) : current));
+      rememberNoteBody(noteBodyCacheRef.current, String(item.id), nextBody);
+    },
+    [canUseTauriBackend],
+  );
 
-    // The saved response carries the row's pin as it was before an in-flight
-    // write landed, so a pin the backend has not confirmed yet wins over it,
-    // the same way a refresh re-applies its overrides.
-    const apply = (current: LibraryItem) => {
-      if (String(current.id) !== String(item.id)) return current;
-      const saved = { ...current, ...nextItem, id: current.id };
-      const pinned = pinnedOverridesRef.current.get(String(item.id));
-      return pinned === undefined ? saved : { ...saved, favorite: pinned };
-    };
-    setItems((current) => current.map(apply));
-    setArchivedItems((current) => current.map(apply));
-    setSelectedItem((current) => (current ? apply(current) : current));
-    rememberNoteBody(noteBodyCacheRef.current, String(item.id), nextBody);
-  }, [canUseTauriBackend]);
-
-// Pins are flipped from current state, not from the item the click captured,
-    // so a second click during a slow write reverses the first instead of
-    // repeating it. Writes for one item chain instead of being dropped: the old
-    // guard returned early on an in-flight id, so undoing a pin needed a third
-    // click once the first write landed.
-    const pinWritesRef = useRef<Map<string, Promise<void>>>(new Map());
-    const togglePinItem = useCallback(async (item: LibraryItem) => {
+  // Pins are flipped from current state, not from the item the click captured,
+  // so a second click during a slow write reverses the first instead of
+  // repeating it. Writes for one item chain instead of being dropped: the old
+  // guard returned early on an in-flight id, so undoing a pin needed a third
+  // click once the first write landed.
+  const pinWritesRef = useRef<Map<string, Promise<void>>>(new Map());
+  const togglePinItem = useCallback(
+    async (item: LibraryItem) => {
       const id = String(item.id);
       // Read the live value so a repeat click reverses the previous one. An
       // archived item is not in the active list, so fall back to the item the
@@ -1296,9 +1438,8 @@ function App() {
       const wasPinned = (live ?? item).favorite === true;
       const pinned = !wasPinned;
       const show = (next: boolean) => {
-        const apply = (current: LibraryItem) => (
-          String(current.id) === id ? { ...current, favorite: next } : current
-        );
+        const apply = (current: LibraryItem) =>
+          String(current.id) === id ? { ...current, favorite: next } : current;
         setItems((current) => current.map(apply));
         setArchivedItems((current) => current.map(apply));
         setSelectedItem((current) => (current ? apply(current) : current));
@@ -1312,9 +1453,8 @@ function App() {
       // A Space's rows come from its own query rather than a client-side
       // filter, so a Smart Space that filters on the pin keeps showing the old
       // contents until it is re-read. Only that case needs the extra load.
-      const openSpace = activeSpaceId !== null
-        ? spaces.find((space) => space.id === activeSpaceId)
-        : undefined;
+      const openSpace =
+        activeSpaceId !== null ? spaces.find((space) => space.id === activeSpaceId) : undefined;
       const rereadsPins = openSpace?.kind === "smart" && openSpace.query.favorite != null;
 
       const write = (pinWritesRef.current.get(id) ?? Promise.resolve())
@@ -1345,12 +1485,20 @@ function App() {
         });
       pinWritesRef.current.set(id, write);
       await write;
-  }, [activeSpaceId, canUseTauriBackend, spaces]);
+    },
+    [activeSpaceId, canUseTauriBackend, spaces],
+  );
 
-  const openReader = useCallback((item: LibraryItem, origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }) => {
-    if (!item.articleHtml) return;
-    setReadingItem({ item, origin });
-  }, []);
+  const openReader = useCallback(
+    (
+      item: LibraryItem,
+      origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+    ) => {
+      if (!item.articleHtml) return;
+      setReadingItem({ item, origin });
+    },
+    [],
+  );
 
   const measureLibraryCards = useCallback(() => {
     const root = libraryScrollRef.current;
@@ -1362,7 +1510,10 @@ function App() {
           const id = card.dataset.libraryItemId;
           if (!id) return null;
           const rect = card.getBoundingClientRect();
-          return [id, { left: rect.left, top: rect.top, width: rect.width, height: rect.height }] as const;
+          return [
+            id,
+            { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+          ] as const;
         })
         .filter((entry): entry is readonly [string, LibraryCardPosition] => entry !== null),
     );
@@ -1373,12 +1524,17 @@ function App() {
     if (!overlay) return new Map<string, LibraryCardPosition>();
 
     return new Map(
-      Array.from(overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]"))
+      Array.from(
+        overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]"),
+      )
         .map((card) => {
           const id = card.dataset.libraryItemId;
           if (!id) return null;
           const rect = card.getBoundingClientRect();
-          return [id, { left: rect.left, top: rect.top, width: rect.width, height: rect.height }] as const;
+          return [
+            id,
+            { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+          ] as const;
         })
         .filter((entry): entry is readonly [string, LibraryCardPosition] => entry !== null),
     );
@@ -1391,65 +1547,84 @@ function App() {
     overlay.classList.remove("is-visible", "is-list");
   }, []);
 
-  const buildLibraryTransitionOverlay = useCallback((sourcePositions: Map<string, LibraryCardPosition>, sourceListMode: boolean) => {
-    const root = libraryScrollRef.current;
-    const overlay = libraryTransitionOverlayRef.current;
-    if (!root || !overlay || sourcePositions.size === 0) return false;
+  const buildLibraryTransitionOverlay = useCallback(
+    (sourcePositions: Map<string, LibraryCardPosition>, sourceListMode: boolean) => {
+      const root = libraryScrollRef.current;
+      const overlay = libraryTransitionOverlayRef.current;
+      if (!root || !overlay || sourcePositions.size === 0) return false;
 
-    const rootRect = root.getBoundingClientRect();
-    overlay.replaceChildren();
-    overlay.classList.toggle("is-list", sourceListMode);
+      const rootRect = root.getBoundingClientRect();
+      overlay.replaceChildren();
+      overlay.classList.toggle("is-list", sourceListMode);
 
-    for (const card of root.querySelectorAll<HTMLElement>(LIBRARY_CARD_ITEM_SELECTOR)) {
-      const id = card.dataset.libraryItemId;
-      const source = id ? sourcePositions.get(id) : undefined;
-      if (!id || !source) continue;
-      if (source.top >= rootRect.bottom || source.top + source.height <= rootRect.top) continue;
+      for (const card of root.querySelectorAll<HTMLElement>(LIBRARY_CARD_ITEM_SELECTOR)) {
+        const id = card.dataset.libraryItemId;
+        const source = id ? sourcePositions.get(id) : undefined;
+        if (!id || !source) continue;
+        if (source.top >= rootRect.bottom || source.top + source.height <= rootRect.top) continue;
 
-      const clone = card.cloneNode(true) as HTMLElement;
-      clone.classList.add("library-transition-card");
-      clone.dataset.flipId = `library-card-${id}`;
-      clone.removeAttribute("tabindex");
-      clone.inert = true;
-      clone.setAttribute("aria-hidden", "true");
-      clone.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
-      clone.querySelectorAll("iframe").forEach((iframe) => {
-        const placeholder = document.createElement("div");
-        placeholder.className = "library-transition-embed-placeholder";
-        iframe.replaceWith(placeholder);
-      });
-      clone.style.left = `${source.left - rootRect.left}px`;
-      clone.style.top = `${source.top - rootRect.top}px`;
-      clone.style.width = `${source.width}px`;
-      clone.style.height = `${source.height}px`;
-      clone.style.margin = "0";
-      clone.style.transform = "none";
-      clone.style.translate = "none";
-      clone.style.willChange = "transform, opacity";
-      overlay.appendChild(clone);
+        const clone = card.cloneNode(true) as HTMLElement;
+        clone.classList.add("library-transition-card");
+        clone.dataset.flipId = `library-card-${id}`;
+        clone.removeAttribute("tabindex");
+        clone.inert = true;
+        clone.setAttribute("aria-hidden", "true");
+        clone.querySelectorAll("[id]").forEach((element) => {
+          element.removeAttribute("id");
+        });
+        clone.querySelectorAll("iframe").forEach((iframe) => {
+          const placeholder = document.createElement("div");
+          placeholder.className = "library-transition-embed-placeholder";
+          iframe.replaceWith(placeholder);
+        });
+        clone.style.left = `${source.left - rootRect.left}px`;
+        clone.style.top = `${source.top - rootRect.top}px`;
+        clone.style.width = `${source.width}px`;
+        clone.style.height = `${source.height}px`;
+        clone.style.margin = "0";
+        clone.style.transform = "none";
+        clone.style.translate = "none";
+        clone.style.willChange = "transform, opacity";
+        overlay.appendChild(clone);
 
-      const cloneRect = clone.getBoundingClientRect();
-      const transitionTargets = Array.from(clone.querySelectorAll<HTMLElement>(CARD_TRANSITION_TARGET_SELECTOR));
-      const mediaTarget = clone.querySelector<HTMLElement>(CARD_MEDIA_CHILDREN_SELECTOR);
-      const mediaFrame = mediaTarget?.parentElement;
-      for (const target of transitionTargets) {
-        if (target !== mediaTarget) continue;
-        const rect = target.getBoundingClientRect();
-        setLibraryTransitionTargetStyle(target, rect.left - cloneRect.left, rect.top - cloneRect.top, rect.width, rect.height);
-        if (mediaFrame) {
-          mediaFrame.style.height = `${rect.height}px`;
-          mediaFrame.style.minHeight = "0px";
+        const cloneRect = clone.getBoundingClientRect();
+        const transitionTargets = Array.from(
+          clone.querySelectorAll<HTMLElement>(CARD_TRANSITION_TARGET_SELECTOR),
+        );
+        const mediaTarget = clone.querySelector<HTMLElement>(CARD_MEDIA_CHILDREN_SELECTOR);
+        const mediaFrame = mediaTarget?.parentElement;
+        for (const target of transitionTargets) {
+          if (target !== mediaTarget) continue;
+          const rect = target.getBoundingClientRect();
+          setLibraryTransitionTargetStyle(
+            target,
+            rect.left - cloneRect.left,
+            rect.top - cloneRect.top,
+            rect.width,
+            rect.height,
+          );
+          if (mediaFrame) {
+            mediaFrame.style.height = `${rect.height}px`;
+            mediaFrame.style.minHeight = "0px";
+          }
+        }
+        for (const target of transitionTargets) {
+          if (target === mediaTarget) continue;
+          const rect = target.getBoundingClientRect();
+          setLibraryTransitionTargetStyle(
+            target,
+            rect.left - cloneRect.left,
+            rect.top - cloneRect.top,
+            rect.width,
+            rect.height,
+          );
         }
       }
-      for (const target of transitionTargets) {
-        if (target === mediaTarget) continue;
-        const rect = target.getBoundingClientRect();
-        setLibraryTransitionTargetStyle(target, rect.left - cloneRect.left, rect.top - cloneRect.top, rect.width, rect.height);
-      }
-    }
 
-    return overlay.childElementCount > 0;
-  }, []);
+      return overlay.childElementCount > 0;
+    },
+    [],
+  );
 
   const normalizeLibraryTransitionOverlay = useCallback(() => {
     const overlay = libraryTransitionOverlayRef.current;
@@ -1473,36 +1648,49 @@ function App() {
     libraryViewAnimationsRef.current = [];
   }, []);
 
-  const switchLibraryView = useCallback((nextListMode: boolean) => {
-    if (nextListMode === listMode) return;
+  const switchLibraryView = useCallback(
+    (nextListMode: boolean) => {
+      if (nextListMode === listMode) return;
 
-    if (libraryViewPreparationTimerRef.current !== null) {
-      window.clearTimeout(libraryViewPreparationTimerRef.current);
-      libraryViewPreparationTimerRef.current = null;
-    }
-    libraryViewTransitionRunRef.current += 1;
+      if (libraryViewPreparationTimerRef.current !== null) {
+        window.clearTimeout(libraryViewPreparationTimerRef.current);
+        libraryViewPreparationTimerRef.current = null;
+      }
+      libraryViewTransitionRunRef.current += 1;
 
-    const transitionIsActive = (libraryTransitionOverlayRef.current?.childElementCount ?? 0) > 0;
-    const currentPositions = transitionIsActive ? measureLibraryTransitionCards() : measureLibraryCards();
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    cancelLibraryViewAnimations();
-    if (transitionIsActive && !prefersReducedMotion) normalizeLibraryTransitionOverlay();
+      const transitionIsActive = (libraryTransitionOverlayRef.current?.childElementCount ?? 0) > 0;
+      const currentPositions = transitionIsActive
+        ? measureLibraryTransitionCards()
+        : measureLibraryCards();
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      cancelLibraryViewAnimations();
+      if (transitionIsActive && !prefersReducedMotion) normalizeLibraryTransitionOverlay();
 
-    if (prefersReducedMotion || currentPositions.size === 0) {
-      pendingLibraryViewPositionsRef.current = null;
-      clearLibraryTransitionOverlay();
-      setIsLibraryViewTransitioning(false);
-      setViewSelectionListMode(nextListMode);
+      if (prefersReducedMotion || currentPositions.size === 0) {
+        pendingLibraryViewPositionsRef.current = null;
+        clearLibraryTransitionOverlay();
+        setIsLibraryViewTransitioning(false);
+        setViewSelectionListMode(nextListMode);
+        setListMode(nextListMode);
+        return;
+      }
+
+      if (!transitionIsActive) buildLibraryTransitionOverlay(currentPositions, listMode);
+      pendingLibraryViewPositionsRef.current = currentPositions;
+      setViewSelectionListMode(listMode);
+      setIsLibraryViewTransitioning(true);
       setListMode(nextListMode);
-      return;
-    }
-
-    if (!transitionIsActive) buildLibraryTransitionOverlay(currentPositions, listMode);
-    pendingLibraryViewPositionsRef.current = currentPositions;
-    setViewSelectionListMode(listMode);
-    setIsLibraryViewTransitioning(true);
-    setListMode(nextListMode);
-  }, [buildLibraryTransitionOverlay, cancelLibraryViewAnimations, clearLibraryTransitionOverlay, listMode, measureLibraryCards, measureLibraryTransitionCards, normalizeLibraryTransitionOverlay]);
+    },
+    [
+      buildLibraryTransitionOverlay,
+      cancelLibraryViewAnimations,
+      clearLibraryTransitionOverlay,
+      listMode,
+      measureLibraryCards,
+      measureLibraryTransitionCards,
+      normalizeLibraryTransitionOverlay,
+    ],
+  );
 
   useEffect(() => {
     const element = libraryScrollRef.current;
@@ -1510,7 +1698,8 @@ function App() {
 
     const updateWidth = () => {
       const nextWidth = element.clientWidth;
-      if (nextWidth > 0) setLibraryViewportWidth((current) => current === nextWidth ? current : nextWidth);
+      if (nextWidth > 0)
+        setLibraryViewportWidth((current) => (current === nextWidth ? current : nextWidth));
     };
     updateWidth();
 
@@ -1563,11 +1752,18 @@ function App() {
     const positionSignature = (positions: Map<string, LibraryCardPosition>) =>
       Array.from(positions.entries())
         .sort(([left], [right]) => left.localeCompare(right))
-        .map(([id, position]) => `${id}:${Math.round(position.left)}:${Math.round(position.top)}:${Math.round(position.width)}:${Math.round(position.height)}`)
+        .map(
+          ([id, position]) =>
+            `${id}:${Math.round(position.left)}:${Math.round(position.top)}:${Math.round(position.width)}:${Math.round(position.height)}`,
+        )
         .join("|");
 
     const finishTransition = (animations: Array<ReturnType<typeof gsap.timeline>>) => {
-      if (libraryViewAnimationsRef.current !== animations || run !== libraryViewTransitionRunRef.current) return;
+      if (
+        libraryViewAnimationsRef.current !== animations ||
+        run !== libraryViewTransitionRunRef.current
+      )
+        return;
       for (const animation of animations) animation.kill();
       libraryViewAnimationsRef.current = [];
       setIsLibraryViewTransitioning(false);
@@ -1582,13 +1778,21 @@ function App() {
       if (cancelled || run !== libraryViewTransitionRunRef.current) return;
 
       const rootRect = root.getBoundingClientRect();
-      const clones = Array.from(overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]"));
+      const clones = Array.from(
+        overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]"),
+      );
       const leavingTargets: HTMLElement[] = [];
       const layoutTargets: Array<{
         clone: HTMLElement;
         source: LibraryCardPosition;
         position?: LibraryCardPosition;
-        sourceBoxes: Array<{ target: HTMLElement; left: number; top: number; width: number; height: number }>;
+        sourceBoxes: Array<{
+          target: HTMLElement;
+          left: number;
+          top: number;
+          width: number;
+          height: number;
+        }>;
       }> = [];
 
       for (const clone of clones) {
@@ -1604,7 +1808,9 @@ function App() {
         }
 
         const sourceCardRect = clone.getBoundingClientRect();
-        const sourceTargets = Array.from(clone.querySelectorAll<HTMLElement>(CARD_TRANSITION_TARGET_SELECTOR));
+        const sourceTargets = Array.from(
+          clone.querySelectorAll<HTMLElement>(CARD_TRANSITION_TARGET_SELECTOR),
+        );
         const sourceBoxes = sourceTargets.map((target) => {
           const rect = target.getBoundingClientRect();
           return {
@@ -1687,50 +1893,68 @@ function App() {
             width: destinationRect.width,
             height: destinationRect.height,
           };
-          setLibraryTransitionTargetStyle(sourceBox.target, sourceBox.left, sourceBox.top, sourceBox.width, sourceBox.height);
-          layoutAnimation.fromTo(sourceBox.target, {
-            left: sourceBox.left,
-            top: sourceBox.top,
-            width: sourceBox.width,
-            height: sourceBox.height,
-          }, {
-            left: destinationBox.left,
-            top: destinationBox.top,
-            width: destinationBox.width,
-            height: destinationBox.height,
-            duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
-            ease: LIBRARY_VIEW_EASE,
-            autoRound: false,
-          }, 0);
+          setLibraryTransitionTargetStyle(
+            sourceBox.target,
+            sourceBox.left,
+            sourceBox.top,
+            sourceBox.width,
+            sourceBox.height,
+          );
+          layoutAnimation.fromTo(
+            sourceBox.target,
+            {
+              left: sourceBox.left,
+              top: sourceBox.top,
+              width: sourceBox.width,
+              height: sourceBox.height,
+            },
+            {
+              left: destinationBox.left,
+              top: destinationBox.top,
+              width: destinationBox.width,
+              height: destinationBox.height,
+              duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
+              ease: LIBRARY_VIEW_EASE,
+              autoRound: false,
+            },
+            0,
+          );
         }
 
         clone.style.left = `${source.left - rootRect.left}px`;
         clone.style.top = `${source.top - rootRect.top}px`;
         clone.style.width = `${source.width}px`;
         clone.style.height = `${source.height}px`;
-        layoutAnimation.fromTo(clone, {
-          left: source.left - rootRect.left,
-          top: source.top - rootRect.top,
-          width: source.width,
-          height: source.height,
-        }, {
-          left: position.left - rootRect.left,
-          top: position.top - rootRect.top,
-          width: position.width,
-          height: position.height,
-          duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
-          ease: LIBRARY_VIEW_EASE,
-          autoRound: false,
-        }, 0);
+        layoutAnimation.fromTo(
+          clone,
+          {
+            left: source.left - rootRect.left,
+            top: source.top - rootRect.top,
+            width: source.width,
+            height: source.height,
+          },
+          {
+            left: position.left - rootRect.left,
+            top: position.top - rootRect.top,
+            width: position.width,
+            height: position.height,
+            duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
+            ease: LIBRARY_VIEW_EASE,
+            autoRound: false,
+          },
+          0,
+        );
       }
 
       const animations: Array<ReturnType<typeof gsap.timeline>> = [layoutAnimation];
       if (leavingTargets.length > 0) {
-        animations.push(gsap.timeline({ paused: true }).to(leavingTargets, {
+        animations.push(
+          gsap.timeline({ paused: true }).to(leavingTargets, {
             opacity: 0,
             duration: 0.22,
             ease: "power1.out",
-          }));
+          }),
+        );
       }
 
       libraryViewAnimationsRef.current = animations;
@@ -1754,12 +1978,13 @@ function App() {
 
       const rootWidth = root.clientWidth;
       const gridGap = Number.parseFloat(getComputedStyle(root).gap) || 14;
-      const expectedCardWidth = columnCount > 0
-        ? (rootWidth - gridGap * Math.max(0, columnCount - 1)) / columnCount
-        : 0;
-      const layoutIsReady = positions.size >= minimumMountedCards && Array.from(positions.values()).every((position) =>
-        rootWidth > 0 && Math.abs(position.width - expectedCardWidth) < 2,
-      );
+      const expectedCardWidth =
+        columnCount > 0 ? (rootWidth - gridGap * Math.max(0, columnCount - 1)) / columnCount : 0;
+      const layoutIsReady =
+        positions.size >= minimumMountedCards &&
+        Array.from(positions.values()).every(
+          (position) => rootWidth > 0 && Math.abs(position.width - expectedCardWidth) < 2,
+        );
       if (!layoutIsReady) {
         stableSignature = signature;
         stableSince = now;
@@ -1767,7 +1992,10 @@ function App() {
         stableSignature = signature;
         stableSince = now;
       }
-      if ((layoutIsReady && now - stableSince >= quietPeriod) || now - startedAt >= maxPreparationTime) {
+      if (
+        (layoutIsReady && now - stableSince >= quietPeriod) ||
+        now - startedAt >= maxPreparationTime
+      ) {
         animateSettledLayout(positions);
         return;
       }
@@ -1784,14 +2012,17 @@ function App() {
     };
   }, [clearLibraryTransitionOverlay, listMode, measureLibraryCards]);
 
-  useEffect(() => () => {
-    if (libraryViewPreparationTimerRef.current !== null) {
-      window.clearTimeout(libraryViewPreparationTimerRef.current);
-      libraryViewPreparationTimerRef.current = null;
-    }
-    cancelLibraryViewAnimations();
-    clearLibraryTransitionOverlay();
-  }, [cancelLibraryViewAnimations, clearLibraryTransitionOverlay]);
+  useEffect(
+    () => () => {
+      if (libraryViewPreparationTimerRef.current !== null) {
+        window.clearTimeout(libraryViewPreparationTimerRef.current);
+        libraryViewPreparationTimerRef.current = null;
+      }
+      cancelLibraryViewAnimations();
+      clearLibraryTransitionOverlay();
+    },
+    [cancelLibraryViewAnimations, clearLibraryTransitionOverlay],
+  );
 
   async function persistFile(file: File, captureSource: string) {
     const kind = classifyFile(file);
@@ -1813,7 +2044,8 @@ function App() {
 
     const item: LibraryItem = {
       id: Date.now(),
-      kind: kind === "image" ? "Image" : kind === "pdf" ? "PDF" : kind === "video" ? "Video" : "File",
+      kind:
+        kind === "image" ? "Image" : kind === "pdf" ? "PDF" : kind === "video" ? "Video" : "File",
       title: file.name,
       description: `Saved from ${captureSource}.`,
       source: captureSource,
@@ -1873,7 +2105,9 @@ function App() {
 
     const social = article.social;
     const embeddedVideoLink = social ? null : videoLinkFromSourceUrl(article.canonicalUrl);
-    const firstImageDimensions = article.imageDimensions.find((value) => value.url === article.imageUrls[0]);
+    const firstImageDimensions = article.imageDimensions.find(
+      (value) => value.url === article.imageUrls[0],
+    );
     const item: LibraryItem = {
       id: Date.now(),
       kind: social ? "Post" : embeddedVideoLink ? "Video" : "Article",
@@ -1932,7 +2166,12 @@ function App() {
   async function persistText(text: string, captureSource: string) {
     const value = text.trim();
     if (!value) return;
-    if (/^https?:\/\//iu.test(value) || /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u.test(value)) {
+    if (
+      /^https?:\/\//iu.test(value) ||
+      /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u.test(
+        value,
+      )
+    ) {
       await persistArticle(value, captureSource);
       return;
     }
@@ -1971,9 +2210,13 @@ function App() {
     if (!body) throw new Error("Quote text cannot be empty.");
     const trimmedAttribution = attribution.trim();
     const rawSource = sourceUrl.trim();
-    const trimmedSource = rawSource && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/u.test(rawSource) && rawSource.includes(".") && !rawSource.includes(" ")
-      ? `https://${rawSource}`
-      : rawSource;
+    const trimmedSource =
+      rawSource &&
+      !/^[a-zA-Z][a-zA-Z0-9+.-]*:/u.test(rawSource) &&
+      rawSource.includes(".") &&
+      !rawSource.includes(" ")
+        ? `https://${rawSource}`
+        : rawSource;
 
     if (canUseTauriBackend) {
       const storedItem = await createQuote({
@@ -2028,7 +2271,8 @@ function App() {
       await video.play();
       const width = video.videoWidth;
       const height = video.videoHeight;
-      if (width === 0 || height === 0) throw new Error("The selected display has no capturable frame.");
+      if (width === 0 || height === 0)
+        throw new Error("The selected display has no capturable frame.");
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
@@ -2041,7 +2285,9 @@ function App() {
       if (error instanceof DOMException && error.name === "AbortError") return;
       failCapture(error instanceof Error ? error.message : String(error));
     } finally {
-      stream?.getTracks().forEach((track) => track.stop());
+      stream?.getTracks().forEach((track) => {
+        track.stop();
+      });
       setIsCapturing(false);
     }
   }
@@ -2053,7 +2299,8 @@ function App() {
       const response = await fetch(imageUrl);
       if (!response.ok) throw new Error(`The image returned HTTP ${response.status}.`);
       const blob = await response.blob();
-      const segment = imageUrl.split("?")[0].split("#")[0].split("/").filter(Boolean).pop() || "image";
+      const segment =
+        imageUrl.split("?")[0].split("#")[0].split("/").filter(Boolean).pop() || "image";
       const file = new File([blob], segment.slice(0, 80), { type: blob.type || "image/png" });
       await persistFile(file, captureSource);
     } catch {
@@ -2077,7 +2324,12 @@ function App() {
       // Every path creates the provisional card immediately; extraction,
       // embeddings, and indexing run as background jobs from there.
       if (capture.kind === "quote") {
-        await persistQuote(capture.selection, capture.attribution, capture.url, "browser extension");
+        await persistQuote(
+          capture.selection,
+          capture.attribution,
+          capture.url,
+          "browser extension",
+        );
       } else if (capture.kind === "image") {
         await captureImageUrl(capture.pageUrl, capture.imageUrl, "browser extension");
       } else {
@@ -2097,10 +2349,14 @@ function App() {
     setIsFindingSimilar(true);
     try {
       const storedItems = await searchSimilarItems(String(item.id), kind);
-      const summaries = await getProcessingSummaries(storedItems.map((storedItem) => storedItem.id));
-      const libraryItems = await Promise.all(storedItems.map((storedItem) =>
-        storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
-      ));
+      const summaries = await getProcessingSummaries(
+        storedItems.map((storedItem) => storedItem.id),
+      );
+      const libraryItems = await Promise.all(
+        storedItems.map((storedItem) =>
+          storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
+        ),
+      );
       setQuery("");
       clearToDefaultView();
       setSimilaritySource({ id: String(item.id), title: item.title, kind });
@@ -2189,55 +2445,58 @@ function App() {
   // value it saw here and drops its result if a toggle has landed since, so an
   // older read cannot roll back the chip the user just changed.
   const spaceMembershipEpochRef = useRef(0);
-  const handleToggleItemInSpace = useCallback(async (item: LibraryItem, spaceId: string) => {
-    const itemId = String(item.id);
-    const wasMember = itemSpaceIds.includes(spaceId);
-    // `adding` is the state being moved to, not the one being left. Naming it
-    // after the destination keeps the write and the optimistic apply reading the
-    // same way round, which is the trap the previous `member` name walked into.
-    const adding = !wasMember;
-    const show = (next: boolean) => {
-      setItemSpaceIds((current) => {
-        if (next) return current.includes(spaceId) ? current : [...current, spaceId];
-        return current.filter((id) => id !== spaceId);
-      });
-    };
-    setCaptureError(null);
-    if (!canUseTauriBackend) {
-      // Preview keeps membership in local state and an effect mirrors that into
-      // itemSpaceIds, so there is no write to make and none to chain.
-      setLocalSpaceItems((current) => {
-        const next = new Map(current);
-        const members = new Set(next.get(spaceId) ?? []);
-        if (adding) members.add(itemId);
-        else members.delete(itemId);
-        next.set(spaceId, members);
-        return next;
-      });
-      return;
-    }
+  const handleToggleItemInSpace = useCallback(
+    async (item: LibraryItem, spaceId: string) => {
+      const itemId = String(item.id);
+      const wasMember = itemSpaceIds.includes(spaceId);
+      // `adding` is the state being moved to, not the one being left. Naming it
+      // after the destination keeps the write and the optimistic apply reading the
+      // same way round, which is the trap the previous `member` name walked into.
+      const adding = !wasMember;
+      const show = (next: boolean) => {
+        setItemSpaceIds((current) => {
+          if (next) return current.includes(spaceId) ? current : [...current, spaceId];
+          return current.filter((id) => id !== spaceId);
+        });
+      };
+      setCaptureError(null);
+      if (!canUseTauriBackend) {
+        // Preview keeps membership in local state and an effect mirrors that into
+        // itemSpaceIds, so there is no write to make and none to chain.
+        setLocalSpaceItems((current) => {
+          const next = new Map(current);
+          const members = new Set(next.get(spaceId) ?? []);
+          if (adding) members.add(itemId);
+          else members.delete(itemId);
+          next.set(spaceId, members);
+          return next;
+        });
+        return;
+      }
 
-    spaceMembershipEpochRef.current += 1;
-    show(adding);
-    const write = (spaceWritesRef.current.get(spaceId) ?? Promise.resolve())
-      .then(async () => {
-        if (adding) await addSpaceItem(spaceId, itemId);
-        else await removeSpaceItem(spaceId, itemId);
-        // The open Space lists its own members, so its grid has to re-read.
-        if (activeSpaceId === spaceId) loadItemsRef.current();
-      })
-      .catch((error: unknown) => {
-        // A failed write must not leave the chip claiming a membership the
-        // library does not have.
-        show(wasMember);
-        setCaptureError(error instanceof Error ? error.message : String(error));
-      })
-      .finally(() => {
-        if (spaceWritesRef.current.get(spaceId) === write) spaceWritesRef.current.delete(spaceId);
-      });
-    spaceWritesRef.current.set(spaceId, write);
-    await write;
-  }, [activeSpaceId, canUseTauriBackend, itemSpaceIds]);
+      spaceMembershipEpochRef.current += 1;
+      show(adding);
+      const write = (spaceWritesRef.current.get(spaceId) ?? Promise.resolve())
+        .then(async () => {
+          if (adding) await addSpaceItem(spaceId, itemId);
+          else await removeSpaceItem(spaceId, itemId);
+          // The open Space lists its own members, so its grid has to re-read.
+          if (activeSpaceId === spaceId) loadItemsRef.current();
+        })
+        .catch((error: unknown) => {
+          // A failed write must not leave the chip claiming a membership the
+          // library does not have.
+          show(wasMember);
+          setCaptureError(error instanceof Error ? error.message : String(error));
+        })
+        .finally(() => {
+          if (spaceWritesRef.current.get(spaceId) === write) spaceWritesRef.current.delete(spaceId);
+        });
+      spaceWritesRef.current.set(spaceId, write);
+      await write;
+    },
+    [activeSpaceId, canUseTauriBackend, itemSpaceIds],
+  );
 
   async function handleDeleteSpace(space: StoredSpace) {
     setCaptureError(null);
@@ -2265,7 +2524,9 @@ function App() {
       const updated = canUseTauriBackend
         ? await updateSpace({ id: space.id, name: trimmed })
         : { ...space, name: trimmed, updatedAt: Date.now() };
-      setSpaces((current) => current.map((candidate) => candidate.id === space.id ? updated : candidate));
+      setSpaces((current) =>
+        current.map((candidate) => (candidate.id === space.id ? updated : candidate)),
+      );
       if (activeSpaceId === space.id) setActiveView(updated.name);
     } catch (error) {
       // Reopen the rename input with the draft preserved: the name visibly
@@ -2284,7 +2545,9 @@ function App() {
       const updated = canUseTauriBackend
         ? await updateSpace({ id: space.id, color: next })
         : { ...space, color: next, updatedAt: Date.now() };
-      setSpaces((current) => current.map((candidate) => candidate.id === space.id ? updated : candidate));
+      setSpaces((current) =>
+        current.map((candidate) => (candidate.id === space.id ? updated : candidate)),
+      );
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
@@ -2328,7 +2591,9 @@ function App() {
         }
         setCaptureError(
           resynced
-            ? error instanceof Error ? error.message : String(error)
+            ? error instanceof Error
+              ? error.message
+              : String(error)
             : "Couldn't confirm the new Space order. Reload the window and check the sidebar.",
         );
       }
@@ -2337,21 +2602,21 @@ function App() {
     // Seed path: derive the swap from fresh state inside the updater so a
     // concurrent space operation cannot leave stale positions behind.
     setSpaces((current) => {
-        const fresh = [...current].sort((a, b) => a.position - b.position);
-        const at = fresh.findIndex((candidate) => candidate.id === space.id);
-        const neighbor = fresh[at + direction];
-        if (at < 0 || !neighbor) return current;
-        const freshPosition = fresh[at].position;
-        return fresh
-          .map((candidate) =>
-            candidate.id === space.id
-              ? { ...candidate, position: neighbor.position }
-              : candidate.id === neighbor.id
-                ? { ...candidate, position: freshPosition }
-                : candidate,
-          )
-          .sort((a, b) => a.position - b.position);
-      });
+      const fresh = [...current].sort((a, b) => a.position - b.position);
+      const at = fresh.findIndex((candidate) => candidate.id === space.id);
+      const neighbor = fresh[at + direction];
+      if (at < 0 || !neighbor) return current;
+      const freshPosition = fresh[at].position;
+      return fresh
+        .map((candidate) =>
+          candidate.id === space.id
+            ? { ...candidate, position: neighbor.position }
+            : candidate.id === neighbor.id
+              ? { ...candidate, position: freshPosition }
+              : candidate,
+        )
+        .sort((a, b) => a.position - b.position);
+    });
   }
 
   useEffect(() => {
@@ -2379,9 +2644,9 @@ function App() {
 
       if (isShortcutsOpen || isSettingsOpen || isAdding) return;
       const target = event.target;
-      const isEditableTarget = target instanceof HTMLElement && (
-        target.isContentEditable || target.matches("input, textarea, select, [role=\"textbox\"]")
-      );
+      const isEditableTarget =
+        target instanceof HTMLElement &&
+        (target.isContentEditable || target.matches('input, textarea, select, [role="textbox"]'));
       const shortcut = appKeyboardShortcut(event, isEditableTarget);
       if (!shortcut) return;
       event.preventDefault();
@@ -2391,7 +2656,16 @@ function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [captureMode, isAdding, isCapturing, isSettingsOpen, isShortcutsOpen, pdfViewerItem, readingItem, selectedItem]);
+  }, [
+    captureMode,
+    isAdding,
+    isCapturing,
+    isSettingsOpen,
+    isShortcutsOpen,
+    pdfViewerItem,
+    readingItem,
+    selectedItem,
+  ]);
 
   // Escape belongs to whichever dialog is on top, so each one owns it rather
   // than a handler here guessing at which surfaces happen to be open.
@@ -2406,7 +2680,8 @@ function App() {
   // this the one place that still hands focus back and keeps Tab inside by hand.
   useEffect(() => {
     if (!isShortcutsOpen) return;
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialog = shortcutsModalRef.current;
     shortcutsCloseRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
@@ -2426,7 +2701,11 @@ function App() {
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target;
-      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLElement && target.isContentEditable) {
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
         return;
       }
 
@@ -2474,7 +2753,9 @@ function App() {
     });
     return () => {
       cancelled = true;
-      unlisten.forEach((removeListener) => removeListener());
+      unlisten.forEach((removeListener) => {
+        removeListener();
+      });
     };
   }, []);
 
@@ -2557,11 +2838,14 @@ function App() {
         const activeJobsPromise = canUseTauriBackend
           ? countActiveJobs().catch(() => null)
           : Promise.resolve(null);
-        const [storedItems, activeJobs] = await Promise.all([storedItemsPromise, activeJobsPromise]);
+        const [storedItems, activeJobs] = await Promise.all([
+          storedItemsPromise,
+          activeJobsPromise,
+        ]);
         const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
-        const libraryItems = await Promise.all(storedItems.map((item) =>
-          storedItemToLibraryItem(item, summaries.get(item.id)),
-        ));
+        const libraryItems = await Promise.all(
+          storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
+        );
         if (!cancelled) {
           if (activeJobs !== null) setActiveJobCount(activeJobs);
           // A refresh can resolve with data older than two writes this session
@@ -2570,12 +2854,14 @@ function App() {
           // Top of mind cannot disagree with what the user just did.
           const noteBodies = noteBodyCacheRef.current;
           const overrides = pinnedOverridesRef.current;
-          setItems(libraryItems.map((item) => {
-            const noteBody = noteBodies.get(String(item.id));
-            const pinned = overrides.get(String(item.id));
-            const withNote = noteBody === undefined ? item : { ...item, noteBody };
-            return pinned === undefined ? withNote : { ...withNote, favorite: pinned };
-          }));
+          setItems(
+            libraryItems.map((item) => {
+              const noteBody = noteBodies.get(String(item.id));
+              const pinned = overrides.get(String(item.id));
+              const withNote = noteBody === undefined ? item : { ...item, noteBody };
+              return pinned === undefined ? withNote : { ...withNote, favorite: pinned };
+            }),
+          );
         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -2601,10 +2887,12 @@ function App() {
     void listen<{ itemId: string }>("inkling://job-updated", () => {
       window.clearTimeout(coalesceTimer);
       coalesceTimer = window.setTimeout(() => loadItemsRef.current(), 400);
-    }).then((removeListener) => {
-      if (cancelled) removeListener();
-      else removeJobListener = removeListener;
-    }).catch(() => {});
+    })
+      .then((removeListener) => {
+        if (cancelled) removeListener();
+        else removeJobListener = removeListener;
+      })
+      .catch(() => {});
     const refreshTimer = window.setInterval(() => {
       if (document.hidden) return;
       void loadItems();
@@ -2631,15 +2919,17 @@ function App() {
         await initializeStorage();
         const storedItems = await listArchivedItems();
         const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
-         const nextItems = await Promise.all(storedItems.map((item) =>
-           storedItemToLibraryItem(item, summaries.get(item.id)),
-         ));
-         if (!cancelled) {
-           setArchivedItems(nextItems.map((item) => {
-             const noteBody = noteBodyCacheRef.current.get(String(item.id));
-             return noteBody === undefined ? item : { ...item, noteBody };
-           }));
-         }
+        const nextItems = await Promise.all(
+          storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
+        );
+        if (!cancelled) {
+          setArchivedItems(
+            nextItems.map((item) => {
+              const noteBody = noteBodyCacheRef.current.get(String(item.id));
+              return noteBody === undefined ? item : { ...item, noteBody };
+            }),
+          );
+        }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
       }
@@ -2680,9 +2970,10 @@ function App() {
   // against a search that a refresh or a restored view can narrow.
   const pinsViewIsEmpty = isPinsView && isEmptyPinsView({ query, similaritySource });
   const serendipityCandidates = useMemo(
-    () => isSerendipityView
-      ? serendipityItems(items, { excludedIds: serendipityKeptIds, limit: items.length })
-      : [],
+    () =>
+      isSerendipityView
+        ? serendipityItems(items, { excludedIds: serendipityKeptIds, limit: items.length })
+        : [],
     [isSerendipityView, items, serendipityKeptIds],
   );
   const serendipityBatch = useMemo(
@@ -2701,31 +2992,39 @@ function App() {
         : canUseTauriBackend || similaritySource || activeSpace
           ? true
           : [item.title, item.description, item.source, item.kind, ...item.tags]
-            .join(" ")
-            .toLowerCase()
-            .includes(normalizedQuery);
+              .join(" ")
+              .toLowerCase()
+              .includes(normalizedQuery);
       const matchesView =
         activeView === "Everything" ||
-          (activeView === "Top of mind" && matchesPinsView(item)) ||
+        (activeView === "Top of mind" && matchesPinsView(item)) ||
         (activeSpace
           ? canUseTauriBackend
             ? true
             : activeSpace.kind === "regular"
-              // Mirror of the core's membership read for browser (seed) mode.
-              ? (localSpaceItems.get(activeSpace.id)?.has(String(item.id)) ?? false)
+              ? // Mirror of the core's membership read for browser (seed) mode.
+                (localSpaceItems.get(activeSpace.id)?.has(String(item.id)) ?? false)
               : itemMatchesSmartQuery(item, activeSpace.query)
           : false);
       return matchesQuery && matchesView;
     });
-  }, [activeSpace, activeSpaceId, activeView, canUseTauriBackend, isSerendipityView, items, localSpaceItems, query, serendipityBatch, similaritySource]);
+  }, [
+    activeSpace,
+    activeSpaceId,
+    activeView,
+    canUseTauriBackend,
+    isSerendipityView,
+    items,
+    localSpaceItems,
+    query,
+    serendipityBatch,
+    similaritySource,
+  ]);
 
   // The Regular Spaces an item can be filed into, and whether it already is.
   // Smart Spaces are excluded: their contents come from the query, so a chip
   // for them would be a claim that goes stale on its own.
-  const manualSpaces = useMemo(
-    () => spaces.filter((space) => space.kind === "regular"),
-    [spaces],
-  );
+  const manualSpaces = useMemo(() => spaces.filter((space) => space.kind === "regular"), [spaces]);
   const selectedItemSpaces = useMemo(
     () => manualSpaces.map((space) => ({ ...space, member: itemSpaceIds.includes(space.id) })),
     [itemSpaceIds, manualSpaces],
@@ -2779,7 +3078,8 @@ function App() {
   }
 
   function openCapture(mode: CaptureMode | null = null) {
-    captureReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    captureReturnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setCaptureError(null);
     setSelectedFile(null);
     setCaptureMode(mode);
@@ -2822,90 +3122,120 @@ function App() {
       return;
     }
 
-    const droppedText = (event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain"))
+    const droppedText = (
+      event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain")
+    )
       .split(/\r?\n/u)
       .map((value) => value.trim())
       .find(Boolean);
     if (!droppedText) return;
-    if (/^https?:\/\//iu.test(droppedText) || /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u.test(droppedText)) {
+    if (
+      /^https?:\/\//iu.test(droppedText) ||
+      /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u.test(
+        droppedText,
+      )
+    ) {
       void captureArticle(droppedText, "drag and drop");
     } else {
       void captureText(droppedText, "drag and drop");
     }
   }
 
-  const libraryCardContext = useMemo<LibraryCardContext>(() => ({
-    onSelectItem: selectLibraryItem,
-    onOpenReader: openReader,
-    onRetryJob: retryJob,
-  }), [openReader, retryJob, selectLibraryItem]);
+  const libraryCardContext = useMemo<LibraryCardContext>(
+    () => ({
+      onSelectItem: selectLibraryItem,
+      onOpenReader: openReader,
+      onRetryJob: retryJob,
+    }),
+    [openReader, retryJob, selectLibraryItem],
+  );
 
   const restoreArchivedItems = useCallback((restoredItems: LibraryItem[]) => {
     if (restoredItems.length === 0) return;
     // A settings reload can re-add a row that is still stored, so restore by
     // presence instead of blind prepending a second copy of the same item.
     setArchivedItems((current) => {
-      const absent = restoredItems.filter((item) => !current.some((candidate) => String(candidate.id) === String(item.id)));
+      const absent = restoredItems.filter(
+        (item) => !current.some((candidate) => String(candidate.id) === String(item.id)),
+      );
       return absent.length === 0 ? current : [...absent, ...current];
     });
   }, []);
 
-  const schedulePermanentDelete = useCallback((item: LibraryItem) => {
-    const id = String(item.id);
-    const previous = pendingPermanentDeletesRef.current.get(id);
-    if (previous !== undefined) window.clearTimeout(previous.timer);
-    const pending: PendingPermanentDelete = { timer: 0, item };
-    pending.timer = window.setTimeout(() => {
-      pendingPermanentDeletesRef.current.delete(id);
-      if (!canUseTauriBackend) return;
-      void deleteItem(id).then(() => {
-        // The row is still in the database during the undo window, so a reload
-        // can bring the card back; drop it again now the delete has landed.
-        setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== id));
-      }).catch((error) => {
-        // A recovered item is no longer archived, so its delete fails on
-        // purpose: leaving it out is already the desired end state and the error
-        // would only confuse. An item that is still archived comes back here.
-        if (activeItemsRef.current.some((candidate) => String(candidate.id) === id)) return;
-        restoreArchivedItems([item]);
-        setCaptureError(error instanceof Error ? error.message : String(error));
+  const schedulePermanentDelete = useCallback(
+    (item: LibraryItem) => {
+      const id = String(item.id);
+      const previous = pendingPermanentDeletesRef.current.get(id);
+      if (previous !== undefined) window.clearTimeout(previous.timer);
+      const pending: PendingPermanentDelete = { timer: 0, item };
+      pending.timer = window.setTimeout(() => {
+        pendingPermanentDeletesRef.current.delete(id);
+        if (!canUseTauriBackend) return;
+        void deleteItem(id)
+          .then(() => {
+            // The row is still in the database during the undo window, so a reload
+            // can bring the card back; drop it again now the delete has landed.
+            setArchivedItems((current) =>
+              current.filter((candidate) => String(candidate.id) !== id),
+            );
+          })
+          .catch((error) => {
+            // A recovered item is no longer archived, so its delete fails on
+            // purpose: leaving it out is already the desired end state and the error
+            // would only confuse. An item that is still archived comes back here.
+            if (activeItemsRef.current.some((candidate) => String(candidate.id) === id)) return;
+            restoreArchivedItems([item]);
+            setCaptureError(error instanceof Error ? error.message : String(error));
+          });
+      }, 10000);
+      pendingPermanentDeletesRef.current.set(id, pending);
+      return pending;
+    },
+    [canUseTauriBackend, restoreArchivedItems],
+  );
+
+  const undoPermanentDelete = useCallback(
+    (pendingDeletes: PendingPermanentDelete[]) => {
+      const restored = pendingDeletes
+        .filter((pending) => cancelPermanentDelete(pending))
+        .map((pending) => pending.item);
+      restoreArchivedItems(restored);
+    },
+    [cancelPermanentDelete, restoreArchivedItems],
+  );
+
+  useEffect(
+    () => () => {
+      // A pending delete is finalized by its own timer, and unmounting must not
+      // run it: a remount (StrictMode, HMR) would flush real deletes, and closing
+      // the window tears the webview down without unmounting anyway. Dropping the
+      // timers leaves those items archived and recoverable, which is the state
+      // the delete never left.
+      for (const pending of pendingPermanentDeletesRef.current.values()) {
+        window.clearTimeout(pending.timer);
+      }
+      pendingPermanentDeletesRef.current.clear();
+    },
+    [],
+  );
+
+  const deleteArchivedLibraryItem = useCallback(
+    (item: LibraryItem) => {
+      setCaptureError(null);
+      const itemId = String(item.id);
+      const pending = schedulePermanentDelete(item);
+      setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== itemId));
+      if (selectedItem && String(selectedItem.id) === itemId) setSelectedItem(null);
+      toast("Deleted permanently", {
+        description: item.title,
+        duration: 10000,
+        closeButton: true,
+        className: "library-toast",
+        action: { label: "Undo", onClick: () => undoPermanentDelete([pending]) },
       });
-    }, 10000);
-    pendingPermanentDeletesRef.current.set(id, pending);
-    return pending;
-  }, [canUseTauriBackend, restoreArchivedItems]);
-
-  const undoPermanentDelete = useCallback((pendingDeletes: PendingPermanentDelete[]) => {
-    const restored = pendingDeletes.filter((pending) => cancelPermanentDelete(pending)).map((pending) => pending.item);
-    restoreArchivedItems(restored);
-  }, [cancelPermanentDelete, restoreArchivedItems]);
-
-  useEffect(() => () => {
-    // A pending delete is finalized by its own timer, and unmounting must not
-    // run it: a remount (StrictMode, HMR) would flush real deletes, and closing
-    // the window tears the webview down without unmounting anyway. Dropping the
-    // timers leaves those items archived and recoverable, which is the state
-    // the delete never left.
-    for (const pending of pendingPermanentDeletesRef.current.values()) {
-      window.clearTimeout(pending.timer);
-    }
-    pendingPermanentDeletesRef.current.clear();
-  }, []);
-
-  const deleteArchivedLibraryItem = useCallback((item: LibraryItem) => {
-    setCaptureError(null);
-    const itemId = String(item.id);
-    const pending = schedulePermanentDelete(item);
-    setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== itemId));
-    if (selectedItem && String(selectedItem.id) === itemId) setSelectedItem(null);
-    toast("Deleted permanently", {
-      description: item.title,
-      duration: 10000,
-      closeButton: true,
-      className: "library-toast",
-      action: { label: "Undo", onClick: () => undoPermanentDelete([pending]) },
-    });
-  }, [schedulePermanentDelete, selectedItem, undoPermanentDelete]);
+    },
+    [schedulePermanentDelete, selectedItem, undoPermanentDelete],
+  );
 
   const toggleArchiveSelectionMode = useCallback(() => {
     setIsArchiveSelectionMode((current) => {
@@ -2936,46 +3266,64 @@ function App() {
     try {
       // Restore every item first, then fetch all processing summaries in one
       // batched call instead of one round trip per restored item.
-      const results = await Promise.allSettled(selectedItems.map(async (item) => {
-        if (!canUseTauriBackend) return null;
-        // A restore un-archives the row, so cancel any scheduled permanent
-        // delete for it before the timer can fire and destroy its assets.
-        const pending = pendingPermanentDeletesRef.current.get(String(item.id));
-        if (pending !== undefined) cancelPermanentDelete(pending);
-        return archiveItem(String(item.id), false);
-      }));
-      const restoredStored = results.flatMap((result) => result.status === "fulfilled" && result.value ? [result.value] : []);
+      const results = await Promise.allSettled(
+        selectedItems.map(async (item) => {
+          if (!canUseTauriBackend) return null;
+          // A restore un-archives the row, so cancel any scheduled permanent
+          // delete for it before the timer can fire and destroy its assets.
+          const pending = pendingPermanentDeletesRef.current.get(String(item.id));
+          if (pending !== undefined) cancelPermanentDelete(pending);
+          return archiveItem(String(item.id), false);
+        }),
+      );
+      const restoredStored = results.flatMap((result) =>
+        result.status === "fulfilled" && result.value ? [result.value] : [],
+      );
       let failures = results.filter((result) => result.status === "rejected").length;
       // One batched summaries call for the whole restore. If it fails, the
       // items are still restored; only their processing badges fall back.
       let summaries = new Map<string, ProcessingSummary>();
       try {
         if (canUseTauriBackend && restoredStored.length > 0) {
-          summaries = await getProcessingSummaries(restoredStored.map((storedItem) => storedItem.id));
+          summaries = await getProcessingSummaries(
+            restoredStored.map((storedItem) => storedItem.id),
+          );
         }
       } catch {
         summaries = new Map<string, ProcessingSummary>();
       }
       // Convert per item so one unreadable item cannot sink the whole batch.
-      const settled = await Promise.allSettled(restoredStored.map((storedItem) =>
-        storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
-      ));
+      const settled = await Promise.allSettled(
+        restoredStored.map((storedItem) =>
+          storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
+        ),
+      );
       failures += settled.filter((result) => result.status === "rejected").length;
-      const converted = settled.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      const converted = settled.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : [],
+      );
       const restoredItems: LibraryItem[] = [
         ...selectedItems.filter(() => !canUseTauriBackend),
         ...converted,
       ];
       const restoredIds = new Set(restoredItems.map((item) => String(item.id)));
       setItems((current) => [
-        ...restoredItems.filter((item) => !current.some((candidate) => String(candidate.id) === String(item.id))),
+        ...restoredItems.filter(
+          (item) => !current.some((candidate) => String(candidate.id) === String(item.id)),
+        ),
         ...current,
       ]);
       setArchivedItems((current) => current.filter((item) => !restoredIds.has(String(item.id))));
       setSelectedArchivedIds(new Set());
       setIsArchiveSelectionMode(false);
-      if (restoredItems.length > 0) toast.success(`${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`);
-      if (failures > 0) setCaptureError(`${failures} ${failures === 1 ? "item" : "items"} could not be recovered. They are still in the archive.`);
+      if (restoredItems.length > 0)
+        toast.success(
+          `${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`,
+        );
+      if (failures > 0)
+        setCaptureError(
+          `${failures} ${failures === 1 ? "item" : "items"} could not be recovered. They are still in the archive.`,
+        );
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
@@ -2991,13 +3339,22 @@ function App() {
     if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
     setSelectedArchivedIds(new Set());
     setIsArchiveSelectionMode(false);
-    toast(`${selectedItems.length} ${selectedItems.length === 1 ? "item" : "items"} deleted permanently`, {
-      duration: 10000,
-      closeButton: true,
-      className: "library-toast",
-      action: { label: "Undo", onClick: () => undoPermanentDelete(pendingDeletes) },
-    });
-  }, [archivedItems, schedulePermanentDelete, selectedArchivedIds, selectedItem, undoPermanentDelete]);
+    toast(
+      `${selectedItems.length} ${selectedItems.length === 1 ? "item" : "items"} deleted permanently`,
+      {
+        duration: 10000,
+        closeButton: true,
+        className: "library-toast",
+        action: { label: "Undo", onClick: () => undoPermanentDelete(pendingDeletes) },
+      },
+    );
+  }, [
+    archivedItems,
+    schedulePermanentDelete,
+    selectedArchivedIds,
+    selectedItem,
+    undoPermanentDelete,
+  ]);
 
   const selectArchivedLibraryItem = useCallback((item: LibraryItem, rects?: SourceRects) => {
     selectionScrollRef.current = false;
@@ -3005,29 +3362,52 @@ function App() {
     setSelectedItem(item);
   }, []);
 
-  const archivedCardContext = useMemo<LibraryCardContext>(() => ({
-    onSelectItem: selectArchivedLibraryItem,
-    onOpenReader: openReader,
-    onRetryJob: retryJob,
-    onDeleteArchivedItem: deleteArchivedLibraryItem,
-    archiveSelectionMode: isArchiveSelectionMode,
-    isArchivedItemSelected: isArchivedLibraryItemSelected,
-    onToggleArchivedItem: toggleArchivedLibraryItem,
-  }), [deleteArchivedLibraryItem, isArchiveSelectionMode, isArchivedLibraryItemSelected, openReader, retryJob, selectArchivedLibraryItem, toggleArchivedLibraryItem]);
+  const archivedCardContext = useMemo<LibraryCardContext>(
+    () => ({
+      onSelectItem: selectArchivedLibraryItem,
+      onOpenReader: openReader,
+      onRetryJob: retryJob,
+      onDeleteArchivedItem: deleteArchivedLibraryItem,
+      archiveSelectionMode: isArchiveSelectionMode,
+      isArchivedItemSelected: isArchivedLibraryItemSelected,
+      onToggleArchivedItem: toggleArchivedLibraryItem,
+    }),
+    [
+      deleteArchivedLibraryItem,
+      isArchiveSelectionMode,
+      isArchivedLibraryItemSelected,
+      openReader,
+      retryJob,
+      selectArchivedLibraryItem,
+      toggleArchivedLibraryItem,
+    ],
+  );
 
-  const expandedOverlayActions = useMemo<ExpandedOverlayActions>(() => ({
-    onClose: () => setSelectedItem(null),
-    onOpenPdf: setPdfViewerItem,
-    onOpenReader: openReader,
-    onFindSimilar: (item) => void findSimilarItems(item),
-    onForget: forgetItem,
-    onTogglePin: togglePinItem,
-    onRetryJob: retryJob,
-    onAddTag: addTagToItem,
-    onUpdateNote: updateNote,
-    onToggleSpace: (item, spaceId) => void handleToggleItemInSpace(item, spaceId),
-    isFindingSimilar,
-  }), [addTagToItem, forgetItem, handleToggleItemInSpace, isFindingSimilar, openReader, retryJob, togglePinItem, updateNote]);
+  const expandedOverlayActions = useMemo<ExpandedOverlayActions>(
+    () => ({
+      onClose: () => setSelectedItem(null),
+      onOpenPdf: setPdfViewerItem,
+      onOpenReader: openReader,
+      onFindSimilar: (item) => void findSimilarItems(item),
+      onForget: forgetItem,
+      onTogglePin: togglePinItem,
+      onRetryJob: retryJob,
+      onAddTag: addTagToItem,
+      onUpdateNote: updateNote,
+      onToggleSpace: (item, spaceId) => void handleToggleItemInSpace(item, spaceId),
+      isFindingSimilar,
+    }),
+    [
+      addTagToItem,
+      forgetItem,
+      handleToggleItemInSpace,
+      isFindingSimilar,
+      openReader,
+      retryJob,
+      togglePinItem,
+      updateNote,
+    ],
+  );
 
   // Selection styling stays out of the card render tree so opening the
   // overlay does not re-render (or remount embeds in) the whole grid.
@@ -3045,9 +3425,10 @@ function App() {
   // commuting to the search field while it is focused. Busy shows the
   // notification pastille; errors drop to idle so the sad face can show
   // (drift carries its own fixed face). Error beats busyness beats attention.
-  const isMascotBusy = canUseTauriBackend && activeJobCount !== null
-    ? activeJobCount > 0
-    : items.some((item) => item.processing?.active);
+  const isMascotBusy =
+    canUseTauriBackend && activeJobCount !== null
+      ? activeJobCount > 0
+      : items.some((item) => item.processing?.active);
   // `captureError` is the shared error channel for the whole app, so it cannot
   // also mean "a save the user asked for failed" — a retried job, a renamed
   // Space, and the archive all write to it, and "Find similar" in the web
@@ -3080,7 +3461,13 @@ function App() {
           : prefersReducedMotion
             ? "inkling-sway"
             : "inkling-drift",
-      expression: captureError ? "triste" : isSearchFocused ? (query ? "curieux" : "attentif") : "neutre",
+      expression: captureError
+        ? "triste"
+        : isSearchFocused
+          ? query
+            ? "curieux"
+            : "attentif"
+          : "neutre",
     });
   }, [isMascotBusy, captureError, isSearchFocused, query, prefersReducedMotion]);
 
@@ -3115,14 +3502,20 @@ function App() {
 
   // Dev-only mascot board (vendored bloub engine + inkling skins). Not linked
   // from the UI; open with ?mascot. Placed after all hooks.
-  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mascot-alive")) {
+  if (
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("mascot-alive")
+  ) {
     return (
       <Suspense fallback={null}>
         <AliveBoard />
       </Suspense>
     );
   }
-  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mascot-roam")) {
+  if (
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("mascot-roam")
+  ) {
     return (
       <Suspense fallback={null}>
         <RoamBoard />
@@ -3139,7 +3532,12 @@ function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className={`app-shell relative flex h-full min-h-screen overflow-hidden bg-paper ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+      <div
+        className={`app-shell relative flex h-full min-h-screen overflow-hidden bg-paper ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <AnimatePresence>
           {isSidebarOpen && (
             <motion.button
@@ -3159,38 +3557,54 @@ function App() {
           <div
             data-testid="web-preview-badge"
             title="Web preview shows deterministic sample data. No Tauri backend is connected."
-            style={{ position: "fixed", top: 12, left: 12, zIndex: 1000, pointerEvents: "none", padding: "4px 8px", fontSize: 12, borderRadius: 999, background: "#f5f0dc", color: "#5c4a12" }}
+            style={{
+              position: "fixed",
+              top: 12,
+              left: 12,
+              zIndex: 1000,
+              pointerEvents: "none",
+              padding: "4px 8px",
+              fontSize: 12,
+              borderRadius: 999,
+              background: "#f5f0dc",
+              color: "#5c4a12",
+            }}
           >
             Web preview — sample data
           </div>
         )}
-      <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
-          <div className="brand-lockup flex items-center gap-[11px] px-[10px] pt-0 pb-3" data-tauri-drag-region>
-          <MascotHomeSlot isSearchFocused={isSearchFocused} />
-          <div>
-            <strong>inkling</strong>
+        <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
+          <div
+            className="brand-lockup flex items-center gap-[11px] px-[10px] pt-0 pb-3"
+            data-tauri-drag-region
+          >
+            <MascotHomeSlot isSearchFocused={isSearchFocused} />
+            <div>
+              <strong>inkling</strong>
+            </div>
+            <button
+              type="button"
+              className="sidebar-close"
+              aria-label="Close panel"
+              onClick={() => setIsSidebarOpen(false)}
+            >
+              <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
+            </button>
           </div>
-          <button
-            type="button"
-            className="sidebar-close"
-            aria-label="Close panel"
-            onClick={() => setIsSidebarOpen(false)}
-          >
-            <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
-          </button>
-        </div>
 
-        <nav className="primary-nav" aria-label="Main navigation">
-          <button
-            className={`nav-item ${activeView === "Everything" && !activeSpaceId ? "active" : ""}`}
-            onClick={clearToDefaultView}
-          >
-            <HugeiconsIcon icon={Layers01Icon} size={17} />
-            <span>Everything</span>
-            <span className="nav-count">{items.length}</span>
-          </button>
-          <button
-            className={`nav-item ${activeView === "Top of mind" && !activeSpaceId ? "active" : ""}`}
+          <nav className="primary-nav" aria-label="Main navigation">
+            <button
+              type="button"
+              className={`nav-item ${activeView === "Everything" && !activeSpaceId ? "active" : ""}`}
+              onClick={clearToDefaultView}
+            >
+              <HugeiconsIcon icon={Layers01Icon} size={17} />
+              <span>Everything</span>
+              <span className="nav-count">{items.length}</span>
+            </button>
+            <button
+              type="button"
+              className={`nav-item ${activeView === "Top of mind" && !activeSpaceId ? "active" : ""}`}
               onClick={() => {
                 setActiveSpaceId(null);
                 setActiveView("Top of mind");
@@ -3198,861 +3612,1042 @@ function App() {
                 setSimilaritySource(null);
                 setSelectedItem(null);
               }}
-          >
-            <HugeiconsIcon icon={SparklesIcon} size={17} />
-            <span>Top of mind</span>
-          </button>
-          <button
-            className={`nav-item ${activeView === "Serendipity" && !activeSpaceId ? "active" : ""}`}
-            onClick={selectSerendipityView}
-          >
-            <HugeiconsIcon icon={Clock01Icon} size={17} />
-            <span>Serendipity</span>
-          </button>
-        </nav>
-
-        <div className="sidebar-section">
-          <div className="sidebar-heading">
-            <span>Spaces</span>
-            <button
-              className="icon-button small"
-              aria-label="Add a Space"
-              title="Add a Space"
-              onClick={() => {
-                setIsCreatingSpace((current) => !current);
-                setNewSpaceName("");
-                setNewSpaceKind("smart");
-              }}
             >
-              <HugeiconsIcon icon={PlusSignIcon} size={16} />
+              <HugeiconsIcon icon={SparklesIcon} size={17} />
+              <span>Top of mind</span>
             </button>
-          </div>
-          <div className="space-list">
-            {spaces.map((space) => (
-              <div
-                className={`space-item ${activeSpaceId === space.id ? "selected" : ""}`}
-                key={space.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  if (renamingSpaceId !== space.id) selectSpace(space);
-                }}
-                onKeyDown={(event) => {
-                  if (renamingSpaceId === space.id) return;
-                  if (event.target !== event.currentTarget) return;
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    selectSpace(space);
-                  }
-                }}
-              >
-                <span
-                  className={`space-dot ${space.color}`}
-                  role="button"
-                  tabIndex={0}
-                  title={`Change color (now ${space.color})`}
-                  aria-label={`Change color of ${space.name}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void handleCycleSpaceColor(space);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      void handleCycleSpaceColor(space);
-                    }
-                  }}
-                />
-                {renamingSpaceId === space.id ? (
-                  <input
-                    autoFocus
-                    className="space-rename-input"
-                    value={renameDraft}
-                    aria-label={`Rename ${space.name}`}
-                    maxLength={80}
-                    onChange={(event) => setRenameDraft(event.target.value)}
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => {
-                      event.stopPropagation();
-                      if (event.key === "Enter") void handleRenameSpace(space, renameDraft);
-                      else if (event.key === "Escape") setRenamingSpaceId(null);
-                    }}
-                    // Blur commits, matching Finder/Explorer/VS Code rename fields:
-                    // silently discarding typed text loses work, while an
-                    // accidental save is one rename away from fixed.
-                    onBlur={() => void handleRenameSpace(space, renameDraft)}
-                  />
-                ) : (
-                  <span className="space-name">{space.name}</span>
-                )}
-                <span className="space-count">{activeSpaceId === space.id ? filteredItems.length : ""}</span>
-                <span className="space-actions">
-                  <button
-                    type="button"
-                    className="space-delete space-tool"
-                    aria-label={`Move ${space.name} up`}
-                    title="Move Space up"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handleMoveSpace(space, -1);
-                    }}
-                  >
-                    <HugeiconsIcon icon={ArrowUp01Icon} size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="space-delete space-tool"
-                    aria-label={`Move ${space.name} down`}
-                    title="Move Space down"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handleMoveSpace(space, 1);
-                    }}
-                  >
-                    <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="space-delete space-tool"
-                    aria-label={`Rename ${space.name}`}
-                    title="Rename Space"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setRenamingSpaceId(space.id);
-                      setRenameDraft(space.name);
-                    }}
-                  >
-                    <HugeiconsIcon icon={Edit01Icon} size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="space-delete"
-                    aria-label={`Delete ${space.name}`}
-                    title="Delete Space"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handleDeleteSpace(space);
-                    }}
-                  >
-                    <HugeiconsIcon icon={Cancel01Icon} size={12} />
-                  </button>
-                </span>
-              </div>
-            ))}
-          </div>
-          <AnimatePresence mode="wait">
-            {isCreatingSpace && (
-              <motion.form
-                key="space-form"
-                className="space-form"
-                initial={{ opacity: 0, transform: "translateY(-6px)" }}
-                animate={{ opacity: 1, transform: "translateY(0)" }}
-                exit={{ opacity: 0, transform: "translateY(-4px)" }}
-                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-                onSubmit={handleCreateSpace}
-              >
-              <input
-                autoFocus
-                value={newSpaceName}
-                onChange={(event) => setNewSpaceName(event.target.value)}
-                placeholder={newSpaceKind === "smart" && query.trim() ? `Save “${query.trim()}” as…` : "Name this space"}
-                aria-label="Space name"
-                maxLength={80}
-              />
-              {/* Native radios rather than role="radio" buttons: the group gets
-                  arrow-key selection, one tab stop and group semantics from the
-                  platform instead of from ARIA we would then have to maintain. */}
-              <fieldset className="space-kind">
-                <legend className="visually-hidden">How this Space fills</legend>
-                {(["smart", "regular"] as const).map((kind) => (
-                  <label
-                    key={kind}
-                    className={`space-kind-option ${newSpaceKind === kind ? "is-active" : ""}`}
-                  >
-                    <input
-                      type="radio"
-                      name="space-kind"
-                      className="visually-hidden"
-                      value={kind}
-                      checked={newSpaceKind === kind}
-                      aria-describedby="space-kind-hint"
-                      onChange={() => setNewSpaceKind(kind)}
-                    />
-                    {kind === "smart" ? "Smart" : "Regular"}
-                  </label>
-                ))}
-              </fieldset>
-              <p className="space-form-hint" id="space-kind-hint">
-                {newSpaceKind === "regular"
-                  ? "Holds only the items you file into it. Open an item and pick a Space to add it."
-                  : query.trim()
-                    ? "A Smart Space that updates automatically as items match this search."
-                    : "An empty Smart Space matches everything you have saved."}
-              </p>
-              <div className="space-form-actions">
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() => {
-                    setIsCreatingSpace(false);
-                    setNewSpaceName("");
-                  }}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="capture-save cursor-pointer rounded-[6px] border-0 bg-green px-3 py-2 text-xs text-[#14201a] transition-[background,transform] duration-150 hover:bg-[#91b19d] active:scale-[.96] disabled:cursor-wait disabled:opacity-65">Create Space</button>
-              </div>
-              </motion.form>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="sidebar-footer">
-          <button
-            ref={settingsButtonRef}
-            type="button"
-            className={`nav-item footer-item ${isSettingsOpen ? "active" : ""}`}
-            aria-label="Settings"
-            aria-expanded={isSettingsOpen}
-            aria-controls="settings-modal"
-            title="Settings"
-            onClick={() => setIsSettingsOpen(true)}
-          >
-            <HugeiconsIcon icon={Settings01Icon} size={17} />
-            <span>Settings</span>
-          </button>
-          <button
-            type="button"
-            className="nav-item footer-item"
-            aria-label="Help & shortcuts"
-            aria-haspopup="dialog"
-            aria-controls="shortcuts-modal"
-            title="Help & shortcuts"
-            onClick={() => setIsShortcutsOpen(true)}
-          >
-            <HugeiconsIcon icon={HelpCircleIcon} size={17} />
-            <span>Help & shortcuts</span>
-          </button>
-        </div>
-      </aside>
-
-      <main className="main-content">
-        <section className="library-header">
-        </section>
-
-        <section className="capture-bar relative flex flex-none items-stretch gap-2.5 max-[780px]:gap-2" aria-label="Capture and search">
-          {!isSidebarOpen && (
             <button
               type="button"
-              className="sidebar-toggle"
-              aria-label="Open navigation"
-              aria-expanded={false}
-              aria-controls="library-navigation"
-              onClick={() => setIsSidebarOpen(true)}
+              className={`nav-item ${activeView === "Serendipity" && !activeSpaceId ? "active" : ""}`}
+              onClick={selectSerendipityView}
             >
-              <HugeiconsIcon icon={ViewSidebarLeftIcon} size={17} />
+              <HugeiconsIcon icon={Clock01Icon} size={17} />
+              <span>Serendipity</span>
             </button>
-          )}
-          <div
-            className={`search-field${isSearchFocused ? " is-mascot" : ""}`}
-            onMouseDown={(event) => {
-              if (event.target !== searchRef.current) {
-                event.preventDefault();
-                searchRef.current?.focus();
-              }
-            }}
-          >
-            <span className="field-mascot" aria-hidden="true">
-              <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />
-            </span>
-            <input
-              ref={searchRef}
-              value={query}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setIsSearchFocused(false)}
-              onChange={(event) => {
-                setSimilaritySource(null);
-                setActiveSpaceId(null);
-                setActiveView("Everything");
-                setQuery(event.target.value);
-              }}
-              placeholder="Search your mind"
-              aria-label="Search your mind"
-            />
-            <kbd><span>/</span> to search</kbd>
+          </nav>
+
+          <div className="sidebar-section">
+            <div className="sidebar-heading">
+              <span>Spaces</span>
+              <button
+                type="button"
+                className="icon-button small"
+                aria-label="Add a Space"
+                title="Add a Space"
+                onClick={() => {
+                  setIsCreatingSpace((current) => !current);
+                  setNewSpaceName("");
+                  setNewSpaceKind("smart");
+                }}
+              >
+                <HugeiconsIcon icon={PlusSignIcon} size={16} />
+              </button>
+            </div>
+            <div className="space-list">
+              {spaces.map((space) => (
+                <div
+                  className={`space-item ${activeSpaceId === space.id ? "selected" : ""}`}
+                  key={space.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    if (renamingSpaceId !== space.id) selectSpace(space);
+                  }}
+                  onKeyDown={(event) => {
+                    if (renamingSpaceId === space.id) return;
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      selectSpace(space);
+                    }
+                  }}
+                >
+                  <span
+                    className={`space-dot ${space.color}`}
+                    role="button"
+                    tabIndex={0}
+                    title={`Change color (now ${space.color})`}
+                    aria-label={`Change color of ${space.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleCycleSpaceColor(space);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void handleCycleSpaceColor(space);
+                      }
+                    }}
+                  />
+                  {renamingSpaceId === space.id ? (
+                    <input
+                      ref={renameSpaceInputRef}
+                      className="space-rename-input"
+                      value={renameDraft}
+                      aria-label={`Rename ${space.name}`}
+                      maxLength={80}
+                      onChange={(event) => setRenameDraft(event.target.value)}
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => {
+                        event.stopPropagation();
+                        if (event.key === "Enter") void handleRenameSpace(space, renameDraft);
+                        else if (event.key === "Escape") setRenamingSpaceId(null);
+                      }}
+                      // Blur commits, matching Finder/Explorer/VS Code rename fields:
+                      // silently discarding typed text loses work, while an
+                      // accidental save is one rename away from fixed.
+                      onBlur={() => void handleRenameSpace(space, renameDraft)}
+                    />
+                  ) : (
+                    <span className="space-name">{space.name}</span>
+                  )}
+                  <span className="space-count">
+                    {activeSpaceId === space.id ? filteredItems.length : ""}
+                  </span>
+                  <span className="space-actions">
+                    <button
+                      type="button"
+                      className="space-delete space-tool"
+                      aria-label={`Move ${space.name} up`}
+                      title="Move Space up"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleMoveSpace(space, -1);
+                      }}
+                    >
+                      <HugeiconsIcon icon={ArrowUp01Icon} size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="space-delete space-tool"
+                      aria-label={`Move ${space.name} down`}
+                      title="Move Space down"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleMoveSpace(space, 1);
+                      }}
+                    >
+                      <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="space-delete space-tool"
+                      aria-label={`Rename ${space.name}`}
+                      title="Rename Space"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setRenamingSpaceId(space.id);
+                        setRenameDraft(space.name);
+                      }}
+                    >
+                      <HugeiconsIcon icon={Edit01Icon} size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="space-delete"
+                      aria-label={`Delete ${space.name}`}
+                      title="Delete Space"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleDeleteSpace(space);
+                      }}
+                    >
+                      <HugeiconsIcon icon={Cancel01Icon} size={12} />
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+            <AnimatePresence mode="wait">
+              {isCreatingSpace && (
+                <motion.form
+                  key="space-form"
+                  className="space-form"
+                  initial={{ opacity: 0, transform: "translateY(-6px)" }}
+                  animate={{ opacity: 1, transform: "translateY(0)" }}
+                  exit={{ opacity: 0, transform: "translateY(-4px)" }}
+                  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                  onSubmit={handleCreateSpace}
+                >
+                  <input
+                    ref={createSpaceInputRef}
+                    value={newSpaceName}
+                    onChange={(event) => setNewSpaceName(event.target.value)}
+                    placeholder={
+                      newSpaceKind === "smart" && query.trim()
+                        ? `Save “${query.trim()}” as…`
+                        : "Name this space"
+                    }
+                    aria-label="Space name"
+                    maxLength={80}
+                  />
+                  {/* Native radios rather than role="radio" buttons: the group gets
+                  arrow-key selection, one tab stop and group semantics from the
+                  platform instead of from ARIA we would then have to maintain. */}
+                  <fieldset className="space-kind">
+                    <legend className="visually-hidden">How this Space fills</legend>
+                    {(["smart", "regular"] as const).map((kind) => (
+                      <label
+                        key={kind}
+                        className={`space-kind-option ${newSpaceKind === kind ? "is-active" : ""}`}
+                      >
+                        <input
+                          type="radio"
+                          name="space-kind"
+                          className="visually-hidden"
+                          value={kind}
+                          checked={newSpaceKind === kind}
+                          aria-describedby="space-kind-hint"
+                          onChange={() => setNewSpaceKind(kind)}
+                        />
+                        {kind === "smart" ? "Smart" : "Regular"}
+                      </label>
+                    ))}
+                  </fieldset>
+                  <p className="space-form-hint" id="space-kind-hint">
+                    {newSpaceKind === "regular"
+                      ? "Holds only the items you file into it. Open an item and pick a Space to add it."
+                      : query.trim()
+                        ? "A Smart Space that updates automatically as items match this search."
+                        : "An empty Smart Space matches everything you have saved."}
+                  </p>
+                  <div className="space-form-actions">
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => {
+                        setIsCreatingSpace(false);
+                        setNewSpaceName("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="capture-save cursor-pointer rounded-[6px] border-0 bg-green px-3 py-2 text-xs text-[#14201a] transition-[background,transform] duration-150 hover:bg-[#91b19d] active:scale-[.96] disabled:cursor-wait disabled:opacity-65"
+                    >
+                      Create Space
+                    </button>
+                  </div>
+                </motion.form>
+              )}
+            </AnimatePresence>
           </div>
-          <button className="add-button flex h-[50px] flex-none cursor-pointer items-center gap-[9px] rounded-search border border-ink bg-ink px-[17px] text-[13px] font-semibold text-paper transition-[background,border-color,transform] duration-150 hover:bg-[#f2ece1] hover:border-ink active:scale-[.96] disabled:cursor-wait disabled:opacity-65 max-[780px]:flex-none max-[780px]:justify-center max-[780px]:px-[14px] max-[360px]:w-[50px] max-[360px]:px-0" onClick={openCaptureModal} disabled={isCapturing} title="Add something to your library">
-            <HugeiconsIcon icon={PlusSignIcon} size={18} />
-            <span className="max-[360px]:hidden">{isCapturing ? "Saving…" : "Add"}</span>
-          </button>
-        </section>
 
-        <CaptureModal
-          open={isAdding}
-          captureMode={captureMode}
-          onSelectMode={selectCaptureMode}
-          onCloseMode={() => setCaptureMode(null)}
-          onClose={closeCaptureModal}
-          onStartScreenshot={startScreenshotCapture}
-          onSubmit={saveCapture}
-          isCapturing={isCapturing}
-          error={captureError}
-          note={newTitle}
-          onNoteChange={setNewTitle}
-          url={captureUrl}
-          onUrlChange={setCaptureUrl}
-          quoteText={newQuoteText}
-          onQuoteTextChange={setNewQuoteText}
-          quoteAttribution={newQuoteAttribution}
-          onQuoteAttributionChange={setNewQuoteAttribution}
-          quoteSourceUrl={newQuoteSourceUrl}
-          onQuoteSourceUrlChange={setNewQuoteSourceUrl}
-          file={selectedFile}
-          onFileChange={setSelectedFile}
-          fileInputRef={fileInputRef}
-        />
+          <div className="sidebar-footer">
+            <button
+              ref={settingsButtonRef}
+              type="button"
+              className={`nav-item footer-item ${isSettingsOpen ? "active" : ""}`}
+              aria-label="Settings"
+              aria-expanded={isSettingsOpen}
+              aria-controls="settings-modal"
+              title="Settings"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              <HugeiconsIcon icon={Settings01Icon} size={17} />
+              <span>Settings</span>
+            </button>
+            <button
+              type="button"
+              className="nav-item footer-item"
+              aria-label="Help & shortcuts"
+              aria-haspopup="dialog"
+              aria-controls="shortcuts-modal"
+              title="Help & shortcuts"
+              onClick={() => setIsShortcutsOpen(true)}
+            >
+              <HugeiconsIcon icon={HelpCircleIcon} size={17} />
+              <span>Help & shortcuts</span>
+            </button>
+          </div>
+        </aside>
 
-        {captureError && !isAdding && <p className="capture-error mt-3 mb-0 flex-none text-[12px] text-[#d07055]">Couldn’t save this yet: {captureError}</p>}
+        <main className="main-content">
+          <section className="library-header"></section>
+
+          <section
+            className="capture-bar relative flex flex-none items-stretch gap-2.5 max-[780px]:gap-2"
+            aria-label="Capture and search"
+          >
+            {!isSidebarOpen && (
+              <button
+                type="button"
+                className="sidebar-toggle"
+                aria-label="Open navigation"
+                aria-expanded={false}
+                aria-controls="library-navigation"
+                onClick={() => setIsSidebarOpen(true)}
+              >
+                <HugeiconsIcon icon={ViewSidebarLeftIcon} size={17} />
+              </button>
+            )}
+            <div
+              className={`search-field${isSearchFocused ? " is-mascot" : ""}`}
+              onMouseDown={(event) => {
+                if (event.target !== searchRef.current) {
+                  event.preventDefault();
+                  searchRef.current?.focus();
+                }
+              }}
+            >
+              <span className="field-mascot" aria-hidden="true">
+                <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />
+              </span>
+              <input
+                ref={searchRef}
+                value={query}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setIsSearchFocused(false)}
+                onChange={(event) => {
+                  setSimilaritySource(null);
+                  setActiveSpaceId(null);
+                  setActiveView("Everything");
+                  setQuery(event.target.value);
+                }}
+                placeholder="Search your mind"
+                aria-label="Search your mind"
+              />
+              <kbd>
+                <span>/</span> to search
+              </kbd>
+            </div>
+            <button
+              type="button"
+              className="add-button flex h-[50px] flex-none cursor-pointer items-center gap-[9px] rounded-search border border-ink bg-ink px-[17px] text-[13px] font-semibold text-paper transition-[background,border-color,transform] duration-150 hover:bg-[#f2ece1] hover:border-ink active:scale-[.96] disabled:cursor-wait disabled:opacity-65 max-[780px]:flex-none max-[780px]:justify-center max-[780px]:px-[14px] max-[360px]:w-[50px] max-[360px]:px-0"
+              onClick={openCaptureModal}
+              disabled={isCapturing}
+              title="Add something to your library"
+            >
+              <HugeiconsIcon icon={PlusSignIcon} size={18} />
+              <span className="max-[360px]:hidden">{isCapturing ? "Saving…" : "Add"}</span>
+            </button>
+          </section>
+
+          <CaptureModal
+            open={isAdding}
+            captureMode={captureMode}
+            onSelectMode={selectCaptureMode}
+            onCloseMode={() => setCaptureMode(null)}
+            onClose={closeCaptureModal}
+            onStartScreenshot={startScreenshotCapture}
+            onSubmit={saveCapture}
+            isCapturing={isCapturing}
+            error={captureError}
+            note={newTitle}
+            onNoteChange={setNewTitle}
+            url={captureUrl}
+            onUrlChange={setCaptureUrl}
+            quoteText={newQuoteText}
+            onQuoteTextChange={setNewQuoteText}
+            quoteAttribution={newQuoteAttribution}
+            onQuoteAttributionChange={setNewQuoteAttribution}
+            quoteSourceUrl={newQuoteSourceUrl}
+            onQuoteSourceUrlChange={setNewQuoteSourceUrl}
+            file={selectedFile}
+            onFileChange={setSelectedFile}
+            fileInputRef={fileInputRef}
+          />
+
+          {captureError && !isAdding && (
+            <p className="capture-error mt-3 mb-0 flex-none text-[12px] text-[#d07055]">
+              Couldn’t save this yet: {captureError}
+            </p>
+          )}
+
+          <AnimatePresence>
+            {isShortcutsOpen && (
+              <motion.div
+                key="shortcuts-modal-backdrop"
+                className="shortcuts-modal-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setIsShortcutsOpen(false);
+                }}
+              >
+                <motion.section
+                  ref={shortcutsModalRef}
+                  id="shortcuts-modal"
+                  className="shortcuts-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="shortcuts-modal-title"
+                  initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
+                  animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
+                  exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
+                  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                >
+                  <header className="shortcuts-modal-header">
+                    <div>
+                      <h2 id="shortcuts-modal-title">Keyboard shortcuts</h2>
+                      <p>Use these when you’re not typing in a field.</p>
+                    </div>
+                    <button
+                      ref={shortcutsCloseRef}
+                      type="button"
+                      className="icon-button small"
+                      onClick={() => setIsShortcutsOpen(false)}
+                      aria-label="Close keyboard shortcuts"
+                    >
+                      <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                    </button>
+                  </header>
+                  <dl className="shortcut-list">
+                    <div>
+                      <dt>
+                        <kbd>/</kbd>
+                      </dt>
+                      <dd>Focus search</dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <kbd>Ctrl</kbd> or <kbd>⌘</kbd> + <kbd>K</kbd>
+                      </dt>
+                      <dd>Focus search</dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <kbd>N</kbd>
+                      </dt>
+                      <dd>Start a new note</dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <kbd>?</kbd>
+                      </dt>
+                      <dd>Show keyboard shortcuts</dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <kbd>Esc</kbd>
+                      </dt>
+                      <dd>Close a panel or return to capture options</dd>
+                    </div>
+                  </dl>
+                </motion.section>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="library-toolbar flex flex-none items-center justify-between pt-4 pb-[10px]">
+            <div className="result-context font-mono text-[11px] text-[#8d867c]">
+              {isSerendipityView ? (
+                <>
+                  <span className="result-count font-medium text-ink">{filteredItems.length}</span>{" "}
+                  older {filteredItems.length === 1 ? "save" : "saves"} in this walk
+                </>
+              ) : (
+                <>
+                  <span className="result-count font-medium text-ink">{filteredItems.length}</span>{" "}
+                  items in library
+                  {similaritySource ? (
+                    <span className="search-context ml-[5px] text-orange">
+                      similar to “{similaritySource.title}”
+                    </span>
+                  ) : query.trim() ? (
+                    <>
+                      <span className="search-context ml-[5px] text-orange">for “{query}”</span>
+                      <button
+                        type="button"
+                        className="quiet-link save-space-link"
+                        onClick={beginSaveSearch}
+                      >
+                        <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
+                      </button>
+                    </>
+                  ) : null}
+                </>
+              )}
+            </div>
+            {!isSerendipityView && (
+              <div className="toolbar-actions">
+                <div
+                  className="view-controls relative flex gap-0.5 rounded-toggle border border-rule bg-surface p-[3px]"
+                  role="group"
+                  aria-label="View options"
+                >
+                  <motion.span
+                    className="view-selection"
+                    aria-hidden="true"
+                    initial={false}
+                    animate={{
+                      transform: viewSelectionListMode ? "translateX(30px)" : "translateX(0px)",
+                    }}
+                    transition={{
+                      duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
+                      ease: [0.77, 0, 0.175, 1],
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={`view-button relative z-[1] grid h-[25px] w-7 cursor-pointer place-items-center rounded-[calc(var(--toggle-radius)-3px)] border-0 bg-transparent text-[#8d867c] transition-[color,transform] duration-150 active:scale-[.96] ${!listMode ? "selected" : ""}`}
+                    onClick={() => switchLibraryView(false)}
+                    aria-label="Grid view"
+                    aria-pressed={!listMode}
+                    title="Grid view"
+                  >
+                    <HugeiconsIcon icon={Grid2X2Icon} size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className={`view-button relative z-[1] grid h-[25px] w-7 cursor-pointer place-items-center rounded-[calc(var(--toggle-radius)-3px)] border-0 bg-transparent text-[#8d867c] transition-[color,transform] duration-150 active:scale-[.96] ${listMode ? "selected" : ""}`}
+                    onClick={() => switchLibraryView(true)}
+                    aria-label="List view"
+                    aria-pressed={listMode}
+                    title="List view"
+                  >
+                    <HugeiconsIcon icon={ListViewIcon} size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="library-scroll" ref={libraryScrollRef}>
+            {isSerendipityView ? (
+              <section
+                className="serendipity-stage"
+                aria-labelledby="serendipity-title"
+                data-testid="serendipity-view"
+              >
+                <div className="serendipity-intro">
+                  <div className="serendipity-intro-copy">
+                    <p className="serendipity-eyebrow">A slower look through your library</p>
+                    <h1 id="serendipity-title">Something worth finding again?</h1>
+                    <p>Keep what still feels useful. Forget what you do not need to carry.</p>
+                  </div>
+                  <p className="serendipity-progress" role="status" aria-live="polite">
+                    {serendipityRemainingCount === 1
+                      ? "1 older item left"
+                      : `${serendipityRemainingCount} older items left`}
+                  </p>
+                </div>
+
+                {serendipityItem ? (
+                  <div className="serendipity-browse">
+                    <div className="serendipity-art" data-testid="serendipity-item">
+                      <AnimatePresence initial={false} mode="wait">
+                        <motion.div
+                          key={String(serendipityItem.id)}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+                        >
+                          <VirtualizedLibraryItem
+                            data={serendipityItem}
+                            index={0}
+                            context={libraryCardContext}
+                          />
+                        </motion.div>
+                      </AnimatePresence>
+                    </div>
+                    <div className="serendipity-copy">
+                      <div className="serendipity-kicker">
+                        <span>
+                          <KindIcon kind={serendipityItem.kind} />
+                          {serendipityItem.kind}
+                        </span>
+                        <span>{serendipityItem.date}</span>
+                      </div>
+                      <h2>{serendipityItem.title}</h2>
+                      {serendipityItem.description && (
+                        <p className="serendipity-description">{serendipityItem.description}</p>
+                      )}
+                      {serendipityItem.tags.length > 0 && (
+                        <div className="serendipity-tags" role="group" aria-label="Tags">
+                          {serendipityItem.tags.slice(0, 5).map((tag) => (
+                            <span key={tag}>#{tag}</span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="serendipity-actions">
+                        <button
+                          type="button"
+                          className="serendipity-keep"
+                          onClick={() => keepSerendipityItem(serendipityItem)}
+                          data-testid="serendipity-keep"
+                        >
+                          <HugeiconsIcon icon={CircleCheckIcon} size={16} /> Keep
+                        </button>
+                        <button
+                          type="button"
+                          className="serendipity-forget"
+                          onClick={() => void forgetItem(serendipityItem)}
+                          data-testid="serendipity-forget"
+                        >
+                          <HugeiconsIcon icon={Archive01Icon} size={16} /> Forget
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="serendipity-details"
+                        onClick={() => selectLibraryItem(serendipityItem)}
+                      >
+                        Open details <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="serendipity-complete" data-testid="serendipity-complete">
+                    <div className="empty-icon mx-auto mb-4 grid h-[42px] w-[42px] place-items-center rounded-full bg-surface text-muted">
+                      <HugeiconsIcon icon={Clock01Icon} size={20} />
+                    </div>
+                    <h2>That is the whole walk.</h2>
+                    <p>
+                      You have seen every older item still in your library. Save something new, or
+                      come back later.
+                    </p>
+                    <button type="button" className="text-button" onClick={clearToDefaultView}>
+                      Back to Everything
+                    </button>
+                  </div>
+                )}
+              </section>
+            ) : (
+              <>
+                {filteredItems.length > 0 && (
+                  <VirtuosoMasonry
+                    key={libraryGridKey}
+                    className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
+                    columnCount={listMode ? 1 : gridColumnCount}
+                    data={filteredItems}
+                    context={libraryCardContext}
+                    ItemContent={VirtualizedLibraryItem}
+                    style={{ height: "100%", width: "100%" }}
+                  />
+                )}
+
+                {filteredItems.length === 0 && (
+                  <div className="empty-state rounded-[14px] border border-dashed border-rule px-5 py-20 text-center">
+                    <div className="empty-icon mx-auto mb-4 grid h-[42px] w-[42px] place-items-center rounded-full bg-surface text-muted">
+                      <HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} />
+                    </div>
+                    {activeSpace?.kind === "regular" ? (
+                      <>
+                        <h2>{activeSpace.name} is empty.</h2>
+                        <p>
+                          Open anything in your library and pick {activeSpace.name} to file it in
+                          here.
+                        </p>
+                      </>
+                    ) : similaritySource ? (
+                      <>
+                        <h2>Nothing similar yet.</h2>
+                        <p>
+                          This item is still being indexed, or nothing in the library is close to it
+                          yet.
+                        </p>
+                      </>
+                    ) : pinsViewIsEmpty ? (
+                      <>
+                        <h2>Nothing pinned yet.</h2>
+                        <p>Open anything in your library and pin it to keep it within reach.</p>
+                      </>
+                    ) : (
+                      <>
+                        <h2>Nothing surfaced yet.</h2>
+                        <p>Try another word, or save something new to your mind.</p>
+                      </>
+                    )}
+                    {activeSpace?.kind !== "regular" && !pinsViewIsEmpty && (
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => {
+                          setQuery("");
+                          setSimilaritySource(null);
+                          clearToDefaultView();
+                        }}
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            <div
+              ref={libraryTransitionOverlayRef}
+              className="library-transition-overlay"
+              aria-hidden="true"
+            />
+          </div>
+        </main>
 
         <AnimatePresence>
-          {isShortcutsOpen && (
+          {isSettingsOpen && (
             <motion.div
-              key="shortcuts-modal-backdrop"
-              className="shortcuts-modal-backdrop"
+              key="settings-modal-backdrop"
+              className="fixed inset-0 z-[110] grid place-items-center bg-[rgba(10,10,9,.76)] p-[clamp(16px,4vh,40px)_clamp(16px,3vw,48px)] max-[700px]:p-3"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
               onMouseDown={(event) => {
-                if (event.target === event.currentTarget) setIsShortcutsOpen(false);
+                if (event.target === event.currentTarget) setIsSettingsOpen(false);
               }}
             >
               <motion.section
-                ref={shortcutsModalRef}
-                id="shortcuts-modal"
-                className="shortcuts-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="shortcuts-modal-title"
-                initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
+                ref={settingsDialog.dialogRef}
+                id="settings-modal"
+                className="flex h-[min(760px,100%)] min-h-0 w-[min(1180px,100%)] overflow-hidden rounded-[24px] border border-rule bg-paper text-ink shadow-[0_30px_80px_rgba(0,0,0,.55)] max-[700px]:h-[min(720px,100%)] max-[700px]:flex-col max-[700px]:rounded-[18px]"
+                {...settingsDialog.rootProps}
+                initial={{ opacity: 0, transform: "translateY(10px) scale(0.98)" }}
                 animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
                 exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
               >
-                <header className="shortcuts-modal-header">
+                <aside
+                  className="flex w-56 min-w-56 min-h-0 shrink-0 flex-col border-r border-rule bg-paper p-[26px_16px_22px] max-[700px]:w-auto max-[700px]:min-w-0 max-[700px]:border-r-0 max-[700px]:border-b max-[700px]:border-rule max-[700px]:p-[18px_14px_12px]"
+                  aria-label="Settings sections"
+                >
+                  <header className="flex items-center justify-between gap-3 px-[10px] pb-[26px] max-[700px]:px-[4px] max-[700px]:pb-[14px]">
+                    <h2
+                      {...settingsDialog.labelProps}
+                      className="m-0 font-sans text-base font-semibold leading-[1.2] tracking-[-.02em] text-ink"
+                    >
+                      Settings
+                    </h2>
+                  </header>
                   <div>
-                    <h2 id="shortcuts-modal-title">Keyboard shortcuts</h2>
-                    <p>Use these when you’re not typing in a field.</p>
+                    <button
+                      type="button"
+                      className={`${SETTINGS_TAB_CLASS} ${settingsTab === "archive" ? SETTINGS_TAB_ACTIVE_CLASS : ""}`}
+                      aria-current={settingsTab === "archive" ? "page" : undefined}
+                      onClick={() => setSettingsTab("archive")}
+                    >
+                      <HugeiconsIcon icon={Archive01Icon} size={16} />
+                      <span className="grow">Archive</span>
+                      <span className="font-mono text-[10px] text-muted">
+                        {archivedItems.length}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`${SETTINGS_TAB_CLASS} ${settingsTab === "data" ? SETTINGS_TAB_ACTIVE_CLASS : ""}`}
+                      aria-current={settingsTab === "data" ? "page" : undefined}
+                      onClick={() => setSettingsTab("data")}
+                    >
+                      <HugeiconsIcon icon={Database02Icon} size={16} />
+                      <span className="grow">Data</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`${SETTINGS_TAB_CLASS} ${settingsTab === "extension" ? SETTINGS_TAB_ACTIVE_CLASS : ""}`}
+                      aria-current={settingsTab === "extension" ? "page" : undefined}
+                      onClick={() => setSettingsTab("extension")}
+                    >
+                      <HugeiconsIcon icon={Link01Icon} size={16} />
+                      <span className="grow">Extension</span>
+                    </button>
                   </div>
-                  <button
-                    ref={shortcutsCloseRef}
-                    type="button"
-                    className="icon-button small"
-                    onClick={() => setIsShortcutsOpen(false)}
-                    aria-label="Close keyboard shortcuts"
+                </aside>
+
+                {settingsTab === "archive" ? (
+                  <section
+                    className="flex min-h-0 min-w-0 flex-auto flex-col p-[28px_30px] max-[700px]:p-[20px_18px_24px]"
+                    aria-labelledby="archive-panel-title"
                   >
-                    <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                  </button>
-                </header>
-                <dl className="shortcut-list">
-                  <div><dt><kbd>/</kbd></dt><dd>Focus search</dd></div>
-                  <div><dt><kbd>Ctrl</kbd> or <kbd>⌘</kbd> + <kbd>K</kbd></dt><dd>Focus search</dd></div>
-                  <div><dt><kbd>N</kbd></dt><dd>Start a new note</dd></div>
-                  <div><dt><kbd>?</kbd></dt><dd>Show keyboard shortcuts</dd></div>
-                  <div><dt><kbd>Esc</kbd></dt><dd>Close a panel or return to capture options</dd></div>
-                </dl>
+                    <header className="flex items-start justify-between gap-[18px] border-b border-rule">
+                      <div className="flex min-w-0 flex-auto flex-col items-start gap-[9px]">
+                        <div className="flex flex-col gap-[7px]">
+                          <h2
+                            id="archive-panel-title"
+                            className="m-0 font-sans text-[24px] font-medium leading-[1.1] tracking-[-.04em] text-ink"
+                          >
+                            Archived items
+                          </h2>
+                        </div>
+                        <div className="flex min-h-[27px] items-center justify-between gap-[14px] self-stretch max-[700px]:items-start">
+                          <span className="font-mono text-[10px] text-muted">
+                            {archivedItems.length} {archivedItems.length === 1 ? "item" : "items"}{" "}
+                            in archive
+                          </span>
+                          <div
+                            className="flex flex-wrap items-center justify-end gap-2 max-[700px]:gap-1.5"
+                            role="group"
+                            aria-label="Archive actions"
+                          >
+                            {isArchiveSelectionMode && (
+                              <>
+                                <span
+                                  className="inline-flex h-[27px] items-center justify-center rounded-[20px] whitespace-nowrap border-0 bg-transparent p-0 font-mono text-[10px] font-medium text-ink"
+                                  role="status"
+                                  aria-live="polite"
+                                >
+                                  {selectedArchivedIds.size} selected
+                                </span>
+                                <button
+                                  type="button"
+                                  className={
+                                    SETTINGS_BATCH_BUTTON_CLASS +
+                                    " bg-green-soft text-green hover:border-green"
+                                  }
+                                  disabled={selectedArchivedIds.size === 0}
+                                  onClick={() => void recoverSelectedArchivedItems()}
+                                >
+                                  Recover
+                                </button>
+                                <button
+                                  type="button"
+                                  className={
+                                    SETTINGS_BATCH_BUTTON_CLASS +
+                                    " bg-orange-soft text-orange hover:border-orange"
+                                  }
+                                  disabled={selectedArchivedIds.size === 0}
+                                  onClick={() => void deleteSelectedArchivedItems()}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              className={
+                                isArchiveSelectionMode
+                                  ? SETTINGS_SELECT_BUTTON_ACTIVE_CLASS
+                                  : SETTINGS_SELECT_BUTTON_CLASS
+                              }
+                              aria-pressed={isArchiveSelectionMode}
+                              aria-label={
+                                isArchiveSelectionMode
+                                  ? "Exit multi-select mode"
+                                  : "Select archived items"
+                              }
+                              onClick={toggleArchiveSelectionMode}
+                            >
+                              <HugeiconsIcon icon={CheckListIcon} size={15} />
+                              <span>Select</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        ref={settingsCloseRef}
+                        type="button"
+                        className={SETTINGS_CLOSE_BUTTON_CLASS}
+                        onClick={() => setIsSettingsOpen(false)}
+                        aria-label="Close settings"
+                      >
+                        <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                      </button>
+                    </header>
+
+                    <div className={SETTINGS_SCROLL_CLASS}>
+                      {archivedItems.length > 0 ? (
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(205px,1fr))] items-start gap-[14px]">
+                          {archivedItems.map((item, index) => (
+                            <VirtualizedLibraryItem
+                              key={String(item.id)}
+                              data={item}
+                              index={index}
+                              context={archivedCardContext}
+                              slotClassName="min-w-0 pb-0"
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid min-h-[260px] place-items-center content-center rounded-2xl border border-dashed border-rule p-[40px_24px] text-center">
+                          <div className="mb-3.5 grid size-[42px] place-items-center rounded-full bg-surface-strong text-muted">
+                            <HugeiconsIcon icon={Archive01Icon} size={19} />
+                          </div>
+                          <h4 className="m-0 font-sans text-[17px] font-medium leading-[1.2] text-ink">
+                            Your archive is empty.
+                          </h4>
+                          <p className="mt-2 mb-0 max-w-[32ch] text-[12px] leading-[1.5] text-muted">
+                            Items you forget from the library will appear here.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                ) : settingsTab === "data" ? (
+                  <section
+                    className="flex min-h-0 min-w-0 flex-auto flex-col p-[28px_30px] max-[700px]:p-[20px_18px_24px]"
+                    aria-labelledby="data-panel-title"
+                  >
+                    <header className="flex items-start justify-between gap-[18px] border-b border-rule">
+                      <div className="flex min-w-0 flex-auto flex-col items-start gap-[9px]">
+                        <div className="flex flex-col gap-[7px]">
+                          <h2
+                            id="data-panel-title"
+                            className="m-0 font-sans text-[24px] font-medium leading-[1.1] tracking-[-.04em] text-ink"
+                          >
+                            Your library
+                          </h2>
+                        </div>
+                        <p className="m-0 max-w-[62ch] text-[12px] leading-[1.55] text-muted">
+                          Everything inkling saves stays on this machine. An export writes a copy
+                          you can keep somewhere else.
+                        </p>
+                      </div>
+                      <button
+                        ref={settingsCloseRef}
+                        type="button"
+                        className={SETTINGS_CLOSE_BUTTON_CLASS}
+                        onClick={() => setIsSettingsOpen(false)}
+                        aria-label="Close settings"
+                      >
+                        <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                      </button>
+                    </header>
+
+                    <div className={SETTINGS_SCROLL_CLASS}>
+                      <div className="flex max-w-[560px] flex-col gap-3 rounded-2xl border border-rule bg-surface p-5">
+                        <div className="flex items-center gap-[9px] text-ink">
+                          <HugeiconsIcon icon={Database02Icon} size={17} />
+                          <h3 className="m-0 font-sans text-[15px] font-medium leading-[1.2] tracking-[-.02em]">
+                            Export a copy
+                          </h3>
+                        </div>
+                        <p className="m-0 text-[12px] leading-[1.6] text-muted">
+                          Writes a dated folder holding a snapshot of the database, the files your
+                          items point at, and a manifest describing both. Keep it on another drive
+                          to back the library up.
+                        </p>
+                        <button
+                          type="button"
+                          className={
+                            "inline-flex h-[34px] self-start items-center gap-2 rounded-[20px] border border-ink bg-ink px-[15px] text-paper cursor-pointer " +
+                            "font-sans text-[12px] font-medium transition-[transform,opacity] duration-[.18s] ease-out " +
+                            "hover:opacity-90 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-45 " +
+                            (isExportingLibrary ? "[&_svg]:animate-spin-slow" : "")
+                          }
+                          disabled={!canUseTauriBackend || isExportingLibrary}
+                          onClick={() => void exportLibraryToFolder()}
+                        >
+                          <HugeiconsIcon
+                            icon={isExportingLibrary ? Loading01Icon : ArrowDown01Icon}
+                            size={15}
+                          />
+                          <span>
+                            {isExportingLibrary ? "Exporting…" : "Choose folder and export"}
+                          </span>
+                        </button>
+                        {!canUseTauriBackend ? (
+                          <p className="m-0 font-mono text-[12px] leading-[1.6] text-muted">
+                            Export runs in the desktop app.
+                          </p>
+                        ) : null}
+                        {lastExport ? (
+                          <div
+                            className="flex flex-col gap-1.5 rounded-xl border border-dashed border-rule p-[12px_14px]"
+                            role="status"
+                            aria-live="polite"
+                          >
+                            <span className="font-mono text-[11px] font-medium text-ink">
+                              {formatExportSummary(lastExport)}
+                            </span>
+                            <span className="font-mono text-[11px] leading-[1.5] text-muted [overflow-wrap:anywhere]">
+                              {lastExport.directory}
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </section>
+                ) : (
+                  <section
+                    className="flex min-h-0 min-w-0 flex-auto flex-col p-[28px_30px] max-[700px]:p-[20px_18px_24px]"
+                    aria-labelledby="extension-panel-title"
+                  >
+                    <header className="flex items-start justify-between gap-[18px] border-b border-rule">
+                      <div className="flex min-w-0 flex-auto flex-col items-start gap-[9px]">
+                        <div className="flex flex-col gap-[7px]">
+                          <h2
+                            id="extension-panel-title"
+                            className="m-0 font-sans text-[24px] font-medium leading-[1.1] tracking-[-.04em] text-ink"
+                          >
+                            Browser extension
+                          </h2>
+                        </div>
+                        <div className="flex min-h-[27px] items-center justify-between gap-[14px] self-stretch max-[700px]:items-start">
+                          <span className="font-mono text-[10px] text-muted">
+                            Save pages without leaving the browser
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        ref={settingsCloseRef}
+                        type="button"
+                        className={SETTINGS_CLOSE_BUTTON_CLASS}
+                        onClick={() => setIsSettingsOpen(false)}
+                        aria-label="Close settings"
+                      >
+                        <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                      </button>
+                    </header>
+
+                    <div className={SETTINGS_SCROLL_CLASS}>
+                      <ExtensionPairing />
+                    </div>
+                  </section>
+                )}
               </motion.section>
             </motion.div>
           )}
         </AnimatePresence>
 
-
-        <div className="library-toolbar flex flex-none items-center justify-between pt-4 pb-[10px]">
-          <div className="result-context font-mono text-[11px] text-[#8d867c]">
-            {isSerendipityView ? (
-              <>
-                <span className="result-count font-medium text-ink">{filteredItems.length}</span> older {filteredItems.length === 1 ? "save" : "saves"} in this walk
-              </>
-            ) : (
-              <>
-                <span className="result-count font-medium text-ink">{filteredItems.length}</span> items in library
-                {similaritySource ? (
-                  <span className="search-context ml-[5px] text-orange">similar to “{similaritySource.title}”</span>
-                ) : query.trim() ? (
-                  <>
-                    <span className="search-context ml-[5px] text-orange">for “{query}”</span>
-                    <button type="button" className="quiet-link save-space-link" onClick={beginSaveSearch}>
-                      <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
-                    </button>
-                  </>
-                ) : null}
-              </>
-            )}
-          </div>
-          {!isSerendipityView && (
-            <div className="toolbar-actions">
-              <div className="view-controls relative flex gap-0.5 rounded-toggle border border-rule bg-surface p-[3px]" aria-label="View options">
-                <motion.span
-                  className="view-selection"
-                  aria-hidden="true"
-                  initial={false}
-                  animate={{ transform: viewSelectionListMode ? "translateX(30px)" : "translateX(0px)" }}
-                  transition={{ duration: LIBRARY_VIEW_TRANSITION_MS / 1000, ease: [0.77, 0, 0.175, 1] }}
-                />
-                <button className={`view-button relative z-[1] grid h-[25px] w-7 cursor-pointer place-items-center rounded-[calc(var(--toggle-radius)-3px)] border-0 bg-transparent text-[#8d867c] transition-[color,transform] duration-150 active:scale-[.96] ${!listMode ? "selected" : ""}`} onClick={() => switchLibraryView(false)} aria-label="Grid view" aria-pressed={!listMode} title="Grid view"><HugeiconsIcon icon={Grid2X2Icon} size={16} /></button>
-                <button className={`view-button relative z-[1] grid h-[25px] w-7 cursor-pointer place-items-center rounded-[calc(var(--toggle-radius)-3px)] border-0 bg-transparent text-[#8d867c] transition-[color,transform] duration-150 active:scale-[.96] ${listMode ? "selected" : ""}`} onClick={() => switchLibraryView(true)} aria-label="List view" aria-pressed={listMode} title="List view"><HugeiconsIcon icon={ListViewIcon} size={16} /></button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="library-scroll" ref={libraryScrollRef}>
-        {isSerendipityView ? (
-          <section className="serendipity-stage" aria-labelledby="serendipity-title" data-testid="serendipity-view">
-            <div className="serendipity-intro">
-              <div className="serendipity-intro-copy">
-                <p className="serendipity-eyebrow">A slower look through your library</p>
-                <h1 id="serendipity-title">Something worth finding again?</h1>
-                <p>Keep what still feels useful. Forget what you do not need to carry.</p>
-              </div>
-              <p className="serendipity-progress" role="status" aria-live="polite">
-                {serendipityRemainingCount === 1 ? "1 older item left" : `${serendipityRemainingCount} older items left`}
-              </p>
-            </div>
-
-            {serendipityItem ? (
-              <div className="serendipity-browse">
-                <div className="serendipity-art" data-testid="serendipity-item">
-                  <AnimatePresence initial={false} mode="wait">
-                    <motion.div
-                      key={String(serendipityItem.id)}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
-                    >
-                      <VirtualizedLibraryItem data={serendipityItem} index={0} context={libraryCardContext} />
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-                <div className="serendipity-copy">
-                  <div className="serendipity-kicker">
-                    <span><KindIcon kind={serendipityItem.kind} />{serendipityItem.kind}</span>
-                    <span>{serendipityItem.date}</span>
-                  </div>
-                  <h2>{serendipityItem.title}</h2>
-                  {serendipityItem.description && <p className="serendipity-description">{serendipityItem.description}</p>}
-                  {serendipityItem.tags.length > 0 && (
-                    <div className="serendipity-tags" aria-label="Tags">
-                      {serendipityItem.tags.slice(0, 5).map((tag) => <span key={tag}>#{tag}</span>)}
-                    </div>
-                  )}
-                  <div className="serendipity-actions">
-                    <button
-                      type="button"
-                      className="serendipity-keep"
-                      onClick={() => keepSerendipityItem(serendipityItem)}
-                      data-testid="serendipity-keep"
-                    >
-                      <HugeiconsIcon icon={CircleCheckIcon} size={16} /> Keep
-                    </button>
-                    <button
-                      type="button"
-                      className="serendipity-forget"
-                      onClick={() => void forgetItem(serendipityItem)}
-                      data-testid="serendipity-forget"
-                    >
-                      <HugeiconsIcon icon={Archive01Icon} size={16} /> Forget
-                    </button>
-                  </div>
-                  <button type="button" className="serendipity-details" onClick={() => selectLibraryItem(serendipityItem)}>
-                    Open details <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="serendipity-complete" data-testid="serendipity-complete">
-                <div className="empty-icon mx-auto mb-4 grid h-[42px] w-[42px] place-items-center rounded-full bg-surface text-muted"><HugeiconsIcon icon={Clock01Icon} size={20} /></div>
-                <h2>That is the whole walk.</h2>
-                <p>You have seen every older item still in your library. Save something new, or come back later.</p>
-                <button type="button" className="text-button" onClick={clearToDefaultView}>Back to Everything</button>
-              </div>
-            )}
-          </section>
-        ) : (
-          <>
-            {filteredItems.length > 0 && (
-              <VirtuosoMasonry
-                key={libraryGridKey}
-                className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
-                columnCount={listMode ? 1 : gridColumnCount}
-                data={filteredItems}
-                context={libraryCardContext}
-                ItemContent={VirtualizedLibraryItem}
-                style={{ height: "100%", width: "100%" }}
-              />
-            )}
-
-            {filteredItems.length === 0 && (
-              <div className="empty-state rounded-[14px] border border-dashed border-rule px-5 py-20 text-center">
-                <div className="empty-icon mx-auto mb-4 grid h-[42px] w-[42px] place-items-center rounded-full bg-surface text-muted"><HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} /></div>
-                {activeSpace?.kind === "regular" ? (
-                  <>
-                    <h2>{activeSpace.name} is empty.</h2>
-                    <p>Open anything in your library and pick {activeSpace.name} to file it in here.</p>
-                  </>
-                ) : similaritySource ? (
-                  <>
-                    <h2>Nothing similar yet.</h2>
-                    <p>This item is still being indexed, or nothing in the library is close to it yet.</p>
-                  </>
-                ) : pinsViewIsEmpty ? (
-                  <>
-                    <h2>Nothing pinned yet.</h2>
-                    <p>Open anything in your library and pin it to keep it within reach.</p>
-                  </>
-                ) : (
-                  <>
-                    <h2>Nothing surfaced yet.</h2>
-                    <p>Try another word, or save something new to your mind.</p>
-                  </>
-                )}
-                {activeSpace?.kind !== "regular" && !pinsViewIsEmpty && (
-                  <button className="text-button" onClick={() => { setQuery(""); setSimilaritySource(null); clearToDefaultView(); }}>Clear search</button>
-                )}
-              </div>
-            )}
-          </>
-        )}
-
-        <div ref={libraryTransitionOverlayRef} className="library-transition-overlay" aria-hidden="true" />
-        </div>
-      </main>
-
-      <AnimatePresence>
-        {isSettingsOpen && (
-          <motion.div
-            key="settings-modal-backdrop"
-            className="fixed inset-0 z-[110] grid place-items-center bg-[rgba(10,10,9,.76)] p-[clamp(16px,4vh,40px)_clamp(16px,3vw,48px)] max-[700px]:p-3"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setIsSettingsOpen(false);
-            }}
-          >
-            <motion.section
-              ref={settingsDialog.dialogRef}
-              id="settings-modal"
-              className="flex h-[min(760px,100%)] min-h-0 w-[min(1180px,100%)] overflow-hidden rounded-[24px] border border-rule bg-paper text-ink shadow-[0_30px_80px_rgba(0,0,0,.55)] max-[700px]:h-[min(720px,100%)] max-[700px]:flex-col max-[700px]:rounded-[18px]"
-              {...settingsDialog.rootProps}
-              initial={{ opacity: 0, transform: "translateY(10px) scale(0.98)" }}
-              animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
-              exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-              transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
-            >
-              <aside
-                className="flex w-56 min-w-56 min-h-0 shrink-0 flex-col border-r border-rule bg-paper p-[26px_16px_22px] max-[700px]:w-auto max-[700px]:min-w-0 max-[700px]:border-r-0 max-[700px]:border-b max-[700px]:border-rule max-[700px]:p-[18px_14px_12px]"
-                aria-label="Settings sections"
-              >
-                <header className="flex items-center justify-between gap-3 px-[10px] pb-[26px] max-[700px]:px-[4px] max-[700px]:pb-[14px]">
-                  <h2 {...settingsDialog.labelProps} className="m-0 font-sans text-base font-semibold leading-[1.2] tracking-[-.02em] text-ink">Settings</h2>
-                </header>
-                <div>
-                  <button
-                    type="button"
-                    className={`${SETTINGS_TAB_CLASS} ${settingsTab === "archive" ? SETTINGS_TAB_ACTIVE_CLASS : ""}`}
-                    aria-current={settingsTab === "archive" ? "page" : undefined}
-                    onClick={() => setSettingsTab("archive")}
-                  >
-                    <HugeiconsIcon icon={Archive01Icon} size={16} />
-                    <span className="grow">Archive</span>
-                    <span className="font-mono text-[10px] text-muted">{archivedItems.length}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`${SETTINGS_TAB_CLASS} ${settingsTab === "data" ? SETTINGS_TAB_ACTIVE_CLASS : ""}`}
-                    aria-current={settingsTab === "data" ? "page" : undefined}
-                    onClick={() => setSettingsTab("data")}
-                  >
-                    <HugeiconsIcon icon={Database02Icon} size={16} />
-                    <span className="grow">Data</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`${SETTINGS_TAB_CLASS} ${settingsTab === "extension" ? SETTINGS_TAB_ACTIVE_CLASS : ""}`}
-                    aria-current={settingsTab === "extension" ? "page" : undefined}
-                    onClick={() => setSettingsTab("extension")}
-                  >
-                    <HugeiconsIcon icon={Link01Icon} size={16} />
-                    <span className="grow">Extension</span>
-                  </button>
-                </div>
-              </aside>
-
-              {settingsTab === "archive" ? (
-              <section
-                className="flex min-h-0 min-w-0 flex-auto flex-col p-[28px_30px] max-[700px]:p-[20px_18px_24px]"
-                aria-labelledby="archive-panel-title"
-              >
-                <header className="flex items-start justify-between gap-[18px] border-b border-rule">
-                  <div className="flex min-w-0 flex-auto flex-col items-start gap-[9px]">
-                    <div className="flex flex-col gap-[7px]">
-                      <h2
-                        id="archive-panel-title"
-                        className="m-0 font-sans text-[24px] font-medium leading-[1.1] tracking-[-.04em] text-ink"
-                      >
-                        Archived items
-                      </h2>
-                    </div>
-                    <div className="flex min-h-[27px] items-center justify-between gap-[14px] self-stretch max-[700px]:items-start">
-                      <span className="font-mono text-[10px] text-muted">{archivedItems.length} {archivedItems.length === 1 ? "item" : "items"} in archive</span>
-                      <div className="flex flex-wrap items-center justify-end gap-2 max-[700px]:gap-1.5" aria-label="Archive actions">
-                        {isArchiveSelectionMode && (
-                          <>
-                            <span
-                              className="inline-flex h-[27px] items-center justify-center rounded-[20px] whitespace-nowrap border-0 bg-transparent p-0 font-mono text-[10px] font-medium text-ink"
-                              role="status"
-                              aria-live="polite"
-                            >
-                              {selectedArchivedIds.size} selected
-                            </span>
-                            <button
-                              type="button"
-                              className={SETTINGS_BATCH_BUTTON_CLASS + " bg-green-soft text-green hover:border-green"}
-                              disabled={selectedArchivedIds.size === 0}
-                              onClick={() => void recoverSelectedArchivedItems()}
-                            >
-                              Recover
-                            </button>
-                            <button
-                              type="button"
-                              className={SETTINGS_BATCH_BUTTON_CLASS + " bg-orange-soft text-orange hover:border-orange"}
-                              disabled={selectedArchivedIds.size === 0}
-                              onClick={() => void deleteSelectedArchivedItems()}
-                            >
-                              Delete
-                            </button>
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          className={
-                            isArchiveSelectionMode
-                              ? SETTINGS_SELECT_BUTTON_ACTIVE_CLASS
-                              : SETTINGS_SELECT_BUTTON_CLASS
-                          }
-                          aria-pressed={isArchiveSelectionMode}
-                          aria-label={isArchiveSelectionMode ? "Exit multi-select mode" : "Select archived items"}
-                          onClick={toggleArchiveSelectionMode}
-                        >
-                          <HugeiconsIcon icon={CheckListIcon} size={15} />
-                          <span>Select</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    ref={settingsCloseRef}
-                    type="button"
-                    className={SETTINGS_CLOSE_BUTTON_CLASS}
-                    onClick={() => setIsSettingsOpen(false)}
-                    aria-label="Close settings"
-                  >
-                    <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                  </button>
-                </header>
-
-                <div className={SETTINGS_SCROLL_CLASS}>
-                  {archivedItems.length > 0 ? (
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(205px,1fr))] items-start gap-[14px]">
-                      {archivedItems.map((item, index) => (
-                        <VirtualizedLibraryItem
-                          key={String(item.id)}
-                          data={item}
-                          index={index}
-                          context={archivedCardContext}
-                          slotClassName="min-w-0 pb-0"
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid min-h-[260px] place-items-center content-center rounded-2xl border border-dashed border-rule p-[40px_24px] text-center">
-                      <div className="mb-3.5 grid size-[42px] place-items-center rounded-full bg-surface-strong text-muted"><HugeiconsIcon icon={Archive01Icon} size={19} /></div>
-                      <h4 className="m-0 font-sans text-[17px] font-medium leading-[1.2] text-ink">Your archive is empty.</h4>
-                      <p className="mt-2 mb-0 max-w-[32ch] text-[12px] leading-[1.5] text-muted">Items you forget from the library will appear here.</p>
-                    </div>
-                  )}
-                </div>
-              </section>
-              ) : settingsTab === "data" ? (
-                <section
-                  className="flex min-h-0 min-w-0 flex-auto flex-col p-[28px_30px] max-[700px]:p-[20px_18px_24px]"
-                  aria-labelledby="data-panel-title"
-                >
-                  <header className="flex items-start justify-between gap-[18px] border-b border-rule">
-                    <div className="flex min-w-0 flex-auto flex-col items-start gap-[9px]">
-                      <div className="flex flex-col gap-[7px]">
-                        <h2
-                          id="data-panel-title"
-                          className="m-0 font-sans text-[24px] font-medium leading-[1.1] tracking-[-.04em] text-ink"
-                        >
-                          Your library
-                        </h2>
-                      </div>
-                      <p className="m-0 max-w-[62ch] text-[12px] leading-[1.55] text-muted">
-                        Everything inkling saves stays on this machine. An export writes a copy you can keep somewhere else.
-                      </p>
-                    </div>
-                    <button
-                      ref={settingsCloseRef}
-                      type="button"
-                      className={SETTINGS_CLOSE_BUTTON_CLASS}
-                      onClick={() => setIsSettingsOpen(false)}
-                      aria-label="Close settings"
-                    >
-                      <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                    </button>
-                  </header>
-
-                  <div className={SETTINGS_SCROLL_CLASS}>
-                    <div className="flex max-w-[560px] flex-col gap-3 rounded-2xl border border-rule bg-surface p-5">
-                      <div className="flex items-center gap-[9px] text-ink">
-                        <HugeiconsIcon icon={Database02Icon} size={17} />
-                        <h3 className="m-0 font-sans text-[15px] font-medium leading-[1.2] tracking-[-.02em]">Export a copy</h3>
-                      </div>
-                      <p className="m-0 text-[12px] leading-[1.6] text-muted">
-                        Writes a dated folder holding a snapshot of the database, the files your items point at, and a manifest
-                        describing both. Keep it on another drive to back the library up.
-                      </p>
-                      <button
-                        type="button"
-                        className={
-                          "inline-flex h-[34px] self-start items-center gap-2 rounded-[20px] border border-ink bg-ink px-[15px] text-paper cursor-pointer " +
-                          "font-sans text-[12px] font-medium transition-[transform,opacity] duration-[.18s] ease-out " +
-                          "hover:opacity-90 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-45 " +
-                          (isExportingLibrary ? "[&_svg]:animate-spin-slow" : "")
-                        }
-                        disabled={!canUseTauriBackend || isExportingLibrary}
-                        onClick={() => void exportLibraryToFolder()}
-                      >
-                        <HugeiconsIcon icon={isExportingLibrary ? Loading01Icon : ArrowDown01Icon} size={15} />
-                        <span>{isExportingLibrary ? "Exporting…" : "Choose folder and export"}</span>
-                      </button>
-                      {!canUseTauriBackend ? (
-                        <p className="m-0 font-mono text-[12px] leading-[1.6] text-muted">Export runs in the desktop app.</p>
-                      ) : null}
-                      {lastExport ? (
-                        <div
-                          className="flex flex-col gap-1.5 rounded-xl border border-dashed border-rule p-[12px_14px]"
-                          role="status"
-                          aria-live="polite"
-                        >
-                          <span className="font-mono text-[11px] font-medium text-ink">
-                            {formatExportSummary(lastExport)}
-                          </span>
-                          <span className="font-mono text-[11px] leading-[1.5] text-muted [overflow-wrap:anywhere]">{lastExport.directory}</span>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </section>
-              ) : (
-<section
-                  className="flex min-h-0 min-w-0 flex-auto flex-col p-[28px_30px] max-[700px]:p-[20px_18px_24px]"
-                  aria-labelledby="extension-panel-title"
-                >
-                  <header className="flex items-start justify-between gap-[18px] border-b border-rule">
-                    <div className="flex min-w-0 flex-auto flex-col items-start gap-[9px]">
-                      <div className="flex flex-col gap-[7px]">
-                        <h2
-                          id="extension-panel-title"
-                          className="m-0 font-sans text-[24px] font-medium leading-[1.1] tracking-[-.04em] text-ink"
-                        >
-                          Browser extension
-                        </h2>
-                      </div>
-                      <div className="flex min-h-[27px] items-center justify-between gap-[14px] self-stretch max-[700px]:items-start">
-                        <span className="font-mono text-[10px] text-muted">Save pages without leaving the browser</span>
-                      </div>
-                    </div>
-                    <button
-                      ref={settingsCloseRef}
-                      type="button"
-                      className={SETTINGS_CLOSE_BUTTON_CLASS}
-                      onClick={() => setIsSettingsOpen(false)}
-                      aria-label="Close settings"
-                    >
-                      <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                    </button>
-                  </header>
-
-                  <div className={SETTINGS_SCROLL_CLASS}>
-                    <ExtensionPairing />
-                  </div>
-                </section>
-              )}
-            </motion.section>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {selectedItem && (
-        <Suspense fallback={null}>
-          <ExpandedItemOverlay
-            key="expanded-item-overlay"
-            item={selectedItem}
-            actions={expandedOverlayActions}
-            spaces={selectedItemSpaces}
-            originRectsRef={selectionRectsRef}
-            contentAreaRef={libraryScrollRef}
-            selectionScrollRef={selectionScrollRef}
-          />
-        </Suspense>
-      )}
-      <AnimatePresence>
-        {pdfViewerItem?.fileUrl && (
-          <motion.div
-            key="pdf-viewer"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
-          >
-            <Suspense fallback={null}>
-              <PdfViewer
-                url={pdfViewerItem.fileUrl}
-                title={pdfViewerItem.title}
-                onClose={() => setPdfViewerItem(null)}
-              />
-            </Suspense>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
-        {readingItem?.item.articleHtml && (
-          <Suspense key={readingItem.item.id} fallback={null}>
-            <ReaderView
-              item={
-                {
-                  id: readingItem.item.id,
-                  title: readingItem.item.title,
-                  author: readingItem.item.articleAuthor,
-                  publishedDate: readingItem.item.publishedDate,
-                  savedDate: readingItem.item.date,
-                  sourceLabel: readingItem.item.source,
-                  sourceUrl: readingItem.item.sourceUrl ?? "",
-                  html: readingItem.item.articleHtml,
-                } satisfies ReaderItem
-              }
-              origin={readingItem.origin}
-              onRequestClose={() => setReadingItem(null)}
+        {selectedItem && (
+          <Suspense fallback={null}>
+            <ExpandedItemOverlay
+              key="expanded-item-overlay"
+              item={selectedItem}
+              actions={expandedOverlayActions}
+              spaces={selectedItemSpaces}
+              originRectsRef={selectionRectsRef}
+              contentAreaRef={libraryScrollRef}
+              selectionScrollRef={selectionScrollRef}
             />
           </Suspense>
         )}
-      </AnimatePresence>
+        <AnimatePresence>
+          {pdfViewerItem?.fileUrl && (
+            <motion.div
+              key="pdf-viewer"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+            >
+              <Suspense fallback={null}>
+                <PdfViewer
+                  url={pdfViewerItem.fileUrl}
+                  title={pdfViewerItem.title}
+                  onClose={() => setPdfViewerItem(null)}
+                />
+              </Suspense>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {readingItem?.item.articleHtml && (
+            <Suspense key={readingItem.item.id} fallback={null}>
+              <ReaderView
+                item={
+                  {
+                    id: readingItem.item.id,
+                    title: readingItem.item.title,
+                    author: readingItem.item.articleAuthor,
+                    publishedDate: readingItem.item.publishedDate,
+                    savedDate: readingItem.item.date,
+                    sourceLabel: readingItem.item.source,
+                    sourceUrl: readingItem.item.sourceUrl ?? "",
+                    html: readingItem.item.articleHtml,
+                  } satisfies ReaderItem
+                }
+                origin={readingItem.origin}
+                onRequestClose={() => setReadingItem(null)}
+              />
+            </Suspense>
+          )}
+        </AnimatePresence>
       </div>
       <MascotRoamLayer />
       <Toaster

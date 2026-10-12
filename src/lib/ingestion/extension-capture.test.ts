@@ -26,7 +26,8 @@ describe("mapExtensionSelection", () => {
   test("never trusts extension HTML: scripts are stripped, body falls back to text", () => {
     const receipt = mapExtensionSelection({
       sourceUrl: "https://example.com/page",
-      selectedHtml: '<p onclick="evil()">Hi</p><script>alert(1)</script><iframe src="https://evil.example/x"></iframe>',
+      selectedHtml:
+        '<p onclick="evil()">Hi</p><script>alert(1)</script><iframe src="https://evil.example/x"></iframe>',
       selectedText: "",
     });
     expect(receipt?.body).toBe("Hi");
@@ -47,9 +48,19 @@ describe("mapExtensionSelection", () => {
 
   test("rejects non-http sources and empty selections", () => {
     expect(
-      mapExtensionSelection({ sourceUrl: "javascript:alert(1)", selectedHtml: "", selectedText: "hi" }),
+      mapExtensionSelection({
+        sourceUrl: "javascript:alert(1)",
+        selectedHtml: "",
+        selectedText: "hi",
+      }),
     ).toBeNull();
-    expect(mapExtensionSelection({ sourceUrl: "https://example.com/", selectedHtml: "", selectedText: "   " })).toBeNull();
+    expect(
+      mapExtensionSelection({
+        sourceUrl: "https://example.com/",
+        selectedHtml: "",
+        selectedText: "   ",
+      }),
+    ).toBeNull();
   });
 });
 
@@ -86,7 +97,11 @@ describe("mapExtensionImage", () => {
     const paddingLength = Math.ceil((EXTENSION_IMAGE_DATA_URL_MAX_BYTES + 16) / 3) * 4;
     const huge = `data:image/png;base64,${"A".repeat(paddingLength)}`;
     expect(
-      mapExtensionImage({ pageUrl: "https://example.com/", srcUrl: "blob:https://example.com/x", dataUrl: huge }),
+      mapExtensionImage({
+        pageUrl: "https://example.com/",
+        srcUrl: "blob:https://example.com/x",
+        dataUrl: huge,
+      }),
     ).toBeNull();
     expect(
       mapExtensionImage({
@@ -96,9 +111,9 @@ describe("mapExtensionImage", () => {
       }),
     ).toBeNull();
     expect(mapExtensionImage({ pageUrl: "https://example.com/", srcUrl: "" })).toBeNull();
-    expect(mapExtensionImage({ pageUrl: "https://example.com/", srcUrl: "/relative/photo.jpg" })?.via).toBe(
-      "download",
-    );
+    expect(
+      mapExtensionImage({ pageUrl: "https://example.com/", srcUrl: "/relative/photo.jpg" })?.via,
+    ).toBe("download");
   });
 });
 

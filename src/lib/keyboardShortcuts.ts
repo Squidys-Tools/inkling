@@ -5,7 +5,10 @@ type ShortcutEvent = Pick<
   "key" | "altKey" | "ctrlKey" | "metaKey" | "shiftKey" | "isComposing"
 >;
 
-export function appKeyboardShortcut(event: ShortcutEvent, isEditableTarget: boolean): AppKeyboardShortcut | null {
+export function appKeyboardShortcut(
+  event: ShortcutEvent,
+  isEditableTarget: boolean,
+): AppKeyboardShortcut | null {
   if (isEditableTarget || event.altKey || event.isComposing) return null;
 
   if (event.ctrlKey || event.metaKey) {

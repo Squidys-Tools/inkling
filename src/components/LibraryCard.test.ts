@@ -9,9 +9,7 @@ import { cardRectsFor } from "./LibraryCard";
 type Box = { left: number; top: number; width: number; height: number };
 
 function stubCard(cardBox: Box, mediaBox?: Box) {
-  const media = mediaBox
-    ? { getBoundingClientRect: () => ({ ...mediaBox }) }
-    : null;
+  const media = mediaBox ? { getBoundingClientRect: () => ({ ...mediaBox }) } : null;
   return {
     getBoundingClientRect: () => ({ ...cardBox }),
     querySelector: () => media,
@@ -21,7 +19,10 @@ function stubCard(cardBox: Box, mediaBox?: Box) {
 describe("cardRectsFor", () => {
   test("returns the card box and the media box", () => {
     const rects = cardRectsFor(
-      stubCard({ left: 10, top: 20, width: 210, height: 262 }, { left: 10, top: 20, width: 210, height: 157 }),
+      stubCard(
+        { left: 10, top: 20, width: 210, height: 262 },
+        { left: 10, top: 20, width: 210, height: 157 },
+      ),
     );
 
     expect(rects.card).toEqual({ left: 10, top: 20, width: 210, height: 262 });

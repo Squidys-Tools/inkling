@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { createSeededRandom } from "./roam";
-import { farPoint, freeArea, freePoint, hasRoom, lookTargets, terrainFor, type Rect } from "./roamSpace";
+import {
+  farPoint,
+  freeArea,
+  freePoint,
+  hasRoom,
+  lookTargets,
+  terrainFor,
+  type Rect,
+} from "./roamSpace";
 import { BODY_RADIUS } from "./drift";
 import type { Terrain } from "./drift";
 
@@ -16,7 +24,10 @@ const overGrid = (p: { x: number; y: number }, terrain: Terrain = TERRAIN) =>
   terrain.walls.some((w) => p.x > w.left && p.x < w.right && p.y > w.top && p.y < w.bottom);
 
 const inRoom = (p: { x: number; y: number }, terrain: Terrain = TERRAIN) =>
-  p.x >= terrain.room.left && p.x <= terrain.room.right && p.y >= terrain.room.top && p.y <= terrain.room.bottom;
+  p.x >= terrain.room.left &&
+  p.x <= terrain.room.right &&
+  p.y >= terrain.room.top &&
+  p.y <= terrain.room.bottom;
 
 describe("roam space", () => {
   test("the room is the whole panel, and the grid is a wall inside it", () => {
@@ -55,11 +66,11 @@ describe("roam space", () => {
     // is the whole app shell rather than the panel, which is where the extra
     // space comes from.
     const area = freeArea(TERRAIN);
-    const roomArea = (TERRAIN.room.right - TERRAIN.room.left) * (TERRAIN.room.bottom - TERRAIN.room.top);
+    const roomArea =
+      (TERRAIN.room.right - TERRAIN.room.left) * (TERRAIN.room.bottom - TERRAIN.room.top);
     expect(area).toBeGreaterThan(0);
     expect(area / roomArea).toBeLessThan(0.35);
   });
-
 
   test("every free point is inside the room and off the cards", () => {
     const rand = createSeededRandom(3);
@@ -129,7 +140,9 @@ describe("roam space", () => {
   });
 
   test("a grid that fills the panel leaves nowhere, and the mascot stays home", () => {
-    const filled = terrainFor(PANEL, [{ left: PANEL.left, top: PANEL.top, right: PANEL.right, bottom: PANEL.bottom }]);
+    const filled = terrainFor(PANEL, [
+      { left: PANEL.left, top: PANEL.top, right: PANEL.right, bottom: PANEL.bottom },
+    ]);
     expect(hasRoom(filled)).toBe(false);
   });
 
@@ -140,7 +153,9 @@ describe("roam space", () => {
     expect(missing.walls).toHaveLength(0);
     expect(hasRoom(missing)).toBe(true);
     // The opposite stays: a grid that really covers the panel leaves nowhere.
-    const filled = terrainFor(PANEL, [{ left: PANEL.left, top: PANEL.top, right: PANEL.right, bottom: PANEL.bottom }]);
+    const filled = terrainFor(PANEL, [
+      { left: PANEL.left, top: PANEL.top, right: PANEL.right, bottom: PANEL.bottom },
+    ]);
     expect(hasRoom(filled)).toBe(false);
   });
 
@@ -172,13 +187,15 @@ describe("roam space", () => {
   });
 
   test("a blocker outside the room is dropped rather than shrinking the room", () => {
-    const outside = terrainFor(PANEL, [{ left: 5_000, top: 5_000, right: 6_000, bottom: 6_000 }, null]);
+    const outside = terrainFor(PANEL, [
+      { left: 5_000, top: 5_000, right: 6_000, bottom: 6_000 },
+      null,
+    ]);
     expect(outside.walls).toHaveLength(0);
     expect(outside.room).toEqual(TERRAIN.room);
   });
 
   test("look targets are the cards you can see, nearest first", () => {
-
     const targets = lookTargets(PANEL, CARDS, { x: 300, y: 115 });
     expect(targets.length).toBeGreaterThan(0);
     const distances = targets.map((t) => Math.hypot(t.x - 300, t.y - 115));
@@ -187,5 +204,3 @@ describe("roam space", () => {
     expect(lookTargets(PANEL, [offScreen], { x: 300, y: 115 })).toHaveLength(0);
   });
 });
-
-

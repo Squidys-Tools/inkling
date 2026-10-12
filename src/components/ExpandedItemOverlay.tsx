@@ -1,4 +1,14 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { gsap } from "gsap";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -20,7 +30,15 @@ import {
 import type { LibraryItem } from "../App";
 import { isTauriRuntime } from "../lib/libraryApi";
 import type { ReaderOrigin } from "../ReaderView";
-import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork, XPostEmbed, DetailVideoMedia, pdfPreviewTitle } from "./ItemMedia";
+import {
+  KindIcon,
+  NoteArtwork,
+  PdfArtwork,
+  PostArtwork,
+  XPostEmbed,
+  DetailVideoMedia,
+  pdfPreviewTitle,
+} from "./ItemMedia";
 import { useDialog } from "./dialog/useDialog";
 import {
   OVERLAY_EASE,
@@ -76,7 +94,13 @@ type OverlayAction = {
 type OverlayDestination = { frame: FlightRect; mediaHeight: number };
 
 type Flight =
-  | { kind: "open"; id: number; originCard: FlightRect; originMediaHeight: number; destination: OverlayDestination }
+  | {
+      kind: "open";
+      id: number;
+      originCard: FlightRect;
+      originMediaHeight: number;
+      destination: OverlayDestination;
+    }
   | {
       kind: "close";
       id: number;
@@ -148,15 +172,22 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
   const openOriginal: OverlayAction = {
     key: "open-original",
     label: sourceHost ?? item.source ?? "Open original",
-    icon: sourceHost
-      ? <HugeiconsIcon icon={Globe02Icon} size={15} />
-      : <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />,
+    icon: sourceHost ? (
+      <HugeiconsIcon icon={Globe02Icon} size={15} />
+    ) : (
+      <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />
+    ),
     onClick: () => item.sourceUrl && window.open(item.sourceUrl, "_blank", "noopener,noreferrer"),
     disabled: !item.sourceUrl,
   };
 
   if (item.kind === "PDF" && item.fileUrl) {
-    list.push({ key: "open-pdf", label: "Open PDF", icon: <HugeiconsIcon icon={FileTextIcon} size={15} />, onClick: () => actions.onOpenPdf(item) });
+    list.push({
+      key: "open-pdf",
+      label: "Open PDF",
+      icon: <HugeiconsIcon icon={FileTextIcon} size={15} />,
+      onClick: () => actions.onOpenPdf(item),
+    });
   }
   if (item.kind === "Article" && item.articleHtml) {
     list.push({
@@ -202,8 +233,15 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
     return (
       <div className="expanded-overlay-media detail-x-post relative h-full flex-none overflow-hidden bg-[#fff]">
         <XPostEmbed
+          key={item.social.postUrl}
           social={item.social}
-          fallback={item.post ? <PostArtwork post={item.post} /> : <div className="detail-art ink">Post preview unavailable.</div>}
+          fallback={
+            item.post ? (
+              <PostArtwork post={item.post} />
+            ) : (
+              <div className="detail-art ink">Post preview unavailable.</div>
+            )
+          }
         />
       </div>
     );
@@ -228,7 +266,11 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
   if (item.image) {
     return (
       <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
-        <img src={item.image} alt={item.imageAlt ?? item.title} className="detail-image block h-full w-full object-cover" />
+        <img
+          src={item.image}
+          alt={item.imageAlt ?? item.title}
+          className="detail-image block h-full w-full object-cover"
+        />
       </div>
     );
   }
@@ -237,7 +279,9 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
     return (
       <div className="expanded-overlay-media relative flex-none overflow-hidden bg-[#101010]">
         <div className="detail-art detail-quote-art paper-yellow bg-yellow-soft text-[#b3ad8d]">
-          <span className="detail-quote-mark block font-[Georgia,serif] text-[64px] leading-[.8] text-[#b3ad8d]">“</span>
+          <span className="detail-quote-mark block font-[Georgia,serif] text-[64px] leading-[.8] text-[#b3ad8d]">
+            “
+          </span>
           <span>{item.kind}</span>
         </div>
       </div>
@@ -276,7 +320,14 @@ type ExpandedItemOverlayProps = {
   selectionScrollRef: RefObject<boolean>;
 };
 
-export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, contentAreaRef, selectionScrollRef }: ExpandedItemOverlayProps) {
+export function ExpandedItemOverlay({
+  item,
+  actions,
+  spaces,
+  originRectsRef,
+  contentAreaRef,
+  selectionScrollRef,
+}: ExpandedItemOverlayProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
@@ -365,7 +416,11 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
   useLayoutEffect(() => {
     const originRects = originRectsRef.current;
     if (!originRects || prefersReducedMotion()) {
-      gsap.fromTo(layerRef.current, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power1.out" });
+      gsap.fromTo(
+        layerRef.current,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.18, ease: "power1.out" },
+      );
       return;
     }
     beginOpenFlight(originRects);
@@ -385,7 +440,8 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
       if (!dialog || !media) return;
       const duration = OVERLAY_FLIGHT_MS / 1000;
       const hasEmbed =
-        itemRef.current.social?.provider === "x" || (itemRef.current.kind === "Video" && !!itemRef.current.video);
+        itemRef.current.social?.provider === "x" ||
+        (itemRef.current.kind === "Video" && !!itemRef.current.video);
       const timeline = gsap.timeline({
         onComplete: () => {
           setFlight(null);
@@ -422,7 +478,12 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
         timeline.fromTo(
           media,
           { height: flight.originMediaHeight },
-          { height: flight.destination.mediaHeight, duration, ease: OVERLAY_EASE, autoRound: false },
+          {
+            height: flight.destination.mediaHeight,
+            duration,
+            ease: OVERLAY_EASE,
+            autoRound: false,
+          },
           0,
         );
       }
@@ -439,7 +500,8 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
     }
     const duration = OVERLAY_FLIGHT_MS / 1000;
     const hasEmbed =
-      flight.fromItem.social?.provider === "x" || (flight.fromItem.kind === "Video" && !!flight.fromItem.video);
+      flight.fromItem.social?.provider === "x" ||
+      (flight.fromItem.kind === "Video" && !!flight.fromItem.video);
     const timeline = gsap.timeline({
       onComplete: () => {
         if (flight.thenOpen && !cancelPendingOpenRef.current) {
@@ -454,7 +516,12 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
       timeline
         .fromTo(
           dialog,
-          { left: flight.fromCard.left, top: flight.fromCard.top, width: flight.fromCard.width, height: flight.fromCard.height },
+          {
+            left: flight.fromCard.left,
+            top: flight.fromCard.top,
+            width: flight.fromCard.width,
+            height: flight.fromCard.height,
+          },
           {
             left: flight.toRects.card.left,
             top: flight.toRects.card.top,
@@ -500,15 +567,20 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
       const contentHeight = dialog.offsetHeight;
       const availHeight = Math.max(content.height - 24 * 2, 240);
       const height = Math.min(Math.max(contentHeight, 320), availHeight);
-      const cardCenterX = destinationRef.current.frame.left + destinationRef.current.frame.width / 2;
-      const cardCenterY = destinationRef.current.frame.top + destinationRef.current.frame.height / 2;
+      const cardCenterX =
+        destinationRef.current.frame.left + destinationRef.current.frame.width / 2;
+      const cardCenterY =
+        destinationRef.current.frame.top + destinationRef.current.frame.height / 2;
       const position = overlayPosition(
         { left: cardCenterX - width / 2, top: cardCenterY - height / 2, width, height },
         content,
         width,
         height,
       );
-      const next: OverlayDestination = { frame: { left: position.left, top: position.top, width, height }, mediaHeight };
+      const next: OverlayDestination = {
+        frame: { left: position.left, top: position.top, width, height },
+        mediaHeight,
+      };
       destinationRef.current = next;
       setDestination(next);
     };
@@ -578,15 +650,19 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
   // On close, hand focus back to the source card while it is still mounted.
   // Skipping the restore when focus already moved elsewhere (nav, search)
   // avoids yanking it back out of whatever the user clicked.
-  useEffect(() => () => {
-    const focusOwner = document.activeElement;
-    const overlayHasFocus = focusOwner instanceof HTMLElement && (dialogRef.current?.contains(focusOwner) ?? false);
-    if (!overlayHasFocus && focusOwner !== document.body) return;
-    const card = document.querySelector<HTMLElement>(
-      `.library-card[data-library-item-id="${CSS.escape(String(itemIdRef.current))}"]`,
-    );
-    card?.focus({ preventScroll: true });
-  }, []);
+  useEffect(
+    () => () => {
+      const focusOwner = document.activeElement;
+      const overlayHasFocus =
+        focusOwner instanceof HTMLElement && (dialogRef.current?.contains(focusOwner) ?? false);
+      if (!overlayHasFocus && focusOwner !== document.body) return;
+      const card = document.querySelector<HTMLElement>(
+        `.library-card[data-library-item-id="${CSS.escape(String(itemIdRef.current))}"]`,
+      );
+      card?.focus({ preventScroll: true });
+    },
+    [],
+  );
 
   // Move focus to the close control when the overlay finishes opening.
   useLayoutEffect(() => {
@@ -597,7 +673,11 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
 
   actionsRef.current = actions;
 
-  const beginCloseFlight = (closingItem: LibraryItem, toRects: SourceRects | null, thenOpen: boolean) => {
+  const beginCloseFlight = (
+    closingItem: LibraryItem,
+    toRects: SourceRects | null,
+    thenOpen: boolean,
+  ) => {
     const dialog = dialogRef.current;
     const media = mediaRef.current;
     if (!dialog) {
@@ -662,7 +742,11 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
     const rects = queryCardRects(itemIdRef.current);
     if (prefersReducedMotion() || !rects || !dialogRef.current) {
       if (flightRef.current) setFlight(null);
-      gsap.to(layerRef.current, { opacity: 0, duration: 0.15, onComplete: actionsRef.current.onClose });
+      gsap.to(layerRef.current, {
+        opacity: 0,
+        duration: 0.15,
+        onComplete: actionsRef.current.onClose,
+      });
       return;
     }
     cancelPendingOpenRef.current = false;
@@ -704,7 +788,11 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
       const contentArea = contentAreaRef.current;
       const viewport = scrollViewport(contentArea);
       const rects = queryCardRects(itemIdRef.current);
-      if (!viewport || !rects || isCardTooFarOffscreen(rects.card, rectFrom(viewport.getBoundingClientRect()))) {
+      if (
+        !viewport ||
+        !rects ||
+        isCardTooFarOffscreen(rects.card, rectFrom(viewport.getBoundingClientRect()))
+      ) {
         requestClose();
       }
     };
@@ -767,13 +855,21 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => () => {
-    if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+    },
+    [],
+  );
 
   const dialogFlying = flight?.kind === "open" || flight?.kind === "close";
   const placedStyle: CSSProperties | undefined = destination
-    ? { left: destination.frame.left, top: destination.frame.top, width: destination.frame.width, height: destination.frame.height }
+    ? {
+        left: destination.frame.left,
+        top: destination.frame.top,
+        width: destination.frame.width,
+        height: destination.frame.height,
+      }
     : undefined;
 
   function copySourceLink() {
@@ -782,17 +878,20 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
       setLinkCopied(false);
       setLinkCopyFailed(false);
     };
-    void navigator.clipboard.writeText(shownItem.sourceUrl).then(() => {
-      setLinkCopied(true);
-      setLinkCopyFailed(false);
-      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = window.setTimeout(resetCopyFeedback, 2000);
-    }).catch(() => {
-      setLinkCopied(false);
-      setLinkCopyFailed(true);
-      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = window.setTimeout(resetCopyFeedback, 2000);
-    });
+    void navigator.clipboard
+      .writeText(shownItem.sourceUrl)
+      .then(() => {
+        setLinkCopied(true);
+        setLinkCopyFailed(false);
+        if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = window.setTimeout(resetCopyFeedback, 2000);
+      })
+      .catch(() => {
+        setLinkCopied(false);
+        setLinkCopyFailed(true);
+        if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = window.setTimeout(resetCopyFeedback, 2000);
+      });
   }
 
   const triage = triageActions(shownItem, actions);
@@ -802,7 +901,8 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
   // row — Read/Open PDF + domain share the row, copy + forget are bare icons.
   // Readable = whatever currently renders a Read button in the overlay.
   const readAction = triage.find(
-    (action) => action.key === "read" || action.key === "open-pdf" || action.key === "read-unavailable",
+    (action) =>
+      action.key === "read" || action.key === "open-pdf" || action.key === "read-unavailable",
   );
   const isReadRow = Boolean(readAction);
   const isPinned = shownItem.favorite === true;
@@ -819,7 +919,11 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
           aria-label="Copy link to original"
           title={linkCopied ? "Copied" : linkCopyFailed ? "Copy failed" : "Copy link"}
         >
-          {linkCopied ? <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} /> : <HugeiconsIcon icon={Copy01Icon} size={14} />}
+          {linkCopied ? (
+            <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} />
+          ) : (
+            <HugeiconsIcon icon={Copy01Icon} size={14} />
+          )}
         </button>
       )}
       <button
@@ -846,6 +950,18 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
 
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
+  const tagInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isAddingTag) tagInputRef.current?.focus();
+  }, [isAddingTag]);
+
+  useEffect(() => {
+    setIsEditingNote(false);
+    setIsFocusMode(false);
+    setIsAddingTag(false);
+    setTagDraft("");
+  }, [shownItem.id]);
 
   useEffect(() => {
     setIsAddingTag(false);
@@ -867,24 +983,46 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
   const isFocusModeView = isFocusMode && isEditingNoteView;
 
   return (
-    <div className={`expanded-overlay-layer fixed inset-0 z-[6] grid place-items-center p-[clamp(16px,4vh,40px)_clamp(16px,3vw,48px)] pointer-events-none ${isFocusModeView ? "is-focus-mode" : ""}`} ref={layerRef}>
+    <div
+      className={`expanded-overlay-layer fixed inset-0 z-[6] grid place-items-center p-[clamp(16px,4vh,40px)_clamp(16px,3vw,48px)] pointer-events-none ${isFocusModeView ? "is-focus-mode" : ""}`}
+      ref={layerRef}
+    >
       <section
         ref={dialogRef}
         className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""} ${isFocusModeView ? "is-focus-mode" : ""} relative pointer-events-auto flex w-[min(680px,100%)] max-h-full flex-col overflow-hidden bg-surface border border-[#4a4842] rounded-[24px] shadow-[0_30px_80px_rgba(0,0,0,.55)]`}
         {...rootProps}
-        style={isFocusModeView
-          // The FLIP pass writes `border-radius` inline on this node, and an
-          // inline value outranks the class rule that flattens the panel for
-          // focus mode. Reset it here too, or the panel keeps the card's radius.
-          ? { position: "relative", left: "auto", top: "auto", width: "min(100%, 1060px)", height: "100%", borderRadius: 0, boxShadow: "none", background: "transparent" }
-          : dialogFlying ? undefined : placedStyle}
+        style={
+          isFocusModeView
+            ? // The FLIP pass writes `border-radius` inline on this node, and an
+              // inline value outranks the class rule that flattens the panel for
+              // focus mode. Reset it here too, or the panel keeps the card's radius.
+              {
+                position: "relative",
+                left: "auto",
+                top: "auto",
+                width: "min(100%, 1060px)",
+                height: "100%",
+                borderRadius: 0,
+                boxShadow: "none",
+                background: "transparent",
+              }
+            : dialogFlying
+              ? undefined
+              : placedStyle
+        }
       >
         <button
           type="button"
           ref={closeButtonRef}
           className="expanded-overlay-close absolute top-[14px] right-[14px] z-[5] inline-grid size-[30px] flex-none place-items-center cursor-pointer bg-[rgba(59,58,53,.86)] border border-[#5a5750] rounded-[7px] text-ink shadow-[0_5px_16px_rgba(0,0,0,.3)] backdrop-blur-[8px] [transition:background_.18s_ease,color_.18s_ease,border-color_.18s_ease,transform_.18s_cubic-bezier(.23,1,.32,1)] hover:bg-[#4a4842] hover:border-[#716d64] active:scale-[.96]"
           onClick={handleOverlayClose}
-          aria-label={isFocusModeView ? "Exit focus mode" : isEditingNoteView ? "Close editor" : "Close details"}
+          aria-label={
+            isFocusModeView
+              ? "Exit focus mode"
+              : isEditingNoteView
+                ? "Close editor"
+                : "Close details"
+          }
         >
           <HugeiconsIcon icon={Cancel01Icon} size={16} />
         </button>
@@ -892,7 +1030,15 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
         <div
           className={`expanded-overlay-media relative flex-none overflow-hidden bg-[#101010] ${shownItem.kind === "Note" && !shownItem.image ? "note-detail-media-band" : ""}`}
           ref={mediaRef}
-          style={dialogFlying ? undefined : ({ height: destination ? overlayMediaHeight(shownItem, destination.frame.width, window.innerHeight) : undefined } as CSSProperties)}
+          style={
+            dialogFlying
+              ? undefined
+              : ({
+                  height: destination
+                    ? overlayMediaHeight(shownItem, destination.frame.width, window.innerHeight)
+                    : undefined,
+                } as CSSProperties)
+          }
         >
           <OverlayMedia item={shownItem} />
         </div>
@@ -903,7 +1049,13 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
           style={dialogFlying && destination ? { width: destination.frame.width } : undefined}
         >
           {isEditingNoteView ? (
-            <Suspense fallback={<p className="expanded-overlay-description" role="status">Loading editor…</p>}>
+            <Suspense
+              fallback={
+                <p className="expanded-overlay-description" role="status">
+                  Loading editor…
+                </p>
+              }
+            >
               <RichNoteEditor
                 key={`edit-${shownItem.id}`}
                 embedded
@@ -920,104 +1072,147 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
             </Suspense>
           ) : shownItem.kind === "Quote" ? (
             <>
-              <blockquote className="detail-quote m-[16px_0_8px] font-[family-name:'Libre_Baskerville',Georgia,serif] text-[22px] leading-[1.35] font-normal italic text-ink">“{shownItem.title}”</blockquote>
-              {shownItem.description && <p className="detail-attribution m-0 mb-[8px] font-mono text-[12px] leading-[1.5] text-muted">— {shownItem.description.replace(/^—\s*/u, "")}</p>}
+              <blockquote className="detail-quote m-[16px_0_8px] font-[family-name:'Libre_Baskerville',Georgia,serif] text-[22px] leading-[1.35] font-normal italic text-ink">
+                “{shownItem.title}”
+              </blockquote>
+              {shownItem.description && (
+                <p className="detail-attribution m-0 mb-[8px] font-mono text-[12px] leading-[1.5] text-muted">
+                  — {shownItem.description.replace(/^—\s*/u, "")}
+                </p>
+              )}
             </>
           ) : shownItem.kind === "Note" ? (
             <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
           ) : (
             <>
-              <h2 className="expanded-overlay-title m-0 mb-[9px] font-[family-name:Georgia,'Times_New_Roman',serif] text-[26px] leading-[1.18] font-normal tracking-[-.02em]">{detailTitleFor(shownItem)}</h2>
-              {shownItem.description && <p className="expanded-overlay-description m-0 max-w-[60ch] text-[13px] leading-[1.55] text-muted">{shownItem.description}</p>}
+              <h2 className="expanded-overlay-title m-0 mb-[9px] font-[family-name:Georgia,'Times_New_Roman',serif] text-[26px] leading-[1.18] font-normal tracking-[-.02em]">
+                {detailTitleFor(shownItem)}
+              </h2>
+              {shownItem.description && (
+                <p className="expanded-overlay-description m-0 max-w-[60ch] text-[13px] leading-[1.55] text-muted">
+                  {shownItem.description}
+                </p>
+              )}
             </>
           )}
           {!isEditingNoteView && shownItem.processing?.active && (
-            <div className="detail-processing mt-[13px] flex items-center gap-[7px] font-mono text-[10px] leading-[1.35] text-green [&>svg]:animate-spin-slow" role="status">
+            <div
+              className="detail-processing mt-[13px] flex items-center gap-[7px] font-mono text-[10px] leading-[1.35] text-green [&>svg]:animate-spin-slow"
+              role="status"
+            >
               <HugeiconsIcon icon={Loading01Icon} size={14} />
               <span>{shownItem.processing.message ?? "Processing"}</span>
-              {shownItem.processing.progressTotal != null && <span>{shownItem.processing.progressCurrent}/{shownItem.processing.progressTotal}</span>}
+              {shownItem.processing.progressTotal != null && (
+                <span>
+                  {shownItem.processing.progressCurrent}/{shownItem.processing.progressTotal}
+                </span>
+              )}
             </div>
           )}
           {!isEditingNoteView && shownItem.processing?.failedJob && (
-            <div className="detail-processing failed mt-[13px] flex items-start gap-[7px] font-mono text-[10px] leading-[1.35] text-[#d07055] [&>svg]:animate-spin-slow" role="alert">
+            <div
+              className="detail-processing failed mt-[13px] flex items-start gap-[7px] font-mono text-[10px] leading-[1.35] text-[#d07055] [&>svg]:animate-spin-slow"
+              role="alert"
+            >
               <HugeiconsIcon icon={AlertCircleIcon} size={14} />
               <span>{shownItem.processing.failedJob.errorMessage ?? "Processing failed"}</span>
-              <button type="button" className="retry-button" onClick={() => void actions.onRetryJob(shownItem.processing?.failedJob?.id ?? "")}>
+              <button
+                type="button"
+                className="retry-button"
+                onClick={() => void actions.onRetryJob(shownItem.processing?.failedJob?.id ?? "")}
+              >
                 <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
               </button>
             </div>
           )}
           {!isEditingNoteView && (
-          <div className="detail-meta flex w-full flex-col gap-[8px] pt-[7px] pb-[6px]">
-            <div className="detail-filemeta flex items-center gap-[8px]">
-              <span className="filemeta-type font-mono text-[10px] tracking-[.08em] text-muted">{fileTypeFor(shownItem)}</span>
-              <span className="filemeta-dot size-[2px] flex-none rounded-full bg-[#4a4842]" aria-hidden="true" />
-              <span className="filemeta-saved font-mono text-[10px] tracking-[.08em] text-[#605d68]">{savedLabelFor(shownItem.date)}</span>
-            </div>
-            <div className="detail-tags flex flex-wrap items-center gap-x-[10px] gap-y-[4px] pt-[2px]">
-              {allTags.map((tag) => <span key={tag} className="detail-tag p-[4px_0] font-mono text-[10px] text-orange">#{tag}</span>)}
-              {isAddingTag ? (
-                <input
-                  className="detail-tag-input w-[110px] bg-paper p-[4px_8px] font-mono text-[10px] text-ink rounded-[6px] border border-rule outline-none focus:border-orange"
-                  value={tagDraft}
-                  autoFocus
-                  placeholder="tag name"
-                  aria-label="New tag name"
-                  onChange={(event) => setTagDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      submitTag();
-                    } else if (event.key === "Escape") {
-                      setTagDraft("");
-                      setIsAddingTag(false);
-                    }
-                  }}
-                  onBlur={submitTag}
+            <div className="detail-meta flex w-full flex-col gap-[8px] pt-[7px] pb-[6px]">
+              <div className="detail-filemeta flex items-center gap-[8px]">
+                <span className="filemeta-type font-mono text-[10px] tracking-[.08em] text-muted">
+                  {fileTypeFor(shownItem)}
+                </span>
+                <span
+                  className="filemeta-dot size-[2px] flex-none rounded-full bg-[#4a4842]"
+                  aria-hidden="true"
                 />
-              ) : (
-                <button type="button" className="detail-tag-add inline-flex items-center gap-[3px] cursor-pointer border-0 bg-transparent p-[4px_0] font-mono text-[10px] text-[#605d68] hover:text-ink" onClick={() => setIsAddingTag(true)}>
-                  <HugeiconsIcon icon={PlusSignIcon} size={11} /> Add
-                </button>
+                <span className="filemeta-saved font-mono text-[10px] tracking-[.08em] text-[#605d68]">
+                  {savedLabelFor(shownItem.date)}
+                </span>
+              </div>
+              <div className="detail-tags flex flex-wrap items-center gap-x-[10px] gap-y-[4px] pt-[2px]">
+                {allTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="detail-tag p-[4px_0] font-mono text-[10px] text-orange"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+                {isAddingTag ? (
+                  <input
+                    className="detail-tag-input w-[110px] bg-paper p-[4px_8px] font-mono text-[10px] text-ink rounded-[6px] border border-rule outline-none focus:border-orange"
+                    value={tagDraft}
+                    ref={tagInputRef}
+                    placeholder="tag name"
+                    aria-label="New tag name"
+                    onChange={(event) => setTagDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        submitTag();
+                      } else if (event.key === "Escape") {
+                        setTagDraft("");
+                        setIsAddingTag(false);
+                      }
+                    }}
+                    onBlur={submitTag}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="detail-tag-add inline-flex items-center gap-[3px] cursor-pointer border-0 bg-transparent p-[4px_0] font-mono text-[10px] text-[#605d68] hover:text-ink"
+                    onClick={() => setIsAddingTag(true)}
+                  >
+                    <HugeiconsIcon icon={PlusSignIcon} size={11} /> Add
+                  </button>
+                )}
+              </div>
+              {spaces && spaces.length > 0 && (
+                <fieldset className="detail-spaces">
+                  <legend className="visually-hidden">Regular Spaces</legend>
+                  {spaces.map((space) => (
+                    <button
+                      key={space.id}
+                      type="button"
+                      className={`detail-space ${space.member ? "is-member" : ""}`}
+                      aria-pressed={space.member}
+                      title={space.member ? `Remove from ${space.name}` : `Add to ${space.name}`}
+                      onClick={() => void actions.onToggleSpace?.(shownItem, space.id)}
+                    >
+                      <span className={`detail-space-dot ${space.color}`} aria-hidden="true" />
+                      <span className="detail-space-name">{space.name}</span>
+                    </button>
+                  ))}
+                </fieldset>
               )}
             </div>
-            {spaces && spaces.length > 0 && (
-              <div className="detail-spaces" role="group" aria-label="Regular Spaces">
-                {spaces.map((space) => (
-                  <button
-                    key={space.id}
-                    type="button"
-                    className={`detail-space ${space.member ? "is-member" : ""}`}
-                    aria-pressed={space.member}
-                    title={
-                      space.member
-                        ? `Remove from ${space.name}`
-                        : `Add to ${space.name}`
-                    }
-                    onClick={() => void actions.onToggleSpace?.(shownItem, space.id)}
-                  >
-                    <span className={`detail-space-dot ${space.color}`} aria-hidden="true" />
-                    <span className="detail-space-name">{space.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
           )}
 
           {isReadRow && otherActions.some((action) => action.key === "find-similar") && (
             <div className="expanded-overlay-actions mt-[25px] flex flex-wrap gap-[10px]">
-              {otherActions.filter((action) => action.key === "find-similar").map((action) => (
-                <button
-                  type="button"
-                  key={action.key}
-                  className="overlay-action-secondary flex flex-[1_1_auto] items-center justify-center gap-[8px] cursor-pointer rounded-[8px] bg-transparent border border-rule p-[12px_16px] text-[12px] text-ink [transition:transform_.16s_cubic-bezier(.23,1,.32,1),background_.18s_ease,border-color_.18s_ease] enabled:hover:bg-surface-strong enabled:hover:border-[#4a4842] enabled:active:scale-[.96] disabled:cursor-default disabled:opacity-50"
-                  onClick={action.onClick}
-                  disabled={action.disabled}
-                >
-                  {action.icon} {action.label}
-                </button>
-              ))}
+              {otherActions
+                .filter((action) => action.key === "find-similar")
+                .map((action) => (
+                  <button
+                    type="button"
+                    key={action.key}
+                    className="overlay-action-secondary flex flex-[1_1_auto] items-center justify-center gap-[8px] cursor-pointer rounded-[8px] bg-transparent border border-rule p-[12px_16px] text-[12px] text-ink [transition:transform_.16s_cubic-bezier(.23,1,.32,1),background_.18s_ease,border-color_.18s_ease] enabled:hover:bg-surface-strong enabled:hover:border-[#4a4842] enabled:active:scale-[.96] disabled:cursor-default disabled:opacity-50"
+                    onClick={action.onClick}
+                    disabled={action.disabled}
+                  >
+                    {action.icon} {action.label}
+                  </button>
+                ))}
             </div>
           )}
 
@@ -1028,7 +1223,10 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
                 className="toolbar-primary toolbar-reading flex min-w-0 flex-[1_1_0%] cursor-pointer items-center justify-center gap-[8px] overflow-hidden whitespace-nowrap bg-[#222a26] border border-[#2e3a34] rounded-[9px] p-[13px_16px] text-[12px] font-medium text-[#8a978e] enabled:hover:bg-[#262e29] enabled:hover:border-[#3a4a40] enabled:hover:text-[#a8bfb0] enabled:active:scale-[.98] disabled:cursor-default disabled:opacity-50"
                 onClick={readAction.onClick}
                 disabled={readAction.disabled}
-                title={readAction.title ?? (readAction.disabled ? "No saved content to read" : readAction.label)}
+                title={
+                  readAction.title ??
+                  (readAction.disabled ? "No saved content to read" : readAction.label)
+                }
               >
                 {readAction.icon} {readAction.label}
               </button>
@@ -1038,9 +1236,12 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
                   className="toolbar-primary flex min-w-0 flex-[1_1_0%] cursor-pointer items-center justify-center gap-[8px] overflow-hidden whitespace-nowrap bg-green-soft border border-[#35443c] rounded-[9px] p-[13px_16px] text-[12px] font-semibold text-[#9dbfa9] enabled:hover:bg-[#2b382f] enabled:hover:border-[#4a5c50] disabled:cursor-default disabled:opacity-50"
                   onClick={sourceAction.onClick}
                   disabled={sourceAction.disabled}
-                  title={sourceAction.disabled ? "No source link saved" : `Open ${sourceAction.label}`}
+                  title={
+                    sourceAction.disabled ? "No source link saved" : `Open ${sourceAction.label}`
+                  }
                 >
-                  {sourceAction.icon} {sourceAction.label} <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
+                  {sourceAction.icon} {sourceAction.label}{" "}
+                  <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
                 </button>
               )}
               {itemControls}
@@ -1053,7 +1254,11 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
                     <button
                       type="button"
                       key={action.key}
-                      className={index === 0 ? "overlay-action-primary flex flex-[1_1_auto] items-center justify-center gap-[8px] cursor-pointer rounded-[8px] bg-green-soft border border-[#35443c] p-[12px_16px] text-[12px] text-[#9dbfa9] [transition:transform_.16s_cubic-bezier(.23,1,.32,1),background_.18s_ease,border-color_.18s_ease] enabled:hover:bg-[#2b382f] enabled:hover:border-[#4a5c50] enabled:active:scale-[.96] disabled:cursor-default disabled:opacity-50" : "overlay-action-secondary flex flex-[1_1_auto] items-center justify-center gap-[8px] cursor-pointer rounded-[8px] bg-transparent border border-rule p-[12px_16px] text-[12px] text-ink [transition:transform_.16s_cubic-bezier(.23,1,.32,1),background_.18s_ease,border-color_.18s_ease] enabled:hover:bg-surface-strong enabled:hover:border-[#4a4842] enabled:active:scale-[.96] disabled:cursor-default disabled:opacity-50"}
+                      className={
+                        index === 0
+                          ? "overlay-action-primary flex flex-[1_1_auto] items-center justify-center gap-[8px] cursor-pointer rounded-[8px] bg-green-soft border border-[#35443c] p-[12px_16px] text-[12px] text-[#9dbfa9] [transition:transform_.16s_cubic-bezier(.23,1,.32,1),background_.18s_ease,border-color_.18s_ease] enabled:hover:bg-[#2b382f] enabled:hover:border-[#4a5c50] enabled:active:scale-[.96] disabled:cursor-default disabled:opacity-50"
+                          : "overlay-action-secondary flex flex-[1_1_auto] items-center justify-center gap-[8px] cursor-pointer rounded-[8px] bg-transparent border border-rule p-[12px_16px] text-[12px] text-ink [transition:transform_.16s_cubic-bezier(.23,1,.32,1),background_.18s_ease,border-color_.18s_ease] enabled:hover:bg-surface-strong enabled:hover:border-[#4a4842] enabled:active:scale-[.96] disabled:cursor-default disabled:opacity-50"
+                      }
                       onClick={action.onClick}
                       disabled={action.disabled}
                       title={action.title}
@@ -1084,9 +1289,12 @@ export function ExpandedItemOverlay({ item, actions, spaces, originRectsRef, con
                     className="toolbar-primary flex min-w-0 flex-[1_1_0%] cursor-pointer items-center justify-center gap-[8px] overflow-hidden whitespace-nowrap bg-green-soft border border-[#35443c] rounded-[9px] p-[13px_16px] text-[12px] font-semibold text-[#9dbfa9] enabled:hover:bg-[#2b382f] enabled:hover:border-[#4a5c50] disabled:cursor-default disabled:opacity-50"
                     onClick={sourceAction.onClick}
                     disabled={sourceAction.disabled}
-                    title={sourceAction.disabled ? "No source link saved" : `Open ${sourceAction.label}`}
+                    title={
+                      sourceAction.disabled ? "No source link saved" : `Open ${sourceAction.label}`
+                    }
                   >
-                    {sourceAction.icon} {sourceAction.label} <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
+                    {sourceAction.icon} {sourceAction.label}{" "}
+                    <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
                   </button>
                 )}
                 {itemControls}

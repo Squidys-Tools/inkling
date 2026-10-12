@@ -1,11 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef } from "react";
 import type { RefObject } from "react";
-import {
-  dialogRootProps,
-  focusableWithin,
-  handleEscape,
-  registerDialog,
-} from "./dialog";
+import { dialogRootProps, focusableWithin, handleEscape, registerDialog } from "./dialog";
 import type { DialogRootProps } from "./dialog";
 
 export type UseDialogOptions = {
@@ -144,9 +139,8 @@ export function useDialog<TElement extends HTMLElement = HTMLElement>(
   useEffect(() => {
     if (!open || !placesFocus) return;
 
-    const previous = restoreFocus && document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
+    const previous =
+      restoreFocus && document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const timer = window.setTimeout(() => {
       const dialog = dialogRef.current;
@@ -155,9 +149,7 @@ export function useDialog<TElement extends HTMLElement = HTMLElement>(
       // mode-specific input, which re-claims focus on every mode switch.
       const active = document.activeElement;
       if (active instanceof HTMLElement && dialog.contains(active)) return;
-      const target = latest.current.initialFocus?.current
-        ?? focusableWithin(dialog)[0]
-        ?? dialog;
+      const target = latest.current.initialFocus?.current ?? focusableWithin(dialog)[0] ?? dialog;
       target.focus({ preventScroll: true });
     }, 0);
 

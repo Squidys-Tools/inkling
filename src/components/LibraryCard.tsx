@@ -1,3 +1,4 @@
+// biome-ignore-all lint/a11y/noNoninteractiveTabindex: Cards contain nested controls and media, so the article cannot be a button; Enter and Space select the focused card.
 import { memo } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -65,14 +66,17 @@ const CARD_KICKER_CLASS =
 
 const CARD_KICKER_LABEL_CLASS = "flex items-center gap-1.5 text-muted";
 
-const CARD_TITLE_CLASS = "my-[13px] mb-[7px] font-sans text-[18px] font-medium leading-[1.22] tracking-[-.035em]";
+const CARD_TITLE_CLASS =
+  "my-[13px] mb-[7px] font-sans text-[18px] font-medium leading-[1.22] tracking-[-.035em]";
 
-const CARD_DESCRIPTION_CLASS = "max-w-[56ch] min-h-[37px] m-0 text-muted text-[12px] leading-[1.52]";
+const CARD_DESCRIPTION_CLASS =
+  "max-w-[56ch] min-h-[37px] m-0 text-muted text-[12px] leading-[1.52]";
 
 const CARD_FOOTER_CLASS =
   "card-footer flex items-center justify-between gap-2.5 mt-[18px] pt-[11px] text-muted border-t border-rule";
 
-const CARD_SOURCE_CLASS = "card-source overflow-hidden whitespace-nowrap text-ellipsis font-mono text-[10px]";
+const CARD_SOURCE_CLASS =
+  "card-source overflow-hidden whitespace-nowrap text-ellipsis font-mono text-[10px]";
 
 const CARD_READ_CLASS =
   "card-read inline-flex items-center gap-1 rounded-full px-[9px] py-[4px] text-muted font-sans text-[10px] " +
@@ -82,7 +86,8 @@ const CARD_READ_CLASS =
 
 /* Green while the job runs, red once it failed: the two call sites below differ
    only in that colour and in whether the label hugs the top. */
-const CARD_PROCESSING_CLASS = "flex items-center gap-[7px] mt-[13px] font-mono text-[10px] leading-[1.35]";
+const CARD_PROCESSING_CLASS =
+  "flex items-center gap-[7px] mt-[13px] font-mono text-[10px] leading-[1.35]";
 
 /* The archive button wears both sets at once in selection mode, and App.css
    settles that overlap by source order. Tailwind emits the utilities in the
@@ -105,7 +110,13 @@ const ARCHIVE_CARD_SELECTED_CLASS =
 
 function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }) {
   if (!item.video && !item.fileUrl && !item.image) {
-    return <div className={CARD_PAPER_ART_CLASS} aria-hidden="true"><span className="video-paper-play"><HugeiconsIcon icon={PlayIcon} size={20} /></span></div>;
+    return (
+      <div className={CARD_PAPER_ART_CLASS} aria-hidden="true">
+        <span className="video-paper-play">
+          <HugeiconsIcon icon={PlayIcon} size={20} />
+        </span>
+      </div>
+    );
   }
 
   // Cards are static thumbnails that open the details overlay on click. The
@@ -113,7 +124,14 @@ function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }
   return (
     <div className={CARD_IMAGE_WRAP_CLASS}>
       {item.image ? (
-        <img src={item.image} alt={item.imageAlt ?? item.title} className={CARD_IMAGE_CLASS} loading="lazy" decoding="async" fetchPriority={index < 6 ? "high" : undefined} />
+        <img
+          src={item.image}
+          alt={item.imageAlt ?? item.title}
+          className={CARD_IMAGE_CLASS}
+          loading="lazy"
+          decoding="async"
+          fetchPriority={index < 6 ? "high" : undefined}
+        />
       ) : item.fileUrl ? (
         <video
           className={`${CARD_IMAGE_CLASS} bg-[#171817]`}
@@ -128,8 +146,12 @@ function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }
         />
       ) : null}
       <span className={CARD_VIDEO_SCRIM_CLASS} aria-hidden="true" />
-      <span className={CARD_PLAY_CLASS} aria-hidden="true"><HugeiconsIcon icon={PlayIcon} size={16} /></span>
-      <span className={CARD_VIDEO_BADGE_CLASS}>{item.video ? providerLabel(item.video.provider) : "Video"}</span>
+      <span className={CARD_PLAY_CLASS} aria-hidden="true">
+        <HugeiconsIcon icon={PlayIcon} size={16} />
+      </span>
+      <span className={CARD_VIDEO_BADGE_CLASS}>
+        {item.video ? providerLabel(item.video.provider) : "Video"}
+      </span>
     </div>
   );
 }
@@ -155,9 +177,19 @@ export function cardRectsFor(card: HTMLElement): SourceRects {
   const cardRect = card.getBoundingClientRect();
   const mediaRect = card.querySelector<HTMLElement>(".library-card-media")?.getBoundingClientRect();
   return {
-    card: { left: cardRect.left, top: cardRect.top, width: cardRect.width, height: cardRect.height },
+    card: {
+      left: cardRect.left,
+      top: cardRect.top,
+      width: cardRect.width,
+      height: cardRect.height,
+    },
     media: mediaRect
-      ? { left: mediaRect.left, top: mediaRect.top, width: mediaRect.width, height: mediaRect.height }
+      ? {
+          left: mediaRect.left,
+          top: mediaRect.top,
+          width: mediaRect.width,
+          height: mediaRect.height,
+        }
       : { left: cardRect.left, top: cardRect.top, width: cardRect.width, height: 0 },
   };
 }
@@ -189,9 +221,9 @@ const CARD_MEDIA_CHILD_CLASSES = [
   "x-post-art",
 ] as const;
 
-export const CARD_MEDIA_CHILDREN_SELECTOR = CARD_MEDIA_CHILD_CLASSES
-  .map((name) => `.library-card-media > .${name}`)
-  .join(", ");
+export const CARD_MEDIA_CHILDREN_SELECTOR = CARD_MEDIA_CHILD_CLASSES.map(
+  (name) => `.library-card-media > .${name}`,
+).join(", ");
 
 export const CARD_TRANSITION_TARGET_SELECTOR = `${CARD_MEDIA_CHILDREN_SELECTOR}, .card-content`;
 
@@ -202,7 +234,6 @@ export const SELECTED_LIBRARY_CARD_SELECTOR = ".library-card.is-selected";
 export function libraryCardSelectorFor(itemId: string): string {
   return `.library-card[data-library-item-id="${CSS.escape(itemId)}"]`;
 }
-
 
 type VirtualizedLibraryItemProps = {
   data: LibraryItem;
@@ -231,7 +262,7 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
   return (
     <div className={`${LIBRARY_CARD_SLOT_CLASS} ${slotClassName ?? ""}`} data-library-index={index}>
       <article
-        className={`${LIBRARY_CARD_CLASS} ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : item.accent ?? ""} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? `archive-card-selected ${ARCHIVE_CARD_SELECTED_CLASS}` : ""}`}
+        className={`${LIBRARY_CARD_CLASS} ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : (item.accent ?? "")} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? `archive-card-selected ${ARCHIVE_CARD_SELECTED_CLASS}` : ""}`}
         data-library-item-id={String(item.id)}
         style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
         onClick={handleCardSelect}
@@ -250,9 +281,19 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
           <button
             type="button"
             className={`archive-card-delete ${ARCHIVE_CARD_DELETE_CLASS} ${archiveSelectionMode ? `archive-card-select ${ARCHIVE_CARD_SELECT_CLASS}` : ""} ${isArchivedItemSelected ? "is-selected" : ""}`}
-            aria-label={archiveSelectionMode ? `${isArchivedItemSelected ? "Deselect" : "Select"} ${item.title}` : `Delete ${item.title}`}
+            aria-label={
+              archiveSelectionMode
+                ? `${isArchivedItemSelected ? "Deselect" : "Select"} ${item.title}`
+                : `Delete ${item.title}`
+            }
             aria-pressed={archiveSelectionMode ? isArchivedItemSelected : undefined}
-            title={archiveSelectionMode ? (isArchivedItemSelected ? "Deselect item" : "Select item") : "Delete permanently"}
+            title={
+              archiveSelectionMode
+                ? isArchivedItemSelected
+                  ? "Deselect item"
+                  : "Select item"
+                : "Delete permanently"
+            }
             onClick={(event) => {
               event.stopPropagation();
               if (archiveSelectionMode) {
@@ -263,7 +304,13 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
             }}
           >
             <HugeiconsIcon
-              icon={archiveSelectionMode ? (isArchivedItemSelected ? CircleCheckIcon : CircleIcon) : Delete02Icon}
+              icon={
+                archiveSelectionMode
+                  ? isArchivedItemSelected
+                    ? CircleCheckIcon
+                    : CircleIcon
+                  : Delete02Icon
+              }
               size={archiveSelectionMode ? 24 : 15}
             />
           </button>
@@ -273,39 +320,107 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
             <div className="x-post-art">
               <XPostEmbed
                 social={item.social}
-                fallback={item.post ? <PostArtwork post={item.post} /> : <div className={POST_ART_CLASS}>Post preview unavailable.</div>}
+                fallback={
+                  item.post ? (
+                    <PostArtwork post={item.post} />
+                  ) : (
+                    <div className={POST_ART_CLASS}>Post preview unavailable.</div>
+                  )
+                }
               />
             </div>
           ) : item.kind === "Video" ? (
             <LibraryVideoMedia item={item} index={index} />
           ) : item.image ? (
             <div className={CARD_IMAGE_WRAP_CLASS}>
-              <img src={item.image} alt={item.imageAlt ?? item.title} className={CARD_IMAGE_CLASS} loading="lazy" decoding="async" fetchPriority={index < 6 ? "high" : undefined} />
+              <img
+                src={item.image}
+                alt={item.imageAlt ?? item.title}
+                className={CARD_IMAGE_CLASS}
+                loading="lazy"
+                decoding="async"
+                fetchPriority={index < 6 ? "high" : undefined}
+              />
             </div>
           ) : item.kind === "Post" && item.post ? (
             <PostArtwork post={item.post} />
           ) : (
-            <div className={`${CARD_PAPER_ART_CLASS} ${item.kind === "Quote" ? "quote-art" : item.accent ?? ""}`} aria-hidden="true">
-              {item.kind === "Article" && <><span className={`${PAPER_LINE_CLASS} line-one`} /><span className={`${PAPER_LINE_CLASS} line-two`} /><span className={PAPER_SEAL_CLASS}>m</span></>}
+            <div
+              className={`${CARD_PAPER_ART_CLASS} ${item.kind === "Quote" ? "quote-art" : (item.accent ?? "")}`}
+              aria-hidden="true"
+            >
+              {item.kind === "Article" && (
+                <>
+                  <span className={`${PAPER_LINE_CLASS} line-one`} />
+                  <span className={`${PAPER_LINE_CLASS} line-two`} />
+                  <span className={PAPER_SEAL_CLASS}>m</span>
+                </>
+              )}
               {item.kind === "Note" && <NoteArtwork item={item} />}
               {item.kind === "PDF" && <PdfArtwork item={item} />}
-              {item.kind === "Quote" && <><span className="quote-mark absolute left-[10%] top-[7%] font-[Georgia,serif] text-[104px] leading-[.9]">“</span><span className="quote-preview">{cardPreviewText(item.title, "Saved quote")}</span><span className="quote-line absolute right-[13%] bottom-[26%] h-px w-[46%]" /><span className="quote-attribution-preview">{item.description ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}` : ""}</span></>}
+              {item.kind === "Quote" && (
+                <>
+                  <span className="quote-mark absolute left-[10%] top-[7%] font-[Georgia,serif] text-[104px] leading-[.9]">
+                    “
+                  </span>
+                  <span className="quote-preview">
+                    {cardPreviewText(item.title, "Saved quote")}
+                  </span>
+                  <span className="quote-line absolute right-[13%] bottom-[26%] h-px w-[46%]" />
+                  <span className="quote-attribution-preview">
+                    {item.description
+                      ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}`
+                      : ""}
+                  </span>
+                </>
+              )}
             </div>
           )}
         </div>
-        <div className={`card-content hidden p-[17px_18px_16px] ${item.kind === "Quote" ? "quote-content" : item.kind === "Note" ? "note-content" : ""}`}>
-          <div className={CARD_KICKER_CLASS}><span className={CARD_KICKER_LABEL_CLASS}><KindIcon kind={item.kind} />{item.kind}</span><span>{item.date}</span></div>
-          <h2 className={`${item.kind === "Quote" ? "quote-title" : ""} ${CARD_TITLE_CLASS}`}>{item.kind === "Quote" ? (/^["“]/u.test(item.title.trim()) ? item.title : `“${item.title}”`) : item.title}</h2>
-          <p className={`${item.kind === "Quote" ? "quote-attribution" : ""} ${CARD_DESCRIPTION_CLASS}`}>{item.description ? (item.kind === "Quote" && !item.description.trim().startsWith("—") ? `— ${item.description}` : item.description) : (item.kind === "Quote" ? "" : item.description)}</p>
+        <div
+          className={`card-content hidden p-[17px_18px_16px] ${item.kind === "Quote" ? "quote-content" : item.kind === "Note" ? "note-content" : ""}`}
+        >
+          <div className={CARD_KICKER_CLASS}>
+            <span className={CARD_KICKER_LABEL_CLASS}>
+              <KindIcon kind={item.kind} />
+              {item.kind}
+            </span>
+            <span>{item.date}</span>
+          </div>
+          <h2 className={`${item.kind === "Quote" ? "quote-title" : ""} ${CARD_TITLE_CLASS}`}>
+            {item.kind === "Quote"
+              ? /^["“]/u.test(item.title.trim())
+                ? item.title
+                : `“${item.title}”`
+              : item.title}
+          </h2>
+          <p
+            className={`${item.kind === "Quote" ? "quote-attribution" : ""} ${CARD_DESCRIPTION_CLASS}`}
+          >
+            {item.description
+              ? item.kind === "Quote" && !item.description.trim().startsWith("—")
+                ? `— ${item.description}`
+                : item.description
+              : item.kind === "Quote"
+                ? ""
+                : item.description}
+          </p>
           {item.processing?.active && (
             <div className={`card-processing ${CARD_PROCESSING_CLASS} text-green`} role="status">
               <HugeiconsIcon icon={Loading01Icon} size={13} className="animate-spin-slow" />
               <span>{item.processing.message ?? "Processing"}</span>
-              {item.processing.progressTotal != null && <span className="ml-auto text-muted">{item.processing.progressCurrent}/{item.processing.progressTotal}</span>}
+              {item.processing.progressTotal != null && (
+                <span className="ml-auto text-muted">
+                  {item.processing.progressCurrent}/{item.processing.progressTotal}
+                </span>
+              )}
             </div>
           )}
           {item.processing?.failedJob && (
-            <div className={`card-processing failed ${CARD_PROCESSING_CLASS} items-start text-[#d07055]`} role="alert">
+            <div
+              className={`card-processing failed ${CARD_PROCESSING_CLASS} items-start text-[#d07055]`}
+              role="alert"
+            >
               <HugeiconsIcon icon={AlertCircleIcon} size={13} className="animate-spin-slow" />
               <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
               <button
@@ -329,7 +444,10 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                 onClick={(event) => {
                   event.stopPropagation();
                   const rect = event.currentTarget.getBoundingClientRect();
-                  context.onOpenReader(item, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+                  context.onOpenReader(item, {
+                    x: rect.left + rect.width / 2,
+                    y: rect.top + rect.height / 2,
+                  });
                 }}
                 onKeyDown={(event) => {
                   event.stopPropagation();
@@ -357,7 +475,9 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                 Watch <HugeiconsIcon icon={PlayIcon} size={11} />
               </button>
             )}
-            {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />}
+            {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && (
+              <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />
+            )}
           </div>
         </div>
       </article>
