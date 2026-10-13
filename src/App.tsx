@@ -83,12 +83,14 @@ import {
   saveFile,
   deleteItem,
   exportLibrary,
+  importLibrary,
   searchItems,
   searchSimilarItems,
   updateItem,
   type CaptureStatus,
   type AvailableUpdate,
   type LibraryExportReport,
+  type LibraryImportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
   type SpaceKind,
@@ -264,6 +266,27 @@ function formatExportSummary(report: LibraryExportReport) {
   if (report.skippedAssets === 0) return summary;
   const assets = report.skippedAssets === 1 ? "asset" : "assets";
   return `${summary} · ${report.skippedAssets} ${assets} skipped`;
+}
+
+function formatImportSummary(report: LibraryImportReport) {
+  const summary = [
+    `${report.importedItems} ${report.importedItems === 1 ? "item" : "items"} restored`,
+    `${report.importedSpaces} ${report.importedSpaces === 1 ? "Space" : "Spaces"} added`,
+  ];
+  if (report.skippedDuplicateItems > 0) {
+    summary.push(
+      `${report.skippedDuplicateItems} existing ${report.skippedDuplicateItems === 1 ? "item" : "items"} left unchanged`,
+    );
+  }
+  if (report.skippedDuplicateSpaces > 0) {
+    summary.push(
+      `${report.skippedDuplicateSpaces} existing ${report.skippedDuplicateSpaces === 1 ? "Space" : "Spaces"} left unchanged`,
+    );
+  }
+  if (report.assetFiles > 0) {
+    summary.push(`${report.assetFiles} ${report.assetFiles === 1 ? "file" : "files"} copied`);
+  }
+  return summary.join(" · ");
 }
 
 function readXPostMetadata(value: unknown): XPostMetadata | undefined {
@@ -1485,6 +1508,8 @@ function App() {
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
   const [isExportingLibrary, setIsExportingLibrary] = useState(false);
   const [lastExport, setLastExport] = useState<LibraryExportReport | null>(null);
+  const [isImportingLibrary, setIsImportingLibrary] = useState(false);
+  const [lastImport, setLastImport] = useState<LibraryImportReport | null>(null);
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
   const [isAdding, setIsAdding] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
@@ -1826,7 +1851,7 @@ function App() {
   // Export is desktop only: it needs the native folder picker, and the Rust
   // core writes the snapshot so it stays consistent while the app is running.
   const exportLibraryToFolder = useCallback(async () => {
-    if (!canUseTauriBackend || isExportingLibrary) return;
+    if (!canUseTauriBackend || isExportingLibrary || isImportingLibrary) return;
     let destination: string | null = null;
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
@@ -1871,7 +1896,65 @@ function App() {
     } finally {
       setIsExportingLibrary(false);
     }
-  }, [canUseTauriBackend, isExportingLibrary]);
+  }, [canUseTauriBackend, isExportingLibrary, isImportingLibrary]);
+
+  const importLibraryFromFolder = useCallback(async () => {
+    if (!canUseTauriBackend || isExportingLibrary || isImportingLibrary) return;
+    let exportDirectory: string | null = null;
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selection = await open({
+        directory: true,
+        multiple: false,
+        title: "Choose an Inkling export to restore",
+      });
+      exportDirectory = typeof selection === "string" ? selection : null;
+    } catch (error) {
+      toast.error("Could not open the export picker", {
+        description: error instanceof Error ? error.message : String(error),
+        closeButton: true,
+      });
+      return;
+    }
+    if (!exportDirectory) return;
+
+    setIsImportingLibrary(true);
+    const toastId = toast.loading("Restoring library…", {
+      description: "Checking the export and copying its files",
+    });
+    try {
+      const report = await importLibrary(exportDirectory);
+      setLastImport(report);
+      toast.success("Library restored", {
+        id: toastId,
+        description: `${formatImportSummary(report)}. Search indexing will continue in the background.`,
+        duration: 5000,
+        closeButton: true,
+      });
+      try {
+        setSpaces(await listSpaces());
+        const storedItems = await listArchivedItems();
+        const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
+        setArchivedItems(
+          await Promise.all(
+            storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
+          ),
+        );
+        loadItemsRef.current();
+      } catch (error) {
+        setCaptureError(error instanceof Error ? error.message : String(error));
+      }
+    } catch (error) {
+      toast.error("Import failed", {
+        id: toastId,
+        description: error instanceof Error ? error.message : String(error),
+        duration: Infinity,
+        closeButton: true,
+      });
+    } finally {
+      setIsImportingLibrary(false);
+    }
+  }, [canUseTauriBackend, isExportingLibrary, isImportingLibrary]);
 
   const addTagToItem = useCallback(
     async (item: LibraryItem, tag: string) => {
@@ -5226,8 +5309,8 @@ function App() {
                           <h2 id="data-panel-title">Your library</h2>
                         </div>
                         <p className="settings-panel-note">
-                          Everything inkling saves stays on this machine. An export writes a copy
-                          you can keep somewhere else.
+                          Your library stays on this machine. Restoring adds saved items without
+                          replacing anything already here.
                         </p>
                       </div>
                       <button
@@ -5255,7 +5338,7 @@ function App() {
                         <button
                           type="button"
                           className={`settings-data-button ${isExportingLibrary ? "is-busy" : ""}`}
-                          disabled={!canUseTauriBackend || isExportingLibrary}
+                          disabled={!canUseTauriBackend || isExportingLibrary || isImportingLibrary}
                           onClick={() => void exportLibraryToFolder()}
                         >
                           <HugeiconsIcon
@@ -5275,6 +5358,40 @@ function App() {
                               {formatExportSummary(lastExport)}
                             </span>
                             <span className="settings-data-path">{lastExport.directory}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="settings-data-card">
+                        <div className="settings-data-heading">
+                          <HugeiconsIcon icon={Database02Icon} size={17} />
+                          <h3>Restore from an export</h3>
+                        </div>
+                        <p>
+                          Choose a complete Inkling export folder to add its items, files, and
+                          Spaces to this library. Existing items are left unchanged.
+                        </p>
+                        <button
+                          type="button"
+                          className={`settings-data-button ${isImportingLibrary ? "is-busy" : ""}`}
+                          disabled={!canUseTauriBackend || isExportingLibrary || isImportingLibrary}
+                          onClick={() => void importLibraryFromFolder()}
+                        >
+                          <HugeiconsIcon
+                            icon={isImportingLibrary ? Loading01Icon : ArrowUp01Icon}
+                            size={15}
+                          />
+                          <span>
+                            {isImportingLibrary ? "Restoring…" : "Choose export and restore"}
+                          </span>
+                        </button>
+                        {!canUseTauriBackend ? (
+                          <p className="settings-data-hint">Restore runs in the desktop app.</p>
+                        ) : null}
+                        {lastImport ? (
+                          <div className="settings-data-result" role="status" aria-live="polite">
+                            <span className="settings-data-summary">
+                              {formatImportSummary(lastImport)}
+                            </span>
                           </div>
                         ) : null}
                       </div>

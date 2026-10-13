@@ -337,6 +337,18 @@ export async function exportLibrary(destination: string) {
   });
 }
 
+export type LibraryImportReport = {
+  importedItems: number;
+  skippedDuplicateItems: number;
+  importedSpaces: number;
+  skippedDuplicateSpaces: number;
+  assetFiles: number;
+};
+
+export async function importLibrary(exportDirectory: string) {
+  return invoke<LibraryImportReport>("import_library", { exportDirectory });
+}
+
 export function summariesFromJobs(itemIds: string[], jobs: ProcessingJob[]) {
   const grouped = new Map<string, ProcessingJob[]>();
   for (const job of jobs) {
