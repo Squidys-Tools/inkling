@@ -48,9 +48,7 @@
     "updater": {
       "pubkey": "",
       "requireSignedVersion": true,
-      "endpoints": [
-        "https://github.com/squidys-tools/inkling/releases/latest/download/latest.json"
-      ]
+      "endpoints": ["https://github.com/squidys-tools/inkling/releases/latest/download/latest.json"]
     },
     "deep-link": {
       "desktop": {
