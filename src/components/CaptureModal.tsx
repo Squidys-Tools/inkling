@@ -71,10 +71,6 @@ export function CaptureModal(props: CaptureModalProps) {
     open,
     onClose: () => {
       if (isCapturing) return;
-      if (captureMode) {
-        onCloseMode();
-        return;
-      }
       onClose();
     },
   });
@@ -127,8 +123,8 @@ export function CaptureModal(props: CaptureModalProps) {
               </button>
             </header>
 
-            <fieldset className="capture-options grid grid-cols-2 gap-1.5 mt-[14px] max-[780px]:grid-cols-1">
-              <legend className="visually-hidden">Add options</legend>
+            <fieldset className="capture-options m-0 grid min-w-0 grid-cols-2 gap-1.5 border-0 p-0 mt-[14px] max-[780px]:grid-cols-1">
+              <legend className="sr-only">Add options</legend>
               <button
                 type="button"
                 className={`capture-option ${captureMode === "note" ? "selected" : ""} flex items-start min-h-[68px] gap-2.5 cursor-pointer p-[10px_11px] text-left text-ink bg-[#232320] rounded-[9px] border border-rule transition-[background,border-color,transform] duration-[.18s] ease-[cubic-bezier(.25,.1,.25,1)] [&.selected]:border-[#6b8f7a] [&.selected]:bg-green-soft hover:border-[#5a5750] hover:bg-[#292925] hover:-translate-y-px active:not-disabled:scale-[.96] disabled:cursor-wait disabled:opacity-60`}
