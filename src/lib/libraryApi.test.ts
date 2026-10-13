@@ -16,6 +16,8 @@ mock.module("@tauri-apps/api/core", () => ({
     if (command === "get_jobs_for_items") return [];
     if (command === "count_active_jobs") return 2;
     if (command === "enqueue_ocr_job") return "job-2";
+    if (command === "check_for_updates") return { version: "0.2.0" };
+    if (command === "install_update") return null;
     throw new Error(`Unexpected command: ${command}`);
   },
 }));
@@ -27,9 +29,11 @@ Object.defineProperty(globalThis, "window", {
 
 const {
   addSpaceItem,
+  checkForUpdates,
   countActiveJobs,
   enqueueOcrJob,
   getProcessingSummaries,
+  installUpdate,
   listItemSpaces,
   listSpaces,
   removeSpaceItem,
@@ -181,4 +185,16 @@ test("the UI can enqueue OCR for a selected image or PDF", async () => {
     command: "enqueue_ocr_job",
     args: { itemId: "item-7" },
   });
+});
+
+test("the UI checks for updates and installs only after an explicit request", async () => {
+  invokeCalls.length = 0;
+
+  expect(await checkForUpdates()).toEqual({ version: "0.2.0" });
+  await installUpdate("0.2.0");
+
+  expect(invokeCalls).toEqual([
+    { command: "check_for_updates" },
+    { command: "install_update", args: { expectedVersion: "0.2.0" } },
+  ]);
 });

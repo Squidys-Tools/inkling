@@ -509,6 +509,17 @@ a:focus-visible,
   font-size: 12px;
   min-height: 34px;
 }
+.update-footer-item {
+  color: var(--green);
+}
+.update-footer-item:hover:not(:disabled) {
+  color: #a5c3b1;
+}
+.update-footer-item:disabled {
+  color: var(--green);
+  cursor: progress;
+  opacity: 0.7;
+}
 .storage-label {
   display: flex;
   justify-content: space-between;
