@@ -4048,6 +4048,26 @@ function App() {
     if (captureFailures > 0) setRoamCaptureFailed(true);
   }, [captureFailures]);
 
+  const sidebarActionErrorAlert = sidebarActionError ? (
+    <div
+      className={
+        isSidebarOpen
+          ? "sidebar-action-error"
+          : "sidebar-action-error sidebar-action-error-collapsed"
+      }
+    >
+      <p role="alert">{sidebarActionError}</p>
+      <button
+        type="button"
+        className="sidebar-action-error-dismiss"
+        aria-label="Dismiss Space error"
+        onClick={() => setSidebarActionError(null)}
+      >
+        <HugeiconsIcon icon={Cancel01Icon} size={14} />
+      </button>
+    </div>
+  ) : null;
+
   // Dev-only mascot board (vendored bloub engine + inkling skins). Not linked
   // from the UI; open with ?mascot. Placed after all hooks.
   if (
@@ -4365,19 +4385,7 @@ function App() {
             </AnimatePresence>
           </div>
 
-          {sidebarActionError && (
-            <div className="sidebar-action-error">
-              <p role="alert">{sidebarActionError}</p>
-              <button
-                type="button"
-                className="sidebar-action-error-dismiss"
-                aria-label="Dismiss Space error"
-                onClick={() => setSidebarActionError(null)}
-              >
-                <HugeiconsIcon icon={Cancel01Icon} size={14} />
-              </button>
-            </div>
-          )}
+          {isSidebarOpen && sidebarActionErrorAlert}
 
           <div className="sidebar-footer">
             <button
@@ -4424,6 +4432,7 @@ function App() {
                 <HugeiconsIcon icon={ViewSidebarLeftIcon} size={17} />
               </button>
             )}
+            {!isSidebarOpen && sidebarActionErrorAlert}
             <label className={`search-field${isSearchFocused ? " is-mascot" : ""}`}>
               <span className="field-mascot" aria-hidden="true">
                 <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />

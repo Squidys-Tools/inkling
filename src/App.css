@@ -466,6 +466,13 @@ a:focus-visible,
   color: #d07055;
   font: 12px / 1.4 var(--font-ui);
 }
+.sidebar-action-error-collapsed {
+  min-width: 96px;
+  margin: 0;
+  padding-block: 5px;
+  flex: 0 1 min(220px, 30vw);
+  align-self: center;
+}
 .sidebar-action-error p {
   flex: 1;
   margin: 0;
