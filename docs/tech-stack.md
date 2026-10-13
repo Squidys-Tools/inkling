@@ -105,6 +105,10 @@ The database and asset store should be exportable together. Backups should inclu
 
 Treat all fetched HTML as untrusted. Sanitize article HTML before rendering, allowlist iframe providers, strip scripts/event handlers/unsafe URLs/untrusted `srcdoc`, keep remote content isolated from privileged Tauri APIs, and do not expose arbitrary filesystem or shell commands to the webview.
 
+## Update checks
+
+The packaged Windows app checks GitHub Releases once when it opens; it does not poll on a schedule. GitHub receives the request from the device and the app name and installed version in its HTTP user agent, but no library data. An available update appears quietly in the sidebar and is downloaded and installed only after the user selects it; that action checks once more before downloading. Update packages must be signed with Tauri's updater key; the public key belongs in `tauri.conf.json`, while the private key stays in the release secret. The NSIS installer is not Authenticode-signed, so Windows SmartScreen may warn users when they install it.
+
 ## First technical milestone
 
 Implement a vertical slice that accepts an image, URL, and PDF; creates a card immediately; runs Windows OCR on images and scanned PDF pages; extracts an article with Defuddle; stores local assets and extracted content; indexes text with SQLite FTS5; produces one text embedding and one image embedding; supports semantic search and image similarity; and saves a search as a Smart Space.

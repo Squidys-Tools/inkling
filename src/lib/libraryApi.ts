@@ -28,6 +28,10 @@ export type StoredItemContent = {
   bodyFormat: string;
 };
 
+export type AvailableUpdate = {
+  version: string;
+};
+
 export type CreateNoteInput = {
   title?: string;
   body: string;
@@ -174,6 +178,14 @@ function summarizeProcessingJobs(jobs: ProcessingJob[]): ProcessingSummary {
 
 export function isTauriRuntime() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+export function checkForUpdates() {
+  return invoke<AvailableUpdate | null>("check_for_updates");
+}
+
+export function installUpdate() {
+  return invoke<void>("install_update");
 }
 
 type StorageStatus = {

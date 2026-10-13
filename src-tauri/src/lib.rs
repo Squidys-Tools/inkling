@@ -4,6 +4,7 @@ mod jobs;
 mod ocr;
 pub(crate) mod pdf;
 mod storage;
+mod updater;
 
 use tauri::Manager;
 use tauri_plugin_decorum::WebviewWindowExt;
@@ -45,6 +46,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_decorum::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Replaces the native titlebar with an overlay: the webview fills
             // the window and decorum injects a drag strip plus window controls.
@@ -94,6 +96,8 @@ pub fn run() {
             capture_server::get_capture_status,
             capture_server::get_pairing_token,
             capture_server::regenerate_pairing_token,
+            updater::check_for_updates,
+            updater::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -54,6 +54,7 @@ import {
   assetUrl,
   archiveItem,
   addSpaceItem,
+  checkForUpdates,
   countActiveJobs,
   createQuote,
   createSpace,
@@ -65,6 +66,7 @@ import {
   deleteSpace,
   initializeStorage,
   isTauriRuntime,
+  installUpdate,
   listActiveItems,
   listArchivedItems,
   listItemSpaces,
@@ -85,6 +87,7 @@ import {
   searchSimilarItems,
   updateItem,
   type CaptureStatus,
+  type AvailableUpdate,
   type LibraryExportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
@@ -1470,6 +1473,9 @@ function App() {
   const [renamingSpaceId, setRenamingSpaceId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
+  const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
+  const [updateInstallFailed, setUpdateInstallFailed] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("archive");
@@ -1494,6 +1500,28 @@ function App() {
     item: LibraryItem;
     origin: ReaderOrigin;
   } | null>(null);
+  useEffect(() => {
+    if (!canUseTauriBackend) return;
+    let cancelled = false;
+    void checkForUpdates()
+      .then((update) => {
+        if (!cancelled) setAvailableUpdate(update);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseTauriBackend]);
+  const handleInstallUpdate = async () => {
+    setIsInstallingUpdate(true);
+    setUpdateInstallFailed(false);
+    try {
+      await installUpdate();
+    } catch {
+      setIsInstallingUpdate(false);
+      setUpdateInstallFailed(true);
+    }
+  };
   // Warm the PDF viewer chunk while a PDF's overlay is open, so the first
   // open fades together with the backdrop instead of popping in after it.
   // Same chunk the lazy viewer resolves; this only moves the fetch earlier.
@@ -4401,6 +4429,26 @@ function App() {
               <HugeiconsIcon icon={Settings01Icon} size={17} />
               <span>Settings</span>
             </button>
+            {availableUpdate && (
+              <button
+                type="button"
+                className="nav-item footer-item update-footer-item"
+                aria-label={`Install update ${availableUpdate.version}`}
+                aria-live="polite"
+                disabled={isInstallingUpdate}
+                title={`Version ${availableUpdate.version} is ready. Inkling checks for updates when it opens; GitHub sees the app version but no library data. Selecting this downloads and installs the update, then restarts inkling.`}
+                onClick={() => void handleInstallUpdate()}
+              >
+                <HugeiconsIcon icon={isInstallingUpdate ? Loading01Icon : RotateCwIcon} size={17} />
+                <span>
+                  {isInstallingUpdate
+                    ? "Installing update..."
+                    : updateInstallFailed
+                      ? "Update failed · retry"
+                      : "Update available"}
+                </span>
+              </button>
+            )}
             <button
               type="button"
               className="nav-item footer-item"

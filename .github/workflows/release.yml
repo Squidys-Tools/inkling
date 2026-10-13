@@ -42,14 +42,35 @@ jobs:
       - name: Provision ONNX Runtime
         run: bun run provision:ort
 
+      - name: Verify updater signing configuration
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            throw "TAURI_SIGNING_PRIVATE_KEY must be configured to build signed updater artifacts."
+          }
+          $config = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          if ([string]::IsNullOrWhiteSpace($config.plugins.updater.pubkey)) {
+            throw "Set the Tauri updater public key in src-tauri/tauri.conf.json before releasing."
+          }
+          if ($config.plugins.updater.requireSignedVersion -ne $true) {
+            throw "Updater signatures must be bound to their release version."
+          }
+
       - name: Build Tauri application and create draft release
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: inkling ${{ github.ref_name }}
-          releaseBody: Download the Windows installer from the release assets below.
+          releaseBody: |
+            Download the unsigned Windows installer from the release assets below. Windows SmartScreen may warn that the publisher is unknown; this is expected because inkling does not use a paid code-signing certificate. Only run an installer downloaded from this official release.
+
+            inkling checks GitHub for updates once when it opens. No library data is sent, and updates install only after you choose Update available in the sidebar.
           generateReleaseNotes: true
           releaseDraft: true
           prerelease: false
