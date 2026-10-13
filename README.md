@@ -100,7 +100,7 @@ Early development, but the core already works: capture, storage, keyword search 
 Nope. Save it and move on. If you *like* curating, Smart Spaces are there for intentional collections. Manual collections are being considered as a legacy option.
 
 **Is my stuff uploaded somewhere?**
-Nope. Processing and storage are local. Network access is only used on first run to fetch the indexing models or after that when fetching a URL or remote media you want to save.
+Nope. Processing and storage are local. Network access is used to fetch indexing models on first run, fetch URLs or remote media you choose to save, and check GitHub for an update when the app opens. The update check shares the app version, not library data.
 
 **What can I save?**
 Articles, general web pages, images, screenshots, PDFs, notes, quotes, video links, X posts, and miscellaneous files.

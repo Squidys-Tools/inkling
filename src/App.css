@@ -516,6 +516,7 @@ a:focus-visible,
   color: #a5c3b1;
 }
 .update-footer-item:disabled {
+  color: var(--green);
   cursor: progress;
   opacity: 0.7;
 }

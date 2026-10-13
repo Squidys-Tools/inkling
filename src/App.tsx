@@ -1513,10 +1513,13 @@ function App() {
     };
   }, [canUseTauriBackend]);
   const handleInstallUpdate = async () => {
+    if (!availableUpdate) return;
     setIsInstallingUpdate(true);
     setUpdateInstallFailed(false);
     try {
-      await installUpdate();
+      const latestUpdate = await installUpdate(availableUpdate.version);
+      setAvailableUpdate(latestUpdate);
+      setIsInstallingUpdate(false);
     } catch {
       setIsInstallingUpdate(false);
       setUpdateInstallFailed(true);
@@ -4433,7 +4436,6 @@ function App() {
               <button
                 type="button"
                 className="nav-item footer-item update-footer-item"
-                aria-label={`Install update ${availableUpdate.version}`}
                 aria-live="polite"
                 disabled={isInstallingUpdate}
                 title={`Version ${availableUpdate.version} is ready. Inkling checks for updates when it opens; GitHub sees the app version but no library data. Selecting this downloads and installs the update, then restarts inkling.`}

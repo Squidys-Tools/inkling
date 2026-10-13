@@ -184,8 +184,8 @@ export function checkForUpdates() {
   return invoke<AvailableUpdate | null>("check_for_updates");
 }
 
-export function installUpdate() {
-  return invoke<void>("install_update");
+export function installUpdate(expectedVersion: string) {
+  return invoke<AvailableUpdate | null>("install_update", { expectedVersion });
 }
 
 type StorageStatus = {
