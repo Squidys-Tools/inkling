@@ -76,6 +76,7 @@ pub fn run() {
             storage::archive_item,
             storage::delete_item,
             storage::export_library,
+            storage::import_library,
             storage::search_items,
             storage::search_similar_images,
             storage::search_similar_text,

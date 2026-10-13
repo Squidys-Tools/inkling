@@ -61,7 +61,7 @@ Surfacing forgotten material through browsing and curation.
 - [x] Regular Spaces (manual collections)
 - [x] Wire the already-registered `enqueue_ocr_job` and `count_active_jobs` Tauri commands to UI (backend ships them, no frontend caller yet)
 - [x] Export and backup (database snapshot + referenced assets + manifest)
-- [ ] Import and restore from an export
+- [x] Import and restore from an export (SQU-119)
 
 ## Milestone 4 -- Local Intelligence
 
