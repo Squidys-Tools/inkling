@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt, fs,
-    io::Cursor,
+    io::{Cursor, Read},
     path::{Path, PathBuf},
     sync::{Mutex, MutexGuard},
     time::{SystemTime, UNIX_EPOCH},
@@ -12,6 +12,7 @@ use pulldown_cmark::{Event, Parser, Tag};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, State};
 use url::Url;
 use uuid::Uuid;
@@ -197,6 +198,7 @@ pub struct ImportReport {
     pub imported_spaces: usize,
     pub skipped_duplicate_spaces: usize,
     pub asset_files: u64,
+    pub unverified_asset_files: usize,
 }
 
 /// What the database phase of an export hands to the file phase: paths and
@@ -218,6 +220,14 @@ struct SkippedAsset {
     error: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExportAsset {
+    path: String,
+    byte_length: u64,
+    sha256: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ExportManifest {
@@ -225,6 +235,8 @@ struct ExportManifest {
     format_version: i64,
     schema_version: i64,
     counts: ExportManifestCounts,
+    #[serde(default)]
+    asset_files: Option<Vec<ExportAsset>>,
     #[serde(default)]
     skipped_assets: Vec<SkippedAsset>,
 }
@@ -234,6 +246,7 @@ struct ExportManifest {
 struct ExportManifestCounts {
     items: i64,
     spaces: i64,
+    asset_files: i64,
     #[serde(default)]
     skipped_assets: i64,
 }
@@ -264,6 +277,7 @@ struct ImportPlan {
     spaces: Vec<ImportedSpace>,
     memberships: Vec<(String, String, i64)>,
     asset_files_by_item: HashMap<String, u64>,
+    unverified_asset_files: usize,
 }
 
 struct ImportOutcome {
@@ -276,6 +290,7 @@ struct AssetCopySummary {
     files: u64,
     bytes: u64,
     skipped: Vec<SkippedAsset>,
+    asset_files: Vec<ExportAsset>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2801,6 +2816,7 @@ where
     let exported_assets = plan.directory.join("assets").join("items");
     let mut asset_files = 0_u64;
     let mut assets_bytes = 0_u64;
+    let mut asset_hashes = Vec::new();
     let mut skipped_assets = Vec::new();
     for id in &plan.item_ids {
         if validate_item_id(id.clone()).is_err() {
@@ -2833,6 +2849,7 @@ where
         );
         asset_files += summary.files;
         assets_bytes += summary.bytes;
+        asset_hashes.extend(summary.asset_files);
         skipped_assets.extend(summary.skipped);
     }
     let skipped_asset_count = skipped_assets.len() as u64;
@@ -2854,6 +2871,7 @@ where
             "database": plan.database_bytes,
             "assets": assets_bytes,
         },
+        "assetFiles": asset_hashes,
         "skippedAssets": &skipped_assets,
         "regenerable": {
             "tables": ["item_embeddings", "items_fts"],
@@ -2966,33 +2984,10 @@ fn prepare_import(
             "the export manifest counts do not match its database".into(),
         ));
     }
+    let unverified_asset_files = validate_import_asset_files(&export_directory, &items, &manifest)?;
 
     let mut asset_files_by_item = HashMap::new();
     for item in &items {
-        validate_item_id(item.id.clone())?;
-        for path in [
-            item.local_asset_path.as_deref(),
-            item.thumbnail_path.as_deref(),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            let asset_path = verify_export_asset(&export_directory, &item.id, path)?;
-            if item.local_asset_path.as_deref() == Some(path) {
-                if let Some(expected_size) = item.metadata.get("byteLength") {
-                    let expected_size = expected_size.as_u64().ok_or_else(|| {
-                        StorageError::InvalidInput(format!(
-                            "the export has an invalid file size for asset {path}"
-                        ))
-                    })?;
-                    if fs::metadata(&asset_path)?.len() != expected_size {
-                        return Err(StorageError::InvalidInput(format!(
-                            "the export contains a damaged asset with an unexpected size: {path}"
-                        )));
-                    }
-                }
-            }
-        }
         if existing_item_ids.contains(&item.id) {
             continue;
         }
@@ -3010,6 +3005,7 @@ fn prepare_import(
         spaces,
         memberships,
         asset_files_by_item,
+        unverified_asset_files,
     })
 }
 
@@ -3042,23 +3038,9 @@ fn read_import_spaces(connection: &Connection) -> Result<Vec<ImportedSpace>, Sto
         "SELECT id, name, color, query, kind, position, created_at, updated_at
          FROM spaces ORDER BY position, created_at, id",
     )?;
-    let spaces = statement
+    let mut spaces = statement
         .query_map([], |row| {
             let query: String = row.get(3)?;
-            let query_value: Value = serde_json::from_str(&query).map_err(|error| {
-                rusqlite::Error::FromSqlConversionFailure(
-                    3,
-                    rusqlite::types::Type::Text,
-                    Box::new(error),
-                )
-            })?;
-            if !query_value.is_object() {
-                return Err(rusqlite::Error::FromSqlConversionFailure(
-                    3,
-                    rusqlite::types::Type::Text,
-                    "Space query must be a JSON object".into(),
-                ));
-            }
             let kind: String = row.get(4)?;
             if !matches!(kind.as_str(), "smart" | "regular") {
                 return Err(rusqlite::Error::FromSqlConversionFailure(
@@ -3071,13 +3053,7 @@ fn read_import_spaces(connection: &Connection) -> Result<Vec<ImportedSpace>, Sto
                 id: row.get(0)?,
                 name: row.get(1)?,
                 color: row.get(2)?,
-                query: serde_json::to_string(&query_value).map_err(|error| {
-                    rusqlite::Error::FromSqlConversionFailure(
-                        3,
-                        rusqlite::types::Type::Text,
-                        Box::new(error),
-                    )
-                })?,
+                query,
                 kind,
                 created_at: row.get(6)?,
                 updated_at: row.get(7)?,
@@ -3094,7 +3070,33 @@ fn read_import_spaces(connection: &Connection) -> Result<Vec<ImportedSpace>, Sto
             ));
         }
     }
+    for space in &mut spaces {
+        space.query = serde_json::to_string(&parse_import_space_query(&space.query)?)?;
+    }
     Ok(spaces)
+}
+
+fn parse_import_space_query(query: &str) -> Result<SmartSpaceQuery, StorageError> {
+    let value: Value = serde_json::from_str(query)?;
+    let Some(fields) = value.as_object() else {
+        return Err(StorageError::InvalidInput(
+            "the export contains an invalid Space query".into(),
+        ));
+    };
+    if fields
+        .keys()
+        .any(|field| !matches!(field.as_str(), "text" | "kind" | "tag" | "favorite"))
+    {
+        return Err(StorageError::InvalidInput(
+            "the export contains an unsupported Space query field".into(),
+        ));
+    }
+    let query = serde_json::from_value(value).map_err(|error| {
+        StorageError::InvalidInput(format!(
+            "the export contains an invalid Space query: {error}"
+        ))
+    })?;
+    validate_smart_space_query(query)
 }
 
 fn read_import_memberships(
@@ -3130,6 +3132,175 @@ fn read_import_memberships(
         ));
     }
     Ok(memberships)
+}
+
+fn validate_import_asset_files(
+    export_directory: &Path,
+    items: &[ItemDto],
+    manifest: &ExportManifest,
+) -> Result<usize, StorageError> {
+    let actual_paths = collect_export_asset_paths(export_directory)?;
+    let item_ids = items
+        .iter()
+        .map(|item| validate_item_id(item.id.clone()))
+        .collect::<Result<HashSet<_>, _>>()?;
+    for item in items {
+        for path in [
+            item.local_asset_path.as_deref(),
+            item.thumbnail_path.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            verify_export_asset(export_directory, &item.id, path)?;
+            if item.local_asset_path.as_deref() == Some(path) {
+                verify_imported_asset_size(item, path, export_directory)?;
+            }
+        }
+    }
+    if manifest.counts.asset_files < 0 || manifest.counts.asset_files as usize != actual_paths.len()
+    {
+        return Err(StorageError::InvalidInput(
+            "the export manifest asset count does not match its files".into(),
+        ));
+    }
+    if let Some(asset_files) = &manifest.asset_files {
+        if asset_files.len() != actual_paths.len() {
+            return Err(StorageError::InvalidInput(
+                "the export manifest asset list does not match its files".into(),
+            ));
+        }
+        let mut listed_paths = HashSet::new();
+        for asset in asset_files {
+            let components = asset.path.split('/').collect::<Vec<_>>();
+            let item_id = components.get(2).ok_or_else(|| {
+                StorageError::InvalidInput("the export contains an invalid asset path".into())
+            })?;
+            if !item_ids.contains(*item_id)
+                || asset.sha256.len() != 64
+                || !asset.sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
+            {
+                return Err(StorageError::InvalidInput(
+                    "the export manifest contains an invalid asset entry".into(),
+                ));
+            }
+            let path = verify_export_asset(export_directory, item_id, &asset.path)?;
+            if fs::metadata(&path)?.len() != asset.byte_length
+                || !sha256_file(&path)?.eq_ignore_ascii_case(&asset.sha256)
+            {
+                return Err(StorageError::InvalidInput(format!(
+                    "the export contains a damaged asset: {}",
+                    asset.path
+                )));
+            }
+            if !listed_paths.insert(asset.path.as_str()) {
+                return Err(StorageError::InvalidInput(
+                    "the export manifest contains a duplicate asset path".into(),
+                ));
+            }
+        }
+        if listed_paths != actual_paths.iter().map(String::as_str).collect() {
+            return Err(StorageError::InvalidInput(
+                "the export manifest asset list does not match its files".into(),
+            ));
+        }
+
+        for item in items {
+            for path in [
+                item.local_asset_path.as_deref(),
+                item.thumbnail_path.as_deref(),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                if !listed_paths.contains(path) {
+                    return Err(StorageError::InvalidInput(format!(
+                        "the export manifest is missing an integrity record for asset: {path}"
+                    )));
+                }
+            }
+        }
+        return Ok(0);
+    }
+
+    Ok(actual_paths.len())
+}
+
+fn verify_imported_asset_size(
+    item: &ItemDto,
+    relative_path: &str,
+    export_directory: &Path,
+) -> Result<(), StorageError> {
+    let Some(expected_size) = item.metadata.get("byteLength") else {
+        return Ok(());
+    };
+    let expected_size = expected_size.as_u64().ok_or_else(|| {
+        StorageError::InvalidInput(format!(
+            "the export has an invalid file size for asset {relative_path}"
+        ))
+    })?;
+    let asset_path = verify_export_asset(export_directory, &item.id, relative_path)?;
+    if fs::metadata(&asset_path)?.len() != expected_size {
+        return Err(StorageError::InvalidInput(format!(
+            "the export contains a damaged asset with an unexpected size: {relative_path}"
+        )));
+    }
+    Ok(())
+}
+
+fn collect_export_asset_paths(export_directory: &Path) -> Result<HashSet<String>, StorageError> {
+    let assets_directory = export_directory.join("assets");
+    let items_directory = assets_directory.join("items");
+    match fs::symlink_metadata(&assets_directory) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            return Err(StorageError::InvalidInput(
+                "the export contains an unsafe assets directory".into(),
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(HashSet::new()),
+        Err(error) => return Err(StorageError::Io(error)),
+    }
+    match fs::symlink_metadata(&items_directory) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            return Err(StorageError::InvalidInput(
+                "the export contains an unsafe assets directory".into(),
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(HashSet::new()),
+        Err(error) => return Err(StorageError::Io(error)),
+    }
+    let mut paths = HashSet::new();
+    collect_export_asset_paths_from(&items_directory, Path::new("assets/items"), &mut paths)?;
+    Ok(paths)
+}
+
+fn collect_export_asset_paths_from(
+    directory: &Path,
+    relative_directory: &Path,
+    paths: &mut HashSet<String>,
+) -> Result<(), StorageError> {
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let relative_path = relative_directory.join(entry.file_name());
+        if file_type.is_symlink() {
+            return Err(StorageError::InvalidInput(
+                "the export contains a symbolic link in its asset files".into(),
+            ));
+        }
+        if file_type.is_dir() {
+            collect_export_asset_paths_from(&entry.path(), &relative_path, paths)?;
+        } else if file_type.is_file() {
+            paths.insert(export_relative_path(&relative_path));
+        } else {
+            return Err(StorageError::InvalidInput(
+                "the export contains an unsupported asset file".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn verify_export_asset(
@@ -3243,6 +3414,7 @@ fn commit_import(
             imported_spaces: 0,
             skipped_duplicate_spaces: 0,
             asset_files: 0,
+            unverified_asset_files: plan.unverified_asset_files,
         };
 
         for item in &plan.items {
@@ -3438,13 +3610,28 @@ where
                 copy_directory_with(&entry.path(), &target, &entry_relative_path, copy_file);
             summary.files += nested.files;
             summary.bytes += nested.bytes;
+            summary.asset_files.extend(nested.asset_files);
             summary.skipped.extend(nested.skipped);
         } else if metadata.is_file() {
             match copy_file_atomically(&entry.path(), &target, copy_file) {
-                Ok(_) => {
-                    summary.files += 1;
-                    summary.bytes += metadata.len();
-                }
+                Ok(bytes) => match sha256_file(&target) {
+                    Ok(sha256) => {
+                        summary.files += 1;
+                        summary.bytes += bytes;
+                        summary.asset_files.push(ExportAsset {
+                            path: export_relative_path(&entry_relative_path),
+                            byte_length: bytes,
+                            sha256,
+                        });
+                    }
+                    Err(error) => {
+                        let _ = fs::remove_file(&target);
+                        summary.skipped.push(SkippedAsset {
+                            path: export_relative_path(&entry_relative_path),
+                            error: error.to_string(),
+                        });
+                    }
+                },
                 Err(error) => {
                     summary.skipped.push(SkippedAsset {
                         path: export_relative_path(&entry_relative_path),
@@ -3455,6 +3642,27 @@ where
         }
     }
     summary
+}
+
+fn sha256_file(path: &Path) -> std::io::Result<String> {
+    let mut file = fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let digest = hasher.finalize();
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for &byte in digest.iter() {
+        hex.push(HEX[(byte >> 4) as usize] as char);
+        hex.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    Ok(hex)
 }
 
 fn copy_file_atomically<F>(
@@ -5400,6 +5608,14 @@ mod tests {
         assert_eq!(manifest["schemaVersion"], SCHEMA_VERSION);
         assert_eq!(manifest["counts"]["items"], 2);
         assert_eq!(manifest["counts"]["assetFiles"], 1);
+        let assets = manifest["assetFiles"].as_array().unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(
+            assets[0]["path"],
+            format!("assets/items/{}/notes.txt", saved.id)
+        );
+        assert_eq!(assets[0]["byteLength"], "exported bytes".len());
+        assert_eq!(assets[0]["sha256"].as_str().unwrap().len(), 64);
         assert_eq!(manifest["regenerable"]["tables"][0], "item_embeddings");
         assert_eq!(manifest["regenerable"]["columns"][0], "items.ocr_text");
 
@@ -5537,9 +5753,30 @@ mod tests {
                 bytes: b"file content".to_vec(),
             })
             .unwrap();
+        let thumbnail_path = format!("assets/items/{}/thumbnail.bin", item.id);
+        let source_thumbnail = source
+            .assets_directory()
+            .join(&item.id)
+            .join("thumbnail.bin");
+        fs::write(&source_thumbnail, b"thumbnail").unwrap();
+        source
+            .connection
+            .execute(
+                "UPDATE items SET thumbnail_path = ?1 WHERE id = ?2",
+                params![thumbnail_path, item.id],
+            )
+            .unwrap();
         let export = finish_export(&source.begin_export(&export_destination, 0).unwrap()).unwrap();
         drop(source);
         let export_directory = PathBuf::from(&export.directory);
+        let manifest: Value =
+            serde_json::from_slice(&fs::read(export_directory.join("manifest.json")).unwrap())
+                .unwrap();
+        assert!(manifest["assetFiles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|asset| asset["path"] == thumbnail_path));
         let asset_path = export_directory
             .join("assets")
             .join("items")
@@ -5562,12 +5799,114 @@ mod tests {
         assert_eq!(target.list_active_items().unwrap().len(), 1);
         assert_eq!(target.list_active_items().unwrap()[0].id, existing.id);
 
-        fs::write(&asset_path, b"damaged").unwrap();
+        fs::write(&asset_path, b"corrupt data").unwrap();
         let result = prepare_import(&export_directory, &target_directory, &HashSet::new());
         assert!(
             matches!(result, Err(StorageError::InvalidInput(message)) if message.contains("damaged asset"))
         );
+        fs::write(&asset_path, b"file content").unwrap();
+        fs::write(export_directory.join(&thumbnail_path), b"bad-image").unwrap();
+        let result = prepare_import(&export_directory, &target_directory, &HashSet::new());
+        assert!(
+            matches!(result, Err(StorageError::InvalidInput(message)) if message.contains("damaged asset") && message.contains("thumbnail.bin"))
+        );
         assert_eq!(target.list_active_items().unwrap().len(), 1);
+
+        drop(target);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn import_rejects_invalid_space_query_fields_before_changing_the_library() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-import-test-{}", Uuid::new_v4()));
+        let source_directory = directory.join("source");
+        let target_directory = directory.join("target");
+        let export_destination = directory.join("exports");
+        fs::create_dir_all(&source_directory).unwrap();
+        fs::create_dir_all(&target_directory).unwrap();
+        fs::create_dir_all(&export_destination).unwrap();
+
+        let source = LibraryStorage::open(source_directory.join("library.sqlite3")).unwrap();
+        let space = source
+            .create_space(CreateSpaceInput {
+                name: "Saved search".into(),
+                color: None,
+                kind: SpaceKind::Smart,
+                query: SmartSpaceQuery::default(),
+            })
+            .unwrap();
+        let export = finish_export(&source.begin_export(&export_destination, 0).unwrap()).unwrap();
+        drop(source);
+
+        let export_directory = PathBuf::from(&export.directory);
+        let snapshot = Connection::open(export_directory.join("library.sqlite3")).unwrap();
+        snapshot
+            .execute(
+                "UPDATE spaces SET query = ?1 WHERE id = ?2",
+                params![r#"{"text":42}"#, space.id],
+            )
+            .unwrap();
+        drop(snapshot);
+
+        let target = LibraryStorage::open(target_directory.join("library.sqlite3")).unwrap();
+        let result = prepare_import(&export_directory, &target_directory, &HashSet::new());
+        assert!(
+            matches!(result, Err(StorageError::InvalidInput(message)) if message.contains("Space query"))
+        );
+        assert!(target.list_spaces().unwrap().is_empty());
+
+        drop(target);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn import_reports_unverified_assets_in_older_exports() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-import-test-{}", Uuid::new_v4()));
+        let source_directory = directory.join("source");
+        let target_directory = directory.join("target");
+        let export_destination = directory.join("exports");
+        fs::create_dir_all(&source_directory).unwrap();
+        fs::create_dir_all(&target_directory).unwrap();
+        fs::create_dir_all(&export_destination).unwrap();
+
+        let source = LibraryStorage::open(source_directory.join("library.sqlite3")).unwrap();
+        let item = source
+            .save_file(SaveFileInput {
+                id: None,
+                file_name: "legacy.txt".into(),
+                mime_type: Some("text/plain".into()),
+                kind: None,
+                bytes: b"legacy export".to_vec(),
+            })
+            .unwrap();
+        let export = finish_export(&source.begin_export(&export_destination, 0).unwrap()).unwrap();
+        drop(source);
+
+        let export_directory = PathBuf::from(&export.directory);
+        let manifest_path = export_directory.join("manifest.json");
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        manifest.as_object_mut().unwrap().remove("assetFiles");
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        let target = LibraryStorage::open(target_directory.join("library.sqlite3")).unwrap();
+        let plan = prepare_import(&export_directory, &target_directory, &HashSet::new()).unwrap();
+        let outcome = commit_import(&target, &plan).unwrap();
+
+        assert_eq!(outcome.report.imported_items, 1);
+        assert_eq!(outcome.report.asset_files, 1);
+        assert_eq!(outcome.report.unverified_asset_files, 1);
+        let restored = target.get_item(&item.id).unwrap().unwrap();
+        let restored_asset = target
+            .resolve_asset_path(restored.local_asset_path.as_deref().unwrap())
+            .unwrap();
+        assert_eq!(fs::read(restored_asset).unwrap(), b"legacy export");
 
         drop(target);
         fs::remove_dir_all(directory).unwrap();

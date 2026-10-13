@@ -18,6 +18,16 @@ mock.module("@tauri-apps/api/core", () => ({
     if (command === "enqueue_ocr_job") return "job-2";
     if (command === "check_for_updates") return { version: "0.2.0" };
     if (command === "install_update") return null;
+    if (command === "import_library") {
+      return {
+        importedItems: 1,
+        skippedDuplicateItems: 0,
+        importedSpaces: 0,
+        skippedDuplicateSpaces: 0,
+        assetFiles: 0,
+        unverifiedAssetFiles: 0,
+      };
+    }
     throw new Error(`Unexpected command: ${command}`);
   },
 }));
@@ -33,6 +43,7 @@ const {
   countActiveJobs,
   enqueueOcrJob,
   getProcessingSummaries,
+  importLibrary,
   installUpdate,
   listItemSpaces,
   listSpaces,
@@ -131,12 +142,21 @@ test("the newest failed job surfaces for its item", () => {
   expect(summaries.get("a")?.failedJob?.errorMessage).toBe("newest failure");
 });
 
-test("listing Spaces initializes storage before reading persisted Spaces", async () => {
+test("Space reads and export restores wait for storage initialization", async () => {
   invokeCalls.length = 0;
 
-  await listSpaces();
+  await Promise.all([listSpaces(), importLibrary("export-folder")]);
 
-  expect(invokeCalls.map((call) => call.command)).toEqual(["initialize_storage", "list_spaces"]);
+  expect(invokeCalls[0]?.command).toBe("initialize_storage");
+  expect(
+    invokeCalls
+      .slice(1)
+      .map((call) => call.command)
+      .sort(),
+  ).toEqual(["import_library", "list_spaces"]);
+  expect(invokeCalls.find((call) => call.command === "import_library")?.args).toEqual({
+    exportDirectory: "export-folder",
+  });
 });
 
 test("filing an item in and out of a Space sends the space and item ids", async () => {

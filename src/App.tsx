@@ -286,6 +286,11 @@ function formatImportSummary(report: LibraryImportReport) {
   if (report.assetFiles > 0) {
     summary.push(`${report.assetFiles} ${report.assetFiles === 1 ? "file" : "files"} copied`);
   }
+  if (report.unverifiedAssetFiles > 0) {
+    summary.push(
+      `${report.unverifiedAssetFiles} ${report.unverifiedAssetFiles === 1 ? "file" : "files"} from an older export could not be verified`,
+    );
+  }
   return summary.join(" · ");
 }
 

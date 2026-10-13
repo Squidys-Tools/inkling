@@ -343,10 +343,13 @@ export type LibraryImportReport = {
   importedSpaces: number;
   skippedDuplicateSpaces: number;
   assetFiles: number;
+  unverifiedAssetFiles: number;
 };
 
 export async function importLibrary(exportDirectory: string) {
-  return invoke<LibraryImportReport>("import_library", { exportDirectory });
+  return withInitializedStorage(() =>
+    invoke<LibraryImportReport>("import_library", { exportDirectory }),
+  );
 }
 
 export function summariesFromJobs(itemIds: string[], jobs: ProcessingJob[]) {
