@@ -454,6 +454,43 @@ a:focus-visible,
 .save-space-link {
   margin-left: 14px;
 }
+.sidebar-action-error {
+  margin: 10px 4px 0;
+  padding: 8px 7px 8px 9px;
+  border: 1px solid rgba(208, 112, 85, 0.28);
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(208, 112, 85, 0.06);
+  color: #d07055;
+  font: 12px / 1.4 var(--font-ui);
+}
+.sidebar-action-error p {
+  flex: 1;
+  margin: 0;
+}
+.sidebar-action-error-dismiss {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 2px;
+  border: 0;
+  border-radius: 5px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.sidebar-action-error-dismiss:hover {
+  background: rgba(208, 112, 85, 0.14);
+  color: var(--ink);
+}
+.sidebar-action-error-dismiss:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}
 .sidebar-footer {
   margin-top: auto;
   display: grid;
