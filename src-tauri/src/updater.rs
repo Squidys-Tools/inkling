@@ -74,7 +74,6 @@ pub async fn install_update(
         .await
         .map_err(|error| error.to_string())?;
     app.restart();
-    Ok(None)
 }
 
 #[cfg(test)]

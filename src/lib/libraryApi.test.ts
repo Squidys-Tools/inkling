@@ -191,7 +191,10 @@ test("the UI checks for updates and installs only after an explicit request", as
   invokeCalls.length = 0;
 
   expect(await checkForUpdates()).toEqual({ version: "0.2.0" });
-  await installUpdate();
+  await installUpdate("0.2.0");
 
-  expect(invokeCalls).toEqual([{ command: "check_for_updates" }, { command: "install_update" }]);
+  expect(invokeCalls).toEqual([
+    { command: "check_for_updates" },
+    { command: "install_update", args: { expectedVersion: "0.2.0" } },
+  ]);
 });
