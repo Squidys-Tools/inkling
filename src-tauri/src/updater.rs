@@ -15,8 +15,18 @@ fn updater_commands_enabled() -> bool {
     !cfg!(debug_assertions)
 }
 
-fn update_version_matches(expected: &str, available: &str) -> bool {
-    expected == available
+#[derive(Debug, PartialEq, Eq)]
+enum UpdateInstallDecision {
+    Download,
+    Refresh(String),
+}
+
+fn decide_update_install(expected: &str, latest: &str) -> UpdateInstallDecision {
+    if expected == latest {
+        UpdateInstallDecision::Download
+    } else {
+        UpdateInstallDecision::Refresh(latest.to_owned())
+    }
 }
 
 #[tauri::command]
@@ -60,10 +70,11 @@ pub async fn install_update(
         return Ok(None);
     };
 
-    if !update_version_matches(&expected_version, &update.version) {
-        return Ok(Some(AvailableUpdate {
-            version: update.version,
-        }));
+    match decide_update_install(&expected_version, &update.version) {
+        UpdateInstallDecision::Download => {}
+        UpdateInstallDecision::Refresh(version) => {
+            return Ok(Some(AvailableUpdate { version }));
+        }
     }
 
     let mut update = update;
@@ -78,7 +89,7 @@ pub async fn install_update(
 
 #[cfg(test)]
 mod tests {
-    use super::{update_version_matches, updater_commands_enabled};
+    use super::{decide_update_install, updater_commands_enabled, UpdateInstallDecision};
 
     #[test]
     fn updater_commands_are_disabled_in_debug_builds() {
@@ -87,7 +98,13 @@ mod tests {
 
     #[test]
     fn install_only_accepts_the_version_shown_to_the_user() {
-        assert!(update_version_matches("1.2.3", "1.2.3"));
-        assert!(!update_version_matches("1.2.3", "1.2.4"));
+        assert_eq!(
+            decide_update_install("1.2.3", "1.2.3"),
+            UpdateInstallDecision::Download
+        );
+        assert_eq!(
+            decide_update_install("1.2.3", "1.2.4"),
+            UpdateInstallDecision::Refresh("1.2.4".to_owned())
+        );
     }
 }
