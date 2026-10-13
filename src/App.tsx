@@ -1583,6 +1583,7 @@ function App() {
   const [isLibraryViewTransitioning, setIsLibraryViewTransitioning] = useState(false);
   const [viewSelectionListMode, setViewSelectionListMode] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
+  const [sidebarActionError, setSidebarActionError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [isFindingSimilar, setIsFindingSimilar] = useState(false);
@@ -2906,8 +2907,6 @@ function App() {
     const spaceQuery: SmartSpaceQuery =
       newSpaceKind === "smart" && query.trim() ? { text: query.trim() } : {};
     const color = SPACE_COLORS[spaces.length % SPACE_COLORS.length];
-    setCaptureError(null);
-
     try {
       const created = canUseTauriBackend
         ? await createSpace({ name, color, query: spaceQuery, kind: newSpaceKind })
@@ -2926,8 +2925,8 @@ function App() {
       setNewSpaceName("");
       setNewSpaceKind("smart");
       selectSpace(created);
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+    } catch {
+      setSidebarActionError("Couldn’t create this Space.");
     }
   }
 
@@ -2959,7 +2958,6 @@ function App() {
           return current.filter((id) => id !== spaceId);
         });
       };
-      setCaptureError(null);
       if (!canUseTauriBackend) {
         // Preview keeps membership in local state and an effect mirrors that into
         // itemSpaceIds, so there is no write to make and none to chain.
@@ -2983,11 +2981,15 @@ function App() {
           // The open Space lists its own members, so its grid has to re-read.
           if (activeSpaceId === spaceId) loadItemsRef.current();
         })
-        .catch((error: unknown) => {
+        .catch(() => {
           // A failed write must not leave the chip claiming a membership the
           // library does not have.
           show(wasMember);
-          setCaptureError(error instanceof Error ? error.message : String(error));
+          setSidebarActionError(
+            adding
+              ? "Couldn’t add this item to the Space."
+              : "Couldn’t remove this item from the Space.",
+          );
         })
         .finally(() => {
           if (spaceWritesRef.current.get(spaceId) === write) spaceWritesRef.current.delete(spaceId);
@@ -2999,7 +3001,6 @@ function App() {
   );
 
   async function handleDeleteSpace(space: StoredSpace) {
-    setCaptureError(null);
     try {
       if (canUseTauriBackend) await deleteSpace(space.id);
       setSpaces((current) => current.filter((candidate) => candidate.id !== space.id));
@@ -3010,8 +3011,8 @@ function App() {
       });
       setItemSpaceIds((current) => current.filter((id) => id !== space.id));
       if (activeSpaceId === space.id) clearToDefaultView();
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+    } catch {
+      setSidebarActionError("Couldn’t delete this Space.");
     }
   }
 
@@ -3019,7 +3020,6 @@ function App() {
     const trimmed = name.trim().slice(0, 80);
     setRenamingSpaceId(null);
     if (!trimmed || trimmed === space.name) return;
-    setCaptureError(null);
     try {
       const updated = canUseTauriBackend
         ? await updateSpace({ id: space.id, name: trimmed })
@@ -3028,19 +3028,18 @@ function App() {
         current.map((candidate) => (candidate.id === space.id ? updated : candidate)),
       );
       if (activeSpaceId === space.id) setActiveView(updated.name);
-    } catch (error) {
+    } catch {
       // Reopen the rename input with the draft preserved: the name visibly
       // didn't stick, so the user can retry or Escape instead of wondering.
       setRenamingSpaceId(space.id);
       setRenameDraft(trimmed);
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      setSidebarActionError("Couldn’t rename this Space.");
     }
   }
 
   async function handleCycleSpaceColor(space: StoredSpace) {
     const next = SPACE_COLORS[(SPACE_COLORS.indexOf(space.color) + 1) % SPACE_COLORS.length];
     if (next === space.color) return;
-    setCaptureError(null);
     try {
       const updated = canUseTauriBackend
         ? await updateSpace({ id: space.id, color: next })
@@ -3048,8 +3047,8 @@ function App() {
       setSpaces((current) =>
         current.map((candidate) => (candidate.id === space.id ? updated : candidate)),
       );
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+    } catch {
+      setSidebarActionError("Couldn’t change this Space’s color.");
     }
   }
 
@@ -3058,7 +3057,6 @@ function App() {
     const index = ordered.findIndex((candidate) => candidate.id === space.id);
     const other = ordered[index + direction];
     if (index < 0 || !other) return;
-    setCaptureError(null);
     // Optimistic swap so rapid clicks chain off fresh rendered state instead
     // of recomputing the same neighbor pair from a stale render.
     const locallySwapped = ordered
@@ -3080,7 +3078,7 @@ function App() {
         } else {
           setSpaces(await listSpaces());
         }
-      } catch (error) {
+      } catch {
         let resynced = true;
         try {
           setSpaces(await listSpaces());
@@ -3089,12 +3087,10 @@ function App() {
           // the backend until the window reloads.
           resynced = false;
         }
-        setCaptureError(
+        setSidebarActionError(
           resynced
-            ? error instanceof Error
-              ? error.message
-              : String(error)
-            : "Couldn't confirm the new Space order. Reload the window and check the sidebar.",
+            ? "Couldn’t move this Space."
+            : "Couldn’t confirm the Space order. Reload the window to check it.",
         );
       }
       return;
@@ -4052,6 +4048,26 @@ function App() {
     if (captureFailures > 0) setRoamCaptureFailed(true);
   }, [captureFailures]);
 
+  const sidebarActionErrorAlert = sidebarActionError ? (
+    <div
+      className={
+        isSidebarOpen
+          ? "sidebar-action-error"
+          : "sidebar-action-error sidebar-action-error-collapsed"
+      }
+    >
+      <p role="alert">{sidebarActionError}</p>
+      <button
+        type="button"
+        className="sidebar-action-error-dismiss"
+        aria-label="Dismiss Space error"
+        onClick={() => setSidebarActionError(null)}
+      >
+        <HugeiconsIcon icon={Cancel01Icon} size={14} />
+      </button>
+    </div>
+  ) : null;
+
   // Dev-only mascot board (vendored bloub engine + inkling skins). Not linked
   // from the UI; open with ?mascot. Placed after all hooks.
   if (
@@ -4369,6 +4385,8 @@ function App() {
             </AnimatePresence>
           </div>
 
+          {isSidebarOpen && sidebarActionErrorAlert}
+
           <div className="sidebar-footer">
             <button
               ref={settingsButtonRef}
@@ -4414,6 +4432,7 @@ function App() {
                 <HugeiconsIcon icon={ViewSidebarLeftIcon} size={17} />
               </button>
             )}
+            {!isSidebarOpen && sidebarActionErrorAlert}
             <label className={`search-field${isSearchFocused ? " is-mascot" : ""}`}>
               <span className="field-mascot" aria-hidden="true">
                 <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />
