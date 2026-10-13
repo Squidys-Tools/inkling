@@ -28,6 +28,7 @@ Guardrails:
 
 ### Added
 
+- Packaged Windows app checks GitHub for signed updates at launch and offers user-controlled installation from the sidebar; the NSIS installer remains unsigned and may trigger a SmartScreen warning (SQU-16).
 - Keyboard shortcuts for search, new-note capture, and shortcut help, with contained dialog focus and keyboard-operated Spaces and cards (SQU-19).
 - Background OCR for older images and PDFs when first opened, with the mascot's quiet activity state reflecting the full job queue (SQU-5).
 - Library export from Settings (Data tab): writes a dated folder with a consistent SQLite snapshot, the asset files the saved items reference, and a manifest of counts and sizes, after picking a destination folder in a native dialog.
@@ -211,6 +212,5 @@ Guardrails:
 - Safe embed allowlists (YouTube, Vimeo, direct media)
 - Ingestion pipeline with HTML sanitization (`src/lib/ingestion/`)
 - MIT License
-
 
 
