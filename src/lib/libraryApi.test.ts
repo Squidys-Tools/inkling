@@ -16,6 +16,18 @@ mock.module("@tauri-apps/api/core", () => ({
     if (command === "get_jobs_for_items") return [];
     if (command === "count_active_jobs") return 2;
     if (command === "enqueue_ocr_job") return "job-2";
+    if (command === "check_for_updates") return { version: "0.2.0" };
+    if (command === "install_update") return null;
+    if (command === "import_library") {
+      return {
+        importedItems: 1,
+        skippedDuplicateItems: 0,
+        importedSpaces: 0,
+        skippedDuplicateSpaces: 0,
+        assetFiles: 0,
+        unverifiedAssetFiles: 0,
+      };
+    }
     throw new Error(`Unexpected command: ${command}`);
   },
 }));
@@ -27,9 +39,12 @@ Object.defineProperty(globalThis, "window", {
 
 const {
   addSpaceItem,
+  checkForUpdates,
   countActiveJobs,
   enqueueOcrJob,
   getProcessingSummaries,
+  importLibrary,
+  installUpdate,
   listItemSpaces,
   listSpaces,
   removeSpaceItem,
@@ -60,7 +75,15 @@ test("groups jobs by item and summarizes each", () => {
     ["a", "b"],
     [
       job({ id: "1", itemId: "a", kind: "generate_embedding", status: "completed" }),
-      job({ id: "2", itemId: "a", kind: "ocr_image", status: "processing", progressCurrent: 2, progressTotal: 4, progressMessage: "OCR" }),
+      job({
+        id: "2",
+        itemId: "a",
+        kind: "ocr_image",
+        status: "processing",
+        progressCurrent: 2,
+        progressTotal: 4,
+        progressMessage: "OCR",
+      }),
       job({ id: "3", itemId: "b", status: "failed", errorMessage: "boom" }),
     ],
   );
@@ -98,19 +121,42 @@ test("the newest failed job surfaces for its item", () => {
   const summaries = summariesFromJobs(
     ["a"],
     [
-      job({ id: "1", itemId: "a", kind: "generate_embedding", status: "failed", errorMessage: "older failure", createdAt: 1 }),
-      job({ id: "2", itemId: "a", kind: "generate_embedding", status: "failed", errorMessage: "newest failure", createdAt: 2 }),
+      job({
+        id: "1",
+        itemId: "a",
+        kind: "generate_embedding",
+        status: "failed",
+        errorMessage: "older failure",
+        createdAt: 1,
+      }),
+      job({
+        id: "2",
+        itemId: "a",
+        kind: "generate_embedding",
+        status: "failed",
+        errorMessage: "newest failure",
+        createdAt: 2,
+      }),
     ],
   );
   expect(summaries.get("a")?.failedJob?.errorMessage).toBe("newest failure");
 });
 
-test("listing Spaces initializes storage before reading persisted Spaces", async () => {
+test("Space reads and export restores wait for storage initialization", async () => {
   invokeCalls.length = 0;
 
-  await listSpaces();
+  await Promise.all([listSpaces(), importLibrary("export-folder")]);
 
-  expect(invokeCalls.map((call) => call.command)).toEqual(["initialize_storage", "list_spaces"]);
+  expect(invokeCalls[0]?.command).toBe("initialize_storage");
+  expect(
+    invokeCalls
+      .slice(1)
+      .map((call) => call.command)
+      .sort(),
+  ).toEqual(["import_library", "list_spaces"]);
+  expect(invokeCalls.find((call) => call.command === "import_library")?.args).toEqual({
+    exportDirectory: "export-folder",
+  });
 });
 
 test("filing an item in and out of a Space sends the space and item ids", async () => {
@@ -119,10 +165,7 @@ test("filing an item in and out of a Space sends the space and item ids", async 
   await addSpaceItem("space-1", "item-7");
   await removeSpaceItem("space-1", "item-7");
 
-  expect(invokeCalls.map((call) => call.command)).toEqual([
-    "add_space_item",
-    "remove_space_item",
-  ]);
+  expect(invokeCalls.map((call) => call.command)).toEqual(["add_space_item", "remove_space_item"]);
   expect(invokeCalls[0]?.args).toEqual({ spaceId: "space-1", itemId: "item-7" });
   expect(invokeCalls[1]?.args).toEqual({ spaceId: "space-1", itemId: "item-7" });
 });
@@ -158,5 +201,20 @@ test("the UI can enqueue OCR for a selected image or PDF", async () => {
   invokeCalls.length = 0;
 
   expect(await enqueueOcrJob("item-7")).toBe("job-2");
-  expect(invokeCalls[invokeCalls.length - 1]).toEqual({ command: "enqueue_ocr_job", args: { itemId: "item-7" } });
+  expect(invokeCalls[invokeCalls.length - 1]).toEqual({
+    command: "enqueue_ocr_job",
+    args: { itemId: "item-7" },
+  });
+});
+
+test("the UI checks for updates and installs only after an explicit request", async () => {
+  invokeCalls.length = 0;
+
+  expect(await checkForUpdates()).toEqual({ version: "0.2.0" });
+  await installUpdate("0.2.0");
+
+  expect(invokeCalls).toEqual([
+    { command: "check_for_updates" },
+    { command: "install_update", args: { expectedVersion: "0.2.0" } },
+  ]);
 });

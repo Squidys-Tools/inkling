@@ -24,7 +24,11 @@ function stampHost(host: Element): number {
   template.setAttribute(SHADOW_STAMP_ATTR, "open");
   template.content.append(root.cloneNode(true));
   host.appendChild(template);
-  return 1 + stampTree(root as unknown as ParentNode) + stampTree(template.content as unknown as ParentNode);
+  return (
+    1 +
+    stampTree(root as unknown as ParentNode) +
+    stampTree(template.content as unknown as ParentNode)
+  );
 }
 
 function stampTree(node: ParentNode): number {

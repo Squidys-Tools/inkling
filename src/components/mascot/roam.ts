@@ -212,7 +212,10 @@ function pickActionKind(rand: Rand, mood: RoamMood, tiredness: number): RoamMove
     const moving = kind === "wander" || kind === "cross";
     return base[kind] * (moving ? 1 - 0.7 * tiredness : 1 + 0.9 * tiredness);
   };
-  return pickWeighted(rand, [...MOVES, "go-home" as const].map((kind) => [kind, weight(kind)] as const));
+  return pickWeighted(
+    rand,
+    [...MOVES, "go-home" as const].map((kind) => [kind, weight(kind)] as const),
+  );
 }
 
 function homeAction(rand: Rand, expression: string): RoamAction {
@@ -311,7 +314,13 @@ export function tickRoam(state: RoamState, signals: RoamSignals, rand: Rand): Ro
     if (!signals.canRoam) return { state: next, action: null };
     if (now < next.due && !signals.force) return { state: next, action: null };
     return step(
-      { ...next, phase: "away", awakeMs: 0, stops: 0, budgetMs: Math.round(between(rand, AWAKE_MS)) },
+      {
+        ...next,
+        phase: "away",
+        awakeMs: 0,
+        stops: 0,
+        budgetMs: Math.round(between(rand, AWAKE_MS)),
+      },
       // There is no outing to end, so a capture that failed while the mascot was
       // home does not send it out for a sad walk. The app's own home face is
       // already the sad one, and the failure is spent either way.
@@ -351,16 +360,36 @@ function step(next: RoamState, signals: RoamSignals, rand: Rand, departing: bool
 
   const recent = now - signals.lastActivityAt <= ACTIVITY_WINDOW_MS;
   const target: RoamTarget =
-    kind === "look" ? (recent ? "activity" : "item") : kind === "wander" ? "near" : kind === "cross" ? "across" : "margin";
+    kind === "look"
+      ? recent
+        ? "activity"
+        : "item"
+      : kind === "wander"
+        ? "near"
+        : kind === "cross"
+          ? "across"
+          : "margin";
   const travel =
-    kind === "look" ? 0 : Math.round(between(rand, kind === "cross" ? MOVE_MS.long : kind === "drift" ? DRIFT_TRAVEL_MS : MOVE_MS.short));
+    kind === "look"
+      ? 0
+      : Math.round(
+          between(
+            rand,
+            kind === "cross" ? MOVE_MS.long : kind === "drift" ? DRIFT_TRAVEL_MS : MOVE_MS.short,
+          ),
+        );
   const linger = kind === "drift" ? Math.round(between(rand, DRIFT_LINGER_MS)) : 0;
-  const duration = Math.min(travel + linger + (kind === "look" ? Math.round(between(rand, LOOK_HOLD_MS)) : 0), left);
+  const duration = Math.min(
+    travel + linger + (kind === "look" ? Math.round(between(rand, LOOK_HOLD_MS)) : 0),
+    left,
+  );
 
   // The face holds long enough to read as a mood, then may change. Random, but
   // never twice in a blink.
   const expression =
-    now - next.expressionAt >= MIN_EXPRESSION_HOLD_MS ? pickExpression(rand, mood, next.expression) : next.expression;
+    now - next.expressionAt >= MIN_EXPRESSION_HOLD_MS
+      ? pickExpression(rand, mood, next.expression)
+      : next.expression;
 
   return {
     state: {
@@ -390,4 +419,3 @@ export function createSeededRandom(seed: number): Rand {
     return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
   };
 }
-

@@ -27,6 +27,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
 # Native folder picker for choosing where a library export lands.
 tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
 tauri-plugin-mcp-bridge = "0.13"
 # Overlay titlebar: strips the native frame, keeps Windows Snap Layout,
 # and injects window controls into the webview so the UI runs edge to edge.
@@ -46,5 +47,11 @@ tokenizers = { version = "0.23.1", default-features = false, features = ["fancy-
 tokio = { version = "1", features = ["rt", "net", "time"] }
 ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
 url = "2"
-windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_WinRT", "Foundation", "Foundation_Collections", "Data_Pdf", "Media_Ocr", "Storage_Streams", "Graphics_Imaging"] }
 pulldown-cmark = "0.13.4"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_WinRT", "Foundation", "Foundation_Collections", "Data_Pdf", "Media_Ocr", "Storage_Streams", "Graphics_Imaging"] }
+
+[dev-dependencies]
+base64 = "0.22"
+minisign-verify = "0.2.5"

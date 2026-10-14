@@ -14,7 +14,9 @@ const OVERLAY_MARGIN = 24;
 const OVERLAY_MEDIA_MAX_HEIGHT = 400;
 
 export function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return (
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 }
 
 // The overlay opens over the general area of its parent card: width is a
@@ -25,12 +27,20 @@ export function overlayWidth(contentArea: FlightRect): number {
   return Math.min(OVERLAY_WIDTH, Math.max(contentArea.width - OVERLAY_MARGIN * 2, 240));
 }
 
-export function overlayMediaHeight(item: LibraryItem, width: number, viewportHeight: number): number {
+export function overlayMediaHeight(
+  item: LibraryItem,
+  width: number,
+  viewportHeight: number,
+): number {
   // Items with a thumbnail use the thumbnail's own aspect ratio so the media
   // band shows a natural framing instead of an aggressive crop, but the band
   // is capped so large/tall thumbnails never balloon past the reading frame.
   if (item.image) {
-    return Math.min(width / mediaAspectRatioFor(item), viewportHeight * 0.48, OVERLAY_MEDIA_MAX_HEIGHT);
+    return Math.min(
+      width / mediaAspectRatioFor(item),
+      viewportHeight * 0.48,
+      OVERLAY_MEDIA_MAX_HEIGHT,
+    );
   }
   if (item.social?.provider === "x") return Math.min(viewportHeight * 0.34, 320);
   return Math.min(viewportHeight * 0.34, 260);
@@ -43,8 +53,10 @@ export function overlayPosition(
   width: number,
   height: number,
 ): { left: number; top: number } {
-  const maxLeft = contentArea.left + Math.max(contentArea.width - OVERLAY_MARGIN - width, OVERLAY_MARGIN);
-  const maxTop = contentArea.top + Math.max(contentArea.height - OVERLAY_MARGIN - height, OVERLAY_MARGIN);
+  const maxLeft =
+    contentArea.left + Math.max(contentArea.width - OVERLAY_MARGIN - width, OVERLAY_MARGIN);
+  const maxTop =
+    contentArea.top + Math.max(contentArea.height - OVERLAY_MARGIN - height, OVERLAY_MARGIN);
   return {
     left: Math.min(
       Math.max(cardRect.left + cardRect.width / 2 - width / 2, contentArea.left + OVERLAY_MARGIN),
@@ -65,8 +77,16 @@ const CARD_OFFSCREEN_THRESHOLD = 0.25;
 
 export function isCardTooFarOffscreen(card: FlightRect, viewport: FlightRect): boolean {
   if (card.width <= 0 || card.height <= 0) return true;
-  const visibleWidth = Math.max(0, Math.min(card.left + card.width, viewport.left + viewport.width) - Math.max(card.left, viewport.left));
-  const visibleHeight = Math.max(0, Math.min(card.top + card.height, viewport.top + viewport.height) - Math.max(card.top, viewport.top));
+  const visibleWidth = Math.max(
+    0,
+    Math.min(card.left + card.width, viewport.left + viewport.width) -
+      Math.max(card.left, viewport.left),
+  );
+  const visibleHeight = Math.max(
+    0,
+    Math.min(card.top + card.height, viewport.top + viewport.height) -
+      Math.max(card.top, viewport.top),
+  );
   const clippedWidth = 1 - visibleWidth / card.width;
   const clippedHeight = 1 - visibleHeight / card.height;
   return Math.max(clippedWidth, clippedHeight) > CARD_OFFSCREEN_THRESHOLD;

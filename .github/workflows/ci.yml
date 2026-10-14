@@ -63,6 +63,12 @@ jobs:
               - '!src/seedPersonal.ts'
               - '!public/seed-demo/**'
               - 'benchmarks/**'
+              - 'scripts/**'
+              - '.vscode/**'
+              - 'src-tauri/**/*.json'
+              - '*.json'
+              - '*.jsonc'
+              - 't3.json'
               # Workspaces the root tsconfig does not cover.
               - 'extension/**'
               - 'packages/**'
@@ -73,8 +79,7 @@ jobs:
               - '.bun-version'
               - 'vite.config.ts'
               - 'knip.json'
-              - 'scripts/assert-no-demo-seed.ts'
-              - 'scripts/assert-no-demo-seed.test.ts'
+              - 'biome.jsonc'
               - 'tsconfig.json'
               - 'tsconfig.node.json'
               - '.github/workflows/ci.yml'
@@ -118,6 +123,9 @@ jobs:
 
       - name: Check for unused code
         run: bun run knip:check
+
+      - name: Lint and format frontend
+        run: bun run lint
 
       - name: Build frontend
         run: bun run build

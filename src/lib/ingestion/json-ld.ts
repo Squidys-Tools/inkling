@@ -77,7 +77,10 @@ function imageUrlsOf(value: unknown, pageUrl: string): string[] {
   return uniqueStrings(out);
 }
 
-function metadataFromNode(node: Record<string, unknown>, pageUrl: string): JsonLdArticleMetadata | null {
+function metadataFromNode(
+  node: Record<string, unknown>,
+  pageUrl: string,
+): JsonLdArticleMetadata | null {
   if (!isArticleType(node["@type"])) return null;
 
   const author = Array.isArray(node.author)
@@ -106,11 +109,7 @@ function mergeMetadata(
   };
 }
 
-function walk(
-  value: unknown,
-  visit: (node: Record<string, unknown>) => void,
-  depth = 0,
-): void {
+function walk(value: unknown, visit: (node: Record<string, unknown>) => void, depth = 0): void {
   if (depth > 100) return;
   if (Array.isArray(value)) {
     for (const entry of value) walk(entry, visit, depth + 1);

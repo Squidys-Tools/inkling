@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noArrayIndexKey: every mapped array here is fixed geometry derived from a profile, and never reorders.
 import { useId } from "react";
 import { DEMI_VIEWBOX, RAYON } from "./bot/repere";
 import { mixHex } from "./bot/skins";
@@ -17,14 +18,22 @@ export interface MascotFigureProps {
  * backed by a paper-colored path so decor drawn behind the body cannot show
  * through the eyes.
  */
-export function MascotFigure({ frame, size, ink = "#1a1a1a", paper = "#faf9f6", className }: MascotFigureProps) {
+export function MascotFigure({
+  frame,
+  size,
+  ink = "#1a1a1a",
+  paper = "#faf9f6",
+  className,
+}: MascotFigureProps) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const maskId = `inkling-mask-${uid}`;
   const VB = DEMI_VIEWBOX;
 
   const dotFill = (dot: BotFrame["dots"][number]) => {
     if (dot.color) return dot.color;
-    return dot.depth === undefined ? ink : mixHex(paper === "transparent" ? ink : paper, ink, dot.depth);
+    return dot.depth === undefined
+      ? ink
+      : mixHex(paper === "transparent" ? ink : paper, ink, dot.depth);
   };
 
   return (
@@ -37,14 +46,7 @@ export function MascotFigure({ frame, size, ink = "#1a1a1a", paper = "#faf9f6", 
       className={className}
     >
       <defs>
-        <mask
-          id={maskId}
-          maskUnits="userSpaceOnUse"
-          x={-VB}
-          y={-VB}
-          width={VB * 2}
-          height={VB * 2}
-        >
+        <mask id={maskId} maskUnits="userSpaceOnUse" x={-VB} y={-VB} width={VB * 2} height={VB * 2}>
           <path d={frame.bodyPath} fill="#fff" />
           {frame.eyes.map((eye, i) => (
             <path key={i} d={eye.d} transform={eye.matrix} opacity={eye.alpha} fill="#000" />
@@ -64,11 +66,7 @@ export function MascotFigure({ frame, size, ink = "#1a1a1a", paper = "#faf9f6", 
             y2={arc.grad.y2}
           >
             {arc.grad.stops.map((c, i) => (
-              <stop
-                key={i}
-                offset={i / (arc.grad.stops.length - 1)}
-                stopColor={c}
-              />
+              <stop key={i} offset={i / (arc.grad.stops.length - 1)} stopColor={c} />
             ))}
           </linearGradient>
         ))}

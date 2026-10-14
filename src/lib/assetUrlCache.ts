@@ -1,7 +1,4 @@
-export function createAssetUrlResolver(
-  resolve: (path: string) => Promise<string>,
-  limit = 4096,
-) {
+export function createAssetUrlResolver(resolve: (path: string) => Promise<string>, limit = 4096) {
   const pending = new Map<string, Promise<string>>();
   const touch = (path: string, value: Promise<string>) => {
     // Re-insert so the touched path counts as most recently used; the

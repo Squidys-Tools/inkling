@@ -42,7 +42,12 @@ export function tokenStats(expected: string, actual: string): TokenStats {
   const expectedTokens = tokenize(expected);
   const actualTokens = tokenize(actual);
   if (expectedTokens.length === 0) {
-    return { recall: 1, precision: actualTokens.length === 0 ? 1 : 0, expectedCount: 0, actualCount: actualTokens.length };
+    return {
+      recall: 1,
+      precision: actualTokens.length === 0 ? 1 : 0,
+      expectedCount: 0,
+      actualCount: actualTokens.length,
+    };
   }
 
   const expectedCounts = new Map<string, number>();

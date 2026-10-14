@@ -2,12 +2,29 @@ import { parseHTML } from "linkedom";
 import { DefaultDefuddleAdapter } from "./defuddle-adapter";
 import { UrlIngestionError } from "./errors";
 import { extractFallback } from "./fallback";
-import { collectImageUrls, collectSafeEmbeds, hasReadableText, htmlToText, sanitizeHtml } from "./html-safety";
+import {
+  collectImageUrls,
+  collectSafeEmbeds,
+  hasReadableText,
+  htmlToText,
+  sanitizeHtml,
+} from "./html-safety";
 import { visibleByline } from "./fallback";
-import { normalizeHttpUrl, normalizePublishedDate, normalizeText, parseHttpUrl, uniqueStrings } from "./url";
+import {
+  normalizeHttpUrl,
+  normalizePublishedDate,
+  normalizeText,
+  parseHttpUrl,
+  uniqueStrings,
+} from "./url";
 import { normalizeXPostOEmbed, parseXPostUrl, xPostOEmbedUrl } from "./x-post";
 import { providerLabel, videoLinkFromSourceUrl, type VideoLinkEmbed } from "./video-links";
-import type { NormalizedArticle, RawArticleExtraction, UrlIngestionOptions, XPostMetadata } from "./types";
+import type {
+  NormalizedArticle,
+  RawArticleExtraction,
+  UrlIngestionOptions,
+  XPostMetadata,
+} from "./types";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
@@ -18,13 +35,21 @@ function isRedirectStatus(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
 
-async function readResponseText(response: Response, maxBytes: number, url: string): Promise<string> {
+async function readResponseText(
+  response: Response,
+  maxBytes: number,
+  url: string,
+): Promise<string> {
   if (!response.body) {
     const text = await response.text();
     if (new TextEncoder().encode(text).byteLength > maxBytes) {
-      throw new UrlIngestionError("content-too-large", "The downloaded page is larger than the ingestion limit.", {
-        url,
-      });
+      throw new UrlIngestionError(
+        "content-too-large",
+        "The downloaded page is larger than the ingestion limit.",
+        {
+          url,
+        },
+      );
     }
     return text;
   }
@@ -41,9 +66,13 @@ async function readResponseText(response: Response, maxBytes: number, url: strin
       total += value.byteLength;
       if (total > maxBytes) {
         await reader.cancel();
-        throw new UrlIngestionError("content-too-large", "The downloaded page is larger than the ingestion limit.", {
-          url,
-        });
+        throw new UrlIngestionError(
+          "content-too-large",
+          "The downloaded page is larger than the ingestion limit.",
+          {
+            url,
+          },
+        );
       }
       chunks.push(value);
     }
@@ -60,7 +89,10 @@ async function readResponseText(response: Response, maxBytes: number, url: strin
   return new TextDecoder().decode(bytes);
 }
 
-function mergeExtraction(primary: RawArticleExtraction, fallback: RawArticleExtraction): RawArticleExtraction {
+function mergeExtraction(
+  primary: RawArticleExtraction,
+  fallback: RawArticleExtraction,
+): RawArticleExtraction {
   return {
     title: normalizeText(primary.title) || fallback.title,
     description: normalizeText(primary.description) || fallback.description,
@@ -69,8 +101,12 @@ function mergeExtraction(primary: RawArticleExtraction, fallback: RawArticleExtr
     canonicalUrl: primary.canonicalUrl ?? fallback.canonicalUrl,
     contentHtml: hasReadableText(primary.contentHtml) ? primary.contentHtml : fallback.contentHtml,
     imageUrls: uniqueStrings([...(fallback.imageUrls ?? []), ...(primary.imageUrls ?? [])]),
-    imageDimensions: [...(fallback.imageDimensions ?? []), ...(primary.imageDimensions ?? [])].filter(
-      (value, index, values) => values.findIndex((candidate) => candidate.url === value.url) === index,
+    imageDimensions: [
+      ...(fallback.imageDimensions ?? []),
+      ...(primary.imageDimensions ?? []),
+    ].filter(
+      (value, index, values) =>
+        values.findIndex((candidate) => candidate.url === value.url) === index,
     ),
   };
 }
@@ -79,7 +115,11 @@ function parseDocument(html: string): Document {
   try {
     return parseHTML(html).document;
   } catch (cause) {
-    throw new UrlIngestionError("parse-failed", "The downloaded page could not be parsed as HTML.", { cause });
+    throw new UrlIngestionError(
+      "parse-failed",
+      "The downloaded page could not be parsed as HTML.",
+      { cause },
+    );
   }
 }
 
@@ -95,7 +135,8 @@ function promoteInfoAsides(document: Document): void {
     if (!aside.querySelector("h2, h3, h4") || !aside.querySelector("ul, ol")) continue;
     const section = document.createElement("section");
     while (aside.firstChild) section.appendChild(aside.firstChild);
-    for (const attribute of [...aside.attributes]) section.setAttribute(attribute.name, attribute.value);
+    for (const attribute of [...aside.attributes])
+      section.setAttribute(attribute.name, attribute.value);
     aside.replaceWith(section);
   }
 }
@@ -118,7 +159,8 @@ function cleanArticleHeadings(document: Document, title: string, description: st
   let index = 0;
   for (let guard = 0; guard < 2 && index < headings.length; guard += 1) {
     const heading = headings[index];
-    if (!isDuplicateHeading(normalizeHeadingText(heading.textContent), normalizeHeadingText(title))) break;
+    if (!isDuplicateHeading(normalizeHeadingText(heading.textContent), normalizeHeadingText(title)))
+      break;
     heading.remove();
     index += 1;
   }
@@ -126,7 +168,11 @@ function cleanArticleHeadings(document: Document, title: string, description: st
   const ledeHeading = headings[index];
   const ledeText = normalizeHeadingText(ledeHeading?.textContent);
   const readsLikeSentence = ledeText.length >= 50 && /[.!?]$/u.test(ledeText);
-  if (ledeHeading && description && (ledeText === normalizeHeadingText(description) || readsLikeSentence)) {
+  if (
+    ledeHeading &&
+    description &&
+    (ledeText === normalizeHeadingText(description) || readsLikeSentence)
+  ) {
     const lede = document.createElement("p");
     lede.className = "article-lede";
     lede.textContent = ledeHeading.textContent;
@@ -162,14 +208,20 @@ async function ingestVideoLink(
         },
       );
       if (response.ok) {
-        const body = await readResponseText(response, Math.min(maxResponseBytes, 512 * 1024), sourceUrl);
+        const body = await readResponseText(
+          response,
+          Math.min(maxResponseBytes, 512 * 1024),
+          sourceUrl,
+        );
         const metadata = JSON.parse(body) as {
           title?: unknown;
           author_name?: unknown;
           thumbnail_url?: unknown;
         };
-        if (typeof metadata.title === "string" && metadata.title.trim()) title = metadata.title.trim();
-        if (typeof metadata.author_name === "string" && metadata.author_name.trim()) author = metadata.author_name.trim();
+        if (typeof metadata.title === "string" && metadata.title.trim())
+          title = metadata.title.trim();
+        if (typeof metadata.author_name === "string" && metadata.author_name.trim())
+          author = metadata.author_name.trim();
         if (typeof metadata.thumbnail_url === "string") {
           poster = normalizeHttpUrl(metadata.thumbnail_url, sourceUrl) ?? poster;
         }
@@ -187,26 +239,35 @@ async function ingestVideoLink(
     fetchedUrl: sourceUrl,
     canonicalUrl: sourceUrl,
     title,
-    description: author ? `${providerLabel(videoLink.provider)} · ${author}` : `${providerLabel(videoLink.provider)} video`,
+    description: author
+      ? `${providerLabel(videoLink.provider)} · ${author}`
+      : `${providerLabel(videoLink.provider)} video`,
     author,
     publishedDate: null,
     html: "",
     text: title,
     imageUrls: poster ? [poster] : [],
     imageDimensions: [],
-    safeEmbeds: [{
-      kind: "iframe",
-      provider: videoLink.provider,
-      sourceUrl: videoLink.sourceUrl,
-      embedUrl: videoLink.embedUrl,
-      title,
-    }],
+    safeEmbeds: [
+      {
+        kind: "iframe",
+        provider: videoLink.provider,
+        sourceUrl: videoLink.sourceUrl,
+        embedUrl: videoLink.embedUrl,
+        title,
+      },
+    ],
     extractor: "fallback",
   };
 }
 
-export async function ingestUrl(input: string, options: UrlIngestionOptions = {}): Promise<NormalizedArticle> {
-  const sourceUrl = parseHttpUrl(input, { allowPrivateNetwork: options.allowPrivateNetwork }).toString();
+export async function ingestUrl(
+  input: string,
+  options: UrlIngestionOptions = {},
+): Promise<NormalizedArticle> {
+  const sourceUrl = parseHttpUrl(input, {
+    allowPrivateNetwork: options.allowPrivateNetwork,
+  }).toString();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
   const fetchImpl = options.fetch ?? globalThis.fetch;
@@ -224,7 +285,9 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
   }
 
   if (!fetchImpl) {
-    throw new UrlIngestionError("network-error", "No fetch implementation is available.", { url: sourceUrl });
+    throw new UrlIngestionError("network-error", "No fetch implementation is available.", {
+      url: sourceUrl,
+    });
   }
 
   const controller = new AbortController();
@@ -245,9 +308,16 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
       });
 
       if (oEmbedResponse.ok) {
-        const oEmbedBody = await readResponseText(oEmbedResponse, Math.min(maxResponseBytes, 512 * 1024), sourceUrl);
+        const oEmbedBody = await readResponseText(
+          oEmbedResponse,
+          Math.min(maxResponseBytes, 512 * 1024),
+          sourceUrl,
+        );
         try {
-          xPost = normalizeXPostOEmbed(sourceUrl, JSON.parse(oEmbedBody) as Record<string, unknown>);
+          xPost = normalizeXPostOEmbed(
+            sourceUrl,
+            JSON.parse(oEmbedBody) as Record<string, unknown>,
+          );
         } catch {
           xPost = null;
         }
@@ -293,26 +363,40 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
 
       if (!isRedirectStatus(response.status)) break;
       if (redirectCount >= MAX_REDIRECTS) {
-        throw new UrlIngestionError("redirect-error", "The page redirected too many times.", { url: fetchedUrl });
+        throw new UrlIngestionError("redirect-error", "The page redirected too many times.", {
+          url: fetchedUrl,
+        });
       }
 
       const location = response.headers.get("location");
       const redirectUrl = location ? normalizeHttpUrl(location, fetchedUrl) : null;
       if (!redirectUrl) {
-        throw new UrlIngestionError("redirect-error", "The page returned an invalid redirect destination.", {
-          url: fetchedUrl,
-        });
+        throw new UrlIngestionError(
+          "redirect-error",
+          "The page returned an invalid redirect destination.",
+          {
+            url: fetchedUrl,
+          },
+        );
       }
 
-      fetchedUrl = parseHttpUrl(redirectUrl, { allowPrivateNetwork: options.allowPrivateNetwork }).toString();
+      fetchedUrl = parseHttpUrl(redirectUrl, {
+        allowPrivateNetwork: options.allowPrivateNetwork,
+      }).toString();
     }
   } catch (cause) {
     clearTimeout(timeout);
     if (cause instanceof UrlIngestionError) throw cause;
     if (controller.signal.aborted) {
-      throw new UrlIngestionError("timeout", "The page took too long to download.", { cause, url: sourceUrl });
+      throw new UrlIngestionError("timeout", "The page took too long to download.", {
+        cause,
+        url: sourceUrl,
+      });
     }
-    throw new UrlIngestionError("network-error", "The page could not be downloaded.", { cause, url: sourceUrl });
+    throw new UrlIngestionError("network-error", "The page could not be downloaded.", {
+      cause,
+      url: sourceUrl,
+    });
   }
 
   let rawHtml: string;
@@ -325,10 +409,19 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
     }
 
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-    if (contentType && !contentType.includes("text/html") && !contentType.includes("application/xhtml+xml") && !contentType.startsWith("text/plain")) {
-      throw new UrlIngestionError("unsupported-content-type", "The URL did not return an HTML document.", {
-        url: fetchedUrl,
-      });
+    if (
+      contentType &&
+      !contentType.includes("text/html") &&
+      !contentType.includes("application/xhtml+xml") &&
+      !contentType.startsWith("text/plain")
+    ) {
+      throw new UrlIngestionError(
+        "unsupported-content-type",
+        "The URL did not return an HTML document.",
+        {
+          url: fetchedUrl,
+        },
+      );
     }
 
     rawHtml = await readResponseText(response, maxResponseBytes, fetchedUrl);
@@ -340,7 +433,10 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
         url: fetchedUrl,
       });
     }
-    throw new UrlIngestionError("network-error", "The page could not be read.", { cause: error, url: fetchedUrl });
+    throw new UrlIngestionError("network-error", "The page could not be read.", {
+      cause: error,
+      url: fetchedUrl,
+    });
   } finally {
     clearTimeout(timeout);
   }
@@ -367,26 +463,37 @@ export async function ingestUrl(input: string, options: UrlIngestionOptions = {}
 
   const title = normalizeText(extraction.title) || new URL(fetchedUrl).hostname;
   const description = normalizeText(extraction.description);
-  const contentDocument = parseDocument(`<html><head></head><body>${sanitizeHtml(extraction.contentHtml ?? "", fetchedUrl)}</body></html>`);
+  const contentDocument = parseDocument(
+    `<html><head></head><body>${sanitizeHtml(extraction.contentHtml ?? "", fetchedUrl)}</body></html>`,
+  );
   const html = cleanArticleHeadings(contentDocument, title, description);
   if (!hasReadableText(html)) {
-    throw new UrlIngestionError("extraction-failed", "No readable article content was found on the page.", {
-      url: fetchedUrl,
-    });
+    throw new UrlIngestionError(
+      "extraction-failed",
+      "No readable article content was found on the page.",
+      {
+        url: fetchedUrl,
+      },
+    );
   }
 
   const canonicalUrl = normalizeHttpUrl(extraction.canonicalUrl, fetchedUrl) ?? fetchedUrl;
   const imageUrls = uniqueStrings([
     ...collectImageUrls(sourceDocument, fetchedUrl),
-    ...(extraction.imageUrls ?? []).map((value) => normalizeHttpUrl(value, fetchedUrl)).filter((value): value is string => value !== null),
+    ...(extraction.imageUrls ?? [])
+      .map((value) => normalizeHttpUrl(value, fetchedUrl))
+      .filter((value): value is string => value !== null),
   ]);
   const imageDimensions = (extraction.imageDimensions ?? [])
     .map((value) => {
       const url = normalizeHttpUrl(value.url, fetchedUrl);
       return url ? { ...value, url } : null;
     })
-    .filter((value, index, values): value is NonNullable<typeof value> =>
-      value !== null && imageUrls.includes(value.url) && values.findIndex((candidate) => candidate?.url === value.url) === index,
+    .filter(
+      (value, index, values): value is NonNullable<typeof value> =>
+        value !== null &&
+        imageUrls.includes(value.url) &&
+        values.findIndex((candidate) => candidate?.url === value.url) === index,
     );
 
   return {

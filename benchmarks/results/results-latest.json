@@ -1,10 +1,7 @@
 {
   "generatedAt": "2026-08-15T03:11:15.473Z",
   "engine": {
-    "ocr": [
-      "windows-ocr",
-      "tesseract.js"
-    ]
+    "ocr": ["windows-ocr", "tesseract.js"]
   },
   "overall": {
     "total": 48,
@@ -302,9 +299,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-design-ref-01",
@@ -315,9 +310,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-similar-01",
@@ -328,9 +321,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-similar-02",
@@ -341,9 +332,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-similar-03",
@@ -354,9 +343,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-similar-04",
@@ -367,9 +354,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-distractor-01",
@@ -380,9 +365,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-lowres-01",
@@ -393,9 +376,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-meme-01",
@@ -409,10 +390,7 @@
         "expectedCount": 14,
         "actualCount": 12
       },
-      "messages": [
-        "OCR recall 0.86 (14 expected tokens)",
-        "missing tokens (sample): i, will"
-      ]
+      "messages": ["OCR recall 0.86 (14 expected tokens)", "missing tokens (sample): i, will"]
     },
     {
       "id": "image-handwriting-01",

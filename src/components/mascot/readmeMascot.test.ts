@@ -3,7 +3,7 @@ import { parseHTML } from "linkedom";
 import { EXPRESSION_BY_ID } from "./bot/expressions";
 import { blinkScale, liveliness } from "./bot/face";
 import { RAYON } from "./bot/repere";
-import { toPoints, type Point } from "./bot/shape";
+import { capsulePath, toPoints, type Point } from "./bot/shape";
 import { STATE_BY_ID } from "./bot/states";
 import { buildReadmeMascot, readmeMascotFrame, readmeMascotSvg } from "./readmeMascot";
 
@@ -48,12 +48,7 @@ const TRACKS = [
 /** The classes that carry them. An eye drives two tracks from one rule, because
  *  `animation` is a shorthand and a second rule on the same element would wipe
  *  the first — the eye would sit on its t=0 matrix for the whole loop. */
-const CLASSES = [
-  "inkling-flicker",
-  "inkling-blink",
-  "inkling-eye-0",
-  "inkling-eye-1",
-] as const;
+const CLASSES = ["inkling-flicker", "inkling-blink", "inkling-eye-0", "inkling-eye-1"] as const;
 
 /** Area centroid of a closed polygon given its on-curve points. The blob is a
  *  closed path of cubic segments, and the on-curve points trace it, so this is
@@ -83,25 +78,23 @@ function outlinePoints(d: string): Array<[number, number]> {
   return points;
 }
 
-/** Half-extents of an eye capsule, either way up.
+/** Half-extents of an eye capsule, either way up: its furthest endpoint on each axis.
  *
- * A capsule is a stadium, and the axis it is tall on moves with the expression:
- * `heureux` is wider than tall, most of the rest are the other way round. So the
- * extents come from the extreme `x y` pairs in the path rather than from its
- * opening coordinate.
- *
- * That used to be read off the opening `M` and the first `L` instead, which is
- * the pair at the CAP CENTRE — 13.55 where the cap apex is 24.7. The corners it
- * went on to check were eleven units short of the real ones at the top and bottom
- * of every eye, which is where a lobe meets the body first. The clearance it
- * reported was a third better than the truth.
+ * `heureux` is wider than tall and most of the rest are the other way round, so
+ * neither axis can be assumed. Each command is read for its own coordinates, so
+ * an arc's flags are skipped rather than paired with the number that follows.
  */
 function capsule(d: string): [number, number] {
   let w = 0;
   let h = 0;
-  for (const pair of d.matchAll(/(-?\d+\.?\d*) (-?\d+\.?\d*)/g)) {
-    w = Math.max(w, Math.abs(Number(pair[1])));
-    h = Math.max(h, Math.abs(Number(pair[2])));
+  for (const [, command, args] of d.matchAll(/([MLA])([^MLAZ]*)/g)) {
+    const n = args!
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number);
+    const [x, y] = command === "A" ? [n[5]!, n[6]!] : [n[0]!, n[1]!];
+    w = Math.max(w, Math.abs(x));
+    h = Math.max(h, Math.abs(y));
   }
   return [w, h];
 }
@@ -179,10 +172,15 @@ describe("readme mascot svg", () => {
     const selectors = [...rules.matchAll(/\.([\w-]+)\s*\{/g)].map(([, name]) => name!);
     for (const name of CLASSES) {
       const hits = selectors.filter((s) => s === name);
-      expect(hits.length, `.${name} is declared ${hits.length} times, so one rule erases the other`).toBe(1);
+      expect(
+        hits.length,
+        `.${name} is declared ${hits.length} times, so one rule erases the other`,
+      ).toBe(1);
     }
     // The eye rule names both of its tracks, comma separated, in one shorthand.
-    const bodies = new Map([...rules.matchAll(/\.([\w-]+)\{([^}]*)\}/g)].map(([, name, body]) => [name!, body!]));
+    const bodies = new Map(
+      [...rules.matchAll(/\.([\w-]+)\{([^}]*)\}/g)].map(([, name, body]) => [name!, body!]),
+    );
     for (const [eye, look, shape] of [
       ["inkling-eye-0", "inkling-look-0", "inkling-shape-0"],
       ["inkling-eye-1", "inkling-look-1", "inkling-shape-1"],
@@ -255,7 +253,9 @@ describe("readme mascot svg", () => {
     expect(shut).toBeGreaterThanOrEqual(6);
     // Flat open between blinks, and never mid-blink at an instant that is not
     // one of the three that describe it.
-    const closed = lids.filter((d) => d !== "transform:scaleY(1)" && d !== "transform:scaleY(0.06)");
+    const closed = lids.filter(
+      (d) => d !== "transform:scaleY(1)" && d !== "transform:scaleY(0.06)",
+    );
     expect(closed).toEqual([]);
     // The cadence is the engine's calendar, so the gaps are irregular the way a
     // real blink rate is. A metronome here is the giveaway that this is a loop
@@ -263,7 +263,7 @@ describe("readme mascot svg", () => {
     const times = lids
       .map((d, i) => (d === "transform:scaleY(0.06)" ? i : -1))
       .filter((i) => i >= 0)
-      .map((i) => Number((blocks().get("inkling-blink")?.[i]?.[0] ?? "0")) / 100);
+      .map((i) => Number(blocks().get("inkling-blink")?.[i]?.[0] ?? "0") / 100);
     const gaps = times.slice(1).map((t, i) => t - times[i]!);
     expect(new Set(gaps.map((g) => g.toFixed(1))).size).toBeGreaterThan(1);
   });
@@ -371,6 +371,11 @@ describe("readme mascot svg", () => {
     }
   });
 
+  test("capsule() measures a wide eye and a tall one on the right axes", () => {
+    expect(capsule(capsulePath(27, 17))).toEqual([13.5, 8.5]);
+    expect(capsule(capsulePath(17, 27))).toEqual([8.5, 13.5]);
+  });
+
   test("the eyes stay on the body for the whole loop, which is what fixes the placement", () => {
     // The body turns under a face that is standing still, so a lobe sweeps past
     // the eyes twice a turn. At the app's own gaze the wide-eyed expressions put
@@ -392,10 +397,12 @@ describe("readme mascot svg", () => {
         at: (Number(at) / 100) * 24,
         d,
       }));
-      for (const [i, [at, decl]] of look.entries()) {
+      for (const [at, decl] of look) {
         const t = (Number(at) / 100) * 24;
         const poly = toPoints(state.pose(Math.min(t, 24 - 1e-6)).sil, RAYON);
-        const matrix = decl.match(/matrix\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)/);
+        const matrix = decl.match(
+          /matrix\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)/,
+        );
         if (!matrix) continue;
         const [, a, b, c, d, tx, ty] = matrix.map(Number) as unknown as number[];
         // The capsule this keyframe belongs to: the shape held at that instant.
@@ -416,10 +423,12 @@ describe("readme mascot svg", () => {
             worstEye = eye;
           }
         }
-        void i;
       }
     }
-    expect(worst, `eye ${worstEye} left the body by ${-worst} units at t=${worstAt}`).toBeGreaterThan(6);
+    expect(
+      worst,
+      `eye ${worstEye} left the body by ${-worst} units at t=${worstAt}`,
+    ).toBeGreaterThan(6);
   });
 
   test("the body is the sidebar's own drift, shared rather than copied", () => {
@@ -457,7 +466,10 @@ describe("readme mascot svg", () => {
     const flicker = blocks().get("inkling-flicker") ?? [];
     const last = Number(flicker[flicker.length - 2]![0]);
     const seconds = ((100 - last) / 100) * LOOP_SECONDS;
-    expect(seconds, `the closing keyframe is ${seconds.toFixed(2)}s before the loop point`).toBeLessThanOrEqual(1.001);
+    expect(
+      seconds,
+      `the closing keyframe is ${seconds.toFixed(2)}s before the loop point`,
+    ).toBeLessThanOrEqual(1.001);
   });
 
   test("a reader who asked for reduced motion gets the still, not the loop", () => {
@@ -468,7 +480,8 @@ describe("readme mascot svg", () => {
     expect(rule).toContain("animation:none");
   });
 
-  test("the still the loop rests on is the engine's own, eyes and outline", () => {    const frame = readmeMascotFrame();
+  test("the still the loop rests on is the engine's own, eyes and outline", () => {
+    const frame = readmeMascotFrame();
     // The eyes are holes cut from a real frame, not invented here.
     expect(frame.eyes).toHaveLength(2);
     const still = readmeMascotSvg(frame, "#1a1a1a", "#faf9f6", "M0 0Z");
@@ -480,7 +493,11 @@ describe("readme mascot svg", () => {
     // rather than a rough stand-in for it. Compared numerically, because the
     // asset rounds coordinates to save bytes and the engine does not.
     const numbers = (d: string) => (d.match(/-?\d+\.?\d*/g) ?? []).map(Number);
-    const resting = numbers(blocks().get("inkling-flicker")?.[0]?.[1].match(/path\("([^"]*)"\)/)?.[1] ?? "");
+    const resting = numbers(
+      blocks()
+        .get("inkling-flicker")?.[0]?.[1]
+        .match(/path\("([^"]*)"\)/)?.[1] ?? "",
+    );
     const engineOutline = numbers(frame.bodyPath);
     expect(resting.length).toBe(engineOutline.length);
     for (const [i, value] of resting.entries()) {

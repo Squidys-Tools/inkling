@@ -6,10 +6,7 @@
 // fails but nothing is lost — the queue survives for the Phase 2 loopback
 // flush (see transport.ts postPayloadToLoopback).
 import browser from "webextension-polyfill";
-import {
-  isPageCapturePayload,
-  type PageCapturePayloadV1,
-} from "@inkling/ingestion-shared";
+import { isPageCapturePayload, type PageCapturePayloadV1 } from "@inkling/ingestion-shared";
 import { trimCaptureQueue } from "./capture-queue";
 import { buildCaptureDeepLink, postPayloadToLoopback } from "./transport";
 import {
@@ -237,7 +234,11 @@ async function dispatchCapturePayload(payload: unknown, tabId: number): Promise<
   }
 }
 
-async function collectFromTab(tabId: number, collect: "selection" | "image" | "video", srcUrl?: string) {
+async function collectFromTab(
+  tabId: number,
+  collect: "selection" | "image" | "video",
+  srcUrl?: string,
+) {
   try {
     const response = await browser.tabs.sendMessage(tabId, {
       type: "inkling/collect",

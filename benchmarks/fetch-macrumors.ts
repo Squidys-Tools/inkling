@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseHTML } from "linkedom";
 import { extractJsonLdMetadata } from "../src/lib/ingestion/json-ld";
@@ -18,16 +18,54 @@ const USER_AGENT = "inkling/0.1 (+local article capture)";
 const COUNT = Number(process.argv[2] ?? 6);
 
 const STOPWORDS = new Set([
-  "about", "after", "again", "also", "along", "among", "another", "around", "been", "before",
-  "between", "both", "could", "from", "have", "into", "more", "most", "much", "other", "over",
-  "said", "says", "some", "such", "that", "their", "them", "then", "there", "these", "they",
-  "this", "those", "three", "through", "time", "until", "using", "what", "when", "which",
-  "while", "with", "would", "your", "will",
+  "about",
+  "after",
+  "again",
+  "also",
+  "along",
+  "among",
+  "another",
+  "around",
+  "been",
+  "before",
+  "between",
+  "both",
+  "could",
+  "from",
+  "have",
+  "into",
+  "more",
+  "most",
+  "much",
+  "other",
+  "over",
+  "said",
+  "says",
+  "some",
+  "such",
+  "that",
+  "their",
+  "them",
+  "then",
+  "there",
+  "these",
+  "they",
+  "this",
+  "those",
+  "three",
+  "through",
+  "time",
+  "until",
+  "using",
+  "what",
+  "when",
+  "which",
+  "while",
+  "with",
+  "would",
+  "your",
+  "will",
 ]);
-
-function urlJoin(...parts: string[]): string {
-  return parts.join("/").replace(/\\/g, "/");
-}
 
 interface ArticleLink {
   url: string;
@@ -78,8 +116,12 @@ function pickSearchTerms(description: string, bodyText: string, limit = 4): stri
 }
 
 function bylineAuthor(document: Document): string {
-  for (const element of document.querySelectorAll('[class*="byline"], [class*="author"], [rel="author"]')) {
-    const anchors = [...element.querySelectorAll("a")].map((a) => normalizeText(a.textContent)).filter(Boolean);
+  for (const element of document.querySelectorAll(
+    '[class*="byline"], [class*="author"], [rel="author"]',
+  )) {
+    const anchors = [...element.querySelectorAll("a")]
+      .map((a) => normalizeText(a.textContent))
+      .filter(Boolean);
     for (const anchor of anchors) {
       if (/^[A-Z][\w'.-]+(?:\s+[A-Z][\w'.-]+){0,2}$/.test(anchor)) return anchor;
     }
@@ -94,7 +136,9 @@ function buildExpected(html: string, url: string, article: ArticleLink) {
   const { document } = parseHTML(html);
   const structured = extractJsonLdMetadata(document, url);
   const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute("content");
-  const ogDescription = document.querySelector('meta[property="og:description"]')?.getAttribute("content");
+  const ogDescription = document
+    .querySelector('meta[property="og:description"]')
+    ?.getAttribute("content");
   const bodyText = normalizeText(document.querySelector("article")?.textContent ?? "");
   const title = normalizeText(structured.title || ogTitle || "");
   const author = normalizeText(structured.author || bylineAuthor(document));
@@ -120,11 +164,14 @@ async function main(): Promise<void> {
 
   const existing = new Set(
     loadManifest()
-      .items
-      .filter((item) => item.id.startsWith("article-live-macrumors-"))
+      .items.filter((item) => item.id.startsWith("article-live-macrumors-"))
       .map((item) => item.path.split("/").pop()),
   );
-  const chosen = candidates.filter((candidate) => !existing.has(`${candidate.date.replaceAll("/", "-")}-${candidate.slug}.html`)).slice(0, COUNT);
+  const chosen = candidates
+    .filter(
+      (candidate) => !existing.has(`${candidate.date.replaceAll("/", "-")}-${candidate.slug}.html`),
+    )
+    .slice(0, COUNT);
   console.log(`Fetching ${chosen.length} latest article(s).`);
 
   mkdirSync(corpusDir, { recursive: true });
@@ -144,10 +191,7 @@ async function main(): Promise<void> {
       continue;
     }
     writeFileSync(join(corpusDir, file.split("/").pop()!), html);
-    writeFileSync(
-      join(expectedDir, `${id}.json`),
-      JSON.stringify(expected, null, 2) + "\n",
-    );
+    writeFileSync(join(expectedDir, `${id}.json`), `${JSON.stringify(expected, null, 2)}\n`);
     newItems.push({
       id,
       path: file,
@@ -169,7 +213,10 @@ async function main(): Promise<void> {
 
   const manifest = loadManifest();
   const kept = manifest.items;
-  writeFileSync(manifestPath, JSON.stringify({ ...manifest, items: [...kept, ...newItems] }, null, 2) + "\n");
+  writeFileSync(
+    manifestPath,
+    `${JSON.stringify({ ...manifest, items: [...kept, ...newItems] }, null, 2)}\n`,
+  );
   console.log(`Manifest updated: ${kept.length} existing + ${newItems.length} macrumors item(s).`);
 
   const server = await startCorpusServer(join(benchmarksRoot, "corpus"));
@@ -181,10 +228,11 @@ async function main(): Promise<void> {
       verified.push({ id: item.id as string, ok: false, score: 0 });
       continue;
     }
-    const exp = (item.expected as { title: string; author: string; search_terms: string[] });
+    const exp = item.expected as { title: string; author: string; search_terms: string[] };
     const titleOk = normalizeText(outcome.title ?? "") === normalizeText(exp.title);
     const authorOk = normalizeText(outcome.author ?? "") === normalizeText(exp.author);
-    const searchable = `${outcome.title ?? ""} ${outcome.description ?? ""} ${outcome.text ?? ""}`.toLowerCase();
+    const searchable =
+      `${outcome.title ?? ""} ${outcome.description ?? ""} ${outcome.text ?? ""}`.toLowerCase();
     const terms = exp.search_terms.filter((term) => searchable.includes(term.toLowerCase()));
     const score = terms.length / exp.search_terms.length;
     console.log(

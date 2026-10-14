@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { hasPreviewQuery, isDevFlag, isPreviewBuildFlag, shouldUseSeedLibrary } from "./previewMode";
+import {
+  hasPreviewQuery,
+  isDevFlag,
+  isPreviewBuildFlag,
+  shouldUseSeedLibrary,
+} from "./previewMode";
 
 describe("hasPreviewQuery", () => {
   test("matches only preview=1", () => {

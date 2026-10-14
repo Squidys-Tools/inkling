@@ -18,5 +18,3 @@ export function MascotHomeSlot({ isSearchFocused }: { isSearchFocused: boolean }
     </div>
   );
 }
-
-

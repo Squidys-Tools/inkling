@@ -28,6 +28,10 @@ export type StoredItemContent = {
   bodyFormat: string;
 };
 
+export type AvailableUpdate = {
+  version: string;
+};
+
 export type CreateNoteInput = {
   title?: string;
   body: string;
@@ -150,7 +154,9 @@ function latestJobsByKind(jobs: ProcessingJob[]) {
 function summarizeProcessingJobs(jobs: ProcessingJob[]): ProcessingSummary {
   const latestJobs = latestJobsByKind(jobs);
   const failedJob = latestJobs.find((job) => job.status === "failed") ?? null;
-  const activeJobs = latestJobs.filter((job) => job.status === "pending" || job.status === "processing");
+  const activeJobs = latestJobs.filter(
+    (job) => job.status === "pending" || job.status === "processing",
+  );
   const completed = latestJobs.filter((job) => job.status === "completed").length;
   const progressTotal = latestJobs.reduce<number | null>((total, job) => {
     if (job.progressTotal == null) return total;
@@ -172,6 +178,14 @@ function summarizeProcessingJobs(jobs: ProcessingJob[]): ProcessingSummary {
 
 export function isTauriRuntime() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+export function checkForUpdates() {
+  return invoke<AvailableUpdate | null>("check_for_updates");
+}
+
+export function installUpdate(expectedVersion: string) {
+  return invoke<AvailableUpdate | null>("install_update", { expectedVersion });
 }
 
 type StorageStatus = {
@@ -213,7 +227,10 @@ export async function searchItems(query: string) {
 }
 
 export async function searchSimilarItems(itemId: string, kind: "image" | "text") {
-  return invoke<StoredLibraryItem[]>(kind === "image" ? "search_similar_images" : "search_similar_text", { itemId, limit: 12 });
+  return invoke<StoredLibraryItem[]>(
+    kind === "image" ? "search_similar_images" : "search_similar_text",
+    { itemId, limit: 12 },
+  );
 }
 
 export async function listSpaces() {
@@ -234,13 +251,17 @@ export async function updateSpace(input: UpdateSpaceInput) {
 }
 
 export async function swapSpacePositions(firstId: string, secondId: string) {
-  return withInitializedStorage(() => invoke<StoredSpace[]>("swap_space_positions", { firstId, secondId }));
+  return withInitializedStorage(() =>
+    invoke<StoredSpace[]>("swap_space_positions", { firstId, secondId }),
+  );
 }
 
 // Smart Spaces evaluate lazily: the backend re-runs the saved query on every
 // call. Regular Spaces read back the items filed into them.
 export async function listSpaceItems(id: string) {
-  return withInitializedStorage(() => invoke<StoredLibraryItem[]>("list_space_items", { id, limit: 100 }));
+  return withInitializedStorage(() =>
+    invoke<StoredLibraryItem[]>("list_space_items", { id, limit: 100 }),
+  );
 }
 
 export async function addSpaceItem(spaceId: string, itemId: string) {
@@ -314,6 +335,21 @@ export async function exportLibrary(destination: string) {
     destination,
     timezoneOffsetMinutes: new Date().getTimezoneOffset(),
   });
+}
+
+export type LibraryImportReport = {
+  importedItems: number;
+  skippedDuplicateItems: number;
+  importedSpaces: number;
+  skippedDuplicateSpaces: number;
+  assetFiles: number;
+  unverifiedAssetFiles: number;
+};
+
+export async function importLibrary(exportDirectory: string) {
+  return withInitializedStorage(() =>
+    invoke<LibraryImportReport>("import_library", { exportDirectory }),
+  );
 }
 
 export function summariesFromJobs(itemIds: string[], jobs: ProcessingJob[]) {

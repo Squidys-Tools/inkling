@@ -65,7 +65,8 @@ const pct = (t: number) => r4((100 * t) / LOOP_SECONDS);
 
 /** Half a unit. The outline is 316 units across and the README shows it at
  *  160px, so this is a fiftieth of a pixel there. */
-const path1 = (d: string) => d.replace(/-?\d+\.?\d*/g, (m) => String(Math.round(Number(m) * 2) / 2));
+const path1 = (d: string) =>
+  d.replace(/-?\d+\.?\d*/g, (m) => String(Math.round(Number(m) * 2) / 2));
 
 /**
  * Where the face sits on the body, and the one thing the script never varies.
@@ -297,7 +298,9 @@ function flickerKeyframes(): string {
   const steps = Math.round(LOOP_SECONDS / FLICKER_STEP_SECONDS);
   const frames: string[] = [];
   for (let i = 0; i < steps; i++) {
-    frames.push(`${pct((LOOP_SECONDS * i) / steps)}%{d:path("${path1(outlineAt((LOOP_SECONDS * i) / steps))}")}`);
+    frames.push(
+      `${pct((LOOP_SECONDS * i) / steps)}%{d:path("${path1(outlineAt((LOOP_SECONDS * i) / steps))}")}`,
+    );
   }
   frames.push(`${pct(LOOP_SECONDS)}%{d:path("${path1(outlineAt(0))}")}`);
   return frames.join("");
@@ -464,7 +467,12 @@ function eyes(frame: BotFrame): string {
  *  on the one place that owns it. The mask's copy of the outline is the same
  *  path carrying the same keyframes, so the ink and the hole it is cut with
  *  cannot drift apart. */
-export function readmeMascotSvg(frame: BotFrame, ink: string, paper: string, still: string): string {
+export function readmeMascotSvg(
+  frame: BotFrame,
+  ink: string,
+  paper: string,
+  still: string,
+): string {
   const vb = DEMI_VIEWBOX;
   const cut =
     `<path class="inkling-flicker" d="${still}" fill="#fff"/>` +

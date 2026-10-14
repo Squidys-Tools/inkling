@@ -11,11 +11,18 @@ export function MascotBoard() {
   const [frozen, setFrozen] = useState(false);
 
   return (
-    <div style={{ padding: 32, fontFamily: "system-ui, sans-serif", background: "#faf9f6", minHeight: "100vh" }}>
+    <div
+      style={{
+        padding: 32,
+        fontFamily: "system-ui, sans-serif",
+        background: "#faf9f6",
+        minHeight: "100vh",
+      }}
+    >
       <h1 style={{ fontSize: 20, marginBottom: 4 }}>Inkling mascot board</h1>
       <p style={{ color: "#6b6b6b", fontSize: 14, marginBottom: 16 }}>
-        Vendored bloub engine + inkling skins. Shapes only apply on baseBody states; gaze
-        follow is disabled on frozen frames.
+        Vendored bloub engine + inkling skins. Shapes only apply on baseBody states; gaze follow is
+        disabled on frozen frames.
       </p>
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {SHAPES.map((s) => (

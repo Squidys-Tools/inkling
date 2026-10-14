@@ -22,7 +22,13 @@ const TERRAIN: Terrain = { room: ROOM, walls: [GRID] };
 const inMargin = (p: { x: number; y: number }) =>
   !(p.x > GRID.left && p.x < GRID.right && p.y > GRID.top && p.y < GRID.bottom);
 
-function run(from: DriftState, aim: number | null, seconds: number, terrain = TERRAIN, cruise = CRUISE_SPEED) {
+function run(
+  from: DriftState,
+  aim: number | null,
+  seconds: number,
+  terrain = TERRAIN,
+  cruise = CRUISE_SPEED,
+) {
   const step = 1 / 60;
   let state = from;
   const path: DriftState[] = [];
@@ -100,7 +106,6 @@ describe("drift", () => {
     expect(settled).toBeGreaterThan(CRUISE_SPEED * 0.7);
   });
 
-
   test("a wall deflects it, and taking that as the new aim makes it slide on", () => {
     // Aimed into the top edge of the grid from the band above. A wall removes the
     // normal component and leaves the tangential one, so the mascot is not
@@ -130,7 +135,6 @@ describe("drift", () => {
     expect(deflectedAim(null, moving)).toBeNull();
   });
 
-
   test("no aim means it carries on in its own direction", () => {
     const drifting: DriftState = { x: 280, y: 400, vx: 40, vy: 0 };
     const before = headingOf(drifting);
@@ -159,5 +163,3 @@ describe("drift", () => {
     expect(MASCOT_SIZE).toBe(44);
   });
 });
-
-

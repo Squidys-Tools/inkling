@@ -43,7 +43,8 @@ export function parseDeepLinkCapture(value: string): DeepLinkCapture | null {
     return null;
   }
 
-  const selection = parsed.searchParams.get("selection")?.trim().slice(0, DEEP_LINK_SELECTION_MAX_LENGTH) ?? "";
+  const selection =
+    parsed.searchParams.get("selection")?.trim().slice(0, DEEP_LINK_SELECTION_MAX_LENGTH) ?? "";
   if (selection) {
     const title = parsed.searchParams.get("title")?.trim() ?? "";
     const attribution = (title || hostnameOf(url)).slice(0, DEEP_LINK_ATTRIBUTION_MAX_LENGTH);
@@ -58,7 +59,8 @@ export function parseDeepLinkCapture(value: string): DeepLinkCapture | null {
     } catch {
       return null;
     }
-    const alt = parsed.searchParams.get("alt")?.trim().slice(0, DEEP_LINK_ATTRIBUTION_MAX_LENGTH) ?? "";
+    const alt =
+      parsed.searchParams.get("alt")?.trim().slice(0, DEEP_LINK_ATTRIBUTION_MAX_LENGTH) ?? "";
     return { kind: "image", pageUrl: url, imageUrl, alt };
   }
 
