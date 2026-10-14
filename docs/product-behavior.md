@@ -131,7 +131,7 @@ Users should be able to create, rename, reorder, recolor, and delete Spaces. Del
 
 Articles should open in a distraction-free reader with clean typography, cached images, headings and links, code blocks, footnotes where available, safe supported video embeds, and an original source link at the bottom.
 
-Focus Mode should provide a sparse writing environment with headings, bold text, links, and simple interactive todos. A Live Preview or WYSIWYG editor is being actively considered.
+Focus Mode provides a sparse writing environment with headings, bold text, links, and simple interactive todos, using the existing WYSIWYG Markdown editor.
 
 ## Rediscovery
 

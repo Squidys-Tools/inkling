@@ -1,6 +1,6 @@
 # Roadmap
 
-Current status as of August 2026. See [changelog.md](changelog.md) for completed work and [bugs.md](bugs.md) for defects that are still open.
+The checked items reflect shipped work. See [changelog.md](changelog.md) for completed work and [bugs.md](bugs.md) for defects that are still open.
 
 ## Milestone 0 -- Capture and Storage
 
@@ -37,7 +37,7 @@ Vertical slice from capture through semantic understanding and search.
 
 ## Milestone 2 -- Reading and Writing
 
-**Status: Not Started**
+**Status: Complete**
 
 Content consumption and creation experiences.
 
@@ -50,7 +50,7 @@ Content consumption and creation experiences.
 
 ## Milestone 3 -- Rediscovery
 
-**Status: Not Started**
+**Status: Complete**
 
 Surfacing forgotten material through browsing and curation.
 
@@ -59,7 +59,7 @@ Surfacing forgotten material through browsing and curation.
 - [x] Trash and recoverable archive
 - [x] Space management (create, rename, reorder, recolor, delete)
 - [x] Regular Spaces (manual collections)
-- [x] Wire the already-registered `enqueue_ocr_job` and `count_active_jobs` Tauri commands to UI (backend ships them, no frontend caller yet)
+- [x] Surface background OCR for existing images and PDFs in the UI (SQU-5)
 - [x] Export and backup (database snapshot + referenced assets + manifest)
 - [x] Import and restore from an export (SQU-119)
 
@@ -76,7 +76,7 @@ On-device AI for summaries and deeper understanding.
 
 ## Milestone 5 -- Polish and Distribution
 
-**Status: Not Started**
+**Status: In Progress**
 
 Production readiness and first release.
 
@@ -84,6 +84,6 @@ Production readiness and first release.
 - [x] Mascot that wanders the library on its own, drifting around the card grid and looking at things (SQU-58)
 - [x] Keyboard-first operation across all surfaces
 - [ ] Accessibility audit (contrast, focus indicators, screen readers)
-- [ ] Windows installer and update mechanism
+- [x] Windows installer and update mechanism (SQU-16)
 - [ ] Web version portability (frontend + domain boundaries)
 - [ ] Performance and refactoring pass, then establish the frontend bundle-size baseline and add a bundle-size PR comment check (deferred until the bundle is feature-complete; `pdfjs-dist` / `tesseract.js` chunking is the main risk)
