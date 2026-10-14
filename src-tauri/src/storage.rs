@@ -1062,7 +1062,15 @@ impl LibraryStorage {
             ));
         }
 
-        let exported_at = now_millis()?;
+        self.begin_export_with_timestamp(destination, timezone_offset_minutes, now_millis()?)
+    }
+
+    fn begin_export_with_timestamp(
+        &self,
+        destination: &Path,
+        timezone_offset_minutes: i32,
+        exported_at: i64,
+    ) -> Result<ExportPlan, StorageError> {
         let local_millis = exported_at - i64::from(timezone_offset_minutes) * 60_000;
         let directory = unique_export_directory(destination, &export_date_stamp(local_millis))?;
         match self.write_snapshot(&directory, exported_at) {
@@ -5649,11 +5657,14 @@ mod tests {
     }
 
     #[test]
-    fn export_name_exhaustion_returns_error_without_reusing_existing_directory() {
-        let destination =
+    fn export_name_exhaustion_does_not_delete_existing_export() {
+        let directory =
             std::env::temp_dir().join(format!("inkling-export-name-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let destination = directory.join("chosen");
         fs::create_dir_all(&destination).unwrap();
-        let stamp = "2026-10-14-120000";
+        let stamp = export_date_stamp(0);
         let base = destination.join(format!("inkling-export-{stamp}"));
         fs::create_dir_all(&base).unwrap();
         fs::write(base.join("marker"), b"earlier export").unwrap();
@@ -5663,12 +5674,13 @@ mod tests {
         }
 
         assert!(matches!(
-            unique_export_directory(&destination, stamp),
+            storage.begin_export_with_timestamp(&destination, 0, 0),
             Err(StorageError::Io(error)) if error.kind() == std::io::ErrorKind::AlreadyExists
         ));
         assert_eq!(fs::read(base.join("marker")).unwrap(), b"earlier export");
 
-        fs::remove_dir_all(destination).unwrap();
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
