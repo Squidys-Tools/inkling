@@ -577,7 +577,6 @@ a:focus-visible,
 .sidebar-toggle:active {
   transform: translateY(1px);
 }
-.mobile-menu,
 .sidebar-scrim {
   display: none;
 }

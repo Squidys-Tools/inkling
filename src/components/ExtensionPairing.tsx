@@ -16,6 +16,7 @@ import { SETTINGS_BATCH_BUTTON_CLASS } from "./settingsClasses";
 // by default) with copy, renew, and a live check against /v1/health.
 export function ExtensionPairing() {
   const [status, setStatus] = useState<CaptureStatus | null>(null);
+  const [statusUnavailable, setStatusUnavailable] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [isRevealed, setIsRevealed] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -24,7 +25,7 @@ export function ExtensionPairing() {
     if (!isTauriRuntime()) return;
     void getCaptureStatus()
       .then(setStatus)
-      .catch(() => setStatus(null));
+      .catch(() => setStatusUnavailable(true));
   }, []);
 
   if (!isTauriRuntime()) {
@@ -117,7 +118,9 @@ export function ExtensionPairing() {
             ? status.running
               ? `Listening on 127.0.0.1:${status.port}`
               : "Receiver not running"
-            : "Checking receiver…"}
+            : statusUnavailable
+              ? "Receiver status unavailable"
+              : "Checking receiver…"}
         </span>
         <button
           type="button"
@@ -163,9 +166,7 @@ export function ExtensionPairing() {
         </button>
         <button
           type="button"
-          className={
-            SETTINGS_BATCH_BUTTON_CLASS + " bg-orange-soft text-orange hover:border-orange"
-          }
+          className={`${SETTINGS_BATCH_BUTTON_CLASS} bg-orange-soft text-orange hover:border-orange`}
           onClick={renewToken}
         >
           Renew

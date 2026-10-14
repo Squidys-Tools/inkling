@@ -279,7 +279,7 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
               className="pdf-viewer-status absolute inset-0 flex flex-col items-center justify-center gap-2.5 font-mono text-[12px] text-muted"
               role="status"
             >
-              <HugeiconsIcon icon={Loading01Icon} size={18} className="spin animate-spin-slow" />
+              <HugeiconsIcon icon={Loading01Icon} size={18} className="animate-spin-slow" />
               <span>{state.percent != null ? `Loading ${state.percent}%` : "Loading…"}</span>
             </div>
           )}

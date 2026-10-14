@@ -268,6 +268,7 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
         onClick={handleCardSelect}
         tabIndex={0}
         onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
           if (event.key !== "Enter" && event.key !== " ") return;
           event.preventDefault();
           if (archiveSelectionMode) {
@@ -421,7 +422,7 @@ export const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
               className={`card-processing failed ${CARD_PROCESSING_CLASS} items-start text-[#d07055]`}
               role="alert"
             >
-              <HugeiconsIcon icon={AlertCircleIcon} size={13} className="animate-spin-slow" />
+              <HugeiconsIcon icon={AlertCircleIcon} size={13} />
               <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
               <button
                 type="button"

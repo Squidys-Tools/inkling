@@ -1,8 +1,6 @@
-/* `theme.css` supplies Tailwind's default scales — spacing, radius, text size,
-   font weight, easing. Utilities built on those emit nothing without it, and it
-   emits nothing at all without preflight, which is why this file deliberately
-   omits `tailwindcss` itself. The default color palette it also carries is
-   dropped again below with `--color-*: initial`. */
+/* Keep the theme scales Tailwind utilities use, but import utilities without
+   preflight: its resets would restyle the legacy App.css surfaces. The default
+   color palette is dropped below with `--color-*: initial`. */
 @import "tailwindcss/theme.css";
 @import "tailwindcss/utilities.css";
 

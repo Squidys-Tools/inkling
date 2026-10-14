@@ -126,7 +126,7 @@ export function useDialog<TElement extends HTMLElement = HTMLElement>(
 
       const first = focusable[0]!;
       const last = focusable[focusable.length - 1]!;
-      if (event.shiftKey && active === first) {
+      if (event.shiftKey && (active === first || active === dialog)) {
         event.preventDefault();
         last.focus({ preventScroll: true });
       } else if (!event.shiftKey && active === last) {

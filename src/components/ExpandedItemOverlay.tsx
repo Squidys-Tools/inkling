@@ -1111,7 +1111,7 @@ export function ExpandedItemOverlay({
           )}
           {!isEditingNoteView && shownItem.processing?.failedJob && (
             <div
-              className="detail-processing failed mt-[13px] flex items-start gap-[7px] font-mono text-[10px] leading-[1.35] text-[#d07055] [&>svg]:animate-spin-slow"
+              className="detail-processing failed mt-[13px] flex items-start gap-[7px] font-mono text-[10px] leading-[1.35] text-[#d07055]"
               role="alert"
             >
               <HugeiconsIcon icon={AlertCircleIcon} size={14} />
@@ -1302,9 +1302,6 @@ export function ExpandedItemOverlay({
               </div>
             </>
           )}
-
-          {/* Insertion point for related items (overlay PR 3); renders nothing until then. */}
-          <div className="expanded-overlay-related" hidden />
         </div>
       </section>
     </div>

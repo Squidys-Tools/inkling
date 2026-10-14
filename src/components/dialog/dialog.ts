@@ -42,8 +42,8 @@ const openDialogs: DialogEntry[] = [];
 /**
  * Puts a dialog on the stack and returns the call that takes it off again.
  *
- * The caller decides which dialog is on top by mounting order: a dialog opened
- * from inside another mounts later, so it sits above the one it came from. That
+ * The last dialog registered sits above earlier ones. A dialog opened from
+ * inside another registers later, so it sits above the one it came from. That
  * is how the reader lands above the item overlay that opened it, and why one
  * Escape closes the reader and leaves the overlay alone.
  *

@@ -955,29 +955,6 @@ function rememberNoteBody(cache: Map<string, string>, id: string, body: string) 
   cache.set(id, body);
 }
 
-function keepTabFocusInside(event: KeyboardEvent, dialog: HTMLElement) {
-  if (event.key !== "Tab") return;
-  const focusable = Array.from(
-    dialog.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), a[href], input:not([disabled]):not([type="file"]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((element) => element.getClientRects().length > 0);
-  if (focusable.length === 0) {
-    event.preventDefault();
-    dialog.focus();
-    return;
-  }
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
-}
-
 function App() {
   const canUseTauriBackend = isTauriRuntime() && !shouldUseSeedLibrary();
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
@@ -1171,7 +1148,6 @@ function App() {
     kind: "image" | "text";
   } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const captureReturnFocusRef = useRef<HTMLElement | null>(null);
   const shortcutsModalRef = useRef<HTMLElement | null>(null);
   const shortcutsCloseRef = useRef<HTMLButtonElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
@@ -2737,26 +2713,8 @@ function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && isShortcutsOpen) {
-        event.preventDefault();
-        setIsShortcutsOpen(false);
-        return;
-      }
       // App shortcuts only fire when no overlay owns the keyboard.
       if (readingItem || selectedItem || pdfViewerItem) return;
-      if (event.key === "Escape") {
-        if (isSettingsOpen) {
-          event.preventDefault();
-          setIsSettingsOpen(false);
-        } else if (isAdding && captureMode) {
-          event.preventDefault();
-          setCaptureMode(null);
-        } else if (isAdding) {
-          event.preventDefault();
-          closeCaptureModal();
-        }
-        return;
-      }
 
       if (isShortcutsOpen || isSettingsOpen || isAdding) return;
       const target = event.target;
@@ -2773,7 +2731,6 @@ function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
-    captureMode,
     isAdding,
     isCapturing,
     isSettingsOpen,
@@ -2791,24 +2748,12 @@ function App() {
     initialFocus: settingsCloseRef,
   });
 
-  // The shortcuts sheet is the one dialog the primitive does not drive, because
-  // its panel is declared in JSX below rather than through useDialog. That makes
-  // this the one place that still hands focus back and keeps Tab inside by hand.
-  useEffect(() => {
-    if (!isShortcutsOpen) return;
-    const previouslyFocused =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const dialog = shortcutsModalRef.current;
-    shortcutsCloseRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (dialog) keepTabFocusInside(event, dialog);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [isShortcutsOpen]);
+  const shortcutsDialog = useDialog({
+    open: isShortcutsOpen,
+    onClose: () => setIsShortcutsOpen(false),
+    initialFocus: shortcutsCloseRef,
+    elementRef: shortcutsModalRef,
+  });
   // Settings reopens on Archive, the way it behaved while that was the only tab.
   useEffect(() => {
     if (!isSettingsOpen) setSettingsTab("archive");
@@ -3194,8 +3139,6 @@ function App() {
   }
 
   function openCapture(mode: CaptureMode | null = null) {
-    captureReturnFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setCaptureError(null);
     setSelectedFile(null);
     setCaptureMode(mode);
@@ -4117,9 +4060,7 @@ function App() {
                   ref={shortcutsModalRef}
                   id="shortcuts-modal"
                   className="shortcuts-modal"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="shortcuts-modal-title"
+                  {...shortcutsDialog.rootProps}
                   initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
                   animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
                   exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
@@ -4127,7 +4068,7 @@ function App() {
                 >
                   <header className="shortcuts-modal-header">
                     <div>
-                      <h2 id="shortcuts-modal-title">Keyboard shortcuts</h2>
+                      <h2 {...shortcutsDialog.labelProps}>Keyboard shortcuts</h2>
                       <p>Use these when you’re not typing in a field.</p>
                     </div>
                     <button

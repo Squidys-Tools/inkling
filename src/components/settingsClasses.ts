@@ -27,7 +27,7 @@ export const SETTINGS_SELECT_BUTTON_CLASS = `${SETTINGS_SELECT_BUTTON_BASE} bg-i
 export const SETTINGS_SELECT_BUTTON_ACTIVE_CLASS = `${SETTINGS_SELECT_BUTTON_BASE} bg-[#f2ece1] text-paper`;
 
 export const SETTINGS_CLOSE_BUTTON_CLASS =
-  "icon-button small h-[30px] w-[30px] rounded-[7px] border-rule! bg-surface!";
+  "icon-button small rounded-[7px]! border-rule! bg-surface!";
 
 export const SETTINGS_SCROLL_CLASS =
   "min-h-0 flex-auto overflow-y-auto p-[18px_3px_5px_0] [scrollbar-color:#4a4842_transparent] [scrollbar-width:thin] max-[700px]:overflow-visible";

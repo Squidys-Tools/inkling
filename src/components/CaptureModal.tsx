@@ -71,7 +71,8 @@ export function CaptureModal(props: CaptureModalProps) {
     open,
     onClose: () => {
       if (isCapturing) return;
-      onClose();
+      if (captureMode) onCloseMode();
+      else onClose();
     },
   });
   const captureInputRef = useRef<HTMLInputElement>(null);
