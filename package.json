@@ -47,7 +47,7 @@
     "defuddle": "^0.19.5",
     "gsap": "^3.15.0",
     "linkedom": "^0.18.13",
-    "motion": "^13.4.0",
+    "motion": "^14.1.0",
     "pdfjs-dist": "^6.4.299",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
