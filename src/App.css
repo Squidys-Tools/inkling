@@ -1789,7 +1789,7 @@ a:focus-visible,
   color: var(--green);
 }
 .job-summary svg,
-.card-processing svg {
+.card-processing:not(.failed) svg {
   animation: spin 1.2s linear infinite;
 }
 .detail-processing span:last-of-type {
