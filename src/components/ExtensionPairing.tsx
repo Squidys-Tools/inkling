@@ -132,9 +132,7 @@ export function ExtensionPairing() {
         className="m-0 min-w-0 border-0 p-0"
         style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
       >
-        <legend className="visually-hidden">
-          {isRevealed ? "Pairing token" : "Pairing token hidden"}
-        </legend>
+        <legend className="sr-only">{isRevealed ? "Pairing token" : "Pairing token hidden"}</legend>
         <code
           style={{
             flex: "1 1 220px",

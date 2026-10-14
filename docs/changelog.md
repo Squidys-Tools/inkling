@@ -28,9 +28,11 @@ Guardrails:
 
 ### Added
 
+- Packaged Windows app checks GitHub for signed updates at launch and offers user-controlled installation from the sidebar; the NSIS installer remains unsigned and may trigger a SmartScreen warning (SQU-16).
 - Keyboard shortcuts for search, new-note capture, and shortcut help, with contained dialog focus and keyboard-operated Spaces and cards (SQU-19).
 - Background OCR for older images and PDFs when first opened, with the mascot's quiet activity state reflecting the full job queue (SQU-5).
 - Library export from Settings (Data tab): writes a dated folder with a consistent SQLite snapshot, the asset files the saved items reference, and a manifest of counts and sizes, after picking a destination folder in a native dialog.
+- Library restore from Settings (Data tab) imports items, assets, and Spaces without replacing existing items, verifies hashes in new exports, and flags assets in older exports that cannot be verified (SQU-119).
 - Browser extension store prep: Firefox MV3 manifest, local mascot icons, options token field, and store copy draft (`extension/`).
 - Portable Windows PR previews build a self-contained review folder with pinned ONNX Runtime and embedding models, isolated database/assets/models, and a `preview:win` artifact link.
 - Serendipity now walks through older saves one at a time, with Keep and recoverable Forget actions, session-safe batching, and a clear end state (SQU-3).
@@ -91,6 +93,7 @@ Guardrails:
 ### Fixed
 
 - Escape now closes the Add sheet from capture fields, and the chooser no longer shows a browser fieldset border.
+- Space and sidebar action failures now show action-specific, dismissible alerts beside the Spaces list without exposing backend error text (SQU-101).
 - Restoring an item from the Archive within the ten-second undo window no longer destroys its files. The permanent delete removed an item's assets before checking whether the row was still archived, so a recovered item kept its row while losing its thumbnail, image, PDF or video from disk with no error shown. The check now runs first, and restoring cancels any delete still pending (`src-tauri/src/storage.rs`, `src/App.tsx`).
 - Note previews and card word counts no longer mangle note text. The plain-text projection decoded no HTML entities, so a note containing pasted HTML showed `&lt;div&gt;` literally, which is exactly what the editor stores; it also deleted the words between angle brackets in ordinary prose, dropped the URL from autolinks, and stripped the underscores from identifiers like `foo_bar_baz`. It now agrees with that projection for entities, autolinks, angle brackets in prose and intraword underscores; block-level raw HTML and entities inside code spans still differ, as the code comments record (`src/lib/notes.ts`).
 - `bun run preview:win` no longer fails partway through packaging the portable Windows folder. Extracting the shared ONNX Runtime provisioning had left the portable script copying its bundled `onnxruntime.dll` from a path it had just deleted, so the build either failed on a fresh checkout or produced a folder missing its runtime.
@@ -215,6 +218,4 @@ Guardrails:
 - Safe embed allowlists (YouTube, Vimeo, direct media)
 - Ingestion pipeline with HTML sanitization (`src/lib/ingestion/`)
 - MIT License
-
-
 

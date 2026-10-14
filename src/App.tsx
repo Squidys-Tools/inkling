@@ -33,6 +33,7 @@ import {
   Loading01Icon,
   PlusSignIcon,
   PinIcon,
+  RotateCwIcon,
   Search01Icon,
   Settings01Icon,
   SidebarLeftIcon,
@@ -46,6 +47,7 @@ import {
   assetUrl,
   archiveItem,
   addSpaceItem,
+  checkForUpdates,
   countActiveJobs,
   createQuote,
   createSpace,
@@ -57,6 +59,7 @@ import {
   deleteSpace,
   initializeStorage,
   isTauriRuntime,
+  installUpdate,
   listActiveItems,
   listArchivedItems,
   listItemSpaces,
@@ -70,10 +73,13 @@ import {
   saveFile,
   deleteItem,
   exportLibrary,
+  importLibrary,
   searchItems,
   searchSimilarItems,
   updateItem,
+  type AvailableUpdate,
   type LibraryExportReport,
+  type LibraryImportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
   type SpaceKind,
@@ -259,6 +265,32 @@ function formatExportSummary(report: LibraryExportReport) {
   if (report.skippedAssets === 0) return summary;
   const assets = report.skippedAssets === 1 ? "asset" : "assets";
   return `${summary} · ${report.skippedAssets} ${assets} skipped`;
+}
+
+function formatImportSummary(report: LibraryImportReport) {
+  const summary = [
+    `${report.importedItems} ${report.importedItems === 1 ? "item" : "items"} restored`,
+    `${report.importedSpaces} ${report.importedSpaces === 1 ? "Space" : "Spaces"} added`,
+  ];
+  if (report.skippedDuplicateItems > 0) {
+    summary.push(
+      `${report.skippedDuplicateItems} existing ${report.skippedDuplicateItems === 1 ? "item" : "items"} left unchanged`,
+    );
+  }
+  if (report.skippedDuplicateSpaces > 0) {
+    summary.push(
+      `${report.skippedDuplicateSpaces} existing ${report.skippedDuplicateSpaces === 1 ? "Space" : "Spaces"} left unchanged`,
+    );
+  }
+  if (report.assetFiles > 0) {
+    summary.push(`${report.assetFiles} ${report.assetFiles === 1 ? "file" : "files"} copied`);
+  }
+  if (report.unverifiedAssetFiles > 0) {
+    summary.push(
+      `${report.unverifiedAssetFiles} ${report.unverifiedAssetFiles === 1 ? "file" : "files"} from an older export could not be verified`,
+    );
+  }
+  return summary.join(" · ");
 }
 
 function readXPostMetadata(value: unknown): XPostMetadata | undefined {
@@ -986,6 +1018,9 @@ function App() {
   }, [renamingSpaceId]);
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
+  const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
+  const [updateInstallFailed, setUpdateInstallFailed] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("archive");
@@ -995,6 +1030,8 @@ function App() {
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
   const [isExportingLibrary, setIsExportingLibrary] = useState(false);
   const [lastExport, setLastExport] = useState<LibraryExportReport | null>(null);
+  const [isImportingLibrary, setIsImportingLibrary] = useState(false);
+  const [lastImport, setLastImport] = useState<LibraryImportReport | null>(null);
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
   const [isAdding, setIsAdding] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
@@ -1010,6 +1047,31 @@ function App() {
     item: LibraryItem;
     origin: ReaderOrigin;
   } | null>(null);
+  useEffect(() => {
+    if (!canUseTauriBackend) return;
+    let cancelled = false;
+    void checkForUpdates()
+      .then((update) => {
+        if (!cancelled) setAvailableUpdate(update);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseTauriBackend]);
+  const handleInstallUpdate = async () => {
+    if (!availableUpdate) return;
+    setIsInstallingUpdate(true);
+    setUpdateInstallFailed(false);
+    try {
+      const latestUpdate = await installUpdate(availableUpdate.version);
+      setAvailableUpdate(latestUpdate);
+      setIsInstallingUpdate(false);
+    } catch {
+      setIsInstallingUpdate(false);
+      setUpdateInstallFailed(true);
+    }
+  };
   // Warm the PDF viewer chunk while a PDF's overlay is open, so the first
   // open fades together with the backdrop instead of popping in after it.
   // Same chunk the lazy viewer resolves; this only moves the fetch earlier.
@@ -1099,6 +1161,7 @@ function App() {
   const [isLibraryViewTransitioning, setIsLibraryViewTransitioning] = useState(false);
   const [viewSelectionListMode, setViewSelectionListMode] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
+  const [sidebarActionError, setSidebarActionError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [isFindingSimilar, setIsFindingSimilar] = useState(false);
@@ -1302,7 +1365,7 @@ function App() {
   // Export is desktop only: it needs the native folder picker, and the Rust
   // core writes the snapshot so it stays consistent while the app is running.
   const exportLibraryToFolder = useCallback(async () => {
-    if (!canUseTauriBackend || isExportingLibrary) return;
+    if (!canUseTauriBackend || isExportingLibrary || isImportingLibrary) return;
     let destination: string | null = null;
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
@@ -1347,7 +1410,65 @@ function App() {
     } finally {
       setIsExportingLibrary(false);
     }
-  }, [canUseTauriBackend, isExportingLibrary]);
+  }, [canUseTauriBackend, isExportingLibrary, isImportingLibrary]);
+
+  const importLibraryFromFolder = useCallback(async () => {
+    if (!canUseTauriBackend || isExportingLibrary || isImportingLibrary) return;
+    let exportDirectory: string | null = null;
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selection = await open({
+        directory: true,
+        multiple: false,
+        title: "Choose an Inkling export to restore",
+      });
+      exportDirectory = typeof selection === "string" ? selection : null;
+    } catch (error) {
+      toast.error("Could not open the export picker", {
+        description: error instanceof Error ? error.message : String(error),
+        closeButton: true,
+      });
+      return;
+    }
+    if (!exportDirectory) return;
+
+    setIsImportingLibrary(true);
+    const toastId = toast.loading("Restoring library…", {
+      description: "Checking the export and copying its files",
+    });
+    try {
+      const report = await importLibrary(exportDirectory);
+      setLastImport(report);
+      toast.success("Library restored", {
+        id: toastId,
+        description: `${formatImportSummary(report)}. Search indexing will continue in the background.`,
+        duration: 5000,
+        closeButton: true,
+      });
+      try {
+        setSpaces(await listSpaces());
+        const storedItems = await listArchivedItems();
+        const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
+        setArchivedItems(
+          await Promise.all(
+            storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
+          ),
+        );
+        loadItemsRef.current();
+      } catch (error) {
+        setCaptureError(error instanceof Error ? error.message : String(error));
+      }
+    } catch (error) {
+      toast.error("Import failed", {
+        id: toastId,
+        description: error instanceof Error ? error.message : String(error),
+        duration: Infinity,
+        closeButton: true,
+      });
+    } finally {
+      setIsImportingLibrary(false);
+    }
+  }, [canUseTauriBackend, isExportingLibrary, isImportingLibrary]);
 
   const addTagToItem = useCallback(
     async (item: LibraryItem, tag: string) => {
@@ -2406,8 +2527,6 @@ function App() {
     const spaceQuery: SmartSpaceQuery =
       newSpaceKind === "smart" && query.trim() ? { text: query.trim() } : {};
     const color = SPACE_COLORS[spaces.length % SPACE_COLORS.length];
-    setCaptureError(null);
-
     try {
       const created = canUseTauriBackend
         ? await createSpace({ name, color, query: spaceQuery, kind: newSpaceKind })
@@ -2426,8 +2545,8 @@ function App() {
       setNewSpaceName("");
       setNewSpaceKind("smart");
       selectSpace(created);
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+    } catch {
+      setSidebarActionError("Couldn’t create this Space.");
     }
   }
 
@@ -2459,7 +2578,6 @@ function App() {
           return current.filter((id) => id !== spaceId);
         });
       };
-      setCaptureError(null);
       if (!canUseTauriBackend) {
         // Preview keeps membership in local state and an effect mirrors that into
         // itemSpaceIds, so there is no write to make and none to chain.
@@ -2483,11 +2601,15 @@ function App() {
           // The open Space lists its own members, so its grid has to re-read.
           if (activeSpaceId === spaceId) loadItemsRef.current();
         })
-        .catch((error: unknown) => {
+        .catch(() => {
           // A failed write must not leave the chip claiming a membership the
           // library does not have.
           show(wasMember);
-          setCaptureError(error instanceof Error ? error.message : String(error));
+          setSidebarActionError(
+            adding
+              ? "Couldn’t add this item to the Space."
+              : "Couldn’t remove this item from the Space.",
+          );
         })
         .finally(() => {
           if (spaceWritesRef.current.get(spaceId) === write) spaceWritesRef.current.delete(spaceId);
@@ -2499,7 +2621,6 @@ function App() {
   );
 
   async function handleDeleteSpace(space: StoredSpace) {
-    setCaptureError(null);
     try {
       if (canUseTauriBackend) await deleteSpace(space.id);
       setSpaces((current) => current.filter((candidate) => candidate.id !== space.id));
@@ -2510,8 +2631,8 @@ function App() {
       });
       setItemSpaceIds((current) => current.filter((id) => id !== space.id));
       if (activeSpaceId === space.id) clearToDefaultView();
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+    } catch {
+      setSidebarActionError("Couldn’t delete this Space.");
     }
   }
 
@@ -2519,7 +2640,6 @@ function App() {
     const trimmed = name.trim().slice(0, 80);
     setRenamingSpaceId(null);
     if (!trimmed || trimmed === space.name) return;
-    setCaptureError(null);
     try {
       const updated = canUseTauriBackend
         ? await updateSpace({ id: space.id, name: trimmed })
@@ -2528,19 +2648,18 @@ function App() {
         current.map((candidate) => (candidate.id === space.id ? updated : candidate)),
       );
       if (activeSpaceId === space.id) setActiveView(updated.name);
-    } catch (error) {
+    } catch {
       // Reopen the rename input with the draft preserved: the name visibly
       // didn't stick, so the user can retry or Escape instead of wondering.
       setRenamingSpaceId(space.id);
       setRenameDraft(trimmed);
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      setSidebarActionError("Couldn’t rename this Space.");
     }
   }
 
   async function handleCycleSpaceColor(space: StoredSpace) {
     const next = SPACE_COLORS[(SPACE_COLORS.indexOf(space.color) + 1) % SPACE_COLORS.length];
     if (next === space.color) return;
-    setCaptureError(null);
     try {
       const updated = canUseTauriBackend
         ? await updateSpace({ id: space.id, color: next })
@@ -2548,8 +2667,8 @@ function App() {
       setSpaces((current) =>
         current.map((candidate) => (candidate.id === space.id ? updated : candidate)),
       );
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+    } catch {
+      setSidebarActionError("Couldn’t change this Space’s color.");
     }
   }
 
@@ -2558,7 +2677,6 @@ function App() {
     const index = ordered.findIndex((candidate) => candidate.id === space.id);
     const other = ordered[index + direction];
     if (index < 0 || !other) return;
-    setCaptureError(null);
     // Optimistic swap so rapid clicks chain off fresh rendered state instead
     // of recomputing the same neighbor pair from a stale render.
     const locallySwapped = ordered
@@ -2580,7 +2698,7 @@ function App() {
         } else {
           setSpaces(await listSpaces());
         }
-      } catch (error) {
+      } catch {
         let resynced = true;
         try {
           setSpaces(await listSpaces());
@@ -2589,12 +2707,10 @@ function App() {
           // the backend until the window reloads.
           resynced = false;
         }
-        setCaptureError(
+        setSidebarActionError(
           resynced
-            ? error instanceof Error
-              ? error.message
-              : String(error)
-            : "Couldn't confirm the new Space order. Reload the window and check the sidebar.",
+            ? "Couldn’t move this Space."
+            : "Couldn’t confirm the Space order. Reload the window to check it.",
         );
       }
       return;
@@ -3499,6 +3615,25 @@ function App() {
   }, [captureFailures]);
 
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);
+  const sidebarActionErrorAlert = sidebarActionError ? (
+    <div
+      className={
+        isSidebarOpen
+          ? "sidebar-action-error"
+          : "sidebar-action-error sidebar-action-error-collapsed"
+      }
+    >
+      <p role="alert">{sidebarActionError}</p>
+      <button
+        type="button"
+        className="sidebar-action-error-dismiss"
+        aria-label="Dismiss Space error"
+        onClick={() => setSidebarActionError(null)}
+      >
+        <HugeiconsIcon icon={Cancel01Icon} size={14} />
+      </button>
+    </div>
+  ) : null;
 
   // Dev-only mascot board (vendored bloub engine + inkling skins). Not linked
   // from the UI; open with ?mascot. Placed after all hooks.
@@ -3648,38 +3783,18 @@ function App() {
                 <div
                   className={`space-item ${activeSpaceId === space.id ? "selected" : ""}`}
                   key={space.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    if (renamingSpaceId !== space.id) selectSpace(space);
-                  }}
-                  onKeyDown={(event) => {
-                    if (renamingSpaceId === space.id) return;
-                    if (event.target !== event.currentTarget) return;
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      selectSpace(space);
-                    }
-                  }}
                 >
-                  <span
-                    className={`space-dot ${space.color}`}
-                    role="button"
-                    tabIndex={0}
+                  <button
+                    type="button"
+                    className="space-dot"
                     title={`Change color (now ${space.color})`}
                     aria-label={`Change color of ${space.name}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
+                    onClick={() => {
                       void handleCycleSpaceColor(space);
                     }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        void handleCycleSpaceColor(space);
-                      }
-                    }}
-                  />
+                  >
+                    <span className={`space-dot-mark ${space.color}`} aria-hidden="true" />
+                  </button>
                   {renamingSpaceId === space.id ? (
                     <input
                       ref={renameSpaceInputRef}
@@ -3700,11 +3815,18 @@ function App() {
                       onBlur={() => void handleRenameSpace(space, renameDraft)}
                     />
                   ) : (
-                    <span className="space-name">{space.name}</span>
+                    <button
+                      type="button"
+                      className="space-select"
+                      onClick={() => selectSpace(space)}
+                      aria-pressed={activeSpaceId === space.id}
+                    >
+                      <span className="space-name">{space.name}</span>
+                      <span className="space-count">
+                        {activeSpaceId === space.id ? filteredItems.length : ""}
+                      </span>
+                    </button>
                   )}
-                  <span className="space-count">
-                    {activeSpaceId === space.id ? filteredItems.length : ""}
-                  </span>
                   <span className="space-actions">
                     <button
                       type="button"
@@ -3786,7 +3908,7 @@ function App() {
                   arrow-key selection, one tab stop and group semantics from the
                   platform instead of from ARIA we would then have to maintain. */}
                   <fieldset className="space-kind">
-                    <legend className="visually-hidden">How this Space fills</legend>
+                    <legend className="sr-only">How this Space fills</legend>
                     {(["smart", "regular"] as const).map((kind) => (
                       <label
                         key={kind}
@@ -3795,7 +3917,7 @@ function App() {
                         <input
                           type="radio"
                           name="space-kind"
-                          className="visually-hidden"
+                          className="sr-only"
                           value={kind}
                           checked={newSpaceKind === kind}
                           aria-describedby="space-kind-hint"
@@ -3835,6 +3957,8 @@ function App() {
             </AnimatePresence>
           </div>
 
+          {isSidebarOpen && sidebarActionErrorAlert}
+
           <div className="sidebar-footer">
             <button
               ref={settingsButtonRef}
@@ -3849,6 +3973,25 @@ function App() {
               <HugeiconsIcon icon={Settings01Icon} size={17} />
               <span>Settings</span>
             </button>
+            {availableUpdate && (
+              <button
+                type="button"
+                className="nav-item footer-item update-footer-item"
+                aria-live="polite"
+                disabled={isInstallingUpdate}
+                title={`Version ${availableUpdate.version} is ready. Inkling checks for updates when it opens; GitHub sees the app version but no library data. Selecting this downloads and installs the update, then restarts inkling.`}
+                onClick={() => void handleInstallUpdate()}
+              >
+                <HugeiconsIcon icon={isInstallingUpdate ? Loading01Icon : RotateCwIcon} size={17} />
+                <span>
+                  {isInstallingUpdate
+                    ? "Installing update..."
+                    : updateInstallFailed
+                      ? "Update failed · retry"
+                      : "Update available"}
+                </span>
+              </button>
+            )}
             <button
               type="button"
               className="nav-item footer-item"
@@ -3883,7 +4026,8 @@ function App() {
                 <HugeiconsIcon icon={ViewSidebarLeftIcon} size={17} />
               </button>
             )}
-            <div
+            {!isSidebarOpen && sidebarActionErrorAlert}
+            <label
               className={`search-field${isSearchFocused ? " is-mascot" : ""}`}
               onMouseDown={(event) => {
                 if (event.target !== searchRef.current) {
@@ -3912,7 +4056,7 @@ function App() {
               <kbd>
                 <span>/</span> to search
               </kbd>
-            </div>
+            </label>
             <button
               type="button"
               className="add-button flex h-[50px] flex-none cursor-pointer items-center gap-[9px] rounded-search border border-ink bg-ink px-[17px] text-[13px] font-semibold text-paper transition-[background,border-color,transform] duration-150 hover:bg-[#f2ece1] hover:border-ink active:scale-[.96] disabled:cursor-wait disabled:opacity-65 max-[780px]:flex-none max-[780px]:justify-center max-[780px]:px-[14px] max-[360px]:w-[50px] max-[360px]:px-0"
@@ -4482,9 +4626,10 @@ function App() {
                             Your library
                           </h2>
                         </div>
-                        <p className="m-0 max-w-[62ch] text-[12px] leading-[1.55] text-muted">
-                          Everything inkling saves stays on this machine. An export writes a copy
-                          you can keep somewhere else.
+                        <p className="settings-panel-note">
+                          Everything inkling saves stays on this machine. Export writes a copy you
+                          can keep elsewhere; restoring adds saved items without replacing anything
+                          already here.
                         </p>
                       </div>
                       <button
@@ -4513,13 +4658,8 @@ function App() {
                         </p>
                         <button
                           type="button"
-                          className={
-                            "inline-flex h-[34px] self-start items-center gap-2 rounded-[20px] border border-ink bg-ink px-[15px] text-paper cursor-pointer " +
-                            "font-sans text-[12px] font-medium transition-[transform,opacity] duration-[.18s] ease-out " +
-                            "hover:opacity-90 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-45 " +
-                            (isExportingLibrary ? "[&_svg]:animate-spin-slow" : "")
-                          }
-                          disabled={!canUseTauriBackend || isExportingLibrary}
+                          className={`settings-data-button ${isExportingLibrary ? "is-busy" : ""}`}
+                          disabled={!canUseTauriBackend || isExportingLibrary || isImportingLibrary}
                           onClick={() => void exportLibraryToFolder()}
                         >
                           <HugeiconsIcon
@@ -4546,6 +4686,40 @@ function App() {
                             </span>
                             <span className="font-mono text-[11px] leading-[1.5] text-muted [overflow-wrap:anywhere]">
                               {lastExport.directory}
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="settings-data-card">
+                        <div className="settings-data-heading">
+                          <HugeiconsIcon icon={Database02Icon} size={17} />
+                          <h3>Restore from an export</h3>
+                        </div>
+                        <p>
+                          Choose a complete Inkling export folder to add its items, files, and
+                          Spaces to this library. Existing items are left unchanged.
+                        </p>
+                        <button
+                          type="button"
+                          className={`settings-data-button ${isImportingLibrary ? "is-busy" : ""}`}
+                          disabled={!canUseTauriBackend || isExportingLibrary || isImportingLibrary}
+                          onClick={() => void importLibraryFromFolder()}
+                        >
+                          <HugeiconsIcon
+                            icon={isImportingLibrary ? Loading01Icon : ArrowUp01Icon}
+                            size={15}
+                          />
+                          <span>
+                            {isImportingLibrary ? "Restoring…" : "Choose export and restore"}
+                          </span>
+                        </button>
+                        {!canUseTauriBackend ? (
+                          <p className="settings-data-hint">Restore runs in the desktop app.</p>
+                        ) : null}
+                        {lastImport ? (
+                          <div className="settings-data-result" role="status" aria-live="polite">
+                            <span className="settings-data-summary">
+                              {formatImportSummary(lastImport)}
                             </span>
                           </div>
                         ) : null}

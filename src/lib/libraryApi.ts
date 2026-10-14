@@ -28,6 +28,10 @@ export type StoredItemContent = {
   bodyFormat: string;
 };
 
+export type AvailableUpdate = {
+  version: string;
+};
+
 export type CreateNoteInput = {
   title?: string;
   body: string;
@@ -174,6 +178,14 @@ function summarizeProcessingJobs(jobs: ProcessingJob[]): ProcessingSummary {
 
 export function isTauriRuntime() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+export function checkForUpdates() {
+  return invoke<AvailableUpdate | null>("check_for_updates");
+}
+
+export function installUpdate(expectedVersion: string) {
+  return invoke<AvailableUpdate | null>("install_update", { expectedVersion });
 }
 
 type StorageStatus = {
@@ -323,6 +335,21 @@ export async function exportLibrary(destination: string) {
     destination,
     timezoneOffsetMinutes: new Date().getTimezoneOffset(),
   });
+}
+
+export type LibraryImportReport = {
+  importedItems: number;
+  skippedDuplicateItems: number;
+  importedSpaces: number;
+  skippedDuplicateSpaces: number;
+  assetFiles: number;
+  unverifiedAssetFiles: number;
+};
+
+export async function importLibrary(exportDirectory: string) {
+  return withInitializedStorage(() =>
+    invoke<LibraryImportReport>("import_library", { exportDirectory }),
+  );
 }
 
 export function summariesFromJobs(itemIds: string[], jobs: ProcessingJob[]) {

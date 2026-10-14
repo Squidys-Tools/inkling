@@ -1180,7 +1180,7 @@ export function ExpandedItemOverlay({
               </div>
               {spaces && spaces.length > 0 && (
                 <fieldset className="detail-spaces">
-                  <legend className="visually-hidden">Regular Spaces</legend>
+                  <legend className="sr-only">Regular Spaces</legend>
                   {spaces.map((space) => (
                     <button
                       key={space.id}

@@ -4,7 +4,7 @@
 
 inkling is a quiet little home for everything you want to keep: articles, images, screenshots, PDFs, notes, quotes, and video links. No folders to maintain, no manually tagging documents. You save something in a couple of seconds; inkling helps you find it again later.
 
-Everything lives on your own computer. Nothing leaves ever leaves.
+Your library lives on your own computer. The app checks GitHub for updates once when it opens; GitHub sees the app version, but no library data is sent.
 
 The interface uses [Paper Mono](https://github.com/paper-design/paper-mono) by Paper Design, bundled locally under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL). Paper Mono is based on Geist Mono by Vercel and basement.studio; the font's copyright and license notice is included in [public/fonts/OFL.txt](public/fonts/OFL.txt).
 
@@ -18,7 +18,7 @@ The interface uses [Paper Mono](https://github.com/paper-design/paper-mono) by P
 
 **It's visual.** Your library's displayed as a beautiful grid, not some ugly list of item details or some random, hastily made, scrapbook looking ideaboard. Articles, photos, PDFs, quotes, notes, videos, and posts each either show their contents in full or have their own custom little thumbnail made.
 
-**It's private.** Your library is stored locally in SQLite on your Windows machine, with your files kept as content-addressed assets beside it. No cloud account required, no feed, no likes, no tracking, but unfortunately no sharing 🥲.
+**It's private.** Your library is stored locally in SQLite on your Windows machine, with your files kept as content-addressed assets beside it. No cloud account required, feed, social features, or usage analytics. Update checks contact GitHub at launch but never send library data.
 
 
 ## Take the tour
@@ -100,7 +100,7 @@ Early development, but the core already works: capture, storage, keyword search 
 Nope. Save it and move on. If you *like* curating, Smart Spaces are there for intentional collections. Manual collections are being considered as a legacy option.
 
 **Is my stuff uploaded somewhere?**
-Nope. Processing and storage are local. Network access is only used on first run to fetch the indexing models or after that when fetching a URL or remote media you want to save.
+Nope. Processing and storage are local. Network access is used to fetch indexing models on first run, fetch URLs or remote media you choose to save, and check GitHub for an update when the app opens. The update check shares the app version, not library data.
 
 **What can I save?**
 Articles, general web pages, images, screenshots, PDFs, notes, quotes, video links, X posts, and miscellaneous files.
