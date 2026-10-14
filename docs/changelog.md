@@ -92,6 +92,7 @@ Guardrails:
 - WiX MSI installer target. Windows releases build the NSIS installer only, which is the one Tauri's updater can replace in place (SQU-80).
 ### Fixed
 
+- Library export now returns an error when all available dated export directory names are taken, preserving earlier exports.
 - Space and sidebar action failures now show action-specific, dismissible alerts beside the Spaces list without exposing backend error text (SQU-101).
 - Restoring an item from the Archive within the ten-second undo window no longer destroys its files. The permanent delete removed an item's assets before checking whether the row was still archived, so a recovered item kept its row while losing its thumbnail, image, PDF or video from disk with no error shown. The check now runs first, and restoring cancels any delete still pending (`src-tauri/src/storage.rs`, `src/App.tsx`).
 - Note previews and card word counts no longer mangle note text. The plain-text projection decoded no HTML entities, so a note containing pasted HTML showed `&lt;div&gt;` literally, which is exactly what the editor stores; it also deleted the words between angle brackets in ordinary prose, dropped the URL from autolinks, and stripped the underscores from identifiers like `foo_bar_baz`. It now agrees with that projection for entities, autolinks, angle brackets in prose and intraword underscores; block-level raw HTML and entities inside code spans still differ, as the code comments record (`src/lib/notes.ts`).

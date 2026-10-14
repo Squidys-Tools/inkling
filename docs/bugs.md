@@ -15,11 +15,3 @@ Rules for entries:
 Nothing critical is open right now.
 
 ## Open
-
-### Low — the export name fallback can delete an earlier export
-
-**Where.** `unique_export_directory` in `src-tauri/src/storage.rs`.
-
-**What goes wrong.** When every name from `inkling-export-<stamp>` to `inkling-export-<stamp>-999` is taken, it returns `base`, which exists by definition. `VACUUM INTO` refuses to write to an existing file, the export fails, and the failure cleanup removes that folder — an earlier export. Reaching it needs 999 exports inside one second, so this is a bad fallback rather than a live risk, but the fallback is the one path where cleanup can touch files it did not create.
-
-**Fix.** Return an error once the loop runs out instead of handing back `base`.
