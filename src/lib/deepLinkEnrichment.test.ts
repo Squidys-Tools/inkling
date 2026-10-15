@@ -106,6 +106,7 @@ describe("enrichDeepLinkCapture", () => {
       },
     });
 
+    expect(metadataPatch).toBeDefined();
     expect(metadataPatch).not.toHaveProperty("author");
     expect(metadataPatch).not.toHaveProperty("publishedDate");
     expect(metadataPatch).not.toHaveProperty("html");
