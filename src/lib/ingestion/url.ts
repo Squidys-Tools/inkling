@@ -157,6 +157,15 @@ export function parseHttpUrl(input: string, options: HttpUrlOptions = {}): URL {
   return parsed;
 }
 
+export function safePublicImageUrl(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  try {
+    return parseHttpUrl(value).toString();
+  } catch {
+    return undefined;
+  }
+}
+
 export function normalizeHttpUrl(
   value: string | null | undefined,
   baseUrl?: string,

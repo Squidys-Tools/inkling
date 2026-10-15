@@ -67,6 +67,7 @@ type UpdateItemInput = {
   localAssetPath?: string;
   thumbnailPath?: string;
   metadata?: StoredLibraryItem["metadata"];
+  metadataPatch?: StoredLibraryItem["metadata"];
   favorite?: boolean;
   addTag?: string;
 };
@@ -299,19 +300,19 @@ export async function listItemSpaces(itemId: string) {
 }
 
 export async function createNote(input: CreateNoteInput) {
-  return invoke<StoredLibraryItem>("create_note", { input });
+  return withInitializedStorage(() => invoke<StoredLibraryItem>("create_note", { input }));
 }
 
 export async function createQuote(input: CreateQuoteInput) {
-  return invoke<StoredLibraryItem>("create_quote", { input });
+  return withInitializedStorage(() => invoke<StoredLibraryItem>("create_quote", { input }));
 }
 
 export async function createUrl(input: CreateUrlInput) {
-  return invoke<StoredLibraryItem>("create_url", { input });
+  return withInitializedStorage(() => invoke<StoredLibraryItem>("create_url", { input }));
 }
 
 export async function saveFile(input: SaveFileInput) {
-  return invoke<StoredLibraryItem>("save_file", { input });
+  return withInitializedStorage(() => invoke<StoredLibraryItem>("save_file", { input }));
 }
 
 const resolveAssetUrl = createAssetUrlResolver(async (path) => {
@@ -435,7 +436,7 @@ export type CaptureStatus = {
 };
 
 export async function getCaptureStatus() {
-  if (!isTauriRuntime()) return null;
+  if (!isDesktopRuntime()) return null;
   return invoke<CaptureStatus>("get_capture_status");
 }
 

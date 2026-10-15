@@ -64,7 +64,6 @@ import {
   createNote,
   deleteSpace,
   initializeStorage,
-  isTauriRuntime,
   installUpdate,
   listActiveItems,
   listArchivedItems,
@@ -103,6 +102,8 @@ import {
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "./lib/deepLink";
+import { enrichDeepLinkCapture } from "./lib/deepLinkEnrichment";
+import { safePublicImageUrl } from "./lib/ingestion/url";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
 import {
@@ -383,7 +384,9 @@ async function storedItemToLibraryItem(
       : undefined;
 
   const remoteImage = Array.isArray(item.metadata.imageUrls)
-    ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")
+    ? item.metadata.imageUrls
+        .map(safePublicImageUrl)
+        .find((value): value is string => value !== undefined)
     : undefined;
   const indexedImageDimensions = Array.isArray(item.metadata.imageDimensions)
     ? item.metadata.imageDimensions.find((value): value is Record<string, unknown> => {
@@ -1290,13 +1293,13 @@ function ExtensionPairing() {
   const [isTesting, setIsTesting] = useState(false);
 
   useEffect(() => {
-    if (!isTauriRuntime()) return;
+    if (!isDesktopRuntime()) return;
     void getCaptureStatus()
       .then(setStatus)
       .catch(() => setStatus(null));
   }, []);
 
-  if (!isTauriRuntime()) {
+  if (!isDesktopRuntime()) {
     return (
       <div className="settings-empty-state">
         <div className="settings-empty-icon">
@@ -2768,6 +2771,45 @@ function App() {
     }
   }
 
+  async function captureDeepLinkUrl(sourceUrl: string, title: string | undefined) {
+    if (!isElectronRuntime()) {
+      await captureArticle(sourceUrl, "browser extension");
+      return;
+    }
+
+    setCaptureError(null);
+    setIsCapturing(true);
+    try {
+      const storedItem = await createUrl({
+        sourceUrl,
+        title: title || new URL(sourceUrl).hostname,
+        description: "",
+        body: "",
+        metadata: { captureSource: "browser extension" },
+      });
+      const libraryItem = await storedItemToLibraryItem(storedItem);
+      setItems((current) => [libraryItem, ...current]);
+      void enrichDeepLinkCapture(storedItem, title)
+        .then(async (enrichedItem) => {
+          if (!enrichedItem) return;
+          const enrichedLibraryItem = await storedItemToLibraryItem(enrichedItem);
+          setItems((current) =>
+            current.map((item) =>
+              item.id === enrichedLibraryItem.id ? enrichedLibraryItem : item,
+            ),
+          );
+          setSelectedItem((current) =>
+            current?.id === enrichedLibraryItem.id ? enrichedLibraryItem : current,
+          );
+        })
+        .catch(() => {});
+    } catch (error) {
+      failCapture(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsCapturing(false);
+    }
+  }
+
   async function captureText(text: string, captureSource: string) {
     setCaptureError(null);
     setIsCapturing(true);
@@ -2947,7 +2989,7 @@ function App() {
       } else if (capture.kind === "image") {
         await captureImageUrl(capture.pageUrl, capture.imageUrl, "browser extension");
       } else {
-        await captureArticle(capture.url, "browser extension");
+        await captureDeepLinkUrl(capture.url, capture.title);
       }
     }
   }

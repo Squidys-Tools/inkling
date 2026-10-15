@@ -3,6 +3,7 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
+import { startCaptureServer } from "./capture-server.mjs";
 import { createAiJobProcessors, enqueueStaleImageEmbeddings } from "./ai-jobs.mjs";
 import { JobWorker, openLibraryStorage, resolveLibraryDataDirectory } from "./storage.mjs";
 import { snapshotDatabase } from "./sqlite-snapshot.mjs";
@@ -22,6 +23,7 @@ const pendingDeepLinks = [];
 let mainWindow;
 let libraryStorage;
 let jobWorker;
+let captureServer;
 let aiJobProcessors;
 
 const contentSecurityPolicy = [
@@ -185,6 +187,16 @@ function registerLibraryCommands() {
     count_active_jobs: () => requireLibraryStorage().jobs.countActive(),
     enqueue_ocr_job: ({ itemId }) => requireLibraryStorage().jobs.enqueueOcr(itemId),
     retry_processing_job: ({ jobId }) => requireLibraryStorage().jobs.retry(jobId),
+    get_capture_status: () =>
+      captureServer?.status() ?? { running: false, port: null, healthUrl: null },
+    get_pairing_token: () => {
+      if (!captureServer) throw new Error("The Electron capture server is unavailable.");
+      return captureServer.getPairingToken();
+    },
+    regenerate_pairing_token: () => {
+      if (!captureServer) throw new Error("The Electron capture server is unavailable.");
+      return captureServer.regeneratePairingToken();
+    },
   };
 
   for (const [command, handler] of Object.entries(storageCommands)) {
@@ -195,13 +207,7 @@ function registerLibraryCommands() {
     chooseLibraryDirectory(title),
   );
 
-  const unsupportedCommands = [
-    "check_for_updates",
-    "install_update",
-    "get_capture_status",
-    "get_pairing_token",
-    "regenerate_pairing_token",
-  ];
+  const unsupportedCommands = ["check_for_updates", "install_update"];
 
   for (const command of unsupportedCommands) {
     ipcMain.handle(`inkling:${command}`, () => {
@@ -363,6 +369,19 @@ if (!hasSingleInstanceLock) {
       ]);
     }
     registerLibraryCommands();
+    try {
+      captureServer = await startCaptureServer({
+        libraryDirectory,
+        createUrl: (input) => {
+          if (!libraryStorage) initializeLibraryStorage();
+          return requireLibraryStorage().createUrl(input);
+        },
+      });
+    } catch (error) {
+      console.error(
+        `capture server unavailable: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     await protocol.handle("app", serveAppAsset);
     handleDeepLinkArguments(process.argv);
     createWindow();
@@ -373,22 +392,39 @@ if (!hasSingleInstanceLock) {
     app.on("window-all-closed", () => {
       if (process.platform !== "darwin") app.quit();
     });
-    let cleanupStarted = false;
+    let quitDrainStarted = false;
+    let quitDrainComplete = false;
     app.on("before-quit", (event) => {
-      if (cleanupStarted) return;
+      if (quitDrainComplete) return;
       event.preventDefault();
-      cleanupStarted = true;
+      if (quitDrainStarted) return;
+      quitDrainStarted = true;
+      jobWorker?.stop();
       void (async () => {
         try {
-          await jobWorker?.stop();
-          await aiJobProcessors?.close();
-        } finally {
-          libraryStorage?.db.close();
-          app.quit();
+          await captureServer?.close();
+        } catch (error) {
+          console.error(
+            `capture server shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
-      })().catch((error) => {
-        console.error("Cannot cleanly stop background jobs:", error);
-      });
+        try {
+          await aiJobProcessors?.close();
+        } catch (error) {
+          console.error(
+            `background jobs shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        try {
+          libraryStorage?.db.close();
+        } catch (error) {
+          console.error(
+            `library shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        quitDrainComplete = true;
+        app.quit();
+      })();
     });
   });
 }

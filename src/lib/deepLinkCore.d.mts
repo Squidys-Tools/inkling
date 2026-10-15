@@ -1,5 +1,5 @@
 export type DeepLinkCapture =
-  | { kind: "url"; url: string }
+  | { kind: "url"; url: string; title?: string }
   | { kind: "quote"; url: string; selection: string; attribution: string }
   | { kind: "image"; pageUrl: string; imageUrl: string; alt: string };
 

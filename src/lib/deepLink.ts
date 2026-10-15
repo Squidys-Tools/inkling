@@ -15,7 +15,13 @@ export function validateDeepLinkCapture(value: unknown): DeepLinkCapture | null 
   const capture = value as Record<string, unknown>;
   try {
     if (capture.kind === "url" && typeof capture.url === "string") {
-      return { kind: "url", url: parseHttpUrl(capture.url).toString() };
+      const title =
+        typeof capture.title === "string" ? [...capture.title.trim()].slice(0, 500).join("") : "";
+      return {
+        kind: "url",
+        url: parseHttpUrl(capture.url).toString(),
+        ...(title ? { title } : {}),
+      };
     }
     if (
       capture.kind === "quote" &&

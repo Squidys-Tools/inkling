@@ -1320,6 +1320,14 @@ class LibraryStorage {
 
   updateItem(input = {}) {
     let metadata = input.metadata;
+    if (input.metadataPatch != null) {
+      const current = this.getItem(input.id);
+      if (!current) throw new Error(`item not found: ${input.id}`);
+      metadata = {
+        ...current.metadata,
+        ...parseObject(input.metadataPatch, "metadata patch"),
+      };
+    }
     if (input.addTag != null) {
       const tag = String(input.addTag).trim().replace(/^#+/, "").trim().toLowerCase();
       if (!tag) throw new Error("invalid storage input: tag cannot be empty");
@@ -1377,6 +1385,7 @@ class LibraryStorage {
       "body",
       "bodyFormat",
       "metadata",
+      "metadataPatch",
       "addTag",
       "localAssetPath",
     ].some((key) => input[key] != null);
