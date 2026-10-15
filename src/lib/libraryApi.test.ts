@@ -5,6 +5,7 @@ const invokeCalls: { command: string; args?: Record<string, unknown> }[] = [];
 
 mock.module("@tauri-apps/api/core", () => ({
   convertFileSrc: (path: string) => path,
+  transformCallback: () => 0,
   invoke: async (command: string, args?: Record<string, unknown>) => {
     invokeCalls.push({ command, args });
     if (command === "initialize_storage") {

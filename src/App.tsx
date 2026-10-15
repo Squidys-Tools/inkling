@@ -10,7 +10,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
 import { gsap } from "gsap";
@@ -80,6 +79,10 @@ import {
   getCaptureStatus,
   getPairingToken,
   regeneratePairingToken,
+  isDesktopRuntime,
+  isElectronRuntime,
+  listenForDeepLinks,
+  listenForJobUpdates,
   saveFile,
   deleteItem,
   exportLibrary,
@@ -98,7 +101,8 @@ import {
   type StoredSpace,
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
-import { parseDeepLinkCapture } from "./lib/deepLink";
+import { parseDeepLinkCapture, validateDeepLinkCapture } from "./lib/deepLink";
+import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
 import {
   providerLabel,
@@ -1470,7 +1474,8 @@ function keepTabFocusInside(event: KeyboardEvent, dialog: HTMLElement) {
 }
 
 function App() {
-  const canUseTauriBackend = isTauriRuntime() && !shouldUseSeedLibrary();
+  const canUseDesktopBackend = isDesktopRuntime() && !shouldUseSeedLibrary();
+  const canUseTauriFolderPicker = isTauriRuntime() && !shouldUseSeedLibrary();
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
   const [activeJobCount, setActiveJobCount] = useState<number | null>(null);
   const [spaces, setSpaces] = useState<StoredSpace[]>(shouldUseSeedLibrary() ? seedSpaces : []);
@@ -1531,7 +1536,7 @@ function App() {
     origin: ReaderOrigin;
   } | null>(null);
   useEffect(() => {
-    if (!canUseTauriBackend) return;
+    if (!canUseDesktopBackend) return;
     let cancelled = false;
     void checkForUpdates()
       .then((update) => {
@@ -1541,7 +1546,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [canUseTauriBackend]);
+  }, [canUseDesktopBackend]);
   const handleInstallUpdate = async () => {
     if (!availableUpdate) return;
     setIsInstallingUpdate(true);
@@ -1572,7 +1577,7 @@ function App() {
   const selectedItemOcrText = selectedItem?.ocrText;
   const selectedItemProcessing = selectedItem?.processing;
   useEffect(() => {
-    if (!canUseTauriBackend || !selectedItemId) return;
+    if (!canUseDesktopBackend || !selectedItemId) return;
     const itemId = selectedItemId;
     if (!selectedItemProcessing) {
       if (processingSummaryRequestsRef.current.has(itemId)) return;
@@ -1604,14 +1609,18 @@ function App() {
       pendingOcrRequestsRef.current.delete(itemId);
     });
   }, [
-    canUseTauriBackend,
+    canUseDesktopBackend,
     selectedItemId,
     selectedItemKind,
     selectedItemOcrText,
     selectedItemProcessing,
   ]);
   useEffect(() => {
-    if (!canUseTauriBackend || selectedItem?.kind !== "Note" || selectedItem.noteBody !== undefined)
+    if (
+      !canUseDesktopBackend ||
+      selectedItem?.kind !== "Note" ||
+      selectedItem.noteBody !== undefined
+    )
       return;
     const id = String(selectedItem.id);
     if (noteContentRequestsRef.current.has(id)) return;
@@ -1639,7 +1648,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [canUseTauriBackend, selectedItem?.id, selectedItem?.kind, selectedItem?.noteBody]);
+  }, [canUseDesktopBackend, selectedItem?.id, selectedItem?.kind, selectedItem?.noteBody]);
   const [listMode, setListMode] = useState(false);
   const [isLibraryViewTransitioning, setIsLibraryViewTransitioning] = useState(false);
   const [viewSelectionListMode, setViewSelectionListMode] = useState(false);
@@ -1775,7 +1784,7 @@ function App() {
       const pending = pendingPermanentDeletesRef.current.get(String(item.id));
       if (pending !== undefined) cancelPermanentDelete(pending);
       try {
-        const restoredItem = canUseTauriBackend
+        const restoredItem = canUseDesktopBackend
           ? await archiveItem(String(item.id), false).then(async (storedItem) => {
               const summary = (await getProcessingSummaries([storedItem.id])).get(storedItem.id);
               return storedItemToLibraryItem(storedItem, summary);
@@ -1802,14 +1811,14 @@ function App() {
         setCaptureError(error instanceof Error ? error.message : String(error));
       }
     },
-    [canUseTauriBackend, cancelPermanentDelete],
+    [canUseDesktopBackend, cancelPermanentDelete],
   );
 
   const forgetItem = useCallback(
     async (item: LibraryItem) => {
       setCaptureError(null);
       try {
-        if (canUseTauriBackend) {
+        if (canUseDesktopBackend) {
           await archiveItem(String(item.id));
         } else {
           setArchivedItems((current) =>
@@ -1839,7 +1848,7 @@ function App() {
         setCaptureError(error instanceof Error ? error.message : String(error));
       }
     },
-    [canUseTauriBackend, restoreForgottenItem],
+    [canUseDesktopBackend, restoreForgottenItem],
   );
 
   const keepSerendipityItem = useCallback((item: LibraryItem) => {
@@ -1856,7 +1865,7 @@ function App() {
   // Export is desktop only: it needs the native folder picker, and the Rust
   // core writes the snapshot so it stays consistent while the app is running.
   const exportLibraryToFolder = useCallback(async () => {
-    if (!canUseTauriBackend || isExportingLibrary || isImportingLibrary) return;
+    if (!canUseTauriFolderPicker || isExportingLibrary || isImportingLibrary) return;
     let destination: string | null = null;
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
@@ -1901,10 +1910,10 @@ function App() {
     } finally {
       setIsExportingLibrary(false);
     }
-  }, [canUseTauriBackend, isExportingLibrary, isImportingLibrary]);
+  }, [canUseTauriFolderPicker, isExportingLibrary, isImportingLibrary]);
 
   const importLibraryFromFolder = useCallback(async () => {
-    if (!canUseTauriBackend || isExportingLibrary || isImportingLibrary) return;
+    if (!canUseTauriFolderPicker || isExportingLibrary || isImportingLibrary) return;
     let exportDirectory: string | null = null;
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
@@ -1959,15 +1968,15 @@ function App() {
     } finally {
       setIsImportingLibrary(false);
     }
-  }, [canUseTauriBackend, isExportingLibrary, isImportingLibrary]);
+  }, [canUseTauriFolderPicker, isExportingLibrary, isImportingLibrary]);
 
   const addTagToItem = useCallback(
     async (item: LibraryItem, tag: string) => {
       const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
       if (!clean) return;
       try {
-        let tags = canUseTauriBackend ? [] : [...item.tags, clean];
-        if (canUseTauriBackend) {
+        let tags = canUseDesktopBackend ? [] : [...item.tags, clean];
+        if (canUseDesktopBackend) {
           const storedItem = await updateItem({ id: String(item.id), addTag: clean });
           tags = Array.isArray(storedItem.metadata.tags)
             ? storedItem.metadata.tags.filter((value): value is string => typeof value === "string")
@@ -1989,7 +1998,7 @@ function App() {
         toast.error("Unable to save this tag", { duration: 5000 });
       }
     },
-    [canUseTauriBackend],
+    [canUseDesktopBackend],
   );
 
   const updateNote = useCallback(
@@ -1998,7 +2007,7 @@ function App() {
       if (!nextBody) throw new Error("A note needs some text before it can be saved.");
 
       let nextItem: LibraryItem;
-      if (canUseTauriBackend) {
+      if (canUseDesktopBackend) {
         const storedItem = await updateItem({
           id: String(item.id),
           body: nextBody,
@@ -2031,7 +2040,7 @@ function App() {
       setSelectedItem((current) => (current ? apply(current) : current));
       rememberNoteBody(noteBodyCacheRef.current, String(item.id), nextBody);
     },
-    [canUseTauriBackend],
+    [canUseDesktopBackend],
   );
 
   // Pins are flipped from current state, not from the item the click captured,
@@ -2071,7 +2080,7 @@ function App() {
 
       const write = (pinWritesRef.current.get(id) ?? Promise.resolve())
         .then(async () => {
-          if (!canUseTauriBackend) return;
+          if (!canUseDesktopBackend) return;
           const confirmed = await updateItem({ id, favorite: pinned });
           // The stored value wins once it is known, including if it disagreed
           // with what was asked for.
@@ -2098,7 +2107,7 @@ function App() {
       pinWritesRef.current.set(id, write);
       await write;
     },
-    [activeSpaceId, canUseTauriBackend, spaces],
+    [activeSpaceId, canUseDesktopBackend, spaces],
   );
 
   const openReader = useCallback(
@@ -2647,7 +2656,7 @@ function App() {
   async function persistFile(file: File, captureSource: string) {
     const kind = classifyFile(file);
     const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
-    if (canUseTauriBackend) {
+    if (canUseDesktopBackend) {
       const storedItem = await saveFile({
         fileName: file.name,
         mimeType: file.type,
@@ -2710,7 +2719,7 @@ function App() {
       captureSource,
     };
 
-    if (canUseTauriBackend) {
+    if (canUseDesktopBackend) {
       const storedItem = await createUrl({
         sourceUrl: article.canonicalUrl,
         title: article.title,
@@ -2796,7 +2805,7 @@ function App() {
       return;
     }
 
-    if (canUseTauriBackend) {
+    if (canUseDesktopBackend) {
       const storedItem = await createNote({
         body: value,
         metadata: { captureSource },
@@ -2838,7 +2847,7 @@ function App() {
         ? `https://${rawSource}`
         : rawSource;
 
-    if (canUseTauriBackend) {
+    if (canUseDesktopBackend) {
       const storedItem = await createQuote({
         body,
         attribution: trimmedAttribution || undefined,
@@ -2933,13 +2942,10 @@ function App() {
   }
 
   async function handleDeepLinkPayload(payload: unknown) {
-    const values: string[] = Array.isArray(payload)
-      ? payload.filter((value): value is string => typeof value === "string")
-      : typeof payload === "string"
-        ? [payload]
-        : [];
+    const values = Array.isArray(payload) ? payload : [payload];
     for (const value of values) {
-      const capture = parseDeepLinkCapture(value);
+      const capture =
+        typeof value === "string" ? parseDeepLinkCapture(value) : validateDeepLinkCapture(value);
       if (!capture) continue;
       // Every path creates the provisional card immediately; extraction,
       // embeddings, and indexing run as background jobs from there.
@@ -2960,7 +2966,7 @@ function App() {
 
   async function findSimilarItems(item: LibraryItem) {
     const kind = item.kind === "Image" ? "image" : "text";
-    if (!canUseTauriBackend) {
+    if (!canUseDesktopBackend) {
       setCaptureError("Similarity is available in the Windows app.");
       return;
     }
@@ -3027,7 +3033,7 @@ function App() {
       newSpaceKind === "smart" && query.trim() ? { text: query.trim() } : {};
     const color = SPACE_COLORS[spaces.length % SPACE_COLORS.length];
     try {
-      const created = canUseTauriBackend
+      const created = canUseDesktopBackend
         ? await createSpace({ name, color, query: spaceQuery, kind: newSpaceKind })
         : {
             id: `local-space-${Date.now()}`,
@@ -3077,7 +3083,7 @@ function App() {
           return current.filter((id) => id !== spaceId);
         });
       };
-      if (!canUseTauriBackend) {
+      if (!canUseDesktopBackend) {
         // Preview keeps membership in local state and an effect mirrors that into
         // itemSpaceIds, so there is no write to make and none to chain.
         setLocalSpaceItems((current) => {
@@ -3116,12 +3122,12 @@ function App() {
       spaceWritesRef.current.set(spaceId, write);
       await write;
     },
-    [activeSpaceId, canUseTauriBackend, itemSpaceIds],
+    [activeSpaceId, canUseDesktopBackend, itemSpaceIds],
   );
 
   async function handleDeleteSpace(space: StoredSpace) {
     try {
-      if (canUseTauriBackend) await deleteSpace(space.id);
+      if (canUseDesktopBackend) await deleteSpace(space.id);
       setSpaces((current) => current.filter((candidate) => candidate.id !== space.id));
       setLocalSpaceItems((current) => {
         const next = new Map(current);
@@ -3140,7 +3146,7 @@ function App() {
     setRenamingSpaceId(null);
     if (!trimmed || trimmed === space.name) return;
     try {
-      const updated = canUseTauriBackend
+      const updated = canUseDesktopBackend
         ? await updateSpace({ id: space.id, name: trimmed })
         : { ...space, name: trimmed, updatedAt: Date.now() };
       setSpaces((current) =>
@@ -3160,7 +3166,7 @@ function App() {
     const next = SPACE_COLORS[(SPACE_COLORS.indexOf(space.color) + 1) % SPACE_COLORS.length];
     if (next === space.color) return;
     try {
-      const updated = canUseTauriBackend
+      const updated = canUseDesktopBackend
         ? await updateSpace({ id: space.id, color: next })
         : { ...space, color: next, updatedAt: Date.now() };
       setSpaces((current) =>
@@ -3187,7 +3193,7 @@ function App() {
             : candidate,
       )
       .sort((a, b) => a.position - b.position);
-    if (canUseTauriBackend) {
+    if (canUseDesktopBackend) {
       const seq = ++spaceMoveSeqRef.current;
       setSpaces(locallySwapped);
       try {
@@ -3400,8 +3406,8 @@ function App() {
     const unlisten: Array<() => void> = [];
 
     async function connectCaptureEvents() {
-      const removeListener = await listen<string[]>("deep-link://new-url", (event) => {
-        void handleDeepLinkPayloadRef.current(event.payload);
+      const removeListener = await listenForDeepLinks((payload) => {
+        void handleDeepLinkPayloadRef.current(payload);
       });
       if (cancelled) {
         removeListener();
@@ -3503,7 +3509,7 @@ function App() {
               : debouncedQuery.trim()
                 ? searchItems(debouncedQuery)
                 : listActiveItems();
-        const activeJobsPromise = canUseTauriBackend
+        const activeJobsPromise = canUseDesktopBackend
           ? countActiveJobs().catch(() => null)
           : Promise.resolve(null);
         const [storedItems, activeJobs] = await Promise.all([
@@ -3552,7 +3558,7 @@ function App() {
     loadItemsRef.current = loadItems;
     let coalesceTimer = 0;
     let removeJobListener: (() => void) | null = null;
-    void listen<{ itemId: string }>("inkling://job-updated", () => {
+    void listenForJobUpdates(() => {
       window.clearTimeout(coalesceTimer);
       coalesceTimer = window.setTimeout(() => loadItemsRef.current(), 400);
     })
@@ -3576,7 +3582,13 @@ function App() {
       window.clearInterval(refreshTimer);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [debouncedQuery, similaritySourceId, similaritySourceKind, activeSpaceId, canUseTauriBackend]);
+  }, [
+    debouncedQuery,
+    similaritySourceId,
+    similaritySourceKind,
+    activeSpaceId,
+    canUseDesktopBackend,
+  ]);
 
   useEffect(() => {
     if (!isSettingsOpen || shouldUseSeedLibrary()) return;
@@ -3657,7 +3669,7 @@ function App() {
     return items.filter((item) => {
       const matchesQuery = !normalizedQuery
         ? true
-        : canUseTauriBackend || similaritySource || activeSpace
+        : canUseDesktopBackend || similaritySource || activeSpace
           ? true
           : [item.title, item.description, item.source, item.kind, ...item.tags]
               .join(" ")
@@ -3667,7 +3679,7 @@ function App() {
         activeView === "Everything" ||
         (activeView === "Top of mind" && matchesPinsView(item)) ||
         (activeSpace
-          ? canUseTauriBackend
+          ? canUseDesktopBackend
             ? true
             : activeSpace.kind === "regular"
               ? // Mirror of the core's membership read for browser (seed) mode.
@@ -3679,7 +3691,7 @@ function App() {
   }, [
     activeSpace,
     activeView,
-    canUseTauriBackend,
+    canUseDesktopBackend,
     isSerendipityView,
     items,
     localSpaceItems,
@@ -3837,7 +3849,7 @@ function App() {
       const pending: PendingPermanentDelete = { timer: 0, item };
       pending.timer = window.setTimeout(() => {
         pendingPermanentDeletesRef.current.delete(id);
-        if (!canUseTauriBackend) return;
+        if (!canUseDesktopBackend) return;
         void deleteItem(id)
           .then(() => {
             // The row is still in the database during the undo window, so a reload
@@ -3858,7 +3870,7 @@ function App() {
       pendingPermanentDeletesRef.current.set(id, pending);
       return pending;
     },
-    [canUseTauriBackend, restoreArchivedItems],
+    [canUseDesktopBackend, restoreArchivedItems],
   );
 
   const undoPermanentDelete = useCallback(
@@ -3935,7 +3947,7 @@ function App() {
       // batched call instead of one round trip per restored item.
       const results = await Promise.allSettled(
         selectedItems.map(async (item) => {
-          if (!canUseTauriBackend) return null;
+          if (!canUseDesktopBackend) return null;
           // A restore un-archives the row, so cancel any scheduled permanent
           // delete for it before the timer can fire and destroy its assets.
           const pending = pendingPermanentDeletesRef.current.get(String(item.id));
@@ -3951,7 +3963,7 @@ function App() {
       // items are still restored; only their processing badges fall back.
       let summaries = new Map<string, ProcessingSummary>();
       try {
-        if (canUseTauriBackend && restoredStored.length > 0) {
+        if (canUseDesktopBackend && restoredStored.length > 0) {
           summaries = await getProcessingSummaries(
             restoredStored.map((storedItem) => storedItem.id),
           );
@@ -3970,7 +3982,7 @@ function App() {
         result.status === "fulfilled" ? [result.value] : [],
       );
       const restoredItems: LibraryItem[] = [
-        ...selectedItems.filter(() => !canUseTauriBackend),
+        ...selectedItems.filter(() => !canUseDesktopBackend),
         ...converted,
       ];
       const restoredIds = new Set(restoredItems.map((item) => String(item.id)));
@@ -3994,7 +4006,7 @@ function App() {
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
     }
-  }, [archivedItems, cancelPermanentDelete, selectedArchivedIds, canUseTauriBackend]);
+  }, [archivedItems, cancelPermanentDelete, selectedArchivedIds, canUseDesktopBackend]);
 
   const deleteSelectedArchivedItems = useCallback(() => {
     const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
@@ -4095,7 +4107,7 @@ function App() {
   // notification pastille; errors drop to idle so the sad face can show
   // (drift carries its own fixed face). Error beats busyness beats attention.
   const isMascotBusy =
-    canUseTauriBackend && activeJobCount !== null
+    canUseDesktopBackend && activeJobCount !== null
       ? activeJobCount > 0
       : items.some((item) => item.processing?.active);
   // `captureError` is the shared error channel for the whole app, so it cannot
@@ -4221,11 +4233,12 @@ function App() {
     <MotionConfig reducedMotion="user">
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Drag and drop is an optional capture path; Add, paste, and extension capture remain keyboard-accessible. */}
       <div
-        className={`app-shell ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`}
+        className={`app-shell ${isElectronRuntime() ? "electron-shell" : ""} ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        <ElectronWindowControls />
         <AnimatePresence>
           {isSidebarOpen && (
             <motion.button
@@ -4244,7 +4257,7 @@ function App() {
         {shouldUseSeedLibrary() && (
           <div
             data-testid="web-preview-badge"
-            title="Web preview shows deterministic sample data. No Tauri backend is connected."
+            title="Web preview shows deterministic sample data. No desktop backend is connected."
             style={{
               position: "fixed",
               top: 12,
@@ -5343,7 +5356,9 @@ function App() {
                         <button
                           type="button"
                           className={`settings-data-button ${isExportingLibrary ? "is-busy" : ""}`}
-                          disabled={!canUseTauriBackend || isExportingLibrary || isImportingLibrary}
+                          disabled={
+                            !canUseTauriFolderPicker || isExportingLibrary || isImportingLibrary
+                          }
                           onClick={() => void exportLibraryToFolder()}
                         >
                           <HugeiconsIcon
@@ -5354,8 +5369,12 @@ function App() {
                             {isExportingLibrary ? "Exporting…" : "Choose folder and export"}
                           </span>
                         </button>
-                        {!canUseTauriBackend ? (
-                          <p className="settings-data-hint">Export runs in the desktop app.</p>
+                        {!canUseTauriFolderPicker ? (
+                          <p className="settings-data-hint">
+                            {isElectronRuntime()
+                              ? "Folder export is not implemented in Electron yet."
+                              : "Export runs in the desktop app."}
+                          </p>
                         ) : null}
                         {lastExport ? (
                           <div className="settings-data-result" role="status" aria-live="polite">
@@ -5378,7 +5397,9 @@ function App() {
                         <button
                           type="button"
                           className={`settings-data-button ${isImportingLibrary ? "is-busy" : ""}`}
-                          disabled={!canUseTauriBackend || isExportingLibrary || isImportingLibrary}
+                          disabled={
+                            !canUseTauriFolderPicker || isExportingLibrary || isImportingLibrary
+                          }
                           onClick={() => void importLibraryFromFolder()}
                         >
                           <HugeiconsIcon
@@ -5389,8 +5410,12 @@ function App() {
                             {isImportingLibrary ? "Restoring…" : "Choose export and restore"}
                           </span>
                         </button>
-                        {!canUseTauriBackend ? (
-                          <p className="settings-data-hint">Restore runs in the desktop app.</p>
+                        {!canUseTauriFolderPicker ? (
+                          <p className="settings-data-hint">
+                            {isElectronRuntime()
+                              ? "Folder restore is not implemented in Electron yet."
+                              : "Restore runs in the desktop app."}
+                          </p>
                         ) : null}
                         {lastImport ? (
                           <div className="settings-data-result" role="status" aria-live="polite">

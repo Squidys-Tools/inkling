@@ -1,5 +1,8 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { listen as tauriListen } from "@tauri-apps/api/event";
 import { createAssetUrlResolver } from "./assetUrlCache";
+import { parseDeepLinkCapture, validateDeepLinkCapture } from "./deepLink";
+import type { DeepLinkCapture } from "./deepLink";
 
 type StoredItemKind = "note" | "article" | "image" | "pdf" | "video" | "file" | "embed";
 
@@ -180,6 +183,25 @@ export function isTauriRuntime() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
+export function isElectronRuntime() {
+  return typeof window !== "undefined" && Boolean(window.inkling);
+}
+
+export function isDesktopRuntime() {
+  return isTauriRuntime() || isElectronRuntime();
+}
+
+function invoke<T>(command: string, args?: Record<string, unknown>) {
+  const commands = typeof window === "undefined" ? undefined : window.inkling?.commands;
+  if (!commands) return tauriInvoke<T>(command, args);
+
+  const handler = commands[command as keyof typeof commands];
+  if (typeof handler !== "function") {
+    return Promise.reject(new Error(`The Electron command "${command}" is not available.`));
+  }
+  return handler(args) as Promise<T>;
+}
+
 export function checkForUpdates() {
   return invoke<AvailableUpdate | null>("check_for_updates");
 }
@@ -197,7 +219,7 @@ type StorageStatus = {
 let storageInitialization: Promise<StorageStatus | null> | undefined;
 
 export async function initializeStorage() {
-  if (!isTauriRuntime()) return null;
+  if (!isDesktopRuntime()) return null;
   storageInitialization ??= invoke<StorageStatus>("initialize_storage").catch((error: unknown) => {
     storageInitialization = undefined;
     throw error;
@@ -234,7 +256,7 @@ export async function searchSimilarItems(itemId: string, kind: "image" | "text")
 }
 
 export async function listSpaces() {
-  if (!isTauriRuntime()) return [] satisfies StoredSpace[];
+  if (!isDesktopRuntime()) return [] satisfies StoredSpace[];
   return withInitializedStorage(() => invoke<StoredSpace[]>("list_spaces"));
 }
 
@@ -299,7 +321,7 @@ const resolveAssetUrl = createAssetUrlResolver(async (path) => {
 
 export async function assetUrl(path: string | null) {
   if (!path) return undefined;
-  if (!isTauriRuntime()) return path;
+  if (!isDesktopRuntime()) return path;
   return resolveAssetUrl(path);
 }
 
@@ -401,6 +423,29 @@ export async function regeneratePairingToken() {
 }
 
 export async function currentDeepLinks() {
-  if (!isTauriRuntime()) return [] satisfies string[];
-  return invoke<string[] | null>("plugin:deep-link|get_current");
+  if (!isDesktopRuntime()) return [] satisfies DeepLinkCapture[];
+  const links = await invoke<Array<string | DeepLinkCapture> | null>(
+    "plugin:deep-link|get_current",
+  );
+  return (links ?? [])
+    .map((link) =>
+      typeof link === "string" ? parseDeepLinkCapture(link) : validateDeepLinkCapture(link),
+    )
+    .filter((link): link is DeepLinkCapture => link !== null);
+}
+
+export function listenForDeepLinks(handler: (payload: unknown) => void) {
+  if (typeof window !== "undefined" && window.inkling) {
+    return window.inkling.onDeepLink(handler);
+  }
+  return tauriListen<string[]>("deep-link://new-url", ({ payload }) => handler(payload));
+}
+
+export function listenForJobUpdates(handler: (payload: { itemId: string }) => void) {
+  if (typeof window !== "undefined" && window.inkling) {
+    return Promise.resolve(window.inkling.onJobUpdated(handler));
+  }
+  return tauriListen<{ itemId: string }>("inkling://job-updated", ({ payload }) =>
+    handler(payload),
+  );
 }

@@ -74,6 +74,43 @@ a:focus-visible,
   overflow: hidden;
   background: var(--paper);
 }
+.electron-shell::before {
+  content: "";
+  position: fixed;
+  z-index: 180;
+  inset: 0 138px auto 0;
+  height: var(--titlebar-height);
+  -webkit-app-region: drag;
+}
+.electron-window-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  height: var(--titlebar-height);
+  -webkit-app-region: no-drag;
+}
+.electron-window-controls button {
+  display: grid;
+  width: 46px;
+  height: var(--titlebar-height);
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: default;
+  font-size: 15px;
+  -webkit-app-region: no-drag;
+}
+.electron-window-controls button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+.electron-window-controls .electron-window-close:hover {
+  background: #c42b1c;
+  color: #fff8ee;
+}
 .sidebar {
   top: 0;
   z-index: 30;
