@@ -1992,10 +1992,18 @@ a:focus-visible,
   opacity: 0.42;
 }
 .settings-batch-delete {
-  color: var(--orange);
+  background: var(--orange-soft);
+  color: #b97955;
 }
 .settings-batch-delete:hover:not(:disabled) {
   border-color: var(--orange);
+}
+.settings-extension-action {
+  background: var(--surface-strong);
+}
+.settings-extension-action:disabled {
+  color: var(--muted);
+  opacity: 1;
 }
 .settings-select-button.is-active,
 .settings-data-button.is-primary {
@@ -2695,7 +2703,7 @@ a:focus-visible,
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  color: var(--ink);
+  color: #3f3a33;
   font:
     700 14px "Libre Baskerville",
     Georgia,
@@ -2720,7 +2728,7 @@ a:focus-visible,
 }
 .pdf-viewer-zoom {
   min-width: 74px;
-  color: var(--muted);
+  color: #68625d;
   font: 11px var(--font-ui);
   text-align: center;
 }
@@ -2728,7 +2736,7 @@ a:focus-visible,
   display: flex;
   align-items: center;
   gap: 5px;
-  color: var(--muted);
+  color: #68625d;
   font: 11px var(--font-ui);
 }
 .pdf-viewer-page input {
@@ -2752,6 +2760,7 @@ a:focus-visible,
 }
 .pdf-viewer-group .text-button {
   margin-left: 2px;
+  color: #985a3d;
   font-size: 11px;
 }
 .pdf-viewer-body {
@@ -2781,7 +2790,7 @@ a:focus-visible,
   font: 12px var(--font-ui);
 }
 .pdf-viewer-status.failed {
-  color: #a4472e;
+  color: #c6755a;
 }
 .pdf-viewer-status > svg {
   animation: spin 1.2s linear infinite;
@@ -2809,24 +2818,24 @@ a:focus-visible,
 }
 .post-author small {
   grid-column: 1 / -1;
-  color: #6b8589;
+  color: #596f72;
   font: 10px var(--font-ui);
 }
 .post-author > svg {
   margin-left: auto;
-  color: #6b8589;
+  color: #596f72;
 }
 .post-date {
   padding-top: 10px;
   border-top: 1px solid rgba(36, 61, 66, 0.16);
-  color: #6b8589;
+  color: #596f72;
   font: 10px var(--font-ui);
 }
 .post-actions {
   display: flex;
   gap: 17px;
   margin-top: 13px;
-  color: #6b8589;
+  color: #596f72;
 }
 .list-mode .post-art {
   min-height: 155px;
