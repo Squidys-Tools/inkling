@@ -99,26 +99,3 @@ export function extractPdf(filePath: string): PdfExtraction {
     embeddedImages,
   };
 }
-
-/**
- * Extracts the bytes of the first `/DCTDecode` (JPEG) image stream in a PDF.
- * The benchmark generator embeds raw JPEG files verbatim, so the stream bytes
- * are a complete JPEG. Returns null if there is no DCTDecode image.
- */
-export function extractFirstEmbeddedJpeg(filePath: string): Buffer | null {
-  const latin1 = readFileSync(filePath).toString("latin1");
-  const marker = latin1.indexOf("/DCTDecode");
-  if (marker === -1) return null;
-
-  const tail = latin1.slice(marker);
-  const lenMatch = /\/Length\s+(\d+)\b/.exec(tail);
-  if (!lenMatch) return null;
-  const length = parseInt(lenMatch[1], 10);
-
-  const streamIdx = tail.indexOf("\nstream\n");
-  if (streamIdx === -1) return null;
-  const start = marker + streamIdx + "\nstream\n".length;
-  if (start + length > latin1.length) return null;
-
-  return Buffer.from(latin1.slice(start, start + length), "latin1");
-}
