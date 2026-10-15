@@ -135,6 +135,30 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
   expect(library.listActiveItems().map((item) => item.id)).toContain(note.id);
 });
 
+test("metadata patches preserve fields added after a URL was captured", () => {
+  const { library } = temporaryLibrary();
+  const item = library.createUrl({
+    sourceUrl: "https://example.com/article",
+    title: "Captured title",
+    description: "",
+    body: "",
+    metadata: { captureSource: "browser extension", text: "" },
+  });
+  library.updateItem({ id: item.id, addTag: "reading" });
+
+  const enriched = library.updateItem({
+    id: item.id,
+    metadataPatch: { text: "Extracted article text", extractedText: "Extracted article text" },
+  });
+
+  expect(enriched.metadata).toMatchObject({
+    captureSource: "browser extension",
+    tags: ["reading"],
+    text: "Extracted article text",
+    extractedText: "Extracted article text",
+  });
+});
+
 test("Smart Space predicates are applied before the result limit", () => {
   const { library } = temporaryLibrary();
   const insert = library.db.prepare(`INSERT INTO items

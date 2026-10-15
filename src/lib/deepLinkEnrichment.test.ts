@@ -46,7 +46,7 @@ describe("enrichDeepLinkCapture", () => {
           description?: string;
           body?: string;
           sourceUrl?: string;
-          metadata?: Record<string, unknown>;
+          metadataPatch?: Record<string, unknown>;
         }
       | undefined;
     const enriched = await enrichDeepLinkCapture(storedItem, "Extension title", {
@@ -66,8 +66,8 @@ describe("enrichDeepLinkCapture", () => {
       description: "Extracted description",
       body: "Article text",
       sourceUrl: "https://example.com/article",
-      metadata: {
-        captureSource: "browser extension",
+      metadataPatch: {
+        sourceUrl: "https://example.com/article",
         text: "Article text",
         extractedText: "Article text",
         imageUrls: ["https://example.com/image.jpg"],

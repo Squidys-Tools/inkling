@@ -2798,6 +2798,9 @@ function App() {
               item.id === enrichedLibraryItem.id ? enrichedLibraryItem : item,
             ),
           );
+          setSelectedItem((current) =>
+            current?.id === enrichedLibraryItem.id ? enrichedLibraryItem : current,
+          );
         })
         .catch(() => {});
     } catch (error) {

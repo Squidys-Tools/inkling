@@ -67,6 +67,7 @@ type UpdateItemInput = {
   localAssetPath?: string;
   thumbnailPath?: string;
   metadata?: StoredLibraryItem["metadata"];
+  metadataPatch?: StoredLibraryItem["metadata"];
   favorite?: boolean;
   addTag?: string;
 };

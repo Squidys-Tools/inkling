@@ -26,8 +26,7 @@ export async function enrichDeepLinkCapture(
       body: article.text,
       sourceUrl: article.canonicalUrl,
       sourceLabel: new URL(article.canonicalUrl).hostname,
-      metadata: {
-        ...item.metadata,
+      metadataPatch: {
         sourceUrl: article.canonicalUrl,
         text: article.text,
         extractedText: article.text,
@@ -38,7 +37,7 @@ export async function enrichDeepLinkCapture(
         imageDimensions: article.imageDimensions,
         safeEmbeds: article.safeEmbeds,
         extractor: article.extractor,
-        social: article.social,
+        ...(article.social ? { social: article.social } : {}),
       },
     });
   } catch {
