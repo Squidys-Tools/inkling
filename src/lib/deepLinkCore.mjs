@@ -76,5 +76,6 @@ export function parseDeepLinkCaptureCore(value) {
     };
   }
 
-  return { kind: "url", url };
+  const title = [...(parsed.searchParams.get("title")?.trim() ?? "")].slice(0, 500).join("");
+  return title ? { kind: "url", url, title } : { kind: "url", url };
 }

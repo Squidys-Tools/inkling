@@ -64,7 +64,6 @@ import {
   createNote,
   deleteSpace,
   initializeStorage,
-  isTauriRuntime,
   installUpdate,
   listActiveItems,
   listArchivedItems,
@@ -1290,13 +1289,13 @@ function ExtensionPairing() {
   const [isTesting, setIsTesting] = useState(false);
 
   useEffect(() => {
-    if (!isTauriRuntime()) return;
+    if (!isDesktopRuntime()) return;
     void getCaptureStatus()
       .then(setStatus)
       .catch(() => setStatus(null));
   }, []);
 
-  if (!isTauriRuntime()) {
+  if (!isDesktopRuntime()) {
     return (
       <div className="settings-empty-state">
         <div className="settings-empty-icon">
@@ -2768,6 +2767,31 @@ function App() {
     }
   }
 
+  async function captureDeepLinkUrl(sourceUrl: string, title: string | undefined) {
+    if (!isElectronRuntime()) {
+      await captureArticle(sourceUrl, "browser extension");
+      return;
+    }
+
+    setCaptureError(null);
+    setIsCapturing(true);
+    try {
+      const storedItem = await createUrl({
+        sourceUrl,
+        title: title || new URL(sourceUrl).hostname,
+        description: "",
+        body: "",
+        metadata: { captureSource: "browser extension" },
+      });
+      const libraryItem = await storedItemToLibraryItem(storedItem);
+      setItems((current) => [libraryItem, ...current]);
+    } catch (error) {
+      failCapture(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsCapturing(false);
+    }
+  }
+
   async function captureText(text: string, captureSource: string) {
     setCaptureError(null);
     setIsCapturing(true);
@@ -2947,7 +2971,7 @@ function App() {
       } else if (capture.kind === "image") {
         await captureImageUrl(capture.pageUrl, capture.imageUrl, "browser extension");
       } else {
-        await captureArticle(capture.url, "browser extension");
+        await captureDeepLinkUrl(capture.url, capture.title);
       }
     }
   }

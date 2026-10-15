@@ -26,6 +26,18 @@ describe("parseDeepLinkCapture", () => {
     });
   });
 
+  test("preserves the extension fallback title for immediate desktop capture", () => {
+    expect(
+      parseDeepLinkCapture(
+        "inkling://capture?url=https%3A%2F%2Fexample.com%2F&title=Captured%20title&via=extension",
+      ),
+    ).toEqual({
+      kind: "url",
+      url: "https://example.com/",
+      title: "Captured title",
+    });
+  });
+
   test("image param captures an image with alt text", () => {
     expect(
       parseDeepLinkCapture(
