@@ -29,3 +29,4 @@ Index of project documentation. Product docs describe what inkling is; operation
 - User-facing how-tos: `docs/` next to the product docs above.
 - Maintainer procedures (setup, checks, release): `docs/operations/`.
 - Architecture decisions and constraints: alongside `tech-stack.md` or the relevant product doc — not in a separate internals tree until the repo outgrows this index.
+<!-- preview:win artifact rebuild -->
