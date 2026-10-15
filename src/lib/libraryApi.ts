@@ -321,7 +321,16 @@ const resolveAssetUrl = createAssetUrlResolver(async (path) => {
 
 export async function assetUrl(path: string | null) {
   if (!path) return undefined;
-  // Electron's storage adapter will use app://, not Tauri's file URL converter.
+  if (isElectronRuntime()) {
+    const relativePath = path.replace(/\\/g, "/");
+    if (!relativePath.startsWith("assets/")) return undefined;
+    const encodedPath = relativePath
+      .slice("assets/".length)
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/");
+    return `app://local/library-assets/${encodedPath}`;
+  }
   if (!isTauriRuntime()) return path;
   return resolveAssetUrl(path);
 }
@@ -349,8 +358,7 @@ export type LibraryExportReport = {
   assetsBytes: number;
 };
 
-// Desktop only: the export needs the native folder picker and the Rust core
-// that owns the database.
+// Desktop only: the export needs a native folder picker and storage backend.
 export async function exportLibrary(destination: string) {
   // The core has no timezone database, so the folder name gets its wall clock
   // from here: the browser's own offset at export time.
@@ -358,6 +366,18 @@ export async function exportLibrary(destination: string) {
     destination,
     timezoneOffsetMinutes: new Date().getTimezoneOffset(),
   });
+}
+
+export async function selectLibraryDirectory(title: string) {
+  if (isTauriRuntime()) {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selection = await open({ directory: true, multiple: false, title });
+    return typeof selection === "string" ? selection : null;
+  }
+  if (isElectronRuntime()) {
+    return invoke<string | null>("select_library_directory", { title });
+  }
+  return null;
 }
 
 export type LibraryImportReport = {
