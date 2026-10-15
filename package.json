@@ -23,7 +23,8 @@
     "preview": "vite preview",
     "preview:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native-preview.ps1",
     "electron:dev": "vite build --mode electron-preview && electron . --preview",
-    "electron:build:dir": "bun run build:app && electron-builder --dir",
+    "electron:build:dir": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --dir",
+    "electron:build:nsis": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --win nsis",
     "provision:ort": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/provision-onnxruntime.ps1",
     "tauri": "tauri",
     "ingest:smoke": "bun src/lib/ingestion/ingestion.smoke.ts",
@@ -51,6 +52,7 @@
     "@tiptap/starter-kit": "3.31.4",
     "@virtuoso.dev/masonry": "^1.4.3",
     "defuddle": "^0.19.5",
+    "electron-updater": "6.8.9",
     "gsap": "^3.15.0",
     "linkedom": "^0.18.13",
     "motion": "^14.1.0",
@@ -82,6 +84,15 @@
     "directories": {
       "output": ".artifacts/electron"
     },
+    "extraResources": [
+      {
+        "from": ".artifacts/electron-resources/models",
+        "to": "models",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "files": [
       "dist/**/*",
       "electron/**/*",
@@ -93,7 +104,19 @@
       "**/tesseract.js/**/*",
       "**/tesseract.js-core/**/*",
       "**/@tesseract.js-data/eng/**/*",
-      "**/onnxruntime-node/bin/**/*"
+      "**/onnxruntime-node/bin/**/*",
+      "**/@img/sharp-*/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://github.com/squidys-tools/inkling/releases/latest/download/"
+      }
     ],
     "protocols": [
       {

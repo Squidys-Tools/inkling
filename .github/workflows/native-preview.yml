@@ -27,6 +27,7 @@ jobs:
       pull-requests: read
     outputs:
       relevant: ${{ steps.filter.outputs.relevant }}
+      electron: ${{ steps.filter.outputs.electron }}
     steps:
       - name: Check out pull request head
         uses: actions/checkout@v7
@@ -51,9 +52,16 @@ jobs:
               - '!AGENTS.md'
               - '!public/seed-demo/**'
               - '!src/seedPersonal.ts'
+            electron:
+              - 'electron/**'
+              - 'package.json'
+              - 'bun.lock'
+              - '.github/workflows/native-preview.yml'
+              - 'scripts/prepare-electron-models.mjs'
+              - 'src-tauri/model-manifest.json'
 
   build:
-    name: Build portable Windows preview
+    name: Build portable Windows preview and installer
     needs: changes
     if: >-
       needs.changes.outputs.relevant == 'true' &&
@@ -69,6 +77,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
+      - name: Cache pinned native preview assets
+        uses: actions/cache@v4
+        with:
+          path: .artifacts/native-preview-cache
+          key: inkling-native-preview-win-${{ hashFiles('src-tauri/model-manifest.json', 'scripts/native-preview-runtime.json') }}
+          restore-keys: inkling-native-preview-win-
+
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -83,6 +98,9 @@ jobs:
       - name: Build portable preview
         run: bun run preview:win
 
+      - name: Build Electron NSIS installer
+        run: bun run electron:build:nsis
+
       - name: Upload portable preview
         id: artifact
         uses: actions/upload-artifact@v7
@@ -92,10 +110,23 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+      - name: Upload Electron installer
+        id: installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: inkling-installer-win-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: |
+            .artifacts/electron/*.exe
+            .artifacts/electron/*.blockmap
+            .artifacts/electron/latest.yml
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Comment artifact link
         uses: actions/github-script@v9
         env:
-          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+          PREVIEW_URL: ${{ steps.artifact.outputs.artifact-url }}
+          INSTALLER_URL: ${{ steps.installer.outputs.artifact-url }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
@@ -105,11 +136,12 @@ jobs:
               marker,
               "### Inkling Windows preview",
               "",
-              `[Download the portable folder](${process.env.ARTIFACT_URL})` +
+              `[Download the portable folder](${process.env.PREVIEW_URL})` +
                 ` (for \`${process.env.HEAD_SHA.slice(0, 7)}\`)`,
+              `[Download the Electron NSIS installer](${process.env.INSTALLER_URL})`,
               "",
               `[Build details](${process.env.RUN_URL}) · Add the \`preview:win\` label to refresh it.`,
-              "The folder includes the pinned embedding models and stores review data under its own `data\\` directory.",
+              "The portable folder includes pinned embedding models and stores review data under its own `data\\` directory. The installer is an unsigned Electron build and may trigger a SmartScreen warning.",
             ].join("\n");
 
             const { data: comments } = await github.rest.issues.listComments({
@@ -136,3 +168,88 @@ jobs:
                 body,
               });
             }
+
+  build-linux:
+    name: Build and smoke-test Linux Electron directory
+    needs: changes
+    if: >-
+      needs.changes.outputs.electron == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out pull request head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Cache pinned embedding models
+        uses: actions/cache@v4
+        with:
+          path: .artifacts/native-preview-cache/models
+          key: inkling-electron-models-linux-${{ hashFiles('src-tauri/model-manifest.json') }}
+          restore-keys: inkling-electron-models-linux-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Check the updater and packaging logic
+        run: bun test electron/updater.test.ts
+
+      - name: Build Electron directory
+        run: bun run electron:build:dir
+
+      - name: Install X11 window probe
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y xdotool
+
+      - name: Launch the packaged app under Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$GITHUB_WORKSPACE/.artifacts/electron/linux-unpacked/inkling"
+          data_dir="$(mktemp -d)"
+          log_file="$RUNNER_TEMP/inkling-electron-smoke.log"
+          xvfb-run -a bash -c '
+            set -euo pipefail
+            app="$1"
+            data_dir="$2"
+            log_file="$3"
+            "$app" --no-sandbox --disable-gpu --user-data-dir "$data_dir" >"$log_file" 2>&1 &
+            app_pid=$!
+            cleanup() {
+              if kill -0 "$app_pid" 2>/dev/null; then
+                kill -TERM "$app_pid"
+                wait "$app_pid" || true
+              fi
+              rm -rf "$data_dir"
+            }
+            trap cleanup EXIT
+            for attempt in $(seq 1 60); do
+              window_id="$(xdotool search --onlyvisible --name "^inkling$" 2>/dev/null | head -n 1 || true)"
+              if [ -n "$window_id" ]; then
+                echo "Packaged Electron window opened under Xvfb."
+                exit 0
+              fi
+              if ! kill -0 "$app_pid" 2>/dev/null; then
+                cat "$log_file"
+                exit 1
+              fi
+              sleep 0.5
+            done
+            cat "$log_file"
+            exit 1
+          ' _ "$app" "$data_dir" "$log_file"
+
+      - name: Upload Linux Electron directory
+        uses: actions/upload-artifact@v7
+        with:
+          name: inkling-electron-dir-linux-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: .artifacts/electron/linux-unpacked
+          if-no-files-found: error
+          retention-days: 3
