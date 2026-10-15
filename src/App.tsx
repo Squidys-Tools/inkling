@@ -112,6 +112,7 @@ import { AnimatedCount } from "./components/AnimatedCount";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
+import { keepTabFocusInside } from "./lib/accessibilityFocus";
 import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
 import { providerLabel, videoLinkFromSourceUrl } from "./lib/ingestion/video-links";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
@@ -981,6 +982,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
     <div className="library-card-slot" data-library-index={index}>
       <article
         className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : (item.accent ?? "")} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? "archive-card-selected" : ""}`}
+        aria-label={`Open details for ${item.title}`}
         data-library-item-id={String(item.id)}
         style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
         onClick={handleCardSelect}
@@ -1376,7 +1378,7 @@ function ExtensionPairing() {
         </span>
         <button
           type="button"
-          className="settings-batch-button"
+          className="settings-batch-button settings-extension-action"
           disabled={!status?.healthUrl || isTesting}
           onClick={testConnection}
         >
@@ -1405,12 +1407,16 @@ function ExtensionPairing() {
         >
           {isRevealed && token ? token : "••••••••••••••••••••••••"}
         </code>
-        <button type="button" className="settings-batch-button" onClick={revealToken}>
+        <button
+          type="button"
+          className="settings-batch-button settings-extension-action"
+          onClick={revealToken}
+        >
           {isRevealed ? "Hide" : "Reveal"}
         </button>
         <button
           type="button"
-          className="settings-batch-button"
+          className="settings-batch-button settings-extension-action"
           disabled={!isRevealed || !token}
           onClick={copyToken}
         >
@@ -1439,29 +1445,6 @@ function rememberNoteBody(cache: Map<string, string>, id: string, body: string) 
     if (oldest.value !== undefined) cache.delete(oldest.value);
   }
   cache.set(id, body);
-}
-
-function keepTabFocusInside(event: KeyboardEvent, dialog: HTMLElement) {
-  if (event.key !== "Tab") return;
-  const focusable = Array.from(
-    dialog.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), a[href], input:not([disabled]):not([type="file"]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((element) => element.getClientRects().length > 0);
-  if (focusable.length === 0) {
-    event.preventDefault();
-    dialog.focus();
-    return;
-  }
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
 }
 
 function App() {
@@ -5275,7 +5258,7 @@ function App() {
               >
                 <aside className="settings-modal-sidebar" aria-label="Settings sections">
                   <header className="settings-sidebar-header">
-                    <h2>Settings</h2>
+                    <h2 id="settings-modal-title">Settings</h2>
                   </header>
                   <div className="settings-sidebar-content">
                     <button
