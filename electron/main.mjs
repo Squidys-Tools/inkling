@@ -409,6 +409,13 @@ if (!hasSingleInstanceLock) {
           );
         }
         try {
+          await aiJobProcessors?.close();
+        } catch (error) {
+          console.error(
+            `background jobs shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        try {
           libraryStorage?.db.close();
         } catch (error) {
           console.error(
@@ -418,22 +425,6 @@ if (!hasSingleInstanceLock) {
         quitDrainComplete = true;
         app.quit();
       })();
-    let cleanupStarted = false;
-    app.on("before-quit", (event) => {
-      if (cleanupStarted) return;
-      event.preventDefault();
-      cleanupStarted = true;
-      void (async () => {
-        try {
-          await jobWorker?.stop();
-          await aiJobProcessors?.close();
-        } finally {
-          libraryStorage?.db.close();
-          app.quit();
-        }
-      })().catch((error) => {
-        console.error("Cannot cleanly stop background jobs:", error);
-      });
     });
   });
 }
