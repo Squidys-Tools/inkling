@@ -1,8 +1,6 @@
 /**
- * Minimal ambient types for the optional tesseract.js OCR engine.
- * tesseract.js is intentionally not installed by default (the harness uses
- * the zero-install Windows.Media.Ocr engine when available); these types keep
- * the harness typecheckable without forcing the heavy dependency.
+ * Minimal ambient result types for the bundled Tesseract.js OCR engine.
+ * These keep the benchmark typecheckable without exposing the full worker API.
  */
 declare module "tesseract.js" {
   export interface TesseractResult {

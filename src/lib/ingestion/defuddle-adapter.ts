@@ -1,5 +1,6 @@
 import Defuddle from "defuddle";
 import type { DefuddleResponse } from "defuddle";
+import { extractDocumentAuthor } from "./fallback";
 import { hasReadableText } from "./html-safety";
 import { extractJsonLdMetadata } from "./json-ld";
 import { normalizeHttpUrl, normalizePublishedDate, normalizeText, uniqueStrings } from "./url";
@@ -33,7 +34,10 @@ export class DefaultDefuddleAdapter implements DefuddleAdapter {
     return {
       title: normalizeText(result.title) || structured.title,
       description: normalizeText(result.description) || structured.description,
-      author: normalizeText(result.author) || structured.author,
+      author:
+        normalizeText(structured.author) ||
+        normalizeText(extractDocumentAuthor(document)) ||
+        normalizeText(result.author),
       publishedDate: normalizePublishedDate(result.published ?? structured.publishedDate ?? null),
       canonicalUrl: canonicalUrl ?? undefined,
       contentHtml: hasReadableText(result.content) ? result.content : "",

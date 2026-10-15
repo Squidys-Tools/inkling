@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { personalSeedItems } from "../src/seedPersonal";
+import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
 import {
   JobQueue,
   JobWorker,
@@ -108,12 +109,12 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
 
   library.db
     .prepare(`INSERT INTO item_embeddings (item_id, kind, model, dimension, vector, created_at)
-    VALUES (?, 'image', 'nomic-embed-vision-v1.5', 2, ?, 1)`)
-    .run("me-fuji-night", vector([1, 0]));
+    VALUES (?, 'image', ?, 2, ?, 1)`)
+    .run("me-fuji-night", IMAGE_MODEL, vector([1, 0]));
   library.db
     .prepare(`INSERT INTO item_embeddings (item_id, kind, model, dimension, vector, created_at)
-    VALUES (?, 'image', 'nomic-embed-vision-v1.5', 2, ?, 1)`)
-    .run("me-lanterns", vector([0.8, 0.2]));
+    VALUES (?, 'image', ?, 2, ?, 1)`)
+    .run("me-lanterns", IMAGE_MODEL, vector([0.8, 0.2]));
   expect(library.searchSimilar("me-fuji-night", "image").map((item) => item.id)).toEqual([
     "me-lanterns",
   ]);
@@ -133,6 +134,58 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
   expect(library.listArchivedItems().map((item) => item.id)).toContain(note.id);
   library.archiveItem(note.id, false);
   expect(library.listActiveItems().map((item) => item.id)).toContain(note.id);
+});
+
+test("free-text search hybrid-ranks lexical and Nomic semantic matches", () => {
+  const { library } = temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items
+    (id, kind, title, metadata, created_at, updated_at) VALUES (?, ?, ?, '{}', ?, ?)`);
+  insert.run("lexical-match", "note", "violet galaxy", 1, 30);
+  insert.run("semantic-text", "note", "night sky", 2, 20);
+  insert.run("semantic-image", "image", "distant sun", 3, 10);
+  insert.run("negative-match", "note", "antipodal", 4, 5);
+  insert.run("legacy-image", "image", "old image vector", 5, 4);
+  insert.run("archived-match", "note", "archived stars", 6, 3);
+
+  library.storeEmbedding("lexical-match", "text", TEXT_MODEL, vector([0, 1]), 2);
+  library.storeEmbedding("semantic-text", "text", TEXT_MODEL, vector([0.8, 0.6]), 2);
+  library.storeEmbedding("semantic-image", "image", IMAGE_MODEL, vector([0.9, Math.sqrt(0.19)]), 2);
+  library.storeEmbedding("negative-match", "text", TEXT_MODEL, vector([-1, 0]), 2);
+  library.storeEmbedding("legacy-image", "image", "nomic-embed-vision-v1.5", vector([1, 0]), 2);
+  library.storeEmbedding("archived-match", "text", TEXT_MODEL, vector([1, 0]), 2);
+  library.archiveItem("archived-match");
+
+  const queryVector = Float32Array.from([1, 0]);
+  expect(library.searchItems("violet galaxy", 20, queryVector).map((item) => item.id)).toEqual([
+    "lexical-match",
+    "semantic-image",
+    "semantic-text",
+  ]);
+  expect(library.searchItems("quiet telescope", 20, queryVector).map((item) => item.id)).toEqual([
+    "semantic-image",
+    "semantic-text",
+  ]);
+});
+
+test("Smart Spaces apply saved filters to hybrid text-search candidates", () => {
+  const { library } = temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items
+    (id, kind, title, metadata, created_at, updated_at) VALUES (?, 'note', ?, ?, ?, ?)`);
+  insert.run("space-lexical", "quiet telescope", '{"tags":["misc"]}', 1, 30);
+  insert.run("space-semantic", "night sky", '{"tags":["astronomy"]}', 2, 20);
+  insert.run("space-wrong-tag", "distant galaxy", '{"tags":["misc"]}', 3, 10);
+  library.storeEmbedding("space-lexical", "text", TEXT_MODEL, vector([0, 1]), 2);
+  library.storeEmbedding("space-semantic", "text", TEXT_MODEL, vector([1, 0]), 2);
+  library.storeEmbedding("space-wrong-tag", "text", TEXT_MODEL, vector([0.99, 0.1]), 2);
+  const space = library.createSpace({
+    name: "Astronomy",
+    query: { text: "quiet telescope", tag: "astronomy" },
+  });
+
+  expect(library.listSpaceItems(space.id).map((item) => item.id)).toEqual([]);
+  expect(
+    library.listSpaceItems(space.id, 100, Float32Array.from([1, 0])).map((item) => item.id),
+  ).toEqual(["space-semantic"]);
 });
 
 test("Smart Space predicates are applied before the result limit", () => {
@@ -512,4 +565,51 @@ test("the Electron worker leaves Tauri-only processors queued instead of blockin
   await worker.pump();
   expect(library.jobs.getForItem("pending-item")[0]?.status).toBe("pending");
   expect(library.jobs.countActive()).toBe(1);
+});
+
+test("stopping the Electron worker waits for its active job and leaves later work queued", async () => {
+  const { library } = temporaryLibrary();
+  library.db
+    .prepare(
+      "INSERT INTO items (id, kind, created_at, updated_at) VALUES ('first-item', 'note', 1, 1), ('next-item', 'note', 2, 2)",
+    )
+    .run();
+  library.jobs.enqueue("first-item", "blocked");
+  library.jobs.enqueue("next-item", "blocked");
+
+  let signalStarted!: () => void;
+  let releaseJob!: () => void;
+  const started = new Promise<void>((resolve) => (signalStarted = resolve));
+  const blocked = new Promise<void>((resolve) => (releaseJob = resolve));
+  let processed = 0;
+  const worker = new JobWorker(library, {
+    processors: {
+      blocked: async () => {
+        processed += 1;
+        signalStarted();
+        await blocked;
+      },
+    },
+  });
+
+  const pumping = worker.pump();
+  await started;
+  let stopped = false;
+  const stopping = worker.stop().then(() => {
+    stopped = true;
+  });
+  await Promise.resolve();
+  expect(stopped).toBe(false);
+
+  releaseJob();
+  await Promise.all([pumping, stopping]);
+
+  expect(processed).toBe(1);
+  expect(
+    library.jobs
+      .getForItems(["first-item", "next-item"])
+      .filter((job) => job.kind === "blocked")
+      .map((job) => job.status)
+      .sort(),
+  ).toEqual(["completed", "pending"]);
 });

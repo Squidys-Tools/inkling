@@ -1,9 +1,13 @@
-import { resolve } from "node:path";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createTesseractOcr } from "../../electron/ocr.mjs";
 
 export interface OcrEngine {
   name: string;
   available(): Promise<boolean>;
-  run(imagePath: string): Promise<string>;
+  run(imagePath: string | Uint8Array): Promise<string>;
+  close?(): Promise<void>;
 }
 
 /**
@@ -36,33 +40,48 @@ export class WindowsOcrEngine implements OcrEngine {
     return this.ready;
   }
 
-  async run(imagePath: string): Promise<string> {
-    const result = Bun.spawnSync(
-      [
-        "powershell.exe",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        this.scriptPath,
-        "-ImagePath",
-        imagePath,
-      ],
-      { stdout: "pipe", stderr: "pipe" },
-    );
-    if (result.exitCode !== 0) {
-      throw new Error(
-        `Windows OCR failed (exit ${result.exitCode}): ${result.stderr.toString("utf8")}`,
+  async run(imagePath: string | Uint8Array): Promise<string> {
+    let temporaryDirectory: string | null = null;
+    try {
+      let sourcePath: string;
+      if (typeof imagePath === "string") {
+        sourcePath = imagePath;
+      } else {
+        temporaryDirectory = mkdtempSync(join(tmpdir(), "inkling-windows-ocr-"));
+        sourcePath = join(temporaryDirectory, "page.png");
+        writeFileSync(sourcePath, imagePath);
+      }
+      const result = Bun.spawnSync(
+        [
+          "powershell.exe",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          this.scriptPath,
+          "-ImagePath",
+          sourcePath,
+        ],
+        { stdout: "pipe", stderr: "pipe" },
       );
+      if (result.exitCode !== 0) {
+        throw new Error(
+          `Windows OCR failed (exit ${result.exitCode}): ${result.stderr.toString("utf8")}`,
+        );
+      }
+      return result.stdout.toString("utf8").trim();
+    } finally {
+      if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
     }
-    return result.stdout.toString("utf8").trim();
   }
 }
 
-/** OCR engine backed by tesseract.js (devDependency). */
+/** OCR engine backed by the bundled Tesseract.js runtime and English model. */
 export class TesseractJsEngine implements OcrEngine {
   name = "tesseract.js";
-  private modules: string | null = null;
+  private readonly engine = createTesseractOcr({
+    cacheDirectory: join(tmpdir(), "inkling-benchmark-tesseract"),
+  });
 
   async available(): Promise<boolean> {
     try {
@@ -73,45 +92,12 @@ export class TesseractJsEngine implements OcrEngine {
     }
   }
 
-  /**
-   * Runs recognition with several page-segmentation modes and returns the
-   * highest-confidence text. Tries modes that suit full pages, blocks, and
-   * single lines so stylized images (memes, rotated scans) have a chance.
-   */
-  async run(imagePath: string): Promise<string> {
-    // The tesseract worker resolves `regenerator-runtime/runtime` through
-    // NODE_PATH; without it recognition silently returns empty text. Point it
-    // at the project's node_modules before the first import.
-    if (this.modules === null) {
-      const projectModules = resolve(import.meta.dir, "../..", "node_modules");
-      const existing = process.env.NODE_PATH ?? "";
-      this.modules = existing.split(/[;:]/).includes(projectModules)
-        ? existing
-        : existing
-          ? `${existing}${process.platform === "win32" ? ";" : ":"}${projectModules}`
-          : projectModules;
-      process.env.NODE_PATH = this.modules;
-    }
+  run(imagePath: string | Uint8Array) {
+    return this.engine.recognize(imagePath);
+  }
 
-    const Tesseract = await import("tesseract.js");
-    let best = "";
-    let bestConfidence = -1;
-    for (const psm of [3, 6, 7]) {
-      try {
-        // tesseract.js 7 ships `data: Page` in its types, but tsc 7 resolves it
-        // as `{ text: string }`; the runtime object has confidence too.
-        const result = (await Tesseract.recognize(imagePath, "eng", { psm })) as {
-          data: { text: string; confidence: number };
-        };
-        if (result.data.confidence > bestConfidence) {
-          bestConfidence = result.data.confidence;
-          best = result.data.text ?? "";
-        }
-      } catch {
-        // try the next page-segmentation mode
-      }
-    }
-    return best;
+  close() {
+    return this.engine.close();
   }
 }
 

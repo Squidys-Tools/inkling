@@ -148,15 +148,15 @@ What it does:
    fixture pages are fetched exactly like live pages.
 2. For `article` / `recipe` / `video` items, runs the production extraction
    pipeline (`ingestUrl` → Defuddle → sanitize) via `harness/extract.ts`.
-3. For PDFs, runs a minimal content-stream text extractor
-   (`harness/pdf.ts`; label `naive-streams`). Real-world PDFs need a full
-   parser in a later milestone. Scanned PDFs fall back to OCR on their
-   embedded JPEG (`extractFirstEmbeddedJpeg`).
-4. For OCR items (screenshots, text images, scanned PDFs), runs **every
-   available engine** (`harness/ocr.ts`) and keeps the best-scoring result:
-   **Windows built-in OCR** (`Windows.Media.Ocr`, invoked via
-   `harness/win-ocr.ps1` — zero-install on Windows) and a **tesseract.js**
-   runner (multi-PSM 3/6/7, highest-confidence pass wins).
+3. For PDFs, runs page-by-page extraction and scanned-page OCR through the
+   production PDF.js pipeline in `electron/pdf.mjs`. The corpus-only stream
+   parser in `harness/pdf.ts` counts embedded images and remains covered by a
+   smoke test.
+4. For image and screenshot OCR, tries **every available engine** in
+   `harness/ocr.ts` and keeps the best-scoring result: **Windows built-in OCR**
+   (`Windows.Media.Ocr`, invoked via `harness/win-ocr.ps1` — zero-install on
+   Windows) and **tesseract.js** (multi-PSM 3/6/7 with selective contrast and
+   deskew fallbacks). Scanned PDFs use Tesseract on rendered pages.
 5. Scores each item against `expected` (title/author/search terms/must-not
    match/embeds/image counts) and writes `results/results-latest.json`, a
    timestamped copy, and `results/summary.md`.
@@ -214,4 +214,3 @@ the manifest, rewrites only the `article-live-macrumors-*` entries, and
 verifies every fixture through the production ingestion pipeline before
 updating the manifest. Delete the `corpus/live/macrumors/*.html` files and
 the `article-live-macrumors-*` manifest entries to drop them.
-

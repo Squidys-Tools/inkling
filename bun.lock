@@ -7,8 +7,11 @@
       "dependencies": {
         "@hugeicons/core-free-icons": "^4.3.5",
         "@hugeicons/react": "^1.1.10",
+        "@huggingface/tokenizers": "0.2.0",
+        "@napi-rs/canvas": "1.0.11",
         "@tauri-apps/api": "^2.12.3",
         "@tauri-apps/plugin-dialog": "^2.8.2",
+        "@tesseract.js-data/eng": "1.0.0",
         "@tiptap/core": "3.31.4",
         "@tiptap/extension-list": "3.31.4",
         "@tiptap/markdown": "3.31.4",
@@ -20,11 +23,13 @@
         "gsap": "^3.15.0",
         "linkedom": "^0.18.13",
         "motion": "^14.1.0",
+        "onnxruntime-node": "1.24.2",
         "pdfjs-dist": "^6.4.299",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
         "sharp": "^0.35.5",
         "sonner": "^2.0.8",
+        "tesseract.js": "7.0.0",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.5.15",
@@ -37,7 +42,6 @@
         "electron": "44.7.2",
         "electron-builder": "^26.15.3",
         "knip": "^6.41.0",
-        "tesseract.js": "^7.0.0",
         "typescript": "^7.0.2",
         "vite": "^8.3.4",
       },
@@ -117,6 +121,8 @@
     "@hugeicons/core-free-icons": ["@hugeicons/core-free-icons@4.3.5", "", {}, "sha512-Sv+NjHRPnQk+yZsGCMcGznCHdTfJR9PMMOEKcJYAQU4gy90dmlc9PwdtvYOImBZIjiheMsTLL5eMn2DmHxUiUg=="],
 
     "@hugeicons/react": ["@hugeicons/react@1.1.10", "", { "peerDependencies": { "react": ">=16.0.0" } }, "sha512-9tAsd92yMVVGP+E+d8cM+wc0VnXuYZHNbWQi7TOe8k2neawmhiaFmVFbzyruejhOMa197/LbgvSED32ayUo3ZA=="],
+
+    "@huggingface/tokenizers": ["@huggingface/tokenizers@0.2.0", "", {}, "sha512-LidMHe1FpcSYH4vcSjXooda34pC0M8m1gmDOv7SQi6Iv+ib1zX7J3sHBCC9/3FPCkn2k1b55FneVqMRxrr99pg=="],
 
     "@img/colour": ["@img/colour@1.1.0", "", {}, "sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ=="],
 
@@ -364,6 +370,8 @@
 
     "@tauri-apps/plugin-dialog": ["@tauri-apps/plugin-dialog@2.8.2", "", { "dependencies": { "@tauri-apps/api": "^2.12.0" } }, "sha512-LFqp8OTx0bHOwhKRhMMDyRDlo/2IO5XxoOclpf8+yvjAfM2ytVdbB6tk63dBlicsR8pRw38maj/GxrU6cW8mXw=="],
 
+    "@tesseract.js-data/eng": ["@tesseract.js-data/eng@1.0.0", "", {}, "sha512-mbTumm6KQPUHyzTPQaF3ObXYnx0SqqfV2nabqFVQBwD6Kl7PhGSLSzOlfFTWy0P3BjghaSKA2W9GB19Jk+ZcTg=="],
+
     "@tiptap/core": ["@tiptap/core@3.31.4", "", { "peerDependencies": { "@tiptap/pm": "3.31.4" } }, "sha512-cIVUQYBycighzsk6GbmCef8ZiEDVxoT5EuAe4xg2q9dNkDqCXVqI4YGr9aavCQEiAS4uHiRwqvcsPqJHipFDfg=="],
 
     "@tiptap/extension-blockquote": ["@tiptap/extension-blockquote@3.31.4", "", { "peerDependencies": { "@tiptap/core": "3.31.4", "@tiptap/pm": "3.31.4" } }, "sha512-FHnbvCIW0eDKgUUFjmvEB0ax9YUBW7/Unm+38qpuQROvU872yRqhnDtycKT9IKk46jNdjM4A4fAGUbge10CrAA=="],
@@ -505,6 +513,8 @@
     "acorn": ["acorn@8.18.0", "", { "bin": { "acorn": "bin/acorn" } }, "sha512-lGq+9yr1/GuAWaVYIHRjvvySG5/4VfKIvC8EWxStPdcDh/Ka7FG3twP6v4d5BkravUilhIAsG4Qj83t02LWUPQ=="],
 
     "acorn-walk": ["acorn-walk@8.3.5", "", { "dependencies": { "acorn": "^8.11.0" } }, "sha512-HEHNfbars9v4pgpW6SO1KSPkfoS0xVOM/9UzkJltjlsHZmJasxg8aXkuZa7SMf8vKGIBhpUsPluQSqhJFCqebw=="],
+
+    "adm-zip": ["adm-zip@0.5.18", "", {}, "sha512-ufJnssQGbxzLNS1Ho9bCtX4rQKCCvoVuDLHoJyc3F9dOGDB4BkWs2Ci0kv53lqocAEQ/Cbi+I2XCsNYGqVYqng=="],
 
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 
@@ -887,6 +897,10 @@
     "object-keys": ["object-keys@1.1.1", "", {}, "sha512-NuAESUOUMrlIXOfHKzD6bpPu3tYt3xvjNdRIQ+FeT0lNb4K8WR70CaDxhuNguS2XG+GjkyMwOzsN5ZktImfhLA=="],
 
     "once": ["once@1.4.0", "", { "dependencies": { "wrappy": "1" } }, "sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w=="],
+
+    "onnxruntime-common": ["onnxruntime-common@1.24.2", "", {}, "sha512-S0FFhJaI05jr1c3HVJ/DuPFB/aYdXmnUBuuQfuvLtcNn7WAfpm2ewSXn1vHs9Wa1l8T8OznhfCEdFv8qCn0/xw=="],
+
+    "onnxruntime-node": ["onnxruntime-node@1.24.2", "", { "dependencies": { "adm-zip": "^0.5.16", "global-agent": "^3.0.0", "onnxruntime-common": "1.24.2" }, "os": [ "linux", "win32", "darwin", ] }, "sha512-ZtTkUHNNk+Xpi2Sq2BcFjzc9Vx4n3o5RxYLgRvdrFzCBsGUU1dQRFf4LM9tCc7vFhPSoZqbvzZtkzRMXoDqKNg=="],
 
     "opencollective-postinstall": ["opencollective-postinstall@2.0.3", "", { "bin": { "opencollective-postinstall": "index.js" } }, "sha512-8AV/sCtuzUeTo8gQK5qDZzARrulB3egtLzFgteqB2tcT4Mw7B8Kt7JcDHmltjz6FOAHsvTevk70gZEbhM4ZS9Q=="],
 
