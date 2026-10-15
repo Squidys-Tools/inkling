@@ -31,7 +31,8 @@ Guardrails:
 - Electron desktop shell alongside Tauri, with scoped `app://` assets, an IPC command allowlist, and `inkling://` capture links.
 - Electron now opens the shared schema-v8 SQLite library with search, Spaces, archive, backup/restore, and a persisted job queue running local OCR, PDF extraction, and Nomic embeddings.
 - Electron now accepts authenticated browser-extension saves over a loopback server and stores URL deep links before processing runs.
-- Packaged Windows app checks GitHub for signed updates at launch and offers user-controlled installation from the sidebar; the NSIS installer remains unsigned and may trigger a SmartScreen warning (SQU-16).
+- Electron now ships with a Windows NSIS installer, bundled local models, and a generic GitHub Release update feed; unsigned installers and updates may trigger SmartScreen warnings.
+- The packaged Tauri Windows app checks GitHub for signed updates at launch and offers user-controlled installation from the sidebar; its NSIS installer remains unsigned and may trigger a SmartScreen warning (SQU-16).
 - Keyboard shortcuts for search, new-note capture, and shortcut help, with contained dialog focus and keyboard-operated Spaces and cards (SQU-19).
 - Background OCR for older images and PDFs when first opened, with the mascot's quiet activity state reflecting the full job queue (SQU-5).
 - Library export from Settings (Data tab): writes a dated folder with a consistent SQLite snapshot, the asset files the saved items reference, and a manifest of counts and sizes, after picking a destination folder in a native dialog.
@@ -218,4 +219,3 @@ Guardrails:
 - Safe embed allowlists (YouTube, Vimeo, direct media)
 - Ingestion pipeline with HTML sanitization (`src/lib/ingestion/`)
 - MIT License
-

@@ -45,8 +45,9 @@ export function enqueueStaleImageEmbeddings(storage) {
 
 export function createAiJobProcessors({
   modelCacheDirectory,
+  bundledModelDirectory,
   ocr = createTesseractOcr({ cacheDirectory: join(modelCacheDirectory, "tesseract") }),
-  embeddings = createEmbeddingEngine(modelCacheDirectory),
+  embeddings = createEmbeddingEngine(modelCacheDirectory, undefined, bundledModelDirectory),
   extractPdf = extractPdfTextByPages,
 } = {}) {
   const processors = {

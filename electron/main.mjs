@@ -1,14 +1,17 @@
 import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
+import electronUpdater from "electron-updater";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
 import { startCaptureServer } from "./capture-server.mjs";
 import { createAiJobProcessors, enqueueStaleImageEmbeddings } from "./ai-jobs.mjs";
+import { createUpdateController } from "./updater.mjs";
 import { JobWorker, openLibraryStorage, resolveLibraryDataDirectory } from "./storage.mjs";
 import { snapshotDatabase } from "./sqlite-snapshot.mjs";
 
 const mainDirectory = dirname(fileURLToPath(import.meta.url));
+const { autoUpdater } = electronUpdater;
 const isPreview = process.argv.includes("--preview");
 const commandLineDataDirectory = app.commandLine.getSwitchValue("user-data-dir");
 const libraryDirectory = resolveLibraryDataDirectory({
@@ -16,6 +19,11 @@ const libraryDirectory = resolveLibraryDataDirectory({
   appDataDirectory: app.getPath("appData"),
   portable: app.isPackaged && process.env.INKLING_PORTABLE === "1",
   overrideDirectory: commandLineDataDirectory || undefined,
+});
+const updateController = createUpdateController({
+  autoUpdater,
+  isPackaged: app.isPackaged,
+  platform: process.platform,
 });
 app.setPath("userData", libraryDirectory);
 const deepLinkSubscribers = new Set();
@@ -112,6 +120,7 @@ function initializeLibraryStorage() {
   });
   aiJobProcessors = createAiJobProcessors({
     modelCacheDirectory: join(libraryDirectory, "models"),
+    bundledModelDirectory: app.isPackaged ? join(process.resourcesPath, "models") : undefined,
   });
   enqueueStaleImageEmbeddings(libraryStorage);
   jobWorker = new JobWorker(libraryStorage, { processors: aiJobProcessors.processors }).start();
@@ -207,17 +216,10 @@ function registerLibraryCommands() {
     chooseLibraryDirectory(title),
   );
 
-  const unsupportedCommands = ["check_for_updates", "install_update"];
-
-  for (const command of unsupportedCommands) {
-    ipcMain.handle(`inkling:${command}`, () => {
-      const area =
-        command === "check_for_updates" || command === "install_update"
-          ? "updates"
-          : "native services";
-      throw new Error(`The Electron ${area} command "${command}" is not implemented yet.`);
-    });
-  }
+  ipcMain.handle("inkling:check_for_updates", () => updateController.checkForUpdates());
+  ipcMain.handle("inkling:install_update", (_event, { expectedVersion }) =>
+    updateController.installUpdate(expectedVersion),
+  );
 
   ipcMain.handle("inkling:plugin:deep-link|get_current", () => pendingDeepLinks.splice(0));
   ipcMain.handle("inkling:deep-link:subscribe", (event) => {

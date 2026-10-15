@@ -26,19 +26,23 @@ async function sha256(path) {
   return hash.digest("hex");
 }
 
-async function ensureAsset(path, { url, sha256: expectedHash }, allowDownload = true) {
-  if (
-    await stat(path).then(
+async function ensureAsset(path, { url, sha256: expectedHash }, allowDownload = true, bundledPath) {
+  const cachedAssetExists = await stat(path).then(
+    () => true,
+    () => false,
+  );
+  if (cachedAssetExists && (await sha256(path)) === expectedHash) return path;
+
+  if (bundledPath) {
+    const bundledAssetExists = await stat(bundledPath).then(
       () => true,
       () => false,
-    )
-  ) {
-    if ((await sha256(path)) === expectedHash) return;
-    if (!allowDownload) throw new Error("model asset is unavailable or failed its integrity check");
-    await rm(path, { force: true });
+    );
+    if (bundledAssetExists && (await sha256(bundledPath)) === expectedHash) return bundledPath;
   }
 
   if (!allowDownload) throw new Error("model assets are unavailable for search");
+  if (cachedAssetExists) await rm(path, { force: true });
   await mkdir(dirname(path), { recursive: true });
   const partialPath = `${path}.${process.pid}.part`;
   try {
@@ -54,6 +58,7 @@ async function ensureAsset(path, { url, sha256: expectedHash }, allowDownload = 
       throw new Error("model asset failed its SHA-256 check");
     }
     await rename(partialPath, path);
+    return path;
   } catch (error) {
     await rm(partialPath, { force: true });
     throw error;
@@ -138,8 +143,13 @@ function imageTensor(bytes) {
   });
 }
 
-export function createEmbeddingEngine(modelCacheDirectory, manifestPath = defaultManifestPath) {
+export function createEmbeddingEngine(
+  modelCacheDirectory,
+  manifestPath = defaultManifestPath,
+  bundledModelDirectory,
+) {
   const modelCache = resolve(modelCacheDirectory);
+  const bundledModels = bundledModelDirectory ? resolve(bundledModelDirectory) : null;
   let manifestPromise;
   let textRuntimePromise;
   let textQueryRuntimePromise;
@@ -160,11 +170,19 @@ export function createEmbeddingEngine(modelCacheDirectory, manifestPath = defaul
     const models = await manifest();
     const definition = models.text;
     const modelRoot = join(modelCache, definition.name);
-    const modelPath = join(modelRoot, definition.model.path);
-    const tokenizerPath = join(modelRoot, definition.tokenizer.path);
-    await Promise.all([
-      ensureAsset(modelPath, definition.model, allowDownload),
-      ensureAsset(tokenizerPath, definition.tokenizer, allowDownload),
+    const [modelPath, tokenizerPath] = await Promise.all([
+      ensureAsset(
+        join(modelRoot, definition.model.path),
+        definition.model,
+        allowDownload,
+        bundledModels ? join(bundledModels, definition.name, definition.model.path) : undefined,
+      ),
+      ensureAsset(
+        join(modelRoot, definition.tokenizer.path),
+        definition.tokenizer,
+        allowDownload,
+        bundledModels ? join(bundledModels, definition.name, definition.tokenizer.path) : undefined,
+      ),
     ]);
     const tokenizerJson = JSON.parse(await readFile(tokenizerPath, "utf8"));
     const tokenizer = new Tokenizer(tokenizerJson, {});
@@ -175,8 +193,12 @@ export function createEmbeddingEngine(modelCacheDirectory, manifestPath = defaul
   async function openImageSession() {
     const models = await manifest();
     const definition = models.image;
-    const modelPath = join(modelCache, definition.name, definition.model.path);
-    await ensureAsset(modelPath, definition.model);
+    const modelPath = await ensureAsset(
+      join(modelCache, definition.name, definition.model.path),
+      definition.model,
+      true,
+      bundledModels ? join(bundledModels, definition.name, definition.model.path) : undefined,
+    );
     return ort.InferenceSession.create(modelPath);
   }
 
