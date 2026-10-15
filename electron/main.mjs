@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
 import { startCaptureServer } from "./capture-server.mjs";
 import { createAiJobProcessors, enqueueStaleImageEmbeddings } from "./ai-jobs.mjs";
+import { createSingleFlightDirectoryPicker } from "./native-dialog.mjs";
 import { createUpdateController } from "./updater.mjs";
 import { JobWorker, openLibraryStorage, resolveLibraryDataDirectory } from "./storage.mjs";
 import { snapshotDatabase } from "./sqlite-snapshot.mjs";
@@ -141,13 +142,10 @@ async function embedQueryForSearch(query) {
   }
 }
 
-async function chooseLibraryDirectory(title) {
-  const options = { properties: ["openDirectory"], title };
-  const result = mainWindow
-    ? await dialog.showOpenDialog(mainWindow, options)
-    : await dialog.showOpenDialog(options);
-  return result.canceled ? null : (result.filePaths[0] ?? null);
-}
+const chooseLibraryDirectory = createSingleFlightDirectoryPicker({
+  getParent: () => mainWindow,
+  showOpenDialog: (parent, options) => dialog.showOpenDialog(parent, options),
+});
 
 function registerLibraryCommands() {
   const storageCommands = {
