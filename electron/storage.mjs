@@ -950,6 +950,9 @@ export function openLibraryStorage(databasePath, options = {}) {
   const database = resolve(databasePath);
   mkdirSync(dirname(database), { recursive: true });
   const { db, fts5Enabled } = openDatabase(database);
+  db.function("inkling_unicode_lower", { deterministic: true }, (value) =>
+    String(value ?? "").toLowerCase(),
+  );
   const jobQueue = new JobQueue(db, options.jobQueue);
   const library = new LibraryStorage(database, db, fts5Enabled, jobQueue, options);
   return library;
@@ -1490,9 +1493,9 @@ export class LibraryStorage {
     }
     if (nonEmpty(query.tag)) {
       clauses.push(
-        "EXISTS (SELECT 1 FROM json_each(i.metadata, '$.tags') WHERE type = 'text' AND lower(value) = lower(?))",
+        "EXISTS (SELECT 1 FROM json_each(i.metadata, '$.tags') WHERE type = 'text' AND inkling_unicode_lower(value) = ?)",
       );
-      values.push(query.tag.trim());
+      values.push(query.tag.trim().toLowerCase());
     }
     if (nonEmpty(query.kind)) {
       if (query.kind.trim().toLowerCase() === "article") {

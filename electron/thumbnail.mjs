@@ -18,9 +18,11 @@ export function validateImageDimensions(width, height) {
 
 export async function createImageThumbnail(bytes) {
   const image = sharp(bytes, { limitInputPixels: maxImagePixels });
-  const { width, height } = await image.metadata();
+  const { width, height, orientation } = await image.metadata();
   validateImageDimensions(width, height);
+  const isRotated = orientation != null && orientation >= 5 && orientation <= 8;
   const thumbnail = await image
+    .rotate()
     .resize({
       width: thumbnailEdge,
       height: thumbnailEdge,
@@ -29,5 +31,9 @@ export async function createImageThumbnail(bytes) {
     })
     .webp()
     .toBuffer();
-  return { bytes: thumbnail, width, height };
+  return {
+    bytes: thumbnail,
+    width: isRotated ? height : width,
+    height: isRotated ? width : height,
+  };
 }

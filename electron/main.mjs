@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
 import { JobWorker, openLibraryStorage, resolveLibraryDataDirectory } from "./storage.mjs";
 import { snapshotDatabase } from "./sqlite-snapshot.mjs";
-import { createImageThumbnail } from "./thumbnail.mjs";
 
 const mainDirectory = dirname(fileURLToPath(import.meta.url));
 const isPreview = process.argv.includes("--preview");
@@ -104,7 +103,8 @@ function initializeLibraryStorage() {
   libraryStorage = openLibraryStorage(join(libraryDirectory, "library.sqlite3"), {
     jobQueue: { onUpdated: emitJobUpdated },
     createSnapshot: snapshotDatabase,
-    createThumbnail: createImageThumbnail,
+    createThumbnail: (bytes) =>
+      import("./thumbnail.mjs").then(({ createImageThumbnail }) => createImageThumbnail(bytes)),
   });
   jobWorker = new JobWorker(libraryStorage).start();
   return libraryStorage.status();

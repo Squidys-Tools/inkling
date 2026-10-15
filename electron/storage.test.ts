@@ -149,6 +149,10 @@ test("Smart Space predicates are applied before the result limit", () => {
   });
 
   expect(library.listSpaceItems(space.id, 1).map((item) => item.id)).toEqual(["older-match"]);
+
+  insert.run("unicode-tag", "note", "Cafe notes", '{"tags":["café"]}', 5, 5, 1);
+  const unicodeSpace = library.createSpace({ name: "Cafe", query: { tag: "CAFÉ" } });
+  expect(library.listSpaceItems(unicodeSpace.id).map((item) => item.id)).toEqual(["unicode-tag"]);
 });
 
 test("LIKE fallback treats percent and underscore as literal search characters", () => {
