@@ -3,7 +3,7 @@ import { parseHTML } from "linkedom";
 import { EXPRESSION_BY_ID } from "./bot/expressions";
 import { blinkScale, liveliness } from "./bot/face";
 import { RAYON } from "./bot/repere";
-import { toPoints, type Point } from "./bot/shape";
+import { capsulePath, toPoints, type Point } from "./bot/shape";
 import { STATE_BY_ID } from "./bot/states";
 import { buildReadmeMascot, readmeMascotFrame, readmeMascotSvg } from "./readmeMascot";
 
@@ -76,6 +76,27 @@ function outlinePoints(d: string): Array<[number, number]> {
   const points: Array<[number, number]> = [[n[0]!, n[1]!]];
   for (let i = 2; i + 5 < n.length; i += 6) points.push([n[i + 4]!, n[i + 5]!]);
   return points;
+}
+
+/** Half-extents of an eye capsule, either way up: its furthest endpoint on each axis.
+ *
+ * `heureux` is wider than tall and most of the rest are the other way round, so
+ * neither axis can be assumed. Each command is read for its own coordinates, so
+ * an arc's flags are skipped rather than paired with the number that follows.
+ */
+function capsule(d: string): [number, number] {
+  let w = 0;
+  let h = 0;
+  for (const [, command, args] of d.matchAll(/([MLA])([^MLAZ]*)/g)) {
+    const n = args!
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number);
+    const [x, y] = command === "A" ? [n[5]!, n[6]!] : [n[0]!, n[1]!];
+    w = Math.max(w, Math.abs(x));
+    h = Math.max(h, Math.abs(y));
+  }
+  return [w, h];
 }
 
 /** Shortest distance from a point to a closed polygon, and whether it is inside. */
@@ -350,48 +371,105 @@ describe("readme mascot svg", () => {
     }
   });
 
+  test("capsule() measures a wide eye and a tall one on the right axes", () => {
+    expect(capsule(capsulePath(27, 17))).toEqual([13.5, 8.5]);
+    expect(capsule(capsulePath(17, 27))).toEqual([8.5, 13.5]);
+  });
+
   test("the eyes stay on the body for the whole loop, which is what fixes the placement", () => {
     // The body turns under a face that is standing still, so a lobe sweeps past
     // the eyes twice a turn. At the app's own gaze the wide-eyed expressions put
     // an eye corner outside the blob entirely; the pinned placement is what
     // keeps the score inside it. Six units at the README's 160px is under three
     // pixels of daylight, which is the margin this leaves.
-    const look = blocks().get("inkling-look-0") ?? [];
-    const shape = blocks().get("inkling-shape-0") ?? [];
-    const times = look.map(([at]) => (Number(at) / 100) * 24);
-    const holds = shape.map(([at, d]) => ({ at: (Number(at) / 100) * 24, d }));
-
-    const state = STATE_BY_ID.get("inkling-drift-loop")!;
+    //
+    // BOTH eyes, because the far one is the one that gets close: it sits lower
+    // and outboard of the near one, and on a body rotating under a pinned face
+    // that is the corner a lobe reaches first. Checking only `inkling-look-0`
+    // reported a margin three times better than the truth.
+    const state = STATE_BY_ID.get("inkling-drift-faced")!;
     let worst = Infinity;
     let worstAt = 0;
-    for (let i = 0; i < times.length; i++) {
-      const t = times[i]!;
-      const poly = toPoints(state.pose(Math.min(t, 24 - 1e-6)).sil, RAYON);
-      const matrix = look[i]![1].match(
-        /matrix\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)/,
-      );
-      if (!matrix) continue;
-      const [, a, b, c, d, tx, ty] = matrix.map(Number) as unknown as number[];
-      // The capsule this keyframe belongs to: the shape held at that instant.
-      const held = [...holds].reverse().find((h) => h.at <= t + 1e-6) ?? holds[0]!;
-      const w = Number(held.d.match(/M([-\d.]+)/)?.[1] ?? "0");
-      const h = Number(held.d.match(/L[-\d.]+ ([-\d.]+)A/)?.[1] ?? "0");
-      for (const [sx, sy] of [
-        [-1, -1],
-        [1, -1],
-        [-1, 1],
-        [1, 1],
-      ] as const) {
-        const lx = w * sx;
-        const ly = h * sy;
-        const gap = clearance(poly, a! * lx + c! * ly + tx!, b! * lx + d! * ly + ty!);
-        if (gap < worst) {
-          worst = gap;
-          worstAt = t;
+    let worstEye = 0;
+    for (const eye of [0, 1]) {
+      const look = blocks().get(`inkling-look-${eye}`) ?? [];
+      const holds = (blocks().get(`inkling-shape-${eye}`) ?? []).map(([at, d]) => ({
+        at: (Number(at) / 100) * 24,
+        d,
+      }));
+      for (const [at, decl] of look) {
+        const t = (Number(at) / 100) * 24;
+        const poly = toPoints(state.pose(Math.min(t, 24 - 1e-6)).sil, RAYON);
+        const matrix = decl.match(
+          /matrix\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)/,
+        );
+        if (!matrix) continue;
+        const [, a, b, c, d, tx, ty] = matrix.map(Number) as unknown as number[];
+        // The capsule this keyframe belongs to: the shape held at that instant.
+        const held = [...holds].reverse().find((h) => h.at <= t + 1e-6) ?? holds[0]!;
+        const [w, h] = capsule(held.d);
+        for (const [sx, sy] of [
+          [-1, -1],
+          [1, -1],
+          [-1, 1],
+          [1, 1],
+        ] as const) {
+          const lx = w * sx;
+          const ly = h * sy;
+          const gap = clearance(poly, a! * lx + c! * ly + tx!, b! * lx + d! * ly + ty!);
+          if (gap < worst) {
+            worst = gap;
+            worstAt = t;
+            worstEye = eye;
+          }
         }
       }
     }
-    expect(worst, `eye left the body by ${-worst} units at t=${worstAt}`).toBeGreaterThan(5);
+    expect(
+      worst,
+      `eye ${worstEye} left the body by ${-worst} units at t=${worstAt}`,
+    ).toBeGreaterThan(6);
+  });
+
+  test("the body is the sidebar's own drift, shared rather than copied", () => {
+    // This is the whole point of the file, so it is asserted on identity rather
+    // than on resemblance: the README mascot and the sidebar mascot must move
+    // because they are the same function of time, not because two hand-tuned
+    // copies were kept in step.
+    //
+    // It was two copies once. `inkling-drift-loop` was `inkling-drift` with every
+    // period snapped to a divisor of 24 so the state would close on itself — and
+    // the loop never needed it, because an SVG `d` track interpolates its last
+    // keyframe to the one at 100% anyway. So the README paid for a self-closing
+    // state it did not use with a silhouette that recurred every 12s while the
+    // body took twice as long to come round, which read as a different mascot.
+    //
+    // A numeric comparison would pass the next lookalike re-timing. This cannot.
+    const sidebar = STATE_BY_ID.get("inkling-drift");
+    const readme = STATE_BY_ID.get("inkling-drift-faced");
+    expect(sidebar).toBeDefined();
+    expect(readme).toBeDefined();
+    expect(readme!.pose).toBe(sidebar!.pose);
+    // And the one thing that may differ is the flag the README needs: drift
+    // carries its own face, so only the faced variant accepts an expression.
+    expect(sidebar!.baseFace).toBe(false);
+    expect(readme!.baseFace).toBe(true);
+  });
+
+  test("the seam stays one keyframe long, which is what pays for the loop", () => {
+    // Since the state does not close on itself, the loop closes on the straight
+    // line from the last outline to the one at t=0. That line has to stay about
+    // as long as one keyframe interval, because one interval IS one second of the
+    // body's turn and the seam is then invisible. Coarsen the grid and it stops
+    // being a second of drift and becomes a visible settle — the same bug in new
+    // clothes, and the one this file's chord note explains why not to chase.
+    const flicker = blocks().get("inkling-flicker") ?? [];
+    const last = Number(flicker[flicker.length - 2]![0]);
+    const seconds = ((100 - last) / 100) * LOOP_SECONDS;
+    expect(
+      seconds,
+      `the closing keyframe is ${seconds.toFixed(2)}s before the loop point`,
+    ).toBeLessThanOrEqual(1.001);
   });
 
   test("a reader who asked for reduced motion gets the still, not the loop", () => {

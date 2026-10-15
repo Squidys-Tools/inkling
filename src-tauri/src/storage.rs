@@ -1062,9 +1062,17 @@ impl LibraryStorage {
             ));
         }
 
-        let exported_at = now_millis()?;
+        self.begin_export_with_timestamp(destination, timezone_offset_minutes, now_millis()?)
+    }
+
+    fn begin_export_with_timestamp(
+        &self,
+        destination: &Path,
+        timezone_offset_minutes: i32,
+        exported_at: i64,
+    ) -> Result<ExportPlan, StorageError> {
         let local_millis = exported_at - i64::from(timezone_offset_minutes) * 60_000;
-        let directory = unique_export_directory(destination, &export_date_stamp(local_millis));
+        let directory = unique_export_directory(destination, &export_date_stamp(local_millis))?;
         match self.write_snapshot(&directory, exported_at) {
             Ok(plan) => Ok(plan),
             Err(error) => {
@@ -2789,18 +2797,21 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
 }
 
 /// A second export in the same second lands beside the first, never on top.
-fn unique_export_directory(destination: &Path, stamp: &str) -> PathBuf {
+fn unique_export_directory(destination: &Path, stamp: &str) -> Result<PathBuf, StorageError> {
     let base = destination.join(format!("inkling-export-{stamp}"));
     if !base.exists() {
-        return base;
+        return Ok(base);
     }
     for index in 2..1_000 {
         let candidate = destination.join(format!("inkling-export-{stamp}-{index}"));
         if !candidate.exists() {
-            return candidate;
+            return Ok(candidate);
         }
     }
-    base
+    Err(StorageError::Io(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "all export directory names for this timestamp are already in use",
+    )))
 }
 
 /// Second phase of an export: the asset copy and the manifest. It touches no
@@ -5640,6 +5651,33 @@ mod tests {
         assert!(storage
             .begin_export(&destination.join("missing"), 0)
             .is_err());
+
+        drop(storage);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn export_name_exhaustion_does_not_delete_existing_export() {
+        let directory =
+            std::env::temp_dir().join(format!("inkling-export-name-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let storage = LibraryStorage::open(directory.join("library.sqlite3")).unwrap();
+        let destination = directory.join("chosen");
+        fs::create_dir_all(&destination).unwrap();
+        let stamp = export_date_stamp(0);
+        let base = destination.join(format!("inkling-export-{stamp}"));
+        fs::create_dir_all(&base).unwrap();
+        fs::write(base.join("marker"), b"earlier export").unwrap();
+        for index in 2..=999 {
+            fs::create_dir_all(destination.join(format!("inkling-export-{stamp}-{index}")))
+                .unwrap();
+        }
+
+        assert!(matches!(
+            storage.begin_export_with_timestamp(&destination, 0, 0),
+            Err(StorageError::Io(error)) if error.kind() == std::io::ErrorKind::AlreadyExists
+        ));
+        assert_eq!(fs::read(base.join("marker")).unwrap(), b"earlier export");
 
         drop(storage);
         fs::remove_dir_all(directory).unwrap();

@@ -82,9 +82,9 @@ A small ink blot lives in the sidebar and pops into the search bar while you typ
 
 Little by little, inkling is growing toward:
 
-- Search that understands meaning even better, and "find more like this image"
-- Trash with undo and backups, first-run onboarding, then import and restore from an export
-- A Windows installer with updates
+- On-device summaries, automatic concept extraction, and structured analysis
+- First-run onboarding, an accessibility audit, and web-version portability
+- Performance and refactoring work as the feature set settles
 - Possibly cross platform support in the future if I can get money for a macbook and find some time to test it on linux. Likely distros will be Ubuntu, Arch, and Debain for the widest range of support up-front.
 
 See [the Roadmap](docs/roadmap.md) for the honest, checkbox-level status, and [open bugs](docs/bugs.md) for what is known to be broken.
@@ -97,7 +97,7 @@ Early development, but the core already works: capture, storage, keyword search 
 ## FAQ
 
 **Do I need to file things into folders?**
-Nope. Save it and move on. If you *like* curating, Smart Spaces are there for intentional collections. Manual collections are being considered as a legacy option.
+Nope. Save it and move on. Smart Spaces collect items that match saved searches, and Regular Spaces let you curate collections by hand.
 
 **Is my stuff uploaded somewhere?**
 Nope. Processing and storage are local. Network access is used to fetch indexing models on first run, fetch URLs or remote media you choose to save, and check GitHub for an update when the app opens. The update check shares the app version, not library data.
