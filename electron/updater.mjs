@@ -26,9 +26,12 @@ export function createUpdateController({ autoUpdater, isPackaged, platform }) {
       throw new Error("No matching update is available.");
     }
 
+    const refreshedUpdate = await checkForUpdates();
+    if (refreshedUpdate?.version !== expectedVersion) return refreshedUpdate;
+
     await autoUpdater.downloadUpdate();
     autoUpdater.quitAndInstall();
-    return availableUpdate;
+    return refreshedUpdate;
   }
 
   return { checkForUpdates, installUpdate };

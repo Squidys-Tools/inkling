@@ -82,10 +82,40 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: inkling ${{ github.ref_name }}
           releaseBody: |
-            Download the unsigned Windows installer from the release assets below. Windows SmartScreen may warn that the publisher is unknown; this is expected because inkling does not use a paid code-signing certificate. Only run an installer downloaded from this official release.
+            Download the unsigned Windows installer for the Tauri or Electron app from the release assets below. Windows SmartScreen may warn that the publisher is unknown; this is expected because neither installer uses a paid code-signing certificate. Only run an installer downloaded from this official release.
 
-            inkling checks GitHub for updates once when it opens. No library data is sent, and updates install only after you choose Update available in the sidebar.
+            Both apps check GitHub for updates once when they open. No library data is sent, and updates install only after you choose Update available in the sidebar.
           generateReleaseNotes: true
           releaseDraft: true
           prerelease: false
           tauriScript: bun tauri
+
+      - name: Cache pinned Electron models
+        uses: actions/cache@v4
+        with:
+          path: .artifacts/native-preview-cache/models
+          key: inkling-electron-release-models-${{ hashFiles('src-tauri/model-manifest.json') }}
+
+      - name: Build Electron NSIS installer
+        run: bun run electron:build:nsis
+
+      - name: Upload Electron updater assets to draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $assets = @(Get-ChildItem .artifacts/electron -File |
+            Where-Object { $_.Name -eq "latest.yml" -or $_.Extension -in @(".exe", ".blockmap") } |
+            ForEach-Object { $_.FullName })
+          if (-not ($assets | Where-Object { [IO.Path]::GetFileName($_) -eq "latest.yml" })) {
+            throw "electron-builder did not create latest.yml."
+          }
+          if (-not ($assets | Where-Object { [IO.Path]::GetExtension($_) -eq ".exe" })) {
+            throw "electron-builder did not create a Windows installer."
+          }
+          $arguments = @("release", "upload", $env:RELEASE_TAG) + $assets + @("--clobber")
+          & gh @arguments
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not upload Electron updater assets to the draft release."
+          }

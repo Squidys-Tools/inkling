@@ -54,6 +54,8 @@ jobs:
               - '!src/seedPersonal.ts'
             electron:
               - 'electron/**'
+              - 'src/**'
+              - 'public/**'
               - 'package.json'
               - 'bun.lock'
               - '.github/workflows/native-preview.yml'
