@@ -324,11 +324,15 @@ export async function assetUrl(path: string | null) {
   if (isElectronRuntime()) {
     const relativePath = path.replace(/\\/g, "/");
     if (!relativePath.startsWith("assets/")) return undefined;
-    const encodedPath = relativePath
-      .slice("assets/".length)
-      .split("/")
-      .map(encodeURIComponent)
-      .join("/");
+    const segments = relativePath.slice("assets/".length).split("/");
+    if (
+      segments.some(
+        (segment) => !segment || segment === "." || segment === ".." || segment.includes(":"),
+      )
+    ) {
+      return undefined;
+    }
+    const encodedPath = segments.map(encodeURIComponent).join("/");
     return `app://local/library-assets/${encodedPath}`;
   }
   if (!isTauriRuntime()) return path;

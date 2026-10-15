@@ -1,10 +1,11 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, protocol, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
 import { JobWorker, openLibraryStorage, resolveLibraryDataDirectory } from "./storage.mjs";
 import { snapshotDatabase } from "./sqlite-snapshot.mjs";
+import { createImageThumbnail } from "./thumbnail.mjs";
 
 const mainDirectory = dirname(fileURLToPath(import.meta.url));
 const isPreview = process.argv.includes("--preview");
@@ -103,18 +104,7 @@ function initializeLibraryStorage() {
   libraryStorage = openLibraryStorage(join(libraryDirectory, "library.sqlite3"), {
     jobQueue: { onUpdated: emitJobUpdated },
     createSnapshot: snapshotDatabase,
-    createThumbnail(bytes) {
-      const image = nativeImage.createFromBuffer(bytes);
-      if (image.isEmpty()) throw new Error("image processing error: unable to decode image");
-      const { width, height } = image.getSize();
-      const scale = Math.min(1, 512 / Math.max(width, height));
-      const thumbnail = image.resize({
-        width: Math.max(1, Math.round(width * scale)),
-        height: Math.max(1, Math.round(height * scale)),
-        quality: "good",
-      });
-      return { bytes: thumbnail.toWebP(), width, height };
-    },
+    createThumbnail: createImageThumbnail,
   });
   jobWorker = new JobWorker(libraryStorage).start();
   return libraryStorage.status();

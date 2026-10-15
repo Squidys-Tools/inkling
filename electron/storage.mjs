@@ -494,25 +494,8 @@ function clampLimit(value, fallback, maximum) {
   return Number.isFinite(limit) ? Math.min(maximum, Math.max(1, Math.trunc(limit))) : fallback;
 }
 
-function itemMatchesKind(itemKind, filter) {
-  const kind = String(itemKind).trim().toLowerCase();
-  const normalized = String(filter).trim().toLowerCase();
-  return normalized === "article" ? kind === "url" || kind === "article" : kind === normalized;
-}
-
-function itemMatchesSpace(item, query) {
-  if (query.favorite != null && item.favorite !== query.favorite) return false;
-  if (nonEmpty(query.tag)) {
-    const tags = Array.isArray(item.metadata?.tags) ? item.metadata.tags : [];
-    if (
-      !tags.some(
-        (tag) => typeof tag === "string" && tag.toLowerCase() === query.tag.trim().toLowerCase(),
-      )
-    )
-      return false;
-  }
-  if (nonEmpty(query.kind) && !itemMatchesKind(item.kind, query.kind)) return false;
-  return true;
+function sqlLikePattern(value) {
+  return `%${value.replace(/[\\%_]/g, "\\$&")}%`;
 }
 
 function itemSelect(db, where, params = [], order = "updated_at DESC, created_at DESC", limit) {
@@ -797,7 +780,7 @@ export class JobQueue {
     const now = this.now();
     const updated =
       this.db
-        .prepare(`UPDATE jobs SET status = 'completed', completed_at = ?,
+        .prepare(`UPDATE jobs SET status = 'completed', completed_at = ?, error_message = NULL,
       started_at = COALESCE(started_at, ?), worker_id = NULL, lease_until = NULL,
       progress_current = COALESCE(progress_total, progress_current), progress_message = NULL
       WHERE id = ? AND status = 'processing' AND worker_id = ?`)
@@ -879,16 +862,28 @@ export class JobQueue {
   }
 
   recoverExpired() {
-    const rows = this.db
-      .prepare(`SELECT item_id FROM jobs WHERE status = 'processing'
-      AND (lease_until IS NULL OR lease_until <= ?)`)
-      .all(this.now());
-    if (rows.length === 0) return 0;
-    this.db
-      .prepare(`UPDATE jobs SET status = 'pending', started_at = NULL, error_message = NULL,
-      worker_id = NULL, lease_until = NULL, progress_current = 0, progress_message = NULL
-      WHERE status = 'processing' AND (lease_until IS NULL OR lease_until <= ?)`)
-      .run(this.now());
+    const now = this.now();
+    let rows;
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      rows = this.db
+        .prepare(`SELECT item_id FROM jobs WHERE status = 'processing'
+        AND (lease_until IS NULL OR lease_until <= ?)`)
+        .all(now);
+      if (rows.length === 0) {
+        this.db.exec("COMMIT");
+        return 0;
+      }
+      this.db
+        .prepare(`UPDATE jobs SET status = 'pending', started_at = NULL, error_message = NULL,
+        worker_id = NULL, lease_until = NULL, progress_current = 0, progress_message = NULL
+        WHERE status = 'processing' AND (lease_until IS NULL OR lease_until <= ?)`)
+        .run(now);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
     for (const row of rows) this.notify(row.item_id);
     return rows.length;
   }
@@ -1019,11 +1014,12 @@ export class LibraryStorage {
             .all(match, cap)
         : [];
     } else {
-      const pattern = `%${search}%`;
+      const pattern = sqlLikePattern(search);
       rows = this.db
         .prepare(`SELECT ${itemColumns} FROM items WHERE archived = 0
-        AND (title LIKE ? COLLATE NOCASE OR description LIKE ? COLLATE NOCASE OR body LIKE ? COLLATE NOCASE
-          OR source_label LIKE ? COLLATE NOCASE OR ocr_text LIKE ? COLLATE NOCASE OR metadata LIKE ? COLLATE NOCASE)
+        AND (title COLLATE NOCASE LIKE ? ESCAPE char(92) OR description COLLATE NOCASE LIKE ? ESCAPE char(92)
+          OR body COLLATE NOCASE LIKE ? ESCAPE char(92) OR source_label COLLATE NOCASE LIKE ? ESCAPE char(92)
+          OR ocr_text COLLATE NOCASE LIKE ? ESCAPE char(92) OR metadata COLLATE NOCASE LIKE ? ESCAPE char(92))
         ORDER BY updated_at DESC, created_at DESC LIMIT ?`)
         .all(pattern, pattern, pattern, pattern, pattern, pattern, cap);
     }
@@ -1165,16 +1161,11 @@ export class LibraryStorage {
     if (bytes.length > maxFileBytes)
       throw new Error("invalid storage input: file exceeds the 50 MB input limit");
     if (bytes.length === 0) throw new Error("invalid storage input: file bytes cannot be empty");
-    const thumbnail =
-      kind === "image"
-        ? (() => {
-            if (!this.createThumbnail) throw new Error("image thumbnail generation is unavailable");
-            const result = this.createThumbnail(bytes);
-            if (result && typeof result.then === "function")
-              throw new Error("thumbnail generator must be synchronous");
-            return result;
-          })()
-        : null;
+    let thumbnail = null;
+    if (kind === "image") {
+      if (!this.createThumbnail) throw new Error("image thumbnail generation is unavailable");
+      thumbnail = await this.createThumbnail(bytes);
+    }
     const itemDirectory = join(this.assetsDirectory, id);
     await mkdir(itemDirectory, { recursive: true });
     const originalPath = join(itemDirectory, fileName);
@@ -1472,11 +1463,50 @@ export class LibraryStorage {
         .all(id, cap);
       return rows.map(itemFromRow);
     }
-    const text = nonEmpty(space.query.text);
-    const candidates = text
-      ? this.searchItems(text, cap)
-      : itemSelect(this.db, "archived = 0", [], "updated_at DESC, created_at DESC", cap);
-    return candidates.filter((item) => itemMatchesSpace(item, space.query)).slice(0, cap);
+    const query = space.query;
+    const text = nonEmpty(query.text);
+    const clauses = ["i.archived = 0"];
+    const values = [];
+    let from = "items i";
+    if (text && this.fts5Enabled) {
+      const match = escapeFtsQuery(text);
+      if (!match) return [];
+      from = "items_fts f JOIN items i ON i.id = f.item_id";
+      clauses.push("items_fts MATCH ?");
+      values.push(match);
+    } else if (text) {
+      const pattern = sqlLikePattern(text);
+      clauses.push(`(i.title COLLATE NOCASE LIKE ? ESCAPE char(92)
+        OR i.description COLLATE NOCASE LIKE ? ESCAPE char(92)
+        OR i.body COLLATE NOCASE LIKE ? ESCAPE char(92)
+        OR i.source_label COLLATE NOCASE LIKE ? ESCAPE char(92)
+        OR i.ocr_text COLLATE NOCASE LIKE ? ESCAPE char(92)
+        OR i.metadata COLLATE NOCASE LIKE ? ESCAPE char(92))`);
+      values.push(pattern, pattern, pattern, pattern, pattern, pattern);
+    }
+    if (query.favorite != null) {
+      clauses.push("i.favorite = ?");
+      values.push(Number(query.favorite));
+    }
+    if (nonEmpty(query.tag)) {
+      clauses.push(
+        "EXISTS (SELECT 1 FROM json_each(i.metadata, '$.tags') WHERE type = 'text' AND lower(value) = lower(?))",
+      );
+      values.push(query.tag.trim());
+    }
+    if (nonEmpty(query.kind)) {
+      if (query.kind.trim().toLowerCase() === "article") {
+        clauses.push("i.kind IN ('url', 'article')");
+      } else {
+        clauses.push("lower(i.kind) = lower(?)");
+        values.push(query.kind.trim());
+      }
+    }
+    const rows = this.db
+      .prepare(`SELECT ${qualifiedItemColumns} FROM ${from} WHERE ${clauses.join(" AND ")}
+      ORDER BY i.updated_at DESC, i.created_at DESC LIMIT ?`)
+      .all(...values, cap);
+    return rows.map(itemFromRow);
   }
 
   addSpaceItem(spaceId, itemId) {

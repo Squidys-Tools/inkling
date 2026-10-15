@@ -14,11 +14,28 @@ import {
 import parity from "./fixtures/storage-parity.json";
 
 const roots: string[] = [];
+const databases = new Set<DatabaseSync>();
 
-function temporaryLibrary() {
+function trackDatabase(database: DatabaseSync) {
+  databases.add(database);
+  return database;
+}
+
+function closeDatabase(database: DatabaseSync) {
+  databases.delete(database);
+  database.close();
+}
+
+function trackedLibrary(path: string, options = {}) {
+  const library = openLibraryStorage(path, options);
+  databases.add(library.db);
+  return library;
+}
+
+function temporaryLibrary(options = {}) {
   const root = mkdtempSync(join(tmpdir(), "inkling-electron-storage-"));
   roots.push(root);
-  return { root, library: openLibraryStorage(join(root, "library.sqlite3")) };
+  return { root, library: trackedLibrary(join(root, "library.sqlite3"), options) };
 }
 
 function seedFromDemo(library: ReturnType<typeof openLibraryStorage>) {
@@ -53,6 +70,8 @@ function vector(values: number[]) {
 }
 
 afterEach(() => {
+  for (const database of databases) database.close();
+  databases.clear();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -116,10 +135,40 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
   expect(library.listActiveItems().map((item) => item.id)).toContain(note.id);
 });
 
+test("Smart Space predicates are applied before the result limit", () => {
+  const { library } = temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items
+    (id, kind, title, metadata, created_at, updated_at, favorite)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`);
+  insert.run("newer-tag-miss", "article", "Tokyo winter", '{"tags":["other"]}', 30, 30, 1);
+  insert.run("newer-favorite-miss", "url", "Tokyo summer", '{"tags":["japan"]}', 20, 20, 0);
+  insert.run("older-match", "url", "Tokyo shrine", '{"tags":["Japan"]}', 10, 10, 1);
+  const space = library.createSpace({
+    name: "Tokyo reading",
+    query: { text: "Tokyo", tag: "japan", favorite: true, kind: "article" },
+  });
+
+  expect(library.listSpaceItems(space.id, 1).map((item) => item.id)).toEqual(["older-match"]);
+});
+
+test("LIKE fallback treats percent and underscore as literal search characters", () => {
+  const { library } = temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items (id, kind, title, created_at, updated_at)
+    VALUES (?, 'note', ?, ?, ?)`);
+  insert.run("literal-percent", "100% organic", 1, 1);
+  insert.run("wildcard-percent", "100 products", 2, 2);
+  insert.run("literal-underscore", "file_name", 3, 3);
+  insert.run("wildcard-underscore", "fileXname", 4, 4);
+  library.fts5Enabled = false;
+
+  expect(library.searchItems("100%").map((item) => item.id)).toEqual(["literal-percent"]);
+  expect(library.searchItems("file_name").map((item) => item.id)).toEqual(["literal-underscore"]);
+});
+
 test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", () => {
   const { root } = temporaryLibrary();
   const databasePath = join(root, "v7.sqlite3");
-  const db = new DatabaseSync(databasePath);
+  const db = trackDatabase(new DatabaseSync(databasePath));
   db.exec(`
     CREATE TABLE items (
       id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, title TEXT, description TEXT,
@@ -143,9 +192,9 @@ test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", 
       VALUES ('legacy-space', 'Old Space', 1, 1);
     PRAGMA user_version = 7;
   `);
-  db.close();
+  closeDatabase(db);
 
-  const migrated = openLibraryStorage(databasePath);
+  const migrated = trackedLibrary(databasePath);
   expect(migrated.status().schemaVersion).toBe(8);
   expect(migrated.getItemContent("legacy-note")).toEqual({
     id: "legacy-note",
@@ -166,8 +215,12 @@ test("job leases are owner-bound, renew for five minutes, and recover only after
     )
     .run();
   let now = 10_000;
+  let clockCalls = 0;
   const queue = new JobQueue(library.db, {
-    now: () => now,
+    now: () => {
+      clockCalls += 1;
+      return now;
+    },
     onUpdated: (itemId) => events.push(itemId),
   });
   const jobId = queue.enqueue("job-item", "ocr_image");
@@ -181,9 +234,13 @@ test("job leases are owner-bound, renew for five minutes, and recover only after
     library.db.prepare("SELECT lease_until FROM jobs WHERE id = ?").get(jobId).lease_until,
   ).toBe(now + JOB_LEASE_MILLIS);
   now += JOB_LEASE_MILLIS - 1;
+  clockCalls = 0;
   expect(queue.recoverExpired()).toBe(0);
+  expect(clockCalls).toBe(1);
   now += 2;
+  clockCalls = 0;
   expect(queue.recoverExpired()).toBe(1);
+  expect(clockCalls).toBe(1);
   expect(queue.getForItem("job-item")[0]?.status).toBe("pending");
   expect(queue.claimNext("worker-b")?.status).toBe("processing");
   expect(queue.fail(jobId, "worker-b", "temporary")).toBe(true);
@@ -193,7 +250,22 @@ test("job leases are owner-bound, renew for five minutes, and recover only after
     errorMessage: "temporary",
   });
   expect(queue.countActive()).toBe(1);
-  expect(events).toEqual(["job-item", "job-item", "job-item", "job-item", "job-item", "job-item"]);
+  expect(queue.claimNext("worker-c")?.status).toBe("processing");
+  expect(queue.complete(jobId, "worker-c")).toBe(true);
+  expect(queue.getForItem("job-item")[0]).toMatchObject({
+    status: "completed",
+    errorMessage: null,
+  });
+  expect(events).toEqual([
+    "job-item",
+    "job-item",
+    "job-item",
+    "job-item",
+    "job-item",
+    "job-item",
+    "job-item",
+    "job-item",
+  ]);
 });
 
 test("file capture persists its item and asset before queued processing becomes visible", async () => {
@@ -216,6 +288,26 @@ test("file capture persists its item and asset before queued processing becomes 
     { kind: "generate_embedding", status: "pending" },
   ]);
   expect(library.jobs.countActive()).toBe(1);
+});
+
+test("image capture awaits asynchronous thumbnails and persists source dimensions", async () => {
+  const { root, library } = temporaryLibrary({
+    createThumbnail: async () => ({ bytes: Buffer.from("thumbnail"), width: 1200, height: 800 }),
+  });
+  const item = await library.saveFile({
+    fileName: "photo.png",
+    mimeType: "image/png",
+    bytes: [...Buffer.from("source image")],
+  });
+
+  expect(item).toMatchObject({
+    kind: "image",
+    thumbnailPath: `assets/items/${item.id}/thumbnail.webp`,
+    metadata: { mediaWidth: 1200, mediaHeight: 800 },
+  });
+  expect(readFileSync(join(root, "assets", "items", item.id, "thumbnail.webp"), "utf8")).toBe(
+    "thumbnail",
+  );
 });
 
 test("export snapshots and hashes assets; restore rejects tampering and imports the verified copy", async () => {
@@ -241,7 +333,7 @@ test("export snapshots and hashes assets; restore rejects tampering and imports 
     byteLength: 11,
   });
 
-  const restored = openLibraryStorage(join(root, "restored", "library.sqlite3"));
+  const restored = trackedLibrary(join(root, "restored", "library.sqlite3"));
   const exportedAsset = join(report.directory, "assets", "items", "me-fuji-night", "reference.txt");
   writeFileSync(exportedAsset, "tampered");
   await expect(restored.importLibrary(report.directory)).rejects.toThrow("damaged asset");
@@ -277,9 +369,11 @@ test("export counts and copies assets from the database snapshot", async () => {
   mkdirSync(destination);
 
   const report = await library.exportLibrary(destination, 0);
-  const snapshot = new DatabaseSync(join(report.directory, "library.sqlite3"), { readOnly: true });
+  const snapshot = trackDatabase(
+    new DatabaseSync(join(report.directory, "library.sqlite3"), { readOnly: true }),
+  );
   const snapshotCount = snapshot.prepare("SELECT COUNT(*) AS count FROM items").get().count;
-  snapshot.close();
+  closeDatabase(snapshot);
 
   expect(library.listActiveItems()).toHaveLength(2);
   expect(report.items).toBe(1);
@@ -295,12 +389,14 @@ test("restore rejects item ids that could escape the managed asset directory", a
   const destination = join(root, "exports");
   mkdirSync(destination);
   const report = await library.exportLibrary(destination, 0);
-  const exportedDatabase = new DatabaseSync(join(report.directory, "library.sqlite3"));
+  const exportedDatabase = trackDatabase(
+    new DatabaseSync(join(report.directory, "library.sqlite3")),
+  );
   exportedDatabase.exec("DELETE FROM jobs");
   exportedDatabase.prepare("UPDATE items SET id = ?").run("../../outside");
-  exportedDatabase.close();
+  closeDatabase(exportedDatabase);
 
-  const restored = openLibraryStorage(join(root, "restored", "library.sqlite3"));
+  const restored = trackedLibrary(join(root, "restored", "library.sqlite3"));
   await expect(restored.importLibrary(report.directory)).rejects.toThrow(
     "item id contains unsupported characters",
   );
@@ -321,7 +417,7 @@ test("restore preserves Space kinds, ordering, and Regular Space membership", as
   mkdirSync(destination);
   const report = await library.exportLibrary(destination, 0);
 
-  const restored = openLibraryStorage(join(root, "restored", "library.sqlite3"));
+  const restored = trackedLibrary(join(root, "restored", "library.sqlite3"));
   await restored.importLibrary(report.directory);
 
   expect(restored.listSpaces().map((space) => [space.name, space.kind])).toEqual([
@@ -342,11 +438,13 @@ test("restore rejects unsupported Smart Space query fields", async () => {
   const destination = join(root, "exports");
   mkdirSync(destination);
   const report = await library.exportLibrary(destination, 0);
-  const exportedDatabase = new DatabaseSync(join(report.directory, "library.sqlite3"));
+  const exportedDatabase = trackDatabase(
+    new DatabaseSync(join(report.directory, "library.sqlite3")),
+  );
   exportedDatabase.prepare("UPDATE spaces SET query = ?").run('{"future":"ignored"}');
-  exportedDatabase.close();
+  closeDatabase(exportedDatabase);
 
-  const restored = openLibraryStorage(join(root, "restored", "library.sqlite3"));
+  const restored = trackedLibrary(join(root, "restored", "library.sqlite3"));
   await expect(restored.importLibrary(report.directory)).rejects.toThrow(
     "unsupported Space query field",
   );
@@ -365,7 +463,7 @@ test("restore removes staged assets when the active library rejects its transact
   mkdirSync(destination);
   const report = await library.exportLibrary(destination, 0);
 
-  const restored = openLibraryStorage(join(root, "restored", "library.sqlite3"));
+  const restored = trackedLibrary(join(root, "restored", "library.sqlite3"));
   restored.db.exec(`CREATE TRIGGER reject_import BEFORE INSERT ON items BEGIN
     SELECT RAISE(ABORT, 'test import failure');
   END;`);

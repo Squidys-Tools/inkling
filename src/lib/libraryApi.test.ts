@@ -113,25 +113,33 @@ test("items without jobs get a quiet default summary", () => {
 });
 
 test("Electron resolves managed assets through app protocol and uses its native folder picker", async () => {
-  Object.defineProperty(globalThis, "window", {
-    configurable: true,
-    value: {
-      inkling: {
-        commands: {
-          select_library_directory: async ({ title }: { title: string }) => `/scratch/${title}`,
+  const originalWindow = globalThis.window;
+  try {
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        inkling: {
+          commands: {
+            select_library_directory: async ({ title }: { title: string }) => `/scratch/${title}`,
+          },
         },
       },
-    },
-  });
+    });
 
-  expect(await assetUrl("assets/items/abc/my image.png")).toBe(
-    "app://local/library-assets/items/abc/my%20image.png",
-  );
-  expect(await selectLibraryDirectory("Exports")).toBe("/scratch/Exports");
-  Object.defineProperty(globalThis, "window", {
-    configurable: true,
-    value: { __TAURI_INTERNALS__: {} },
-  });
+    expect(await assetUrl("assets/items/abc/my image.png")).toBe(
+      "app://local/library-assets/items/abc/my%20image.png",
+    );
+    expect(await assetUrl("assets/items/../outside.png")).toBeUndefined();
+    expect(await assetUrl("assets/items//outside.png")).toBeUndefined();
+    expect(await assetUrl("assets/items/./outside.png")).toBeUndefined();
+    expect(await assetUrl("assets/items/abc:outside.png")).toBeUndefined();
+    expect(await selectLibraryDirectory("Exports")).toBe("/scratch/Exports");
+  } finally {
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: originalWindow,
+    });
+  }
 });
 
 test("processing summaries distinguish OCR jobs from embedding jobs", () => {
