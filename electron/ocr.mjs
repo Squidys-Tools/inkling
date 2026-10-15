@@ -12,14 +12,14 @@ function localPackagePath(path) {
   return path.replace(/app\.asar(?=$|[/\\])/, "app.asar.unpacked");
 }
 
-export function createTesseractOcr({ cacheDirectory }) {
+export function createTesseractOcr({ cacheDirectory, workerFactory = createWorker }) {
   const cachePath = resolve(cacheDirectory);
   let workerPromise;
 
   async function worker() {
     workerPromise ??= (async () => {
       await mkdir(cachePath, { recursive: true });
-      return createWorker("eng", 1, {
+      return workerFactory("eng", 1, {
         cachePath,
         cacheMethod: "write",
         gzip: true,
@@ -55,11 +55,11 @@ export function createTesseractOcr({ cacheDirectory }) {
     }
 
     for (const psm of [3, 6, 7]) await recognizeWithMode(image, psm);
-    if (bestWordCount > 0 && bestConfidence < 70) {
+    if (bestWordCount === 0 || bestConfidence < 70) {
       const highContrast = await sharp(image).grayscale().threshold(225).png().toBuffer();
       await recognizeWithMode(highContrast, 6);
     }
-    if (bestWordCount > 0 && (bestWordCount < 8 || bestConfidence < 70)) {
+    if (bestWordCount < 8 || bestConfidence < 70) {
       for (const angle of [-15, -10, -5, 5, 10, 15]) {
         const rotated = await sharp(image)
           .rotate(angle, { background: "#ffffff" })

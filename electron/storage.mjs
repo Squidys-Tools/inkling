@@ -897,10 +897,13 @@ export class JobWorker {
     this.workerId = workerId;
     this.timer = null;
     this.running = false;
+    this.stopped = false;
+    this.stopWaiters = [];
   }
 
   start() {
     this.queue.recoverExpired();
+    this.stopped = false;
     this.timer = setInterval(() => void this.pump(), this.pollInterval);
     this.timer.unref?.();
     void this.pump();
@@ -908,12 +911,15 @@ export class JobWorker {
   }
 
   stop() {
+    this.stopped = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    if (!this.running) return Promise.resolve();
+    return new Promise((resolve) => this.stopWaiters.push(resolve));
   }
 
   async pump() {
-    if (this.running) return;
+    if (this.running || this.stopped) return;
     this.running = true;
     try {
       const kinds = Object.keys(this.processors);
@@ -937,10 +943,12 @@ export class JobWorker {
         } finally {
           clearInterval(heartbeat);
         }
+        if (this.stopped) break;
         job = this.queue.claimNext(this.workerId, kinds);
       }
     } finally {
       this.running = false;
+      for (const resolve of this.stopWaiters.splice(0)) resolve();
     }
   }
 }
@@ -1031,7 +1039,7 @@ class LibraryStorage {
       .run(itemId, kind, String(model), dimension, vector, nowMillis());
   }
 
-  searchItems(query, limit = 100) {
+  searchItems(query, limit = 100, queryVector = null) {
     const search = String(query ?? "").trim();
     const cap = clampLimit(limit, 100, 200);
     if (!search)
@@ -1055,7 +1063,32 @@ class LibraryStorage {
         ORDER BY updated_at DESC, created_at DESC LIMIT ?`)
         .all(pattern, pattern, pattern, pattern, pattern, pattern, cap);
     }
-    return rows.map(itemFromRow);
+    const lexicalItems = rows.map(itemFromRow);
+    if (!queryVector?.length) return lexicalItems;
+
+    const ranked = new Map(lexicalItems.map((item) => [item.id, { item, score: 2 }]));
+    const candidates = this.db
+      .prepare(`SELECT ${qualifiedItemColumns}, e.dimension AS embedding_dimension,
+        e.vector AS embedding_vector FROM item_embeddings e JOIN items i ON i.id = e.item_id
+        WHERE i.archived = 0 AND ((e.kind = 'text' AND e.model = ?)
+          OR (e.kind = 'image' AND e.model = ?))`)
+      .all(TEXT_MODEL, IMAGE_MODEL);
+    for (const row of candidates) {
+      const vector = decodeFloatVector(row.embedding_vector, row.embedding_dimension);
+      if (!vector || vector.length !== queryVector.length) continue;
+      const item = itemFromRow(row);
+      const similarity = dotProduct(queryVector, vector);
+      const current = ranked.get(item.id);
+      if (similarity <= 0 && !current) continue;
+      const score = current ? 2 + Math.max(similarity, 0) : similarity;
+      if (current) current.score = Math.max(current.score, score);
+      else ranked.set(item.id, { item, score });
+    }
+
+    return [...ranked.values()]
+      .sort((left, right) => right.score - left.score || right.item.updatedAt - left.item.updatedAt)
+      .slice(0, cap)
+      .map(({ item }) => item);
   }
 
   searchSimilar(itemId, kind, limit = 12) {
@@ -1484,7 +1517,7 @@ class LibraryStorage {
     return this.listSpaces();
   }
 
-  listSpaceItems(id, limit = 100) {
+  listSpaceItems(id, limit = 100, queryVector = null) {
     const space = this.getSpace(id);
     if (!space) throw new Error(`space not found: ${id}`);
     const cap = clampLimit(limit, 100, 200);
@@ -1500,7 +1533,13 @@ class LibraryStorage {
     const clauses = ["i.archived = 0"];
     const values = [];
     let from = "items i";
-    if (text && this.fts5Enabled) {
+    let rankedCandidates = null;
+    if (text && queryVector?.length) {
+      rankedCandidates = this.searchItems(text, 200, queryVector);
+      if (!rankedCandidates.length) return [];
+      clauses.push(`i.id IN (${rankedCandidates.map(() => "?").join(", ")})`);
+      values.push(...rankedCandidates.map((item) => item.id));
+    } else if (text && this.fts5Enabled) {
       const match = escapeFtsQuery(text);
       if (!match) return [];
       from = "items_fts f JOIN items i ON i.id = f.item_id";
@@ -1538,6 +1577,10 @@ class LibraryStorage {
       .prepare(`SELECT ${qualifiedItemColumns} FROM ${from} WHERE ${clauses.join(" AND ")}
       ORDER BY i.updated_at DESC, i.created_at DESC LIMIT ?`)
       .all(...values, cap);
+    if (rankedCandidates) {
+      const matchingIds = new Set(rows.map((row) => row.id));
+      return rankedCandidates.filter((item) => matchingIds.has(item.id)).slice(0, cap);
+    }
     return rows.map(itemFromRow);
   }
 

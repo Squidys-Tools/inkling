@@ -26,7 +26,7 @@ async function sha256(path) {
   return hash.digest("hex");
 }
 
-async function ensureAsset(path, { url, sha256: expectedHash }) {
+async function ensureAsset(path, { url, sha256: expectedHash }, allowDownload = true) {
   if (
     await stat(path).then(
       () => true,
@@ -34,9 +34,11 @@ async function ensureAsset(path, { url, sha256: expectedHash }) {
     )
   ) {
     if ((await sha256(path)) === expectedHash) return;
+    if (!allowDownload) throw new Error("model asset is unavailable or failed its integrity check");
     await rm(path, { force: true });
   }
 
+  if (!allowDownload) throw new Error("model assets are unavailable for search");
   await mkdir(dirname(path), { recursive: true });
   const partialPath = `${path}.${process.pid}.part`;
   try {
@@ -96,13 +98,21 @@ function floatVectorBytes(vector) {
 
 function textTokens(tokenizer, text) {
   const encoding = tokenizer.encode(text, { return_token_type_ids: true });
-  const ids = encoding.ids.slice(0, maxTokens);
-  const typeIds = (encoding.token_type_ids ?? new Array(encoding.ids.length).fill(0)).slice(
-    0,
-    maxTokens,
-  );
+  const tokenTypeIds = encoding.token_type_ids ?? new Array(encoding.ids.length).fill(0);
+  const ids =
+    encoding.ids.length > maxTokens
+      ? [...encoding.ids.slice(0, maxTokens - 1), encoding.ids.at(-1)]
+      : encoding.ids;
+  const typeIds =
+    tokenTypeIds.length > maxTokens
+      ? [...tokenTypeIds.slice(0, maxTokens - 1), tokenTypeIds.at(-1) ?? 0]
+      : tokenTypeIds;
   if (ids.length === 0) throw new Error("Nomic tokenizer produced no tokens");
   return { ids, typeIds, mask: ids.map(() => 1) };
+}
+
+export function hasEmbeddableCharacters(value) {
+  return /[\p{L}\p{N}]/u.test(value);
 }
 
 function imageTensor(bytes) {
@@ -132,6 +142,8 @@ export function createEmbeddingEngine(modelCacheDirectory, manifestPath = defaul
   const modelCache = resolve(modelCacheDirectory);
   let manifestPromise;
   let textRuntimePromise;
+  let textQueryRuntimePromise;
+  let textRuntime;
   let imageSessionPromise;
 
   async function manifest() {
@@ -144,15 +156,15 @@ export function createEmbeddingEngine(modelCacheDirectory, manifestPath = defaul
     return manifestPromise;
   }
 
-  async function openTextRuntime() {
+  async function openTextRuntime(allowDownload) {
     const models = await manifest();
     const definition = models.text;
     const modelRoot = join(modelCache, definition.name);
     const modelPath = join(modelRoot, definition.model.path);
     const tokenizerPath = join(modelRoot, definition.tokenizer.path);
     await Promise.all([
-      ensureAsset(modelPath, definition.model),
-      ensureAsset(tokenizerPath, definition.tokenizer),
+      ensureAsset(modelPath, definition.model, allowDownload),
+      ensureAsset(tokenizerPath, definition.tokenizer, allowDownload),
     ]);
     const tokenizerJson = JSON.parse(await readFile(tokenizerPath, "utf8"));
     const tokenizer = new Tokenizer(tokenizerJson, {});
@@ -168,15 +180,40 @@ export function createEmbeddingEngine(modelCacheDirectory, manifestPath = defaul
     return ort.InferenceSession.create(modelPath);
   }
 
-  async function embedText(text, prefix = "search_document:") {
+  async function embedText(text, prefix = "search_document:", allowDownload = true) {
     const content = String(text ?? "").trim();
-    if (!content || !/[^\W_]/u.test(content))
+    if (!content || !hasEmbeddableCharacters(content))
       throw new Error("text contains no embeddable characters");
-    textRuntimePromise ??= openTextRuntime().catch((error) => {
-      textRuntimePromise = undefined;
-      throw error;
-    });
-    const { tokenizer, session } = await textRuntimePromise;
+    if (!textRuntime) {
+      if (allowDownload) {
+        textRuntimePromise ??= (async () => {
+          const cachedRuntime = textQueryRuntimePromise
+            ? await textQueryRuntimePromise.catch(() => null)
+            : null;
+          return cachedRuntime ?? openTextRuntime(true);
+        })()
+          .then((runtime) => {
+            textRuntime ??= runtime;
+            return runtime;
+          })
+          .finally(() => {
+            textRuntimePromise = undefined;
+          });
+        await textRuntimePromise;
+      } else {
+        textQueryRuntimePromise ??= openTextRuntime(false)
+          .then((runtime) => {
+            textRuntime ??= runtime;
+            return runtime;
+          })
+          .catch((error) => {
+            textQueryRuntimePromise = undefined;
+            throw error;
+          });
+        await textQueryRuntimePromise;
+      }
+    }
+    const { tokenizer, session } = textRuntime;
     const { ids, typeIds, mask } = textTokens(tokenizer, `${prefix} ${content}`);
     const tensor = (values) =>
       new ort.Tensor(
@@ -239,7 +276,7 @@ export function createEmbeddingEngine(modelCacheDirectory, manifestPath = defaul
 
   return {
     embedText,
-    embedQuery: (text) => embedText(text, "search_query:"),
+    embedQuery: (text) => embedText(text, "search_query:", false),
     embedImage,
   };
 }

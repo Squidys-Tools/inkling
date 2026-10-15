@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createTesseractOcr } from "../../electron/ocr.mjs";
 
 export interface OcrEngine {
@@ -40,26 +41,38 @@ export class WindowsOcrEngine implements OcrEngine {
   }
 
   async run(imagePath: string | Uint8Array): Promise<string> {
-    if (typeof imagePath !== "string") throw new Error("Windows OCR requires a local image path");
-    const result = Bun.spawnSync(
-      [
-        "powershell.exe",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        this.scriptPath,
-        "-ImagePath",
-        imagePath,
-      ],
-      { stdout: "pipe", stderr: "pipe" },
-    );
-    if (result.exitCode !== 0) {
-      throw new Error(
-        `Windows OCR failed (exit ${result.exitCode}): ${result.stderr.toString("utf8")}`,
+    let temporaryDirectory: string | null = null;
+    try {
+      let sourcePath: string;
+      if (typeof imagePath === "string") {
+        sourcePath = imagePath;
+      } else {
+        temporaryDirectory = mkdtempSync(join(tmpdir(), "inkling-windows-ocr-"));
+        sourcePath = join(temporaryDirectory, "page.png");
+        writeFileSync(sourcePath, imagePath);
+      }
+      const result = Bun.spawnSync(
+        [
+          "powershell.exe",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          this.scriptPath,
+          "-ImagePath",
+          sourcePath,
+        ],
+        { stdout: "pipe", stderr: "pipe" },
       );
+      if (result.exitCode !== 0) {
+        throw new Error(
+          `Windows OCR failed (exit ${result.exitCode}): ${result.stderr.toString("utf8")}`,
+        );
+      }
+      return result.stdout.toString("utf8").trim();
+    } finally {
+      if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
     }
-    return result.stdout.toString("utf8").trim();
   }
 }
 

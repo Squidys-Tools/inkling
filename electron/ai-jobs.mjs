@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createEmbeddingEngine } from "./embeddings.mjs";
+import { IMAGE_MODEL } from "./embedding-contract.mjs";
 import { createTesseractOcr } from "./ocr.mjs";
 import { extractPdfTextByPages } from "./pdf.mjs";
 import { markdownToPlainText } from "./storage.mjs";
@@ -18,7 +19,7 @@ export function embeddingText(item) {
       : bodyValue
     : null;
   const description = body ?? item.description;
-  const parts = [item.title, description, description, item.ocrText]
+  const parts = [item.title, description, item.ocrText]
     .map((value) => String(value ?? "").trim())
     .filter(Boolean);
 
@@ -30,6 +31,16 @@ export function embeddingText(item) {
   }
 
   return parts.length ? parts.join("\n\n") : null;
+}
+
+export function enqueueStaleImageEmbeddings(storage) {
+  const items = storage.db
+    .prepare(`SELECT e.item_id FROM item_embeddings e JOIN items i ON i.id = e.item_id
+      WHERE e.kind = 'image' AND e.model != ? AND i.kind = 'image'`)
+    .all(IMAGE_MODEL);
+  for (const item of items)
+    storage.jobs.enqueue(item.item_id, "generate_embedding", { notify: false });
+  return items.length;
 }
 
 export function createAiJobProcessors({
@@ -61,12 +72,13 @@ export function createAiJobProcessors({
         onProgress: (current, total, message) =>
           storage.jobs.updateProgress(job.id, workerId, current, total, message),
       });
+      const pageCount = result.pages.length;
       if (result.text) {
         storage.storeOcrText(item.id, result.text, result.engine);
         storage.jobs.enqueue(item.id, "generate_embedding");
-        storage.jobs.updateProgress(job.id, workerId, 1, 1, "PDF text indexed");
+        storage.jobs.updateProgress(job.id, workerId, pageCount, pageCount, "PDF text indexed");
       } else {
-        storage.jobs.updateProgress(job.id, workerId, 1, 1, "No text found");
+        storage.jobs.updateProgress(job.id, workerId, pageCount, pageCount, "No text found");
       }
     },
 
@@ -117,5 +129,9 @@ export function createAiJobProcessors({
     },
   };
 
-  return { processors, close: () => ocr.close?.() };
+  return {
+    processors,
+    embedQuery: async (text) => (await embeddings.embedQuery(text)).vector,
+    close: () => ocr.close?.(),
+  };
 }

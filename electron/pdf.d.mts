@@ -3,6 +3,7 @@ export function extractPdfTextByPages(
   options?: {
     recognize?: (image: Buffer) => Promise<string>;
     onProgress?: (current: number, total: number, message: string) => void;
+    ocrEngineName?: string;
   },
 ): Promise<{
   pages: string[];

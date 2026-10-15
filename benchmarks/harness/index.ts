@@ -271,22 +271,49 @@ async function runItem(
   }
 
   if (item.type === "pdf") {
-    const embeddedImages = extractPdf(filePath).embeddedImages;
-    const engine = ocrEngines.find((candidate) => candidate.name === "tesseract.js");
     let ocrLatencyMs = 0;
     const startedAt = performance.now();
-    const extraction = await extractPdfTextByPages(readFileSync(filePath), {
-      recognize: engine
-        ? async (image) => {
-            const ocrStartedAt = performance.now();
-            const result = await engine.run(image);
-            ocrLatencyMs += performance.now() - ocrStartedAt;
-            return result;
-          }
-        : undefined,
-    });
+    let embeddedImages: number;
+    let extraction: Awaited<ReturnType<typeof extractPdfTextByPages>>;
+    try {
+      embeddedImages = extractPdf(filePath).embeddedImages;
+      extraction = await extractPdfTextByPages(readFileSync(filePath), {
+        recognize: ocrEngines.length
+          ? async (image) => {
+              const failures: string[] = [];
+              for (const engine of ocrEngines) {
+                const ocrStartedAt = performance.now();
+                try {
+                  const text = await engine.run(image);
+                  if (text.trim()) return text;
+                } catch (error) {
+                  failures.push(
+                    `${engine.name}: ${error instanceof Error ? error.message : String(error)}`,
+                  );
+                } finally {
+                  ocrLatencyMs += performance.now() - ocrStartedAt;
+                }
+              }
+              if (failures.length) throw new Error(failures.join("; "));
+              return "";
+            }
+          : undefined,
+        ocrEngineName: ocrEngines.map((engine) => engine.name).join("+"),
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      return {
+        id: item.id,
+        type: item.type,
+        engine: "pdf.js+ocr",
+        status: "fail",
+        score: 0,
+        metrics: { error: detail },
+        messages: [`PDF processing failed: ${detail}`],
+      };
+    }
     const pdfLatencyMs = performance.now() - startedAt;
-    if (!extraction.text && exp.ocr_text_file) {
+    if (!extraction.text && exp.ocr_text_file && ocrEngines.length === 0) {
       return skipResult(
         item,
         "scanned PDF: no OCR engine available (Windows.Media.Ocr or tesseract.js)",
@@ -383,7 +410,7 @@ function writeSummaryMarkdown(report: {
   );
   if (pdfOcrLatency.length) {
     lines.push(
-      `PDF OCR: median ${percentile(pdfOcrLatency, 0.5).toFixed(0)} ms, p90 ${percentile(pdfOcrLatency, 0.9).toFixed(0)} ms (${pdfOcrLatency.length} pages).`,
+      `PDF OCR total per document: median ${percentile(pdfOcrLatency, 0.5).toFixed(0)} ms, p90 ${percentile(pdfOcrLatency, 0.9).toFixed(0)} ms (${pdfOcrLatency.length} PDFs).`,
     );
   }
   lines.push("");

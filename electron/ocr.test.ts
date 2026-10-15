@@ -23,6 +23,31 @@ test("Tesseract reads the bundled English model without fetching language data",
   }
 });
 
+test("Tesseract tries bounded preprocessing when the initial page modes find no text", async () => {
+  const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-test-"));
+  roots.push(cacheDirectory);
+  const inputs: (string | Uint8Array)[] = [];
+  const ocr = createTesseractOcr({
+    cacheDirectory,
+    workerFactory: async () => ({
+      setParameters: async () => {},
+      recognize: async (image) => {
+        inputs.push(image);
+        return { data: { text: inputs.length <= 3 ? "" : "faint print", confidence: 91 } };
+      },
+      terminate: async () => {},
+    }),
+  });
+  try {
+    const text = await ocr.recognize(readFileSync("benchmarks/corpus/images/image-columns-01.png"));
+    expect(text).toBe("faint print");
+    expect(inputs).toHaveLength(10);
+    expect(inputs[3]).not.toBe(inputs[0]);
+  } finally {
+    await ocr.close();
+  }
+});
+
 test("Tesseract prefers non-empty text and deskews rotated blocks", async () => {
   const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-test-"));
   roots.push(cacheDirectory);

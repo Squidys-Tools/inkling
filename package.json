@@ -92,7 +92,8 @@
     "asarUnpack": [
       "**/tesseract.js/**/*",
       "**/tesseract.js-core/**/*",
-      "**/@tesseract.js-data/eng/**/*"
+      "**/@tesseract.js-data/eng/**/*",
+      "**/onnxruntime-node/bin/**/*"
     ],
     "protocols": [
       {

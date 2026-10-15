@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAiJobProcessors, embeddingText } from "./ai-jobs.mjs";
+import { createAiJobProcessors, embeddingText, enqueueStaleImageEmbeddings } from "./ai-jobs.mjs";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
 import { JobWorker, openLibraryStorage } from "./storage.mjs";
 import { createImageThumbnail } from "./thumbnail.mjs";
@@ -46,8 +46,11 @@ test("Electron jobs OCR captured files, index their text, and persist matching m
     kind: "pdf",
     bytes: [...readFileSync("benchmarks/corpus/pdfs/pdf-native-text-01.pdf")],
   });
+  library.storeEmbedding(image.id, "image", "nomic-embed-vision-v1.5", Buffer.alloc(8), 2);
+  expect(enqueueStaleImageEmbeddings(library)).toBe(1);
   const ocrInputs: Buffer[] = [];
   const embeddedTexts: string[] = [];
+  const embeddedQueries: string[] = [];
   let closed = false;
   const ai = createAiJobProcessors({
     modelCacheDirectory: join(root, "models"),
@@ -65,14 +68,20 @@ test("Electron jobs OCR captured files, index their text, and persist matching m
         embeddedTexts.push(text);
         return embedding(TEXT_MODEL);
       },
+      embedQuery: async (text) => {
+        embeddedQueries.push(text);
+        return embedding(TEXT_MODEL);
+      },
       embedImage: async () => embedding(IMAGE_MODEL),
     },
     extractPdf: async (_bytes, { recognize, onProgress }) => {
-      onProgress(0, 1, "OCR page 1 of 1");
+      onProgress(0, 3, "OCR page 1 of 3");
       const text = await recognize(Buffer.from("rendered PDF page"));
-      onProgress(1, 1, "OCR page 1 of 1");
+      onProgress(1, 3, "Reading PDF text");
+      onProgress(2, 3, "Reading PDF text");
+      onProgress(3, 3, "Reading PDF text");
       return {
-        pages: [text],
+        pages: [text, "Second page", "Third page"],
         text: `${text}\n\nNative PDF text`,
         engine: "pdf-text+tesseract.js",
         ocrPages: 1,
@@ -86,7 +95,7 @@ test("Electron jobs OCR captured files, index their text, and persist matching m
 
   const worker = new JobWorker(library, { processors: ai.processors, workerId: "ai-test" });
   await worker.pump();
-  worker.stop();
+  await worker.stop();
 
   expect(library.getItem(image.id)?.ocrText).toBe("Field notes from the local library");
   expect(library.getItem(image.id)?.metadata.ocrEngine).toBe("tesseract.js");
@@ -94,12 +103,19 @@ test("Electron jobs OCR captured files, index their text, and persist matching m
     "Field notes from the local library\n\nNative PDF text",
   );
   expect(library.getItem(pdf.id)?.metadata.ocrEngine).toBe("pdf-text+tesseract.js");
-  expect(library.searchItems("library").map((item) => item.id)).toEqual([pdf.id, image.id]);
+  expect(
+    library
+      .searchItems("library")
+      .map((item) => item.id)
+      .sort(),
+  ).toEqual([pdf.id, image.id].sort());
   expect(ocrInputs).toHaveLength(2);
   expect(embeddedTexts).toHaveLength(2);
   expect(embeddedTexts.every((text) => text.includes("Field notes from the local library"))).toBe(
     true,
   );
+  expect(await ai.embedQuery("quiet telescope")).toEqual(Float32Array.from([1, 0]));
+  expect(embeddedQueries).toEqual(["quiet telescope"]);
 
   const vectors = library.db
     .prepare("SELECT item_id, kind, model FROM item_embeddings ORDER BY item_id, kind")
@@ -111,6 +127,13 @@ test("Electron jobs OCR captured files, index their text, and persist matching m
   expect(
     library.jobs.getForItems([image.id, pdf.id]).every((job) => job.status === "completed"),
   ).toBe(true);
+  expect(
+    library.db
+      .prepare(
+        "SELECT progress_current, progress_total FROM jobs WHERE item_id = ? AND kind = 'ocr_pdf_page'",
+      )
+      .get(pdf.id),
+  ).toEqual({ progress_current: 3, progress_total: 3 });
   await ai.close();
   expect(closed).toBe(true);
 });
@@ -125,5 +148,5 @@ test("embedding text follows the Tauri document inputs and markdown projection",
       ocrText: "Cover text",
       metadata: { text: "ignored metadata" },
     }),
-  ).toBe("Reading list\n\nNomic A local model.\n\nNomic A local model.\n\nCover text");
+  ).toBe("Reading list\n\nNomic A local model.\n\nCover text");
 });

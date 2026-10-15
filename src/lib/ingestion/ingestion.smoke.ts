@@ -44,6 +44,29 @@ assert(
   "Defuddle normalizes canonical URL",
 );
 
+for (const [url, html, expectedAuthor] of [
+  [
+    "https://example.com/short",
+    `<html><head><meta name="author" content="Mira Alderton"></head><body><article><h1>Short article</h1><p class="byline">By <span class="author">Mira Alderton</span> · <time datetime="2026-07-14">July 14, 2026</time></p><p>Enough meaningful article text for the normal extraction path to retain this page as readable content.</p></article></body></html>`,
+    "Mira Alderton",
+  ],
+  [
+    "https://example.com/news",
+    `<html><body><article><h1>News article</h1><p class="byline">By Sam Okonkwo, City Desk · Updated 6:42 PM, August 3, 2026</p><p>Enough meaningful article text for the normal extraction path to retain this page as readable content.</p></article></body></html>`,
+    "Sam Okonkwo",
+  ],
+  [
+    "https://example.com/recipe",
+    `<html><body><article><h1>Recipe article</h1><p class="byline">Recipe by June Park · Serves 2 · 25 minutes</p><p>Enough meaningful article text for the normal extraction path to retain this page as readable content.</p></article></body></html>`,
+    "June Park",
+  ],
+] as const) {
+  const article = await ingestUrl(url, {
+    fetch: async () => new Response(html, { headers: { "content-type": "text/html" } }),
+  });
+  assert(article.author === expectedAuthor, `ingestUrl extracts author-only metadata for ${url}`);
+}
+
 const fallback = extractFallback(document, pageUrl);
 assert(
   fallback.canonicalUrl === "https://example.com/articles/canonical",

@@ -2,6 +2,7 @@ import { createCanvas, DOMMatrix, ImageData, Path2D } from "@napi-rs/canvas";
 
 const maxCanvasEdge = 8192;
 const maxCanvasPixels = 16_777_216;
+const minTextLayerCharacters = 500;
 let pdfjsPromise;
 
 async function pdfjs() {
@@ -30,7 +31,10 @@ async function renderPage(page, canvasModule) {
   return canvas.toBuffer("image/png");
 }
 
-export async function extractPdfTextByPages(bytes, { recognize, onProgress = () => {} } = {}) {
+export async function extractPdfTextByPages(
+  bytes,
+  { recognize, onProgress = () => {}, ocrEngineName = "tesseract.js" } = {},
+) {
   if (!bytes?.length) throw new Error("PDF bytes cannot be empty");
   const library = await pdfjs();
   const loadingTask = library.getDocument({
@@ -38,26 +42,44 @@ export async function extractPdfTextByPages(bytes, { recognize, onProgress = () 
     isEvalSupported: false,
     useSystemFonts: true,
   });
-  const document = await loadingTask.promise;
   const pages = [];
   let ocrPages = 0;
 
   try {
+    const document = await loadingTask.promise;
+    const imageOperations = new Set(
+      [
+        library.OPS.paintImageXObject,
+        library.OPS.paintInlineImageXObject,
+        library.OPS.paintJpegXObject,
+        library.OPS.paintImageMaskXObject,
+        library.OPS.paintImageMaskXObjectGroup,
+        library.OPS.paintImageGroup,
+      ].filter((operation) => typeof operation === "number"),
+    );
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const contents = await page.getTextContent();
       let text = normalizeText(
         contents.items.map((item) => ("str" in item ? item.str : "")).join(" "),
       );
-      if (!text && recognize) {
+      let hasRasterImage = false;
+      if (recognize && text.length < minTextLayerCharacters) {
+        const operators = await page.getOperatorList();
+        hasRasterImage = operators.fnArray.some((operation) => imageOperations.has(operation));
+      }
+      if (recognize && (!text || (text.length < minTextLayerCharacters && hasRasterImage))) {
         onProgress(
           pageNumber - 1,
           document.numPages,
           `OCR page ${pageNumber} of ${document.numPages}`,
         );
         const image = await renderPage(page, { createCanvas });
-        text = normalizeText(await recognize(image));
-        if (text) ocrPages += 1;
+        const ocrText = normalizeText(await recognize(image));
+        if (ocrText) {
+          text = text ? `${text}\n${ocrText}` : ocrText;
+          ocrPages += 1;
+        }
       }
       pages.push(text);
       page.cleanup();
@@ -70,7 +92,7 @@ export async function extractPdfTextByPages(bytes, { recognize, onProgress = () 
   return {
     pages,
     text: pages.filter(Boolean).join("\n\n"),
-    engine: ocrPages ? `pdf-text+tesseract.js` : "pdf-text",
+    engine: ocrPages ? `pdf-text+${ocrEngineName}` : "pdf-text",
     ocrPages,
   };
 }

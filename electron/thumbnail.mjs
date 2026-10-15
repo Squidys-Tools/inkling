@@ -64,7 +64,10 @@ export async function sharpImageInput(bytes) {
     if (!isBitmap && !isIcon) throw error;
     if (isIcon) validateIconImage(bytes);
     if (isBitmap && bytes.length >= 26) {
-      validateImageDimensions(Math.abs(bytes.readInt32LE(18)), Math.abs(bytes.readInt32LE(22)));
+      const coreHeader = bytes.readUInt32LE(14) === 12;
+      const width = coreHeader ? bytes.readUInt16LE(18) : bytes.readInt32LE(18);
+      const height = coreHeader ? bytes.readUInt16LE(20) : bytes.readInt32LE(22);
+      validateImageDimensions(Math.abs(width), Math.abs(height));
     }
     const image = await loadImage(bytes);
     validateImageDimensions(image.width, image.height);

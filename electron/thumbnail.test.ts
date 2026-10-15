@@ -35,6 +35,27 @@ test("image dimensions respect side and decoded-allocation limits", () => {
   expect(() => validateImageDimensions(8192, 4096)).not.toThrow();
 });
 
+test("OS/2 core-header BMP dimensions use their 16-bit fields", async () => {
+  const width = 2;
+  const height = 2;
+  const rowBytes = 8;
+  const pixels = Buffer.alloc(rowBytes * height, 0x66);
+  const bitmap = Buffer.alloc(26 + pixels.length);
+  bitmap.write("BM");
+  bitmap.writeUInt32LE(bitmap.length, 2);
+  bitmap.writeUInt32LE(26, 10);
+  bitmap.writeUInt32LE(12, 14);
+  bitmap.writeUInt16LE(width, 18);
+  bitmap.writeUInt16LE(height, 20);
+  bitmap.writeUInt16LE(1, 22);
+  bitmap.writeUInt16LE(24, 24);
+  pixels.copy(bitmap, 26);
+
+  const thumbnail = await createImageThumbnail(bitmap);
+  expect(thumbnail).toMatchObject({ width, height });
+  expect((await sharp(thumbnail.bytes).metadata()).format).toBe("webp");
+});
+
 test("Sharp thumbnails retain BMP, GIF, ICO, JPEG, PNG, TIFF, and WebP inputs", async () => {
   const source = sharp({
     create: { width: 16, height: 16, channels: 3, background: "#335577" },

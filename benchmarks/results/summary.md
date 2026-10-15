@@ -1,12 +1,12 @@
 # Benchmark results
-Generated: 2026-10-15T14:37:08.345Z
+Generated: 2026-10-15T15:11:52.440Z
 
-## Overall: score 0.983 — pass 33, partial 7, fail 0, skip 8
+## Overall: score 0.990 — pass 36, partial 4, fail 0, skip 8
 
 | Type | Score | Pass | Partial | Fail | Skip | Total |
 | --- | --- | --- | --- | --- | --- | --- |
-| article | 0.990 | 15 | 2 | 0 | 0 | 17 |
-| recipe | 0.917 | 0 | 1 | 0 | 0 | 1 |
+| article | 1.000 | 17 | 0 | 0 | 0 | 17 |
+| recipe | 1.000 | 1 | 0 | 0 | 0 | 1 |
 | screenshot | 0.886 | 0 | 2 | 0 | 0 | 2 |
 | image | 0.954 | 2 | 2 | 0 | 8 | 12 |
 | pdf | 1.000 | 6 | 0 | 0 | 0 | 6 |
@@ -15,15 +15,15 @@ Generated: 2026-10-15T14:37:08.345Z
 | quote | 1.000 | 2 | 0 | 0 | 0 | 2 |
 
 ## Latency
-Image OCR: median 796 ms, p90 1943 ms (6 items).
-PDF processing: median 15 ms, p90 2363 ms (6 items).
-PDF OCR: median 2095 ms, p90 2095 ms (1 pages).
+Image OCR: median 821 ms, p90 2016 ms (6 items).
+PDF processing: median 17 ms, p90 3965 ms (6 items).
+PDF OCR total per document: median 2093 ms, p90 3862 ms (2 PDFs).
 
 ## Items
-- [PARTIAL] article-short-01 (score 0.917, production:ingestUrl)
+- [PASS] article-short-01 (score 1.000, production:ingestUrl)
 - [PASS] article-long-essay-01 (score 1.000, production:ingestUrl)
-- [PARTIAL] article-news-01 (score 0.917, production:ingestUrl)
-- [PARTIAL] article-recipe-01 (score 0.917, production:ingestUrl)
+- [PASS] article-news-01 (score 1.000, production:ingestUrl)
+- [PASS] article-recipe-01 (score 1.000, production:ingestUrl)
 - [PASS] article-docs-01 (score 1.000, production:ingestUrl)
 - [PASS] article-footnotes-01 (score 1.000, production:ingestUrl)
 - [PASS] article-codeblocks-01 (score 1.000, production:ingestUrl)
@@ -49,7 +49,7 @@ PDF OCR: median 2095 ms, p90 2095 ms (1 pages).
 - [PASS] pdf-scanned-01 (score 1.000, pdf-text+tesseract.js)
 - [PASS] pdf-multicolumn-01 (score 1.000, pdf-text)
 - [PASS] pdf-tables-01 (score 1.000, pdf-text)
-- [PASS] pdf-images-captions-01 (score 1.000, pdf-text)
+- [PASS] pdf-images-captions-01 (score 1.000, pdf-text+tesseract.js)
 - [PASS] pdf-bad-metadata-01 (score 1.000, pdf-text)
 - [PASS] video-youtube-01 (score 1.000, production:ingestUrl)
 - [PASS] video-vimeo-01 (score 1.000, production:ingestUrl)
@@ -70,15 +70,6 @@ PDF OCR: median 2095 ms, p90 2095 ms (1 pages).
 - [PASS] article-live-macrumors-apple-trained-own-ai-model-for-china (score 1.000, production:ingestUrl)
 
 ## Details
-### article-short-01 — partial (0.917)
-- author mismatch: expected "Mira Alderton", got "Mira Alderton · July 14, 2026"
-
-### article-news-01 — partial (0.917)
-- author mismatch: expected "Sam Okonkwo", got "Sam Okonkwo, City Desk · Updated 6:42 PM, August 3, 2026"
-
-### article-recipe-01 — partial (0.917)
-- author mismatch: expected "June Park", got "June Park · Serves 2 · 25 minutes"
-
 ### screenshot-large-text-01 — partial (0.971)
 - OCR precision 0.94
 

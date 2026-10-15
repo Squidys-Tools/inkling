@@ -1,34 +1,32 @@
 {
-  "generatedAt": "2026-10-15T14:37:08.345Z",
+  "generatedAt": "2026-10-15T15:11:52.440Z",
   "engine": {
-    "ocr": [
-      "tesseract.js"
-    ]
+    "ocr": ["tesseract.js"]
   },
   "overall": {
     "total": 48,
-    "pass": 33,
-    "partial": 7,
+    "pass": 36,
+    "partial": 4,
     "fail": 0,
     "skip": 8,
-    "avgScore": 0.9834272239198711
+    "avgScore": 0.9896772239198711
   },
   "byType": {
     "article": {
       "total": 17,
-      "pass": 15,
-      "partial": 2,
+      "pass": 17,
+      "partial": 0,
       "fail": 0,
       "skip": 0,
-      "avgScore": 0.9901960784313725
+      "avgScore": 1
     },
     "recipe": {
       "total": 1,
-      "pass": 0,
-      "partial": 1,
+      "pass": 1,
+      "partial": 0,
       "fail": 0,
       "skip": 0,
-      "avgScore": 0.9166666666666666
+      "avgScore": 1
     },
     "screenshot": {
       "total": 2,
@@ -84,19 +82,17 @@
       "id": "article-short-01",
       "type": "article",
       "engine": "production:ingestUrl",
-      "status": "partial",
-      "score": 0.9166666666666666,
+      "status": "pass",
+      "score": 1,
       "metrics": {
         "title": "The Case for Slower News",
-        "author": "Mira Alderton · July 14, 2026",
+        "author": "Mira Alderton",
         "imageUrls": 0,
         "safeEmbeds": 0,
         "textLength": 558,
         "extractor": "defuddle"
       },
-      "messages": [
-        "author mismatch: expected \"Mira Alderton\", got \"Mira Alderton · July 14, 2026\""
-      ]
+      "messages": []
     },
     {
       "id": "article-long-essay-01",
@@ -118,37 +114,33 @@
       "id": "article-news-01",
       "type": "article",
       "engine": "production:ingestUrl",
-      "status": "partial",
-      "score": 0.9166666666666666,
+      "status": "pass",
+      "score": 1,
       "metrics": {
         "title": "City Council Approves Riverfront Transit Line",
-        "author": "Sam Okonkwo, City Desk · Updated 6:42 PM, August 3, 2026",
+        "author": "Sam Okonkwo",
         "imageUrls": 0,
         "safeEmbeds": 0,
         "textLength": 1291,
         "extractor": "defuddle"
       },
-      "messages": [
-        "author mismatch: expected \"Sam Okonkwo\", got \"Sam Okonkwo, City Desk · Updated 6:42 PM, August 3, 2026\""
-      ]
+      "messages": []
     },
     {
       "id": "article-recipe-01",
       "type": "recipe",
       "engine": "production:ingestUrl",
-      "status": "partial",
-      "score": 0.9166666666666666,
+      "status": "pass",
+      "score": 1,
       "metrics": {
         "title": "One-Pan Miso Butter Salmon",
-        "author": "June Park · Serves 2 · 25 minutes",
+        "author": "June Park",
         "imageUrls": 0,
         "safeEmbeds": 0,
         "textLength": 1164,
         "extractor": "defuddle"
       },
-      "messages": [
-        "author mismatch: expected \"June Park\", got \"June Park · Serves 2 · 25 minutes\""
-      ]
+      "messages": []
     },
     {
       "id": "article-docs-01",
@@ -273,11 +265,9 @@
         "precision": 0.9411764705882353,
         "expectedCount": 32,
         "actualCount": 34,
-        "elapsedMs": 1249.1631000000002
+        "elapsedMs": 1341.2630170000002
       },
-      "messages": [
-        "OCR precision 0.94"
-      ]
+      "messages": ["OCR precision 0.94"]
     },
     {
       "id": "screenshot-small-text-01",
@@ -290,7 +280,7 @@
         "precision": 0.84,
         "expectedCount": 110,
         "actualCount": 100,
-        "elapsedMs": 1276.972238
+        "elapsedMs": 1318.9264989999997
       },
       "messages": [
         "OCR recall 0.76 (110 expected tokens)",
@@ -307,9 +297,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-design-ref-01",
@@ -320,9 +308,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-similar-01",
@@ -333,9 +319,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-similar-02",
@@ -346,9 +330,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-similar-03",
@@ -359,9 +341,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-similar-04",
@@ -372,9 +352,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-distractor-01",
@@ -385,9 +363,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-lowres-01",
@@ -398,9 +374,7 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": [
-        "vision/similarity scoring not implemented (embeddings benchmark)"
-      ]
+      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
     },
     {
       "id": "image-meme-01",
@@ -413,7 +387,7 @@
         "precision": 0.9285714285714286,
         "expectedCount": 14,
         "actualCount": 14,
-        "elapsedMs": 483.79011100000025
+        "elapsedMs": 496.26456800000005
       },
       "messages": [
         "OCR recall 0.93 (14 expected tokens)",
@@ -432,7 +406,7 @@
         "precision": 1,
         "expectedCount": 15,
         "actualCount": 15,
-        "elapsedMs": 228.20695300000034
+        "elapsedMs": 230.2796290000001
       },
       "messages": []
     },
@@ -447,7 +421,7 @@
         "precision": 0.9666666666666667,
         "expectedCount": 36,
         "actualCount": 30,
-        "elapsedMs": 1943.150802
+        "elapsedMs": 2015.6257529999993
       },
       "messages": [
         "OCR recall 0.81 (36 expected tokens)",
@@ -466,7 +440,7 @@
         "precision": 1,
         "expectedCount": 69,
         "actualCount": 69,
-        "elapsedMs": 795.8012949999993
+        "elapsedMs": 820.5310029999991
       },
       "messages": []
     },
@@ -481,7 +455,7 @@
         "textLength": 608,
         "ocrPages": 0,
         "embeddedImages": 0,
-        "pdfLatencyMs": 103.73220899999978,
+        "pdfLatencyMs": 107.93768399999954,
         "ocrLatencyMs": 0
       },
       "messages": []
@@ -497,8 +471,8 @@
         "textLength": 732,
         "ocrPages": 1,
         "embeddedImages": 1,
-        "pdfLatencyMs": 2363.140482999999,
-        "ocrLatencyMs": 2095.030841
+        "pdfLatencyMs": 2469.264795,
+        "ocrLatencyMs": 2093.422643
       },
       "messages": []
     },
@@ -513,7 +487,7 @@
         "textLength": 499,
         "ocrPages": 0,
         "embeddedImages": 0,
-        "pdfLatencyMs": 29.564582999999402,
+        "pdfLatencyMs": 17.148160000000644,
         "ocrLatencyMs": 0
       },
       "messages": []
@@ -529,7 +503,7 @@
         "textLength": 190,
         "ocrPages": 0,
         "embeddedImages": 0,
-        "pdfLatencyMs": 14.94097099999999,
+        "pdfLatencyMs": 11.764459999998508,
         "ocrLatencyMs": 0
       },
       "messages": []
@@ -537,16 +511,16 @@
     {
       "id": "pdf-images-captions-01",
       "type": "pdf",
-      "engine": "pdf-text",
+      "engine": "pdf-text+tesseract.js",
       "status": "pass",
       "score": 1,
       "metrics": {
         "pageCount": 1,
-        "textLength": 209,
-        "ocrPages": 0,
+        "textLength": 390,
+        "ocrPages": 1,
         "embeddedImages": 1,
-        "pdfLatencyMs": 3.815574000000197,
-        "ocrLatencyMs": 0
+        "pdfLatencyMs": 3965.3804980000004,
+        "ocrLatencyMs": 3861.970498999999
       },
       "messages": []
     },
@@ -561,7 +535,7 @@
         "textLength": 124,
         "ocrPages": 0,
         "embeddedImages": 0,
-        "pdfLatencyMs": 4.404665000000023,
+        "pdfLatencyMs": 3.670772000001307,
         "ocrLatencyMs": 0
       },
       "messages": []
