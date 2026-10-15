@@ -142,7 +142,12 @@ test("metadata patches preserve fields added after a URL was captured", () => {
     title: "Captured title",
     description: "",
     body: "",
-    metadata: { captureSource: "browser extension", text: "" },
+    metadata: {
+      captureSource: "browser extension",
+      author: "Extension author",
+      publishedDate: "2026-01-02",
+      text: "",
+    },
   });
   library.updateItem({ id: item.id, addTag: "reading" });
 
@@ -153,6 +158,8 @@ test("metadata patches preserve fields added after a URL was captured", () => {
 
   expect(enriched.metadata).toMatchObject({
     captureSource: "browser extension",
+    author: "Extension author",
+    publishedDate: "2026-01-02",
     tags: ["reading"],
     text: "Extracted article text",
     extractedText: "Extracted article text",

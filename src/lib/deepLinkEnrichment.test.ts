@@ -70,9 +70,11 @@ describe("enrichDeepLinkCapture", () => {
         sourceUrl: "https://example.com/article",
         text: "Article text",
         extractedText: "Article text",
+        author: "A Writer",
         imageUrls: ["https://example.com/image.jpg"],
       },
     });
+    expect(updatedInput?.metadataPatch).not.toHaveProperty("publishedDate");
   });
 
   test("keeps the immediate item usable when extraction fails", async () => {
@@ -83,5 +85,32 @@ describe("enrichDeepLinkCapture", () => {
     });
 
     expect(updated).toBeNull();
+  });
+
+  test("omits unavailable article metadata from the patch", async () => {
+    let metadataPatch: Record<string, unknown> | undefined;
+    await enrichDeepLinkCapture(storedItem, undefined, {
+      ingestUrl: async () => ({
+        ...article,
+        author: "",
+        publishedDate: null,
+        html: "",
+        imageUrls: [],
+        imageDimensions: [],
+        safeEmbeds: [],
+        social: undefined,
+      }),
+      updateItem: async (input) => {
+        metadataPatch = input.metadataPatch;
+        return { ...storedItem, ...input };
+      },
+    });
+
+    expect(metadataPatch).not.toHaveProperty("author");
+    expect(metadataPatch).not.toHaveProperty("publishedDate");
+    expect(metadataPatch).not.toHaveProperty("html");
+    expect(metadataPatch).not.toHaveProperty("imageUrls");
+    expect(metadataPatch).not.toHaveProperty("imageDimensions");
+    expect(metadataPatch).not.toHaveProperty("safeEmbeds");
   });
 });
