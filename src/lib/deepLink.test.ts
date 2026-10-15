@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "./deepLinkCore.mjs";
 import {
   DEEP_LINK_ATTRIBUTION_MAX_LENGTH,
   DEEP_LINK_SELECTION_MAX_LENGTH,
   parseDeepLinkCapture,
+  validateDeepLinkCapture,
 } from "./deepLink";
 
 describe("parseDeepLinkCapture", () => {
@@ -130,5 +132,23 @@ describe("parseDeepLinkCapture", () => {
       parseDeepLinkCapture("inkling://capture?image=https%3A%2F%2Fexample.com%2Fphoto.jpg"),
     ).toBeNull();
     expect(parseDeepLinkCapture("not a url")).toBeNull();
+  });
+
+  test("accepts the parsed Electron payload only after validating its URLs", () => {
+    const value = "inkling://capture?url=https%3A%2F%2Fexample.com%2F&selection=keep%20this";
+    expect(validateDeepLinkCapture(parseDeepLinkCaptureCore(value))).toEqual(
+      parseDeepLinkCapture(value),
+    );
+    expect(validateDeepLinkCapture({ kind: "url", url: "file:///etc/passwd" })).toBeNull();
+    expect(validateDeepLinkCapture({ kind: "url", url: "https://localhost/private" })).toBeNull();
+  });
+
+  test("shared HTTP URL validation rejects unsafe external targets", () => {
+    expect(parseHttpUrlCore("https://example.com/path")?.toString()).toBe(
+      "https://example.com/path",
+    );
+    expect(parseHttpUrlCore("javascript:alert(1)")).toBeNull();
+    expect(parseHttpUrlCore("file:///etc/passwd")).toBeNull();
+    expect(parseHttpUrlCore("https://user:password@example.com/")).toBeNull();
   });
 });

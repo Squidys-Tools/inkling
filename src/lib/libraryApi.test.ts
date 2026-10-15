@@ -5,6 +5,7 @@ const invokeCalls: { command: string; args?: Record<string, unknown> }[] = [];
 
 mock.module("@tauri-apps/api/core", () => ({
   convertFileSrc: (path: string) => path,
+  transformCallback: () => 0,
   invoke: async (command: string, args?: Record<string, unknown>) => {
     invokeCalls.push({ command, args });
     if (command === "initialize_storage") {
@@ -39,6 +40,7 @@ Object.defineProperty(globalThis, "window", {
 
 const {
   addSpaceItem,
+  assetUrl,
   checkForUpdates,
   countActiveJobs,
   enqueueOcrJob,
@@ -217,4 +219,20 @@ test("the UI checks for updates and installs only after an explicit request", as
     { command: "check_for_updates" },
     { command: "install_update", args: { expectedVersion: "0.2.0" } },
   ]);
+});
+
+test("Electron asset paths stay raw until its storage-backed app URL mapping exists", async () => {
+  const tauriWindow = globalThis.window;
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: { inkling: { commands: {} } },
+  });
+
+  try {
+    invokeCalls.length = 0;
+    expect(await assetUrl("assets/item.png")).toBe("assets/item.png");
+    expect(invokeCalls).toEqual([]);
+  } finally {
+    Object.defineProperty(globalThis, "window", { configurable: true, value: tauriWindow });
+  }
 });

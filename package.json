@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "electron/main.mjs",
   "packageManager": "bun@1.4.2",
   "workspaces": [
     "extension",
@@ -21,6 +22,8 @@
     "lint:fix": "biome check --write",
     "preview": "vite preview",
     "preview:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native-preview.ps1",
+    "electron:dev": "vite build --mode electron-preview && electron . --preview",
+    "electron:build:dir": "bun run build:app && electron-builder --dir",
     "provision:ort": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/provision-onnxruntime.ps1",
     "tauri": "tauri",
     "ingest:smoke": "bun src/lib/ingestion/ingestion.smoke.ts",
@@ -64,6 +67,29 @@
     "knip": "^6.41.0",
     "tesseract.js": "^7.0.0",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "electron": "44.7.2",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.inkling.library",
+    "productName": "inkling",
+    "directories": {
+      "output": ".artifacts/electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "src/lib/deepLinkCore.mjs",
+      "package.json"
+    ],
+    "protocols": [
+      {
+        "name": "Inkling capture link",
+        "schemes": [
+          "inkling"
+        ]
+      }
+    ]
   }
 }

@@ -1,16 +1,15 @@
-// Web preview seed mode — preview/dev-only, never active in the Tauri desktop app.
+// Web preview seed mode — preview/dev-only, never active in a desktop app.
 //
-// The Vite frontend already renders seed data in a plain browser (no Tauri
-// internals). This module pins that behavior behind one explicit helper so a
+// The Vite frontend already renders seed data in a plain browser (no desktop
+// bridge). This module pins that behavior behind one explicit helper so a
 // statically hosted `dist/` (Cloudflare Pages, Vercel, `vite preview`) shows a
-// deterministic library without ever invoking Tauri commands.
+// deterministic library without ever invoking native commands.
 //
-// Production safety: inside a real Tauri webview this returns false unless the
-// build was made with VITE_INKLING_PREVIEW=1 AND the URL carries ?preview=1,
+// Production safety: inside a native desktop webview this returns false unless
+// the build was made with VITE_INKLING_PREVIEW=1 AND the URL carries ?preview=1,
 // and dev (?preview=1 with import.meta.env.DEV) is the only other opt-in.
-// Plain browsers (no __TAURI_INTERNALS__) always use seeds — there is no
-// backend to call there.
-import { isTauriRuntime } from "./libraryApi";
+// Plain browsers (no native bridge) always use seeds — there is no backend to call.
+import { isDesktopRuntime } from "./libraryApi";
 
 export function hasPreviewQuery(search: string): boolean {
   try {
@@ -52,8 +51,8 @@ function currentEnv(): Record<string, unknown> {
 
 // Injectable options exist so bun tests can cover every branch without DOM.
 export function shouldUseSeedLibrary(options?: SeedLibraryOptions): boolean {
-  const tauri = options?.tauri ?? isTauriRuntime();
-  if (!tauri) return true;
+  const desktop = options?.tauri ?? isDesktopRuntime();
+  if (!desktop) return true;
   const search = options?.search ?? currentSearch();
   if (!hasPreviewQuery(search)) return false;
   const env = currentEnv();
