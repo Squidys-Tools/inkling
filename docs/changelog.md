@@ -121,7 +121,7 @@ Guardrails:
 - While a note is being written, scrolling, resizing, and a click on the library — empty space or another card — no longer throw the draft away: the press is absorbed rather than cancelling the note, moving the panel to another card, or pressing whatever sits behind it, so the close button, Escape and Save are the ways out (SQU-1)
 - Escape inside the note editor's link field, or inside the detail view's new-tag field, now cancels only that field instead of leaving the note editor or closing the panel (SQU-1)
 - Deleting from the archive, one item or a selection, now hides the cards immediately and keeps them recoverable for ten seconds behind an Undo action before the delete is finalized (`src/App.tsx`)
-- The Windows desktop app window can now be resized below 1000×800; its minimum size is now 320×360, the narrowest width the stylesheet supports (`electron/main.mjs`)
+- The Electron Windows desktop app window can now be resized below 1000×800; its minimum size is now 320×360, the narrowest width the stylesheet supports (`electron/main.mjs`)
 
 ---
 
