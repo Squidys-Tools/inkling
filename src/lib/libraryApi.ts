@@ -321,7 +321,8 @@ const resolveAssetUrl = createAssetUrlResolver(async (path) => {
 
 export async function assetUrl(path: string | null) {
   if (!path) return undefined;
-  if (!isDesktopRuntime()) return path;
+  // Electron's storage adapter will use app://, not Tauri's file URL converter.
+  if (!isTauriRuntime()) return path;
   return resolveAssetUrl(path);
 }
 

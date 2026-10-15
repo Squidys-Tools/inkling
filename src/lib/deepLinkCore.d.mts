@@ -5,4 +5,5 @@ export type DeepLinkCapture =
 
 export const DEEP_LINK_SELECTION_MAX_LENGTH: number;
 export const DEEP_LINK_ATTRIBUTION_MAX_LENGTH: number;
+export function parseHttpUrlCore(value: string): URL | null;
 export function parseDeepLinkCaptureCore(value: string): DeepLinkCapture | null;

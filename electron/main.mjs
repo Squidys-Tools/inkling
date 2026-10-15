@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, protocol } from "electron";
+import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseDeepLinkCaptureCore } from "../src/lib/deepLinkCore.mjs";
+import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
 
 const mainDirectory = dirname(fileURLToPath(import.meta.url));
 const isPreview = process.argv.includes("--preview");
@@ -230,7 +230,11 @@ function createWindow() {
     },
   });
   mainWindow.setMenu(null);
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    const externalUrl = parseHttpUrlCore(url)?.toString();
+    if (externalUrl) void shell.openExternal(externalUrl).catch(() => {});
+    return { action: "deny" };
+  });
   mainWindow.webContents.on("will-navigate", (event, target) => {
     let url;
     try {

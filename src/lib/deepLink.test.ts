@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseDeepLinkCaptureCore } from "./deepLinkCore.mjs";
+import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "./deepLinkCore.mjs";
 import {
   DEEP_LINK_ATTRIBUTION_MAX_LENGTH,
   DEEP_LINK_SELECTION_MAX_LENGTH,
@@ -141,5 +141,14 @@ describe("parseDeepLinkCapture", () => {
     );
     expect(validateDeepLinkCapture({ kind: "url", url: "file:///etc/passwd" })).toBeNull();
     expect(validateDeepLinkCapture({ kind: "url", url: "https://localhost/private" })).toBeNull();
+  });
+
+  test("shared HTTP URL validation rejects unsafe external targets", () => {
+    expect(parseHttpUrlCore("https://example.com/path")?.toString()).toBe(
+      "https://example.com/path",
+    );
+    expect(parseHttpUrlCore("javascript:alert(1)")).toBeNull();
+    expect(parseHttpUrlCore("file:///etc/passwd")).toBeNull();
+    expect(parseHttpUrlCore("https://user:password@example.com/")).toBeNull();
   });
 });

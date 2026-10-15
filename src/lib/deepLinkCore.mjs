@@ -6,7 +6,7 @@ const SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/u;
 const BARE_HOST_RE =
   /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\.?(:\d+)?(?:\/[^\s]*)?$/u;
 
-function parseHttpUrl(value) {
+export function parseHttpUrlCore(value) {
   const trimmed = value.trim();
   const normalized = SCHEME_RE.test(trimmed)
     ? trimmed
@@ -49,7 +49,7 @@ export function parseDeepLinkCaptureCore(value) {
   if (parsed.protocol !== "inkling:" || parsed.hostname !== "capture") return null;
 
   const target = parsed.searchParams.get("url");
-  const url = target ? parseHttpUrl(target)?.toString() : null;
+  const url = target ? parseHttpUrlCore(target)?.toString() : null;
   if (!url) return null;
 
   const selection =
@@ -66,7 +66,7 @@ export function parseDeepLinkCaptureCore(value) {
 
   const rawImage = parsed.searchParams.get("image")?.trim() ?? "";
   if (rawImage) {
-    const imageUrl = parseHttpUrl(rawImage)?.toString();
+    const imageUrl = parseHttpUrlCore(rawImage)?.toString();
     if (!imageUrl) return null;
     return {
       kind: "image",

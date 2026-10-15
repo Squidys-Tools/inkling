@@ -29,7 +29,7 @@ import {
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
 import type { LibraryItem } from "../App";
-import { isDesktopRuntime } from "../lib/libraryApi";
+import { isTauriRuntime } from "../lib/libraryApi";
 import type { ReaderOrigin } from "../ReaderView";
 import {
   KindIcon,
@@ -198,7 +198,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
     });
   }
   if (item.sourceUrl) list.push(openOriginal);
-  if (isDesktopRuntime() && ["Image", "Article", "Note", "Quote"].includes(item.kind)) {
+  if (isTauriRuntime() && ["Image", "Article", "Note", "Quote"].includes(item.kind)) {
     list.push({
       key: "find-similar",
       label: actions.isFindingSimilar ? "Finding similar…" : "Find similar",
