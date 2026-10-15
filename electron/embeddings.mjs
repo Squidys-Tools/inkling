@@ -244,4 +244,4 @@ export function createEmbeddingEngine(modelCacheDirectory, manifestPath = defaul
   };
 }
 
-export { IMAGE_MODEL, TEXT_MODEL, floatVectorBytes, layerNormalize, l2Normalize, textTokens };
+export { floatVectorBytes, layerNormalize, l2Normalize, textTokens };

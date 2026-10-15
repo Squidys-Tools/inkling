@@ -17,7 +17,7 @@ import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node
 import { DatabaseSync } from "node:sqlite";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
 
-export const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 8;
 export const JOB_LEASE_MILLIS = 5 * 60 * 1000;
 
 const maxFileBytes = 50 * 1024 * 1024;
@@ -957,7 +957,7 @@ export function openLibraryStorage(databasePath, options = {}) {
   return library;
 }
 
-export class LibraryStorage {
+class LibraryStorage {
   constructor(databasePath, db, fts5Enabled, jobs, { createThumbnail, createSnapshot } = {}) {
     this.databasePath = databasePath;
     this.assetsRoot = join(dirname(databasePath), "assets");

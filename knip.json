@@ -5,8 +5,9 @@
       "entry": [
         "src/**/*.test.ts",
         "benchmarks/**/*.smoke.ts",
-        "electron/main.mjs",
-        "electron/**/*.test.ts"
+        "electron/**/*.d.mts",
+        "electron/**/*.test.ts",
+        "electron/preload.cjs"
       ],
       "project": ["src/**/*", "benchmarks/harness/**/*", "electron/**/*"],
       "ignore": ["src/bun-test.d.ts"]
