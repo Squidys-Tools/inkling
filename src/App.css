@@ -4126,22 +4126,6 @@ a:focus-visible,
   background: #000;
 }
 
-/* Window controls injected by tauri-plugin-decorum (see src-tauri/src/lib.rs).
-   The plugin styles these inline, so overrides need !important. */
-[data-tauri-decorum-tb] {
-  z-index: 200 !important;
-}
-.decorum-tb-btn {
-  color: #c9c4ba !important;
-}
-.decorum-tb-btn:hover {
-  background-color: rgba(255, 255, 255, 0.08) !important;
-}
-#decorum-tb-close:hover {
-  background-color: #c42b1c !important;
-  color: #fff8ee !important;
-}
-
 .note-editor {
   margin-top: 4px;
 }

@@ -138,7 +138,7 @@ test("Electron jobs OCR captured files, index their text, and persist matching m
   expect(closed).toBe(true);
 });
 
-test("embedding text follows the Tauri document inputs and markdown projection", () => {
+test("embedding text keeps the shared document inputs and markdown projection", () => {
   expect(
     embeddingText({
       title: "Reading list",

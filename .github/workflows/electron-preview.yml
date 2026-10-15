@@ -1,4 +1,4 @@
-name: Windows Preview
+name: Electron Preview
 
 on:
   pull_request:
@@ -15,7 +15,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: native-preview-${{ github.event.pull_request.number }}
+  group: electron-preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -26,7 +26,6 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      relevant: ${{ steps.filter.outputs.relevant }}
       electron: ${{ steps.filter.outputs.electron }}
     steps:
       - name: Check out pull request head
@@ -45,28 +44,21 @@ jobs:
           base: ${{ github.event.before || github.event.pull_request.base.sha }}
           predicate-quantifier: some-with-excludes
           filters: |
-            relevant:
-              - '**'
-              - '!**/*.md'
-              - '!docs/**'
-              - '!AGENTS.md'
-              - '!public/seed-demo/**'
-              - '!src/seedPersonal.ts'
             electron:
               - 'electron/**'
               - 'src/**'
               - 'public/**'
               - 'package.json'
               - 'bun.lock'
-              - '.github/workflows/native-preview.yml'
+              - '.github/workflows/electron-preview.yml'
               - 'scripts/prepare-electron-models.mjs'
-              - 'src-tauri/model-manifest.json'
+              - 'electron/model-manifest.json'
 
   build:
-    name: Build portable Windows preview and installer
+    name: Build Windows Electron installer
     needs: changes
     if: >-
-      needs.changes.outputs.relevant == 'true' &&
+      needs.changes.outputs.electron == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       contains(github.event.pull_request.labels.*.name, 'preview:win') &&
       (github.event.action != 'labeled' || github.event.label.name == 'preview:win')
@@ -79,38 +71,23 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Cache pinned native preview assets
+      - name: Cache pinned Electron models
         uses: actions/cache@v4
         with:
-          path: .artifacts/native-preview-cache
-          key: inkling-native-preview-win-${{ hashFiles('src-tauri/model-manifest.json', 'scripts/native-preview-runtime.json') }}
-          restore-keys: inkling-native-preview-win-
+          path: .artifacts/electron-model-cache/models
+          key: inkling-electron-models-win-${{ hashFiles('electron/model-manifest.json') }}
+          restore-keys: inkling-electron-models-win-
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
-      - name: Build portable preview
-        run: bun run preview:win
-
       - name: Build Electron NSIS installer
         run: bun run electron:build:nsis
-
-      - name: Upload portable preview
-        id: artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: inkling-preview-win-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
-          path: .artifacts/inkling-preview-win
-          if-no-files-found: error
-          retention-days: 3
 
       - name: Upload Electron installer
         id: installer
@@ -127,23 +104,21 @@ jobs:
       - name: Comment artifact link
         uses: actions/github-script@v9
         env:
-          PREVIEW_URL: ${{ steps.artifact.outputs.artifact-url }}
           INSTALLER_URL: ${{ steps.installer.outputs.artifact-url }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
-            const marker = "<!-- inkling-native-preview -->";
+            const marker = "<!-- inkling-electron-preview -->";
             const body = [
               marker,
-              "### Inkling Windows preview",
+              "### Inkling Electron preview",
               "",
-              `[Download the portable folder](${process.env.PREVIEW_URL})` +
+              `[Download the Electron NSIS installer](${process.env.INSTALLER_URL})` +
                 ` (for \`${process.env.HEAD_SHA.slice(0, 7)}\`)`,
-              `[Download the Electron NSIS installer](${process.env.INSTALLER_URL})`,
               "",
               `[Build details](${process.env.RUN_URL}) · Add the \`preview:win\` label to refresh it.`,
-              "The portable folder includes pinned embedding models and stores review data under its own `data\\` directory. The installer is an unsigned Electron build and may trigger a SmartScreen warning.",
+              "The installer bundles the pinned embedding models. It is unsigned and may trigger a Windows SmartScreen warning.",
             ].join("\n");
 
             const { data: comments } = await github.rest.issues.listComments({
@@ -194,8 +169,8 @@ jobs:
       - name: Cache pinned embedding models
         uses: actions/cache@v4
         with:
-          path: .artifacts/native-preview-cache/models
-          key: inkling-electron-models-linux-${{ hashFiles('src-tauri/model-manifest.json') }}
+          path: .artifacts/electron-model-cache/models
+          key: inkling-electron-models-linux-${{ hashFiles('electron/model-manifest.json') }}
           restore-keys: inkling-electron-models-linux-
 
       - name: Install dependencies

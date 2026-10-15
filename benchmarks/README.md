@@ -131,16 +131,9 @@ TypeScript). From the repo root:
 bun benchmarks/harness/index.ts   # or: bun run bench
 ```
 
-On Windows, run the native PDF end-to-end tests as well:
-
-```powershell
-bun run test:windows:pdfs
-```
-
-These tests save the benchmark PDFs into a temporary SQLite library, run the
-same persisted OCR/extraction and embedding jobs used by the desktop app, and
-verify searchable text, stored embeddings, and terminal job status. The
-`pdf-scanned-01` case exercises Windows PDF rendering plus `Windows.Media.Ocr`.
+On Windows, the harness also compares the built-in Windows OCR engine with
+Tesseract for image and screenshot fixtures. The PDF path uses the same local
+PDF.js extraction and OCR engines as the Electron app on every platform.
 
 What it does:
 

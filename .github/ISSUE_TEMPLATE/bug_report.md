@@ -22,4 +22,4 @@ labels: bug
 
 ## Logs / screenshots
 
-<!-- Paste relevant console or Rust output. For UI bugs, add a screenshot or short video. -->
+<!-- Paste relevant application logs or errors. For UI bugs, add a screenshot or short video. -->

@@ -561,7 +561,7 @@ test("restore removes staged assets when the active library rejects its transact
   expect(existsSync(join(root, "restored", "assets", "items", item.id))).toBe(false);
 });
 
-test("data directory keeps portable precedence and the Tauri app-data identity", () => {
+test("data directory keeps portable precedence and the product app-data identity", () => {
   expect(
     resolveLibraryDataDirectory({
       executablePath: "/apps/inkling/inkling.exe",
@@ -584,7 +584,7 @@ test("data directory keeps portable precedence and the Tauri app-data identity",
   ).toBe("/scratch/library");
 });
 
-test("the Electron worker leaves Tauri-only processors queued instead of blocking capture", async () => {
+test("the Electron worker leaves unregistered processors queued instead of blocking capture", async () => {
   const { library } = temporaryLibrary();
   library.db
     .prepare(

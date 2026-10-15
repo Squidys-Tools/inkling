@@ -27,74 +27,27 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-
-      # tauri.conf.json bundles onnxruntime.dll, and tauri-build validates
-      # bundle resources on every build, so the pinned DLL has to be in place
-      # before tauri-action runs. `ort` is load-dynamic: skip this and the
-      # installer ships with dead embeddings and OCR.
-      - name: Provision ONNX Runtime
-        run: bun run provision:ort
-
-      - name: Verify updater signing configuration
+      - name: Create draft release
         shell: pwsh
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
-            throw "TAURI_SIGNING_PRIVATE_KEY must be configured to build signed updater artifacts."
-          }
-          $config = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
-          if ([string]::IsNullOrWhiteSpace($config.plugins.updater.pubkey)) {
-            throw "Set the Tauri updater public key in src-tauri/tauri.conf.json before releasing."
-          }
-          if ($config.plugins.updater.requireSignedVersion -ne $true) {
-            throw "Updater signatures must be bound to their release version."
-          }
-          $payload = Join-Path $env:RUNNER_TEMP "inkling-updater-signing-check.bin"
-          [IO.File]::WriteAllBytes($payload, [byte[]](0x49, 0x4e, 0x4b, 0x4c))
-          bun tauri signer sign --app-version "0.0.0" $payload
-          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$payload.sig")) {
-            throw "Could not sign the updater configuration check payload."
-          }
-          $env:INKLING_UPDATER_PUBLIC_KEY = $config.plugins.updater.pubkey
-          $env:INKLING_SIGNING_TEST_PAYLOAD = $payload
-          $env:INKLING_SIGNING_TEST_SIGNATURE = "$payload.sig"
-          cargo test --manifest-path src-tauri/Cargo.toml --locked --test updater_signing release_signing_key_matches_configured_updater_public_key -- --ignored --exact
+          $notes = @"
+          Download the unsigned Windows Electron installer from the release assets below. Windows SmartScreen may warn that the publisher is unknown because the installer does not use a paid code-signing certificate. Only run an installer downloaded from this official release.
+
+          The app checks GitHub for updates once when it opens. No library data is sent, and updates install only after you choose Update available in the sidebar.
+          "@
+          & gh release create $env:RELEASE_TAG --verify-tag --draft --title "inkling $env:RELEASE_TAG" --generate-notes --notes $notes
           if ($LASTEXITCODE -ne 0) {
-            throw "The configured updater public key does not match the release signing key."
+            throw "Could not create the draft Electron release."
           }
-
-      - name: Build Tauri application and create draft release
-        uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: inkling ${{ github.ref_name }}
-          releaseBody: |
-            Download the unsigned Windows installer for the Tauri or Electron app from the release assets below. Windows SmartScreen may warn that the publisher is unknown; this is expected because neither installer uses a paid code-signing certificate. Only run an installer downloaded from this official release.
-
-            Both apps check GitHub for updates once when they open. No library data is sent, and updates install only after you choose Update available in the sidebar.
-          generateReleaseNotes: true
-          releaseDraft: true
-          prerelease: false
-          tauriScript: bun tauri
 
       - name: Cache pinned Electron models
         uses: actions/cache@v4
         with:
-          path: .artifacts/native-preview-cache/models
-          key: inkling-electron-release-models-${{ hashFiles('src-tauri/model-manifest.json') }}
+          path: .artifacts/electron-model-cache/models
+          key: inkling-electron-release-models-${{ hashFiles('electron/model-manifest.json') }}
 
       - name: Build Electron NSIS installer
         run: bun run electron:build:nsis

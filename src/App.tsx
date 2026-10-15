@@ -418,7 +418,7 @@ async function storedItemToLibraryItem(
   const noteBody =
     kind === "Note" && typeof item.body === "string" ? normalizeNoteBody(item.body) : undefined;
   const rawTitle = item.title?.trim() || "Untitled note";
-  // The backend already stored `markdown_to_plain_text(body)` as the
+  // The backend already stored `markdownToPlainText(body)` as the
   // description, so a note's plain text arrives ready to read. Projecting the
   // body again here would only ever disagree with the stored row, and would
   // eat the brackets in prose that happens to look like a link.
@@ -820,7 +820,7 @@ const seedSpaces: StoredSpace[] = [
 ];
 
 // Manual membership for the seeded Regular Space, so preview mode can exercise
-// the same add/remove flow the Tauri core serves from the database. These are
+// the same add/remove flow the Electron backend serves from the database. These are
 // ids the demo seed actually keeps (5, 10, 12, 13); the archived copies in
 // previewArchivedItems are re-keyed, so the originals stay in the library.
 const seedSpaceItems: Record<string, string[]> = {
@@ -853,7 +853,7 @@ function canonicalKind(kind: string) {
 }
 
 // Mirrors the backend's Smart Space evaluation for browser (seed data) mode.
-// In the Tauri runtime the saved query is evaluated lazily by the Rust core.
+// In the desktop app the saved query is evaluated lazily by the Electron backend.
 function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
   if (spaceQuery.favorite != null && Boolean(item.favorite) !== spaceQuery.favorite) return false;
   if (
@@ -1500,7 +1500,7 @@ function App() {
   const [newSpaceName, setNewSpaceName] = useState("");
   const [newSpaceKind, setNewSpaceKind] = useState<SpaceKind>("smart");
   // Manual membership, keyed by space id then item id. Only read in preview and
-  // seed mode; the Tauri core owns membership through the space item commands.
+  // seed mode; the desktop backend owns membership through the space item commands.
   const [localSpaceItems, setLocalSpaceItems] = useState<Map<string, Set<string>>>(
     () => new Map(Object.entries(seedSpaceItems).map(([spaceId, ids]) => [spaceId, new Set(ids)])),
   );
@@ -4305,7 +4305,7 @@ function App() {
           </div>
         )}
         <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
-          <div className="brand-lockup" data-tauri-drag-region>
+          <div className="brand-lockup">
             <MascotHomeSlot isSearchFocused={isSearchFocused} />
             <div>
               <strong>inkling</strong>

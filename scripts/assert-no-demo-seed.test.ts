@@ -42,7 +42,7 @@ describe("findSeedLeaks", () => {
   });
 
   test("passes a clean build", () => {
-    const files = ["index.html", "assets/index-abc123.js", "tauri.svg"];
+    const files = ["index.html", "assets/index-abc123.js", "app-icon.svg"];
     const read = () => "console.log('inkling')";
     expect(findSeedLeaks(files, noDirs, read)).toEqual([]);
   });

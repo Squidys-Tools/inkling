@@ -5,6 +5,7 @@
       "entry": [
         "src/**/*.test.ts",
         "benchmarks/**/*.smoke.ts",
+        "electron/model-manifest.json",
         "electron/**/*.d.mts",
         "electron/**/*.test.ts",
         "electron/preload.cjs"

@@ -2,26 +2,26 @@
 
 ## Status
 
-Proposed for the Windows-first implementation.
+Current Windows desktop implementation.
 
 ## Decision summary
 
-Build a local-first Windows desktop application with Tauri, React, TypeScript, Rust, and SQLite. Keep the frontend portable enough for a future web application, but let the desktop application own local storage, background processing, asset management, and model execution.
+Build a local-first Windows desktop application with Electron, React, TypeScript, Node.js, and SQLite. Keep the frontend portable enough for a future web application, while the Electron main process owns local storage, background processing, asset management, and model execution.
 
 ## Application stack
 
 | Area | Decision | Reason |
 |---|---|---|
-| Desktop shell | Tauri 2 | Windows desktop packaging with a reusable web frontend and native integration |
+| Desktop shell | Electron 44 | Windows desktop packaging with a reusable web frontend and a narrow preload bridge |
 | UI | React + TypeScript + Vite | Mature component ecosystem and future web portability |
 | Styling | Tailwind CSS plus accessible headless primitives | Fast iteration without locking the product to a heavy component theme |
 | Client state | Zustand | Small, explicit state layer for UI state |
 | Server-style data state | TanStack Query | Caching and invalidation for asynchronous repository calls |
-| Native core | Rust | File, job queue, database, and model-process orchestration |
-| Database | SQLite through rusqlite | Direct control over migrations, transactions, FTS5, and extensions |
+| Application core | Electron main process and Node.js | File, job queue, database, and model-process orchestration |
+| Database | SQLite through `node:sqlite` | Direct control over migrations, transactions, and FTS5 |
 | Exact search | SQLite FTS5 | Local full-text search across content, notes, OCR, and summaries |
 | Asset storage | Content-addressed local files | Avoid duplicate assets and make backup/restore predictable |
-| Background work | Rust job queue persisted in SQLite | Retryable processing without blocking the UI |
+| Background work | Node.js job queue persisted in SQLite | Retryable processing without blocking the UI |
 
 ## Article extraction
 
@@ -103,11 +103,11 @@ Support three operating modes:
 
 The database and asset store should be exportable together. Backups should include the SQLite database, local assets, original source URLs, cleaned article content, user notes and tags, and Spaces. Derived AI data may be regenerated, but exporting it is useful for faster restore and future migration.
 
-Treat all fetched HTML as untrusted. Sanitize article HTML before rendering, allowlist iframe providers, strip scripts/event handlers/unsafe URLs/untrusted `srcdoc`, keep remote content isolated from privileged Tauri APIs, and do not expose arbitrary filesystem or shell commands to the webview.
+Treat all fetched HTML as untrusted. Sanitize article HTML before rendering, allowlist iframe providers, strip scripts/event handlers/unsafe URLs/untrusted `srcdoc`, keep remote content isolated from Electron's privileged main process, and do not expose arbitrary filesystem or shell commands through the preload bridge.
 
 ## Update checks
 
-The packaged Windows app checks GitHub Releases once when it opens; it does not poll on a schedule. GitHub receives the request from the device and the app name and installed version in its HTTP user agent, but no library data. An available update appears quietly in the sidebar and is downloaded and installed only after the user selects it; that action checks once more before downloading. Update packages must be signed with Tauri's updater key; the public key belongs in `tauri.conf.json`, while the private key stays in the release secret. The NSIS installer is not Authenticode-signed, so Windows SmartScreen may warn users when they install it.
+The packaged Windows app checks GitHub Releases once when it opens; it does not poll on a schedule. GitHub receives the request from the device and the app name and installed version in its HTTP user agent, but no library data. An available update appears quietly in the sidebar and is downloaded and installed only after the user selects it; that action checks once more before downloading. Electron updater hashes protect update downloads over HTTPS but do not establish publisher trust. The NSIS installer is not Authenticode-signed, so Windows SmartScreen may warn users when they install it.
 
 ## First technical milestone
 

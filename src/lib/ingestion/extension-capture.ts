@@ -7,7 +7,7 @@ import { normalizeHttpUrl, normalizeText, parseHttpUrl } from "./url";
 // move is mechanical; the *_MAX_* values below must match that file exactly.
 
 // App-side receipt for Phase 3 browser-extension captures. Pure mapping only:
-// no fetch, no Tauri invoke, no DOM writes. Callers wire the results into the
+// no fetch, no desktop IPC, no DOM writes. Callers wire the results into the
 // existing capture paths — create_quote, save_file (the app downloads
 // downloadUrl through the asset pipeline), and the video-links.ts path — so
 // extension items get instant provisional cards exactly like other entries.

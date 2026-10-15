@@ -4,7 +4,7 @@ export function normalizeNoteBody(value: string): string {
   return value.replace(/\r\n?/gu, "\n").trim();
 }
 
-// Mirrors `is_void_tag` in `markdown_to_plain_text` (src-tauri/src/storage.rs).
+// Mirrors `is_void_tag` in `markdownToPlainText` (electron/storage.mjs).
 const VOID_HTML_TAGS = new Set(["br", "hr", "img", "input"]);
 
 // A void tag ends a line, so `foo<br>bar` must not come back as `foobar`. An
@@ -98,7 +98,7 @@ function stripHtmlTags(value: string): string {
       continue;
     }
     // An autolink unwraps to its inner text instead of being deleted, so the
-    // URL written by the user survives the projection the way it does in Rust.
+    // URL written by the user survives the projection the way it does in storage.
     const autolink = rest.match(/^<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^<>\s]*)>/u);
     if (autolink) {
       result += value.slice(cursor, opening) + autolink[1];
@@ -259,7 +259,7 @@ function decodeHtmlEntities(value: string): string {
 // `é_foo_é`, so the guard has to recognise a word character in any script
 // instead of leaving non-ASCII letters on the wrong side of it. Underscore
 // emphasis only counts when neither delimiter sits inside a word. Star emphasis
-// keeps no guard so intraword `*` agrees with Rust.
+// keeps no guard so intraword `*` stays literal.
 function stripUnderscoreEmphasis(value: string, marker: string): string {
   return value.replace(
     new RegExp(`(${marker})(.*?)\\1`, "gu"),
@@ -271,21 +271,20 @@ function stripUnderscoreEmphasis(value: string, marker: string): string {
   );
 }
 
-// Projects note Markdown to plain text. Only the preview build has no Rust side
-// to defer to, so this is the second implementation of `markdown_to_plain_text`
-// (src-tauri/src/storage.rs) and the two must be read together when either moves.
+// Projects note Markdown to plain text. The Electron backend has a second
+// implementation in `electron/storage.mjs`; read the two together when either moves.
 // It is deliberately not byte-identical to that function:
-//   - Known divergence, to be fixed on the Rust side. `markdown_to_plain_text`
+//   - Known divergence from `markdownToPlainText`
 //     handles `Event::InlineHtml` but not `Event::Html`, and it only treats a
 //     void tag as a boundary, so raw block-level HTML there contributes nothing
 //     and joins the words on either side of it. A block tag counts as a boundary
 //     here instead, so the two disagree for any note carrying one — until the
-//     Rust half learns the same rule, a block-level HTML tag in a note means the
-//     description Rust stored and the description this projection produces are
+//     backend learns the same rule, a block-level HTML tag in a note means the
+//     description it stored and the description this projection produces are
 //     not the same string.
 //   - Fenced and inline code are lifted out before any tag scanning and put
 //     back verbatim, so markup written inside a code span survives instead of
-//     being read as markup. `markdown_to_plain_text` has no such pass.
+//     being read as markup. `markdownToPlainText` has no such pass.
 export function markdownToPlainText(markdown: string): string {
   const code: string[] = [];
   const protect = (value: string) => {

@@ -31,16 +31,13 @@ describe("capture server parity", () => {
     expect(captureServerInternals.bearerToken({})).toBeNull();
   });
 
-  test("only extension, null, and desktop origins pass", () => {
+  test("only extension, null, and Electron origins pass", () => {
     for (const allowed of [
       undefined,
       "null",
       "chrome-extension://abcdef",
       "moz-extension://1234-uuid",
       "safari-web-extension://com.example.clip",
-      "tauri://localhost",
-      "https://tauri.localhost",
-      "http://tauri.localhost",
       "app://local",
       "inkling://capture?url=https://example.com",
     ]) {
@@ -54,6 +51,9 @@ describe("capture server parity", () => {
       "nullified",
       "chrome-extension-fake://x",
       "chrome-extension://abc/path",
+      "tauri://localhost",
+      "https://tauri.localhost",
+      "http://tauri.localhost",
       "https://tauri.localhost.evil",
     ]) {
       expect(captureServerInternals.originAllowed(denied)).toBe(false);

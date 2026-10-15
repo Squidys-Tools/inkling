@@ -1,6 +1,3 @@
-import { convertFileSrc, invoke as tauriInvoke } from "@tauri-apps/api/core";
-import { listen as tauriListen } from "@tauri-apps/api/event";
-import { createAssetUrlResolver } from "./assetUrlCache";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "./deepLink";
 import type { DeepLinkCapture } from "./deepLink";
 
@@ -180,23 +177,17 @@ function summarizeProcessingJobs(jobs: ProcessingJob[]): ProcessingSummary {
   };
 }
 
-export function isTauriRuntime() {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-}
-
 export function isElectronRuntime() {
   return typeof window !== "undefined" && Boolean(window.inkling);
 }
 
 export function isDesktopRuntime() {
-  return isTauriRuntime() || isElectronRuntime();
+  return isElectronRuntime();
 }
 
 function invoke<T>(command: string, args?: Record<string, unknown>) {
   const commands = typeof window === "undefined" ? undefined : window.inkling?.commands;
-  if (!commands) return tauriInvoke<T>(command, args);
-
-  const handler = commands[command as keyof typeof commands];
+  const handler = commands?.[command as keyof typeof commands];
   if (typeof handler !== "function") {
     return Promise.reject(new Error(`The Electron command "${command}" is not available.`));
   }
@@ -315,11 +306,6 @@ export async function saveFile(input: SaveFileInput) {
   return withInitializedStorage(() => invoke<StoredLibraryItem>("save_file", { input }));
 }
 
-const resolveAssetUrl = createAssetUrlResolver(async (path) => {
-  const absolutePath = await invoke<string>("resolve_asset_path", { path });
-  return convertFileSrc(absolutePath);
-});
-
 export async function assetUrl(path: string | null) {
   if (!path) return undefined;
   if (isElectronRuntime()) {
@@ -336,8 +322,7 @@ export async function assetUrl(path: string | null) {
     const encodedPath = segments.map(encodeURIComponent).join("/");
     return `app://local/library-assets/${encodedPath}`;
   }
-  if (!isTauriRuntime()) return path;
-  return resolveAssetUrl(path);
+  return path;
 }
 
 export async function updateItem(input: UpdateItemInput) {
@@ -374,11 +359,6 @@ export async function exportLibrary(destination: string) {
 }
 
 export async function selectLibraryDirectory(title: string) {
-  if (isTauriRuntime()) {
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const selection = await open({ directory: true, multiple: false, title });
-    return typeof selection === "string" ? selection : null;
-  }
   if (isElectronRuntime()) {
     return invoke<string | null>("select_library_directory", { title });
   }
@@ -464,14 +444,12 @@ export function listenForDeepLinks(handler: (payload: unknown) => void) {
   if (typeof window !== "undefined" && window.inkling) {
     return window.inkling.onDeepLink(handler);
   }
-  return tauriListen<string[]>("deep-link://new-url", ({ payload }) => handler(payload));
+  return Promise.resolve(() => {});
 }
 
 export function listenForJobUpdates(handler: (payload: { itemId: string }) => void) {
   if (typeof window !== "undefined" && window.inkling) {
     return Promise.resolve(window.inkling.onJobUpdated(handler));
   }
-  return tauriListen<{ itemId: string }>("inkling://job-updated", ({ payload }) =>
-    handler(payload),
-  );
+  return Promise.resolve(() => {});
 }

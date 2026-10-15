@@ -115,15 +115,15 @@ Well no duh. Saving a fresh URL needs internet though, obviously.
 
 **Windows** (that's the only platform for now).
 
-1. Install [Bun](https://bun.sh) 1.4.2 (the version in `.bun-version`) and a Rust toolchain.
+1. Install [Bun](https://bun.sh) 1.4.2 (the version in `.bun-version`).
 2. Clone this repo, then:
 
 ```powershell
 bun install
-bun run tauri dev
+bun run electron:dev
 ```
 
-Just want a quick look at the UI without the long Rust build? Run the web preview instead:
+For a quick browser-only look at the UI, run the web preview instead:
 
 ```powershell
 bun install
@@ -134,7 +134,7 @@ Save from your browser too: the companion extension talks to the app through an 
 
 This part is for people who want to build, tinker, or contribute. Everyone else can stop here. 🙂
 
-**Stack:** Tauri 2 + React + TypeScript + Vite on the front, Rust + SQLite (FTS5) in the back. Article extraction with Defuddle, OCR with Windows OCR + Tesseract, local Nomic text/vision embeddings through ONNX Runtime. Full reasoning in the [tech stack](docs/tech-stack.md).
+**Stack:** Electron 44 + React + TypeScript + Vite on the front, Node.js + SQLite (FTS5) in the back. Article extraction with Defuddle, OCR with Tesseract, local Nomic text/vision embeddings through ONNX Runtime. Full reasoning in the [tech stack](docs/tech-stack.md).
 
 **Start here:**
 
@@ -147,21 +147,16 @@ This part is for people who want to build, tinker, or contribute. Everyone else 
 - [docs/changelog.md](docs/changelog.md) — what changed recently
 - `benchmarks/` — 48-item corpus + harness for extraction/OCR quality
 
-**Prereqs:** Bun 1.4.2 (see `.bun-version`) + Rust.
-
-On Windows pick one toolchain per machine:
-
-- MSVC: Recommended with admin rights, via Visual Studio Build Tools + `rustup default stable-x86_64-pc-windows-msvc`
-or
-- GNU: No admin needed: `scoop install gcc`, then `rustup toolchain install stable-x86_64-pc-windows-gnu` + `rustup override set stable-x86_64-pc-windows-gnu` in the checkout.
+**Prereqs:** Bun 1.4.2 (see `.bun-version`).
 
 **Commands:**
 
 ```powershell
 bun install
-bun run preview      # quick web preview of the UI
-bun run tauri dev    # full Windows desktop app
-bun run check:frontend  # same checks CI runs before pushing frontend changes
+bun run preview             # quick browser preview of the UI
+bun run electron:dev        # full Windows desktop app
+bun run electron:build:nsis # build the Windows installer
+bun run check:frontend      # same checks CI runs before pushing changes
 ```
 
 License: MIT

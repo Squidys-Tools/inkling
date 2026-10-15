@@ -1,6 +1,6 @@
 # inkling
 
-inkling is a home for everything worth keeping. Articles, images, screenshots, PDFs, notes, quotes, video links. A Tauri 2 desktop app on Windows. React, TypeScript and Vite in the frontend, Rust and SQLite for backend. Everything stays on the machine.
+inkling is a home for everything worth keeping. Articles, images, screenshots, PDFs, notes, quotes, video links. An Electron desktop app for Windows, with React, TypeScript, and Vite in the frontend and Node.js and SQLite in the backend. Everything stays on the machine.
 
 Think of it as a private visual library with semantic search as the only organizer. No folders to maintain. Save abitrary media in seconds, find it later by describing it.
 
@@ -14,7 +14,7 @@ Saving must be faster than deciding where something belongs. The card appears ri
 
 ### 2. Performance
 
-Lots of apps have gotten bogged down with bad tech decisions and "slop". We regularly audit for performance regressions, often caused by passing full content over Tauri IPC instead of summaries/thumbnails, rendering the card grid without virtualization, loading full assets where a thumbnail would do, blocking capture on extraction/OCR/embeddings, and running FTS + vector + Smart Space re-evaluation on every keystroke. Keep capture instant and processing in background jobs. Make sure all changes are considerate of performance impact.
+Lots of apps have gotten bogged down with bad tech decisions and "slop". We regularly audit for performance regressions, often caused by passing full content over Electron IPC instead of summaries/thumbnails, rendering the card grid without virtualization, loading full assets where a thumbnail would do, blocking capture on extraction/OCR/embeddings, and running FTS + vector + Smart Space re-evaluation on every keystroke. Keep capture instant and processing in background jobs. Make sure all changes are considerate of performance impact.
 
 ### 3. Local first, forever
 
@@ -53,8 +53,8 @@ We need to be on the same page with terminology. When communicating, use this la
 - **embedding** means the local vector for text or image search. Nomic text and vision share one 768-dimension space.
 - **Space** means a saved search shown as a collection. Smart Spaces update themselves. Regular Spaces hold manually user curated items.
 - **deep link** means the companion path into the app, `inkling://capture?url=...`.
-- **preview** means `bun run preview`, the web-only look without the Rust build.
-- **full app** means `bun run tauri dev`, the real Windows desktop app.
+- **preview** means `bun run preview`, the web-only look with sample data.
+- **full app** means `bun run electron:dev`, the Windows Electron desktop app.
 
 ## The three ways to hurt yourself
 
@@ -73,14 +73,14 @@ The common defect here is a change that works on the path tested and is missing 
 - **Search paths.** Titles, notes, article text, OCR text, domains, authors, manual tags, derived concepts, colors, semantic similarity, dates, types. If you index a new field, say how search reaches it.
 - **Card types.** Image, screenshot, article, general website, product, recipe, book, PDF, video, note, quote. Shared thumbnail logic lives in one place. Keep the set coherent.
 - **Reverse states.** If you added a way in, add the way out and a way to see it. Trash needs restore. A Space needs rename and delete that keeps its items. A one way door is a bug.
-- **App modes.** Preview and the full app behave differently. Native OCR, embeddings, and file access only run in the full app. Do not ship a feature that silently does nothing in one mode.
+- **App modes.** Preview and the full app behave differently. OCR, embeddings, and file access only run in the Electron app. Do not ship a feature that silently does nothing in one mode.
 - **Docs.** Check whether the change makes existing guidance inaccurate. Apply the [documentation rules](#documentation) before adding anything.
 
 ## Dev servers
 
 - `bun install` installs. If module resolution looks broken, check the Bun version first. It must match `.bun-version` (1.4.2). `bun run check:bun-version` says so in one line.
-- `bun run preview` is the quick web look at the UI. No Rust build, no native OCR or embeddings.
-- `bun run tauri dev` is the full Windows desktop app. Needs the Rust toolchain. One toolchain per machine. MSVC when you have admin rights, GNU via scoop when you do not. The README has the exact commands.
+- `bun run preview` is the quick web look at the UI. It uses sample data and has no desktop storage or processing backend.
+- `bun run electron:dev` is the full Windows desktop app; OCR, embeddings, and local file access run through Electron's main process.
 - Ports and state come from the dev setup, not from memory. Read the actual terminal output. Do not assume a port.
 - Stop what you started, by the handle you tracked. See rule 1.
 - Never `Start-Sleep` (or any blocking wait) after launching a server. Start it detached, do other work, then poll its log or port. A sleep blocks you from doing anything else while you wait.
@@ -98,12 +98,12 @@ An empty library is a bad test. Seed your run with a copy of real data instead o
 ## Verifying
 
 - Smallest proof that the change works. `bun test <files>` for the tests you touched, targeted lint and typecheck for the scope you changed. The full frontend check is `bun run check:frontend`, which is what CI runs. Do not run it unless you changed something broad or the user asked.
-- **Do not run repo-wide checks.** No full `bun test` sweep, no full `tsc`, no full Rust `cargo test` unless asked. CI owns the full suite.
+- **Do not run repo-wide checks.** No full `bun test` sweep or full `tsc` unless asked. CI owns the full suite.
 - Test meaningful logic or observable behavior. Do not render components to static markup just to assert props, and do not add tests that mirror the implementation or assert wiring with no behavior.
 - Ingestion and background changes ship with focused tests for that behavior. Extraction, OCR scoring, queue leases, recovery. A behavior change with no test is unfinished.
 - Background work is async. Wait on real completion, job drains and lease states, never on fixed sleeps. A test that needs a timeout to pass is wrong.
 - UI changes need one real pass in the running app before you call them done. Preview for layout, full app for anything native. Take a screenshot through the harness so the user can see it. Ask permission before driving a browser or the desktop on your own.
-- Rust changes get `cargo fmt` and the focused test for the module. There are no local hooks — CI runs `cargo fmt --check` and the frontend check.
+- Electron and frontend changes get focused tests, typecheck, and changed-file Biome. There are no local hooks — CI runs the frontend checks and Electron package smoke tests.
 
 ## Pull requests
 
@@ -150,7 +150,7 @@ Capture creates the item immediately, then background jobs do the slow parts. No
 
 Search combines exact FTS over content, notes, and OCR text with semantic similarity over local embeddings. Smart Spaces are saved searches that reevaluate as items arrive.
 
-The Tauri core owns files, the job queue, the database, and model execution. The webview never gets raw filesystem or shell access. Fetched HTML is untrusted. It gets sanitized, embeds pass an allowlist, scripts and event handlers are stripped.
+The Electron main process owns files, the job queue, the database, and model execution. The renderer gets a narrow preload bridge, not raw filesystem or shell access. Fetched HTML is untrusted. It gets sanitized, embeds pass an allowlist, scripts and event handlers are stripped.
 
 Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behavior.md`.
 
@@ -159,7 +159,7 @@ Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behav
 - `src/` is the React and TypeScript frontend. Entry at `src/main.tsx`.
 - `src/lib/ingestion/` is the capture and extraction pipeline. Defuddle, metadata fallback, sanitizing, video link handling.
 - `src/components/` holds cards, grid, reader, and Spaces UI. Shared card art lives with the media component.
-- `src-tauri/src/` is the Rust core. Storage, jobs, PDF, OCR bridges, embeddings, assets.
+- `electron/` holds the desktop main process, preload bridge, SQLite storage, job queue, PDF/OCR, embeddings, and packaging inputs.
 - `benchmarks/` holds the 48 item corpus, the harness, expected outputs, and results. Only `results-latest.json` and `summary.md` are tracked.
 - `public/seed-demo/` plus `src/seedPersonal.ts` is the committed demo library for UI work.
 - `docs/` holds product, behavior, stack, roadmap, and changelog. No other docs home exists yet.
@@ -178,7 +178,6 @@ Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behav
 These apply whenever you run inside T3 Code only, and they override nothing above.
 
 - Screenshots the user must see never render from tool results. Save with `screenshot_out_file` to `C:\Users\$USER$\AppData\Local\Temp\agents\chat-images\$TASK$`, create it if missing, and embed with `![what](C:\...\chat-images\$TASK$\name.png)`. Only that subfolder may be wiped. Prefer full window shots unless asked to show one section.
-- You can drive the native desktop app through the tauri-plugin-mcp-bridge alongside any other computer use tools you have in your harness.
 - Browser tools drive the web counterpart of the app when it is running.
 
 ## Additional tips

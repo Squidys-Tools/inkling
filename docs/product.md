@@ -8,7 +8,7 @@ adaptive
 
 ## Stack
 
-delegated: Windows-first Tauri desktop application with a React/TypeScript frontend, Rust native core, and SQLite local storage; keep domain boundaries portable for a future web version.
+delegated: Windows-first Electron desktop application with a React/TypeScript frontend, Node.js main process, and SQLite local storage; keep domain boundaries portable for a future web version.
 
 ## Users
 
@@ -49,7 +49,7 @@ The primary experience is a Windows desktop application used during browsing, re
 - Product behavior specification: `product-behavior.md`
 - Technical decisions: `tech-stack.md`
 - Benchmark plan: `benchmarks/README.md`
-- The current repository is an early Tauri scaffold, not an established visual system.
+- The repository has an established visual system and a complete Electron desktop shell.
 
 ## Product Principles
 

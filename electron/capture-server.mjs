@@ -425,13 +425,7 @@ function scrubExtensionHtml(html, _pageUrl) {
 function originAllowed(origin) {
   const trimmed = origin?.trim();
   if (!trimmed || trimmed === "null") return true;
-  if (
-    trimmed === "app://local" ||
-    trimmed === "tauri://localhost" ||
-    trimmed === "https://tauri.localhost" ||
-    trimmed === "http://tauri.localhost" ||
-    trimmed.startsWith("inkling://")
-  ) {
+  if (trimmed === "app://local" || trimmed.startsWith("inkling://")) {
     return true;
   }
   for (const scheme of ["chrome-extension", "moz-extension", "safari-web-extension"]) {
