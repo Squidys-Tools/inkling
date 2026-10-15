@@ -311,11 +311,58 @@ test("loopback capture uses a persisted bearer token and creates a pending stora
   });
   servers.push(server);
   expect(server.getPairingToken()).toBe(nextToken);
-  expect(
-    (
-      await fetch(server.status().healthUrl, {
-        headers: { Authorization: `Bearer ${nextToken}` },
-      })
-    ).status,
-  ).toBe(200);
+  const regeneratedHealth = await fetch(server.status().healthUrl, {
+    headers: { Authorization: `Bearer ${nextToken}` },
+  });
+  expect(regeneratedHealth.status).toBe(200);
+});
+
+test("closing the receiver waits for an in-flight capture to finish", async () => {
+  const directory = temporaryDirectory();
+  let signalCaptureStarted!: () => void;
+  let finishCapture!: (item: { id: string }) => void;
+  const captureStarted = new Promise<void>((resolve) => {
+    signalCaptureStarted = resolve;
+  });
+  const captureResult = new Promise<{ id: string }>((resolve) => {
+    finishCapture = resolve;
+  });
+  const server = await startCaptureServer({
+    libraryDirectory: directory,
+    createUrl: async () => {
+      signalCaptureStarted();
+      return captureResult;
+    },
+  });
+  servers.push(server);
+
+  const { port } = server.status();
+  const responsePromise = fetch(`http://127.0.0.1:${port}/v1/captures`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${server.getPairingToken()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      version: 1,
+      kind: "page",
+      url: "https://example.com/article",
+      title: "In-flight capture",
+      defuddledHtml: "",
+      text: "",
+    }),
+  });
+  await captureStarted;
+
+  let closeFinished = false;
+  const closing = server.close().then(() => {
+    closeFinished = true;
+  });
+  await Promise.resolve();
+  expect(closeFinished).toBe(false);
+
+  finishCapture({ id: "in-flight" });
+  expect((await responsePromise).status).toBe(201);
+  await closing;
+  expect(closeFinished).toBe(true);
 });

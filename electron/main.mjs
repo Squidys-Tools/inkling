@@ -367,10 +367,32 @@ if (!hasSingleInstanceLock) {
     app.on("window-all-closed", () => {
       if (process.platform !== "darwin") app.quit();
     });
-    app.on("before-quit", () => {
+    let quitDrainStarted = false;
+    let quitDrainComplete = false;
+    app.on("before-quit", (event) => {
+      if (quitDrainComplete) return;
+      event.preventDefault();
+      if (quitDrainStarted) return;
+      quitDrainStarted = true;
       jobWorker?.stop();
-      void captureServer?.close().catch(() => {});
-      libraryStorage?.db.close();
+      void (async () => {
+        try {
+          await captureServer?.close();
+        } catch (error) {
+          console.error(
+            `capture server shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        try {
+          libraryStorage?.db.close();
+        } catch (error) {
+          console.error(
+            `library shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        quitDrainComplete = true;
+        app.quit();
+      })();
     });
   });
 }

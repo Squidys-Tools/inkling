@@ -102,6 +102,8 @@ import {
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "./lib/deepLink";
+import { enrichDeepLinkCapture } from "./lib/deepLinkEnrichment";
+import { safePublicImageUrl } from "./lib/ingestion/url";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
 import {
@@ -382,7 +384,9 @@ async function storedItemToLibraryItem(
       : undefined;
 
   const remoteImage = Array.isArray(item.metadata.imageUrls)
-    ? item.metadata.imageUrls.find((value): value is string => typeof value === "string")
+    ? item.metadata.imageUrls
+        .map(safePublicImageUrl)
+        .find((value): value is string => value !== undefined)
     : undefined;
   const indexedImageDimensions = Array.isArray(item.metadata.imageDimensions)
     ? item.metadata.imageDimensions.find((value): value is Record<string, unknown> => {
@@ -2785,6 +2789,17 @@ function App() {
       });
       const libraryItem = await storedItemToLibraryItem(storedItem);
       setItems((current) => [libraryItem, ...current]);
+      void enrichDeepLinkCapture(storedItem, title)
+        .then(async (enrichedItem) => {
+          if (!enrichedItem) return;
+          const enrichedLibraryItem = await storedItemToLibraryItem(enrichedItem);
+          setItems((current) =>
+            current.map((item) =>
+              item.id === enrichedLibraryItem.id ? enrichedLibraryItem : item,
+            ),
+          );
+        })
+        .catch(() => {});
     } catch (error) {
       failCapture(error instanceof Error ? error.message : String(error));
     } finally {
