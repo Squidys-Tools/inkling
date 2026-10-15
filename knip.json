@@ -2,8 +2,14 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["src/**/*.test.ts", "benchmarks/**/*.smoke.ts"],
-      "project": ["src/**/*", "benchmarks/harness/**/*"],
+      "entry": [
+        "src/**/*.test.ts",
+        "benchmarks/**/*.smoke.ts",
+        "electron/**/*.d.mts",
+        "electron/**/*.test.ts",
+        "electron/preload.cjs"
+      ],
+      "project": ["src/**/*", "benchmarks/harness/**/*", "electron/**/*"],
       "ignore": ["src/bun-test.d.ts"]
     },
     "extension": {

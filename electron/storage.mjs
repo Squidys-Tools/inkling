@@ -15,12 +15,11 @@ import {
 } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
 
-export const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 8;
 export const JOB_LEASE_MILLIS = 5 * 60 * 1000;
 
-const textModel = "nomic-embed-text-v1.5";
-const imageModel = "nomic-embed-vision-v1.5";
 const maxFileBytes = 50 * 1024 * 1024;
 const itemColumns = `id, kind, title, description, source_url, source_label,
   local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
@@ -339,7 +338,7 @@ function normalizeHttpUrl(value) {
   return url.toString();
 }
 
-function markdownToPlainText(markdown) {
+export function markdownToPlainText(markdown) {
   return markdown
     .replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
@@ -898,10 +897,13 @@ export class JobWorker {
     this.workerId = workerId;
     this.timer = null;
     this.running = false;
+    this.stopped = false;
+    this.stopWaiters = [];
   }
 
   start() {
     this.queue.recoverExpired();
+    this.stopped = false;
     this.timer = setInterval(() => void this.pump(), this.pollInterval);
     this.timer.unref?.();
     void this.pump();
@@ -909,12 +911,15 @@ export class JobWorker {
   }
 
   stop() {
+    this.stopped = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    if (!this.running) return Promise.resolve();
+    return new Promise((resolve) => this.stopWaiters.push(resolve));
   }
 
   async pump() {
-    if (this.running) return;
+    if (this.running || this.stopped) return;
     this.running = true;
     try {
       const kinds = Object.keys(this.processors);
@@ -927,7 +932,7 @@ export class JobWorker {
         );
         heartbeat.unref?.();
         try {
-          await processor(job, this.storage);
+          await processor(job, this.storage, this.workerId);
           this.queue.complete(job.id, this.workerId);
         } catch (error) {
           this.queue.fail(
@@ -938,10 +943,12 @@ export class JobWorker {
         } finally {
           clearInterval(heartbeat);
         }
+        if (this.stopped) break;
         job = this.queue.claimNext(this.workerId, kinds);
       }
     } finally {
       this.running = false;
+      for (const resolve of this.stopWaiters.splice(0)) resolve();
     }
   }
 }
@@ -958,7 +965,7 @@ export function openLibraryStorage(databasePath, options = {}) {
   return library;
 }
 
-export class LibraryStorage {
+class LibraryStorage {
   constructor(databasePath, db, fts5Enabled, jobs, { createThumbnail, createSnapshot } = {}) {
     this.databasePath = databasePath;
     this.assetsRoot = join(dirname(databasePath), "assets");
@@ -1002,7 +1009,37 @@ export class LibraryStorage {
     return { id: row.id, body: row.body, bodyFormat: row.body_format };
   }
 
-  searchItems(query, limit = 100) {
+  storeOcrText(id, text, engine) {
+    const row = this.db.prepare("SELECT metadata FROM items WHERE id = ?").get(id);
+    if (!row) throw new Error(`item not found: ${id}`);
+    const metadata = parseJson(row.metadata, {});
+    const ocrMetadata =
+      metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
+    delete ocrMetadata.ocrText;
+    ocrMetadata.ocrEngine = String(engine);
+    const now = nowMillis();
+    ocrMetadata.ocrCompletedAt = now;
+    this.db
+      .prepare("UPDATE items SET ocr_text = ?, metadata = ?, updated_at = ? WHERE id = ?")
+      .run(String(text), JSON.stringify(ocrMetadata), now, id);
+  }
+
+  storeEmbedding(itemId, kind, model, bytes, dimension) {
+    if (kind !== "text" && kind !== "image") {
+      throw new Error("invalid storage input: embedding kind must be text or image");
+    }
+    const vector = Buffer.from(bytes);
+    if (!Number.isInteger(dimension) || dimension < 1 || vector.length !== dimension * 4) {
+      throw new Error("invalid storage input: embedding vector dimension does not match its bytes");
+    }
+    this.db
+      .prepare(`INSERT INTO item_embeddings (item_id, kind, model, dimension, vector, created_at)
+      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(item_id, kind) DO UPDATE SET model = excluded.model,
+      dimension = excluded.dimension, vector = excluded.vector, created_at = excluded.created_at`)
+      .run(itemId, kind, String(model), dimension, vector, nowMillis());
+  }
+
+  searchItems(query, limit = 100, queryVector = null) {
     const search = String(query ?? "").trim();
     const cap = clampLimit(limit, 100, 200);
     if (!search)
@@ -1026,11 +1063,36 @@ export class LibraryStorage {
         ORDER BY updated_at DESC, created_at DESC LIMIT ?`)
         .all(pattern, pattern, pattern, pattern, pattern, pattern, cap);
     }
-    return rows.map(itemFromRow);
+    const lexicalItems = rows.map(itemFromRow);
+    if (!queryVector?.length) return lexicalItems;
+
+    const ranked = new Map(lexicalItems.map((item) => [item.id, { item, score: 2 }]));
+    const candidates = this.db
+      .prepare(`SELECT ${qualifiedItemColumns}, e.dimension AS embedding_dimension,
+        e.vector AS embedding_vector FROM item_embeddings e JOIN items i ON i.id = e.item_id
+        WHERE i.archived = 0 AND ((e.kind = 'text' AND e.model = ?)
+          OR (e.kind = 'image' AND e.model = ?))`)
+      .all(TEXT_MODEL, IMAGE_MODEL);
+    for (const row of candidates) {
+      const vector = decodeFloatVector(row.embedding_vector, row.embedding_dimension);
+      if (!vector || vector.length !== queryVector.length) continue;
+      const item = itemFromRow(row);
+      const similarity = dotProduct(queryVector, vector);
+      const current = ranked.get(item.id);
+      if (similarity <= 0 && !current) continue;
+      const score = current ? 2 + Math.max(similarity, 0) : similarity;
+      if (current) current.score = Math.max(current.score, score);
+      else ranked.set(item.id, { item, score });
+    }
+
+    return [...ranked.values()]
+      .sort((left, right) => right.score - left.score || right.item.updatedAt - left.item.updatedAt)
+      .slice(0, cap)
+      .map(({ item }) => item);
   }
 
   searchSimilar(itemId, kind, limit = 12) {
-    const model = kind === "image" ? imageModel : textModel;
+    const model = kind === "image" ? IMAGE_MODEL : TEXT_MODEL;
     const source = this.db
       .prepare(
         "SELECT dimension, vector FROM item_embeddings WHERE item_id = ? AND kind = ? AND model = ?",
@@ -1464,7 +1526,7 @@ export class LibraryStorage {
     return this.listSpaces();
   }
 
-  listSpaceItems(id, limit = 100) {
+  listSpaceItems(id, limit = 100, queryVector = null) {
     const space = this.getSpace(id);
     if (!space) throw new Error(`space not found: ${id}`);
     const cap = clampLimit(limit, 100, 200);
@@ -1480,7 +1542,13 @@ export class LibraryStorage {
     const clauses = ["i.archived = 0"];
     const values = [];
     let from = "items i";
-    if (text && this.fts5Enabled) {
+    let rankedCandidates = null;
+    if (text && queryVector?.length) {
+      rankedCandidates = this.searchItems(text, 200, queryVector);
+      if (!rankedCandidates.length) return [];
+      clauses.push(`i.id IN (${rankedCandidates.map(() => "?").join(", ")})`);
+      values.push(...rankedCandidates.map((item) => item.id));
+    } else if (text && this.fts5Enabled) {
       const match = escapeFtsQuery(text);
       if (!match) return [];
       from = "items_fts f JOIN items i ON i.id = f.item_id";
@@ -1518,6 +1586,10 @@ export class LibraryStorage {
       .prepare(`SELECT ${qualifiedItemColumns} FROM ${from} WHERE ${clauses.join(" AND ")}
       ORDER BY i.updated_at DESC, i.created_at DESC LIMIT ?`)
       .all(...values, cap);
+    if (rankedCandidates) {
+      const matchingIds = new Set(rows.map((row) => row.id));
+      return rankedCandidates.filter((item) => matchingIds.has(item.id)).slice(0, cap);
+    }
     return rows.map(itemFromRow);
   }
 

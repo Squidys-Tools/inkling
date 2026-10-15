@@ -139,17 +139,10 @@ export function visibleByline(document: Document): VisibleByline {
     const text = normalizeText(node.textContent);
     if (!text || !BYLINE_PREFIXES.test(text)) continue;
 
-    const anchors = [...node.querySelectorAll("a")]
-      .map((anchor) => normalizeText(anchor.textContent))
-      .filter(Boolean);
-    const anchorAuthor = anchors.find((value) => value.length <= 60);
-    const author =
-      anchorAuthor ??
-      text
-        .replace(BYLINE_PREFIXES, "")
-        .trim()
-        .split(/\s+on\s+/i)[0]
-        .trim();
+    const anchors = [...node.querySelectorAll("a")].map((anchor) =>
+      normalizeText(anchor.textContent),
+    );
+    const author = bylineAuthorText(text, anchors);
 
     const time = node.querySelector("time");
     const datetime = time?.getAttribute("datetime") ?? time?.getAttribute("dateTime");
@@ -173,27 +166,35 @@ function bylineAuthor(document: Document): string {
     const anchored = [...candidate.querySelectorAll("a")]
       .map((anchor) => normalizeText(anchor.textContent))
       .filter(Boolean);
-    const anchoredName = anchored.find((value) => NAME_PATTERN.test(value));
-    if (anchoredName) return anchoredName;
-
     const text = normalizeText(candidate.textContent);
     if (!text) continue;
-
-    const prefixed = text.match(BYLINE_PREFIXES);
-    if (!prefixed) continue;
-
-    const rest = text.slice(prefixed[0].length).trim();
-    const head = rest.split(/[,·|—–/]/u)[0].trim();
-    const nameWords: string[] = [];
-    for (const word of head.split(/\s+/)) {
-      if (!NAME_WORD_PATTERN.test(word) || nameWords.length === 3) break;
-      nameWords.push(word);
-    }
-    const name = nameWords.join(" ");
-    if (NAME_PATTERN.test(name)) return name;
+    const author = bylineAuthorText(text, anchored);
+    if (author) return author;
   }
 
   return "";
+}
+
+function bylineAuthorText(text: string, anchors: string[]): string {
+  const anchoredName = anchors.find((value) => NAME_PATTERN.test(value));
+  if (anchoredName) return anchoredName;
+
+  const prefixed = text.match(BYLINE_PREFIXES);
+  if (!prefixed) return "";
+
+  const rest = text.slice(prefixed[0].length).trim();
+  const head = rest.split(/[,·|—–/]/u)[0].trim();
+  const nameWords: string[] = [];
+  for (const word of head.split(/\s+/)) {
+    if (!NAME_WORD_PATTERN.test(word) || nameWords.length === 3) break;
+    nameWords.push(word);
+  }
+  const name = nameWords.join(" ");
+  return NAME_PATTERN.test(name) ? name : "";
+}
+
+export function extractDocumentAuthor(document: Document): string {
+  return metaContent(document, META_AUTHOR_NAMES) ?? bylineAuthor(document);
 }
 
 export function extractFallback(document: Document, url: string): RawArticleExtraction {
@@ -215,7 +216,7 @@ export function extractFallback(document: Document, url: string): RawArticleExtr
       firstMeaningfulText(document, ["h1", "title"]) ??
       new URL(url).hostname,
     description: structured.description ?? metaContent(document, META_DESCRIPTION_NAMES) ?? "",
-    author: structured.author ?? metaContent(document, META_AUTHOR_NAMES) ?? bylineAuthor(document),
+    author: structured.author ?? extractDocumentAuthor(document),
     publishedDate: normalizePublishedDate(structured.publishedDate ?? published),
     canonicalUrl: canonical ?? url,
     contentHtml: root?.innerHTML ?? "",

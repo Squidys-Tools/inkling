@@ -4,6 +4,7 @@ import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path
 import { fileURLToPath } from "node:url";
 import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
 import { startCaptureServer } from "./capture-server.mjs";
+import { createAiJobProcessors, enqueueStaleImageEmbeddings } from "./ai-jobs.mjs";
 import { JobWorker, openLibraryStorage, resolveLibraryDataDirectory } from "./storage.mjs";
 import { snapshotDatabase } from "./sqlite-snapshot.mjs";
 
@@ -23,6 +24,7 @@ let mainWindow;
 let libraryStorage;
 let jobWorker;
 let captureServer;
+let aiJobProcessors;
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -108,13 +110,26 @@ function initializeLibraryStorage() {
     createThumbnail: (bytes) =>
       import("./thumbnail.mjs").then(({ createImageThumbnail }) => createImageThumbnail(bytes)),
   });
-  jobWorker = new JobWorker(libraryStorage).start();
+  aiJobProcessors = createAiJobProcessors({
+    modelCacheDirectory: join(libraryDirectory, "models"),
+  });
+  enqueueStaleImageEmbeddings(libraryStorage);
+  jobWorker = new JobWorker(libraryStorage, { processors: aiJobProcessors.processors }).start();
   return libraryStorage.status();
 }
 
 function requireLibraryStorage() {
   if (!libraryStorage) throw new Error("storage has not been initialized");
   return libraryStorage;
+}
+
+async function embedQueryForSearch(query) {
+  if (!query || !aiJobProcessors) return null;
+  try {
+    return await aiJobProcessors.embedQuery(query);
+  } catch {
+    return null;
+  }
 }
 
 async function chooseLibraryDirectory(title) {
@@ -131,7 +146,11 @@ function registerLibraryCommands() {
     list_active_items: () => requireLibraryStorage().listActiveItems(),
     list_archived_items: () => requireLibraryStorage().listArchivedItems(),
     get_item_content: ({ id }) => requireLibraryStorage().getItemContent(id),
-    search_items: ({ query, limit }) => requireLibraryStorage().searchItems(query, limit),
+    search_items: async ({ query, limit }) => {
+      const text = String(query ?? "").trim();
+      const queryVector = await embedQueryForSearch(text);
+      return requireLibraryStorage().searchItems(query, limit, queryVector);
+    },
     search_similar_images: ({ itemId, limit }) =>
       requireLibraryStorage().searchSimilar(itemId, "image", limit),
     search_similar_text: ({ itemId, limit }) =>
@@ -142,7 +161,13 @@ function registerLibraryCommands() {
     update_space: ({ input }) => requireLibraryStorage().updateSpace(input),
     swap_space_positions: ({ firstId, secondId }) =>
       requireLibraryStorage().swapSpacePositions(firstId, secondId),
-    list_space_items: ({ id, limit }) => requireLibraryStorage().listSpaceItems(id, limit),
+    list_space_items: async ({ id, limit }) => {
+      const storage = requireLibraryStorage();
+      const space = storage.getSpace(id);
+      const text = space?.kind === "smart" ? String(space.query.text ?? "").trim() : "";
+      const queryVector = await embedQueryForSearch(text);
+      return storage.listSpaceItems(id, limit, queryVector);
+    },
     add_space_item: ({ spaceId, itemId }) => requireLibraryStorage().addSpaceItem(spaceId, itemId),
     remove_space_item: ({ spaceId, itemId }) =>
       requireLibraryStorage().removeSpaceItem(spaceId, itemId),
@@ -393,6 +418,22 @@ if (!hasSingleInstanceLock) {
         quitDrainComplete = true;
         app.quit();
       })();
+    let cleanupStarted = false;
+    app.on("before-quit", (event) => {
+      if (cleanupStarted) return;
+      event.preventDefault();
+      cleanupStarted = true;
+      void (async () => {
+        try {
+          await jobWorker?.stop();
+          await aiJobProcessors?.close();
+        } finally {
+          libraryStorage?.db.close();
+          app.quit();
+        }
+      })().catch((error) => {
+        console.error("Cannot cleanly stop background jobs:", error);
+      });
     });
   });
 }

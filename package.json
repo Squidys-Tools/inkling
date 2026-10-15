@@ -38,8 +38,11 @@
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.3.5",
     "@hugeicons/react": "^1.1.10",
+    "@huggingface/tokenizers": "0.2.0",
+    "@napi-rs/canvas": "1.0.11",
     "@tauri-apps/api": "^2.12.3",
     "@tauri-apps/plugin-dialog": "^2.8.2",
+    "@tesseract.js-data/eng": "1.0.0",
     "@tiptap/core": "3.31.4",
     "@tiptap/extension-list": "3.31.4",
     "@tiptap/markdown": "3.31.4",
@@ -51,11 +54,13 @@
     "gsap": "^3.15.0",
     "linkedom": "^0.18.13",
     "motion": "^14.1.0",
+    "onnxruntime-node": "1.24.2",
     "pdfjs-dist": "^6.4.299",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "sharp": "^0.35.5",
-    "sonner": "^2.0.8"
+    "sonner": "^2.0.8",
+    "tesseract.js": "7.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
@@ -66,7 +71,6 @@
     "@vitejs/plugin-react": "^6.1.2",
     "bun-types": "1.4.3",
     "knip": "^6.41.0",
-    "tesseract.js": "^7.0.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "electron": "44.7.2",
@@ -82,7 +86,14 @@
       "dist/**/*",
       "electron/**/*",
       "src/lib/deepLinkCore.mjs",
+      "src-tauri/model-manifest.json",
       "package.json"
+    ],
+    "asarUnpack": [
+      "**/tesseract.js/**/*",
+      "**/tesseract.js-core/**/*",
+      "**/@tesseract.js-data/eng/**/*",
+      "**/onnxruntime-node/bin/**/*"
     ],
     "protocols": [
       {

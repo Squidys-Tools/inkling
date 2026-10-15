@@ -29,7 +29,7 @@ Guardrails:
 ### Added
 
 - Electron desktop shell alongside Tauri, with scoped `app://` assets, an IPC command allowlist, and `inkling://` capture links.
-- Electron now opens the shared schema-v8 SQLite library with search, Spaces, archive, backup/restore, and a persisted job queue; OCR, PDF extraction, and embedding execution remain Tauri-only.
+- Electron now opens the shared schema-v8 SQLite library with search, Spaces, archive, backup/restore, and a persisted job queue running local OCR, PDF extraction, and Nomic embeddings.
 - Electron now accepts authenticated browser-extension saves over a loopback server and stores URL deep links before processing runs.
 - Packaged Windows app checks GitHub for signed updates at launch and offers user-controlled installation from the sidebar; the NSIS installer remains unsigned and may trigger a SmartScreen warning (SQU-16).
 - Keyboard shortcuts for search, new-note capture, and shortcut help, with contained dialog focus and keyboard-operated Spaces and cards (SQU-19).
