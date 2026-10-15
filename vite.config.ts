@@ -2,9 +2,6 @@ import { rmSync } from "node:fs";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// @ts-expect-error process is a nodejs global
-const host = process.env.TAURI_DEV_HOST;
-
 // Vite copies public/ verbatim and offers no exclude list, so the demo seed
 // folder is removed from the output after the copy. Everything else in
 // public/ is still shipped.
@@ -28,13 +25,12 @@ function excludeSeedFromAppBuild() {
 // gate runs.
 //
 // Gated on `--mode app` rather than an environment variable, because a
-// `VAR=x` prefix in a package script is not cross-platform on Windows `cmd`,
-// and a Tauri build runs there. `bun run build:app` is the only thing that
-// passes this mode.
+// `VAR=x` prefix in a package script is not cross-platform on Windows `cmd`.
+// `bun run build:app` is the only thing that passes this mode.
 //
 // https://vite.dev/config/
 export default defineConfig(async ({ mode }) => {
-  // `app` is the shipped Tauri build. Every other mode — dev, and the default
+  // `app` is the shipped Electron build. Every other mode — dev, and the default
   // production build used by `vite preview` and the web preview deploy — keeps
   // the seed.
   const includeSeed = mode !== "app";
@@ -48,34 +44,11 @@ export default defineConfig(async ({ mode }) => {
     define: includeSeed ? {} : { "import.meta.env.VITE_INKLING_SEED": JSON.stringify("0") },
 
     build: {
-      // Tauri ships an evergreen Chromium webview (WebView2), so build for
+      // Electron ships an evergreen Chromium webview, so build for
       // modern syntax: smaller output, no transpilation helpers, no
       // modulepreload polyfill. No visual or behavioral effect.
       target: "chrome120",
       modulePreload: { polyfill: false },
-    },
-
-    // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-    //
-    // 1. prevent Vite from obscuring rust errors
-    clearScreen: false,
-    // 2. tauri expects a fixed port, fail if that port is not available
-    server: {
-      port: 1420,
-      strictPort: true,
-      host: host || false,
-      allowedHosts: true,
-      hmr: host
-        ? {
-            protocol: "ws",
-            host,
-            port: 1421,
-          }
-        : undefined,
-      watch: {
-        // 3. tell Vite to ignore watching `src-tauri`
-        ignored: ["**/src-tauri/**"],
-      },
     },
   };
 });

@@ -11,7 +11,7 @@ Index of project documentation. Product docs describe what inkling is; operation
 
 ## Architecture
 
-- [tech-stack.md](tech-stack.md) — Tauri + React + Rust + SQLite decisions and reasoning.
+- [tech-stack.md](tech-stack.md) — Electron + React + Node.js + SQLite decisions and reasoning.
 
 ## Planning
 

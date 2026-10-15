@@ -8,9 +8,9 @@ import { pipeline } from "node:stream/promises";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(
-  await readFile(join(repositoryRoot, "src-tauri/model-manifest.json"), "utf8"),
+  await readFile(join(repositoryRoot, "electron/model-manifest.json"), "utf8"),
 );
-const cacheDirectory = join(repositoryRoot, ".artifacts/native-preview-cache/models");
+const cacheDirectory = join(repositoryRoot, ".artifacts/electron-model-cache/models");
 const bundledModelsDirectory = join(repositoryRoot, ".artifacts/electron-resources/models");
 
 async function sha256(path) {

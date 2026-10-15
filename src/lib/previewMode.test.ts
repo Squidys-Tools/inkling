@@ -27,21 +27,26 @@ describe("env flags", () => {
 
 describe("shouldUseSeedLibrary", () => {
   test("plain browser always uses seeds", () => {
-    expect(shouldUseSeedLibrary({ tauri: false })).toBe(true);
+    expect(shouldUseSeedLibrary({ desktop: false })).toBe(true);
   });
 
-  test("tauri without query never uses seeds", () => {
-    expect(shouldUseSeedLibrary({ tauri: true, search: "", dev: true })).toBe(false);
-    expect(shouldUseSeedLibrary({ tauri: true, search: "", previewBuild: true })).toBe(false);
+  test("desktop without query never uses seeds", () => {
+    expect(shouldUseSeedLibrary({ desktop: true, search: "", dev: true })).toBe(false);
+    expect(shouldUseSeedLibrary({ desktop: true, search: "", previewBuild: true })).toBe(false);
   });
 
-  test("tauri with preview query only in dev or preview builds", () => {
-    expect(shouldUseSeedLibrary({ tauri: true, search: "?preview=1", dev: true })).toBe(true);
+  test("desktop with preview query only in dev or preview builds", () => {
+    expect(shouldUseSeedLibrary({ desktop: true, search: "?preview=1", dev: true })).toBe(true);
     expect(
-      shouldUseSeedLibrary({ tauri: true, search: "?preview=1", dev: false, previewBuild: true }),
+      shouldUseSeedLibrary({ desktop: true, search: "?preview=1", dev: false, previewBuild: true }),
     ).toBe(true);
     expect(
-      shouldUseSeedLibrary({ tauri: true, search: "?preview=1", dev: false, previewBuild: false }),
+      shouldUseSeedLibrary({
+        desktop: true,
+        search: "?preview=1",
+        dev: false,
+        previewBuild: false,
+      }),
     ).toBe(false);
   });
 });

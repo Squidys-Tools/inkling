@@ -16,9 +16,7 @@ const maxTokens = 8192;
 const imageEdge = 224;
 const imageMean = [0.4814547, 0.4578275, 0.4082107];
 const imageStd = [0.26862954, 0.2613026, 0.2757771];
-const defaultManifestPath = fileURLToPath(
-  new URL("../src-tauri/model-manifest.json", import.meta.url),
-);
+const defaultManifestPath = fileURLToPath(new URL("./model-manifest.json", import.meta.url));
 
 async function sha256(path) {
   const hash = createHash("sha256");

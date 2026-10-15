@@ -9,7 +9,7 @@
     },
     {
       "name": "Run desktop app dev",
-      "command": "bun run tauri dev",
+      "command": "bun run electron:dev",
       "icon": "play",
       "runOnWorktreeCreate": false
     },
@@ -40,24 +40,6 @@
     {
       "name": "Check Bun version",
       "command": "bun run check:bun-version",
-      "icon": "debug",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Format Rust",
-      "command": "bun run fmt",
-      "icon": "configure",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Build Windows review app",
-      "command": "bun run preview:win",
-      "icon": "build",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Clean Rust build artifacts",
-      "command": "cargo clean --manifest-path src-tauri/Cargo.toml",
       "icon": "debug",
       "runOnWorktreeCreate": false
     },

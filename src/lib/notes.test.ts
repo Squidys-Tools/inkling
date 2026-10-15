@@ -25,9 +25,8 @@ describe("markdownToPlainText", () => {
     expect(markdownToPlainText("`<tag>`\n\n<script>alert(1)</script>")).toBe("<tag> alert(1)");
   });
 
-  // These pin the Rust semantics in `markdown_to_plain_text`
-  // (src-tauri/src/storage.rs), which the same note is projected through
-  // whenever the backend is running. A change here is a change there.
+  // These pin the Electron backend's `markdownToPlainText` semantics
+  // (electron/storage.mjs), which also projects the note when the desktop app runs.
   test("keeps words apart across a void inline tag", () => {
     expect(markdownToPlainText("foo<br>bar")).toBe("foo bar");
     expect(markdownToPlainText("one<br/>two")).toBe("one two");
@@ -56,8 +55,8 @@ describe("markdownToPlainText", () => {
     );
   });
 
-  // Documented divergence, tracked on the Rust side: it handles `Event::Html`
-  // for no case at all, so a block-level tag there joins the words around it.
+  // The Electron backend handles `Event::Html` for no case at all, so a
+  // block-level tag there joins the words around it.
   test("treats block-level raw HTML as a word boundary", () => {
     expect(markdownToPlainText("before<div>after")).toBe("before after");
     expect(markdownToPlainText("<table><tr><td>cell</td></tr></table>")).toBe("cell");

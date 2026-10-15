@@ -2,14 +2,14 @@
 
 ## Developer setup
 
-See the "For developers" section in README.md for install steps and commands. You need Bun 1.4.2 (see .bun-version) and a Rust toolchain on Windows.
+See the "For developers" section in README.md for install steps and commands. You need Bun 1.4.2 (see .bun-version).
 
 The usual commands are:
 
 ```powershell
 bun install
-bun run preview      # quick web look at the UI, no Rust build
-bun run tauri dev    # full Windows desktop app
+bun run preview      # quick browser preview of the UI
+bun run electron:dev # full Windows desktop app
 bun run check:frontend  # same frontend checks CI runs
 ```
 
@@ -21,7 +21,7 @@ We are not actively accepting contributions right now.
 
 You can still report a bug or open a PR, but please do so knowing there is a high chance we close it, defer it, or never look at it.
 
-This project is early and solo built. It is a Tauri plus React plus Rust desktop app, and we try to keep scope, quality, and direction under control.
+This project is early and solo built. It is an Electron plus React desktop app, and we try to keep scope, quality, and direction under control.
 
 ## What we are most likely to accept
 

@@ -1,41 +1,46 @@
-import { expect, mock, test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { ProcessingJob } from "./libraryApi";
 
 const invokeCalls: { command: string; args?: Record<string, unknown> }[] = [];
 
-mock.module("@tauri-apps/api/core", () => ({
-  convertFileSrc: (path: string) => path,
-  transformCallback: () => 0,
-  invoke: async (command: string, args?: Record<string, unknown>) => {
-    invokeCalls.push({ command, args });
-    if (command === "initialize_storage") {
-      return { databasePath: "library.sqlite3", fts5Enabled: true, schemaVersion: 1 };
-    }
-    if (command === "list_spaces") return [];
-    if (command === "list_item_spaces") return ["space-1"];
-    if (command === "add_space_item" || command === "remove_space_item") return null;
-    if (command === "get_jobs_for_items") return [];
-    if (command === "count_active_jobs") return 2;
-    if (command === "enqueue_ocr_job") return "job-2";
-    if (command === "check_for_updates") return { version: "0.2.0" };
-    if (command === "install_update") return null;
-    if (command === "import_library") {
-      return {
-        importedItems: 1,
-        skippedDuplicateItems: 0,
-        importedSpaces: 0,
-        skippedDuplicateSpaces: 0,
-        assetFiles: 0,
-        unverifiedAssetFiles: 0,
+const commands = new Proxy(
+  {} as Record<string, (args?: Record<string, unknown>) => Promise<unknown>>,
+  {
+    get: (_target, property) => {
+      if (typeof property !== "string") return undefined;
+      return async (args?: Record<string, unknown>) => {
+        invokeCalls.push({ command: property, args });
+        if (property === "initialize_storage") {
+          return { databasePath: "library.sqlite3", fts5Enabled: true, schemaVersion: 1 };
+        }
+        if (property === "list_spaces") return [];
+        if (property === "list_item_spaces") return ["space-1"];
+        if (property === "add_space_item" || property === "remove_space_item") return null;
+        if (property === "get_jobs_for_items") return [];
+        if (property === "count_active_jobs") return 2;
+        if (property === "enqueue_ocr_job") return "job-2";
+        if (property === "check_for_updates") return { version: "0.2.0" };
+        if (property === "install_update") return null;
+        if (property === "select_library_directory") return `/scratch/${args?.title}`;
+        if (property === "import_library") {
+          return {
+            importedItems: 1,
+            skippedDuplicateItems: 0,
+            importedSpaces: 0,
+            skippedDuplicateSpaces: 0,
+            assetFiles: 0,
+            unverifiedAssetFiles: 0,
+          };
+        }
+        throw new Error(`Unexpected command: ${property}`);
       };
-    }
-    throw new Error(`Unexpected command: ${command}`);
+    },
   },
-}));
+);
 
 Object.defineProperty(globalThis, "window", {
   configurable: true,
-  value: { __TAURI_INTERNALS__: {} },
+  value: { inkling: { commands } },
 });
 
 const {
@@ -253,7 +258,7 @@ test("the UI checks for updates and installs only after an explicit request", as
 });
 
 test("Electron asset paths use the storage-backed app URL mapping", async () => {
-  const tauriWindow = globalThis.window;
+  const electronWindow = globalThis.window;
   Object.defineProperty(globalThis, "window", {
     configurable: true,
     value: { inkling: { commands: {} } },
@@ -264,6 +269,6 @@ test("Electron asset paths use the storage-backed app URL mapping", async () => 
     expect(await assetUrl("assets/item.png")).toBe("app://local/library-assets/item.png");
     expect(invokeCalls).toEqual([]);
   } finally {
-    Object.defineProperty(globalThis, "window", { configurable: true, value: tauriWindow });
+    Object.defineProperty(globalThis, "window", { configurable: true, value: electronWindow });
   }
 });

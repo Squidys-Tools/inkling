@@ -64,7 +64,6 @@
       "!**/node_modules",
       "!**/dist",
       "!**/dist-ssr",
-      "!**/src-tauri/target",
       "!**/.artifacts",
       "!**/public/seed-demo",
       "!**/*.d.ts",
@@ -73,8 +72,7 @@
       "!.opencode",
       "!.codex",
       "!docs/assets",
-      "!extension/icons",
-      "!public/tauri.svg"
+      "!extension/icons"
     ]
   },
   "vcs": {

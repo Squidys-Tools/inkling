@@ -10,19 +10,18 @@ space. This lets a natural-language query match text items and image items.
 
 ## Runtime behavior
 
-The Rust embedding boundary uses ONNX Runtime with the published INT8 ONNX
+The Electron embedding runtime uses ONNX Runtime with the published INT8 ONNX
 artifacts pinned to known Hugging Face revisions and verifies their SHA-256
-hashes. The first indexing job downloads the model files into:
+hashes. Development builds download model files into:
 
 ```text
-<app data directory>\models\nomic-embed-text-v1.5\
-<app data directory>\models\nomic-embed-vision-v1.5\
+<library data directory>\models\nomic-embed-text-v1.5\
+<library data directory>\models\nomic-embed-vision-v1.5\
 ```
 
-Portable Windows preview folders keep the same layout under `data\models\`
-beside `inkling.exe`. The preview build downloads and verifies those files in the CI environment
-before packaging, so the folder can be copied for review and deleted to remove
-its model cache and library data.
+The Windows installer bundles the pinned model files in the Electron resources
+directory for offline use. Development builds download verified files to the
+library data directory when an embedding job first needs them.
 
 Text documents use the `search_document:` prefix. User queries use the
 `search_query:` prefix. Vision preprocessing follows the model's 224px RGB
