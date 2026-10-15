@@ -37,6 +37,7 @@ const commands = Object.freeze({
   get_capture_status: () => ipcRenderer.invoke("inkling:get_capture_status"),
   get_pairing_token: () => ipcRenderer.invoke("inkling:get_pairing_token"),
   regenerate_pairing_token: () => ipcRenderer.invoke("inkling:regenerate_pairing_token"),
+  select_library_directory: (args) => ipcRenderer.invoke("inkling:select_library_directory", args),
   "plugin:deep-link|get_current": () => ipcRenderer.invoke("inkling:plugin:deep-link|get_current"),
 });
 

@@ -1,0 +1,10 @@
+{
+  "sourceIds": ["me-fuji-night", "me-spidey-rain", "me-lanterns", "me-blossoms"],
+  "activeOrder": ["me-blossoms", "me-lanterns", "me-spidey-rain", "me-fuji-night"],
+  "queries": {
+    "lanterns": ["me-lanterns"],
+    "japan": ["me-lanterns", "me-fuji-night"]
+  },
+  "smartSpace": ["me-lanterns", "me-fuji-night"],
+  "regularSpace": ["me-lanterns", "me-fuji-night"]
+}

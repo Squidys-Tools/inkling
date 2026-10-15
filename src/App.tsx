@@ -87,6 +87,7 @@ import {
   deleteItem,
   exportLibrary,
   importLibrary,
+  selectLibraryDirectory,
   searchItems,
   searchSimilarItems,
   updateItem,
@@ -1475,7 +1476,7 @@ function keepTabFocusInside(event: KeyboardEvent, dialog: HTMLElement) {
 
 function App() {
   const canUseDesktopBackend = isDesktopRuntime() && !shouldUseSeedLibrary();
-  const canUseTauriFolderPicker = isTauriRuntime() && !shouldUseSeedLibrary();
+  const canUseLibraryFolderPicker = isDesktopRuntime() && !shouldUseSeedLibrary();
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
   const [activeJobCount, setActiveJobCount] = useState<number | null>(null);
   const [spaces, setSpaces] = useState<StoredSpace[]>(shouldUseSeedLibrary() ? seedSpaces : []);
@@ -1862,19 +1863,12 @@ function App() {
     setSelectedItem(null);
   }, []);
 
-  // Export is desktop only: it needs the native folder picker, and the Rust
-  // core writes the snapshot so it stays consistent while the app is running.
+  // Export uses the native folder picker and storage backend for the active desktop shell.
   const exportLibraryToFolder = useCallback(async () => {
-    if (!canUseTauriFolderPicker || isExportingLibrary || isImportingLibrary) return;
+    if (!canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary) return;
     let destination: string | null = null;
     try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const selection = await open({
-        directory: true,
-        multiple: false,
-        title: "Choose where to save the export",
-      });
-      destination = typeof selection === "string" ? selection : null;
+      destination = await selectLibraryDirectory("Choose where to save the export");
     } catch (error) {
       toast.error("Could not open the folder picker", {
         description: error instanceof Error ? error.message : String(error),
@@ -1910,19 +1904,13 @@ function App() {
     } finally {
       setIsExportingLibrary(false);
     }
-  }, [canUseTauriFolderPicker, isExportingLibrary, isImportingLibrary]);
+  }, [canUseLibraryFolderPicker, isExportingLibrary, isImportingLibrary]);
 
   const importLibraryFromFolder = useCallback(async () => {
-    if (!canUseTauriFolderPicker || isExportingLibrary || isImportingLibrary) return;
+    if (!canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary) return;
     let exportDirectory: string | null = null;
     try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const selection = await open({
-        directory: true,
-        multiple: false,
-        title: "Choose an Inkling export to restore",
-      });
-      exportDirectory = typeof selection === "string" ? selection : null;
+      exportDirectory = await selectLibraryDirectory("Choose an Inkling export to restore");
     } catch (error) {
       toast.error("Could not open the export picker", {
         description: error instanceof Error ? error.message : String(error),
@@ -1968,7 +1956,7 @@ function App() {
     } finally {
       setIsImportingLibrary(false);
     }
-  }, [canUseTauriFolderPicker, isExportingLibrary, isImportingLibrary]);
+  }, [canUseLibraryFolderPicker, isExportingLibrary, isImportingLibrary]);
 
   const addTagToItem = useCallback(
     async (item: LibraryItem, tag: string) => {
@@ -5357,7 +5345,7 @@ function App() {
                           type="button"
                           className={`settings-data-button ${isExportingLibrary ? "is-busy" : ""}`}
                           disabled={
-                            !canUseTauriFolderPicker || isExportingLibrary || isImportingLibrary
+                            !canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary
                           }
                           onClick={() => void exportLibraryToFolder()}
                         >
@@ -5369,12 +5357,8 @@ function App() {
                             {isExportingLibrary ? "Exporting…" : "Choose folder and export"}
                           </span>
                         </button>
-                        {!canUseTauriFolderPicker ? (
-                          <p className="settings-data-hint">
-                            {isElectronRuntime()
-                              ? "Folder export is not implemented in Electron yet."
-                              : "Export runs in the desktop app."}
-                          </p>
+                        {!canUseLibraryFolderPicker ? (
+                          <p className="settings-data-hint">Export runs in the desktop app.</p>
                         ) : null}
                         {lastExport ? (
                           <div className="settings-data-result" role="status" aria-live="polite">
@@ -5398,7 +5382,7 @@ function App() {
                           type="button"
                           className={`settings-data-button ${isImportingLibrary ? "is-busy" : ""}`}
                           disabled={
-                            !canUseTauriFolderPicker || isExportingLibrary || isImportingLibrary
+                            !canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary
                           }
                           onClick={() => void importLibraryFromFolder()}
                         >
@@ -5410,12 +5394,8 @@ function App() {
                             {isImportingLibrary ? "Restoring…" : "Choose export and restore"}
                           </span>
                         </button>
-                        {!canUseTauriFolderPicker ? (
-                          <p className="settings-data-hint">
-                            {isElectronRuntime()
-                              ? "Folder restore is not implemented in Electron yet."
-                              : "Restore runs in the desktop app."}
-                          </p>
+                        {!canUseLibraryFolderPicker ? (
+                          <p className="settings-data-hint">Restore runs in the desktop app.</p>
                         ) : null}
                         {lastImport ? (
                           <div className="settings-data-result" role="status" aria-live="polite">

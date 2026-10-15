@@ -36,6 +36,7 @@ type ElectronCommand =
   | "get_capture_status"
   | "get_pairing_token"
   | "regenerate_pairing_token"
+  | "select_library_directory"
   | "plugin:deep-link|get_current";
 
 type ElectronBridge = {

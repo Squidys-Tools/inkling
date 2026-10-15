@@ -1,14 +1,26 @@
-import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
+import { JobWorker, openLibraryStorage, resolveLibraryDataDirectory } from "./storage.mjs";
+import { snapshotDatabase } from "./sqlite-snapshot.mjs";
 
 const mainDirectory = dirname(fileURLToPath(import.meta.url));
 const isPreview = process.argv.includes("--preview");
+const commandLineDataDirectory = app.commandLine.getSwitchValue("user-data-dir");
+const libraryDirectory = resolveLibraryDataDirectory({
+  executablePath: app.getPath("exe"),
+  appDataDirectory: app.getPath("appData"),
+  portable: app.isPackaged && process.env.INKLING_PORTABLE === "1",
+  overrideDirectory: commandLineDataDirectory || undefined,
+});
+app.setPath("userData", libraryDirectory);
 const deepLinkSubscribers = new Set();
 const pendingDeepLinks = [];
 let mainWindow;
+let libraryStorage;
+let jobWorker;
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -79,46 +91,94 @@ function handleDeepLinkArguments(argumentsList) {
   }
 }
 
+function emitJobUpdated(itemId) {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.webContents.isDestroyed())
+      window.webContents.send("inkling:job-updated", { itemId });
+  }
+}
+
+function initializeLibraryStorage() {
+  if (libraryStorage) return libraryStorage.status();
+  libraryStorage = openLibraryStorage(join(libraryDirectory, "library.sqlite3"), {
+    jobQueue: { onUpdated: emitJobUpdated },
+    createSnapshot: snapshotDatabase,
+    createThumbnail: (bytes) =>
+      import("./thumbnail.mjs").then(({ createImageThumbnail }) => createImageThumbnail(bytes)),
+  });
+  jobWorker = new JobWorker(libraryStorage).start();
+  return libraryStorage.status();
+}
+
+function requireLibraryStorage() {
+  if (!libraryStorage) throw new Error("storage has not been initialized");
+  return libraryStorage;
+}
+
+async function chooseLibraryDirectory(title) {
+  const options = { properties: ["openDirectory"], title };
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, options)
+    : await dialog.showOpenDialog(options);
+  return result.canceled ? null : (result.filePaths[0] ?? null);
+}
+
 function registerLibraryCommands() {
-  const commandNames = [
+  const storageCommands = {
+    initialize_storage: () => initializeLibraryStorage(),
+    list_active_items: () => requireLibraryStorage().listActiveItems(),
+    list_archived_items: () => requireLibraryStorage().listArchivedItems(),
+    get_item_content: ({ id }) => requireLibraryStorage().getItemContent(id),
+    search_items: ({ query, limit }) => requireLibraryStorage().searchItems(query, limit),
+    search_similar_images: ({ itemId, limit }) =>
+      requireLibraryStorage().searchSimilar(itemId, "image", limit),
+    search_similar_text: ({ itemId, limit }) =>
+      requireLibraryStorage().searchSimilar(itemId, "text", limit),
+    list_spaces: () => requireLibraryStorage().listSpaces(),
+    create_space: ({ input }) => requireLibraryStorage().createSpace(input),
+    delete_space: ({ id }) => requireLibraryStorage().deleteSpace(id),
+    update_space: ({ input }) => requireLibraryStorage().updateSpace(input),
+    swap_space_positions: ({ firstId, secondId }) =>
+      requireLibraryStorage().swapSpacePositions(firstId, secondId),
+    list_space_items: ({ id, limit }) => requireLibraryStorage().listSpaceItems(id, limit),
+    add_space_item: ({ spaceId, itemId }) => requireLibraryStorage().addSpaceItem(spaceId, itemId),
+    remove_space_item: ({ spaceId, itemId }) =>
+      requireLibraryStorage().removeSpaceItem(spaceId, itemId),
+    list_item_spaces: ({ itemId }) => requireLibraryStorage().listItemSpaces(itemId),
+    create_note: ({ input }) => requireLibraryStorage().createNote(input),
+    create_quote: ({ input }) => requireLibraryStorage().createQuote(input),
+    create_url: ({ input }) => requireLibraryStorage().createUrl(input),
+    save_file: ({ input }) => requireLibraryStorage().saveFile(input),
+    resolve_asset_path: ({ path }) => requireLibraryStorage().resolveAssetPath(path),
+    update_item: ({ input }) => requireLibraryStorage().updateItem(input),
+    archive_item: ({ id, archived = true }) => requireLibraryStorage().archiveItem(id, archived),
+    delete_item: ({ id }) => requireLibraryStorage().deleteItem(id),
+    export_library: ({ destination, timezoneOffsetMinutes }) =>
+      requireLibraryStorage().exportLibrary(destination, timezoneOffsetMinutes),
+    import_library: ({ exportDirectory }) => requireLibraryStorage().importLibrary(exportDirectory),
+    get_jobs_for_items: ({ itemIds }) => requireLibraryStorage().jobs.getForItems(itemIds),
+    count_active_jobs: () => requireLibraryStorage().jobs.countActive(),
+    enqueue_ocr_job: ({ itemId }) => requireLibraryStorage().jobs.enqueueOcr(itemId),
+    retry_processing_job: ({ jobId }) => requireLibraryStorage().jobs.retry(jobId),
+  };
+
+  for (const [command, handler] of Object.entries(storageCommands)) {
+    ipcMain.handle(`inkling:${command}`, (_event, args = {}) => handler(args ?? {}));
+  }
+
+  ipcMain.handle("inkling:select_library_directory", (_event, { title }) =>
+    chooseLibraryDirectory(title),
+  );
+
+  const unsupportedCommands = [
     "check_for_updates",
     "install_update",
-    "initialize_storage",
-    "list_active_items",
-    "list_archived_items",
-    "get_item_content",
-    "search_items",
-    "search_similar_images",
-    "search_similar_text",
-    "list_spaces",
-    "create_space",
-    "delete_space",
-    "update_space",
-    "swap_space_positions",
-    "list_space_items",
-    "add_space_item",
-    "remove_space_item",
-    "list_item_spaces",
-    "create_note",
-    "create_quote",
-    "create_url",
-    "save_file",
-    "resolve_asset_path",
-    "update_item",
-    "archive_item",
-    "delete_item",
-    "export_library",
-    "import_library",
-    "get_jobs_for_items",
-    "count_active_jobs",
-    "enqueue_ocr_job",
-    "retry_processing_job",
     "get_capture_status",
     "get_pairing_token",
     "regenerate_pairing_token",
   ];
 
-  for (const command of commandNames) {
+  for (const command of unsupportedCommands) {
     ipcMain.handle(`inkling:${command}`, () => {
       const area =
         command === "check_for_updates" || command === "install_update"
@@ -287,6 +347,10 @@ if (!hasSingleInstanceLock) {
     });
     app.on("window-all-closed", () => {
       if (process.platform !== "darwin") app.quit();
+    });
+    app.on("before-quit", () => {
+      jobWorker?.stop();
+      libraryStorage?.db.close();
     });
   });
 }

@@ -50,6 +50,7 @@ const {
   listItemSpaces,
   listSpaces,
   removeSpaceItem,
+  selectLibraryDirectory,
   summariesFromJobs,
 } = await import("./libraryApi");
 
@@ -109,6 +110,36 @@ test("items without jobs get a quiet default summary", () => {
   expect(summary?.total).toBe(0);
   expect(summary?.hasOcrJob).toBe(false);
   expect(summary?.failedJob).toBe(null);
+});
+
+test("Electron resolves managed assets through app protocol and uses its native folder picker", async () => {
+  const originalWindow = globalThis.window;
+  try {
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        inkling: {
+          commands: {
+            select_library_directory: async ({ title }: { title: string }) => `/scratch/${title}`,
+          },
+        },
+      },
+    });
+
+    expect(await assetUrl("assets/items/abc/my image.png")).toBe(
+      "app://local/library-assets/items/abc/my%20image.png",
+    );
+    expect(await assetUrl("assets/items/../outside.png")).toBeUndefined();
+    expect(await assetUrl("assets/items//outside.png")).toBeUndefined();
+    expect(await assetUrl("assets/items/./outside.png")).toBeUndefined();
+    expect(await assetUrl("assets/items/abc:outside.png")).toBeUndefined();
+    expect(await selectLibraryDirectory("Exports")).toBe("/scratch/Exports");
+  } finally {
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: originalWindow,
+    });
+  }
 });
 
 test("processing summaries distinguish OCR jobs from embedding jobs", () => {
@@ -221,7 +252,7 @@ test("the UI checks for updates and installs only after an explicit request", as
   ]);
 });
 
-test("Electron asset paths stay raw until its storage-backed app URL mapping exists", async () => {
+test("Electron asset paths use the storage-backed app URL mapping", async () => {
   const tauriWindow = globalThis.window;
   Object.defineProperty(globalThis, "window", {
     configurable: true,
@@ -230,7 +261,7 @@ test("Electron asset paths stay raw until its storage-backed app URL mapping exi
 
   try {
     invokeCalls.length = 0;
-    expect(await assetUrl("assets/item.png")).toBe("assets/item.png");
+    expect(await assetUrl("assets/item.png")).toBe("app://local/library-assets/item.png");
     expect(invokeCalls).toEqual([]);
   } finally {
     Object.defineProperty(globalThis, "window", { configurable: true, value: tauriWindow });
