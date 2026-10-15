@@ -8,6 +8,7 @@ import {
   MinusSignIcon,
   PlusSignIcon,
 } from "@hugeicons/core-free-icons";
+import { keepTabFocusInside } from "../lib/accessibilityFocus";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -37,6 +38,8 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
   const [zoom, setZoom] = useState<number | null>(null);
   const [renderedScale, setRenderedScale] = useState(1);
   const [containerWidth, setContainerWidth] = useState(0);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const initialFocusRef = useRef<HTMLButtonElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -127,6 +130,21 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
   }, [state, pageNumber, zoom, containerWidth]);
 
   useEffect(() => {
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    initialFocusRef.current?.focus();
+    const onTabKeyDown = (event: KeyboardEvent) => {
+      if (dialog) keepTabFocusInside(event, dialog);
+    };
+    document.addEventListener("keydown", onTabKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onTabKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, []);
+
+  useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -166,7 +184,13 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
         tabIndex={-1}
         onClick={onClose}
       />
-      <section className="pdf-viewer" role="dialog" aria-modal="true" aria-label={title}>
+      <section
+        ref={dialogRef}
+        className="pdf-viewer"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
         <header className="pdf-viewer-header">
           <span className="pdf-viewer-title" title={title}>
             {title}
@@ -175,6 +199,7 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
             <div className="pdf-viewer-group">
               <button
                 type="button"
+                ref={initialFocusRef}
                 className="icon-button small"
                 onClick={() =>
                   setZoom((current) => clampZoom((current ?? renderedScale) - ZOOM_STEP))

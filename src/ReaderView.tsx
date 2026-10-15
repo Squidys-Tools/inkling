@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { keepTabFocusInside } from "./lib/accessibilityFocus";
 import "./reader.css";
 
 export type ReaderOrigin = { x: number; y: number };
@@ -58,6 +59,8 @@ type ReaderViewProps = {
 export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
   const [fontSet, setFontSet] = useState<ReaderFontSet>(loadFontSet);
   const shouldReduceMotion = useReducedMotion() ?? false;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     try {
@@ -78,6 +81,21 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [onRequestClose]);
 
+  useEffect(() => {
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    closeButtonRef.current?.focus();
+    const onTabKeyDown = (event: KeyboardEvent) => {
+      if (dialog) keepTabFocusInside(event, dialog);
+    };
+    document.addEventListener("keydown", onTabKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onTabKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, []);
+
   const bylineParts = [item.author, item.publishedDate ?? item.savedDate].filter(Boolean);
   const host = hostnameOf(item.sourceUrl);
 
@@ -87,6 +105,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
 
   return (
     <motion.div
+      ref={dialogRef}
       className={`reader-overlay reader-font-${fontSet}`}
       role="dialog"
       aria-modal="true"
@@ -104,6 +123,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
     >
       <button
         type="button"
+        ref={closeButtonRef}
         className="reader-close"
         onClick={onRequestClose}
         title="Close reader"
