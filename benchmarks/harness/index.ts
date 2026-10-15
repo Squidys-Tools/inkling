@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
-import { mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadManifest, corpusPath, benchmarksRoot } from "./manifest";
 import { startCorpusServer } from "./server";
 import { extractFixture } from "./extract";
-import { extractPdf, extractFirstEmbeddedJpeg } from "./pdf";
+import { extractPdf } from "./pdf";
+import { extractPdfTextByPages } from "../../electron/pdf.mjs";
 import { availableOcrEngines, WindowsOcrEngine, TesseractJsEngine, type OcrEngine } from "./ocr";
 import { average, bannedTermHits, stringScore, termMatches, tokenStats, tokenize } from "./score";
 import type { ManifestItem, ExpectedSearch } from "./manifest";
@@ -151,14 +151,15 @@ function scorePlainText(item: ManifestItem, text: string, engine: string): ItemR
 
 function scorePdf(
   item: ManifestItem,
-  naive: { text: string; embeddedImages: number },
-  ocrText: string | null,
-  ocrEngine: string | null,
+  extraction: { pages: string[]; text: string; engine: string; ocrPages: number },
+  embeddedImages: number,
+  pdfLatencyMs: number,
+  ocrLatencyMs: number,
 ): ItemResult {
   const exp = item.expected ?? {};
   const messages: string[] = [];
   const parts: number[] = [];
-  const text = naive.text || ocrText || "";
+  const text = extraction.text;
 
   if (exp.search_terms?.length) {
     const matches = termMatches(text, exp.search_terms);
@@ -170,12 +171,20 @@ function scorePdf(
   for (const term of banned) messages.push(`banned term found: "${term}"`);
   if (banned.length) parts.push(0);
 
+  if (exp.ocr_text_file) {
+    const expectedText = readFileSync(corpusPath(exp.ocr_text_file), "utf8");
+    const stats = tokenStats(expectedText, text);
+    parts.push((stats.recall + stats.precision) / 2);
+    if (stats.recall < 1) messages.push(`OCR recall ${stats.recall.toFixed(2)}`);
+    if (stats.precision < 1) messages.push(`OCR precision ${stats.precision.toFixed(2)}`);
+  }
+
   if (exp.embedded_images_min != null) {
-    const value = Math.min(1, naive.embeddedImages / exp.embedded_images_min);
+    const value = Math.min(1, embeddedImages / exp.embedded_images_min);
     parts.push(value);
     if (value < 1)
       messages.push(
-        `expected >= ${exp.embedded_images_min} embedded image(s), got ${naive.embeddedImages}`,
+        `expected >= ${exp.embedded_images_min} embedded image(s), got ${embeddedImages}`,
       );
   }
 
@@ -183,13 +192,16 @@ function scorePdf(
   return {
     id: item.id,
     type: item.type,
-    engine: naive.text ? "naive-streams" : (ocrEngine ?? "none"),
+    engine: extraction.engine,
     status: statusFor(score),
     score,
     metrics: {
-      naiveTextLength: naive.text.length,
-      ocrText: ocrText != null,
-      embeddedImages: naive.embeddedImages,
+      pageCount: extraction.pages.length,
+      textLength: text.length,
+      ocrPages: extraction.ocrPages,
+      embeddedImages,
+      pdfLatencyMs,
+      ocrLatencyMs,
     },
     messages,
   };
@@ -200,6 +212,7 @@ function scoreOcr(
   expectedText: string,
   actualText: string,
   engine: string,
+  elapsedMs: number,
 ): ItemResult {
   const stats = tokenStats(expectedText, actualText);
   const score = (stats.recall + stats.precision) / 2;
@@ -218,7 +231,7 @@ function scoreOcr(
     engine,
     status: statusFor(score),
     score,
-    metrics: { ...stats },
+    metrics: { ...stats, elapsedMs },
     messages,
   };
 }
@@ -226,35 +239,17 @@ function scoreOcr(
 async function tryOcr(
   engine: OcrEngine,
   filePath: string,
-): Promise<{ text: string; engine: string } | null> {
+): Promise<{ text: string; engine: string; elapsedMs: number } | null> {
+  const startedAt = performance.now();
   try {
     const text = await engine.run(filePath);
-    return { text, engine: engine.name };
+    return { text, engine: engine.name, elapsedMs: performance.now() - startedAt };
   } catch (cause) {
     console.warn(
       `  [ocr] ${engine.name} failed for ${filePath}: ${cause instanceof Error ? cause.message : String(cause)}`,
     );
     return null;
   }
-}
-
-/** Runs every available engine and returns the best OCR text by token score. */
-async function bestOcr(
-  engines: OcrEngine[],
-  filePath: string,
-  expectedText: string,
-): Promise<{ text: string; engine: string; score: number } | null> {
-  let best: { text: string; engine: string; score: number } | null = null;
-  for (const engine of engines) {
-    const result = await tryOcr(engine, filePath);
-    if (!result) continue;
-    const stats = tokenStats(expectedText, result.text);
-    const score = (stats.recall + stats.precision) / 2;
-    if (!best || score > best.score) {
-      best = { text: result.text, engine: result.engine, score };
-    }
-  }
-  return best;
 }
 
 async function runItem(
@@ -276,31 +271,28 @@ async function runItem(
   }
 
   if (item.type === "pdf") {
-    const naive = extractPdf(filePath);
-    let ocrText: string | null = null;
-    let ocrEngine: string | null = null;
-    if (!naive.text && exp.ocr_text_file) {
-      const jpeg = extractFirstEmbeddedJpeg(filePath);
-      if (jpeg) {
-        const tmpFile = join(tmpdir(), `inkling-ocr-${item.id}.jpg`);
-        writeFileSync(tmpFile, jpeg);
-        try {
-          const expectedText = readFileSync(corpusPath(exp.ocr_text_file), "utf8");
-          const best = await bestOcr(ocrEngines, tmpFile, expectedText);
-          ocrText = best?.text ?? null;
-          ocrEngine = best?.engine ?? null;
-        } finally {
-          rmSync(tmpFile, { force: true });
-        }
-      }
-    }
-    if (!naive.text && !ocrText && exp.ocr_text_file) {
+    const embeddedImages = extractPdf(filePath).embeddedImages;
+    const engine = ocrEngines.find((candidate) => candidate.name === "tesseract.js");
+    let ocrLatencyMs = 0;
+    const startedAt = performance.now();
+    const extraction = await extractPdfTextByPages(readFileSync(filePath), {
+      recognize: engine
+        ? async (image) => {
+            const ocrStartedAt = performance.now();
+            const result = await engine.run(image);
+            ocrLatencyMs += performance.now() - ocrStartedAt;
+            return result;
+          }
+        : undefined,
+    });
+    const pdfLatencyMs = performance.now() - startedAt;
+    if (!extraction.text && exp.ocr_text_file) {
       return skipResult(
         item,
         "scanned PDF: no OCR engine available (Windows.Media.Ocr or tesseract.js)",
       );
     }
-    return scorePdf(item, naive, ocrText, ocrEngine);
+    return scorePdf(item, extraction, embeddedImages, pdfLatencyMs, ocrLatencyMs);
   }
 
   if (item.type === "image" || item.type === "screenshot") {
@@ -310,7 +302,7 @@ async function runItem(
       for (const engine of ocrEngines) {
         const result = await tryOcr(engine, filePath);
         if (!result) continue;
-        const scored = scoreOcr(item, expectedText, result.text, result.engine);
+        const scored = scoreOcr(item, expectedText, result.text, result.engine, result.elapsedMs);
         if (!best || scored.score > best.score) best = scored;
       }
       if (!best)
@@ -344,6 +336,12 @@ function summarize(results: ItemResult[]): Summary {
   };
 }
 
+function percentile(values: number[], fraction: number) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)];
+}
+
 function writeSummaryMarkdown(report: {
   generatedAt: string;
   overall: Summary;
@@ -363,6 +361,29 @@ function writeSummaryMarkdown(report: {
   for (const [type, s] of Object.entries(report.byType)) {
     lines.push(
       `| ${type} | ${s.avgScore.toFixed(3)} | ${s.pass} | ${s.partial} | ${s.fail} | ${s.skip} | ${s.total} |`,
+    );
+  }
+  const imageOcr = report.items
+    .filter((item) => ["image", "screenshot"].includes(item.type))
+    .map((item) => item.metrics.elapsedMs)
+    .filter((value): value is number => typeof value === "number");
+  const pdfLatency = report.items
+    .map((item) => item.metrics.pdfLatencyMs)
+    .filter((value): value is number => typeof value === "number");
+  const pdfOcrLatency = report.items
+    .map((item) => item.metrics.ocrLatencyMs)
+    .filter((value): value is number => typeof value === "number" && value > 0);
+  lines.push("");
+  lines.push("## Latency");
+  lines.push(
+    `Image OCR: median ${percentile(imageOcr, 0.5).toFixed(0)} ms, p90 ${percentile(imageOcr, 0.9).toFixed(0)} ms (${imageOcr.length} items).`,
+  );
+  lines.push(
+    `PDF processing: median ${percentile(pdfLatency, 0.5).toFixed(0)} ms, p90 ${percentile(pdfLatency, 0.9).toFixed(0)} ms (${pdfLatency.length} items).`,
+  );
+  if (pdfOcrLatency.length) {
+    lines.push(
+      `PDF OCR: median ${percentile(pdfOcrLatency, 0.5).toFixed(0)} ms, p90 ${percentile(pdfOcrLatency, 0.9).toFixed(0)} ms (${pdfOcrLatency.length} pages).`,
     );
   }
   lines.push("");
@@ -398,15 +419,19 @@ async function main(): Promise<void> {
   console.log("");
 
   const items: ItemResult[] = [];
-  for (const item of manifest.items) {
-    process.stdout.write(`  ${item.id} ... `);
-    const result = await runItem(item, server.baseUrl, ocrEngines);
-    items.push(result);
-    console.log(
-      `[${result.status}] score ${result.score.toFixed(3)} ${result.messages.length ? `(${result.messages[0]})` : ""}`,
-    );
+  try {
+    for (const item of manifest.items) {
+      process.stdout.write(`  ${item.id} ... `);
+      const result = await runItem(item, server.baseUrl, ocrEngines);
+      items.push(result);
+      console.log(
+        `[${result.status}] score ${result.score.toFixed(3)} ${result.messages.length ? `(${result.messages[0]})` : ""}`,
+      );
+    }
+  } finally {
+    server.stop();
+    await Promise.all(ocrEngines.map((engine) => engine.close?.()));
   }
-  server.stop();
 
   const byType: Record<string, Summary> = {};
   for (const item of manifest.items) {

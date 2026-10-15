@@ -15,12 +15,11 @@ import {
 } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
 
 export const SCHEMA_VERSION = 8;
 export const JOB_LEASE_MILLIS = 5 * 60 * 1000;
 
-const textModel = "nomic-embed-text-v1.5";
-const imageModel = "nomic-embed-vision-v1.5";
 const maxFileBytes = 50 * 1024 * 1024;
 const itemColumns = `id, kind, title, description, source_url, source_label,
   local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
@@ -339,7 +338,7 @@ function normalizeHttpUrl(value) {
   return url.toString();
 }
 
-function markdownToPlainText(markdown) {
+export function markdownToPlainText(markdown) {
   return markdown
     .replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
@@ -927,7 +926,7 @@ export class JobWorker {
         );
         heartbeat.unref?.();
         try {
-          await processor(job, this.storage);
+          await processor(job, this.storage, this.workerId);
           this.queue.complete(job.id, this.workerId);
         } catch (error) {
           this.queue.fail(
@@ -1002,6 +1001,36 @@ export class LibraryStorage {
     return { id: row.id, body: row.body, bodyFormat: row.body_format };
   }
 
+  storeOcrText(id, text, engine) {
+    const row = this.db.prepare("SELECT metadata FROM items WHERE id = ?").get(id);
+    if (!row) throw new Error(`item not found: ${id}`);
+    const metadata = parseJson(row.metadata, {});
+    const ocrMetadata =
+      metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
+    delete ocrMetadata.ocrText;
+    ocrMetadata.ocrEngine = String(engine);
+    const now = nowMillis();
+    ocrMetadata.ocrCompletedAt = now;
+    this.db
+      .prepare("UPDATE items SET ocr_text = ?, metadata = ?, updated_at = ? WHERE id = ?")
+      .run(String(text), JSON.stringify(ocrMetadata), now, id);
+  }
+
+  storeEmbedding(itemId, kind, model, bytes, dimension) {
+    if (kind !== "text" && kind !== "image") {
+      throw new Error("invalid storage input: embedding kind must be text or image");
+    }
+    const vector = Buffer.from(bytes);
+    if (!Number.isInteger(dimension) || dimension < 1 || vector.length !== dimension * 4) {
+      throw new Error("invalid storage input: embedding vector dimension does not match its bytes");
+    }
+    this.db
+      .prepare(`INSERT INTO item_embeddings (item_id, kind, model, dimension, vector, created_at)
+      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(item_id, kind) DO UPDATE SET model = excluded.model,
+      dimension = excluded.dimension, vector = excluded.vector, created_at = excluded.created_at`)
+      .run(itemId, kind, String(model), dimension, vector, nowMillis());
+  }
+
   searchItems(query, limit = 100) {
     const search = String(query ?? "").trim();
     const cap = clampLimit(limit, 100, 200);
@@ -1030,7 +1059,7 @@ export class LibraryStorage {
   }
 
   searchSimilar(itemId, kind, limit = 12) {
-    const model = kind === "image" ? imageModel : textModel;
+    const model = kind === "image" ? IMAGE_MODEL : TEXT_MODEL;
     const source = this.db
       .prepare(
         "SELECT dimension, vector FROM item_embeddings WHERE item_id = ? AND kind = ? AND model = ?",

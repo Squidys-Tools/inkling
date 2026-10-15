@@ -1,24 +1,29 @@
 # Benchmark results
-Generated: 2026-08-15T03:11:15.473Z
+Generated: 2026-10-15T14:37:08.345Z
 
-## Overall: score 0.992 — pass 36, partial 4, fail 0, skip 8
+## Overall: score 0.983 — pass 33, partial 7, fail 0, skip 8
 
 | Type | Score | Pass | Partial | Fail | Skip | Total |
 | --- | --- | --- | --- | --- | --- | --- |
-| article | 1.000 | 17 | 0 | 0 | 0 | 17 |
-| recipe | 1.000 | 1 | 0 | 0 | 0 | 1 |
-| screenshot | 0.913 | 0 | 2 | 0 | 0 | 2 |
-| image | 0.961 | 2 | 2 | 0 | 8 | 12 |
+| article | 0.990 | 15 | 2 | 0 | 0 | 17 |
+| recipe | 0.917 | 0 | 1 | 0 | 0 | 1 |
+| screenshot | 0.886 | 0 | 2 | 0 | 0 | 2 |
+| image | 0.954 | 2 | 2 | 0 | 8 | 12 |
 | pdf | 1.000 | 6 | 0 | 0 | 0 | 6 |
 | video | 1.000 | 4 | 0 | 0 | 0 | 4 |
 | note | 1.000 | 4 | 0 | 0 | 0 | 4 |
 | quote | 1.000 | 2 | 0 | 0 | 0 | 2 |
 
+## Latency
+Image OCR: median 796 ms, p90 1943 ms (6 items).
+PDF processing: median 15 ms, p90 2363 ms (6 items).
+PDF OCR: median 2095 ms, p90 2095 ms (1 pages).
+
 ## Items
-- [PASS] article-short-01 (score 1.000, production:ingestUrl)
+- [PARTIAL] article-short-01 (score 0.917, production:ingestUrl)
 - [PASS] article-long-essay-01 (score 1.000, production:ingestUrl)
-- [PASS] article-news-01 (score 1.000, production:ingestUrl)
-- [PASS] article-recipe-01 (score 1.000, production:ingestUrl)
+- [PARTIAL] article-news-01 (score 0.917, production:ingestUrl)
+- [PARTIAL] article-recipe-01 (score 0.917, production:ingestUrl)
 - [PASS] article-docs-01 (score 1.000, production:ingestUrl)
 - [PASS] article-footnotes-01 (score 1.000, production:ingestUrl)
 - [PASS] article-codeblocks-01 (score 1.000, production:ingestUrl)
@@ -26,8 +31,8 @@ Generated: 2026-08-15T03:11:15.473Z
 - [PASS] article-js-heavy-01 (score 1.000, production:ingestUrl)
 - [PASS] article-ads-01 (score 1.000, production:ingestUrl)
 - [PASS] article-paywalled-01 (score 1.000, production:ingestUrl)
-- [PARTIAL] screenshot-large-text-01 (score 0.969, windows-ocr)
-- [PARTIAL] screenshot-small-text-01 (score 0.856, windows-ocr)
+- [PARTIAL] screenshot-large-text-01 (score 0.971, tesseract.js)
+- [PARTIAL] screenshot-small-text-01 (score 0.802, tesseract.js)
 - [SKIP] image-photo-01 (score 0.000, none)
 - [SKIP] image-design-ref-01 (score 0.000, none)
 - [SKIP] image-similar-01 (score 0.000, none)
@@ -36,16 +41,16 @@ Generated: 2026-08-15T03:11:15.473Z
 - [SKIP] image-similar-04 (score 0.000, none)
 - [SKIP] image-distractor-01 (score 0.000, none)
 - [SKIP] image-lowres-01 (score 0.000, none)
-- [PARTIAL] image-meme-01 (score 0.929, windows-ocr)
-- [PASS] image-handwriting-01 (score 1.000, windows-ocr)
-- [PARTIAL] image-rotated-01 (score 0.917, windows-ocr)
+- [PARTIAL] image-meme-01 (score 0.929, tesseract.js)
+- [PASS] image-handwriting-01 (score 1.000, tesseract.js)
+- [PARTIAL] image-rotated-01 (score 0.886, tesseract.js)
 - [PASS] image-columns-01 (score 1.000, tesseract.js)
-- [PASS] pdf-native-text-01 (score 1.000, naive-streams)
-- [PASS] pdf-scanned-01 (score 1.000, tesseract.js)
-- [PASS] pdf-multicolumn-01 (score 1.000, naive-streams)
-- [PASS] pdf-tables-01 (score 1.000, naive-streams)
-- [PASS] pdf-images-captions-01 (score 1.000, naive-streams)
-- [PASS] pdf-bad-metadata-01 (score 1.000, naive-streams)
+- [PASS] pdf-native-text-01 (score 1.000, pdf-text)
+- [PASS] pdf-scanned-01 (score 1.000, pdf-text+tesseract.js)
+- [PASS] pdf-multicolumn-01 (score 1.000, pdf-text)
+- [PASS] pdf-tables-01 (score 1.000, pdf-text)
+- [PASS] pdf-images-captions-01 (score 1.000, pdf-text)
+- [PASS] pdf-bad-metadata-01 (score 1.000, pdf-text)
 - [PASS] video-youtube-01 (score 1.000, production:ingestUrl)
 - [PASS] video-vimeo-01 (score 1.000, production:ingestUrl)
 - [PASS] video-article-embed-01 (score 1.000, production:ingestUrl)
@@ -65,15 +70,22 @@ Generated: 2026-08-15T03:11:15.473Z
 - [PASS] article-live-macrumors-apple-trained-own-ai-model-for-china (score 1.000, production:ingestUrl)
 
 ## Details
-### screenshot-large-text-01 — partial (0.969)
-- OCR recall 0.97 (32 expected tokens)
-- missing tokens (sample): in
-- OCR precision 0.97
+### article-short-01 — partial (0.917)
+- author mismatch: expected "Mira Alderton", got "Mira Alderton · July 14, 2026"
 
-### screenshot-small-text-01 — partial (0.856)
-- OCR recall 0.84 (110 expected tokens)
-- missing tokens (sample): 18, text, 6, markdown, onboarding, 9, readme, sketchbook
-- OCR precision 0.88
+### article-news-01 — partial (0.917)
+- author mismatch: expected "Sam Okonkwo", got "Sam Okonkwo, City Desk · Updated 6:42 PM, August 3, 2026"
+
+### article-recipe-01 — partial (0.917)
+- author mismatch: expected "June Park", got "June Park · Serves 2 · 25 minutes"
+
+### screenshot-large-text-01 — partial (0.971)
+- OCR precision 0.94
+
+### screenshot-small-text-01 — partial (0.802)
+- OCR recall 0.76 (110 expected tokens)
+- missing tokens (sample): 4, 2, field, mark, png, 27, 11, 22
+- OCR precision 0.84
 
 ### image-photo-01 — skip (0.000)
 - vision/similarity scoring not implemented (embeddings benchmark)
@@ -100,9 +112,11 @@ Generated: 2026-08-15T03:11:15.473Z
 - vision/similarity scoring not implemented (embeddings benchmark)
 
 ### image-meme-01 — partial (0.929)
-- OCR recall 0.86 (14 expected tokens)
-- missing tokens (sample): i, will
+- OCR recall 0.93 (14 expected tokens)
+- missing tokens (sample): i
+- OCR precision 0.93
 
-### image-rotated-01 — partial (0.917)
-- OCR recall 0.83 (36 expected tokens)
-- missing tokens (sample): field, report, appendix, b, rotation, tolerance
+### image-rotated-01 — partial (0.886)
+- OCR recall 0.81 (36 expected tokens)
+- missing tokens (sample): field, report, appendix, b, rotation, tolerance, check
+- OCR precision 0.97

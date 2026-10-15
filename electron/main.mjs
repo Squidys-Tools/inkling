@@ -3,6 +3,7 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
+import { createAiJobProcessors } from "./ai-jobs.mjs";
 import { JobWorker, openLibraryStorage, resolveLibraryDataDirectory } from "./storage.mjs";
 import { snapshotDatabase } from "./sqlite-snapshot.mjs";
 
@@ -21,6 +22,7 @@ const pendingDeepLinks = [];
 let mainWindow;
 let libraryStorage;
 let jobWorker;
+let aiJobProcessors;
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -106,7 +108,10 @@ function initializeLibraryStorage() {
     createThumbnail: (bytes) =>
       import("./thumbnail.mjs").then(({ createImageThumbnail }) => createImageThumbnail(bytes)),
   });
-  jobWorker = new JobWorker(libraryStorage).start();
+  aiJobProcessors = createAiJobProcessors({
+    modelCacheDirectory: join(libraryDirectory, "models"),
+  });
+  jobWorker = new JobWorker(libraryStorage, { processors: aiJobProcessors.processors }).start();
   return libraryStorage.status();
 }
 
@@ -350,6 +355,7 @@ if (!hasSingleInstanceLock) {
     });
     app.on("before-quit", () => {
       jobWorker?.stop();
+      void aiJobProcessors?.close();
       libraryStorage?.db.close();
     });
   });

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { personalSeedItems } from "../src/seedPersonal";
+import { IMAGE_MODEL } from "./embedding-contract.mjs";
 import {
   JobQueue,
   JobWorker,
@@ -108,12 +109,12 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
 
   library.db
     .prepare(`INSERT INTO item_embeddings (item_id, kind, model, dimension, vector, created_at)
-    VALUES (?, 'image', 'nomic-embed-vision-v1.5', 2, ?, 1)`)
-    .run("me-fuji-night", vector([1, 0]));
+    VALUES (?, 'image', ?, 2, ?, 1)`)
+    .run("me-fuji-night", IMAGE_MODEL, vector([1, 0]));
   library.db
     .prepare(`INSERT INTO item_embeddings (item_id, kind, model, dimension, vector, created_at)
-    VALUES (?, 'image', 'nomic-embed-vision-v1.5', 2, ?, 1)`)
-    .run("me-lanterns", vector([0.8, 0.2]));
+    VALUES (?, 'image', ?, 2, ?, 1)`)
+    .run("me-lanterns", IMAGE_MODEL, vector([0.8, 0.2]));
   expect(library.searchSimilar("me-fuji-night", "image").map((item) => item.id)).toEqual([
     "me-lanterns",
   ]);

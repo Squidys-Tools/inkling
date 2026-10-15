@@ -1,32 +1,34 @@
 {
-  "generatedAt": "2026-08-15T03:11:15.473Z",
+  "generatedAt": "2026-10-15T14:37:08.345Z",
   "engine": {
-    "ocr": ["windows-ocr", "tesseract.js"]
+    "ocr": [
+      "tesseract.js"
+    ]
   },
   "overall": {
     "total": 48,
-    "pass": 36,
-    "partial": 4,
+    "pass": 33,
+    "partial": 7,
     "fail": 0,
     "skip": 8,
-    "avgScore": 0.9917566287878788
+    "avgScore": 0.9834272239198711
   },
   "byType": {
     "article": {
       "total": 17,
-      "pass": 17,
-      "partial": 0,
+      "pass": 15,
+      "partial": 2,
       "fail": 0,
       "skip": 0,
-      "avgScore": 1
+      "avgScore": 0.9901960784313725
     },
     "recipe": {
       "total": 1,
-      "pass": 1,
-      "partial": 0,
+      "pass": 0,
+      "partial": 1,
       "fail": 0,
       "skip": 0,
-      "avgScore": 1
+      "avgScore": 0.9166666666666666
     },
     "screenshot": {
       "total": 2,
@@ -34,7 +36,7 @@
       "partial": 2,
       "fail": 0,
       "skip": 0,
-      "avgScore": 0.9125135281385282
+      "avgScore": 0.8862032085561498
     },
     "image": {
       "total": 12,
@@ -42,7 +44,7 @@
       "partial": 2,
       "fail": 0,
       "skip": 8,
-      "avgScore": 0.9613095238095238
+      "avgScore": 0.953670634920635
     },
     "pdf": {
       "total": 6,
@@ -82,17 +84,19 @@
       "id": "article-short-01",
       "type": "article",
       "engine": "production:ingestUrl",
-      "status": "pass",
-      "score": 1,
+      "status": "partial",
+      "score": 0.9166666666666666,
       "metrics": {
         "title": "The Case for Slower News",
-        "author": "Mira Alderton",
+        "author": "Mira Alderton · July 14, 2026",
         "imageUrls": 0,
         "safeEmbeds": 0,
         "textLength": 558,
         "extractor": "defuddle"
       },
-      "messages": []
+      "messages": [
+        "author mismatch: expected \"Mira Alderton\", got \"Mira Alderton · July 14, 2026\""
+      ]
     },
     {
       "id": "article-long-essay-01",
@@ -114,33 +118,37 @@
       "id": "article-news-01",
       "type": "article",
       "engine": "production:ingestUrl",
-      "status": "pass",
-      "score": 1,
+      "status": "partial",
+      "score": 0.9166666666666666,
       "metrics": {
         "title": "City Council Approves Riverfront Transit Line",
-        "author": "Sam Okonkwo",
+        "author": "Sam Okonkwo, City Desk · Updated 6:42 PM, August 3, 2026",
         "imageUrls": 0,
         "safeEmbeds": 0,
         "textLength": 1291,
         "extractor": "defuddle"
       },
-      "messages": []
+      "messages": [
+        "author mismatch: expected \"Sam Okonkwo\", got \"Sam Okonkwo, City Desk · Updated 6:42 PM, August 3, 2026\""
+      ]
     },
     {
       "id": "article-recipe-01",
       "type": "recipe",
       "engine": "production:ingestUrl",
-      "status": "pass",
-      "score": 1,
+      "status": "partial",
+      "score": 0.9166666666666666,
       "metrics": {
         "title": "One-Pan Miso Butter Salmon",
-        "author": "June Park",
+        "author": "June Park · Serves 2 · 25 minutes",
         "imageUrls": 0,
         "safeEmbeds": 0,
         "textLength": 1164,
         "extractor": "defuddle"
       },
-      "messages": []
+      "messages": [
+        "author mismatch: expected \"June Park\", got \"June Park · Serves 2 · 25 minutes\""
+      ]
     },
     {
       "id": "article-docs-01",
@@ -217,7 +225,7 @@
         "author": "",
         "imageUrls": 0,
         "safeEmbeds": 0,
-        "textLength": 580,
+        "textLength": 558,
         "extractor": "fallback"
       },
       "messages": []
@@ -257,37 +265,37 @@
     {
       "id": "screenshot-large-text-01",
       "type": "screenshot",
-      "engine": "windows-ocr",
+      "engine": "tesseract.js",
       "status": "partial",
-      "score": 0.96875,
+      "score": 0.9705882352941176,
       "metrics": {
-        "recall": 0.96875,
-        "precision": 0.96875,
+        "recall": 1,
+        "precision": 0.9411764705882353,
         "expectedCount": 32,
-        "actualCount": 32
+        "actualCount": 34,
+        "elapsedMs": 1249.1631000000002
       },
       "messages": [
-        "OCR recall 0.97 (32 expected tokens)",
-        "missing tokens (sample): in",
-        "OCR precision 0.97"
+        "OCR precision 0.94"
       ]
     },
     {
       "id": "screenshot-small-text-01",
       "type": "screenshot",
-      "engine": "windows-ocr",
+      "engine": "tesseract.js",
       "status": "partial",
-      "score": 0.8562770562770563,
+      "score": 0.8018181818181818,
       "metrics": {
-        "recall": 0.8363636363636363,
-        "precision": 0.8761904761904762,
+        "recall": 0.7636363636363637,
+        "precision": 0.84,
         "expectedCount": 110,
-        "actualCount": 105
+        "actualCount": 100,
+        "elapsedMs": 1276.972238
       },
       "messages": [
-        "OCR recall 0.84 (110 expected tokens)",
-        "missing tokens (sample): 18, text, 6, markdown, onboarding, 9, readme, sketchbook",
-        "OCR precision 0.88"
+        "OCR recall 0.76 (110 expected tokens)",
+        "missing tokens (sample): 4, 2, field, mark, png, 27, 11, 22",
+        "OCR precision 0.84"
       ]
     },
     {
@@ -299,7 +307,9 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
+      "messages": [
+        "vision/similarity scoring not implemented (embeddings benchmark)"
+      ]
     },
     {
       "id": "image-design-ref-01",
@@ -310,7 +320,9 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
+      "messages": [
+        "vision/similarity scoring not implemented (embeddings benchmark)"
+      ]
     },
     {
       "id": "image-similar-01",
@@ -321,7 +333,9 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
+      "messages": [
+        "vision/similarity scoring not implemented (embeddings benchmark)"
+      ]
     },
     {
       "id": "image-similar-02",
@@ -332,7 +346,9 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
+      "messages": [
+        "vision/similarity scoring not implemented (embeddings benchmark)"
+      ]
     },
     {
       "id": "image-similar-03",
@@ -343,7 +359,9 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
+      "messages": [
+        "vision/similarity scoring not implemented (embeddings benchmark)"
+      ]
     },
     {
       "id": "image-similar-04",
@@ -354,7 +372,9 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
+      "messages": [
+        "vision/similarity scoring not implemented (embeddings benchmark)"
+      ]
     },
     {
       "id": "image-distractor-01",
@@ -365,7 +385,9 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
+      "messages": [
+        "vision/similarity scoring not implemented (embeddings benchmark)"
+      ]
     },
     {
       "id": "image-lowres-01",
@@ -376,51 +398,61 @@
       "metrics": {
         "reason": "vision/similarity scoring not implemented (embeddings benchmark)"
       },
-      "messages": ["vision/similarity scoring not implemented (embeddings benchmark)"]
+      "messages": [
+        "vision/similarity scoring not implemented (embeddings benchmark)"
+      ]
     },
     {
       "id": "image-meme-01",
       "type": "image",
-      "engine": "windows-ocr",
+      "engine": "tesseract.js",
       "status": "partial",
       "score": 0.9285714285714286,
       "metrics": {
-        "recall": 0.8571428571428571,
-        "precision": 1,
+        "recall": 0.9285714285714286,
+        "precision": 0.9285714285714286,
         "expectedCount": 14,
-        "actualCount": 12
+        "actualCount": 14,
+        "elapsedMs": 483.79011100000025
       },
-      "messages": ["OCR recall 0.86 (14 expected tokens)", "missing tokens (sample): i, will"]
+      "messages": [
+        "OCR recall 0.93 (14 expected tokens)",
+        "missing tokens (sample): i",
+        "OCR precision 0.93"
+      ]
     },
     {
       "id": "image-handwriting-01",
       "type": "image",
-      "engine": "windows-ocr",
+      "engine": "tesseract.js",
       "status": "pass",
       "score": 1,
       "metrics": {
         "recall": 1,
         "precision": 1,
         "expectedCount": 15,
-        "actualCount": 15
+        "actualCount": 15,
+        "elapsedMs": 228.20695300000034
       },
       "messages": []
     },
     {
       "id": "image-rotated-01",
       "type": "image",
-      "engine": "windows-ocr",
+      "engine": "tesseract.js",
       "status": "partial",
-      "score": 0.9166666666666667,
+      "score": 0.8861111111111111,
       "metrics": {
-        "recall": 0.8333333333333334,
-        "precision": 1,
+        "recall": 0.8055555555555556,
+        "precision": 0.9666666666666667,
         "expectedCount": 36,
-        "actualCount": 30
+        "actualCount": 30,
+        "elapsedMs": 1943.150802
       },
       "messages": [
-        "OCR recall 0.83 (36 expected tokens)",
-        "missing tokens (sample): field, report, appendix, b, rotation, tolerance"
+        "OCR recall 0.81 (36 expected tokens)",
+        "missing tokens (sample): field, report, appendix, b, rotation, tolerance, check",
+        "OCR precision 0.97"
       ]
     },
     {
@@ -433,85 +465,104 @@
         "recall": 1,
         "precision": 1,
         "expectedCount": 69,
-        "actualCount": 69
+        "actualCount": 69,
+        "elapsedMs": 795.8012949999993
       },
       "messages": []
     },
     {
       "id": "pdf-native-text-01",
       "type": "pdf",
-      "engine": "naive-streams",
+      "engine": "pdf-text",
       "status": "pass",
       "score": 1,
       "metrics": {
-        "naiveTextLength": 608,
-        "ocrText": false,
-        "embeddedImages": 0
+        "pageCount": 1,
+        "textLength": 608,
+        "ocrPages": 0,
+        "embeddedImages": 0,
+        "pdfLatencyMs": 103.73220899999978,
+        "ocrLatencyMs": 0
       },
       "messages": []
     },
     {
       "id": "pdf-scanned-01",
       "type": "pdf",
-      "engine": "tesseract.js",
+      "engine": "pdf-text+tesseract.js",
       "status": "pass",
       "score": 1,
       "metrics": {
-        "naiveTextLength": 0,
-        "ocrText": true,
-        "embeddedImages": 1
+        "pageCount": 1,
+        "textLength": 732,
+        "ocrPages": 1,
+        "embeddedImages": 1,
+        "pdfLatencyMs": 2363.140482999999,
+        "ocrLatencyMs": 2095.030841
       },
       "messages": []
     },
     {
       "id": "pdf-multicolumn-01",
       "type": "pdf",
-      "engine": "naive-streams",
+      "engine": "pdf-text",
       "status": "pass",
       "score": 1,
       "metrics": {
-        "naiveTextLength": 501,
-        "ocrText": false,
-        "embeddedImages": 0
+        "pageCount": 1,
+        "textLength": 499,
+        "ocrPages": 0,
+        "embeddedImages": 0,
+        "pdfLatencyMs": 29.564582999999402,
+        "ocrLatencyMs": 0
       },
       "messages": []
     },
     {
       "id": "pdf-tables-01",
       "type": "pdf",
-      "engine": "naive-streams",
+      "engine": "pdf-text",
       "status": "pass",
       "score": 1,
       "metrics": {
-        "naiveTextLength": 190,
-        "ocrText": false,
-        "embeddedImages": 0
+        "pageCount": 1,
+        "textLength": 190,
+        "ocrPages": 0,
+        "embeddedImages": 0,
+        "pdfLatencyMs": 14.94097099999999,
+        "ocrLatencyMs": 0
       },
       "messages": []
     },
     {
       "id": "pdf-images-captions-01",
       "type": "pdf",
-      "engine": "naive-streams",
+      "engine": "pdf-text",
       "status": "pass",
       "score": 1,
       "metrics": {
-        "naiveTextLength": 209,
-        "ocrText": false,
-        "embeddedImages": 1
+        "pageCount": 1,
+        "textLength": 209,
+        "ocrPages": 0,
+        "embeddedImages": 1,
+        "pdfLatencyMs": 3.815574000000197,
+        "ocrLatencyMs": 0
       },
       "messages": []
     },
     {
       "id": "pdf-bad-metadata-01",
       "type": "pdf",
-      "engine": "naive-streams",
+      "engine": "pdf-text",
       "status": "pass",
       "score": 1,
       "metrics": {
-        "naiveTextLength": 124,
-        "ocrText": false,
-        "embeddedImages": 0
+        "pageCount": 1,
+        "textLength": 124,
+        "ocrPages": 0,
+        "embeddedImages": 0,
+        "pdfLatencyMs": 4.404665000000023,
+        "ocrLatencyMs": 0
       },
       "messages": []
     },
@@ -602,7 +653,7 @@
       "status": "pass",
       "score": 1,
       "metrics": {
-        "textLength": 99
+        "textLength": 96
       },
       "messages": []
     },
@@ -613,7 +664,7 @@
       "status": "pass",
       "score": 1,
       "metrics": {
-        "textLength": 1095
+        "textLength": 1070
       },
       "messages": []
     },
@@ -624,7 +675,7 @@
       "status": "pass",
       "score": 1,
       "metrics": {
-        "textLength": 926
+        "textLength": 887
       },
       "messages": []
     },
@@ -635,7 +686,7 @@
       "status": "pass",
       "score": 1,
       "metrics": {
-        "textLength": 590
+        "textLength": 572
       },
       "messages": []
     },
@@ -646,7 +697,7 @@
       "status": "pass",
       "score": 1,
       "metrics": {
-        "textLength": 185
+        "textLength": 180
       },
       "messages": []
     },
@@ -657,7 +708,7 @@
       "status": "pass",
       "score": 1,
       "metrics": {
-        "textLength": 186
+        "textLength": 181
       },
       "messages": []
     },
