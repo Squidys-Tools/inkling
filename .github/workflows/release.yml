@@ -44,7 +44,7 @@ jobs:
           }
 
       - name: Cache pinned Electron models
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .artifacts/electron-model-cache/models
           key: inkling-electron-release-models-${{ hashFiles('electron/model-manifest.json') }}
