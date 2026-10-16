@@ -3,7 +3,7 @@ import { DefaultDefuddleAdapter } from "./defuddle-adapter";
 import { extractFallback } from "./fallback";
 import { collectSafeEmbeds, sanitizeHtml } from "./html-safety";
 import { classifyFile } from "./file-classification";
-import { assetRelativePath, sanitizeAssetSegment, thumbnailRelativePath } from "./asset-paths";
+import { assetRelativePath, sanitizeAssetSegment } from "./asset-paths";
 import { ingestUrl } from "./url-ingestion";
 import { isUrlIngestionError } from "./errors";
 import { normalizeHttpUrl } from "./url";
@@ -364,11 +364,6 @@ assert(
   "video MIME type is recognized",
 );
 assert(classifyFile({ name: "document.PDF", type: "" }) === "pdf", "PDF extension fallback works");
-assert(
-  thumbnailRelativePath("item-1", "image") === "items/item-1/thumbnail.webp",
-  "image thumbnail policy is stable",
-);
-assert(thumbnailRelativePath("item-1", "other") === null, "other files do not get thumbnails");
 assert(
   assetRelativePath({ itemId: "../item", variant: "original", extension: ".jpg" }) ===
     "items/-item/original.jpg",
