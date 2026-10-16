@@ -87,7 +87,7 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Build Electron NSIS installer
-        run: bun run electron:build:nsis
+        run: bun run build:installer
 
       - name: Upload Electron installer
         id: installer
@@ -180,7 +180,7 @@ jobs:
         run: bun test electron/updater.test.ts
 
       - name: Build Electron directory
-        run: bun run electron:build:dir
+        run: bun run build:dir
 
       - name: Install X11 window probe
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y xdotool

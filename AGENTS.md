@@ -53,8 +53,8 @@ We need to be on the same page with terminology. When communicating, use this la
 - **embedding** means the local vector for text or image search. Nomic text and vision share one 768-dimension space.
 - **Space** means a saved search shown as a collection. Smart Spaces update themselves. Regular Spaces hold manually user curated items.
 - **deep link** means the companion path into the app, `inkling://capture?url=...`.
-- **preview** means `bun run preview`, the web-only look with sample data.
-- **full app** means `bun run electron:dev`, the Windows Electron desktop app.
+- **preview** means `bun run dev`, the web-only look with sample data.
+- **full app** means `bun run dev:app`, the Windows Electron desktop app.
 
 ## The three ways to hurt yourself
 
@@ -79,8 +79,9 @@ The common defect here is a change that works on the path tested and is missing 
 ## Dev servers
 
 - `bun install` installs. If module resolution looks broken, check the Bun version first. It must match `.bun-version` (1.4.2). `bun run check:bun-version` says so in one line.
-- `bun run preview` is the quick web look at the UI. It uses sample data and has no desktop storage or processing backend.
-- `bun run electron:dev` is the full Windows desktop app; OCR, embeddings, and local file access run through Electron's main process.
+- `bun run dev` is the quick web look at the UI. It uses sample data and has no desktop storage or processing backend.
+- `bun run dev:app` is the full Windows desktop app; OCR, embeddings, and local file access run through Electron's main process.
+- `t3.json` lists the T3 Code run scripts. Keep it up to date: whenever a package.json script is renamed or removed, or a command it runs changes, update `t3.json` in the same change.
 - Ports and state come from the dev setup, not from memory. Read the actual terminal output. Do not assume a port.
 - Stop what you started, by the handle you tracked. See rule 1.
 - Never `Start-Sleep` (or any blocking wait) after launching a server. Start it detached, do other work, then poll its log or port. A sleep blocks you from doing anything else while you wait.
@@ -97,7 +98,7 @@ An empty library is a bad test. Seed your run with a copy of real data instead o
 
 ## Verifying
 
-- Smallest proof that the change works. `bun test <files>` for the tests you touched, targeted lint and typecheck for the scope you changed. The full frontend check is `bun run check:frontend`, which is what CI runs. Do not run it unless you changed something broad or the user asked.
+- Smallest proof that the change works. `bun test <files>` for the tests you touched, targeted lint and typecheck for the scope you changed. The full check is `bun run check`, which mirrors the CI frontend job. Do not run it unless you changed something broad or the user asked.
 - **Do not run repo-wide checks.** No full `bun test` sweep or full `tsc` unless asked. CI owns the full suite.
 - Test meaningful logic or observable behavior. Do not render components to static markup just to assert props, and do not add tests that mirror the implementation or assert wiring with no behavior.
 - Ingestion and background changes ship with focused tests for that behavior. Extraction, OCR scoring, queue leases, recovery. A behavior change with no test is unfinished.

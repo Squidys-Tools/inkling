@@ -8,9 +8,9 @@ The usual commands are:
 
 ```powershell
 bun install
-bun run preview      # quick browser preview of the UI
-bun run electron:dev # full Windows desktop app
-bun run check:frontend  # same frontend checks CI runs
+bun run dev      # quick browser preview of the UI
+bun run dev:app  # full Windows desktop app
+bun run check    # same frontend checks CI runs
 ```
 
 Start with docs/product-behavior.md for the behavior contract, docs/roadmap.md for status, and docs/changelog.md for recent changes.
@@ -57,7 +57,7 @@ Check docs/product-behavior.md before you change behavior. Follow the changelog 
 
 Do not mix unrelated fixes together.
 
-Run the focused checks for what you touched, such as bun test for changed tests or bun run check:frontend for frontend changes.
+Run the focused checks for what you touched, such as bun test for changed tests or bun run check for frontend changes.
 
 If the PR makes anything resembling a UI change, include clear before and after images.
 

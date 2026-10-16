@@ -50,7 +50,7 @@ jobs:
           key: inkling-electron-release-models-${{ hashFiles('electron/model-manifest.json') }}
 
       - name: Build Electron NSIS installer
-        run: bun run electron:build:nsis
+        run: bun run build:installer
 
       - name: Upload Electron updater assets to draft release
         shell: pwsh

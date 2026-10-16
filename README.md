@@ -120,14 +120,14 @@ Well no duh. Saving a fresh URL needs internet though, obviously.
 
 ```powershell
 bun install
-bun run electron:dev
+bun run dev:app
 ```
 
 For a quick browser-only look at the UI, run the web preview instead:
 
 ```powershell
 bun install
-bun run preview
+bun run dev
 ```
 
 Save from your browser too: the companion extension talks to the app through an `inkling://capture?url=...` deep link.
@@ -153,10 +153,10 @@ This part is for people who want to build, tinker, or contribute. Everyone else 
 
 ```powershell
 bun install
-bun run preview             # quick browser preview of the UI
-bun run electron:dev        # full Windows desktop app
-bun run electron:build:nsis # build the Windows installer
-bun run check:frontend      # same checks CI runs before pushing changes
+bun run dev              # quick browser preview of the UI
+bun run dev:app          # full Windows desktop app
+bun run build:installer  # build the Windows installer
+bun run check            # same checks CI runs before pushing changes
 ```
 
 License: MIT
