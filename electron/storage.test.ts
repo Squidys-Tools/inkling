@@ -198,6 +198,31 @@ test("free-text search hybrid-ranks lexical and Nomic semantic matches", () => {
   ]);
 });
 
+test("free-text search keeps lexical matches and drops weak semantic matches", () => {
+  const { library } = temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items
+    (id, kind, title, metadata, created_at, updated_at) VALUES (?, ?, ?, '{}', ?, ?)`);
+  insert.run("lexical-weak", "note", "zeppelin", 1, 10);
+  insert.run("strong-semantic", "note", "airship history", 2, 20);
+  insert.run("weak-semantic", "note", "bicycle repair", 3, 30);
+
+  library.storeEmbedding("lexical-weak", "text", TEXT_MODEL, vector([0.2, Math.sqrt(0.96)]), 2);
+  library.storeEmbedding("strong-semantic", "text", TEXT_MODEL, vector([0.9, Math.sqrt(0.19)]), 2);
+  library.storeEmbedding("weak-semantic", "text", TEXT_MODEL, vector([0.5, Math.sqrt(0.75)]), 2);
+
+  const queryVector = Float32Array.from([1, 0]);
+  expect(library.searchItems("zeppelin", 20, queryVector).map((item) => item.id)).toEqual([
+    "lexical-weak",
+    "strong-semantic",
+  ]);
+  expect(library.searchItems("qwxzv bnmk", 20, queryVector).map((item) => item.id)).toEqual([
+    "strong-semantic",
+  ]);
+  expect(library.searchItems("quiet telescope", 20, queryVector).map((item) => item.id)).toEqual([
+    "strong-semantic",
+  ]);
+});
+
 test("Smart Spaces apply saved filters to hybrid text-search candidates", () => {
   const { library } = temporaryLibrary();
   const insert = library.db.prepare(`INSERT INTO items
