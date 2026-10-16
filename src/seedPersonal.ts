@@ -1,4 +1,4 @@
-import type { LibraryItem } from "./App";
+import type { LibraryItem } from "./lib/types";
 
 // Personal demo seed — committed to the repo alongside public/seed-demo/.
 // Images in public/seed-demo/ are compressed by hand to keep the folder

@@ -28,7 +28,7 @@ import {
   SparklesIcon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
-import type { LibraryItem } from "../App";
+import type { LibraryItem } from "../lib/types";
 import { isElectronRuntime } from "../lib/libraryApi";
 import type { ReaderOrigin } from "../ReaderView";
 import {

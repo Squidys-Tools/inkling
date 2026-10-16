@@ -106,11 +106,7 @@ import { enrichDeepLinkCapture } from "./lib/deepLinkEnrichment";
 import { safePublicImageUrl } from "./lib/ingestion/url";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
-import {
-  providerLabel,
-  videoLinkFromSourceUrl,
-  type VideoLinkEmbed,
-} from "./lib/ingestion/video-links";
+import { providerLabel, videoLinkFromSourceUrl } from "./lib/ingestion/video-links";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
 // local disk on first open (Suspense fallback null: no spinner, no layout
 // shift — the chunk resolves in milliseconds).
@@ -154,6 +150,7 @@ const ReaderView = lazy(() =>
 );
 import type { ReaderItem, ReaderOrigin } from "./ReaderView";
 import type { XPostMetadata } from "./lib/ingestion/types";
+import type { ItemKind, LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import { markdownToPlainText, normalizeNoteBody, NOTE_BODY_FORMAT } from "./lib/notes";
 import { serendipityItems } from "./lib/serendipity";
@@ -179,47 +176,7 @@ const localSeedItems: LibraryItem[] =
   Object.values(personalSeedModules)[0]?.personalSeedItems ?? [];
 import "./App.css";
 
-export type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
 type CaptureMode = "note" | "url" | "file" | "quote";
-
-export type LibraryItem = {
-  id: string | number;
-  kind: ItemKind;
-  title: string;
-  description: string;
-  noteBody?: string;
-  source: string;
-  date: string;
-  createdAt?: number;
-  tags: string[];
-  ocrText?: string;
-  image?: string;
-  mediaWidth?: number;
-  mediaHeight?: number;
-  mediaAspectRatio?: number;
-  pdfPageCount?: number;
-  fileUrl?: string;
-  imageAlt?: string;
-  sourceUrl?: string;
-  author?: string;
-  social?: XPostMetadata;
-  post?: {
-    displayName: string;
-    handle: string;
-    body: string;
-    published: string;
-    avatarUrl?: string;
-  };
-  accent?: string;
-  featured?: boolean;
-  favorite?: boolean;
-  archived?: boolean;
-  processing?: ProcessingSummary;
-  articleHtml?: string;
-  articleAuthor?: string;
-  publishedDate?: string;
-  video?: VideoLinkEmbed;
-};
 
 function displayKind(kind: string): ItemKind {
   switch (kind.toLowerCase()) {
