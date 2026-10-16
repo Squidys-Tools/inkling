@@ -1815,11 +1815,14 @@ a:focus-visible,
   aspect-ratio: auto;
   width: auto;
   inset: auto;
-  position: static;
+  position: relative;
 }
 .list-mode .card-content {
   display: block;
   min-height: 155px;
+}
+.list-mode .quote-attribution {
+  min-height: 37px !important;
 }
 .list-mode .featured-card {
   background: var(--library-surface);
@@ -2264,7 +2267,7 @@ a:focus-visible,
 .library-transition-overlay.is-list .x-post-art {
   height: 155px;
   aspect-ratio: auto;
-  position: static;
+  position: relative;
   inset: auto;
   width: auto;
 }
