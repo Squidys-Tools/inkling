@@ -1,61 +1,3 @@
-import type { LibraryFileKind } from "./file-classification";
-
-type ThumbnailMode = "image-raster" | "pdf-first-page" | "video-first-frame" | "none";
-
-interface ThumbnailPolicy {
-  kind: LibraryFileKind;
-  generate: boolean;
-  mode: ThumbnailMode;
-  outputExtension: "webp" | "png" | null;
-  maxWidth: number;
-  maxHeight: number;
-}
-
-/**
- * The thumbnail policy is intentionally a deterministic mapping from file kind
- * to work. It does not inspect content or invoke an AI model.
- */
-function thumbnailPolicyFor(kind: LibraryFileKind): ThumbnailPolicy {
-  switch (kind) {
-    case "image":
-      return {
-        kind,
-        generate: true,
-        mode: "image-raster",
-        outputExtension: "webp",
-        maxWidth: 960,
-        maxHeight: 960,
-      };
-    case "pdf":
-      return {
-        kind,
-        generate: true,
-        mode: "pdf-first-page",
-        outputExtension: "png",
-        maxWidth: 960,
-        maxHeight: 1280,
-      };
-    case "video":
-      return {
-        kind,
-        generate: true,
-        mode: "video-first-frame",
-        outputExtension: "webp",
-        maxWidth: 960,
-        maxHeight: 540,
-      };
-    case "other":
-      return {
-        kind,
-        generate: false,
-        mode: "none",
-        outputExtension: null,
-        maxWidth: 0,
-        maxHeight: 0,
-      };
-  }
-}
-
 type AssetVariant = "original" | "thumbnail" | "preview";
 
 export interface AssetPathOptions {
@@ -99,15 +41,4 @@ function assetFileName(options: Omit<AssetPathOptions, "itemId">): string {
 /** Returns the app-relative path used beneath its managed asset directory. */
 export function assetRelativePath(options: AssetPathOptions): string {
   return `items/${sanitizeAssetSegment(options.itemId)}/${assetFileName(options)}`;
-}
-
-export function thumbnailRelativePath(itemId: string, kind: LibraryFileKind): string | null {
-  const policy = thumbnailPolicyFor(kind);
-  return policy.outputExtension
-    ? assetRelativePath({
-        itemId,
-        variant: "thumbnail",
-        extension: policy.outputExtension,
-      })
-    : null;
 }
