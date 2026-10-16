@@ -32,10 +32,7 @@ export function overlayMediaHeight(
   width: number,
   viewportHeight: number,
 ): number {
-  // Items with a thumbnail use the thumbnail's own aspect ratio so the media
-  // band shows a natural framing instead of an aggressive crop, but the band
-  // is capped so large/tall thumbnails never balloon past the reading frame.
-  if (item.image) {
+  if (item.image && item.kind !== "PDF") {
     return Math.min(
       width / mediaAspectRatioFor(item),
       viewportHeight * 0.48,

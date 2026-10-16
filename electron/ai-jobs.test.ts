@@ -1,20 +1,23 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import sharp from "sharp";
 import { createAiJobProcessors, embeddingText, enqueueStaleImageEmbeddings } from "./ai-jobs.mjs";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
-import { JobWorker, openLibraryStorage } from "./storage.mjs";
+import { extractPdfTextByPages } from "./pdf.mjs";
+import { JOB_LEASE_MILLIS, JobWorker, openLibraryStorage, PDF_THUMBNAIL_JOB } from "./storage.mjs";
 import { createImageThumbnail } from "./thumbnail.mjs";
 
 const roots: string[] = [];
 const libraries: ReturnType<typeof openLibraryStorage>[] = [];
 
-function temporaryLibrary() {
+function temporaryLibrary(options = {}) {
   const root = mkdtempSync(join(tmpdir(), "inkling-electron-ai-"));
   roots.push(root);
   const library = openLibraryStorage(join(root, "library.sqlite3"), {
     createThumbnail: createImageThumbnail,
+    ...options,
   });
   libraries.push(library);
   return { root, library };
@@ -149,4 +152,239 @@ test("embedding text keeps the shared document inputs and markdown projection", 
       metadata: { text: "ignored metadata" },
     }),
   ).toBe("Reading list\n\nNomic A local model.\n\nCover text");
+});
+
+const pdfFixture = (name: string) => [...readFileSync(`benchmarks/corpus/pdfs/${name}.pdf`)];
+
+function savePdf(
+  library: ReturnType<typeof openLibraryStorage>,
+  fileName: string,
+  bytes: number[],
+) {
+  return library.saveFile({ fileName, mimeType: "application/pdf", kind: "pdf", bytes });
+}
+
+const unusedModels = {
+  ocr: { recognize: async () => "" },
+  embeddings: {
+    embedText: async () => embedding(TEXT_MODEL),
+    embedQuery: async () => embedding(TEXT_MODEL),
+    embedImage: async () => embedding(IMAGE_MODEL),
+  },
+};
+
+test("PDF capture stays instant and the OCR job publishes the page-one thumbnail", async () => {
+  let thumbnailCalls = 0;
+  const { root, library } = temporaryLibrary({
+    createThumbnail: async (bytes: Buffer) => {
+      thumbnailCalls += 1;
+      return createImageThumbnail(bytes);
+    },
+  });
+  const pdf = await savePdf(library, "native.pdf", pdfFixture("pdf-native-text-01"));
+  expect(pdf.thumbnailPath).toBeNull();
+  expect(thumbnailCalls).toBe(0);
+  const itemDirectory = join(root, "assets", "items", pdf.id);
+  expect(readdirSync(itemDirectory)).toEqual(["native.pdf"]);
+
+  const ai = createAiJobProcessors({ modelCacheDirectory: join(root, "models"), ...unusedModels });
+  const worker = new JobWorker(library, { processors: ai.processors, workerId: "capture-test" });
+  await worker.pump();
+  await worker.stop();
+
+  const after = library.getItem(pdf.id);
+  expect(thumbnailCalls).toBe(1);
+  expect(after?.thumbnailPath).toBe(`assets/items/${pdf.id}/thumbnail.webp`);
+  expect(after?.ocrText).toContain("Field Guide to Local First Software");
+  const metadata = await sharp(join(itemDirectory, "thumbnail.webp")).metadata();
+  expect(metadata.format).toBe("webp");
+  expect(Math.max(metadata.width ?? 0, metadata.height ?? 0)).toBe(512);
+  expect(readdirSync(root).filter((name) => name.startsWith(".inkling-thumbnail-"))).toEqual([]);
+  expect(
+    library.jobs
+      .getForItem(pdf.id)
+      .map((job) => job.kind)
+      .sort(),
+  ).toEqual(["generate_embedding", "ocr_pdf_page"]);
+  await ai.close();
+});
+
+test("backfill drains one missing PDF thumbnail at a time, hides the work, and skips a broken PDF", async () => {
+  const events: string[] = [];
+  const { root, library } = temporaryLibrary({
+    jobQueue: { onUpdated: (id: string) => events.push(id) },
+  });
+  const first = await savePdf(library, "native.pdf", pdfFixture("pdf-native-text-01"));
+  const broken = await savePdf(library, "broken.pdf", [...Buffer.from("not a pdf")]);
+  const second = await savePdf(library, "tables.pdf", pdfFixture("pdf-tables-01"));
+  library.db.prepare("DELETE FROM jobs").run();
+  events.length = 0;
+  const captured = [first, second].map(({ id }) => library.getItem(id));
+
+  const ai = createAiJobProcessors({ modelCacheDirectory: join(root, "models"), ...unusedModels });
+  const outstanding = () =>
+    library.db
+      .prepare(
+        "SELECT COUNT(*) AS count FROM jobs WHERE kind = ? AND status IN ('pending', 'processing')",
+      )
+      .get(PDF_THUMBNAIL_JOB).count;
+  const observed: number[] = [];
+  const worker = new JobWorker(library, {
+    processors: {
+      [PDF_THUMBNAIL_JOB]: async (...args: Parameters<typeof ai.processors.pdf_thumbnail>) => {
+        observed.push(outstanding());
+        expect(library.jobs.countActive()).toBe(0);
+        expect(library.jobs.getForItems([first.id, broken.id, second.id])).toEqual([]);
+        await ai.processors.pdf_thumbnail(...args);
+      },
+    },
+    onIdle: (storage: typeof library) => {
+      ai.onIdle(storage);
+      expect(outstanding()).toBeLessThanOrEqual(1);
+    },
+  });
+  await worker.pump();
+  await worker.stop();
+
+  expect(observed.every((count) => count === 1)).toBe(true);
+  expect(observed).toHaveLength(6);
+  expect(library.getItem(first.id)?.thumbnailPath).toBe(`assets/items/${first.id}/thumbnail.webp`);
+  expect(library.getItem(second.id)?.thumbnailPath).toBe(
+    `assets/items/${second.id}/thumbnail.webp`,
+  );
+  expect(library.getItem(broken.id)?.thumbnailPath).toBeNull();
+  expect(
+    library.db.prepare("SELECT status, retry_count FROM jobs WHERE item_id = ?").get(broken.id),
+  ).toEqual({ status: "failed", retry_count: 3 });
+  expect(events.sort()).toEqual([first.id, second.id].sort());
+  for (const item of captured)
+    expect(library.getItem(item?.id ?? "")).toEqual({
+      ...item,
+      thumbnailPath: `assets/items/${item?.id}/thumbnail.webp`,
+    });
+  expect(library.jobs.getForItem(broken.id)).toEqual([]);
+
+  const jobRows = library.db.prepare("SELECT COUNT(*) AS count FROM jobs").get().count;
+  await worker.pump();
+  ai.onIdle(library);
+  expect(library.db.prepare("SELECT COUNT(*) AS count FROM jobs").get().count).toBe(jobRows);
+  expect(existsSync(join(root, "assets", "items", broken.id, "thumbnail.webp"))).toBe(false);
+  await ai.close();
+});
+
+test("a thumbnail job whose lease expired resumes on restart without duplicating work", async () => {
+  let clock = 1_000_000;
+  const events: string[] = [];
+  const { root, library } = temporaryLibrary({
+    jobQueue: { now: () => clock, onUpdated: (id: string) => events.push(id) },
+  });
+  const pdf = await savePdf(library, "native.pdf", pdfFixture("pdf-native-text-01"));
+  library.db.prepare("DELETE FROM jobs").run();
+  const jobId = library.jobs.enqueue(pdf.id, PDF_THUMBNAIL_JOB);
+  expect(library.jobs.claimNext("crashed-worker")?.id).toBe(jobId);
+  clock += JOB_LEASE_MILLIS + 1;
+  events.length = 0;
+
+  const ai = createAiJobProcessors({ modelCacheDirectory: join(root, "models"), ...unusedModels });
+  let finished!: () => void;
+  const done = new Promise<void>((resolve) => (finished = resolve));
+  const worker = new JobWorker(library, {
+    processors: {
+      [PDF_THUMBNAIL_JOB]: async (...args: Parameters<typeof ai.processors.pdf_thumbnail>) => {
+        await ai.processors.pdf_thumbnail(...args);
+        finished();
+      },
+    },
+    onIdle: ai.onIdle,
+  }).start();
+  await done;
+  await worker.stop();
+
+  expect(library.getItem(pdf.id)?.thumbnailPath).toBe(`assets/items/${pdf.id}/thumbnail.webp`);
+  expect(library.db.prepare("SELECT id, status FROM jobs").all()).toEqual([
+    { id: jobId, status: "completed" },
+  ]);
+  expect(events).toEqual([pdf.id]);
+  await ai.close();
+});
+
+test("backfill stops scanning once exhausted and resumes only when PDF OCR leaves a page without a thumbnail", async () => {
+  const { root, library } = temporaryLibrary();
+  let renderDuringOcr = true;
+  const ai = createAiJobProcessors({
+    modelCacheDirectory: join(root, "models"),
+    ...unusedModels,
+    extractPdf: (bytes: Uint8Array, options: Parameters<typeof extractPdfTextByPages>[1]) =>
+      extractPdfTextByPages(
+        bytes,
+        renderDuringOcr ? options : { ...options, onFirstPageThumbnail: undefined },
+      ),
+  });
+  let scans = 0;
+  const scan = library.nextPdfThumbnailCandidate.bind(library);
+  library.nextPdfThumbnailCandidate = (cursor: number) => {
+    scans += 1;
+    return scan(cursor);
+  };
+  const worker = new JobWorker(library, { processors: ai.processors, onIdle: ai.onIdle });
+  const jobKinds = (id: string) =>
+    library.db
+      .prepare("SELECT kind FROM jobs WHERE item_id = ? ORDER BY kind")
+      .all(id)
+      .map((row) => row.kind);
+
+  const legacy = await savePdf(library, "legacy.pdf", pdfFixture("pdf-native-text-01"));
+  library.db.prepare("DELETE FROM jobs").run();
+  await worker.pump();
+  expect(library.getItem(legacy.id)?.thumbnailPath).not.toBeNull();
+  const exhaustedScans = scans;
+  await worker.pump();
+  await worker.pump();
+  expect(scans).toBe(exhaustedScans);
+
+  const captured = await savePdf(library, "tables.pdf", pdfFixture("pdf-tables-01"));
+  await worker.pump();
+  expect(library.getItem(captured.id)?.thumbnailPath).not.toBeNull();
+  expect(jobKinds(captured.id)).not.toContain(PDF_THUMBNAIL_JOB);
+  expect(scans).toBe(exhaustedScans);
+
+  renderDuringOcr = false;
+  const unrendered = await savePdf(library, "columns.pdf", pdfFixture("pdf-multicolumn-01"));
+  await worker.pump();
+  expect(scans).toBeGreaterThan(exhaustedScans);
+  expect(jobKinds(unrendered.id)).toContain(PDF_THUMBNAIL_JOB);
+  expect(library.getItem(unrendered.id)?.thumbnailPath).toBe(
+    `assets/items/${unrendered.id}/thumbnail.webp`,
+  );
+  await worker.stop();
+  await ai.close();
+});
+
+test("backfill retries the same candidate after queue admission fails", async () => {
+  const { root, library } = temporaryLibrary();
+  const pdf = await savePdf(library, "native.pdf", pdfFixture("pdf-native-text-01"));
+  library.db.prepare("DELETE FROM jobs").run();
+
+  const ai = createAiJobProcessors({ modelCacheDirectory: join(root, "models"), ...unusedModels });
+  const enqueue = library.jobs.enqueue.bind(library.jobs);
+  let failAdmission = true;
+  library.jobs.enqueue = (itemId: string, kind: string, options?: { notify?: boolean }) => {
+    if (failAdmission) {
+      failAdmission = false;
+      throw new Error("temporary queue failure");
+    }
+    return enqueue(itemId, kind, options);
+  };
+
+  expect(() => ai.onIdle(library)).toThrow("temporary queue failure");
+  ai.onIdle(library);
+
+  expect(
+    library.db.prepare("SELECT item_id, kind, status FROM jobs WHERE item_id = ?").get(pdf.id),
+  ).toEqual({
+    item_id: pdf.id,
+    kind: PDF_THUMBNAIL_JOB,
+    status: "pending",
+  });
+  await ai.close();
 });

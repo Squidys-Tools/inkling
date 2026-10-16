@@ -1,6 +1,45 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { extractPdfTextByPages } from "./pdf.mjs";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
+import { extractPdfTextByPages, renderPdfFirstPage } from "./pdf.mjs";
+
+function rectanglePdf(rectangles: string[], rotate = 0) {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${rectangles.map((_, index) => `${3 + index * 2} 0 R`).join(" ")}] /Count ${rectangles.length} >>`,
+  ];
+  for (const [index, rectangle] of rectangles.entries()) {
+    const content = `0 0 0 rg ${rectangle} re f`;
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /Rotate ${rotate} /MediaBox [0 0 612 792] /Contents ${4 + index * 2} 0 R >>`,
+      `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    );
+  }
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  for (const [index, object] of objects.entries()) {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  }
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  const xrefOffset = pdf.indexOf("xref\n");
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(pdf, "latin1");
+}
+
+async function decodePng(png: Buffer) {
+  const image = await loadImage(png);
+  const canvas = createCanvas(image.width, image.height);
+  const context = canvas.getContext("2d");
+  context.drawImage(image, 0, 0);
+  const { data } = context.getImageData(0, 0, image.width, image.height);
+  const isInk = (x: number, y: number) => {
+    const index = (y * image.width + x) * 4;
+    return data[index] < 128 && data[index + 3] === 255;
+  };
+  return { width: image.width, height: image.height, data, isInk };
+}
 
 function textPdf(pageTexts: string[]) {
   const fontId = 3 + pageTexts.length * 2;
@@ -84,4 +123,61 @@ test("PDF.js OCRs raster pages whose text layer is only partial", async () => {
   expect(result.ocrPages).toBe(1);
   expect(result.text).toContain("Raster caption text");
   expect(result.text).toContain("Figure 1 shows the new tree line");
+});
+
+test("page-one thumbnails are opaque white PNGs within 512 pixels", async () => {
+  const png = await renderPdfFirstPage(
+    readFileSync("benchmarks/corpus/pdfs/pdf-native-text-01.pdf"),
+  );
+  const { width, height, data } = await decodePng(png);
+  expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  expect(Math.max(width, height)).toBe(512);
+  expect(Math.min(width, height)).toBeGreaterThan(0);
+  expect([...data.subarray(0, 4)]).toEqual([255, 255, 255, 255]);
+  let darkPixels = 0;
+  for (let index = 0; index < data.length; index += 4) if (data[index] < 128) darkPixels += 1;
+  expect(darkPixels).toBeGreaterThan(0);
+});
+
+test("page-one thumbnails render the first page of a multi-page document", async () => {
+  const { isInk } = await decodePng(
+    await renderPdfFirstPage(rectanglePdf(["36 36 180 180", "396 576 180 180"])),
+  );
+  expect(isInk(60, 512 - 60)).toBe(true);
+  expect(isInk(512 - 60, 60)).toBe(false);
+});
+
+test("page-one thumbnails follow the page rotation", async () => {
+  const { width, height } = await decodePng(
+    await renderPdfFirstPage(rectanglePdf(["0 0 100 100"], 90)),
+  );
+  expect(width).toBe(512);
+  expect(height).toBeLessThan(512);
+});
+
+test("page-one thumbnail callback runs once before text extraction continues and failures are swallowed", async () => {
+  const events: string[] = [];
+  const result = await extractPdfTextByPages(textPdf(["First page text", "Second page text"]), {
+    onFirstPageThumbnail: (png) => {
+      events.push(`thumbnail:${png.length > 0}`);
+    },
+    onProgress: (current) => events.push(`progress:${current}`),
+  });
+  expect(events).toEqual(["thumbnail:true", "progress:1", "progress:2"]);
+  expect(result.pages).toEqual(["First page text", "Second page text"]);
+
+  let calls = 0;
+  const failing = await extractPdfTextByPages(textPdf(["First page text", "Second page text"]), {
+    onFirstPageThumbnail: async () => {
+      calls += 1;
+      throw new Error("thumbnail storage failed");
+    },
+  });
+  expect(calls).toBe(1);
+  expect(failing.text).toBe("First page text\n\nSecond page text");
+});
+
+test("empty PDF bytes are rejected before any rendering or extraction", async () => {
+  await expect(renderPdfFirstPage(Buffer.alloc(0))).rejects.toThrow("PDF bytes cannot be empty");
+  await expect(extractPdfTextByPages(Buffer.alloc(0))).rejects.toThrow("PDF bytes cannot be empty");
 });

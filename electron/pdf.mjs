@@ -2,6 +2,7 @@ import { createCanvas, DOMMatrix, ImageData, Path2D } from "@napi-rs/canvas";
 
 const maxCanvasEdge = 8192;
 const maxCanvasPixels = 16_777_216;
+const maxThumbnailEdge = 512;
 const minTextLayerCharacters = 500;
 let pdfjsPromise;
 
@@ -31,10 +32,7 @@ async function renderPage(page, canvasModule) {
   return canvas.toBuffer("image/png");
 }
 
-export async function extractPdfTextByPages(
-  bytes,
-  { recognize, onProgress = () => {}, ocrEngineName = "tesseract.js" } = {},
-) {
+async function openDocument(bytes) {
   if (!bytes?.length) throw new Error("PDF bytes cannot be empty");
   const library = await pdfjs();
   const loadingTask = library.getDocument({
@@ -42,6 +40,48 @@ export async function extractPdfTextByPages(
     isEvalSupported: false,
     useSystemFonts: true,
   });
+  return { library, loadingTask };
+}
+
+const isPositiveFinite = (value) => Number.isFinite(value) && value > 0;
+
+async function renderFirstPageThumbnail(page) {
+  const natural = page.getViewport({ scale: 1 });
+  if (!isPositiveFinite(natural.width) || !isPositiveFinite(natural.height))
+    throw new Error("PDF page size is not a finite positive number");
+  const viewport = page.getViewport({
+    scale: maxThumbnailEdge / Math.max(natural.width, natural.height),
+  });
+  if (!isPositiveFinite(viewport.width) || !isPositiveFinite(viewport.height))
+    throw new Error("PDF thumbnail size is not a finite positive number");
+  const edge = (value) => Math.min(maxThumbnailEdge, Math.max(1, Math.round(value)));
+  const canvas = createCanvas(edge(viewport.width), edge(viewport.height));
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: context, viewport }).promise;
+  return canvas.toBuffer("image/png");
+}
+
+export async function renderPdfFirstPage(bytes) {
+  const { loadingTask } = await openDocument(bytes);
+  try {
+    const page = await (await loadingTask.promise).getPage(1);
+    try {
+      return await renderFirstPageThumbnail(page);
+    } finally {
+      page.cleanup();
+    }
+  } finally {
+    await loadingTask.destroy();
+  }
+}
+
+export async function extractPdfTextByPages(
+  bytes,
+  { recognize, onProgress = () => {}, ocrEngineName = "tesseract.js", onFirstPageThumbnail } = {},
+) {
+  const { library, loadingTask } = await openDocument(bytes);
   const pages = [];
   let ocrPages = 0;
 
@@ -59,6 +99,11 @@ export async function extractPdfTextByPages(
     );
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
+      if (pageNumber === 1 && onFirstPageThumbnail) {
+        try {
+          await onFirstPageThumbnail(await renderFirstPageThumbnail(page));
+        } catch {}
+      }
       const contents = await page.getTextContent();
       let text = normalizeText(
         contents.items.map((item) => ("str" in item ? item.str : "")).join(" "),

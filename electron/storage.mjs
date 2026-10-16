@@ -19,6 +19,9 @@ import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
 
 const SCHEMA_VERSION = 8;
 export const JOB_LEASE_MILLIS = 5 * 60 * 1000;
+export const PDF_THUMBNAIL_JOB = "pdf_thumbnail";
+const SILENT_JOB_KINDS = new Set([PDF_THUMBNAIL_JOB]);
+const silentKindsSql = [...SILENT_JOB_KINDS].map((kind) => `'${kind}'`).join(", ");
 
 const maxFileBytes = 50 * 1024 * 1024;
 const semanticMatchFloor = 0.55;
@@ -685,6 +688,10 @@ export class JobQueue {
     this.onUpdated(itemId);
   }
 
+  announce(job) {
+    if (!SILENT_JOB_KINDS.has(job.kind)) this.notify(job.item_id);
+  }
+
   enqueue(itemId, kind, { notify = true } = {}) {
     const existing = this.db
       .prepare(`SELECT id FROM jobs WHERE item_id = ? AND kind = ? AND status IN ('pending', 'processing')
@@ -697,7 +704,7 @@ export class JobQueue {
         "INSERT INTO jobs (id, item_id, kind, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
       )
       .run(id, itemId, kind, this.now());
-    if (notify) this.notify(itemId);
+    if (notify) this.announce({ item_id: itemId, kind });
     return id;
   }
 
@@ -705,21 +712,27 @@ export class JobQueue {
     if (!Array.isArray(itemIds) || itemIds.length === 0) return [];
     const placeholders = itemIds.map(() => "?").join(", ");
     return this.db
-      .prepare(`SELECT * FROM jobs WHERE item_id IN (${placeholders}) ORDER BY created_at DESC`)
+      .prepare(`SELECT * FROM jobs WHERE item_id IN (${placeholders}) AND kind NOT IN (${silentKindsSql})
+        ORDER BY created_at DESC`)
       .all(...itemIds)
       .map(jobFromRow);
   }
 
   getForItem(itemId) {
     return this.db
-      .prepare("SELECT * FROM jobs WHERE item_id = ? ORDER BY created_at DESC")
+      .prepare(
+        `SELECT * FROM jobs WHERE item_id = ? AND kind NOT IN (${silentKindsSql}) ORDER BY created_at DESC`,
+      )
       .all(itemId)
       .map(jobFromRow);
   }
 
   countActive() {
     return this.db
-      .prepare("SELECT COUNT(*) AS count FROM jobs WHERE status IN ('pending', 'processing')")
+      .prepare(
+        `SELECT COUNT(*) AS count FROM jobs WHERE status IN ('pending', 'processing')
+        AND kind NOT IN (${silentKindsSql})`,
+      )
       .get().count;
   }
 
@@ -752,7 +765,7 @@ export class JobQueue {
         .run(now, workerId, now + JOB_LEASE_MILLIS, row.id).changes;
       this.db.exec("COMMIT");
       if (!updated) return null;
-      this.notify(row.item_id);
+      this.announce(row);
       return jobFromRow(this.db.prepare("SELECT * FROM jobs WHERE id = ?").get(row.id));
     } catch (error) {
       this.db.exec("ROLLBACK");
@@ -768,13 +781,15 @@ export class JobQueue {
         )
         .run(this.now() + JOB_LEASE_MILLIS, jobId, workerId).changes > 0;
     if (updated)
-      this.notify(this.db.prepare("SELECT item_id FROM jobs WHERE id = ?").get(jobId).item_id);
+      this.announce(this.db.prepare("SELECT item_id, kind FROM jobs WHERE id = ?").get(jobId));
     return updated;
   }
 
   complete(jobId, workerId) {
     const item = this.db
-      .prepare("SELECT item_id FROM jobs WHERE id = ? AND status = 'processing' AND worker_id = ?")
+      .prepare(
+        "SELECT item_id, kind FROM jobs WHERE id = ? AND status = 'processing' AND worker_id = ?",
+      )
       .get(jobId, workerId);
     if (!item) return false;
     const now = this.now();
@@ -785,13 +800,15 @@ export class JobQueue {
       progress_current = COALESCE(progress_total, progress_current), progress_message = NULL
       WHERE id = ? AND status = 'processing' AND worker_id = ?`)
         .run(now, now, jobId, workerId).changes > 0;
-    if (updated) this.notify(item.item_id);
+    if (updated) this.announce(item);
     return updated;
   }
 
   fail(jobId, workerId, error) {
     const item = this.db
-      .prepare("SELECT item_id FROM jobs WHERE id = ? AND status = 'processing' AND worker_id = ?")
+      .prepare(
+        "SELECT item_id, kind FROM jobs WHERE id = ? AND status = 'processing' AND worker_id = ?",
+      )
       .get(jobId, workerId);
     if (!item) return false;
     this.db.exec("BEGIN IMMEDIATE");
@@ -816,7 +833,7 @@ export class JobQueue {
           .run(now, String(error), String(error), jobId, workerId);
       }
       this.db.exec("COMMIT");
-      this.notify(item.item_id);
+      this.announce(item);
       return true;
     } catch (failure) {
       this.db.exec("ROLLBACK");
@@ -826,7 +843,9 @@ export class JobQueue {
 
   updateProgress(jobId, workerId, current, total = null, message = null) {
     const item = this.db
-      .prepare("SELECT item_id FROM jobs WHERE id = ? AND status = 'processing' AND worker_id = ?")
+      .prepare(
+        "SELECT item_id, kind FROM jobs WHERE id = ? AND status = 'processing' AND worker_id = ?",
+      )
       .get(jobId, workerId);
     if (!item) return false;
     const progressCurrent = Math.max(0, Number(current) || 0);
@@ -842,13 +861,13 @@ export class JobQueue {
           jobId,
           workerId,
         ).changes > 0;
-    if (updated) this.notify(item.item_id);
+    if (updated) this.announce(item);
     return updated;
   }
 
   retry(jobId) {
     const row = this.db
-      .prepare("SELECT item_id FROM jobs WHERE id = ? AND status = 'failed'")
+      .prepare("SELECT item_id, kind FROM jobs WHERE id = ? AND status = 'failed'")
       .get(jobId);
     if (!row) return false;
     const updated =
@@ -857,7 +876,7 @@ export class JobQueue {
       started_at = NULL, completed_at = NULL, worker_id = NULL, lease_until = NULL,
       progress_current = 0, progress_message = NULL WHERE id = ? AND status = 'failed'`)
         .run(jobId).changes > 0;
-    if (updated) this.notify(row.item_id);
+    if (updated) this.announce(row);
     return updated;
   }
 
@@ -867,7 +886,7 @@ export class JobQueue {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       rows = this.db
-        .prepare(`SELECT item_id FROM jobs WHERE status = 'processing'
+        .prepare(`SELECT item_id, kind FROM jobs WHERE status = 'processing'
         AND (lease_until IS NULL OR lease_until <= ?)`)
         .all(now);
       if (rows.length === 0) {
@@ -884,14 +903,18 @@ export class JobQueue {
       this.db.exec("ROLLBACK");
       throw error;
     }
-    for (const row of rows) this.notify(row.item_id);
+    for (const row of rows) this.announce(row);
     return rows.length;
   }
 }
 
 export class JobWorker {
-  constructor(storage, { processors = {}, pollInterval = 5000, workerId = randomUUID() } = {}) {
+  constructor(
+    storage,
+    { processors = {}, pollInterval = 5000, workerId = randomUUID(), onIdle } = {},
+  ) {
     this.storage = storage;
+    this.onIdle = onIdle;
     this.queue = storage.jobs;
     this.processors = processors;
     this.pollInterval = pollInterval;
@@ -924,7 +947,13 @@ export class JobWorker {
     this.running = true;
     try {
       const kinds = Object.keys(this.processors);
-      let job = this.queue.claimNext(this.workerId, kinds);
+      const claim = () => {
+        const claimed = this.queue.claimNext(this.workerId, kinds);
+        if (claimed || !this.onIdle) return claimed;
+        this.onIdle(this.storage);
+        return this.queue.claimNext(this.workerId, kinds);
+      };
+      let job = claim();
       while (job) {
         const processor = this.processors[job.kind];
         const heartbeat = setInterval(
@@ -945,7 +974,7 @@ export class JobWorker {
           clearInterval(heartbeat);
         }
         if (this.stopped) break;
-        job = this.queue.claimNext(this.workerId, kinds);
+        job = claim();
       }
     } finally {
       this.running = false;
@@ -1295,6 +1324,42 @@ class LibraryStorage {
     }
     this.jobs.notify(id);
     return this.getItem(id);
+  }
+
+  nextPdfThumbnailCandidate(afterRowid) {
+    return this.db
+      .prepare(`SELECT rowid, id FROM items
+        WHERE kind = 'pdf' AND rowid > ? AND thumbnail_path IS NULL AND local_asset_path != ''
+        AND NOT EXISTS (SELECT 1 FROM jobs WHERE item_id = items.id AND kind = ? AND status = 'failed')
+        ORDER BY rowid LIMIT 1`)
+      .get(afterRowid, PDF_THUMBNAIL_JOB);
+  }
+
+  async storePdfThumbnail(id, png) {
+    const pending = () =>
+      this.db
+        .prepare("SELECT 1 FROM items WHERE id = ? AND kind = 'pdf' AND thumbnail_path IS NULL")
+        .get(id);
+    if (!pending()) return false;
+    if (!this.createThumbnail) throw new Error("image thumbnail generation is unavailable");
+    const thumbnail = await this.createThumbnail(png);
+    const staging = await mkdtemp(join(dirname(this.databasePath), ".inkling-thumbnail-"));
+    try {
+      const staged = join(staging, "thumbnail.webp");
+      await writeFile(staged, thumbnail.bytes);
+      const thumbnailPath = `assets/items/${id}/thumbnail.webp`;
+      if (!pending()) return false;
+      await rename(staged, join(this.assetsDirectory, id, "thumbnail.webp"));
+      const updated = this.db
+        .prepare(
+          "UPDATE items SET thumbnail_path = ? WHERE id = ? AND kind = 'pdf' AND thumbnail_path IS NULL",
+        )
+        .run(thumbnailPath, id).changes;
+      if (updated) this.jobs.notify(id);
+      return updated > 0;
+    } finally {
+      await rm(staging, { recursive: true, force: true });
+    }
   }
 
   resolveAssetPath(assetPath) {
