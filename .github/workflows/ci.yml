@@ -110,16 +110,17 @@ jobs:
       # are invisible to `bun run typecheck`. Check each workspace explicitly.
       - name: Typecheck workspaces
         run: |
-          bun run typecheck:tsc
-          bun run --cwd extension typecheck:tsc
-          bun run --cwd packages/ingestion-shared typecheck:tsc
-
-      - name: 'Canary: tsc-rs typecheck (non-blocking)'
-        continue-on-error: true
-        run: |
           bun run typecheck
           bun run --cwd extension typecheck
           bun run --cwd packages/ingestion-shared typecheck
+
+      - name: 'Canary: real tsc typecheck (non-blocking)'
+        if: always()
+        continue-on-error: true
+        run: |
+          bun run typecheck:tsc
+          bun run --cwd extension typecheck:tsc
+          bun run --cwd packages/ingestion-shared typecheck:tsc
 
       - name: Check documented commands exist
         run: bun run check:refs

@@ -68,8 +68,7 @@ Guardrails:
 ### Changed
 
 - Desktop window opens at 960 × 540 instead of 1000 × 800; the 320 × 360 minimum size is unchanged.
-- Developer experience: CI gains a non-blocking `tsc-rs` canary across the root, benchmark, extension, and ingestion-shared TypeScript projects.
-- Developer experience: local `bun run typecheck` runs on `tsc-rs`, and the CI typecheck gate stays on `tsc` as `typecheck:tsc`.
+- Developer experience: `tsc-rs` is the blocking typecheck gate for the root, benchmark, extension, and ingestion-shared projects, including the build scripts, and real `tsc` runs as a non-blocking CI canary (`typecheck:tsc`).
 - Developer commands share one namespace: `dev:app` runs the desktop app, `build:installer` builds the Windows installer, and `check` runs every gate; the old `electron:*`, `check:frontend`, and `knip:check` names are removed.
 - Biome now formats and lints project files locally, and frontend CI enforces those checks (#109).
 - Paper Mono is now the default interface typeface, bundled locally under the SIL Open Font License.
@@ -94,6 +93,7 @@ Guardrails:
 - Library refresh costs two backend round trips instead of one per item: a new `get_jobs_for_items` command returns every item's processing jobs in a single query, and resolved asset URLs are cached so unchanged paths skip the repeat resolve (`src-tauri/src/jobs.rs`, `src/lib/libraryApi.ts`, `src/lib/assetUrlCache.ts`, `src/App.tsx`)
 - Archive now lives in Settings instead of the sidebar, and the settings modal uses theme variables instead of hardcoded colors (`src/App.tsx`, `src/App.css`)
 - `bun run check` installs dependencies with the lockfile frozen first, so lockfile drift fails locally the way it fails in the CI frontend job
+- Library grid and list views soften into a progressive blur at the bottom edge while scrolling, and the blur clears once the list reaches its end (`src/components/LibraryBottomFade.tsx`, `src/App.css`, `src/App.tsx`)
 
 ### Removed
 

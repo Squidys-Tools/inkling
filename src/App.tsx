@@ -105,6 +105,7 @@ import { parseDeepLinkCapture, validateDeepLinkCapture } from "./lib/deepLink";
 import { enrichDeepLinkCapture } from "./lib/deepLinkEnrichment";
 import { safePublicImageUrl } from "./lib/ingestion/url";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
+import { LibraryBottomFade } from "./components/LibraryBottomFade";
 import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
 import { providerLabel, videoLinkFromSourceUrl } from "./lib/ingestion/video-links";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
@@ -5092,15 +5093,18 @@ function App() {
             ) : (
               <>
                 {filteredItems.length > 0 && (
-                  <VirtuosoMasonry
-                    key={libraryGridKey}
-                    className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
-                    columnCount={listMode ? 1 : gridColumnCount}
-                    data={filteredItems}
-                    context={libraryCardContext}
-                    ItemContent={VirtualizedLibraryItem}
-                    style={{ height: "100%", width: "100%" }}
-                  />
+                  <>
+                    <VirtuosoMasonry
+                      key={libraryGridKey}
+                      className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
+                      columnCount={listMode ? 1 : gridColumnCount}
+                      data={filteredItems}
+                      context={libraryCardContext}
+                      ItemContent={VirtualizedLibraryItem}
+                      style={{ height: "100%", width: "100%" }}
+                    />
+                    <LibraryBottomFade scrollRef={libraryScrollRef} />
+                  </>
                 )}
 
                 {filteredItems.length === 0 && (
