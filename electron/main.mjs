@@ -124,7 +124,10 @@ function initializeLibraryStorage() {
     bundledModelDirectory: app.isPackaged ? join(process.resourcesPath, "models") : undefined,
   });
   enqueueStaleImageEmbeddings(libraryStorage);
-  jobWorker = new JobWorker(libraryStorage, { processors: aiJobProcessors.processors }).start();
+  jobWorker = new JobWorker(libraryStorage, {
+    processors: aiJobProcessors.processors,
+    onIdle: aiJobProcessors.onIdle,
+  }).start();
   return libraryStorage.status();
 }
 

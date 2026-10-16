@@ -28,6 +28,7 @@ Guardrails:
 
 ### Added
 
+- PDF cards now show page-one thumbnails generated in the background after capture; existing PDFs are backfilled one at a time when the job queue is idle.
 - Chrome MV3 extension saves a page or right-clicked link through inkling's local capture receiver, with the existing capture link as fallback.
 - `bun run ui:smoke` drives the core library flows in Electron against a scratch profile and fails on console errors
 - Electron desktop shell alongside Tauri, with scoped `app://` assets, an IPC command allowlist, and `inkling://` capture links.

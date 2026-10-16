@@ -1,5 +1,13 @@
 import { afterEach, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -10,6 +18,7 @@ import {
   JobWorker,
   JOB_LEASE_MILLIS,
   openLibraryStorage,
+  PDF_THUMBNAIL_JOB,
   resolveLibraryDataDirectory,
 } from "./storage.mjs";
 import parity from "./fixtures/storage-parity.json";
@@ -668,4 +677,162 @@ test("stopping the Electron worker waits for its active job and leaves later wor
       .map((job) => job.status)
       .sort(),
   ).toEqual(["completed", "pending"]);
+});
+
+test("silent thumbnail jobs never appear in summaries, counts, or lifecycle events", () => {
+  const { library } = temporaryLibrary();
+  library.db
+    .prepare(
+      "INSERT INTO items (id, kind, created_at, updated_at) VALUES ('quiet-item', 'pdf', 1, 1)",
+    )
+    .run();
+  let now = 10_000;
+  const events: string[] = [];
+  const queue = new JobQueue(library.db, { now: () => now, onUpdated: (id) => events.push(id) });
+
+  const jobId = queue.enqueue("quiet-item", PDF_THUMBNAIL_JOB);
+  queue.claimNext("worker-a");
+  queue.renew(jobId, "worker-a");
+  queue.updateProgress(jobId, "worker-a", 1, 2, "halfway");
+  queue.fail(jobId, "worker-a", "retrying");
+  queue.claimNext("worker-a");
+  now += JOB_LEASE_MILLIS + 1;
+  queue.recoverExpired();
+  queue.claimNext("worker-b");
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    queue.fail(jobId, "worker-b", "broken");
+    queue.claimNext("worker-b");
+  }
+  queue.fail(jobId, "worker-b", "terminal");
+  queue.retry(jobId);
+  queue.claimNext("worker-b");
+  queue.complete(jobId, "worker-b");
+
+  expect(events).toEqual([]);
+  expect(queue.getForItem("quiet-item")).toEqual([]);
+  expect(queue.getForItems(["quiet-item"])).toEqual([]);
+  expect(queue.countActive()).toBe(0);
+  expect(library.db.prepare("SELECT status FROM jobs WHERE id = ?").get(jobId)).toEqual({
+    status: "completed",
+  });
+});
+
+test("the worker admits idle work only when nothing processable is pending and drains it without polling", async () => {
+  const { library } = temporaryLibrary();
+  library.db
+    .prepare(
+      "INSERT INTO items (id, kind, created_at, updated_at) VALUES ('a', 'note', 1, 1), ('b', 'note', 2, 2)",
+    )
+    .run();
+  library.jobs.enqueue("a", "queued");
+  library.jobs.enqueue("b", "unregistered");
+  const order: string[] = [];
+  let idleCalls = 0;
+  const worker = new JobWorker(library, {
+    processors: {
+      queued: async (job) => void order.push(`queued:${job.itemId}`),
+      idle: async (job) => void order.push(`idle:${job.itemId}`),
+    },
+    onIdle: () => {
+      idleCalls += 1;
+      if (idleCalls <= 2) library.jobs.enqueue("a", "idle");
+    },
+  });
+  await worker.pump();
+  await worker.stop();
+
+  expect(order).toEqual(["queued:a", "idle:a", "idle:a"]);
+  expect(idleCalls).toBe(3);
+  expect(library.jobs.getForItem("b")[0]?.status).toBe("pending");
+});
+
+test("PDF thumbnails publish once, touch only thumbnail_path, and survive export and restore", async () => {
+  let encoded = 0;
+  const { root, library } = temporaryLibrary({
+    createThumbnail: async () => {
+      encoded += 1;
+      return { bytes: Buffer.from("page one"), width: 396, height: 512 };
+    },
+  });
+  const pdf = await library.saveFile({
+    fileName: "paper.pdf",
+    mimeType: "application/pdf",
+    bytes: [...Buffer.from("%PDF-1.4")],
+  });
+  const note = library.createNote({ title: "Not a PDF", body: "text" });
+  const before = library.getItem(pdf.id);
+  const ftsBefore = library.searchItems("paper").map((item) => item.id);
+  const indexedRow = (id: string) =>
+    library.db.prepare("SELECT * FROM items_fts WHERE item_id = ?").all(id);
+  const writes = () => ({
+    fts: indexedRow(pdf.id),
+    embeddings: library.db.prepare("SELECT * FROM item_embeddings").all(),
+    jobs: library.db.prepare("SELECT id, kind, status FROM jobs ORDER BY id").all(),
+  });
+  const writesBefore = writes();
+
+  expect(await library.storePdfThumbnail(note.id, Buffer.from("png"))).toBe(false);
+  expect(await library.storePdfThumbnail("missing", Buffer.from("png"))).toBe(false);
+  expect(await library.storePdfThumbnail(pdf.id, Buffer.from("png"))).toBe(true);
+  expect(await library.storePdfThumbnail(pdf.id, Buffer.from("png"))).toBe(false);
+  expect(encoded).toBe(1);
+
+  expect(library.getItem(pdf.id)).toEqual({
+    ...before,
+    thumbnailPath: `assets/items/${pdf.id}/thumbnail.webp`,
+  });
+  expect(library.searchItems("paper").map((item) => item.id)).toEqual(ftsBefore);
+  expect(ftsBefore).toEqual([pdf.id]);
+  expect(writes()).toEqual(writesBefore);
+  expect(readdirSync(root).filter((name) => name.startsWith(".inkling-thumbnail-"))).toEqual([]);
+
+  const destination = join(root, "exports");
+  mkdirSync(destination);
+  const report = await library.exportLibrary(destination, 0);
+  const restored = trackedLibrary(join(root, "restored", "library.sqlite3"));
+  await restored.importLibrary(report.directory);
+  expect(restored.getItem(pdf.id)?.thumbnailPath).toBe(`assets/items/${pdf.id}/thumbnail.webp`);
+  expect(
+    readFileSync(join(root, "restored", "assets", "items", pdf.id, "thumbnail.webp"), "utf8"),
+  ).toBe("page one");
+});
+
+test("PDF thumbnail candidates walk the kind index by rowid without sorting and skip failed or assetless PDFs", () => {
+  const { library } = temporaryLibrary();
+  const insert = library.db.prepare(
+    "INSERT INTO items (id, kind, local_asset_path, thumbnail_path, created_at, updated_at) VALUES (?, ?, ?, ?, 1, 1)",
+  );
+  insert.run("done", "pdf", "assets/items/done/a.pdf", "assets/items/done/thumbnail.webp");
+  insert.run("assetless", "pdf", null, null);
+  insert.run("image", "image", "assets/items/image/a.png", null);
+  insert.run("broken", "pdf", "assets/items/broken/a.pdf", null);
+  insert.run("first", "pdf", "assets/items/first/a.pdf", null);
+  insert.run("last", "pdf", "assets/items/last/a.pdf", null);
+  const jobId = library.jobs.enqueue("broken", PDF_THUMBNAIL_JOB);
+  library.db.prepare("UPDATE jobs SET status = 'failed' WHERE id = ?").run(jobId);
+
+  const prepared: string[] = [];
+  const prepare = library.db.prepare.bind(library.db);
+  library.db.prepare = (sql: string) => {
+    prepared.push(sql);
+    return prepare(sql);
+  };
+  const firstCandidate = library.nextPdfThumbnailCandidate(0);
+  library.db.prepare = prepare;
+  expect(firstCandidate?.id).toBe("first");
+  expect(library.nextPdfThumbnailCandidate(firstCandidate.rowid)?.id).toBe("last");
+  expect(
+    library.nextPdfThumbnailCandidate(
+      library.nextPdfThumbnailCandidate(firstCandidate.rowid).rowid,
+    ),
+  ).toBeUndefined();
+
+  const plan = library.db
+    .prepare(`EXPLAIN QUERY PLAN ${prepared[0]}`)
+    .all(0, PDF_THUMBNAIL_JOB)
+    .map((row) => row.detail as string);
+  expect(
+    plan.some((detail) => detail.includes("USING INDEX idx_items_kind (kind=? AND rowid>?)")),
+  ).toBe(true);
+  expect(plan.some((detail) => detail.includes("TEMP B-TREE"))).toBe(false);
 });

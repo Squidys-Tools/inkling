@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { createEmbeddingEngine } from "./embeddings.mjs";
 import { IMAGE_MODEL } from "./embedding-contract.mjs";
 import { createTesseractOcr } from "./ocr.mjs";
-import { extractPdfTextByPages } from "./pdf.mjs";
-import { markdownToPlainText } from "./storage.mjs";
+import { extractPdfTextByPages, renderPdfFirstPage } from "./pdf.mjs";
+import { markdownToPlainText, PDF_THUMBNAIL_JOB } from "./storage.mjs";
 
 async function itemAsset(storage, item) {
   if (!item?.localAssetPath) throw new Error("item has no local asset path");
@@ -50,6 +50,9 @@ export function createAiJobProcessors({
   embeddings = createEmbeddingEngine(modelCacheDirectory, undefined, bundledModelDirectory),
   extractPdf = extractPdfTextByPages,
 } = {}) {
+  let thumbnailCursor = 0;
+  let thumbnailBackfillDone = false;
+
   const processors = {
     async ocr_image(job, storage, workerId) {
       const item = storage.getItem(job.itemId);
@@ -68,11 +71,22 @@ export function createAiJobProcessors({
     async ocr_pdf_page(job, storage, workerId) {
       const item = storage.getItem(job.itemId);
       if (!item) throw new Error("item not found");
-      const result = await extractPdf(await itemAsset(storage, item), {
-        recognize: (image) => ocr.recognize(image),
-        onProgress: (current, total, message) =>
-          storage.jobs.updateProgress(job.id, workerId, current, total, message),
-      });
+      let result;
+      try {
+        result = await extractPdf(await itemAsset(storage, item), {
+          recognize: (image) => ocr.recognize(image),
+          onFirstPageThumbnail: item.thumbnailPath
+            ? undefined
+            : (png) => storage.storePdfThumbnail(item.id, png),
+          onProgress: (current, total, message) =>
+            storage.jobs.updateProgress(job.id, workerId, current, total, message),
+        });
+      } finally {
+        if (!storage.getItem(item.id)?.thumbnailPath) {
+          thumbnailCursor = 0;
+          thumbnailBackfillDone = false;
+        }
+      }
       const pageCount = result.pages.length;
       if (result.text) {
         storage.storeOcrText(item.id, result.text, result.engine);
@@ -81,6 +95,15 @@ export function createAiJobProcessors({
       } else {
         storage.jobs.updateProgress(job.id, workerId, pageCount, pageCount, "No text found");
       }
+    },
+
+    async [PDF_THUMBNAIL_JOB](job, storage) {
+      const item = storage.getItem(job.itemId);
+      if (!item) throw new Error("item not found");
+      await storage.storePdfThumbnail(
+        item.id,
+        await renderPdfFirstPage(await itemAsset(storage, item)),
+      );
     },
 
     async generate_embedding(job, storage, workerId) {
@@ -132,6 +155,16 @@ export function createAiJobProcessors({
 
   return {
     processors,
+    onIdle(storage) {
+      if (thumbnailBackfillDone) return;
+      const next = storage.nextPdfThumbnailCandidate(thumbnailCursor);
+      if (!next) {
+        thumbnailBackfillDone = true;
+        return;
+      }
+      storage.jobs.enqueue(next.id, PDF_THUMBNAIL_JOB, { notify: false });
+      thumbnailCursor = next.rowid;
+    },
     embedQuery: async (text) => (await embeddings.embedQuery(text)).vector,
     close: () => ocr.close?.(),
   };
