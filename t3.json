@@ -20,6 +20,12 @@
       "runOnWorktreeCreate": false
     },
     {
+      "name": "UI smoke",
+      "command": "bun run ui:smoke",
+      "icon": "test",
+      "runOnWorktreeCreate": false
+    },
+    {
       "name": "Check everything",
       "command": "bun run check",
       "icon": "test",

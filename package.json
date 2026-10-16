@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "vite",
     "dev:app": "vite build --mode electron-preview && electron . --preview",
+    "ui:smoke": "bun scripts/ui-smoke.mjs",
     "build": "tsc -p benchmarks/harness/tsconfig.json && tsc && vite build",
     "build:app": "tsc -p benchmarks/harness/tsconfig.json && tsc && vite build --mode app && bun scripts/assert-no-demo-seed.ts",
     "build:dir": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --dir",
