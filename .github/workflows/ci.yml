@@ -121,6 +121,9 @@ jobs:
           bun run tsc-rs -p extension/tsconfig.json --noEmit
           bun run tsc-rs -p packages/ingestion-shared/tsconfig.json --noEmit
 
+      - name: Check documented commands exist
+        run: bun run check:refs
+
       - name: Run unit tests
         run: bun test
 

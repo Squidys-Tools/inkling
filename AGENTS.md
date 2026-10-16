@@ -18,7 +18,7 @@ Lots of apps have gotten bogged down with bad tech decisions and "slop". We regu
 
 ### 3. Local first, forever
 
-The library lives in SQLite on the user's disk, with files kept as content addressed assets beside it. No account, no feed, no tracking. Network is only for fetching data in a URL the user asked to save like video embed links, the one time model download, or when a user plays a video embed link but that is handled by the embed. Do not add calls home, analytics, or silent uploads.
+The library lives in SQLite on the user's disk, with files kept as assets beside it under `assets/items/<id>/`. No account, no feed, no tracking. Network is only for fetching data in a URL the user asked to save like video embed links, the one time model download, or when a user plays a video embed link but that is handled by the embed. Do not add calls home, analytics, or silent uploads.
 
 ### 4. Quiet intelligence
 
@@ -54,7 +54,7 @@ We need to be on the same page with terminology. When communicating, use this la
 - **Space** means a saved search shown as a collection. Smart Spaces update themselves. Regular Spaces hold manually user curated items.
 - **deep link** means the companion path into the app, `inkling://capture?url=...`.
 - **preview** means `bun run dev`, the web-only look with sample data.
-- **full app** means `bun run dev:app`, the Windows Electron desktop app.
+- **full app** means the Windows Electron desktop app with the real library, built with `bun run build:dir` or `bun run build:installer`.
 
 ## The three ways to hurt yourself
 
@@ -71,7 +71,7 @@ The common defect here is a change that works on the path tested and is missing 
 - **Entry points.** A behavior reachable from the Add button is usually also reachable from paste, drag and drop, clipboard, screenshot capture, and the deep link. Fixing one is not fixing the feature.
 - **Capture paths.** URL, article extraction, image file, screenshot, PDF, note, quote, video link, X post, misc file. An extractor change needs a decision per path, even if the decision is not supported here.
 - **Search paths.** Titles, notes, article text, OCR text, domains, authors, manual tags, derived concepts, colors, semantic similarity, dates, types. If you index a new field, say how search reaches it.
-- **Card types.** Image, screenshot, article, general website, product, recipe, book, PDF, video, note, quote. Shared thumbnail logic lives in one place. Keep the set coherent.
+- **Card types.** Article, image, PDF, video, post, note, quote, and file, as the `ItemKind` union in `src/lib/types.ts`. Shared thumbnail logic lives in one place. Keep the set coherent.
 - **Reverse states.** If you added a way in, add the way out and a way to see it. Trash needs restore. A Space needs rename and delete that keeps its items. A one way door is a bug.
 - **App modes.** Preview and the full app behave differently. OCR, embeddings, and file access only run in the Electron app. Do not ship a feature that silently does nothing in one mode.
 - **Docs.** Check whether the change makes existing guidance inaccurate. Apply the [documentation rules](#documentation) before adding anything.
@@ -80,7 +80,7 @@ The common defect here is a change that works on the path tested and is missing 
 
 - `bun install` installs. If module resolution looks broken, check the Bun version first. It must match `.bun-version` (1.4.2). `bun run check:bun-version` says so in one line.
 - `bun run dev` is the quick web look at the UI. It uses sample data and has no desktop storage or processing backend.
-- `bun run dev:app` is the full Windows desktop app; OCR, embeddings, and local file access run through Electron's main process.
+- `bun run dev:app` opens the Electron shell in preview mode. The renderer shows the sample library and does not call the desktop backend, so capture, OCR, embeddings, and local file access are not exercised there. Test the full backend with the packaged output of `bun run build:dir`.
 - `t3.json` lists the T3 Code run scripts. Keep it up to date: whenever a package.json script is renamed or removed, or a command it runs changes, update `t3.json` in the same change.
 - Ports and state come from the dev setup, not from memory. Read the actual terminal output. Do not assume a port.
 - Stop what you started, by the handle you tracked. See rule 1.
@@ -141,15 +141,15 @@ Most code changes need no docs change. Agents can read the code.
 ## Plans and work artifacts
 
 - Do not commit implementation plans, research notes, or agent scratch files. Keep temporary working material outside the worktree. `.plans/` is gitignored only as a safety net for legacy tooling.
-- Track active maintainer work in the GitHub issue or project item that owns it. External proposals follow `CONTRIBUTING.md` and belong in Ideas discussions.
+- Track active maintainer work in the GitHub issue or project item that owns it. External proposals follow `CONTRIBUTING.md`.
 - A merged PR is the implementation record. Close or update its tracking item when the work lands; do not preserve a second checklist in the repository.
 - While completing work, keep `docs/changelog.md` current per its own header rules. Close out the entry before starting an unrelated task so entries do not blur together. Organize details in the Unreleased section as you work or if you notice that changes are piling up so it doesn't become messy. Always ask the developer before making those types of changes but do not ask after every change, only after important or large amounts of work are done.
 
 ## How it works
 
-Capture creates the item immediately, then background jobs do the slow parts. Normalize, extract text and metadata, run OCR or PDF extraction or article parsing, generate embeddings, update the FTS and vector indexes, recalculate Space membership. The user keeps browsing or does something else while jobs run. A job can be retried, its lease can expire, and interrupted jobs recover on restart.
+Capture creates the item immediately, then background jobs do the slow parts. Normalize, extract text and metadata, run OCR or PDF extraction or article parsing, generate embeddings. Writes to items update the FTS index through triggers. The user keeps browsing or does something else while jobs run. A job can be retried, its lease can expire, and interrupted jobs recover on restart.
 
-Search combines exact FTS over content, notes, and OCR text with semantic similarity over local embeddings. Smart Spaces are saved searches that reevaluate as items arrive.
+Search combines exact FTS over content, notes, and OCR text with semantic similarity over local embeddings. Smart Spaces are saved searches whose query runs each time their items load, so they need no background job.
 
 The Electron main process owns files, the job queue, the database, and model execution. The renderer gets a narrow preload bridge, not raw filesystem or shell access. Fetched HTML is untrusted. It gets sanitized, embeds pass an allowlist, scripts and event handlers are stripped.
 
@@ -159,9 +159,9 @@ Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behav
 
 - `src/` is the React and TypeScript frontend. Entry at `src/main.tsx`.
 - `src/lib/ingestion/` is the capture and extraction pipeline. Defuddle, metadata fallback, sanitizing, video link handling.
-- `src/components/` holds cards, grid, reader, and Spaces UI. Shared card art lives with the media component.
+- `src/components/` holds shared pieces such as the card media (`ItemMedia.tsx`), the expanded item overlay, and the PDF viewer. The library grid, cards, and Spaces UI live in `src/App.tsx`, and the reader is `src/ReaderView.tsx`.
 - `electron/` holds the desktop main process, preload bridge, SQLite storage, job queue, PDF/OCR, embeddings, and packaging inputs.
-- `benchmarks/` holds the 48 item corpus, the harness, expected outputs, and results. Only `results-latest.json` and `summary.md` are tracked.
+- `benchmarks/` holds the 48 item corpus, the harness, expected outputs, and results. Of the results, only `results-latest.json` and `summary.md` are tracked.
 - `public/seed-demo/` plus `src/seedPersonal.ts` is the committed demo library for UI work.
 - `docs/` holds product, behavior, stack, roadmap, and changelog. No other docs home exists yet.
 
@@ -184,4 +184,4 @@ These apply whenever you run inside T3 Code only, and they override nothing abov
 ## Additional tips
 
 - Do not verify with browsers or computer use unless the user agrees or asks.
-- Security is important, but should not be over-indexed on, especially for dev mode/maintainer-only features. The threat model is untrusted web content rendered locally, per `docs/tech-stack.md`. Keep sanitizing and allowlists strict. Keep dev ergonomics simple.
+- Security is important, but should not be over-indexed on, especially for dev mode/maintainer-only features. The main threat is untrusted web content rendered locally; `docs/tech-stack.md` says to treat all fetched HTML as untrusted. Keep sanitizing and allowlists strict. Keep dev ergonomics simple.
