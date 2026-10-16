@@ -67,6 +67,7 @@ Guardrails:
 
 ### Changed
 
+- Desktop window opens at 960 × 540 instead of 1000 × 800; the 320 × 360 minimum size is unchanged.
 - Developer experience: CI gains a non-blocking `tsc-rs` canary across the root, benchmark, extension, and ingestion-shared TypeScript projects.
 - Developer experience: local `bun run typecheck` runs on `tsc-rs`, and the CI typecheck gate stays on `tsc` as `typecheck:tsc`.
 - Developer commands share one namespace: `dev:app` runs the desktop app, `build:installer` builds the Windows installer, and `check` runs every gate; the old `electron:*`, `check:frontend`, and `knip:check` names are removed.
