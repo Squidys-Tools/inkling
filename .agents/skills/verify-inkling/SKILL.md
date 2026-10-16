@@ -30,19 +30,19 @@ bun run build:app      # produces dist/; prints "No demo seed in N built files"
 Start detached, because the Electron process runs until cleanup:
 
 ```sh
-.cursor/skills/verify-inkling/scripts/launch.sh
+.agents/skills/verify-inkling/scripts/launch.sh
 ```
 
 It runs `xvfb-run -a` and starts `node_modules/electron/dist/electron .` with `--remote-debugging-port=9333 --user-data-dir=~/.capy/work/verify-inkling-run/default/library`, writing `electron.pid` and `electron.log` beside it. Ready means the CDP page `app://local/index.html` is listed at `http://127.0.0.1:9333/json/list`, which takes about 10 seconds. The first launch against an empty dir shows "0 items in library".
 
-Two instances side by side: give each its own name and port, `INKLING_VERIFY_NAME=b INKLING_VERIFY_PORT=9334 .cursor/skills/verify-inkling/scripts/launch.sh`, then pass the same two variables to doctor, drive, and cleanup.
+Two instances side by side: give each its own name and port, `INKLING_VERIFY_NAME=b INKLING_VERIFY_PORT=9334 .agents/skills/verify-inkling/scripts/launch.sh`, then pass the same two variables to doctor, drive, and cleanup.
 
 ## Doctor
 
 Read-only. Run it first whenever anything looks off:
 
 ```sh
-.cursor/skills/verify-inkling/scripts/doctor.sh
+.agents/skills/verify-inkling/scripts/doctor.sh
 ```
 
 Every line must read PASS and the exit code must be 0: pidfile present, pid alive, pid runs our scratch dir, CDP port owned by that pid, app page loaded, library database exists, renderer build present.
@@ -62,7 +62,7 @@ Every line must read PASS and the exit code must be 0: pidfile present, pid aliv
 Each step may set `label`, and `timeoutMs` (default 8000). A failed step writes `failure.png` and stops the run.
 
 ```sh
-bun .cursor/skills/verify-inkling/scripts/drive.mjs 9333 <steps.json> .artifacts/verify-inkling/<run-name>
+bun .agents/skills/verify-inkling/scripts/drive.mjs 9333 <steps.json> .artifacts/verify-inkling/<run-name>
 ```
 
 Selectors come from `src/App.tsx` and `src/components/ExpandedItemOverlay.tsx`. Prefer the aria-label, title, and class names listed in each feature file over coordinates. Only `features/capture-note.md` has a proven step list; the other feature files are mapped but not yet driven.
@@ -83,7 +83,7 @@ A proof must show the user action, the visible result, and the stored side effec
 Run this after every run, including failed ones:
 
 ```sh
-.cursor/skills/verify-inkling/scripts/cleanup.sh
+.agents/skills/verify-inkling/scripts/cleanup.sh
 ```
 
 It stops only the recorded pid, then removes that instance's scratch library and pidfile. It never touches `.artifacts/`. Confirm afterwards with `ls .artifacts/verify-inkling/<run-name>/` that the evidence survived, and that `~/.capy/work/verify-inkling-run/<NAME>/` is gone.
