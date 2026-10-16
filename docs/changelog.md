@@ -97,6 +97,7 @@ Guardrails:
 - WiX MSI installer target. Windows releases build the NSIS installer only, which is the one Tauri's updater can replace in place (SQU-80).
 ### Fixed
 
+- Library export and restore use one parented native picker at a time and return focus to the main window after dismissal (SQU-120).
 - Library export now returns an error when all available dated export directory names are taken, preserving earlier exports.
 - Space and sidebar action failures now show action-specific, dismissible alerts beside the Spaces list without exposing backend error text (SQU-101).
 - Restoring an item from the Archive within the ten-second undo window no longer destroys its files. The permanent delete removed an item's assets before checking whether the row was still archived, so a recovered item kept its row while losing its thumbnail, image, PDF or video from disk with no error shown. The check now runs first, and restoring cancels any delete still pending (`src-tauri/src/storage.rs`, `src/App.tsx`).
