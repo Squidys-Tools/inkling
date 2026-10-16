@@ -21,6 +21,7 @@ const SCHEMA_VERSION = 8;
 export const JOB_LEASE_MILLIS = 5 * 60 * 1000;
 
 const maxFileBytes = 50 * 1024 * 1024;
+const semanticMatchFloor = 0.55;
 const itemColumns = `id, kind, title, description, source_url, source_label,
   local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
   archived, favorite, NULL AS body, 'md' AS body_format`;
@@ -1079,7 +1080,7 @@ class LibraryStorage {
       const item = itemFromRow(row);
       const similarity = dotProduct(queryVector, vector);
       const current = ranked.get(item.id);
-      if (similarity <= 0 && !current) continue;
+      if (similarity < semanticMatchFloor && !current) continue;
       const score = current ? 2 + Math.max(similarity, 0) : similarity;
       if (current) current.score = Math.max(current.score, score);
       else ranked.set(item.id, { item, score });

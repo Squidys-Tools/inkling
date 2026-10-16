@@ -132,6 +132,7 @@ Guardrails:
 - Escape inside the note editor's link field, or inside the detail view's new-tag field, now cancels only that field instead of leaving the note editor or closing the panel (SQU-1)
 - Deleting from the archive, one item or a selection, now hides the cards immediately and keeps them recoverable for ten seconds behind an Undo action before the delete is finalized (`src/App.tsx`)
 - The Electron Windows desktop app window can now be resized below 1000×800; its minimum size is now 320×360, the narrowest width the stylesheet supports (`electron/main.mjs`)
+- Free-text search returns only items whose text matches or whose meaning is close to the query, instead of every item in the library; semantic matches below a 0.55 cosine similarity are dropped (`electron/storage.mjs`)
 
 ---
 
