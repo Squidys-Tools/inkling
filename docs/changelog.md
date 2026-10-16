@@ -67,8 +67,7 @@ Guardrails:
 
 ### Changed
 
-- Developer experience: CI gains a non-blocking `tsc-rs` canary across the root, benchmark, extension, and ingestion-shared TypeScript projects.
-- Developer experience: local `bun run typecheck` runs on `tsc-rs`, and the CI typecheck gate stays on `tsc` as `typecheck:tsc`.
+- Developer experience: `tsc-rs` is the blocking typecheck gate for the root, benchmark, extension, and ingestion-shared projects, including the build scripts, and real `tsc` runs as a non-blocking CI canary (`typecheck:tsc`).
 - Developer commands share one namespace: `dev:app` runs the desktop app, `build:installer` builds the Windows installer, and `check` runs every gate; the old `electron:*`, `check:frontend`, and `knip:check` names are removed.
 - Biome now formats and lints project files locally, and frontend CI enforces those checks (#109).
 - Paper Mono is now the default interface typeface, bundled locally under the SIL Open Font License.
