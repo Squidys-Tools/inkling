@@ -68,6 +68,7 @@
       "!**/public/seed-demo",
       "!**/*.d.ts",
       "!benchmarks/corpus",
+      "!.agents/skills/p3-mode/scripts/check-plan.mjs",
       "!.entire",
       "!.opencode",
       "!.codex",
