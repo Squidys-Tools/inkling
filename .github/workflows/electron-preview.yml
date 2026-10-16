@@ -72,7 +72,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Cache pinned Electron models
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .artifacts/electron-model-cache/models
           key: inkling-electron-models-win-${{ hashFiles('electron/model-manifest.json') }}
@@ -167,7 +167,7 @@ jobs:
           bun-version-file: .bun-version
 
       - name: Cache pinned embedding models
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .artifacts/electron-model-cache/models
           key: inkling-electron-models-linux-${{ hashFiles('electron/model-manifest.json') }}
