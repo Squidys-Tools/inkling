@@ -145,8 +145,7 @@ jobs:
       - name: Run ingestion smoke tests
         run: bun run ingest:smoke
 
-      # The extension ships as three separate bundles behind two manifests.
-      # Building it here catches manifest and bundler regressions long before
-      # someone tries to load the unpacked directory.
+      # Building the Chrome MV3 extension here catches manifest and bundler
+      # regressions long before someone tries to load the unpacked directory.
       - name: Build browser extension
         run: bun run --cwd extension build

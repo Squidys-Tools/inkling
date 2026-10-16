@@ -2,22 +2,70 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>inkling extension options</title>
     <style>
-      body { font: 13px/1.4 system-ui, sans-serif; margin: 16px; max-width: 480px; }
-      label { display: block; margin-bottom: 4px; }
-      input { width: 100%; box-sizing: border-box; }
-      #saved { color: green; }
+      body {
+        max-width: 520px;
+        margin: 40px auto;
+        padding: 0 20px;
+        color: #292824;
+        font: 14px/1.55 system-ui, sans-serif;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 12px;
+      }
+      p {
+        color: #625f57;
+      }
+      label {
+        display: block;
+        margin: 18px 0 5px;
+        font-weight: 600;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 9px 10px;
+        border: 1px solid #c9c6bd;
+        border-radius: 7px;
+        font: inherit;
+      }
+      button {
+        margin-top: 18px;
+        padding: 8px 16px;
+        border: 0;
+        border-radius: 7px;
+        background: #292824;
+        color: white;
+        font: inherit;
+        cursor: pointer;
+      }
+      #status {
+        min-height: 22px;
+        margin-left: 8px;
+      }
     </style>
   </head>
   <body>
-    <h1>inkling options</h1>
-    <p>Pairing connects the extension to the inkling app on this machine only.
-    Find both values in inkling under Settings → Extension.</p>
-    <label for="base-url">App address (from inkling Settings → Extension)</label>
-    <input id="base-url" type="text" inputmode="url" autocomplete="off" placeholder="http://127.0.0.1:PORT" />
-    <label for="token" style="margin-top: 8px;">Local token (stays on this machine)</label>
+    <h1>Connect inkling</h1>
+    <p>
+      In inkling, open Settings → Extension. Enter its listening address and copy the pairing token.
+      Without pairing, saves use inkling’s capture link instead.
+    </p>
+    <label for="base-url">App address</label>
+    <input
+      id="base-url"
+      type="url"
+      inputmode="url"
+      autocomplete="off"
+      placeholder="http://127.0.0.1:12345"
+    />
+    <label for="token">Pairing token</label>
     <input id="token" type="password" autocomplete="off" />
-    <p><button id="save" type="button">Save</button> <span id="saved" role="status"></span></p>
-    <script src="options.js"></script>
+    <button id="save" type="button">Save</button>
+    <span id="status" role="status"></span>
+    <script type="module" src="./src/options.ts"></script>
   </body>
 </html>

@@ -130,7 +130,7 @@ bun install
 bun run dev
 ```
 
-Save from your browser too: the companion extension talks to the app through an `inkling://capture?url=...` deep link.
+Save a page URL from Chrome's toolbar or its **Save to inkling** context menu. The extension uses the app's local receiver when paired and falls back to the existing `inkling://capture?url=...` link.
 
 This part is for people who want to build, tinker, or contribute. Everyone else can stop here. 🙂
 

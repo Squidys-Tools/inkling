@@ -1,40 +1,32 @@
-# inkling browser extension — store prep (draft, Phase 4)
+# inkling browser extension — Chrome store prep
 
 ## Short description
 
-Save the current page to your local inkling library in one keystroke. Everything stays on your machine.
+Save web pages and links to your local inkling library.
 
-## Long description (draft)
+## Long description
 
-inkling is a quiet home for everything worth keeping. This extension adds a save button to your browser: press `Ctrl+Shift+S` (or open the popup) and the page lands in your inkling library on this computer. Capture is instant — the card appears right away while extraction runs in the background. Offline? Saves queue locally and retry when the app is back.
+Save the page you are viewing from the toolbar, or right-click a link or page and choose **Save to inkling**. The extension sends the URL to inkling on this computer. It does not read page content or send anything to a remote service.
 
 ## Permissions
 
-- `storage` — the offline save queue and last-save status in `chrome.storage.local`. Nothing else persists.
-- `activeTab` + `scripting` — inject the extractor into the tab you explicitly save, on invoke only. No persistent content scripts.
-- `contextMenus` — the "Save page to inkling" right-click entry.
-- No host permissions. No `<all_urls>`. The extension only touches the tab you explicitly save, and only talks to the inkling companion on loopback (`127.0.0.1`).
+- `activeTab` — read the URL and title only after you click the toolbar action or context-menu item.
+- `contextMenus` — add **Save to inkling** to links and pages.
+- `storage` — keep the optional local receiver address and pairing token in this browser profile.
+- `http://127.0.0.1/*` — send paired captures to the inkling receiver on this computer; the receiver requires its per-install bearer token and allows browser-extension origins.
 
 ## Privacy note
 
-The token never leaves the machine except to the local inkling companion on loopback (`127.0.0.1`). No accounts, no analytics, no remote calls. Uninstalling the extension removes its local data.
+The extension sends page URLs only. When paired, the token is sent only to `127.0.0.1`; otherwise the extension hands the URL to inkling through its registered `inkling://` capture link. No accounts, analytics, remote calls, or page extraction.
 
-## Load unpacked (dev)
+## Load unpacked
 
-Chrome / Edge (same build, unchanged):
+1. From the repository root, run `bun run --cwd extension build`.
+2. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select `extension/dist/`.
+3. Open the loaded extension's **Details → Extension options** to configure the app address and token from inkling's **Settings → Extension** panel. Pairing enables direct loopback saves; the capture link remains the fallback when the receiver is unavailable.
 
-1. `bun run build` in `extension/` (content scripts first, then the crxjs manifest pipeline into `dist/`).
-2. Open `chrome://extensions` (Edge: `edge://extensions`), enable Developer mode, choose Load unpacked, pick `dist/`.
+## Store checklist
 
-Firefox:
-
-1. Assemble `manifest.firefox.json` (renamed to `manifest.json`) with the `dist/` outputs; the Gecko `id` placeholder `save@inkling.local` is finalized at signing time.
-2. Open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on, pick the `manifest.json`.
-
-## Store checklist (remaining)
-
-- [ ] Rasterize `icons/inkling.svg` to store-required PNGs (16/48/128 + promo tiles) at submission time.
-- [ ] Confirm the Chrome build loads in Edge unchanged (load-unpacked pass above).
-- [ ] Firefox signing via `web-ext sign`.
-- [ ] Safari port — deferred; see the note in `options.js`.
-- [ ] Screenshots + final copy review. No store publish from this phase.
+- [ ] Rasterize `icons/inkling.svg` to store-required PNGs (16/48/128 plus promo tiles) at submission time.
+- [ ] Confirm the Chrome build loads in Edge unchanged.
+- [ ] Add screenshots and review final store copy. Do not publish from this phase.

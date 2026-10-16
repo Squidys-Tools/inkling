@@ -50,7 +50,7 @@ It needs a display; on Linux without one it runs under `xvfb-run`.
 | Unused code | `bun run knip` | Hard gate in CI; `knip.json` owns entry/project patterns. To clean up locally, run `bunx knip --fix` then `bun install` (re-syncs the lockfile if deps were pruned), fix any `noUnusedLocals` fallout, and re-run `bun run check` |
 | Lint and format | `bun run lint` (`bun run lint:fix` to apply) | Biome |
 | Bun pin | `bun run check:bun-version` | `.bun-version` vs `packageManager` vs running Bun must agree |
-| Extension build | `bun run --cwd extension build` | Three bundles behind two manifests; catches manifest and bundler breakage |
+| Extension build | `bun run --cwd extension build` | Builds the Chrome MV3 extension and its service worker |
 
 For early signal, run `bun run check`. `noUnusedLocals` / `noUnusedParameters` are on — the compiler catches dead locals; Knip catches dead exports and dependencies.
 
