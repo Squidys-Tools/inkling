@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { EXTENSION_IMAGE_DATA_URL_MAX_BYTES } from "@inkling/ingestion-shared";
 import {
-  EXTENSION_IMAGE_DATA_URL_MAX_BYTES,
   cardKindForExtensionCapture,
   mapExtensionImage,
   mapExtensionSelection,

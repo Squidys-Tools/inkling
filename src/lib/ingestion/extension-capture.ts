@@ -1,38 +1,20 @@
 import { htmlToText, sanitizeHtml } from "./html-safety";
 import { videoLinkFromSourceUrl, type VideoLinkEmbed } from "./video-links";
 import { normalizeHttpUrl, normalizeText, parseHttpUrl } from "./url";
-
-// TODO(phase1): share payload types + caps with extension/src/payload.ts via
-// packages/ingestion-shared. Field names are identical on both sides so the
-// move is mechanical; the *_MAX_* values below must match that file exactly.
+import {
+  EXTENSION_ATTRIBUTION_MAX_CHARS,
+  EXTENSION_IMAGE_DATA_URL_MAX_BYTES,
+  EXTENSION_SELECTION_TEXT_MAX_CHARS,
+  type ExtensionImagePayload,
+  type ExtensionSelectionPayload,
+  type ExtensionVideoPayload,
+} from "@inkling/ingestion-shared";
 
 // App-side receipt for Phase 3 browser-extension captures. Pure mapping only:
 // no fetch, no desktop IPC, no DOM writes. Callers wire the results into the
 // existing capture paths — create_quote, save_file (the app downloads
 // downloadUrl through the asset pipeline), and the video-links.ts path — so
 // extension items get instant provisional cards exactly like other entries.
-
-const EXTENSION_SELECTION_TEXT_MAX_CHARS = 1500;
-const EXTENSION_ATTRIBUTION_MAX_CHARS = 240;
-export const EXTENSION_IMAGE_DATA_URL_MAX_BYTES = 5 * 1024 * 1024;
-
-export type ExtensionSelectionInput = {
-  sourceUrl: string;
-  selectedHtml: string;
-  selectedText: string;
-  title?: string;
-};
-
-export type ExtensionImageInput = {
-  pageUrl: string;
-  srcUrl: string;
-  alt?: string;
-  dataUrl?: string;
-};
-
-export type ExtensionVideoInput = {
-  sourceUrl: string;
-};
 
 export type SelectionReceipt = {
   /** Ready for create_quote. */
@@ -83,7 +65,9 @@ function httpUrl(value: string): string | null {
  * readable text becomes the stored body, truncated so capture never fails
  * backend validation.
  */
-export function mapExtensionSelection(input: ExtensionSelectionInput): SelectionReceipt | null {
+export function mapExtensionSelection(
+  input: Omit<ExtensionSelectionPayload, "kind">,
+): SelectionReceipt | null {
   const sourceUrl = httpUrl(input.sourceUrl);
   if (!sourceUrl) return null;
 
@@ -129,7 +113,7 @@ function imageFileName(srcUrl: string, alt: string, mimeType: string | null): st
  * existing asset pipeline; dataUrl is honored only for blob/canvas fallbacks
  * and only under the size cap.
  */
-export function mapExtensionImage(input: ExtensionImageInput): ImageReceipt | null {
+export function mapExtensionImage(input: Omit<ExtensionImagePayload, "kind">): ImageReceipt | null {
   const pageUrl = httpUrl(input.pageUrl);
   if (!pageUrl) return null;
   const alt = normalizeText(input.alt).slice(0, 240);
@@ -162,7 +146,9 @@ export function mapExtensionImage(input: ExtensionImageInput): ImageReceipt | nu
 }
 
 /** Video → existing video-links.ts path (YouTube/Vimeo pass-through). */
-export function mapExtensionVideo(input: ExtensionVideoInput): VideoLinkEmbed | null {
+export function mapExtensionVideo(
+  input: Omit<ExtensionVideoPayload, "kind">,
+): VideoLinkEmbed | null {
   return videoLinkFromSourceUrl(input.sourceUrl?.trim());
 }
 

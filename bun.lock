@@ -8,6 +8,7 @@
         "@hugeicons/core-free-icons": "^4.3.5",
         "@hugeicons/react": "^1.1.10",
         "@huggingface/tokenizers": "0.2.0",
+        "@inkling/ingestion-shared": "workspace:*",
         "@napi-rs/canvas": "1.0.11",
         "@tesseract.js-data/eng": "1.0.0",
         "@tiptap/core": "3.31.4",
