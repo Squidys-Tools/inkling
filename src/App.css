@@ -2567,6 +2567,7 @@ a:focus-visible,
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  min-height: 24px;
   padding: 4px 0;
   border: 0;
   background: transparent;

@@ -101,6 +101,7 @@ Guardrails:
 - WiX MSI installer target. Windows releases build the NSIS installer only, which is the one Tauri's updater can replace in place (SQU-80).
 ### Fixed
 
+- The + Add tag button in the expanded item view meets the 24×24 px minimum touch target size (SQU-102).
 - The "Web preview — sample data" badge no longer appears in the desktop app; it shows only in the browser preview.
 - Window controls on Windows use the dark app palette instead of the system's light overlay strip in the top-right corner.
 - Library export and restore use one parented native picker at a time and return focus to the main window after dismissal (SQU-120).
