@@ -114,6 +114,13 @@ jobs:
           bun run --cwd extension typecheck
           bun run --cwd packages/ingestion-shared typecheck
 
+      - name: Canary: tsc-rs typecheck (non-blocking)
+        continue-on-error: true
+        run: |
+          bun run typecheck:rs
+          tsc-rs -p extension/tsconfig.json --noEmit
+          tsc-rs -p packages/ingestion-shared/tsconfig.json --noEmit
+
       - name: Run unit tests
         run: bun test
 
