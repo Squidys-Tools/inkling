@@ -4284,7 +4284,7 @@ function App() {
             />
           )}
         </AnimatePresence>
-        {shouldUseSeedLibrary() && (
+        {!isDesktopRuntime() && shouldUseSeedLibrary() && (
           <div
             data-testid="web-preview-badge"
             title="Web preview shows deterministic sample data. No desktop backend is connected."
