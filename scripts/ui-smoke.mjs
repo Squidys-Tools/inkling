@@ -162,9 +162,12 @@ function connectCdp(url) {
           consoleErrors,
           consoleWarnings,
           close: () => socket.close(),
-          evaluate: async (expression) => {
-            const result = await send("Runtime.evaluate", {
-              expression,
+          evaluate: async (fn, ...args) => {
+            const page = await send("Runtime.evaluate", { expression: "window" });
+            const result = await send("Runtime.callFunctionOn", {
+              objectId: page.result.objectId,
+              functionDeclaration: fn.toString(),
+              arguments: args.map((value) => ({ value })),
               awaitPromise: true,
               returnByValue: true,
             });
@@ -180,26 +183,54 @@ function connectCdp(url) {
   });
 }
 
-const dom = {
-  cardCount: `document.querySelectorAll(".library-card").length`,
-  cardTexts: `[...document.querySelectorAll(".library-card")].map((card) => card.textContent ?? "")`,
-  overlayOpen: `Boolean(document.querySelector(".expanded-overlay"))`,
-  clickCardMatching: (text) =>
-    `(() => { const card = [...document.querySelectorAll(".library-card")].find((c) => (c.textContent ?? "").includes(${JSON.stringify(text)})); if (!card) return false; card.click(); return true; })()`,
-  click: (selector) =>
-    `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; el.click(); return true; })()`,
-  clickByText: (selector, text) =>
-    `(() => { const el = [...document.querySelectorAll(${JSON.stringify(selector)})].find((node) => (node.textContent ?? "").trim() === ${JSON.stringify(text)}); if (!el) return false; el.click(); return true; })()`,
-  setValue: (selector, value) =>
-    `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set; setter.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`,
-  clickCaptureOption: (title) =>
-    `(() => { const option = [...document.querySelectorAll(".capture-option")].find((node) => node.querySelector("strong")?.textContent === ${JSON.stringify(title)}); if (!option) return false; option.click(); return true; })()`,
-  exists: (selector) => `Boolean(document.querySelector(${JSON.stringify(selector)}))`,
-  pressed: (selector) =>
-    `document.querySelector(${JSON.stringify(selector)})?.getAttribute("aria-pressed") === "true"`,
-  activeIsSelector: (selector) =>
-    `document.activeElement === document.querySelector(${JSON.stringify(selector)})`,
+const clickSelector = (selector) => {
+  const el = document.querySelector(selector);
+  if (!el) return false;
+  el.click();
+  return true;
 };
+const clickCardContaining = (text) => {
+  const card = [...document.querySelectorAll(".library-card")].find((c) =>
+    (c.textContent ?? "").includes(text),
+  );
+  if (!card) return false;
+  card.click();
+  return true;
+};
+const clickByText = (selector, text) => {
+  const el = [...document.querySelectorAll(selector)].find(
+    (node) => (node.textContent ?? "").trim() === text,
+  );
+  if (!el) return false;
+  el.click();
+  return true;
+};
+const clickCaptureOption = (title) => {
+  const option = [...document.querySelectorAll(".capture-option")].find(
+    (node) => node.querySelector("strong")?.textContent === title,
+  );
+  if (!option) return false;
+  option.click();
+  return true;
+};
+const setInputValue = (selector, value) => {
+  const el = document.querySelector(selector);
+  if (!el) return false;
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+  setter.call(el, value);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  return true;
+};
+const hasSelector = (selector) => Boolean(document.querySelector(selector));
+const isGone = (selector) => !document.querySelector(selector);
+const isPressed = (selector) =>
+  document.querySelector(selector)?.getAttribute("aria-pressed") === "true";
+const isFocused = (selector) => document.activeElement === document.querySelector(selector);
+const hasCardContaining = (text) =>
+  [...document.querySelectorAll(".library-card")].some((card) =>
+    (card.textContent ?? "").includes(text),
+  );
+const cardCount = () => document.querySelectorAll(".library-card").length;
 
 async function run() {
   rmSync(artifactsDir, { recursive: true, force: true });
@@ -219,10 +250,10 @@ async function run() {
     writeFileSync(file, Buffer.from(shot.data, "base64"));
   };
 
-  const waitFor = async (expression, description, timeoutMs = 10_000) => {
-    const deadline = Date.now() + timeoutMs;
+  const waitFor = async (description, predicate, ...args) => {
+    const deadline = Date.now() + 10_000;
     while (Date.now() < deadline) {
-      if (await cdp.evaluate(expression)) return;
+      if (await cdp.evaluate(predicate, ...args)) return;
       await sleep(100);
     }
     throw new Error(`timed out waiting for ${description}`);
@@ -249,34 +280,39 @@ async function run() {
     cdp = await connectCdp(target.webSocketDebuggerUrl);
     let baselineCards = 0;
     await step("library grid renders seeded cards", async () => {
-      await waitFor(
-        `${dom.cardTexts}.some((text) => text.includes("Fuji over the village lights"))`,
-        "seeded item card",
-      );
-      baselineCards = await cdp.evaluate(dom.cardCount);
+      await waitFor("seeded item card", hasCardContaining, "Fuji over the village lights");
+      baselineCards = await cdp.evaluate(cardCount);
     });
     await step("grid and list view toggle", async () => {
-      await cdp.evaluate(dom.click('button[aria-label="List view"]'));
-      await waitFor(dom.pressed('button[aria-label="List view"]'), "list view to be selected");
-      await cdp.evaluate(dom.click('button[aria-label="Grid view"]'));
-      await waitFor(dom.pressed('button[aria-label="Grid view"]'), "grid view to be selected");
+      await cdp.evaluate(clickSelector, 'button[aria-label="List view"]');
+      await waitFor("list view to be selected", isPressed, 'button[aria-label="List view"]');
+      await cdp.evaluate(clickSelector, 'button[aria-label="Grid view"]');
+      await waitFor("grid view to be selected", isPressed, 'button[aria-label="Grid view"]');
     });
     await step("search filters and clears", async () => {
-      await cdp.evaluate(dom.setValue('input[aria-label="Search your mind"]', "Fuji"));
+      await cdp.evaluate(setInputValue, 'input[aria-label="Search your mind"]', "Fuji");
       await waitFor(
-        `${dom.cardCount} > 0 && ${dom.cardCount} < ${baselineCards}`,
         "search to narrow the grid",
+        (baseline) => {
+          const count = document.querySelectorAll(".library-card").length;
+          return count > 0 && count < baseline;
+        },
+        baselineCards,
       );
-      await cdp.evaluate(dom.setValue('input[aria-label="Search your mind"]', ""));
-      await waitFor(`${dom.cardCount} === ${baselineCards}`, "search to clear back to all cards");
+      await cdp.evaluate(setInputValue, 'input[aria-label="Search your mind"]', "");
+      await waitFor(
+        "search to clear back to all cards",
+        (baseline) => document.querySelectorAll(".library-card").length === baseline,
+        baselineCards,
+      );
     });
     await step("item overlay opens and closes with the close button and Escape", async () => {
-      await cdp.evaluate(dom.clickCardMatching("Fuji over the village lights"));
-      await waitFor(dom.overlayOpen, "item overlay to open");
-      await cdp.evaluate(dom.click('button[aria-label="Close details"]'));
-      await waitFor(`!${dom.overlayOpen}`, "overlay to close from its close button");
-      await cdp.evaluate(dom.clickCardMatching("Fuji over the village lights"));
-      await waitFor(dom.overlayOpen, "item overlay to reopen");
+      await cdp.evaluate(clickCardContaining, "Fuji over the village lights");
+      await waitFor("item overlay to open", hasSelector, ".expanded-overlay");
+      await cdp.evaluate(clickSelector, 'button[aria-label="Close details"]');
+      await waitFor("overlay to close from its close button", isGone, ".expanded-overlay");
+      await cdp.evaluate(clickCardContaining, "Fuji over the village lights");
+      await waitFor("item overlay to reopen", hasSelector, ".expanded-overlay");
       await cdp.send("Input.dispatchKeyEvent", {
         type: "keyDown",
         key: "Escape",
@@ -289,15 +325,15 @@ async function run() {
         code: "Escape",
         windowsVirtualKeyCode: 27,
       });
-      await waitFor(`!${dom.overlayOpen}`, "overlay to close on Escape");
+      await waitFor("overlay to close on Escape", isGone, ".expanded-overlay");
     });
     const noteText = "ui smoke note";
     await step("note is created and appears in the grid", async () => {
-      await cdp.evaluate(dom.click('button[title="Add something to your library"]'));
-      await waitFor(dom.exists(".capture-option"), "add menu");
-      await cdp.evaluate(dom.clickCaptureOption("Note"));
-      await waitFor(dom.exists('input[aria-label="New note"]'), "note input");
-      await cdp.evaluate(dom.setValue('input[aria-label="New note"]', noteText));
+      await cdp.evaluate(clickSelector, 'button[title="Add something to your library"]');
+      await waitFor("add menu", hasSelector, ".capture-option");
+      await cdp.evaluate(clickCaptureOption, "Note");
+      await waitFor("note input", hasSelector, 'input[aria-label="New note"]');
+      await cdp.evaluate(setInputValue, 'input[aria-label="New note"]', noteText);
       await cdp.send("Input.dispatchKeyEvent", {
         type: "keyDown",
         key: "Enter",
@@ -311,35 +347,34 @@ async function run() {
         code: "Enter",
         windowsVirtualKeyCode: 13,
       });
-      await waitFor(
-        `${dom.cardTexts}.some((text) => text.includes(${JSON.stringify(noteText)}))`,
-        "saved note card",
-      );
+      await waitFor("saved note card", hasCardContaining, noteText);
     });
     const spaceName = "UI Smoke Space";
     await step("space is created and deleted without removing items", async () => {
-      await cdp.evaluate(dom.click('button[aria-label="Add a Space"]'));
-      await waitFor(dom.exists('input[aria-label="Space name"]'), "space name input");
-      await cdp.evaluate(dom.setValue('input[aria-label="Space name"]', spaceName));
-      await cdp.evaluate(dom.clickByText("button", "Create Space"));
-      await waitFor(dom.exists(`button[aria-label="Delete ${spaceName}"]`), "new space in sidebar");
-      const before = await cdp.evaluate(dom.cardCount);
-      await cdp.evaluate(dom.click(`button[aria-label="Delete ${spaceName}"]`));
+      await cdp.evaluate(clickSelector, 'button[aria-label="Add a Space"]');
+      await waitFor("space name input", hasSelector, 'input[aria-label="Space name"]');
+      await cdp.evaluate(setInputValue, 'input[aria-label="Space name"]', spaceName);
+      await cdp.evaluate(clickByText, "button", "Create Space");
       await waitFor(
-        `!${dom.exists(`button[aria-label="Delete ${spaceName}"]`)}`,
-        "space to be deleted",
+        "new space in sidebar",
+        hasSelector,
+        `button[aria-label="Delete ${spaceName}"]`,
       );
-      const after = await cdp.evaluate(dom.cardCount);
+      const before = await cdp.evaluate(cardCount);
+      await cdp.evaluate(clickSelector, `button[aria-label="Delete ${spaceName}"]`);
+      await waitFor("space to be deleted", isGone, `button[aria-label="Delete ${spaceName}"]`);
+      const after = await cdp.evaluate(cardCount);
       if (after !== before)
         throw new Error(`deleting the space changed the card count from ${before} to ${after}`);
     });
     await step("settings opens on the Archive tab", async () => {
-      await cdp.evaluate(dom.click('button[aria-label="Settings"]'));
-      await waitFor(dom.exists('aside[aria-label="Settings sections"]'), "settings sections");
-      await cdp.evaluate(dom.clickByText(".settings-tab", "Archive"));
+      await cdp.evaluate(clickSelector, 'button[aria-label="Settings"]');
+      await waitFor("settings sections", hasSelector, 'aside[aria-label="Settings sections"]');
+      await cdp.evaluate(clickByText, ".settings-tab", "Archive");
       await waitFor(
-        dom.exists('.settings-tab.active[aria-current="page"]'),
         "archive tab to be selected",
+        hasSelector,
+        '.settings-tab.active[aria-current="page"]',
       );
       await cdp.send("Input.dispatchKeyEvent", {
         type: "keyDown",
@@ -353,7 +388,7 @@ async function run() {
         code: "Escape",
         windowsVirtualKeyCode: 27,
       });
-      await waitFor(`!${dom.exists('aside[aria-label="Settings sections"]')}`, "settings to close");
+      await waitFor("settings to close", isGone, 'aside[aria-label="Settings sections"]');
     });
     await step("slash focuses search", async () => {
       await cdp.send("Input.dispatchKeyEvent", {
@@ -369,10 +404,7 @@ async function run() {
         code: "Slash",
         windowsVirtualKeyCode: 191,
       });
-      await waitFor(
-        dom.activeIsSelector('input[aria-label="Search your mind"]'),
-        "search to take focus",
-      );
+      await waitFor("search to take focus", isFocused, 'input[aria-label="Search your mind"]');
     });
     await step("no console errors during the run", async () => {
       if (cdp.consoleErrors.length > 0) throw new Error(cdp.consoleErrors.slice(0, 5).join(" | "));
