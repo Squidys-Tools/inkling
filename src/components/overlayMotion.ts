@@ -1,5 +1,5 @@
 import { mediaAspectRatioFor } from "./ItemMedia";
-import type { LibraryItem } from "../App";
+import type { LibraryItem } from "../lib/types";
 
 export type FlightRect = { left: number; top: number; width: number; height: number };
 export type SourceRects = { card: FlightRect; media: FlightRect };

@@ -18,7 +18,7 @@ import { autoplayEmbedUrl, providerLabel } from "../lib/ingestion/video-links";
 import { normalizeXPostOEmbed, xPostOEmbedUrl } from "../lib/ingestion/x-post";
 import { markdownToPlainText } from "../lib/notes";
 import type { XPostMetadata } from "../lib/ingestion/types";
-import type { ItemKind, LibraryItem } from "../App";
+import type { ItemKind, LibraryItem } from "../lib/types";
 import pdfPointillismOptionB from "../assets/pdf-pointillism-option-b.png";
 
 export function mediaAspectRatioFor(item: LibraryItem): number {
