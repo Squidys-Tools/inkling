@@ -28,6 +28,7 @@ Guardrails:
 
 ### Added
 
+- `bun run ui:smoke` drives the core library flows in Electron against a scratch profile and fails on console errors
 - Electron desktop shell alongside Tauri, with scoped `app://` assets, an IPC command allowlist, and `inkling://` capture links.
 - Electron now opens the shared schema-v8 SQLite library with search, Spaces, archive, backup/restore, and a persisted job queue running local OCR, PDF extraction, and Nomic embeddings.
 - Electron now accepts authenticated browser-extension saves over a loopback server and stores URL deep links before processing runs.

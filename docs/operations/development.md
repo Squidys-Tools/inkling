@@ -19,6 +19,7 @@ How to set up, run, check, and troubleshoot inkling. Contribution scope and PR e
 | Electron directory build (unpacked) | `bun run build:dir` |
 | Windows NSIS installer | `bun run build:installer` |
 | Ingestion smoke | `bun run ingest:smoke` |
+| UI smoke (Electron, scratch profile) | `bun run ui:smoke` |
 | PDF smoke | `bun run test:pdf` |
 | Extraction benchmark | `bun run bench` |
 
@@ -32,6 +33,12 @@ changing that mode, not `build`.
 The Electron release package includes the pinned embedding models under its
 resources directory. In development, missing model files are downloaded and
 SHA-256 verified when an embedding job first needs them.
+
+`ui:smoke` builds the preview bundle, launches the Electron app with the demo seed
+against a throwaway user-data directory, and drives the core library flows over
+the Chrome DevTools protocol. It writes screenshots to `.artifacts/ui-smoke/`,
+fails on any console error, and exits non-zero with a PASS/FAIL line per check.
+It needs a display; on Linux without one it runs under `xvfb-run`.
 
 ## Checks
 
