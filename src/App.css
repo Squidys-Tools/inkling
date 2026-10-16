@@ -2228,6 +2228,38 @@ a:focus-visible,
   width: 0;
   height: 0;
 }
+.library-bottom-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 120px;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+.library-bottom-fade[data-at-end] {
+  opacity: 0;
+}
+.library-bottom-fade span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  mask-image: linear-gradient(to top, #000, transparent);
+}
+.library-bottom-fade span:nth-child(1) {
+  height: 40px;
+  backdrop-filter: blur(3px);
+}
+.library-bottom-fade span:nth-child(2) {
+  height: 80px;
+  backdrop-filter: blur(8px);
+}
+.library-bottom-fade span:nth-child(3) {
+  height: 120px;
+  backdrop-filter: blur(16px);
+}
 .library-grid.view-transitioning {
   visibility: hidden;
 }
