@@ -11,20 +11,23 @@ How to set up, run, check, and troubleshoot inkling. Contribution scope and PR e
 
 | Goal | Command |
 |---|---|
-| Web preview | `bun run preview` |
-| Electron desktop app | `bun run electron:dev` |
-| Windows NSIS installer | `bun run electron:build:nsis` |
-| Electron directory build | `bun run electron:build:dir` |
-| Production frontend build (with demo seed, for preview) | `bun run build` |
-| Shipped app build (excludes the demo seed) | `bun run build:app` |
+| Web look with sample data | `bun run dev` |
+| Electron desktop app (dev) | `bun run dev:app` |
+| Serve the last production build | `bun run preview` (run `bun run build` first) |
+| Production frontend build (keeps demo seed) | `bun run build` |
+| Shipped app build (drops demo seed) | `bun run build:app` |
+| Electron directory build (unpacked) | `bun run build:dir` |
+| Windows NSIS installer | `bun run build:installer` |
 | Ingestion smoke | `bun run ingest:smoke` |
+| PDF smoke | `bun run test:pdf` |
+| Extraction benchmark | `bun run bench` |
 
-`bun run build` keeps the committed demo seed, because the web preview and
-`vite preview` need it. `bun run build:app` drops it — both `public/seed-demo/`
-and the `src/seedPersonal.ts` bundle — and then runs
-`scripts/assert-no-demo-seed.ts`, which fails the build if either is still
-present. The Electron package build uses it, so a shipped installer never carries the
-~9.7 MB seed. Changing what the app ships means changing that mode, not `build`.
+`build` keeps the committed demo seed, because the web look and `preview` need
+it. `build:app` drops it — both `public/seed-demo/` and the `src/seedPersonal.ts`
+bundle — and then runs `scripts/assert-no-demo-seed.ts`, which fails the build if
+either is still present. `build:dir` and `build:installer` use it, so a shipped
+installer never carries the ~9.7 MB seed. Changing what the app ships means
+changing that mode, not `build`.
 
 The Electron release package includes the pinned embedding models under its
 resources directory. In development, missing model files are downloaded and
@@ -34,15 +37,15 @@ SHA-256 verified when an embedding job first needs them.
 
 | Goal | Command | Notes |
 |---|---|---|
-| Fast local gate | `bun run check` | `typecheck` + `bun test` |
-| CI parity (frontend) | `bun run check:frontend` | Version pin + locked install + tests + knip + build + ingestion smoke. Matches the CI frontend job except the workspace typechecks and extension build below |
-| Typecheck only | `bun run typecheck` | App + benchmark harness |
-| Workspace typecheck | `bun run --cwd extension typecheck` and `bun run --cwd packages/ingestion-shared typecheck` | The root `tsconfig.json` includes only `src`, so the extension and shared package need their own pass |
-| Extension build | `bun run --cwd extension build` | Three bundles behind two manifests; catches manifest and bundler breakage |
-| Unused code | `bun run knip:check` | Hard gate in CI; `knip.json` owns entry/project patterns. To clean up locally, run `bunx knip --fix` then `bun install` (re-syncs the lockfile if deps were pruned), fix any `noUnusedLocals` fallout, and re-run `bun run check:frontend` |
+| Everything | `bun run check` | Bun pin, typecheck of every workspace, tests, Knip, lint, both builds, ingestion smoke, extension build. Run `bun install --frozen-lockfile --ignore-scripts` first; CI runs the same steps as separate jobs |
+| Typecheck | `bun run typecheck` | App + benchmark harness |
+| Tests | `bun test` | |
+| Unused code | `bun run knip` | Hard gate in CI; `knip.json` owns entry/project patterns. To clean up locally, run `bunx knip --fix` then `bun install` (re-syncs the lockfile if deps were pruned), fix any `noUnusedLocals` fallout, and re-run `bun run check` |
+| Lint and format | `bun run lint` (`bun run lint:fix` to apply) | Biome |
 | Bun pin | `bun run check:bun-version` | `.bun-version` vs `packageManager` vs running Bun must agree |
+| Extension build | `bun run --cwd extension build` | Three bundles behind two manifests; catches manifest and bundler breakage |
 
-For early signal, run `bun run check:frontend`. `noUnusedLocals` / `noUnusedParameters` are on — the compiler catches dead locals; Knip catches dead exports and dependencies.
+For early signal, run `bun run check`. `noUnusedLocals` / `noUnusedParameters` are on — the compiler catches dead locals; Knip catches dead exports and dependencies.
 
 ## Git hooks
 
@@ -50,7 +53,7 @@ None — there are no local hooks by policy. Formatting, linting, and all other 
 
 ## CI behavior (what runs where)
 
-- `ci.yml`: docs-only pushes skip; otherwise the frontend job verifies the Bun version pin, typechecks every workspace, runs tests, `knip:check`, builds the app and extension, and runs ingestion smoke tests.
+- `ci.yml`: docs-only pushes skip; otherwise the frontend job verifies the Bun version pin, typechecks every workspace, runs tests, `knip`, builds the app and extension, and runs ingestion smoke tests.
 - `security.yml`: JavaScript/TypeScript CodeQL on open/reopen and roughly every 4th push, dependency review on every PR; path gating applies to push-to-main only.
 - `knip.yml`: scheduled `knip --fix` (every other day) opens a cleanup PR. It strips unused `export` keywords and prunes dependencies; it never deletes files.
 - `links.yml`: weekly markdown link check, opens an issue on failures. New custom schemes (`inkling://`) or local hosts go in `.lycheeignore`.

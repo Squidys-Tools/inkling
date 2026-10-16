@@ -8,8 +8,8 @@
       "runOnWorktreeCreate": true
     },
     {
-      "name": "Run desktop app dev",
-      "command": "bun run electron:dev",
+      "name": "Run desktop app",
+      "command": "bun run dev:app",
       "icon": "play",
       "runOnWorktreeCreate": false
     },
@@ -20,7 +20,7 @@
       "runOnWorktreeCreate": false
     },
     {
-      "name": "Fast local checks",
+      "name": "Check everything",
       "command": "bun run check",
       "icon": "test",
       "runOnWorktreeCreate": false

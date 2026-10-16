@@ -125,7 +125,7 @@ jobs:
         run: bun test
 
       - name: Check for unused code
-        run: bun run knip:check
+        run: bun run knip
 
       - name: Lint and format frontend
         run: bun run lint
