@@ -17,7 +17,7 @@
     "build:dir": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --dir",
     "build:installer": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --win nsis",
     "preview": "vite preview",
-    "check": "bun run check:bun-version && bun run typecheck && bun run --cwd extension typecheck && bun run --cwd packages/ingestion-shared typecheck && bun test && bun run knip && bun run lint && bun run build && bun run build:app && bun run ingest:smoke && bun run --cwd extension build",
+    "check": "bun run check:bun-version && bun install --frozen-lockfile --ignore-scripts && bun run typecheck && bun run --cwd extension typecheck && bun run --cwd packages/ingestion-shared typecheck && bun test && bun run knip && bun run lint && bun run build && bun run build:app && bun run ingest:smoke && bun run --cwd extension build",
     "check:bun-version": "bun -e \"const pkg = await Bun.file('package.json').json(); const fileVersion = (await Bun.file('.bun-version').text()).trim(); const expected = pkg.packageManager.replace('bun@', ''); if (fileVersion !== expected || Bun.version !== expected) { console.error('Expected Bun ' + expected + ', found ' + Bun.version); process.exit(1); }\"",
     "typecheck": "tsc --noEmit && tsc -p benchmarks/harness/tsconfig.json --noEmit",
     "typecheck:rs": "tsc-rs --noEmit && tsc-rs -p benchmarks/harness/tsconfig.json --noEmit",

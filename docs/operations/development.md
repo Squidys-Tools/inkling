@@ -37,7 +37,7 @@ SHA-256 verified when an embedding job first needs them.
 
 | Goal | Command | Notes |
 |---|---|---|
-| Everything | `bun run check` | Bun pin, typecheck of every workspace, tests, Knip, lint, both builds, ingestion smoke, extension build. Run `bun install --frozen-lockfile --ignore-scripts` first; CI runs the same steps as separate jobs |
+| Everything | `bun run check` | Bun pin, frozen install (`--ignore-scripts`), typecheck of every workspace, tests, Knip, lint, both builds, ingestion smoke, extension build. CI runs the same steps as separate jobs |
 | Typecheck | `bun run typecheck` | App + benchmark harness |
 | Tests | `bun test` | |
 | Unused code | `bun run knip` | Hard gate in CI; `knip.json` owns entry/project patterns. To clean up locally, run `bunx knip --fix` then `bun install` (re-syncs the lockfile if deps were pruned), fix any `noUnusedLocals` fallout, and re-run `bun run check` |
