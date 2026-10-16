@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { arch, cpus, platform, release, totalmem } from "node:os";
 import { join } from "node:path";
 import { loadManifest, corpusPath, benchmarksRoot } from "./manifest";
 import { startCorpusServer } from "./server";
@@ -369,8 +370,20 @@ function percentile(values: number[], fraction: number) {
   return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)];
 }
 
+function machineInfo() {
+  return {
+    os: `${platform()} ${release()}`,
+    arch: arch(),
+    cpu: cpus()[0]?.model ?? "unknown",
+    cores: cpus().length,
+    memoryGb: Math.round(totalmem() / 2 ** 30),
+    bun: Bun.version,
+  };
+}
+
 function writeSummaryMarkdown(report: {
   generatedAt: string;
+  machine: ReturnType<typeof machineInfo>;
   overall: Summary;
   byType: Record<string, Summary>;
   items: ItemResult[];
@@ -378,6 +391,10 @@ function writeSummaryMarkdown(report: {
   const lines: string[] = [];
   lines.push("# Benchmark results");
   lines.push(`Generated: ${report.generatedAt}`);
+  const m = report.machine;
+  lines.push(
+    `Machine: ${m.os} ${m.arch}, ${m.cpu}, ${m.cores} cores, ${m.memoryGb} GB RAM, Bun ${m.bun}`,
+  );
   lines.push("");
   lines.push(
     `## Overall: score ${report.overall.avgScore.toFixed(3)} — pass ${report.overall.pass}, partial ${report.overall.partial}, fail ${report.overall.fail}, skip ${report.overall.skip}`,
@@ -390,6 +407,8 @@ function writeSummaryMarkdown(report: {
       `| ${type} | ${s.avgScore.toFixed(3)} | ${s.pass} | ${s.partial} | ${s.fail} | ${s.skip} | ${s.total} |`,
     );
   }
+  lines.push("");
+  lines.push("Scores average non-skipped items only; skipped items are excluded.");
   const imageOcr = report.items
     .filter((item) => ["image", "screenshot"].includes(item.type))
     .map((item) => item.metrics.elapsedMs)
@@ -477,6 +496,7 @@ async function main(): Promise<void> {
   const overall = summarize(items);
   const report = {
     generatedAt: new Date().toISOString(),
+    machine: machineInfo(),
     engine: { ocr: ocrEngines.map((e) => e.name) },
     overall,
     byType,

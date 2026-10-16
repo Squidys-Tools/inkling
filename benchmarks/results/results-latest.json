@@ -1,5 +1,13 @@
 {
-  "generatedAt": "2026-10-15T15:11:52.440Z",
+  "generatedAt": "2026-10-16T17:42:24.760Z",
+  "machine": {
+    "os": "linux 6.1.158+",
+    "arch": "x64",
+    "cpu": "AMD EPYC",
+    "cores": 1,
+    "memoryGb": 4,
+    "bun": "1.4.3"
+  },
   "engine": {
     "ocr": ["tesseract.js"]
   },
@@ -265,7 +273,7 @@
         "precision": 0.9411764705882353,
         "expectedCount": 32,
         "actualCount": 34,
-        "elapsedMs": 1341.2630170000002
+        "elapsedMs": 1461.3354590000001
       },
       "messages": ["OCR precision 0.94"]
     },
@@ -280,7 +288,7 @@
         "precision": 0.84,
         "expectedCount": 110,
         "actualCount": 100,
-        "elapsedMs": 1318.9264989999997
+        "elapsedMs": 1284.7217859999996
       },
       "messages": [
         "OCR recall 0.76 (110 expected tokens)",
@@ -387,7 +395,7 @@
         "precision": 0.9285714285714286,
         "expectedCount": 14,
         "actualCount": 14,
-        "elapsedMs": 496.26456800000005
+        "elapsedMs": 513.1948539999999
       },
       "messages": [
         "OCR recall 0.93 (14 expected tokens)",
@@ -406,7 +414,7 @@
         "precision": 1,
         "expectedCount": 15,
         "actualCount": 15,
-        "elapsedMs": 230.2796290000001
+        "elapsedMs": 248.1005809999997
       },
       "messages": []
     },
@@ -421,7 +429,7 @@
         "precision": 0.9666666666666667,
         "expectedCount": 36,
         "actualCount": 30,
-        "elapsedMs": 2015.6257529999993
+        "elapsedMs": 1968.61679
       },
       "messages": [
         "OCR recall 0.81 (36 expected tokens)",
@@ -440,7 +448,7 @@
         "precision": 1,
         "expectedCount": 69,
         "actualCount": 69,
-        "elapsedMs": 820.5310029999991
+        "elapsedMs": 799.4990950000001
       },
       "messages": []
     },
@@ -455,7 +463,7 @@
         "textLength": 608,
         "ocrPages": 0,
         "embeddedImages": 0,
-        "pdfLatencyMs": 107.93768399999954,
+        "pdfLatencyMs": 238.03760499999953,
         "ocrLatencyMs": 0
       },
       "messages": []
@@ -471,8 +479,8 @@
         "textLength": 732,
         "ocrPages": 1,
         "embeddedImages": 1,
-        "pdfLatencyMs": 2469.264795,
-        "ocrLatencyMs": 2093.422643
+        "pdfLatencyMs": 2460.8131679999997,
+        "ocrLatencyMs": 2095.513702000001
       },
       "messages": []
     },
@@ -487,7 +495,7 @@
         "textLength": 499,
         "ocrPages": 0,
         "embeddedImages": 0,
-        "pdfLatencyMs": 17.148160000000644,
+        "pdfLatencyMs": 33.608172000000195,
         "ocrLatencyMs": 0
       },
       "messages": []
@@ -503,7 +511,7 @@
         "textLength": 190,
         "ocrPages": 0,
         "embeddedImages": 0,
-        "pdfLatencyMs": 11.764459999998508,
+        "pdfLatencyMs": 13.411199000000124,
         "ocrLatencyMs": 0
       },
       "messages": []
@@ -519,8 +527,8 @@
         "textLength": 390,
         "ocrPages": 1,
         "embeddedImages": 1,
-        "pdfLatencyMs": 3965.3804980000004,
-        "ocrLatencyMs": 3861.970498999999
+        "pdfLatencyMs": 3922.2709840000007,
+        "ocrLatencyMs": 3807.1202869999997
       },
       "messages": []
     },
@@ -535,7 +543,7 @@
         "textLength": 124,
         "ocrPages": 0,
         "embeddedImages": 0,
-        "pdfLatencyMs": 3.670772000001307,
+        "pdfLatencyMs": 10.875670000001264,
         "ocrLatencyMs": 0
       },
       "messages": []

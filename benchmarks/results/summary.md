@@ -1,5 +1,6 @@
 # Benchmark results
-Generated: 2026-10-15T15:11:52.440Z
+Generated: 2026-10-16T17:42:24.760Z
+Machine: linux 6.1.158+ x64, AMD EPYC, 1 cores, 4 GB RAM, Bun 1.4.3
 
 ## Overall: score 0.990 — pass 36, partial 4, fail 0, skip 8
 
@@ -14,10 +15,12 @@ Generated: 2026-10-15T15:11:52.440Z
 | note | 1.000 | 4 | 0 | 0 | 0 | 4 |
 | quote | 1.000 | 2 | 0 | 0 | 0 | 2 |
 
+Scores average non-skipped items only; skipped items are excluded.
+
 ## Latency
-Image OCR: median 821 ms, p90 2016 ms (6 items).
-PDF processing: median 17 ms, p90 3965 ms (6 items).
-PDF OCR total per document: median 2093 ms, p90 3862 ms (2 PDFs).
+Image OCR: median 799 ms, p90 1969 ms (6 items).
+PDF processing: median 34 ms, p90 3922 ms (6 items).
+PDF OCR total per document: median 2096 ms, p90 3807 ms (2 PDFs).
 
 ## Items
 - [PASS] article-short-01 (score 1.000, production:ingestUrl)
