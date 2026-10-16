@@ -173,7 +173,7 @@ const SEARCH_EYES_VIEWBOX = "-14 -88 78 80";
 export function MascotSearchEyes({
   frame,
   size,
-  ink = "#e5ddd2",
+  ink = "var(--library-text)",
   className,
 }: {
   frame: BotFrame;

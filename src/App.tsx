@@ -1323,7 +1323,14 @@ function ExtensionPairing() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "22px 2px" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--small-component)",
+        padding: "22px 2px",
+      }}
+    >
       <p
         style={{
           margin: 0,

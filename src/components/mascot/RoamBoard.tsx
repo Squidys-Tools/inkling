@@ -37,13 +37,13 @@ function FakeCard({ index }: { index: number }) {
             style={{
               fontSize: 10,
               letterSpacing: ".12em",
-              color: "#8d867c",
+              color: "var(--library-muted)",
               textTransform: "uppercase",
             }}
           >
             {["image", "article", "pdf", "note", "quote"][index % 5]}
           </span>
-          <span style={{ fontSize: 15, lineHeight: 1.3, color: "#e5ddd2" }}>
+          <span style={{ fontSize: 15, lineHeight: 1.3, color: "var(--library-text)" }}>
             Card {index + 1} in a library the mascot may walk through
           </span>
         </div>
@@ -102,7 +102,12 @@ export function RoamBoard() {
         <div className="capture-bar" style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <div
             className="search-field"
-            style={{ flex: 1, height: 50, border: "1px solid #4a4842", borderRadius: 12 }}
+            style={{
+              flex: 1,
+              height: 50,
+              border: "1px solid #4a4842",
+              borderRadius: "var(--toggle-radius)",
+            }}
           />
           <div className="add-button" style={{ height: 50, padding: "0 17px" }}>
             Add
@@ -110,7 +115,11 @@ export function RoamBoard() {
         </div>
         <div
           className="library-toolbar"
-          style={{ display: "flex", justifyContent: "space-between", padding: "16px 0 10px" }}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            padding: "var(--small-component) 0 10px",
+          }}
         >
           <span className="result-count">28 items</span>
         </div>
@@ -134,11 +143,11 @@ export function RoamBoard() {
           bottom: 16,
           zIndex: 20,
           width: 320,
-          padding: 16,
-          borderRadius: 16,
+          padding: "var(--small-component)",
+          borderRadius: "var(--small-component)",
           border: "1px solid #3b3934",
           background: "#141311",
-          color: "#e5ddd2",
+          color: "var(--library-text)",
           font: "12px/1.5 'DM Sans', system-ui, sans-serif",
         }}
       >
@@ -168,7 +177,7 @@ export function RoamBoard() {
           </button>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 10 }}>
-          <span style={{ color: "#8d867c" }}>Speed</span>
+          <span style={{ color: "var(--library-muted)" }}>Speed</span>
           {SPEEDS.map((value) => (
             <button
               key={value}
@@ -184,7 +193,7 @@ export function RoamBoard() {
           ))}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 10 }}>
-          <span style={{ color: "#8d867c" }}>Seed</span>
+          <span style={{ color: "var(--library-muted)" }}>Seed</span>
           <input
             type="number"
             value={seed}
@@ -198,13 +207,13 @@ export function RoamBoard() {
               background: "#1d1b19",
               border: "1px solid #3b3934",
               borderRadius: 6,
-              color: "#e5ddd2",
+              color: "var(--library-text)",
               padding: "4px 6px",
             }}
           />
-          <span style={{ color: "#8d867c" }}>· {seed} in use</span>
+          <span style={{ color: "var(--library-muted)" }}>· {seed} in use</span>
         </div>
-        <div style={{ color: "#8d867c", marginBottom: 8 }}>
+        <div style={{ color: "var(--library-muted)", marginBottom: 8 }}>
           away {String(roam.away)} · phase {roam.phase} · mood {getRoamState()?.mood ?? "—"} · stops{" "}
           {roam.stops} · at {roamMotion().x},{roamMotion().y} &#183; {roamMotion().speed}px/s &#183;
           awake {(roamAwakeLeft() / 1000).toFixed(1)}s &#183; {manual ? "manual" : "auto"} &#183;{" "}
@@ -227,7 +236,7 @@ const button: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #3b3934",
   background: "#1d1b19",
-  color: "#e5ddd2",
+  color: "var(--library-text)",
   cursor: "pointer",
   font: "inherit",
 };

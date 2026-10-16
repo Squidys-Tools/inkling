@@ -111,7 +111,6 @@ type Flight =
       thenOpen: boolean;
     };
 
-const CARD_RADIUS = 14;
 const OVERLAY_RADIUS = 18;
 
 function clickOrigin(event: React.MouseEvent<HTMLElement>): ReaderOrigin {
@@ -517,6 +516,9 @@ export function ExpandedItemOverlay({
 
     if (flight.kind === "open") {
       if (!dialog || !media) return;
+      const cardRadius = Number.parseFloat(
+        getComputedStyle(dialog).getPropertyValue("--sidebar-radius"),
+      );
       const duration = OVERLAY_FLIGHT_MS / 1000;
       const hasEmbed =
         itemRef.current.social?.provider === "x" ||
@@ -535,7 +537,7 @@ export function ExpandedItemOverlay({
             top: flight.originCard.top,
             width: flight.originCard.width,
             height: flight.originCard.height,
-            borderRadius: CARD_RADIUS,
+            borderRadius: cardRadius,
           },
           {
             left: flight.destination.frame.left,
@@ -577,6 +579,9 @@ export function ExpandedItemOverlay({
       actionsRef.current.onClose();
       return;
     }
+    const cardRadius = Number.parseFloat(
+      getComputedStyle(dialog).getPropertyValue("--sidebar-radius"),
+    );
     const duration = OVERLAY_FLIGHT_MS / 1000;
     const hasEmbed =
       flight.fromItem.social?.provider === "x" ||
@@ -606,7 +611,7 @@ export function ExpandedItemOverlay({
             top: flight.toRects.card.top,
             width: flight.toRects.card.width,
             height: flight.toRects.card.height,
-            borderRadius: CARD_RADIUS,
+            borderRadius: cardRadius,
             duration,
             ease: OVERLAY_EASE,
             autoRound: false,

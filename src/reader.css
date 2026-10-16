@@ -2,14 +2,14 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto:ital,wght@0,400;0,700;1,400&family=Arimo:ital,wght@0,400;0,700;1,400&family=Noto+Sans:ital,wght@0,400;0,700;1,400&family=Nunito+Sans:ital,wght@0,400;0,700;0,900;1,400&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=PT+Sans:ital,wght@0,400;0,700;1,400&display=swap");
 
 .reader-overlay {
-  --reader-bg: #0c0c0b;
-  --reader-surface: #161412;
-  --reader-ink: #e5ddd2;
-  --reader-muted: #8d867c;
-  --reader-faint: #8d867c;
-  --reader-rule: #262221;
-  --reader-accent: #b0714f;
-  --reader-code-bg: #1b1917;
+  --reader-bg: var(--library-canvas);
+  --reader-surface: var(--library-surface);
+  --reader-ink: var(--library-text);
+  --reader-muted: var(--library-muted);
+  --reader-faint: var(--library-muted);
+  --reader-rule: var(--library-border);
+  --reader-accent: var(--library-accent);
+  --reader-code-bg: var(--library-surface-raised);
   --reader-quote-bg: transparent;
 
   position: fixed;
@@ -70,8 +70,8 @@
 
 .reader-close {
   position: fixed;
-  top: 16px;
-  right: clamp(16px, 3vw, 32px);
+  top: var(--small-component);
+  right: clamp(var(--small-component), 3vw, 32px);
   z-index: 3;
   display: flex;
   align-items: center;
@@ -163,7 +163,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px 14px;
-  margin: 16px 0 0;
+  margin: var(--small-component) 0 0;
   color: var(--reader-muted);
   font-family: var(--reader-font-meta);
   font-size: 12px;
@@ -393,7 +393,7 @@
 .reader-font-picker {
   position: fixed;
   left: 18px;
-  bottom: 16px;
+  bottom: var(--small-component);
   z-index: 3;
 }
 
