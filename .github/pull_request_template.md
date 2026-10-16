@@ -31,4 +31,4 @@ You can still open a PR, but please do so knowing I might close it without mergi
 - [ ] Before/after screenshots for any UI changes <!--These must be embeds not links-->
 - [ ] Video for animation/interaction changes <!--These must be embeds not links if possible, small gifs preffered-->
 
-<!-- Place your model slug and harness here. Examples: GPT 6 Luna in Codex in T3Code, Space Bunny Alpha in Opencode in T3Code, Muse Spark 1.3 in Opencode -->
+<!-- Place your model slug and harness here. Use the model slug only, with no provider or org prefix and no reasoning level, and put the harness in parentheses right after the slug. Examples: GPT 6 Luna (Capy), Claude Haiku 5.5 (T3 Code - Codex), Muse Spark 1.3 (Opencode) -->
