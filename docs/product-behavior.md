@@ -53,7 +53,7 @@ If extraction fails, retain the URL, title, domain, and any metadata that was su
 
 ### Image capture
 
-Images can be added by file picker, drag-and-drop into the main library grid view, clipboard, screenshot capture, or browser extension. Some of these options are surfacable in the "Add" button available in the main library grid ui. Other forms like drag-and-drop or the browser extension are self explantory.
+Images can be added by file picker, drag-and-drop into the main library grid view, clipboard, or screenshot capture. The Chrome browser extension captures page URLs from the toolbar or a link/page context menu; it does not capture images or read page content.
 
 The system should automatically process images for searchable text, concepts, colors, and semantic similarity. The resulting metadata should improve search and Spaces without exposing an AI-management surface.
 
