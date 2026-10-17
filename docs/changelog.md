@@ -113,6 +113,7 @@ Guardrails:
 - The "Web preview — sample data" badge no longer appears in the desktop app; it shows only in the browser preview.
 - Window controls on Windows use the dark app palette instead of the system's light overlay strip in the top-right corner.
 - Library export and restore use one parented native picker at a time and return focus to the main window after dismissal (SQU-120).
+- Library cards and Settings now have screen-reader names, Reader and PDF keep keyboard focus in their dialogs, and low-contrast text is corrected across capture, details, PDF, extension settings, and X post cards (SQU-18).
 - Library export now returns an error when all available dated export directory names are taken, preserving earlier exports.
 - Space and sidebar action failures now show action-specific, dismissible alerts beside the Spaces list without exposing backend error text (SQU-101).
 - Restoring an item from the Archive within the ten-second undo window no longer destroys its files. The permanent delete removed an item's assets before checking whether the row was still archived, so a recovered item kept its row while losing its thumbnail, image, PDF or video from disk with no error shown. The check now runs first, and restoring cancels any delete still pending (`src-tauri/src/storage.rs`, `src/App.tsx`).

@@ -942,7 +942,7 @@ a:focus-visible,
   font-weight: 600;
 }
 .capture-option-copy span {
-  color: var(--muted);
+  color: #a09a90;
   font-size: 11px;
   line-height: 1.3;
 }
@@ -2593,7 +2593,7 @@ a:focus-visible,
   background: #4a4842;
 }
 .filemeta-saved {
-  color: #605d68;
+  color: #8d867c;
   font: 10px var(--font-ui);
   letter-spacing: 0.08em;
 }
@@ -2617,7 +2617,7 @@ a:focus-visible,
   padding: 4px 0;
   border: 0;
   background: transparent;
-  color: #605d68;
+  color: #8d867c;
   cursor: pointer;
   font: 10px var(--font-ui);
 }
@@ -3128,6 +3128,13 @@ a:focus-visible,
   cursor: not-allowed;
   opacity: 0.42;
 }
+.settings-extension-action {
+  background: var(--surface-strong);
+}
+.settings-extension-action:disabled {
+  color: var(--muted);
+  opacity: 1;
+}
 .settings-batch-recover {
   background: var(--green-soft);
   color: var(--green);
@@ -3137,7 +3144,7 @@ a:focus-visible,
 }
 .settings-batch-delete {
   background: var(--orange-soft);
-  color: var(--orange);
+  color: #b97955;
 }
 .settings-batch-delete:hover:not(:disabled) {
   border-color: var(--orange);
@@ -3704,6 +3711,10 @@ a:focus-visible,
   padding: 10px 14px;
   border-bottom: 1px solid var(--rule);
   background: #fbfbfa;
+  color: #3f3a33;
+  --ink: #3f3a33;
+  --muted: #68625d;
+  --orange: #985a3d;
 }
 .pdf-viewer-title {
   flex: 1;
@@ -3795,7 +3806,7 @@ a:focus-visible,
   font: 12px var(--font-ui);
 }
 .pdf-viewer-status.failed {
-  color: #a4472e;
+  color: #c6755a;
 }
 .pdf-viewer-status > svg {
   animation: spin 1.2s linear infinite;
@@ -3843,12 +3854,12 @@ a:focus-visible,
 }
 .post-author small {
   grid-column: 1 / -1;
-  color: #6b8589;
+  color: #596f72;
   font: 10px var(--font-ui);
 }
 .post-author > svg {
   margin-left: auto;
-  color: #6b8589;
+  color: #596f72;
 }
 .post-art > p {
   max-width: none;
@@ -3861,14 +3872,14 @@ a:focus-visible,
 .post-date {
   padding-top: 10px;
   border-top: 1px solid rgba(36, 61, 66, 0.16);
-  color: #6b8589;
+  color: #596f72;
   font: 10px var(--font-ui);
 }
 .post-actions {
   display: flex;
   gap: 17px;
   margin-top: 13px;
-  color: #6b8589;
+  color: #596f72;
 }
 .list-mode .post-art {
   min-height: 0;
@@ -3984,7 +3995,7 @@ a:focus-visible,
   display: grid;
   min-height: 180px;
   place-items: center;
-  color: #6b8589;
+  color: #596f72;
   font: 10px var(--font-ui);
   letter-spacing: 0.05em;
   text-transform: uppercase;
