@@ -305,8 +305,9 @@ async function serveAppAsset(request) {
 function createWindow() {
   mainWindow = new BrowserWindow({
     title: "inkling",
-    width: 960,
-    height: 540,
+    // Unpackaged dev runs open larger; the packaged 960x540 size is the onboarding baseline.
+    width: app.isPackaged ? 960 : 1280,
+    height: app.isPackaged ? 540 : 800,
     // 320px matches the body min-width in src/App.css. At 240px high the library grid shrinks to 65px; 360px keeps it near 185px.
     minWidth: 320,
     minHeight: 360,
