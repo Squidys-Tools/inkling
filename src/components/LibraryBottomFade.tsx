@@ -37,8 +37,6 @@ export function LibraryBottomFade({ scrollRef }: { scrollRef: RefObject<HTMLElem
   return (
     <div ref={fadeRef} className="library-bottom-fade" aria-hidden="true">
       <span />
-      <span />
-      <span />
     </div>
   );
 }
