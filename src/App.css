@@ -2212,6 +2212,35 @@ a:focus-visible,
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
+:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
+  .note-card
+  .pdf-title {
+  -webkit-line-clamp: 2;
+}
+:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
+  .note-card
+  .pdf-legend {
+  top: 80%;
+}
+:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
+  .quote-card
+  .quote-mark {
+  top: 6%;
+  font:
+    56px / 0.9 Georgia,
+    serif;
+}
+:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
+  .quote-card
+  .quote-preview {
+  top: 32%;
+  -webkit-line-clamp: 2;
+}
+:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
+  .quote-card
+  .quote-attribution-preview {
+  bottom: 10%;
+}
 .card-image-wrap video.card-image {
   background: #171817;
 }
