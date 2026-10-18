@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { scrollViewport } from "./overlayMotion";
+import GradualBlur from "./GradualBlur/GradualBlur";
 
 export function LibraryBottomFade({ scrollRef }: { scrollRef: RefObject<HTMLElement | null> }) {
   const fadeRef = useRef<HTMLDivElement>(null);
@@ -36,8 +37,7 @@ export function LibraryBottomFade({ scrollRef }: { scrollRef: RefObject<HTMLElem
 
   return (
     <div ref={fadeRef} className="library-bottom-fade" aria-hidden="true">
-      <span />
-      <span />
+      <GradualBlur height="100%" strength={1} layers={2} zIndex={0} />
     </div>
   );
 }

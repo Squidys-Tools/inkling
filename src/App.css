@@ -2282,26 +2282,11 @@ a:focus-visible,
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 1;
   background: linear-gradient(to top, var(--library-canvas), transparent 38%);
 }
 .library-bottom-fade[data-at-end] {
   opacity: 0;
-}
-/* Gradual blur: two stacked backdrop layers. The first ramps a light blur in
-   from the top of the fade band, the second ramps a stronger blur in from its
-   middle, so blur strength grows toward the bottom edge. Each layer's mask
-   starts and ends at transparent, so neither has a hard edge. */
-.library-bottom-fade span {
-  position: absolute;
-  inset: 0;
-}
-.library-bottom-fade span:nth-child(1) {
-  backdrop-filter: blur(4px);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
-}
-.library-bottom-fade span:nth-child(2) {
-  backdrop-filter: blur(12px);
-  mask-image: linear-gradient(to bottom, transparent 50%, #000 100%);
 }
 .library-grid.view-transitioning {
   visibility: hidden;
