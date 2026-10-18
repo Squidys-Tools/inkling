@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -6,6 +6,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "./Breadcrumb";
+import { keepTabFocusInside } from "../lib/accessibilityFocus";
 import { prefersReducedMotion } from "./mascot/mascotStore";
 import { KeptFloating } from "./onboarding/KeptFloating";
 import { MemoryMatch } from "./onboarding/MemoryMatch";
@@ -57,6 +58,8 @@ function stageScale() {
 export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
   const [screen, setScreen] = useState(0);
   const [scale, setScale] = useState(stageScale);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const continueButtonRef = useRef<HTMLButtonElement>(null);
   /** Set while the current screen plays its exit: 1 forward, -1 back, 0 closing. */
   const [leaving, setLeaving] = useState<number | null>(null);
   /** Which way the last move went, so the next screen comes in from that side. */
@@ -84,10 +87,30 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
   const goRef = useRef(go);
   goRef.current = go;
 
+  useLayoutEffect(() => {
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    continueButtonRef.current?.focus();
+    return () => {
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const button = continueButtonRef.current;
+    const expectedLabel = screen === LAST_SCREEN ? "Open my library" : "Continue";
+    if (button?.textContent?.trim() === expectedLabel) button.focus();
+  }, [screen]);
+
   useEffect(() => {
     const update = () => setScale(stageScale());
+    const dialog = dialogRef.current;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") goRef.current("close");
+      if (event.key === "Escape") {
+        goRef.current("close");
+        return;
+      }
+      if (dialog) keepTabFocusInside(event, dialog);
     };
     window.addEventListener("resize", update);
     window.addEventListener("keydown", onKeyDown);
@@ -113,7 +136,7 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
 
   const actions = (style: CSSProperties) => (
     <div className="first-run-actions" style={style}>
-      <button type="button" className="first-run-primary" onClick={advance}>
+      <button ref={continueButtonRef} type="button" className="first-run-primary" onClick={advance}>
         {screen === LAST_SCREEN ? "Open my library" : "Continue"}
       </button>
       {screen > 0 ? (
@@ -131,6 +154,7 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
 
   return (
     <div
+      ref={dialogRef}
       className={leaving === 0 ? "first-run-overlay is-closing" : "first-run-overlay"}
       role="dialog"
       aria-modal="true"

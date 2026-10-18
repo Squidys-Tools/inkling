@@ -1620,10 +1620,6 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isFirstRunOpen, setIsFirstRunOpen] = useState(false);
-  const finishFirstRun = useCallback(() => {
-    setIsFirstRunOpen(false);
-    void completeOnboarding().catch(() => null);
-  }, []);
   // The desktop window stays hidden until this settles (inkling:window:ready),
   // so a first launch opens straight onto the welcome instead of flashing the
   // library. When the welcome runs, it reports ready once it has painted.
@@ -1819,6 +1815,11 @@ function App() {
   const settingsDialogRef = useRef<HTMLElement>(null);
   const spaceRenameInputRef = useRef<HTMLInputElement>(null);
   const newSpaceNameInputRef = useRef<HTMLInputElement>(null);
+  const finishFirstRun = useCallback(() => {
+    setIsFirstRunOpen(false);
+    window.requestAnimationFrame(() => searchRef.current?.focus());
+    void completeOnboarding().catch(() => null);
+  }, []);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const captureBarRef = useRef<HTMLElement>(null);
   const viewDockRef = useRef<HTMLDivElement>(null);
@@ -4688,6 +4689,36 @@ function App() {
                   <VirtuosoMasonry
                     key={libraryGridKey}
                     className={`library-grid ${listMode ? "list-mode" : ""}`}
+                    role="region"
+                    aria-label="Library items"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      const { currentTarget } = event;
+                      if (event.key === "Home") {
+                        event.preventDefault();
+                        currentTarget.scrollTop = 0;
+                        return;
+                      }
+                      if (event.key === "End") {
+                        event.preventDefault();
+                        currentTarget.scrollTop = currentTarget.scrollHeight;
+                        return;
+                      }
+
+                      const direction =
+                        event.key === "PageDown" || event.key === "ArrowDown"
+                          ? 1
+                          : event.key === "PageUp" || event.key === "ArrowUp"
+                            ? -1
+                            : 0;
+                      if (direction === 0) return;
+
+                      event.preventDefault();
+                      const distance = event.key.startsWith("Page")
+                        ? currentTarget.clientHeight * 0.8
+                        : Math.max(40, currentTarget.clientHeight * 0.1);
+                      currentTarget.scrollTop += direction * distance;
+                    }}
                     columnCount={listMode ? 1 : gridColumnCount}
                     data={filteredItems}
                     context={libraryCardContext}

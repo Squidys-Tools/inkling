@@ -414,7 +414,72 @@ async function run() {
       });
       await waitFor("settings to close", isGone, 'aside[aria-label="Settings sections"]');
     });
+    await step("onboarding keeps keyboard focus inside its dialog", async () => {
+      await cdp.evaluate(clickSelector, 'button[aria-label="Settings"]');
+      await waitFor("settings sections", hasSelector, 'aside[aria-label="Settings sections"]');
+      await cdp.evaluate(clickByText, ".settings-tab", "Data");
+      await waitFor("welcome rerun control", hasSelector, ".settings-data-link");
+      await cdp.evaluate(clickSelector, ".settings-data-link");
+      await waitFor("welcome dialog", hasSelector, ".first-run-overlay[aria-modal='true']");
+      if (!(await cdp.evaluate(isFocused, ".first-run-primary")))
+        throw new Error("welcome dialog did not focus Continue on open");
+
+      const tab = async (shiftKey = false) => {
+        await cdp.send("Input.dispatchKeyEvent", {
+          type: "keyDown",
+          key: "Tab",
+          code: "Tab",
+          shiftKey,
+          windowsVirtualKeyCode: 9,
+        });
+        await cdp.send("Input.dispatchKeyEvent", {
+          type: "keyUp",
+          key: "Tab",
+          code: "Tab",
+          shiftKey,
+          windowsVirtualKeyCode: 9,
+        });
+      };
+      await tab();
+      if (!(await cdp.evaluate(isFocused, ".first-run-quiet")))
+        throw new Error("Tab did not move from Continue to Skip");
+      await tab();
+      if (!(await cdp.evaluate(isFocused, ".first-run-primary")))
+        throw new Error("Tab escaped the welcome dialog instead of wrapping");
+      await tab(true);
+      if (!(await cdp.evaluate(isFocused, ".first-run-quiet")))
+        throw new Error("Shift+Tab did not wrap to Skip");
+      await cdp.evaluate(clickSelector, ".first-run-primary");
+      await waitFor(
+        "welcome to advance to its second screen",
+        (text) => document.querySelector(".first-run-headline")?.textContent?.trim() === text,
+        "Kept as it came.",
+      );
+      if (!(await cdp.evaluate(isFocused, ".first-run-primary")))
+        throw new Error("welcome screen change did not focus Continue");
+      await cdp.send("Input.dispatchKeyEvent", {
+        type: "keyDown",
+        key: "Escape",
+        code: "Escape",
+        windowsVirtualKeyCode: 27,
+      });
+      await cdp.send("Input.dispatchKeyEvent", {
+        type: "keyUp",
+        key: "Escape",
+        code: "Escape",
+        windowsVirtualKeyCode: 27,
+      });
+      await waitFor("welcome dialog to close on Escape", isGone, ".first-run-overlay");
+      await waitFor(
+        "search to regain focus after welcome closes",
+        isFocused,
+        'input[aria-label="Search your mind"]',
+      );
+    });
     await step("slash focuses search", async () => {
+      await cdp.evaluate(() => {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      });
       await cdp.send("Input.dispatchKeyEvent", {
         type: "keyDown",
         key: "/",
@@ -429,6 +494,126 @@ async function run() {
         windowsVirtualKeyCode: 191,
       });
       await waitFor("search to take focus", isFocused, 'input[aria-label="Search your mind"]');
+      const searchValue = await cdp.evaluate(
+        () => document.querySelector('input[aria-label="Search your mind"]')?.value,
+      );
+      if (searchValue !== "") throw new Error("the slash shortcut typed into the search field");
+    });
+    await step("keyboard scrolling exposes every virtualized library card", async () => {
+      const key = async (value, code, windowsVirtualKeyCode) => {
+        for (const type of ["keyDown", "keyUp"])
+          await cdp.send("Input.dispatchKeyEvent", {
+            type,
+            key: value,
+            code,
+            windowsVirtualKeyCode,
+          });
+      };
+      const gridState = () =>
+        cdp.evaluate(() => {
+          const grid = document.querySelector(".library-grid");
+          if (!(grid instanceof HTMLElement)) return null;
+          const cards = [...grid.querySelectorAll(".library-card[data-library-item-id]")];
+          return {
+            scrollTop: grid.scrollTop,
+            maxScroll: grid.scrollHeight - grid.clientHeight,
+            cardIds: cards.map((card) => card.dataset.libraryItemId),
+            cardsAreFocusable: cards.every((card) => card.tabIndex === 0),
+            gridHasFocus: document.activeElement === grid,
+          };
+        });
+      const settle = async () => {
+        let previous = "";
+        let stablePolls = 0;
+        const deadline = Date.now() + 3_000;
+        while (Date.now() < deadline) {
+          const state = await gridState();
+          if (!state) throw new Error("library grid was removed while scrolling");
+          const signature = JSON.stringify(state);
+          stablePolls = signature === previous ? stablePolls + 1 : 0;
+          if (stablePolls >= 2) return state;
+          previous = signature;
+          await sleep(50);
+        }
+        throw new Error("library grid did not settle after keyboard scrolling");
+      };
+
+      let reachedLibraryRegion = false;
+      for (let i = 0; i < 24; i++) {
+        await key("Tab", "Tab", 9);
+        if (await cdp.evaluate(isFocused, ".library-grid")) {
+          reachedLibraryRegion = true;
+          break;
+        }
+      }
+      if (!reachedLibraryRegion)
+        throw new Error("Tab did not reach the named library-items region");
+      const expectedCount = await cdp.evaluate(() => {
+        const everything = [...document.querySelectorAll(".nav-item")].find(
+          (button) => button.querySelector("span")?.textContent?.trim() === "Everything",
+        );
+        return Number(everything?.querySelector(".nav-count")?.textContent);
+      });
+      if (!Number.isInteger(expectedCount) || expectedCount < 1)
+        throw new Error("could not read the library's item count");
+      await key("Home", "Home", 36);
+      let state = await settle();
+      const visited = new Set();
+      const collectMountedCards = (current) => {
+        if (!current.cardsAreFocusable)
+          throw new Error("a mounted library card is missing from the Tab order");
+        for (const id of current.cardIds) visited.add(id);
+      };
+      collectMountedCards(state);
+      await key("PageDown", "PageDown", 34);
+      await waitFor(
+        "library region to page down",
+        (previous) => {
+          const grid = document.querySelector(".library-grid");
+          return grid instanceof HTMLElement && grid.scrollTop > previous;
+        },
+        state.scrollTop,
+      );
+      state = await settle();
+      for (let i = 0; i < 60; i++) {
+        collectMountedCards(state);
+        if (!state.gridHasFocus)
+          throw new Error("keyboard scrolling moved focus out of the library region");
+        if (state.scrollTop >= state.maxScroll - 1) break;
+        const previousScrollTop = state.scrollTop;
+        await key("ArrowDown", "ArrowDown", 40);
+        await waitFor(
+          "library region to scroll down",
+          (previous) => {
+            const grid = document.querySelector(".library-grid");
+            return grid instanceof HTMLElement && grid.scrollTop > previous;
+          },
+          previousScrollTop,
+        );
+        state = await settle();
+      }
+      collectMountedCards(state);
+      if (visited.size !== expectedCount)
+        throw new Error(
+          `keyboard scrolling exposed ${visited.size} of ${expectedCount} library cards`,
+        );
+      await key("Tab", "Tab", 9);
+      const focusedCard = await cdp.evaluate(() => {
+        const card = document.activeElement?.closest(".library-card[data-library-item-id]");
+        return card instanceof HTMLElement
+          ? {
+              id: card.dataset.libraryItemId,
+              outline: getComputedStyle(card).outlineStyle,
+              outlineWidth: getComputedStyle(card).outlineWidth,
+            }
+          : null;
+      });
+      if (focusedCard?.outline !== "solid" || focusedCard.outlineWidth !== "2px")
+        throw new Error("Tab did not focus a library card with a visible focus indicator");
+      await key("Enter", "Enter", 13);
+      await waitFor("focused library card to open", hasSelector, ".expanded-overlay");
+      await key("Escape", "Escape", 27);
+      await waitFor("focused library card to close", isGone, ".expanded-overlay");
     });
     await step("no console errors during the run", async () => {
       if (cdp.consoleErrors.length > 0) throw new Error(cdp.consoleErrors.slice(0, 5).join(" | "));
