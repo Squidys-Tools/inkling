@@ -1,3 +1,7 @@
+@import "@fontsource/gloria-hallelujah/400.css";
+@import "@fontsource/libre-baskerville/400.css";
+@import "@fontsource/libre-baskerville/700.css";
+@import "@fontsource/libre-baskerville/400-italic.css";
 @font-face {
   font-family: "Paper Mono";
   src: url("/fonts/paper-mono-variable.woff2") format("woff2");
