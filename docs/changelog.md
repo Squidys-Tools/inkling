@@ -68,6 +68,7 @@ Guardrails:
 
 ### Fixed
 
+- The app no longer contacts Google Fonts or Twitter/X at startup: reader fonts are bundled with the app and the content security policy no longer allows Google Fonts requests
 - The library bottom fade no longer shows a hard edge where the blur band starts or where it meets the padding below the grid: one blur layer feathers out through an eased mask, and a canvas-colored scrim dissolves content into the background at the grid's clip line (#149)
 
 ### Changed
