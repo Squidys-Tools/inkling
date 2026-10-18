@@ -318,55 +318,10 @@ function waitForXWidget(root: HTMLElement, timeoutMs = 8000): Promise<boolean> {
 }
 
 export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallback: ReactNode }) {
-  const hostRef = useRef<HTMLDivElement>(null);
   const nativeRef = useRef<HTMLDivElement>(null);
   const [shouldLoad, setShouldLoad] = useState(false);
   const [embedHtml, setEmbedHtml] = useState<string | undefined>(social.embedHtml);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    if (typeof IntersectionObserver === "undefined") {
-      setShouldLoad(true);
-      return;
-    }
-
-    const idleWindow = window as unknown as {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    };
-    let cancelScheduledLoad: (() => void) | undefined;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        observer.disconnect();
-
-        let cancelled = false;
-        const start = () => {
-          if (!cancelled) setShouldLoad(true);
-        };
-        const idleId = idleWindow.requestIdleCallback
-          ? idleWindow.requestIdleCallback(start, { timeout: 1200 })
-          : window.setTimeout(start, 0);
-        cancelScheduledLoad = () => {
-          cancelled = true;
-          if (idleWindow.cancelIdleCallback && idleWindow.requestIdleCallback) {
-            idleWindow.cancelIdleCallback(idleId);
-          } else {
-            window.clearTimeout(idleId);
-          }
-        };
-      },
-      { rootMargin: "120px 0px" },
-    );
-    observer.observe(host);
-
-    return () => {
-      observer.disconnect();
-      cancelScheduledLoad?.();
-    };
-  }, []);
 
   useEffect(() => {
     setEmbedHtml(social.embedHtml);
@@ -457,13 +412,26 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
   }, [embedHtml, shouldLoad]);
 
   return (
-    <div className="x-post-embed" ref={hostRef} data-x-status={status}>
+    <div className="x-post-embed" data-x-status={status}>
       <div
         className={`x-post-native ${status === "ready" ? "is-ready" : ""}`}
         ref={nativeRef}
         aria-hidden={status !== "ready"}
       />
-      {status !== "ready" && <div className="x-post-fallback">{fallback}</div>}
+      {status !== "ready" && (
+        <div className="x-post-fallback">
+          {fallback}
+          {!shouldLoad && (
+            <button
+              type="button"
+              className="overlay-action-secondary x-post-load"
+              onClick={() => setShouldLoad(true)}
+            >
+              Load post from X
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

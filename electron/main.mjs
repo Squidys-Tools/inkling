@@ -41,14 +41,14 @@ const contentSecurityPolicy = [
   "form-action 'self'",
   "frame-ancestors 'none'",
   "object-src 'none'",
-  "script-src 'self'",
+  "script-src 'self' https://platform.twitter.com",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
   "img-src 'self' data: blob: https:",
   "media-src 'self' data: blob: https:",
   "connect-src 'self' https:",
   "worker-src 'self' blob:",
-  "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://platform.twitter.com https://publish.x.com",
+  "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://platform.twitter.com",
 ].join("; ");
 
 const mimeTypes = {
