@@ -122,6 +122,13 @@ CREATE TABLE IF NOT EXISTS space_items (
 CREATE INDEX IF NOT EXISTS idx_space_items_item ON space_items (item_id);
 `;
 
+const appSettingsSchema = `
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY NOT NULL,
+  value TEXT NOT NULL
+);
+`;
+
 function nowMillis() {
   return Date.now();
 }
@@ -356,6 +363,7 @@ function openDatabase(databasePath) {
   migrateItemColumns(db, version < SCHEMA_VERSION);
   db.exec(embeddingsSchema);
   db.exec(spacesSchema);
+  db.exec(appSettingsSchema);
   ensureColumns(db, "spaces", [["kind", "TEXT NOT NULL DEFAULT 'smart'"]]);
   const fts5Enabled = setupFts(db);
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -1654,6 +1662,21 @@ class LibraryStorage {
       throw error;
     }
     if (pendingAssetRemoval) await rm(pendingAssetRemoval, { recursive: true, force: true });
+  }
+
+  hasCompletedOnboarding() {
+    return (
+      this.db.prepare("SELECT 1 FROM app_settings WHERE key = 'onboarding_completed'").get() !==
+      undefined
+    );
+  }
+
+  completeOnboarding() {
+    this.db
+      .prepare(
+        "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('onboarding_completed', '1')",
+      )
+      .run();
   }
 
   listSpaces() {

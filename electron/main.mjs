@@ -197,6 +197,10 @@ function registerLibraryCommands() {
     import_library: ({ exportDirectory }) => requireLibraryStorage().importLibrary(exportDirectory),
     get_jobs_for_items: ({ itemIds }) => requireLibraryStorage().jobs.getForItems(itemIds),
     count_active_jobs: () => requireLibraryStorage().jobs.countActive(),
+    get_onboarding_state: () => ({
+      shouldAutoShow: app.isPackaged && !requireLibraryStorage().hasCompletedOnboarding(),
+    }),
+    complete_onboarding: () => requireLibraryStorage().completeOnboarding(),
     enqueue_ocr_job: ({ itemId }) => requireLibraryStorage().jobs.enqueueOcr(itemId),
     retry_processing_job: ({ jobId }) => requireLibraryStorage().jobs.retry(jobId),
     get_capture_status: () =>
