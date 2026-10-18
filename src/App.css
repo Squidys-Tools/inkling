@@ -2272,30 +2272,36 @@ a:focus-visible,
   height: 120px;
   z-index: 1;
   pointer-events: none;
-  /* The grid clips at the scroller's bottom edge (above the main-content
-     padding), and blurred cards stay bright, so a scrim is what dissolves
-     content into the canvas at that clip line. Blur alone cannot. */
-  background: linear-gradient(to top, var(--library-canvas), transparent 38%);
   transition: opacity 180ms ease;
+}
+/* The grid clips at the scroller's bottom edge (above the main-content
+   padding), and blurred cards stay bright, so a scrim is what dissolves
+   content into the canvas at that clip line. It sits above the blur bands:
+   a background under them is blurred along with the cards. */
+.library-bottom-fade::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, var(--library-canvas), transparent 38%);
 }
 .library-bottom-fade[data-at-end] {
   opacity: 0;
 }
-/* Eased stops feather the blur to exactly zero before the top edge, so the
-   fade region itself has no visible boundary. */
+/* Gradual blur: two stacked backdrop layers. The first ramps a light blur in
+   from the top of the fade band, the second ramps a stronger blur in from its
+   middle, so blur strength grows toward the bottom edge. Each layer's mask
+   starts and ends at transparent, so neither has a hard edge. */
 .library-bottom-fade span {
   position: absolute;
   inset: 0;
-  backdrop-filter: blur(16px);
-  mask-image: linear-gradient(
-    to top,
-    #000 0%,
-    rgba(0, 0, 0, 0.82) 22%,
-    rgba(0, 0, 0, 0.5) 45%,
-    rgba(0, 0, 0, 0.2) 68%,
-    rgba(0, 0, 0, 0.05) 85%,
-    transparent 95%
-  );
+}
+.library-bottom-fade span:nth-child(1) {
+  backdrop-filter: blur(4px);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
+}
+.library-bottom-fade span:nth-child(2) {
+  backdrop-filter: blur(12px);
+  mask-image: linear-gradient(to bottom, transparent 50%, #000 100%);
 }
 .library-grid.view-transitioning {
   visibility: hidden;
