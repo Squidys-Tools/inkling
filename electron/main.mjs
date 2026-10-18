@@ -250,6 +250,10 @@ function registerLibraryCommands() {
   ipcMain.handle("inkling:window:close", (event) => {
     BrowserWindow.fromWebContents(event.sender)?.close();
   });
+  ipcMain.handle("inkling:window:ready", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window && !window.isVisible()) window.show();
+  });
 }
 
 async function serveAppAsset(request) {
@@ -347,7 +351,16 @@ function createWindow() {
     }
     if (url.protocol !== "app:" || url.hostname !== "local") event.preventDefault();
   });
-  mainWindow.once("ready-to-show", () => mainWindow.show());
+  // The renderer calls inkling:window:ready once it knows whether the welcome
+  // runs and has painted that first frame, so a first launch never flashes the
+  // library before onboarding. The timer only guards against a renderer that
+  // never says so: the window must always appear.
+  mainWindow.once("ready-to-show", () => {
+    const window = mainWindow;
+    setTimeout(() => {
+      if (window && !window.isDestroyed() && !window.isVisible()) window.show();
+    }, 3000);
+  });
   mainWindow.on("closed", () => {
     mainWindow = undefined;
   });

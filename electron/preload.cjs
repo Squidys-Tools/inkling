@@ -71,6 +71,7 @@ contextBridge.exposeInMainWorld(
       minimize: () => ipcRenderer.invoke("inkling:window:minimize"),
       toggleMaximize: () => ipcRenderer.invoke("inkling:window:toggle-maximize"),
       close: () => ipcRenderer.invoke("inkling:window:close"),
+      ready: () => ipcRenderer.invoke("inkling:window:ready"),
     }),
   }),
 );
