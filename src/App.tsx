@@ -143,7 +143,6 @@ import {
   NoteArtwork,
   PdfArtwork,
   PostArtwork,
-  XPostEmbed,
   mediaAspectRatioFor,
 } from "./components/ItemMedia";
 const ReaderView = lazy(() =>
@@ -1004,17 +1003,11 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
         <div className="library-card-media">
           {item.social?.provider === "x" ? (
             <div className="x-post-art">
-              <XPostEmbed
-                key={item.social.postUrl}
-                social={item.social}
-                fallback={
-                  item.post ? (
-                    <PostArtwork post={item.post} />
-                  ) : (
-                    <div className="post-art">Post preview unavailable.</div>
-                  )
-                }
-              />
+              {item.post ? (
+                <PostArtwork post={item.post} />
+              ) : (
+                <div className="post-art">Post preview unavailable.</div>
+              )}
             </div>
           ) : item.kind === "Video" ? (
             <LibraryVideoMedia item={item} index={index} />
