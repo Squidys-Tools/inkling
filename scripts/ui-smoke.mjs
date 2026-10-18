@@ -290,6 +290,15 @@ async function run() {
       await waitFor("grid view to be selected", isPressed, 'button[aria-label="Grid view"]');
     });
     await step("search filters and clears", async () => {
+      await waitFor(
+        "a mounted grid card before searching",
+        () => document.querySelector(".library-grid .library-card[data-library-item-id]") !== null,
+      );
+      const full = await cdp.evaluate(() => ({
+        resultCount: Number(document.querySelector(".result-count")?.textContent),
+        firstCardId: document.querySelector(".library-grid .library-card[data-library-item-id]")
+          ?.dataset.libraryItemId,
+      }));
       await cdp.evaluate(setInputValue, 'input[aria-label="Search your mind"]', "Fuji");
       await waitFor(
         "search to narrow the grid",
@@ -301,9 +310,23 @@ async function run() {
       );
       await cdp.evaluate(setInputValue, 'input[aria-label="Search your mind"]', "");
       await waitFor(
-        "search to clear back to all cards",
-        (baseline) => document.querySelectorAll(".library-card").length === baseline,
-        baselineCards,
+        "search to clear back to the full results",
+        (expected) => {
+          const input = document.querySelector('input[aria-label="Search your mind"]');
+          const shownCount = Number(document.querySelector(".result-count")?.textContent);
+          const cards = [
+            ...document.querySelectorAll(".library-grid .library-card[data-library-item-id]"),
+          ];
+          return (
+            input?.value === "" &&
+            expected.resultCount > 0 &&
+            shownCount === expected.resultCount &&
+            cards.length > 0 &&
+            cards.length <= expected.resultCount &&
+            cards.some((card) => card.dataset.libraryItemId === expected.firstCardId)
+          );
+        },
+        full,
       );
     });
     await step("item overlay opens and closes with the close button and Escape", async () => {

@@ -1165,19 +1165,13 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
   );
 });
 
-// Column count for the masonry grid. Small screens keep their existing
-// breakpoints; wide grids add columns so cards stay close to a target width
-// (~210px, ~70% of the old 300px target) instead of ballooning on big monitors.
-const GRID_GAP = 14;
-const TARGET_CARD_WIDTH = 210;
+const GRID_GAP = 8;
+const TARGET_CARD_WIDTH = 170;
 const MAX_GRID_COLUMNS = 12;
 
 function masonryColumnCount(width: number): number {
-  if (width < 630) return width < 400 ? 1 : 2;
-  if (width < 860) return 3;
-  if (width < 1080) return 4;
   const columns = Math.round((width + GRID_GAP) / (TARGET_CARD_WIDTH + GRID_GAP));
-  return Math.min(Math.max(columns, 5), MAX_GRID_COLUMNS);
+  return Math.min(Math.max(columns, 1), MAX_GRID_COLUMNS);
 }
 
 type LibraryCardPosition = {
@@ -2562,9 +2556,8 @@ function App() {
       const now = performance.now();
 
       const rootWidth = root.clientWidth;
-      const gridGap = Number.parseFloat(getComputedStyle(root).gap) || 14;
       const expectedCardWidth =
-        columnCount > 0 ? (rootWidth - gridGap * Math.max(0, columnCount - 1)) / columnCount : 0;
+        columnCount > 0 ? (rootWidth - GRID_GAP * Math.max(0, columnCount - 1)) / columnCount : 0;
       const layoutIsReady =
         positions.size >= minimumMountedCards &&
         Array.from(positions.values()).every(
