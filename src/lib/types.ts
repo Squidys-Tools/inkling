@@ -37,6 +37,7 @@ export type LibraryItem = {
   favorite?: boolean;
   archived?: boolean;
   processing?: ProcessingSummary;
+  hasArticleContent?: boolean;
   articleHtml?: string;
   articleAuthor?: string;
   publishedDate?: string;

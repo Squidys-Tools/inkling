@@ -22,6 +22,29 @@ export type StoredLibraryItem = {
   favorite: boolean;
 };
 
+export type StoredLibraryItemDetail = Omit<StoredLibraryItem, "body" | "bodyFormat"> & {
+  body: string;
+  bodyFormat: string;
+};
+
+export type StoredLibraryCard = Omit<
+  StoredLibraryItem,
+  "body" | "bodyFormat" | "metadata" | "ocrText" | "updatedAt"
+> & {
+  ocrText: string;
+  metadata: {
+    tags?: unknown;
+    social?: unknown;
+    imageUrls?: unknown;
+    imageDimensions?: unknown;
+    mediaWidth?: unknown;
+    mediaHeight?: unknown;
+    mediaAspectRatio?: unknown;
+    pdfPageCount?: unknown;
+  };
+  hasArticleContent: boolean;
+};
+
 export type StoredItemContent = {
   id: string;
   body: string;
@@ -225,23 +248,27 @@ async function withInitializedStorage<T>(operation: () => Promise<T>) {
 }
 
 export async function listActiveItems() {
-  return invoke<StoredLibraryItem[]>("list_active_items");
+  return invoke<StoredLibraryCard[]>("list_active_items");
 }
 
 export async function listArchivedItems() {
-  return invoke<StoredLibraryItem[]>("list_archived_items");
+  return invoke<StoredLibraryCard[]>("list_archived_items");
 }
 
 export async function getItemContent(id: string) {
   return invoke<StoredItemContent>("get_item_content", { id });
 }
 
+export async function getItem(id: string) {
+  return invoke<StoredLibraryItemDetail | null>("get_item", { id });
+}
+
 export async function searchItems(query: string) {
-  return invoke<StoredLibraryItem[]>("search_items", { query, limit: 100 });
+  return invoke<StoredLibraryCard[]>("search_items", { query, limit: 100 });
 }
 
 export async function searchSimilarItems(itemId: string, kind: "image" | "text") {
-  return invoke<StoredLibraryItem[]>(
+  return invoke<StoredLibraryCard[]>(
     kind === "image" ? "search_similar_images" : "search_similar_text",
     { itemId, limit: 12 },
   );
@@ -274,7 +301,7 @@ export async function swapSpacePositions(firstId: string, secondId: string) {
 // call. Regular Spaces read back the items filed into them.
 export async function listSpaceItems(id: string) {
   return withInitializedStorage(() =>
-    invoke<StoredLibraryItem[]>("list_space_items", { id, limit: 100 }),
+    invoke<StoredLibraryCard[]>("list_space_items", { id, limit: 100 }),
   );
 }
 

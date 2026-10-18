@@ -118,6 +118,7 @@ async function seedLibrary() {
   ];
   const storage = openLibraryStorage(database);
   const manifest = [];
+  let listPayload;
   try {
     const insert = storage.db.prepare(`INSERT INTO items
       (id, kind, title, description, body, source_label, local_asset_path, thumbnail_path,
@@ -190,6 +191,11 @@ async function seedLibrary() {
     }
     storage.db.exec("COMMIT");
     storage.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    const listItems = storage.listActiveItems();
+    listPayload = {
+      itemCount: listItems.length,
+      jsonBytes: Buffer.byteLength(JSON.stringify(listItems)),
+    };
   } finally {
     storage.db.close();
   }
@@ -209,6 +215,7 @@ async function seedLibrary() {
     embeddings:
       "None. Raw inserts enqueue no work; stale-image migration only selects existing stale vectors. Image/PDF OCR text is preseeded to prevent lazy OCR on detail open. Every PDF has a thumbnail, so idle PDF backfill has no candidate.",
     sharpVersion: sharp.versions.sharp,
+    listPayload,
   };
 }
 
