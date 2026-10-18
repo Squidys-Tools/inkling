@@ -101,7 +101,7 @@ Guardrails:
 - Library refresh costs two backend round trips instead of one per item: a new `get_jobs_for_items` command returns every item's processing jobs in a single query, and resolved asset URLs are cached so unchanged paths skip the repeat resolve (`src-tauri/src/jobs.rs`, `src/lib/libraryApi.ts`, `src/lib/assetUrlCache.ts`, `src/App.tsx`)
 - Archive now lives in Settings instead of the sidebar, and the settings modal uses theme variables instead of hardcoded colors (`src/App.tsx`, `src/App.css`)
 - `bun run check` installs dependencies with the lockfile frozen first, so lockfile drift fails locally the way it fails in the CI frontend job
-- Library grid and list views soften into a progressive blur at the bottom edge while scrolling, and the blur clears once the list reaches its end (`src/components/LibraryBottomFade.tsx`, `src/App.css`, `src/App.tsx`)
+- Library grid and list views soften into a progressive blur at the top edge, under the search bar, and the bottom edge, down to the window's last pixel; both stay in place while scrolling (`src/components/LibraryEdgeFade.tsx`, `src/components/GradualBlur/`, `src/App.css`, `src/App.tsx`)
 
 ### Removed
 
