@@ -1502,11 +1502,32 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isFirstRunOpen, setIsFirstRunOpen] = useState(false);
-  const firstRunCheckedRef = useRef(false);
   const finishFirstRun = useCallback(() => {
     setIsFirstRunOpen(false);
     void completeOnboarding().catch(() => null);
   }, []);
+  // The desktop window stays hidden until this settles (inkling:window:ready),
+  // so a first launch opens straight onto the welcome instead of flashing the
+  // library. When the welcome runs, it reports ready once it has painted.
+  useEffect(() => {
+    const showWindow = () => void window.inkling?.windowControls.ready().catch(() => null);
+    if (!canUseDesktopBackend) {
+      showWindow();
+      return;
+    }
+    let cancelled = false;
+    void getOnboardingState()
+      .then(({ shouldAutoShow }) => shouldAutoShow)
+      .catch(() => false)
+      .then((welcome) => {
+        if (cancelled) return;
+        if (welcome) setIsFirstRunOpen(true);
+        else showWindow();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseDesktopBackend]);
   const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("archive");
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(
     shouldUseSeedLibrary() ? browserArchivedItems : [],
@@ -3607,14 +3628,6 @@ function App() {
               current.processing?.failedJob?.status !== refreshed.processing?.failedJob?.status;
             return changed ? { ...current, ...refreshed } : current;
           });
-          if (canUseDesktopBackend && !firstRunCheckedRef.current) {
-            firstRunCheckedRef.current = true;
-            void getOnboardingState()
-              .then(({ shouldAutoShow }) => {
-                if (shouldAutoShow) setIsFirstRunOpen(true);
-              })
-              .catch(() => null);
-          }
         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -5502,18 +5515,16 @@ function App() {
                           </div>
                         ) : null}
                       </div>
-                      {canUseDesktopBackend ? (
-                        <button
-                          type="button"
-                          className="settings-data-link"
-                          onClick={() => {
-                            setIsSettingsOpen(false);
-                            setIsFirstRunOpen(true);
-                          }}
-                        >
-                          Show the welcome again
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        className="settings-data-link"
+                        onClick={() => {
+                          setIsSettingsOpen(false);
+                          setIsFirstRunOpen(true);
+                        }}
+                      >
+                        Show the welcome again
+                      </button>
                     </div>
                   </section>
                 ) : (

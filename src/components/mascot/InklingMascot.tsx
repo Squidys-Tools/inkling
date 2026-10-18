@@ -12,6 +12,8 @@ export interface InklingMascotProps {
   size?: number;
   shape?: string;
   color?: string;
+  /** Body color as any CSS color, overriding `color` when a skin hex will not do. */
+  ink?: string;
   expression?: string;
   paper?: string;
   /** Freeze on one exact frame (seconds into the state). No animation loop. */
@@ -31,6 +33,7 @@ export function InklingMascot({
   size = 80,
   shape = "inkling-splash",
   color = "inkling",
+  ink: inkOverride,
   expression = DEFAULT_EXPRESSION,
   paper = "#faf9f6",
   frozenAt,
@@ -38,7 +41,7 @@ export function InklingMascot({
   playing = true,
 }: InklingMascotProps) {
   const shapeRadii = SHAPE_BY_ID.get(shape)?.radii ?? SHAPE_BY_ID.get(DEFAULT_SHAPE)?.radii ?? null;
-  const ink = COLOR_BY_ID.get(color)?.hex ?? "#1a1a1a";
+  const ink = inkOverride ?? COLOR_BY_ID.get(color)?.hex ?? "#1a1a1a";
   const expr = EXPRESSION_BY_ID.get(expression) ?? null;
 
   const [engine] = useState(() => new BotEngine(RAYON, state, shapeRadii, expr));

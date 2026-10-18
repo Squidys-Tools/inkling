@@ -50,6 +50,8 @@ type ElectronBridge = {
     minimize: () => Promise<void>;
     toggleMaximize: () => Promise<void>;
     close: () => Promise<void>;
+    /** Shows the window, once the first frame worth showing has painted. */
+    ready: () => Promise<void>;
   };
 };
 

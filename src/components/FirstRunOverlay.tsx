@@ -1,60 +1,28 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./Breadcrumb";
+import { KeptOrbit } from "./onboarding/KeptOrbit";
+import { MemoryMatch } from "./onboarding/MemoryMatch";
+import { OnboardingMascot } from "./onboarding/OnboardingMascot";
+import { preloadOnboardingPhotos } from "./onboarding/onboardingMedia";
+import { SplitText } from "./onboarding/SplitText";
 
 const STAGE_WIDTH = 960;
 const STAGE_HEIGHT = 540;
 const LAST_SCREEN = 3;
+/** Drawn size of the big cropped mascot at stage scale 1; the body is about 63% of it. */
+const MASCOT_SIZE = 620;
 
-type Tile = { tone: string; x: number; y: number; w: number; h: number; blur?: boolean };
-
-const keptTiles: Tile[] = [
-  { tone: "#9a948c", x: 245, y: 20, w: 110, h: 110 },
-  { tone: "#36362e", x: 10, y: 80, w: 70, h: 70, blur: true },
-  { tone: "#838480", x: 410, y: 12, w: 60, h: 86, blur: true },
-  { tone: "#6e6951", x: 513, y: 28, w: 134, h: 89 },
-  { tone: "#464441", x: 668, y: 52, w: 94, h: 85 },
-  { tone: "#483f39", x: 870, y: 73, w: 70, h: 72, blur: true },
-  { tone: "#684228", x: 110, y: 128, w: 110, h: 74 },
-  { tone: "#b56035", x: 67, y: 232, w: 89, h: 134 },
-  { tone: "#99a8aa", x: 753, y: 170, w: 134, h: 89 },
-  { tone: "#58503f", x: 797, y: 302, w: 95, h: 126 },
-  { tone: "#503b2c", x: 206, y: 396, w: 76, h: 89 },
-  { tone: "#676458", x: 282, y: 401, w: 97, h: 122 },
-  { tone: "#c6b28a", x: 523, y: 435, w: 134, h: 89 },
-  { tone: "#656f83", x: 702, y: 395, w: 67, h: 120 },
-];
-
-const heroBlotPath =
-  "M385 35C350 20 320 25 290 22C240 16 200 0 160 2C110 6 80 45 70 85C60 125 40 150 15 190C-5 225-2 265 0 300V345H385Z";
-const sideBlotPath =
-  "M0 40C40 10 70 0 120 3C180 8 220 30 270 28C320 26 360 50 365 110C368 160 345 180 330 215C315 250 325 290 322 345H0Z";
+const welcomeFaces = ["neutre", "curieux", "heureux", "attentif"] as const;
+const farewellFaces = ["heureux", "neutre", "fier", "timide"] as const;
 
 function fitScale() {
   return Math.min(1, window.innerWidth / STAGE_WIDTH, window.innerHeight / STAGE_HEIGHT);
-}
-
-function InkBlot({
-  left,
-  path,
-  width,
-  pills,
-}: {
-  left: number;
-  path: string;
-  width: number;
-  pills: [number, number];
-}) {
-  return (
-    <svg
-      className="first-run-blot"
-      aria-hidden="true"
-      style={{ left, width, height: 345 }}
-      viewBox={`0 0 ${width} 345`}
-    >
-      <path className="first-run-blot-shape" d={path} />
-      <rect className="first-run-blot-pill" x={pills[0]} y={148} width={60} height={131} rx={30} />
-      <rect className="first-run-blot-pill" x={pills[1]} y={148} width={60} height={131} rx={30} />
-    </svg>
-  );
 }
 
 export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
@@ -74,6 +42,18 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
     };
   }, [onFinish]);
 
+  // First launch keeps the window hidden until this screen has painted, and
+  // the later screens' photos decode meanwhile so none of them pop in.
+  useEffect(() => {
+    preloadOnboardingPhotos();
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(
+        () => void window.inkling?.windowControls.ready().catch(() => null),
+      );
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   const advance = () => (screen === LAST_SCREEN ? onFinish() : setScreen(screen + 1));
 
   const actions = (style: CSSProperties) => (
@@ -92,6 +72,8 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
     </div>
   );
 
+  const mascotSize = MASCOT_SIZE * scale;
+
   return (
     <div
       className="first-run-overlay"
@@ -99,15 +81,37 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
       aria-modal="true"
       aria-label="Welcome to inkling"
     >
+      {/* The big mascot hangs off the window's corner, not the stage's, so it
+          stays cropped by the window edge at any size. */}
+      {screen === 0 ? (
+        <OnboardingMascot
+          key="welcome"
+          size={mascotSize}
+          faces={welcomeFaces}
+          style={{ right: -0.2 * mascotSize, bottom: -0.3 * mascotSize }}
+        />
+      ) : null}
+      {screen === LAST_SCREEN ? (
+        <OnboardingMascot
+          key="farewell"
+          size={mascotSize}
+          faces={farewellFaces}
+          style={{ left: -0.22 * mascotSize, bottom: -0.3 * mascotSize }}
+        />
+      ) : null}
+
       <div
+        key={screen}
         className="first-run-stage"
         style={{ transform: `translate(-50%, -50%) scale(${scale})` }}
       >
         {screen === 0 ? (
           <>
-            <h1 className="first-run-headline" style={{ left: 72, top: 156 }}>
-              Drop something in.
-            </h1>
+            <SplitText
+              text="Drop something in."
+              className="first-run-headline"
+              style={{ left: 72, top: 156 }}
+            />
             <p className="first-run-body" style={{ left: 72, top: 221 }}>
               Paste a link, drop in a file, or grab a screenshot.
               <br />
@@ -119,28 +123,17 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
               <span>works anywhere in inkling</span>
             </div>
             {actions({ left: 72, top: 348 })}
-            <InkBlot left={575} path={heroBlotPath} width={385} pills={[142, 267]} />
           </>
         ) : null}
 
         {screen === 1 ? (
           <>
-            {keptTiles.map((tile) => (
-              <div
-                key={`${tile.x}-${tile.y}`}
-                className={`first-run-tile${tile.blur ? " is-blurred" : ""}`}
-                style={{
-                  left: tile.x,
-                  top: tile.y,
-                  width: tile.w,
-                  height: tile.h,
-                  background: tile.tone,
-                }}
-              />
-            ))}
-            <h1 className="first-run-headline is-centered" style={{ top: 164 }}>
-              Kept as it came.
-            </h1>
+            <KeptOrbit />
+            <SplitText
+              text="Kept as it came."
+              className="first-run-headline is-centered"
+              style={{ top: 164 }}
+            />
             <p className="first-run-body is-centered" style={{ top: 232 }}>
               Articles, photos, PDFs, quotes, notes and posts each get
               <br />
@@ -154,23 +147,12 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
 
         {screen === 2 ? (
           <>
-            <div className="first-run-card is-blurred-card" style={{ left: 204, top: 52 }}>
-              <span className="first-run-card-art" />
-              <span className="first-run-card-text">that red rocky place, maybe autumn</span>
-            </div>
-            <div className="first-run-card is-sharp-card" style={{ left: 588, top: 52 }} />
-            <div className="first-run-connector" style={{ left: 396, top: 150 }}>
-              <span className="first-run-connector-dot" />
-            </div>
-            <span className="first-run-caption" style={{ left: 204, top: 260 }}>
-              half a memory
-            </span>
-            <span className="first-run-caption" style={{ left: 588, top: 260 }}>
-              the one you meant
-            </span>
-            <h1 className="first-run-headline is-centered" style={{ top: 311 }}>
-              Half a memory is enough.
-            </h1>
+            <MemoryMatch />
+            <SplitText
+              text="Half a memory is enough."
+              className="first-run-headline is-centered"
+              style={{ top: 311 }}
+            />
             <p className="first-run-body is-centered" style={{ top: 375 }}>
               Describe it the way it comes back to you. Search runs on this
               <br />
@@ -182,9 +164,11 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
 
         {screen === 3 ? (
           <>
-            <h1 className="first-run-headline" style={{ left: 500, top: 145 }}>
-              It&apos;s all yours.
-            </h1>
+            <SplitText
+              text="It's all yours."
+              className="first-run-headline"
+              style={{ left: 500, top: 145 }}
+            />
             <p className="first-run-body" style={{ left: 500, top: 214 }}>
               Your library lives on this computer, not in an
               <br />
@@ -192,11 +176,18 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
               <br />
               inkling only goes online to fetch the links you save.
             </p>
-            <p className="first-run-crumb" style={{ left: 500, top: 305 }}>
-              Settings <span>›</span> Data <span>›</span> <em>Export a copy</em>
-            </p>
+            <Breadcrumb className="first-run-crumb" style={{ left: 500, top: 305 }}>
+              <BreadcrumbList>
+                <BreadcrumbItem>Settings</BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>Data</BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Export a copy</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
             {actions({ left: 500, top: 356 })}
-            <InkBlot left={0} path={sideBlotPath} width={365} pills={[37, 162]} />
           </>
         ) : null}
       </div>
