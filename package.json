@@ -14,7 +14,7 @@
     "dev:app": "vite build --mode electron-preview && electron . --preview",
     "ui:smoke": "bun scripts/ui-smoke.mjs",
     "build": "tsc-rs -p benchmarks/harness/tsconfig.json && tsc-rs && vite build",
-    "build:app": "tsc-rs -p benchmarks/harness/tsconfig.json && tsc-rs && vite build --mode app && bun scripts/assert-no-demo-seed.ts",
+    "build:app": "tsc-rs -p benchmarks/harness/tsconfig.json && tsc-rs && vite build --mode app && bun build --target=node --format=esm --outfile=dist/electron/url-ingestion.mjs src/lib/ingestion/url-ingestion.ts && bun scripts/assert-no-demo-seed.ts",
     "build:dir": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --dir",
     "build:installer": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --win nsis",
     "preview": "vite preview",

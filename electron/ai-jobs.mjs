@@ -48,11 +48,23 @@ export function createAiJobProcessors({
   ocr = createTesseractOcr({ cacheDirectory: join(modelCacheDirectory, "tesseract") }),
   embeddings = createEmbeddingEngine(modelCacheDirectory, undefined, bundledModelDirectory),
   extractPdf,
+  extractUrl = async (sourceUrl) => {
+    const { ingestUrl } = await import("../dist/electron/url-ingestion.mjs");
+    return ingestUrl(sourceUrl);
+  },
 } = {}) {
   let thumbnailCursor = 0;
   let thumbnailBackfillDone = false;
 
   const processors = {
+    async enrich_url(job, storage, workerId) {
+      const item = storage.getItem(job.itemId);
+      if (!item) throw new Error("item not found");
+      if (!item.sourceUrl) throw new Error("URL item has no source URL");
+      const article = await extractUrl(item.sourceUrl);
+      storage.applyUrlEnrichment(job.id, workerId, article);
+    },
+
     async ocr_image(job, storage, workerId) {
       const item = storage.getItem(job.itemId);
       if (!item) throw new Error("item not found");

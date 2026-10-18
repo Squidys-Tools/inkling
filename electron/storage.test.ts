@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { personalSeedItems } from "../src/seedPersonal";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
@@ -20,6 +21,7 @@ import {
   openLibraryStorage,
   PDF_THUMBNAIL_JOB,
   resolveLibraryDataDirectory,
+  URL_ENRICHMENT_JOB,
 } from "./storage.mjs";
 import parity from "./fixtures/storage-parity.json";
 
@@ -46,6 +48,19 @@ function temporaryLibrary(options = {}) {
   const root = mkdtempSync(join(tmpdir(), "inkling-electron-storage-"));
   roots.push(root);
   return { root, library: trackedLibrary(join(root, "library.sqlite3"), options) };
+}
+
+function enrichUrl(
+  library: ReturnType<typeof openLibraryStorage>,
+  itemId: string,
+  article: object,
+) {
+  const workerId = `url-test-${randomUUID()}`;
+  const job = library.jobs.claimNext(workerId);
+  if (!job) throw new Error("URL enrichment job was not available");
+  expect(job).toMatchObject({ itemId, kind: URL_ENRICHMENT_JOB, status: "processing" });
+  expect(library.applyUrlEnrichment(job.id, workerId, article)).toBe(true);
+  expect(library.jobs.complete(job.id, workerId)).toBe(true);
 }
 
 function seedFromDemo(library: ReturnType<typeof openLibraryStorage>) {
@@ -147,20 +162,25 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
 
 test("list rows keep card fields while full content stays available by item id", () => {
   const { library } = temporaryLibrary();
-  const article = library.createUrl({
+  const article = library.captureUrl({
     sourceUrl: "https://example.com/reader",
+    captureSource: "quick link",
     title: "A saved article",
-    description: "A short card summary.",
-    body: "",
-    metadata: {
-      tags: ["reading"],
-      html: "<article><p>indexhtmlneedle</p></article>",
-      text: "indextextneedle",
-      extractedText: "private extracted text",
-      author: "A. Reader",
-      publishedDate: "2026-10-18",
-    },
   });
+  enrichUrl(library, article.id, {
+    canonicalUrl: "https://example.com/reader",
+    title: "An extracted title",
+    description: "A short card summary.",
+    text: "indextextneedle",
+    html: "<article><p>indexhtmlneedle</p></article>",
+    author: "A. Reader",
+    publishedDate: "2026-10-18",
+    extractor: "defuddle",
+    imageUrls: [],
+    imageDimensions: [],
+    safeEmbeds: [],
+  });
+  library.updateItem({ id: article.id, addTag: "reading" });
   const note = library.createNote({ title: "A saved note", body: "Private note body." });
   library.db
     .prepare("UPDATE items SET ocr_text = ? WHERE id = ?")
@@ -220,42 +240,91 @@ test("list rows keep card fields while full content stays available by item id",
     metadata: {
       html: "<article><p>indexhtmlneedle</p></article>",
       text: "indextextneedle",
-      extractedText: "private extracted text",
+      extractedText: "indextextneedle",
     },
   });
   expect(library.getItem(note.id)).toMatchObject({ body: "Private note body." });
   expect(library.getItem("missing-item")).toBeNull();
 });
 
-test("metadata patches preserve fields added after a URL was captured", () => {
+test("URL enrichment preserves a title and tags edited while extraction is queued", () => {
   const { library } = temporaryLibrary();
-  const item = library.createUrl({
+  const item = library.captureUrl({
     sourceUrl: "https://example.com/article",
-    title: "Captured title",
-    description: "",
-    body: "",
+    title: "Extension title",
+    captureSource: "browser extension",
+  });
+  const workerId = `url-test-${randomUUID()}`;
+  const job = library.jobs.claimNext(workerId);
+  if (!job) throw new Error("URL enrichment job was not available");
+  library.updateItem({ id: item.id, title: "Edited while loading", addTag: "reading" });
+  expect(
+    library.applyUrlEnrichment(job.id, workerId, {
+      canonicalUrl: "https://example.com/canonical",
+      title: "Article title",
+      description: "Summary",
+      text: "Extracted article text",
+      html: "<article><p>Extracted article text</p></article>",
+      author: "Article author",
+      publishedDate: "2026-01-02",
+      extractor: "defuddle",
+      imageUrls: [],
+      imageDimensions: [],
+      safeEmbeds: [],
+    }),
+  ).toBe(true);
+  expect(library.jobs.complete(job.id, workerId)).toBe(true);
+
+  expect(library.getItem(item.id)).toMatchObject({
+    title: "Edited while loading",
+    sourceUrl: "https://example.com/canonical",
     metadata: {
       captureSource: "browser extension",
-      author: "Extension author",
+      tags: ["reading"],
+      text: "Extracted article text",
+      extractedText: "Extracted article text",
+      author: "Article author",
       publishedDate: "2026-01-02",
-      text: "",
     },
   });
-  library.updateItem({ id: item.id, addTag: "reading" });
+});
 
-  const enriched = library.updateItem({
-    id: item.id,
-    metadataPatch: { text: "Extracted article text", extractedText: "Extracted article text" },
+test("URL capture commits the fallback item with a pending enrichment job", () => {
+  const events: string[] = [];
+  const { library } = temporaryLibrary({
+    jobQueue: { onUpdated: (id: string) => events.push(id) },
   });
 
-  expect(enriched.metadata).toMatchObject({
-    captureSource: "browser extension",
-    author: "Extension author",
-    publishedDate: "2026-01-02",
-    tags: ["reading"],
-    text: "Extracted article text",
-    extractedText: "Extracted article text",
+  const item = library.captureUrl({
+    sourceUrl: "https://example.com/article",
+    captureSource: "quick link",
   });
+
+  expect(item).toMatchObject({
+    kind: "url",
+    title: "example.com",
+    description: null,
+    sourceUrl: "https://example.com/article",
+    sourceLabel: "example.com",
+    metadata: { captureSource: "quick link", text: "", html: "" },
+  });
+  expect(library.jobs.getForItem(item.id)).toMatchObject([
+    { kind: URL_ENRICHMENT_JOB, status: "pending" },
+  ]);
+  expect(events).toEqual([item.id]);
+});
+
+test("URL capture rolls back the item when its enrichment job cannot be queued", () => {
+  const { library } = temporaryLibrary();
+  library.jobs.enqueue = () => {
+    throw new Error("queue unavailable");
+  };
+
+  expect(() =>
+    library.captureUrl({ sourceUrl: "https://example.com/article", captureSource: "quick link" }),
+  ).toThrow("queue unavailable");
+  expect(library.db.prepare("SELECT COUNT(*) AS count FROM items").get().count).toBe(0);
+  expect(library.db.prepare("SELECT COUNT(*) AS count FROM jobs").get().count).toBe(0);
 });
 
 test("free-text search hybrid-ranks lexical and Nomic semantic matches", () => {
@@ -470,6 +539,66 @@ test("job leases are owner-bound, renew for five minutes, and recover only after
     "job-item",
     "job-item",
   ]);
+});
+
+test("exclusive startup resumes interrupted URL work without stealing other live jobs", () => {
+  const now = 10_000;
+  const { library } = temporaryLibrary({ jobQueue: { now: () => now } });
+  const url = library.captureUrl({
+    sourceUrl: "https://example.com/article",
+    captureSource: "quick link",
+  });
+  library.db
+    .prepare(
+      "INSERT INTO items (id, kind, created_at, updated_at) VALUES ('live-image', 'image', 1, 1)",
+    )
+    .run();
+  const imageJobId = library.jobs.enqueue("live-image", "ocr_image");
+  const urlJobId = library.jobs.getForItem(url.id)[0]?.id;
+  if (!urlJobId) throw new Error("URL enrichment job was not created");
+  library.db
+    .prepare("UPDATE jobs SET status = 'processing', worker_id = ?, lease_until = ? WHERE id = ?")
+    .run("stopped-worker", now + JOB_LEASE_MILLIS, urlJobId);
+  library.db
+    .prepare("UPDATE jobs SET status = 'processing', worker_id = ?, lease_until = ? WHERE id = ?")
+    .run("live-worker", now + JOB_LEASE_MILLIS, imageJobId);
+
+  expect(library.jobs.recoverUrlEnrichmentAfterExclusiveStartup()).toBe(1);
+  expect(library.jobs.getForItem(url.id)[0]).toMatchObject({
+    status: "pending",
+    retryCount: 0,
+  });
+  expect(
+    library.db.prepare("SELECT status, worker_id FROM jobs WHERE id = ?").get(imageJobId),
+  ).toEqual({
+    status: "processing",
+    worker_id: "live-worker",
+  });
+  expect(library.jobs.recoverExpired()).toBe(0);
+  expect(library.jobs.claimNext("restarted-worker")?.itemId).toBe(url.id);
+});
+
+test("manual retry restores the full retry budget", () => {
+  const { library } = temporaryLibrary();
+  library.db
+    .prepare(
+      "INSERT INTO items (id, kind, created_at, updated_at) VALUES ('retry-item', 'image', 1, 1)",
+    )
+    .run();
+  const queue = library.jobs;
+  const jobId = queue.enqueue("retry-item", "ocr_image");
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    expect(queue.claimNext("retry-worker")?.id).toBe(jobId);
+    expect(queue.fail(jobId, "retry-worker", "temporary failure")).toBe(true);
+  }
+  expect(queue.getForItem("retry-item")[0]).toMatchObject({ status: "failed", retryCount: 3 });
+
+  expect(queue.retry(jobId)).toBe(true);
+  expect(queue.getForItem("retry-item")[0]).toMatchObject({ status: "pending", retryCount: 0 });
+  expect(queue.claimNext("retry-worker")?.id).toBe(jobId);
+  expect(queue.fail(jobId, "retry-worker", "temporary failure")).toBe(true);
+  expect(queue.getForItem("retry-item")[0]).toMatchObject({ status: "pending", retryCount: 1 });
 });
 
 test("file capture persists its item and asset before queued processing becomes visible", async () => {

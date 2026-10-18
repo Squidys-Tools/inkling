@@ -6,7 +6,13 @@ import sharp from "sharp";
 import { createAiJobProcessors, embeddingText, enqueueStaleImageEmbeddings } from "./ai-jobs.mjs";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
 import { extractPdfTextByPages } from "./pdf.mjs";
-import { JOB_LEASE_MILLIS, JobWorker, openLibraryStorage, PDF_THUMBNAIL_JOB } from "./storage.mjs";
+import {
+  JOB_LEASE_MILLIS,
+  JobWorker,
+  openLibraryStorage,
+  PDF_THUMBNAIL_JOB,
+  URL_ENRICHMENT_JOB,
+} from "./storage.mjs";
 import { createImageThumbnail } from "./thumbnail.mjs";
 
 const roots: string[] = [];
@@ -172,6 +178,122 @@ const unusedModels = {
     embedImage: async () => embedding(IMAGE_MODEL),
   },
 };
+
+test("URL enrichment updates the captured item before its text is embedded", async () => {
+  const { root, library } = temporaryLibrary();
+  const captured = library.captureUrl({
+    sourceUrl: "https://example.com/requested-path",
+    captureSource: "quick link",
+  });
+  const embeddedTexts: string[] = [];
+  const ai = createAiJobProcessors({
+    modelCacheDirectory: join(root, "models"),
+    ...unusedModels,
+    embeddings: {
+      ...unusedModels.embeddings,
+      embedText: async (text) => {
+        embeddedTexts.push(text);
+        return embedding(TEXT_MODEL);
+      },
+    },
+    extractUrl: async (sourceUrl) => {
+      expect(sourceUrl).toBe("https://example.com/requested-path");
+      return {
+        canonicalUrl: "https://example.com/canonical-path",
+        title: "Extracted article title",
+        description: "Extracted article summary.",
+        text: "Article text searchable later.",
+        html: "<article><p>Article text searchable later.</p></article>",
+        author: "Local author",
+        publishedDate: "2026-10-18",
+        imageUrls: [],
+        imageDimensions: [],
+        safeEmbeds: [],
+        extractor: "defuddle",
+      };
+    },
+  });
+  const worker = new JobWorker(library, {
+    processors: ai.processors,
+    workerId: "url-capture-test",
+  });
+
+  await worker.pump();
+  await worker.stop();
+
+  expect(library.getItem(captured.id)).toMatchObject({
+    id: captured.id,
+    title: "Extracted article title",
+    description: "Extracted article summary.",
+    sourceUrl: "https://example.com/canonical-path",
+    metadata: {
+      captureSource: "quick link",
+      sourceUrl: "https://example.com/canonical-path",
+      text: "Article text searchable later.",
+      extractedText: "Article text searchable later.",
+      html: "<article><p>Article text searchable later.</p></article>",
+      author: "Local author",
+      publishedDate: "2026-10-18",
+    },
+  });
+  expect(embeddedTexts).toHaveLength(1);
+  expect(embeddedTexts[0]).toContain("Article text searchable later.");
+  expect(
+    library.jobs
+      .getForItem(captured.id)
+      .map(({ kind, status }) => `${kind}:${status}`)
+      .sort(),
+  ).toEqual([`${URL_ENRICHMENT_JOB}:completed`, "generate_embedding:completed"].sort());
+  await ai.close();
+});
+
+test("failed URL enrichment retries while keeping the fallback item available", async () => {
+  const { root, library } = temporaryLibrary();
+  const captured = library.captureUrl({
+    sourceUrl: "https://example.com/requested-path",
+    title: "Saved by extension",
+    captureSource: "browser extension",
+  });
+  let attempts = 0;
+  const ai = createAiJobProcessors({
+    modelCacheDirectory: join(root, "models"),
+    ...unusedModels,
+    extractUrl: async () => {
+      attempts += 1;
+      throw new Error("site is temporarily unavailable");
+    },
+  });
+  const worker = new JobWorker(library, {
+    processors: ai.processors,
+    workerId: "url-failure-test",
+  });
+
+  await worker.pump();
+  await worker.stop();
+
+  expect(attempts).toBe(4);
+  expect(library.getItem(captured.id)).toMatchObject({
+    id: captured.id,
+    title: "Saved by extension",
+    sourceUrl: "https://example.com/requested-path",
+    sourceLabel: "example.com",
+    metadata: { captureSource: "browser extension" },
+  });
+  expect(library.jobs.getForItem(captured.id)).toMatchObject([
+    {
+      kind: URL_ENRICHMENT_JOB,
+      status: "failed",
+      retryCount: 3,
+      errorMessage: "site is temporarily unavailable",
+    },
+  ]);
+  expect(library.jobs.retry(library.jobs.getForItem(captured.id)[0].id)).toBe(true);
+  expect(library.jobs.getForItem(captured.id)[0]).toMatchObject({
+    status: "pending",
+    retryCount: 0,
+  });
+  await ai.close();
+});
 
 test("PDF capture stays instant and the OCR job publishes the page-one thumbnail", async () => {
   let thumbnailCalls = 0;

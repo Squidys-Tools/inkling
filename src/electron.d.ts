@@ -22,7 +22,7 @@ type ElectronCommand =
   | "list_item_spaces"
   | "create_note"
   | "create_quote"
-  | "create_url"
+  | "capture_url"
   | "save_file"
   | "resolve_asset_path"
   | "update_item"

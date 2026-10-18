@@ -68,6 +68,7 @@ Guardrails:
 
 ### Fixed
 
+- URL captures from Add, paste, deep links, and the browser extension now appear immediately and enrich the same item through the retryable local job queue.
 - The app no longer contacts Google Fonts or Twitter/X at startup: reader fonts are bundled with the app and the content security policy no longer allows Google Fonts requests
 - X post embeds load the X widget only when the user clicks to load the post, so cards and saved links no longer contact X or Twitter on open
 - The library bottom fade no longer shows a hard edge where the blur band starts or where it meets the padding below the grid: one blur layer feathers out through an eased mask, and a canvas-colored scrim dissolves content into the background at the grid's clip line (#149)

@@ -68,12 +68,10 @@ export type CreateQuoteInput = {
   metadata?: Record<string, unknown>;
 };
 
-export type CreateUrlInput = {
+export type CaptureUrlItemInput = {
   sourceUrl: string;
-  title: string;
-  description: string;
-  body: string;
-  metadata?: Record<string, unknown>;
+  captureSource: string;
+  title?: string;
 };
 
 type UpdateItemInput = {
@@ -99,7 +97,7 @@ export type SaveFileInput = {
   bytes: number[];
 };
 
-type ProcessingJobKind = "ocr_image" | "ocr_pdf_page" | "generate_embedding";
+type ProcessingJobKind = "ocr_image" | "ocr_pdf_page" | "generate_embedding" | "enrich_url";
 type ProcessingJobStatus = "pending" | "processing" | "completed" | "failed";
 
 export type ProcessingJob = {
@@ -325,8 +323,8 @@ export async function createQuote(input: CreateQuoteInput) {
   return withInitializedStorage(() => invoke<StoredLibraryItem>("create_quote", { input }));
 }
 
-export async function createUrl(input: CreateUrlInput) {
-  return withInitializedStorage(() => invoke<StoredLibraryItem>("create_url", { input }));
+export async function captureUrlItem(input: CaptureUrlItemInput) {
+  return withInitializedStorage(() => invoke<StoredLibraryItem>("capture_url", { input }));
 }
 
 export async function saveFile(input: SaveFileInput) {

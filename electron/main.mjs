@@ -123,6 +123,7 @@ function initializeLibraryStorage() {
     modelCacheDirectory: join(libraryDirectory, "models"),
     bundledModelDirectory: app.isPackaged ? join(process.resourcesPath, "models") : undefined,
   });
+  libraryStorage.jobs.recoverUrlEnrichmentAfterExclusiveStartup();
   enqueueStaleImageEmbeddings(libraryStorage);
   jobWorker = new JobWorker(libraryStorage, {
     processors: aiJobProcessors.processors,
@@ -185,7 +186,7 @@ function registerLibraryCommands() {
     list_item_spaces: ({ itemId }) => requireLibraryStorage().listItemSpaces(itemId),
     create_note: ({ input }) => requireLibraryStorage().createNote(input),
     create_quote: ({ input }) => requireLibraryStorage().createQuote(input),
-    create_url: ({ input }) => requireLibraryStorage().createUrl(input),
+    capture_url: ({ input }) => requireLibraryStorage().captureUrl(input),
     save_file: ({ input }) => requireLibraryStorage().saveFile(input),
     resolve_asset_path: ({ path }) => requireLibraryStorage().resolveAssetPath(path),
     update_item: ({ input }) => requireLibraryStorage().updateItem(input),
@@ -378,9 +379,9 @@ if (!hasSingleInstanceLock) {
     try {
       captureServer = await startCaptureServer({
         libraryDirectory,
-        createUrl: (input) => {
+        captureUrl: (input) => {
           if (!libraryStorage) initializeLibraryStorage();
-          return requireLibraryStorage().createUrl(input);
+          return requireLibraryStorage().captureUrl(input);
         },
       });
     } catch (error) {
