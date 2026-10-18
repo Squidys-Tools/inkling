@@ -105,7 +105,7 @@ import { parseDeepLinkCapture, validateDeepLinkCapture } from "./lib/deepLink";
 import { enrichDeepLinkCapture } from "./lib/deepLinkEnrichment";
 import { safePublicImageUrl } from "./lib/ingestion/url";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
-import { LibraryBottomFade } from "./components/LibraryBottomFade";
+import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
 import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
 import { providerLabel, videoLinkFromSourceUrl } from "./lib/ingestion/video-links";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
@@ -3687,6 +3687,7 @@ function App() {
     serendipityBatch,
     similaritySource,
   ]);
+  const showLibraryEdges = !isSerendipityView && filteredItems.length > 0;
 
   // The Regular Spaces an item can be filed into, and whether it already is.
   // Smart Spaces are excluded: their contents come from the query, so a chip
@@ -4604,6 +4605,7 @@ function App() {
               <HugeiconsIcon icon={PlusSignIcon} size={18} />
               <span>{isCapturing ? "Saving…" : "Add"}</span>
             </button>
+            {showLibraryEdges && <LibraryEdgeFade edge="top" />}
           </section>
 
           <AnimatePresence>
@@ -5086,18 +5088,15 @@ function App() {
             ) : (
               <>
                 {filteredItems.length > 0 && (
-                  <>
-                    <VirtuosoMasonry
-                      key={libraryGridKey}
-                      className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
-                      columnCount={listMode ? 1 : gridColumnCount}
-                      data={filteredItems}
-                      context={libraryCardContext}
-                      ItemContent={VirtualizedLibraryItem}
-                      style={{ height: "100%", width: "100%" }}
-                    />
-                    <LibraryBottomFade scrollRef={libraryScrollRef} />
-                  </>
+                  <VirtuosoMasonry
+                    key={libraryGridKey}
+                    className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
+                    columnCount={listMode ? 1 : gridColumnCount}
+                    data={filteredItems}
+                    context={libraryCardContext}
+                    ItemContent={VirtualizedLibraryItem}
+                    style={{ height: "100%", width: "100%" }}
+                  />
                 )}
 
                 {filteredItems.length === 0 && (
@@ -5156,6 +5155,8 @@ function App() {
               aria-hidden="true"
             />
           </div>
+
+          {showLibraryEdges && <LibraryEdgeFade edge="bottom" />}
         </main>
 
         <AnimatePresence>

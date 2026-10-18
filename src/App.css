@@ -2264,29 +2264,38 @@ a:focus-visible,
   width: 0;
   height: 0;
 }
-.library-bottom-fade {
+.library-toolbar {
+  position: relative;
+  z-index: 2;
+}
+.library-edge-fade {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
   height: 120px;
   z-index: 1;
   pointer-events: none;
-  transition: opacity 180ms ease;
 }
-/* The grid clips at the scroller's bottom edge (above the main-content
-   padding), and blurred cards stay bright, so a scrim is what dissolves
-   content into the canvas at that clip line. It sits above the blur bands:
-   a background under them is blurred along with the cards. */
-.library-bottom-fade::after {
+.library-edge-fade.is-top {
+  top: 100%;
+}
+.library-edge-fade.is-bottom {
+  bottom: 0;
+}
+/* The grid clips at the scroller's edges, and blurred cards stay bright, so a
+   scrim is what dissolves content into the canvas at those clip lines. It sits
+   above the blur: a background under it would be blurred along with the cards.
+   The bottom band reaches the window edge, past the 30px main-content padding
+   that holds the scroller's bottom clip. */
+.library-edge-fade::after {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(to top, var(--library-canvas), transparent 38%);
+  background: linear-gradient(to top, var(--library-canvas) 30px, transparent);
 }
-.library-bottom-fade[data-at-end] {
-  opacity: 0;
+.library-edge-fade.is-top::after {
+  background: linear-gradient(to bottom, var(--library-canvas) 60px, transparent);
 }
 .library-grid.view-transitioning {
   visibility: hidden;
