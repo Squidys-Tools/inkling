@@ -11,7 +11,8 @@
         "electron/preload.cjs"
       ],
       "project": ["src/**/*", "benchmarks/harness/**/*", "electron/**/*"],
-      "ignore": ["src/bun-test.d.ts"]
+      "ignore": ["src/bun-test.d.ts"],
+      "ignoreDependencies": ["@fontsource/.+"]
     },
     "extension": {
       "entry": ["src/options.ts", "src/background.ts", "src/**/*.test.ts"]
