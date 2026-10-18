@@ -168,6 +168,7 @@ function savedLabelFor(date: string): string {
 function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): OverlayAction[] {
   const list: OverlayAction[] = [];
   const sourceHost = hostnameForUrl(item.sourceUrl);
+  const hasReaderContent = Boolean(item.articleHtml || item.hasArticleContent);
   const openOriginal: OverlayAction = {
     key: "open-original",
     label: sourceHost ?? item.source ?? "Open original",
@@ -188,7 +189,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
       onClick: () => actions.onOpenPdf(item),
     });
   }
-  if (item.kind === "Article" && item.articleHtml) {
+  if (item.kind === "Article" && hasReaderContent) {
     list.push({
       key: "read",
       label: "Read",
@@ -206,7 +207,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
       disabled: actions.isFindingSimilar,
     });
   }
-  if (item.kind === "Article" && !item.articleHtml && item.sourceUrl) {
+  if (item.kind === "Article" && !hasReaderContent && item.sourceUrl) {
     list.push({
       key: "read-unavailable",
       label: "Read",

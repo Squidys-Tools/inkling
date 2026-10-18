@@ -16,6 +16,25 @@ const commands = new Proxy(
         if (property === "list_spaces") return [];
         if (property === "list_item_spaces") return ["space-1"];
         if (property === "add_space_item" || property === "remove_space_item") return null;
+        if (property === "get_item")
+          return {
+            id: args?.id,
+            kind: "url",
+            title: "Stored article",
+            description: "Article summary",
+            body: "",
+            bodyFormat: "md",
+            sourceUrl: "https://example.com/article",
+            sourceLabel: "example.com",
+            localAssetPath: null,
+            thumbnailPath: null,
+            ocrText: "",
+            metadata: { html: "<p>Saved article content</p>" },
+            createdAt: 1,
+            updatedAt: 1,
+            archived: false,
+            favorite: false,
+          };
         if (property === "get_jobs_for_items") return [];
         if (property === "count_active_jobs") return 2;
         if (property === "enqueue_ocr_job") return "job-2";
@@ -49,6 +68,7 @@ const {
   checkForUpdates,
   countActiveJobs,
   enqueueOcrJob,
+  getItem,
   getProcessingSummaries,
   importLibrary,
   installUpdate,
@@ -243,6 +263,15 @@ test("the UI can enqueue OCR for a selected image or PDF", async () => {
     command: "enqueue_ocr_job",
     args: { itemId: "item-7" },
   });
+});
+
+test("the UI loads the full stored item by id when a reader opens", async () => {
+  invokeCalls.length = 0;
+
+  const item = await getItem("article-1");
+
+  expect(item?.metadata.html).toBe("<p>Saved article content</p>");
+  expect(invokeCalls).toEqual([{ command: "get_item", args: { id: "article-1" } }]);
 });
 
 test("the UI checks for updates and installs only after an explicit request", async () => {

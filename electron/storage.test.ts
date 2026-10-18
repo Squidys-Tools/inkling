@@ -145,6 +145,88 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
   expect(library.listActiveItems().map((item) => item.id)).toContain(note.id);
 });
 
+test("list rows keep card fields while full content stays available by item id", () => {
+  const { library } = temporaryLibrary();
+  const article = library.createUrl({
+    sourceUrl: "https://example.com/reader",
+    title: "A saved article",
+    description: "A short card summary.",
+    body: "",
+    metadata: {
+      tags: ["reading"],
+      html: "<article><p>indexhtmlneedle</p></article>",
+      text: "indextextneedle",
+      extractedText: "private extracted text",
+      author: "A. Reader",
+      publishedDate: "2026-10-18",
+    },
+  });
+  const note = library.createNote({ title: "A saved note", body: "Private note body." });
+  library.db
+    .prepare("UPDATE items SET ocr_text = ? WHERE id = ?")
+    .run("OCR-PRIVATE-".repeat(100), article.id);
+  library.storeEmbedding(article.id, "text", TEXT_MODEL, vector([1, 0]), 2);
+  library.storeEmbedding(note.id, "text", TEXT_MODEL, vector([0.9, Math.sqrt(0.19)]), 2);
+  const active = library.listActiveItems();
+  const articleCard = active.find((item) => item.id === article.id);
+  const noteCard = active.find((item) => item.id === note.id);
+
+  expect(articleCard).toMatchObject({
+    id: article.id,
+    kind: "url",
+    title: "A saved article",
+    description: "A short card summary.",
+    hasArticleContent: true,
+    metadata: { tags: ["reading"], imageUrls: [], imageDimensions: [] },
+  });
+  expect(articleCard).not.toHaveProperty("body");
+  expect(articleCard).not.toHaveProperty("bodyFormat");
+  expect(articleCard).not.toHaveProperty("updatedAt");
+  expect(articleCard?.ocrText).toHaveLength(180);
+  expect(articleCard?.metadata).not.toHaveProperty("html");
+  expect(articleCard?.metadata).not.toHaveProperty("text");
+  expect(articleCard?.metadata).not.toHaveProperty("extractedText");
+  expect(articleCard?.metadata).not.toHaveProperty("author");
+  expect(articleCard?.metadata).not.toHaveProperty("publishedDate");
+  expect(JSON.stringify(articleCard)).not.toContain("indexhtmlneedle");
+  expect(JSON.stringify(articleCard)).not.toContain("indextextneedle");
+  expect(noteCard).not.toHaveProperty("body");
+  const htmlSearch = library.searchItems("indexhtmlneedle");
+  const textSearch = library.searchItems("indextextneedle");
+  const smartSpace = library.createSpace({ name: "Reading", query: { tag: "reading" } });
+  const regularSpace = library.createSpace({ name: "Saved", kind: "regular" });
+  library.addSpaceItem(regularSpace.id, article.id);
+  expect(htmlSearch.map((item) => item.id)).toContain(article.id);
+  expect(textSearch.map((item) => item.id)).toContain(article.id);
+  expect(htmlSearch[0]).not.toHaveProperty("body");
+  expect(htmlSearch[0]?.metadata).not.toHaveProperty("html");
+  expect(htmlSearch[0]?.metadata).not.toHaveProperty("text");
+  expect(library.listSpaceItems(smartSpace.id).map((item) => item.id)).toEqual([article.id]);
+  expect(library.listSpaceItems(regularSpace.id).map((item) => item.id)).toEqual([article.id]);
+  const similarItems = library.searchSimilar(article.id, "text");
+  expect(similarItems.map((item) => item.id)).toEqual([note.id]);
+  expect(similarItems[0]).not.toHaveProperty("body");
+  library.fts5Enabled = false;
+  const fallbackSearch = library.searchItems("indexhtmlneedle");
+  expect(fallbackSearch.map((item) => item.id)).toContain(article.id);
+  expect(fallbackSearch[0]).not.toHaveProperty("body");
+  expect(fallbackSearch[0]?.metadata).not.toHaveProperty("html");
+  library.fts5Enabled = true;
+  library.archiveItem(article.id);
+  const archivedCard = library.listArchivedItems().find((item) => item.id === article.id);
+  expect(archivedCard?.metadata).not.toHaveProperty("html");
+  expect(archivedCard?.hasArticleContent).toBe(true);
+  expect(library.getItem(article.id)).toMatchObject({
+    metadata: {
+      html: "<article><p>indexhtmlneedle</p></article>",
+      text: "indextextneedle",
+      extractedText: "private extracted text",
+    },
+  });
+  expect(library.getItem(note.id)).toMatchObject({ body: "Private note body." });
+  expect(library.getItem("missing-item")).toBeNull();
+});
+
 test("metadata patches preserve fields added after a URL was captured", () => {
   const { library } = temporaryLibrary();
   const item = library.createUrl({

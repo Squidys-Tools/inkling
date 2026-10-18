@@ -7,6 +7,7 @@ const commands = Object.freeze({
   initialize_storage: () => ipcRenderer.invoke("inkling:initialize_storage"),
   list_active_items: () => ipcRenderer.invoke("inkling:list_active_items"),
   list_archived_items: () => ipcRenderer.invoke("inkling:list_archived_items"),
+  get_item: (args) => ipcRenderer.invoke("inkling:get_item", args),
   get_item_content: (args) => ipcRenderer.invoke("inkling:get_item_content", args),
   search_items: (args) => ipcRenderer.invoke("inkling:search_items", args),
   search_similar_images: (args) => ipcRenderer.invoke("inkling:search_similar_images", args),

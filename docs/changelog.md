@@ -73,6 +73,7 @@ Guardrails:
 
 ### Changed
 
+- Library list IPC sends card fields only; reader content is loaded from SQLite when opened.
 - Electron defers canvas system-font loading until PDF work runs; BMP and ICO thumbnails use canvas without loading system fonts.
 - Library cards form a denser masonry grid with tighter gutters and natural media proportions; note and quote previews stay readable, while list, Archive, and Serendipity views keep their existing geometry.
 - Desktop window opens at 960 × 540 instead of 1000 × 800; the 320 × 360 minimum size is unchanged.

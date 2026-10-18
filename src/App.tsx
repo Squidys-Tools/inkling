@@ -73,6 +73,7 @@ import {
   removeSpaceItem,
   getProcessingSummaries,
   enqueueOcrJob,
+  getItem,
   getItemContent,
   retryProcessingJob,
   getCaptureStatus,
@@ -97,6 +98,8 @@ import {
   type ProcessingSummary,
   type SmartSpaceQuery,
   type SpaceKind,
+  type StoredLibraryCard,
+  type StoredLibraryItemDetail,
   type StoredLibraryItem,
   type StoredSpace,
 } from "./lib/libraryApi";
@@ -317,7 +320,7 @@ function readImageDimensions(src: string): Promise<{ width: number; height: numb
 }
 
 async function storedItemToLibraryItem(
-  item: StoredLibraryItem,
+  item: StoredLibraryItem | StoredLibraryCard,
   processing?: ProcessingSummary,
 ): Promise<LibraryItem> {
   const social = readXPostMetadata(item.metadata.social);
@@ -328,11 +331,10 @@ async function storedItemToLibraryItem(
   const tags = Array.isArray(metadataTags)
     ? metadataTags.filter((tag): tag is string => typeof tag === "string")
     : [];
-  const metadataHtml = typeof item.metadata.html === "string" ? item.metadata.html : undefined;
-  const metadataAuthor =
-    typeof item.metadata.author === "string" ? item.metadata.author : undefined;
-  const metadataPublishedDate =
-    typeof item.metadata.publishedDate === "string" ? item.metadata.publishedDate : undefined;
+  const hasArticleContent =
+    "hasArticleContent" in item
+      ? item.hasArticleContent
+      : typeof item.metadata.html === "string" && Boolean(item.metadata.html.trim());
   const pdfPageCount =
     baseKind === "PDF" &&
     typeof item.metadata.pdfPageCount === "number" &&
@@ -374,7 +376,9 @@ async function storedItemToLibraryItem(
 
   const isQuote = kind === "Quote";
   const noteBody =
-    kind === "Note" && typeof item.body === "string" ? normalizeNoteBody(item.body) : undefined;
+    kind === "Note" && "body" in item && typeof item.body === "string"
+      ? normalizeNoteBody(item.body)
+      : undefined;
   const rawTitle = item.title?.trim() || "Untitled note";
   // The backend already stored `markdownToPlainText(body)` as the
   // description, so a note's plain text arrives ready to read. Projecting the
@@ -411,10 +415,26 @@ async function storedItemToLibraryItem(
     favorite: item.favorite,
     archived: item.archived,
     processing,
-    articleHtml: metadataHtml?.trim() ? metadataHtml : undefined,
-    articleAuthor: metadataAuthor,
-    publishedDate: metadataPublishedDate,
+    hasArticleContent,
     video: videoLink ?? undefined,
+  };
+}
+
+function withArticleContent(item: LibraryItem, storedItem: StoredLibraryItemDetail): LibraryItem {
+  const articleHtml =
+    typeof storedItem.metadata.html === "string" && storedItem.metadata.html.trim()
+      ? storedItem.metadata.html
+      : undefined;
+  return {
+    ...item,
+    hasArticleContent: Boolean(articleHtml),
+    articleHtml,
+    articleAuthor:
+      typeof storedItem.metadata.author === "string" ? storedItem.metadata.author : undefined,
+    publishedDate:
+      typeof storedItem.metadata.publishedDate === "string"
+        ? storedItem.metadata.publishedDate
+        : undefined,
   };
 }
 
@@ -935,6 +955,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
 }: VirtualizedLibraryItemProps) {
   const archiveSelectionMode = context.archiveSelectionMode === true;
   const isArchivedItemSelected = context.isArchivedItemSelected?.(item) ?? false;
+  const canOpenReader = Boolean(item.articleHtml || item.hasArticleContent);
   const handleCardSelect = (event: React.MouseEvent<HTMLElement>) => {
     if (archiveSelectionMode) {
       event.preventDefault();
@@ -1136,8 +1157,8 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                     context.onOpenReader(item);
                   }
                 }}
-                disabled={!item.articleHtml}
-                title={item.articleHtml ? "Open reader" : "No saved article text"}
+                disabled={!canOpenReader}
+                title={canOpenReader ? "Open reader" : "No saved article text"}
               >
                 Read <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
               </button>
@@ -1535,10 +1556,25 @@ function App() {
   const processingSummaryRequestsRef = useRef(new Set<string>());
   const pendingOcrRequestsRef = useRef(new Set<string>());
   const noteBodyCacheRef = useRef(new Map<string, string>());
+  const itemDetailsRequestsRef = useRef(new Map<string, Promise<StoredLibraryItemDetail | null>>());
+  const loadStoredItem = useCallback((id: string) => {
+    const existing = itemDetailsRequestsRef.current.get(id);
+    if (existing) return existing;
+    const request = getItem(id).finally(() => itemDetailsRequestsRef.current.delete(id));
+    itemDetailsRequestsRef.current.set(id, request);
+    return request;
+  }, []);
   const selectedItemId = selectedItem ? String(selectedItem.id) : null;
   const selectedItemKind = selectedItem?.kind;
   const selectedItemOcrText = selectedItem?.ocrText;
   const selectedItemProcessing = selectedItem?.processing;
+  const readerRequestIdRef = useRef(0);
+  const selectedItemIdRef = useRef(selectedItemId);
+  useEffect(() => {
+    if (selectedItemIdRef.current === selectedItemId) return;
+    readerRequestIdRef.current += 1;
+    selectedItemIdRef.current = selectedItemId;
+  }, [selectedItemId]);
   useEffect(() => {
     if (!canUseDesktopBackend || !selectedItemId) return;
     const itemId = selectedItemId;
@@ -2061,15 +2097,37 @@ function App() {
   );
 
   const openReader = useCallback(
-    (
+    async (
       item: LibraryItem,
       origin: ReaderOrigin = { x: window.innerWidth / 2, y: window.innerHeight / 2 },
     ) => {
-      if (!item.articleHtml) return;
-      setReadingItem({ item, origin });
+      const requestId = ++readerRequestIdRef.current;
+      try {
+        let readerItem = item;
+        if (canUseDesktopBackend) {
+          if (!readerItem.articleHtml && !readerItem.hasArticleContent) return;
+          const storedItem = await loadStoredItem(String(item.id));
+          if (requestId !== readerRequestIdRef.current || !storedItem) return;
+          readerItem = withArticleContent(item, storedItem);
+        } else if (!readerItem.articleHtml) {
+          return;
+        }
+        if (requestId !== readerRequestIdRef.current || !readerItem.articleHtml) return;
+        setReadingItem({ item: readerItem, origin });
+      } catch (error) {
+        if (requestId === readerRequestIdRef.current) {
+          toast.error("Unable to open reader", {
+            description: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
     },
-    [],
+    [canUseDesktopBackend, loadStoredItem],
   );
+  const closeReader = useCallback(() => {
+    readerRequestIdRef.current += 1;
+    setReadingItem(null);
+  }, []);
 
   const measureLibraryCards = useCallback(() => {
     const root = libraryScrollRef.current;
@@ -5493,7 +5551,7 @@ function App() {
                   } satisfies ReaderItem
                 }
                 origin={readingItem.origin}
-                onRequestClose={() => setReadingItem(null)}
+                onRequestClose={closeReader}
               />
             </Suspense>
           )}

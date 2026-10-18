@@ -31,6 +31,16 @@ const itemColumns = `id, kind, title, description, source_url, source_label,
 const qualifiedItemColumns = `i.id, i.kind, i.title, i.description, i.source_url, i.source_label,
   i.local_asset_path, i.thumbnail_path, i.ocr_text, i.metadata, i.created_at, i.updated_at,
   i.archived, i.favorite, NULL AS body, 'md' AS body_format`;
+const cardMetadataFields = [
+  "tags",
+  "social",
+  "imageUrls",
+  "imageDimensions",
+  "mediaWidth",
+  "mediaHeight",
+  "mediaAspectRatio",
+  "pdfPageCount",
+];
 
 const itemsSchema = `
 CREATE TABLE IF NOT EXISTS items (
@@ -150,6 +160,35 @@ function itemFromRow(row) {
     updatedAt: row.updated_at,
     archived: row.archived !== 0,
     favorite: row.favorite !== 0,
+  };
+}
+
+function cardItem(item) {
+  const metadata =
+    item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
+      ? item.metadata
+      : {};
+  const cardMetadata = {};
+  for (const field of cardMetadataFields) {
+    if (Object.hasOwn(metadata, field)) cardMetadata[field] = metadata[field];
+  }
+  return {
+    id: item.id,
+    kind: item.kind,
+    title: item.title,
+    description: item.description,
+    sourceUrl: item.sourceUrl,
+    sourceLabel: item.sourceLabel,
+    localAssetPath: item.localAssetPath,
+    thumbnailPath: item.thumbnailPath,
+    ocrText: String(item.ocrText ?? "")
+      .trim()
+      .slice(0, 180),
+    metadata: cardMetadata,
+    createdAt: item.createdAt,
+    archived: item.archived,
+    favorite: item.favorite,
+    hasArticleContent: typeof metadata.html === "string" && Boolean(metadata.html.trim()),
   };
 }
 
@@ -506,7 +545,8 @@ function itemSelect(db, where, params = [], order = "updated_at DESC, created_at
   return db
     .prepare(`SELECT ${itemColumns} FROM items WHERE ${where} ORDER BY ${order}${limitClause}`)
     .all(...params, ...(limit == null ? [] : [limit]))
-    .map(itemFromRow);
+    .map(itemFromRow)
+    .map(cardItem);
 }
 
 function ensureArrayMetadata(metadata, key) {
@@ -1024,13 +1064,12 @@ class LibraryStorage {
   }
 
   getItem(id) {
-    return itemFromRow(
-      this.db
-        .prepare(
-          `SELECT ${itemColumns.replace("NULL AS body, 'md' AS body_format", "body, body_format")} FROM items WHERE id = ?`,
-        )
-        .get(id),
-    );
+    const row = this.db
+      .prepare(
+        `SELECT ${itemColumns.replace("NULL AS body, 'md' AS body_format", "body, body_format")} FROM items WHERE id = ?`,
+      )
+      .get(id);
+    return row ? itemFromRow(row) : null;
   }
 
   getItemContent(id) {
@@ -1094,7 +1133,7 @@ class LibraryStorage {
         .all(pattern, pattern, pattern, pattern, pattern, pattern, cap);
     }
     const lexicalItems = rows.map(itemFromRow);
-    if (!queryVector?.length) return lexicalItems;
+    if (!queryVector?.length) return lexicalItems.map(cardItem);
 
     const ranked = new Map(lexicalItems.map((item) => [item.id, { item, score: 2 }]));
     const candidates = this.db
@@ -1118,7 +1157,7 @@ class LibraryStorage {
     return [...ranked.values()]
       .sort((left, right) => right.score - left.score || right.item.updatedAt - left.item.updatedAt)
       .slice(0, cap)
-      .map(({ item }) => item);
+      .map(({ item }) => cardItem(item));
   }
 
   searchSimilar(itemId, kind, limit = 12) {
@@ -1149,7 +1188,7 @@ class LibraryStorage {
       .map(({ item, vector }) => ({ item, score: dotProduct(sourceVector, vector) }))
       .sort((left, right) => right.score - left.score)
       .slice(0, clampLimit(limit, 12, 50))
-      .map(({ item }) => item);
+      .map(({ item }) => cardItem(item));
   }
 
   createNote(input = {}) {
@@ -1601,7 +1640,7 @@ class LibraryStorage {
         .prepare(`SELECT ${qualifiedItemColumns} FROM space_items s JOIN items i ON i.id = s.item_id
         WHERE s.space_id = ? AND i.archived = 0 ORDER BY s.added_at DESC, i.id LIMIT ?`)
         .all(id, cap);
-      return rows.map(itemFromRow);
+      return rows.map(itemFromRow).map(cardItem);
     }
     const query = space.query;
     const text = nonEmpty(query.text);
@@ -1656,7 +1695,7 @@ class LibraryStorage {
       const matchingIds = new Set(rows.map((row) => row.id));
       return rankedCandidates.filter((item) => matchingIds.has(item.id)).slice(0, cap);
     }
-    return rows.map(itemFromRow);
+    return rows.map(itemFromRow).map(cardItem);
   }
 
   addSpaceItem(spaceId, itemId) {
