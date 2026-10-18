@@ -211,7 +211,7 @@ test("loopback capture uses a persisted bearer token and creates a pending stora
   libraries.push(library);
   let server = await startCaptureServer({
     libraryDirectory: directory,
-    createUrl: (input) => library.createUrl(input),
+    captureUrl: (input) => library.captureUrl(input),
   });
   servers.push(server);
 
@@ -286,17 +286,17 @@ test("loopback capture uses a persisted bearer token and creates a pending stora
     sourceUrl: "https://example.com/article",
     title: "Captured page",
     metadata: {
-      text: "saved before processing",
-      html: "<p>safe</p>",
-      origin: "browser-extension",
+      captureSource: "browser extension",
+      pendingUrlCapture: { initialTitle: "Captured page", preserveTitle: true },
     },
   });
   expect(
     library.db.prepare("SELECT kind, status FROM jobs WHERE item_id = ?").get(id),
   ).toMatchObject({
-    kind: "generate_embedding",
+    kind: "enrich_url",
     status: "pending",
   });
+  expect(library.getItemContent(id)).toEqual({ id, body: "", bodyFormat: "" });
 
   const nextToken = await server.regeneratePairingToken();
   expect(nextToken).not.toBe(originalToken);
@@ -307,7 +307,7 @@ test("loopback capture uses a persisted bearer token and creates a pending stora
   await server.close();
   server = await startCaptureServer({
     libraryDirectory: directory,
-    createUrl: (input) => library.createUrl(input),
+    captureUrl: (input) => library.captureUrl(input),
   });
   servers.push(server);
   expect(server.getPairingToken()).toBe(nextToken);
@@ -329,7 +329,7 @@ test("closing the receiver waits for an in-flight capture to finish", async () =
   });
   const server = await startCaptureServer({
     libraryDirectory: directory,
-    createUrl: async () => {
+    captureUrl: async () => {
       signalCaptureStarted();
       return captureResult;
     },

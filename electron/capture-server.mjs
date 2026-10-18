@@ -558,7 +558,7 @@ function sendJson(response, status, statusText, headers, value) {
   writeResponse(response, status, statusText, headers, JSON.stringify(value));
 }
 
-async function handleRequest(request, response, { token, allowRequest, createUrl }) {
+async function handleRequest(request, response, { token, allowRequest, captureUrl }) {
   const origin = request.headers.origin;
   const cors = corsHeaders(origin);
   if (request.method === "OPTIONS") {
@@ -633,7 +633,11 @@ async function handleRequest(request, response, { token, allowRequest, createUrl
     return;
   }
   try {
-    const item = await createUrl(input);
+    const item = await captureUrl({
+      sourceUrl: input.sourceUrl,
+      title: input.title,
+      captureSource: "browser extension",
+    });
     if (!item?.id) throw new Error("storage returned no item id");
     sendJson(response, 201, "Created", cors, { id: item.id });
   } catch {
@@ -641,10 +645,10 @@ async function handleRequest(request, response, { token, allowRequest, createUrl
   }
 }
 
-export async function startCaptureServer({ libraryDirectory, createUrl }) {
-  if (!libraryDirectory || typeof createUrl !== "function") {
+export async function startCaptureServer({ libraryDirectory, captureUrl }) {
+  if (!libraryDirectory || typeof captureUrl !== "function") {
     throw new TypeError(
-      "capture server requires a library directory and storage createUrl function",
+      "capture server requires a library directory and storage captureUrl function",
     );
   }
   const tokenPath = join(libraryDirectory, TOKEN_FILE_NAME);
@@ -660,7 +664,7 @@ export async function startCaptureServer({ libraryDirectory, createUrl }) {
     void handleRequest(request, response, {
       token,
       allowRequest,
-      createUrl,
+      captureUrl,
     });
   });
   server.headersTimeout = READ_TIMEOUT;

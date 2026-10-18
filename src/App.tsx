@@ -57,7 +57,7 @@ import {
   countActiveJobs,
   createQuote,
   createSpace,
-  createUrl,
+  captureUrlItem,
   swapSpacePositions,
   updateSpace,
   currentDeepLinks,
@@ -105,8 +105,7 @@ import {
 } from "./lib/libraryApi";
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "./lib/deepLink";
-import { enrichDeepLinkCapture } from "./lib/deepLinkEnrichment";
-import { safePublicImageUrl } from "./lib/ingestion/url";
+import { parseHttpUrl, safePublicImageUrl } from "./lib/ingestion/url";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { LibraryBottomFade } from "./components/LibraryBottomFade";
 import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
@@ -858,10 +857,11 @@ function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
 function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }) {
   if (!item.video && !item.fileUrl && !item.image) {
     return (
-      <div className="card-paper-art" aria-hidden="true">
+      <div className="card-paper-art" aria-hidden={!item.sourceUrl}>
         <span className="video-paper-play">
           <HugeiconsIcon icon={PlayIcon} size={20} />
         </span>
+        {item.sourceUrl && <UrlFallbackLabel item={item} />}
       </div>
     );
   }
@@ -900,6 +900,15 @@ function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }
         {item.video ? providerLabel(item.video.provider) : "Video"}
       </span>
     </div>
+  );
+}
+
+function UrlFallbackLabel({ item }: { item: LibraryItem }) {
+  return (
+    <span className="url-fallback-label">
+      <span className="url-fallback-title">{item.title}</span>
+      <span className="url-fallback-domain">{item.source}</span>
+    </span>
   );
 }
 
@@ -1048,13 +1057,14 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
           ) : (
             <div
               className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : (item.accent ?? "")}`}
-              aria-hidden="true"
+              aria-hidden={item.kind !== "Article" || !item.sourceUrl}
             >
               {item.kind === "Article" && (
                 <>
                   <span className="paper-line line-one" />
                   <span className="paper-line line-two" />
                   <span className="paper-seal">m</span>
+                  {item.sourceUrl && <UrlFallbackLabel item={item} />}
                 </>
               )}
               {item.kind === "Note" && <NoteArtwork item={item} />}
@@ -2703,73 +2713,90 @@ function App() {
     }
   }
 
-  async function persistArticle(sourceUrl: string, captureSource: string) {
-    const { ingestUrl } = await import("./lib/ingestion");
-    const article = await ingestUrl(sourceUrl);
-    const metadata = {
-      author: article.author,
-      publishedDate: article.publishedDate,
-      extractedText: article.text,
-      html: article.html,
-      imageUrls: article.imageUrls,
-      imageDimensions: article.imageDimensions,
-      safeEmbeds: article.safeEmbeds,
-      extractor: article.extractor,
-      social: article.social,
-      captureSource,
-    };
-
+  async function persistArticle(sourceUrl: string, captureSource: string, extensionTitle?: string) {
+    const parsedUrl = parseHttpUrl(sourceUrl);
+    const normalizedUrl = parsedUrl.toString();
+    const preservedTitle = extensionTitle?.trim();
+    const fallbackTitle = preservedTitle || parsedUrl.hostname;
     if (canUseDesktopBackend) {
-      const storedItem = await createUrl({
-        sourceUrl: article.canonicalUrl,
-        title: article.title,
-        description: article.description,
-        body: article.text,
-        metadata,
+      const storedItem = await captureUrlItem({
+        sourceUrl: normalizedUrl,
+        captureSource,
+        ...(preservedTitle ? { title: preservedTitle } : {}),
       });
       const libraryItem = await storedItemToLibraryItem(storedItem);
-      setItems((current) => [libraryItem, ...current]);
+      setItems((current) =>
+        current.some((item) => String(item.id) === String(libraryItem.id))
+          ? current.map((item) => (String(item.id) === String(libraryItem.id) ? libraryItem : item))
+          : [libraryItem, ...current],
+      );
       return;
     }
 
-    const social = article.social;
-    const embeddedVideoLink = social ? null : videoLinkFromSourceUrl(article.canonicalUrl);
-    const firstImageDimensions = article.imageDimensions.find(
-      (value) => value.url === article.imageUrls[0],
-    );
-    const item: LibraryItem = {
+    const fallbackItem: LibraryItem = {
       id: Date.now(),
-      kind: social ? "Post" : embeddedVideoLink ? "Video" : "Article",
-      title: article.title,
-      description: article.description || article.text.slice(0, 180),
-      source: social
-        ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
-        : new URL(article.canonicalUrl).hostname,
-      sourceUrl: article.canonicalUrl,
-      author: article.author,
+      kind: "Article",
+      title: fallbackTitle,
+      description: "",
+      source: parsedUrl.hostname,
+      sourceUrl: normalizedUrl,
       date: "Just now",
       tags: [],
-      image: article.imageUrls[0],
-      mediaWidth: firstImageDimensions?.width,
-      mediaHeight: firstImageDimensions?.height,
-      mediaAspectRatio: firstImageDimensions
-        ? firstImageDimensions.width / firstImageDimensions.height
-        : undefined,
-      articleAuthor: article.author || undefined,
-      publishedDate: article.publishedDate ?? undefined,
-      articleHtml: article.html,
-      social,
-      post: social ? postFallbackFromMetadata(social) : undefined,
-      video: embeddedVideoLink ?? undefined,
     };
-    setItems((current) => [item, ...current]);
+    setItems((current) => [fallbackItem, ...current]);
+    void import("./lib/ingestion")
+      .then(({ ingestUrl }) => ingestUrl(normalizedUrl))
+      .then((article) => {
+        const social = article.social;
+        const embeddedVideoLink = social ? null : videoLinkFromSourceUrl(article.canonicalUrl);
+        const firstImageDimensions = article.imageDimensions.find(
+          (value) => value.url === article.imageUrls[0],
+        );
+        const enrichedItem: LibraryItem = {
+          ...fallbackItem,
+          kind: social ? "Post" : embeddedVideoLink ? "Video" : "Article",
+          title: article.title || fallbackTitle,
+          description: article.description || article.text.slice(0, 180),
+          source: social
+            ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
+            : new URL(article.canonicalUrl).hostname,
+          sourceUrl: article.canonicalUrl,
+          author: article.author,
+          image: article.imageUrls[0],
+          mediaWidth: firstImageDimensions?.width,
+          mediaHeight: firstImageDimensions?.height,
+          mediaAspectRatio: firstImageDimensions
+            ? firstImageDimensions.width / firstImageDimensions.height
+            : undefined,
+          articleAuthor: article.author || undefined,
+          publishedDate: article.publishedDate ?? undefined,
+          articleHtml: article.html || undefined,
+          hasArticleContent: Boolean(article.html.trim()),
+          social,
+          post: social ? postFallbackFromMetadata(social) : undefined,
+          video: embeddedVideoLink ?? undefined,
+        };
+        const applyEnrichment = (item: LibraryItem) =>
+          String(item.id) === String(fallbackItem.id)
+            ? {
+                ...enrichedItem,
+                title:
+                  preservedTitle || item.title !== fallbackTitle
+                    ? item.title
+                    : article.title || item.title,
+              }
+            : item;
+        setItems((current) => current.map(applyEnrichment));
+        setSelectedItem((current) => (current ? applyEnrichment(current) : current));
+      })
+      .catch(() => {});
   }
 
-  async function captureArticle(sourceUrl: string, captureSource: string) {
+  async function captureArticle(sourceUrl: string, captureSource: string, extensionTitle?: string) {
     setCaptureError(null);
     setIsCapturing(true);
     try {
-      await persistArticle(sourceUrl, captureSource);
+      await persistArticle(sourceUrl, captureSource, extensionTitle);
       setCaptureUrl("");
       setIsAdding(false);
       setCaptureMode(null);
@@ -2781,37 +2808,10 @@ function App() {
   }
 
   async function captureDeepLinkUrl(sourceUrl: string, title: string | undefined) {
-    if (!isElectronRuntime()) {
-      await captureArticle(sourceUrl, "browser extension");
-      return;
-    }
-
     setCaptureError(null);
     setIsCapturing(true);
     try {
-      const storedItem = await createUrl({
-        sourceUrl,
-        title: title || new URL(sourceUrl).hostname,
-        description: "",
-        body: "",
-        metadata: { captureSource: "browser extension" },
-      });
-      const libraryItem = await storedItemToLibraryItem(storedItem);
-      setItems((current) => [libraryItem, ...current]);
-      void enrichDeepLinkCapture(storedItem, title)
-        .then(async (enrichedItem) => {
-          if (!enrichedItem) return;
-          const enrichedLibraryItem = await storedItemToLibraryItem(enrichedItem);
-          setItems((current) =>
-            current.map((item) =>
-              item.id === enrichedLibraryItem.id ? enrichedLibraryItem : item,
-            ),
-          );
-          setSelectedItem((current) =>
-            current?.id === enrichedLibraryItem.id ? enrichedLibraryItem : current,
-          );
-        })
-        .catch(() => {});
+      await persistArticle(sourceUrl, "browser extension", title);
     } catch (error) {
       failCapture(error instanceof Error ? error.message : String(error));
     } finally {
@@ -3575,6 +3575,29 @@ function App() {
               return pinned === undefined ? withNote : { ...withNote, favorite: pinned };
             }),
           );
+          setSelectedItem((current) => {
+            if (
+              !current?.sourceUrl ||
+              (current.kind !== "Article" && current.kind !== "Video" && current.kind !== "Post")
+            ) {
+              return current;
+            }
+            const refreshed = libraryItems.find((item) => String(item.id) === String(current.id));
+            if (!refreshed) return current;
+            const changed =
+              current.kind !== refreshed.kind ||
+              current.title !== refreshed.title ||
+              current.description !== refreshed.description ||
+              current.source !== refreshed.source ||
+              current.sourceUrl !== refreshed.sourceUrl ||
+              current.image !== refreshed.image ||
+              current.mediaAspectRatio !== refreshed.mediaAspectRatio ||
+              current.hasArticleContent !== refreshed.hasArticleContent ||
+              current.processing?.active !== refreshed.processing?.active ||
+              current.processing?.failedJob?.id !== refreshed.processing?.failedJob?.id ||
+              current.processing?.failedJob?.status !== refreshed.processing?.failedJob?.status;
+            return changed ? { ...current, ...refreshed } : current;
+          });
         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -4675,7 +4698,7 @@ function App() {
                   aria-modal="true"
                   aria-labelledby="capture-modal-title"
                   initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                  animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
+                  animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }}
                   exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
                   transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
                 >
@@ -4774,7 +4797,7 @@ function App() {
                         key={captureMode}
                         className="capture-editor"
                         initial={{ opacity: 0, transform: "translateY(6px)" }}
-                        animate={{ opacity: 1, transform: "translateY(0)" }}
+                        animate={{ opacity: 1, transform: "translateY(0px)" }}
                         exit={{ opacity: 0, transform: "translateY(-4px)" }}
                         transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
                         onSubmit={saveCapture}

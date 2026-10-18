@@ -20,6 +20,7 @@ import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
 const SCHEMA_VERSION = 8;
 export const JOB_LEASE_MILLIS = 5 * 60 * 1000;
 export const PDF_THUMBNAIL_JOB = "pdf_thumbnail";
+export const URL_ENRICHMENT_JOB = "enrich_url";
 const SILENT_JOB_KINDS = new Set([PDF_THUMBNAIL_JOB]);
 const silentKindsSql = [...SILENT_JOB_KINDS].map((kind) => `'${kind}'`).join(", ");
 
@@ -914,10 +915,36 @@ export class JobQueue {
       this.db
         .prepare(`UPDATE jobs SET status = 'pending', error_message = NULL,
       started_at = NULL, completed_at = NULL, worker_id = NULL, lease_until = NULL,
-      progress_current = 0, progress_message = NULL WHERE id = ? AND status = 'failed'`)
+      retry_count = 0, progress_current = 0, progress_message = NULL
+      WHERE id = ? AND status = 'failed'`)
         .run(jobId).changes > 0;
     if (updated) this.announce(row);
     return updated;
+  }
+
+  recoverUrlEnrichmentAfterExclusiveStartup() {
+    this.db.exec("BEGIN IMMEDIATE");
+    let rows;
+    try {
+      rows = this.db
+        .prepare("SELECT item_id FROM jobs WHERE kind = ? AND status = 'processing'")
+        .all(URL_ENRICHMENT_JOB);
+      if (rows.length === 0) {
+        this.db.exec("COMMIT");
+        return 0;
+      }
+      this.db
+        .prepare(`UPDATE jobs SET status = 'pending', started_at = NULL, error_message = NULL,
+        worker_id = NULL, lease_until = NULL, progress_current = 0, progress_message = NULL
+        WHERE kind = ? AND status = 'processing'`)
+        .run(URL_ENRICHMENT_JOB);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    for (const row of rows) this.announce({ item_id: row.item_id, kind: URL_ENRICHMENT_JOB });
+    return rows.length;
   }
 
   recoverExpired() {
@@ -1256,7 +1283,25 @@ class LibraryStorage {
     return this.getItem(id);
   }
 
-  createUrl(input = {}) {
+  captureUrl(input = {}) {
+    const sourceUrl = normalizeHttpUrl(input.sourceUrl ?? "");
+    const title = nonEmpty(input.title) ?? new URL(sourceUrl).hostname;
+    return this.#saveUrl({
+      sourceUrl,
+      title,
+      description: "",
+      body: "",
+      metadata: {
+        captureSource: String(input.captureSource ?? ""),
+        pendingUrlCapture: {
+          initialTitle: title,
+          preserveTitle: Boolean(nonEmpty(input.title)),
+        },
+      },
+    });
+  }
+
+  #saveUrl(input) {
     const sourceUrl = normalizeHttpUrl(input.sourceUrl ?? "");
     const sourceLabel = new URL(sourceUrl).hostname;
     const title = nonEmpty(input.title) ?? sourceLabel;
@@ -1276,7 +1321,7 @@ class LibraryStorage {
         .prepare(`INSERT INTO items (id, kind, title, description, body, body_format, source_url, source_label,
         metadata, ocr_text, created_at, updated_at) VALUES (?, 'url', ?, ?, '', '', ?, ?, ?, '', ?, ?)`)
         .run(id, title, description, sourceUrl, sourceLabel, JSON.stringify(metadata), now, now);
-      this.jobs.enqueue(id, "generate_embedding", { notify: false });
+      this.jobs.enqueue(id, URL_ENRICHMENT_JOB, { notify: false });
       this.db.exec("COMMIT");
     } catch (error) {
       this.db.exec("ROLLBACK");
@@ -1284,6 +1329,81 @@ class LibraryStorage {
     }
     this.jobs.notify(id);
     return this.getItem(id);
+  }
+
+  applyUrlEnrichment(jobId, workerId, article = {}) {
+    const canonicalUrl = normalizeHttpUrl(article.canonicalUrl ?? "");
+    const articleTitle = nonEmpty(article.title);
+    const text = nonEmpty(article.text) ?? "";
+    const description = nonEmpty(article.description) ?? (text ? text.slice(0, 180) : null);
+    const html = nonEmpty(article.html);
+    const author = nonEmpty(article.author);
+    const publishedDate = nonEmpty(article.publishedDate);
+    const extractor = nonEmpty(article.extractor);
+    const sourceLabel = new URL(canonicalUrl).hostname;
+
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const job = this.db
+        .prepare(`SELECT item_id FROM jobs WHERE id = ? AND kind = ?
+        AND status = 'processing' AND worker_id = ?`)
+        .get(jobId, URL_ENRICHMENT_JOB, workerId);
+      if (!job) {
+        this.db.exec("COMMIT");
+        return false;
+      }
+
+      const item = this.getItem(job.item_id);
+      if (!item) {
+        this.db.exec("COMMIT");
+        return false;
+      }
+
+      const metadata = { ...item.metadata };
+      const pendingCapture = metadata.pendingUrlCapture;
+      const shouldUseArticleTitle =
+        pendingCapture &&
+        typeof pendingCapture === "object" &&
+        !Array.isArray(pendingCapture) &&
+        pendingCapture.preserveTitle !== true &&
+        item.title === pendingCapture.initialTitle;
+      delete metadata.pendingUrlCapture;
+      metadata.sourceUrl = canonicalUrl;
+      if (text) {
+        metadata.text = text;
+        metadata.extractedText = text;
+      }
+      if (html) metadata.html = html;
+      if (author) metadata.author = author;
+      if (publishedDate) metadata.publishedDate = publishedDate;
+      if (extractor) metadata.extractor = extractor;
+      if (Array.isArray(article.imageUrls) && article.imageUrls.length > 0)
+        metadata.imageUrls = article.imageUrls;
+      if (Array.isArray(article.imageDimensions) && article.imageDimensions.length > 0)
+        metadata.imageDimensions = article.imageDimensions;
+      if (Array.isArray(article.safeEmbeds) && article.safeEmbeds.length > 0)
+        metadata.safeEmbeds = article.safeEmbeds;
+      if (article.social) metadata.social = article.social;
+
+      this.db
+        .prepare(`UPDATE items SET title = ?, description = ?, source_url = ?, source_label = ?,
+        metadata = ?, updated_at = ? WHERE id = ?`)
+        .run(
+          shouldUseArticleTitle ? (articleTitle ?? item.title) : item.title,
+          nonEmpty(item.description) ? item.description : description,
+          canonicalUrl,
+          sourceLabel,
+          JSON.stringify(metadata),
+          nowMillis(),
+          item.id,
+        );
+      this.jobs.enqueue(item.id, "generate_embedding", { notify: false });
+      this.db.exec("COMMIT");
+      return true;
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   async saveFile(input = {}) {
@@ -1434,7 +1554,7 @@ class LibraryStorage {
       };
     }
     if (input.addTag != null) {
-      const tag = String(input.addTag).trim().replace(/^#+/, "").trim().toLowerCase();
+      const tag = String(input.addTag).trim().replace(/^#+/u, "").trim().toLowerCase();
       if (!tag) throw new Error("invalid storage input: tag cannot be empty");
       metadata = metadata ?? this.getItem(input.id)?.metadata;
       if (!metadata) throw new Error(`item not found: ${input.id}`);

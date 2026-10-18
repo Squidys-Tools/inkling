@@ -1569,6 +1569,31 @@ a:focus-visible,
   font: 26px var(--font-ui);
   transform: rotate(-13deg);
 }
+.url-fallback-label {
+  position: absolute;
+  left: 11%;
+  right: 36%;
+  bottom: 12%;
+  display: grid;
+  gap: 4px;
+  color: var(--ink);
+  pointer-events: none;
+}
+.url-fallback-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font: 500 12px / 1.2 var(--font-ui);
+  letter-spacing: -0.02em;
+}
+.url-fallback-domain {
+  overflow: hidden;
+  color: var(--library-muted);
+  font: 10px / 1.2 var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .paper-blue {
   background: var(--blue-soft);
 }
@@ -1824,6 +1849,9 @@ a:focus-visible,
 .list-mode .card-content {
   display: block;
   min-height: 155px;
+}
+.list-mode .url-fallback-label {
+  display: none;
 }
 .list-mode .quote-attribution {
   min-height: 37px !important;
