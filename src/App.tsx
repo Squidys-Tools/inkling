@@ -108,6 +108,7 @@ import {
 import { classifyFile } from "./lib/ingestion/file-classification";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "./lib/deepLink";
 import { parseHttpUrl, safePublicImageUrl } from "./lib/ingestion/url";
+import { AnimatedCount } from "./components/AnimatedCount";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
@@ -5026,12 +5027,13 @@ function App() {
             <div className="result-context">
               {isSerendipityView ? (
                 <>
-                  <span className="result-count">{filteredItems.length}</span> older{" "}
+                  <AnimatedCount className="result-count" value={filteredItems.length} /> older{" "}
                   {filteredItems.length === 1 ? "save" : "saves"} in this walk
                 </>
               ) : (
                 <>
-                  <span className="result-count">{filteredItems.length}</span> items in library
+                  <AnimatedCount className="result-count" value={filteredItems.length} /> items in
+                  library
                   {similaritySource ? (
                     <span className="search-context">similar to “{similaritySource.title}”</span>
                   ) : query.trim() ? (
