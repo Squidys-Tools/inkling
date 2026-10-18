@@ -426,6 +426,14 @@ export async function countActiveJobs() {
   return withInitializedStorage(() => invoke<number>("count_active_jobs"));
 }
 
+export async function getOnboardingState() {
+  return withInitializedStorage(() => invoke<{ shouldAutoShow: boolean }>("get_onboarding_state"));
+}
+
+export async function completeOnboarding() {
+  return withInitializedStorage(() => invoke<void>("complete_onboarding"));
+}
+
 export async function enqueueOcrJob(itemId: string) {
   return withInitializedStorage(() => invoke<string>("enqueue_ocr_job", { itemId }));
 }

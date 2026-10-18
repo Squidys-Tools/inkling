@@ -32,6 +32,8 @@ type ElectronCommand =
   | "import_library"
   | "get_jobs_for_items"
   | "count_active_jobs"
+  | "get_onboarding_state"
+  | "complete_onboarding"
   | "enqueue_ocr_job"
   | "retry_processing_job"
   | "get_capture_status"

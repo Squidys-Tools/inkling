@@ -54,7 +54,9 @@ import {
   archiveItem,
   addSpaceItem,
   checkForUpdates,
+  completeOnboarding,
   countActiveJobs,
+  getOnboardingState,
   createQuote,
   createSpace,
   captureUrlItem,
@@ -107,6 +109,7 @@ import { classifyFile } from "./lib/ingestion/file-classification";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "./lib/deepLink";
 import { parseHttpUrl, safePublicImageUrl } from "./lib/ingestion/url";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
+import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
 import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
 import { providerLabel, videoLinkFromSourceUrl } from "./lib/ingestion/video-links";
@@ -1498,6 +1501,12 @@ function App() {
   const [updateInstallFailed, setUpdateInstallFailed] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isFirstRunOpen, setIsFirstRunOpen] = useState(false);
+  const firstRunCheckedRef = useRef(false);
+  const finishFirstRun = useCallback(() => {
+    setIsFirstRunOpen(false);
+    void completeOnboarding().catch(() => null);
+  }, []);
   const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("archive");
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(
     shouldUseSeedLibrary() ? browserArchivedItems : [],
@@ -3598,6 +3607,14 @@ function App() {
               current.processing?.failedJob?.status !== refreshed.processing?.failedJob?.status;
             return changed ? { ...current, ...refreshed } : current;
           });
+          if (canUseDesktopBackend && !firstRunCheckedRef.current) {
+            firstRunCheckedRef.current = true;
+            void getOnboardingState()
+              .then(({ shouldAutoShow }) => {
+                if (shouldAutoShow) setIsFirstRunOpen(true);
+              })
+              .catch(() => null);
+          }
         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -4909,6 +4926,8 @@ function App() {
             )}
           </AnimatePresence>
 
+          {isFirstRunOpen ? <FirstRunOverlay onFinish={finishFirstRun} /> : null}
+
           <AnimatePresence>
             {isShortcutsOpen && (
               <motion.div
@@ -5483,6 +5502,18 @@ function App() {
                           </div>
                         ) : null}
                       </div>
+                      {canUseDesktopBackend ? (
+                        <button
+                          type="button"
+                          className="settings-data-link"
+                          onClick={() => {
+                            setIsSettingsOpen(false);
+                            setIsFirstRunOpen(true);
+                          }}
+                        >
+                          Show the welcome again
+                        </button>
+                      ) : null}
                     </div>
                   </section>
                 ) : (

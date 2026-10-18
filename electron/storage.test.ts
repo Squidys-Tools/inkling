@@ -38,6 +38,14 @@ function closeDatabase(database: DatabaseSync) {
   database.close();
 }
 
+test("completed onboarding persists across library reopen", () => {
+  const { root, library } = temporaryLibrary();
+  expect(library.hasCompletedOnboarding()).toBe(false);
+  library.completeOnboarding();
+  closeDatabase(library.db);
+  expect(trackedLibrary(join(root, "library.sqlite3")).hasCompletedOnboarding()).toBe(true);
+});
+
 function trackedLibrary(path: string, options = {}) {
   const library = openLibraryStorage(path, options);
   databases.add(library.db);
