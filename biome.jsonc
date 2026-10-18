@@ -73,7 +73,8 @@
       "!.opencode",
       "!.codex",
       "!docs/assets",
-      "!extension/icons"
+      "!extension/icons",
+      "!src/components/GradualBlur"
     ]
   },
   "vcs": {
