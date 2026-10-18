@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { createEmbeddingEngine } from "./embeddings.mjs";
 import { IMAGE_MODEL } from "./embedding-contract.mjs";
 import { createTesseractOcr } from "./ocr.mjs";
-import { extractPdfTextByPages, renderPdfFirstPage } from "./pdf.mjs";
 import { markdownToPlainText, PDF_THUMBNAIL_JOB } from "./storage.mjs";
 
 async function itemAsset(storage, item) {
@@ -48,7 +47,7 @@ export function createAiJobProcessors({
   bundledModelDirectory,
   ocr = createTesseractOcr({ cacheDirectory: join(modelCacheDirectory, "tesseract") }),
   embeddings = createEmbeddingEngine(modelCacheDirectory, undefined, bundledModelDirectory),
-  extractPdf = extractPdfTextByPages,
+  extractPdf,
 } = {}) {
   let thumbnailCursor = 0;
   let thumbnailBackfillDone = false;
@@ -73,7 +72,9 @@ export function createAiJobProcessors({
       if (!item) throw new Error("item not found");
       let result;
       try {
-        result = await extractPdf(await itemAsset(storage, item), {
+        const pdfBytes = await itemAsset(storage, item);
+        const extract = extractPdf ?? (await import("./pdf.mjs")).extractPdfTextByPages;
+        result = await extract(pdfBytes, {
           recognize: (image) => ocr.recognize(image),
           onFirstPageThumbnail: item.thumbnailPath
             ? undefined
@@ -100,10 +101,9 @@ export function createAiJobProcessors({
     async [PDF_THUMBNAIL_JOB](job, storage) {
       const item = storage.getItem(job.itemId);
       if (!item) throw new Error("item not found");
-      await storage.storePdfThumbnail(
-        item.id,
-        await renderPdfFirstPage(await itemAsset(storage, item)),
-      );
+      const pdfBytes = await itemAsset(storage, item);
+      const { renderPdfFirstPage } = await import("./pdf.mjs");
+      await storage.storePdfThumbnail(item.id, await renderPdfFirstPage(pdfBytes));
     },
 
     async generate_embedding(job, storage, workerId) {

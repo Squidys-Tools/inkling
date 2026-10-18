@@ -1,4 +1,3 @@
-import { createCanvas, loadImage } from "@napi-rs/canvas";
 import sharp from "sharp";
 
 const maxImageDimension = 20_000;
@@ -69,11 +68,15 @@ export async function sharpImageInput(bytes) {
       const height = coreHeader ? bytes.readUInt16LE(20) : bytes.readInt32LE(22);
       validateImageDimensions(Math.abs(width), Math.abs(height));
     }
+    const [{ CanvasElement }, { default: loadImage }] = await Promise.all([
+      import("@napi-rs/canvas/js-binding.js"),
+      import("@napi-rs/canvas/load-image.js"),
+    ]);
     const image = await loadImage(bytes);
     validateImageDimensions(image.width, image.height);
-    const canvas = createCanvas(image.width, image.height);
+    const canvas = new CanvasElement(image.width, image.height);
     canvas.getContext("2d").drawImage(image, 0, 0);
-    return canvas.toBuffer("image/png");
+    return canvas.encode("png");
   }
 }
 
