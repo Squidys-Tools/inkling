@@ -172,6 +172,196 @@ function contentActions(item: LibraryItem, actions: ExpandedOverlayActions): Ove
   return list;
 }
 
+// Screen pixels per image pixel at each zoom step: 100% up to 3200%.
+const ZOOM_STEPS = [1, 2, 4, 8, 16, 32];
+// From this zoom on, an image pixel is large enough to read as a square, so the
+// image renders pixelated and the grid appears. The Paper note leaves the exact
+// threshold open; 800% is the pick.
+const PIXEL_ZOOM = 8;
+
+type Size = { width: number; height: number };
+type Offset = { x: number; y: number };
+
+// Pan moves the image only as far as it overhangs the frame, so the frame stays
+// covered. An image smaller than the frame in one axis stays centred on it.
+function clampPan(pan: Offset, shown: Size, frame: Size): Offset {
+  const maxX = Math.max(0, (shown.width - frame.width) / 2);
+  const maxY = Math.max(0, (shown.height - frame.height) / 2);
+  return {
+    x: Math.min(maxX, Math.max(-maxX, pan.x)),
+    y: Math.min(maxY, Math.max(-maxY, pan.y)),
+  };
+}
+
+// Zoom and pan live here, not in the overlay, so panning re-renders only this
+// stage. The key on the caller resets zoom when the shown item changes.
+function ZoomableImage({ src, alt }: { src: string; alt: string }) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ pointerX: number; pointerY: number; origin: Offset } | null>(null);
+  const [frame, setFrame] = useState<Size | null>(null);
+  const [natural, setNatural] = useState<Size | null>(null);
+  // null means fit, which follows the frame as the window resizes.
+  const [zoomLevel, setZoomLevel] = useState<number | null>(null);
+  const [pan, setPan] = useState<Offset>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    const element = frameRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (!rect) return;
+      setFrame((previous) =>
+        previous && previous.width === rect.width && previous.height === rect.height
+          ? previous
+          : { width: rect.width, height: rect.height },
+      );
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const ready = frame !== null && natural !== null;
+  const fit =
+    ready && frame.width > 0 && frame.height > 0
+      ? Math.min(frame.width / natural.width, frame.height / natural.height)
+      : 1;
+  const zoom = Math.max(fit, zoomLevel ?? fit);
+  const isZoomed = zoom > fit;
+  const shown = natural ? { width: natural.width * zoom, height: natural.height * zoom } : null;
+  const offset = ready && shown ? clampPan(pan, shown, frame) : { x: 0, y: 0 };
+  const showPixels = ready && zoom >= PIXEL_ZOOM;
+
+  const nextStep = ZOOM_STEPS.find((step) => step > zoom);
+  const previousStep = [...ZOOM_STEPS].reverse().find((step) => step < zoom);
+  const zoomOutLevel = previousStep !== undefined && previousStep > fit ? previousStep : null;
+
+  function applyZoom(nextLevel: number | null) {
+    if (ready) {
+      const next = Math.max(fit, nextLevel ?? fit);
+      // Keep the point at the centre of the frame in place as the scale changes.
+      const scaled = { x: (offset.x * next) / zoom, y: (offset.y * next) / zoom };
+      setPan(
+        clampPan(scaled, { width: natural.width * next, height: natural.height * next }, frame),
+      );
+    }
+    setZoomLevel(nextLevel);
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (!isZoomed || event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { pointerX: event.clientX, pointerY: event.clientY, origin: offset };
+    setIsDragging(true);
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || !shown || !frame) return;
+    setPan(
+      clampPan(
+        {
+          x: drag.origin.x + event.clientX - drag.pointerX,
+          y: drag.origin.y + event.clientY - drag.pointerY,
+        },
+        shown,
+        frame,
+      ),
+    );
+  }
+
+  function endDrag() {
+    dragRef.current = null;
+    setIsDragging(false);
+  }
+
+  return (
+    <>
+      <div
+        ref={frameRef}
+        className={`item-stage-zoom ${isZoomed ? "is-zoomed" : ""} ${isDragging ? "is-dragging" : ""}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      >
+        <img
+          src={src}
+          alt={alt}
+          className="item-stage-image"
+          draggable={!isZoomed}
+          onLoad={(event) => {
+            const { naturalWidth, naturalHeight } = event.currentTarget;
+            if (naturalWidth > 0 && naturalHeight > 0) {
+              setNatural({ width: naturalWidth, height: naturalHeight });
+            }
+          }}
+          style={{
+            transform: isZoomed
+              ? `translate(${offset.x}px, ${offset.y}px) scale(${zoom / fit})`
+              : undefined,
+            imageRendering: showPixels ? "pixelated" : undefined,
+          }}
+        />
+        {showPixels && shown && (
+          <div
+            className="item-stage-grid"
+            style={{
+              width: shown.width,
+              height: shown.height,
+              translate: `calc(-50% + ${offset.x}px) calc(-50% + ${offset.y}px)`,
+              backgroundSize: `${zoom}px ${zoom}px`,
+            }}
+          />
+        )}
+      </div>
+      {ready && (
+        <div className="item-zoom-pill glass">
+          <button
+            type="button"
+            className="item-zoom-button"
+            aria-label="Zoom out"
+            title="Zoom out"
+            disabled={!isZoomed}
+            onClick={() => applyZoom(zoomOutLevel)}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M5 12h14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+          <span className="item-zoom-label">{Math.round(zoom * 100)}%</span>
+          <button
+            type="button"
+            className="item-zoom-button"
+            aria-label="Zoom in"
+            title="Zoom in"
+            disabled={nextStep === undefined}
+            onClick={() => {
+              if (nextStep !== undefined) applyZoom(nextStep);
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 5v14M5 12h14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
 function OverlayMedia({ item }: { item: LibraryItem }) {
   if (item.kind === "Note" && !item.image) {
     return (
@@ -216,7 +406,7 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
   }
 
   if (item.image) {
-    return <img src={item.image} alt={item.imageAlt ?? item.title} className="item-stage-image" />;
+    return <ZoomableImage key={item.id} src={item.image} alt={item.imageAlt ?? item.title} />;
   }
 
   if (item.kind === "Quote") {

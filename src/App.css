@@ -5127,10 +5127,13 @@ a:focus-visible,
   opacity: 0;
 }
 .item-stage-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  max-width: 100%;
+  max-height: 100%;
+  translate: -50% -50%;
   filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.5));
 }
 .expanded-overlay.is-flying .item-stage-image {
@@ -5561,6 +5564,82 @@ a:focus-visible,
 }
 .settings-data-link {
   margin-top: 20px;
+}
+
+/* Pixel zoom on the image stage. The frame fills the stage's content box and
+   the image is centred in it. Zoom and pan are a transform on the image. The
+   grid is a screen-space overlay sized to the image, so its lines stay one
+   pixel wide. Nothing animates, and the controls step aside while flying. */
+.item-stage-zoom {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.item-stage-zoom.is-zoomed {
+  cursor: grab;
+  touch-action: none;
+}
+.item-stage-zoom.is-zoomed.is-dragging {
+  cursor: grabbing;
+}
+/* A drop shadow would be recomputed over the whole scaled image on every pan. */
+.item-stage-zoom.is-zoomed .item-stage-image {
+  filter: none;
+}
+.item-stage-grid {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+}
+.item-zoom-pill {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 999px;
+  translate: -50% 0;
+}
+.item-zoom-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--library-text-soft);
+  cursor: pointer;
+}
+.item-zoom-button:disabled {
+  color: #5e5850;
+  cursor: default;
+}
+.item-zoom-label {
+  width: 40px;
+  color: var(--library-text-soft);
+  font: 12px / 16px var(--font-ui);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.expanded-overlay.is-flying .item-stage-zoom {
+  pointer-events: none;
+}
+.expanded-overlay.is-flying .item-stage-grid {
+  display: none;
+}
+.expanded-overlay.is-flying .item-zoom-pill {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Dark liquid glass for controls floating over content. Panels stay solid. */
