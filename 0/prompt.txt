@@ -1,0 +1,11 @@
+Act as the implementation sub-agent for this task.
+
+Repo worktree: C:\Users\chris\.t3\worktrees\inkling\t3-47ff5304 (branch feat/glass-surface). Read AGENTS.md: no pattern kills, never touch the live library, no hardcoded ports/paths, targeted Biome + tsc only.
+
+Round 2 of the history fix. Round 1 (commits 5552965 and 1026abe) made back/forward reopen and close items through the normal card-flight path in src/App.tsx and src/components/ExpandedItemOverlay.tsx.
+
+A tester found one failure. Open "Where the waves land", close it, then scroll to the top so its card is off-screen and not rendered by the virtualized grid. Clicking Back opens the item at full frame with no `.is-flying`, and Alt+Right closes it with no flight either.
+
+Fix it so history scrolls the grid to bring the card into view (instantly, no smooth scroll), waits for the card to render, then flies from it. Closing via history should also fly back to the card, scrolling it into view first if needed. Keep the change minimal and don't regress on-screen items or normal click-open.
+
+Verify the repro in the running preview with the T3 preview tools (port is in /tmp/inkling-dev.log; don't start another server). Commit `fix(library): history flies from off-screen cards`, ending with `Co-Authored-By: GPT-6 Luna <noreply@openai.com>`, using `git commit --no-verify ... </dev/null` (the user approved skipping the hook), then `git push`. Report what you changed, the SHA, and the verification results.

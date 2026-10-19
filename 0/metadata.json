@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M5APATPRGYD2NX4JAZAKNVX1",
+  "session_id": "01a1555f-1dac-71f2-8bd5-68961144298c",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-19T18:21:13.6770287Z",
+  "branch": "feat/glass-surface",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/App.tsx"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-luna",
+  "turn_id": "7caea7a9c196",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 109026,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3459072,
+    "output_tokens": 18081,
+    "api_call_count": 42
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-19T18:21:13.5869985Z",
+    "agent_lines": 67,
+    "agent_removed": 4,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 67,
+    "total_lines_changed": 71,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 204,
+      "user_lines_removed": 204,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".agents/skills/p3-mode/scripts/worktree-audit.sh": 111,
+        ".agents/skills/show-me-your-work/scripts/log.sh": 42,
+        ".agents/skills/verify-inkling/scripts/cleanup.sh": 19,
+        ".agents/skills/verify-inkling/scripts/doctor.sh": 20,
+        ".agents/skills/verify-inkling/scripts/launch.sh": 12
+      },
+      "user_removed_per_file": {
+        ".agents/skills/p3-mode/scripts/worktree-audit.sh": 111,
+        ".agents/skills/show-me-your-work/scripts/log.sh": 42,
+        ".agents/skills/verify-inkling/scripts/cleanup.sh": 19,
+        ".agents/skills/verify-inkling/scripts/doctor.sh": 20,
+        ".agents/skills/verify-inkling/scripts/launch.sh": 12
+      }
+    }
+  ]
+}
