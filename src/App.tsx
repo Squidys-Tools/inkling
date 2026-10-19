@@ -4242,7 +4242,9 @@ function App() {
   // In-memory back/forward history over view, search query, and open item.
   // Query changes commit after a pause so typing does not add an entry per key.
   const historyRef = useRef<{ entries: NavSnapshot[]; index: number }>({ entries: [], index: 0 });
+  const pendingHistoryCloseRef = useRef<{ target: NavSnapshot; index: number } | null>(null);
   const [historyPos, setHistoryPos] = useState({ index: 0, length: 0 });
+  const [historyCloseRequest, setHistoryCloseRequest] = useState(0);
   const navSnapshot: NavSnapshot = {
     view: activeView,
     spaceId: activeSpaceId,
@@ -4273,13 +4275,18 @@ function App() {
       const history = historyRef.current;
       const target = history.entries[history.index + delta];
       if (!target) return;
-      history.index += delta;
-      setHistoryPos({ index: history.index, length: history.entries.length });
       const item = target.itemId
         ? [...items, ...archivedItems].find((candidate) => String(candidate.id) === target.itemId)
         : undefined;
       // A vanished item restores as a closed overlay; keep the stack in step so it is not re-pushed.
       if (target.itemId && !item) target.itemId = null;
+      if (!target.itemId && selectedItem) {
+        pendingHistoryCloseRef.current = { target, index: history.index + delta };
+        setHistoryCloseRequest((request) => request + 1);
+        return;
+      }
+      history.index += delta;
+      setHistoryPos({ index: history.index, length: history.entries.length });
       selectionScrollRef.current = false;
       selectionRectsRef.current = null;
       setActiveSpaceId(target.spaceId);
@@ -4290,7 +4297,7 @@ function App() {
       else if (item) selectLibraryItem(item);
       else setSelectedItem(null);
     },
-    [archivedItems, items, selectArchivedLibraryItem, selectLibraryItem],
+    [archivedItems, items, selectArchivedLibraryItem, selectLibraryItem, selectedItem],
   );
   const stepHistoryRef = useRef(stepHistory);
   stepHistoryRef.current = stepHistory;
@@ -4318,7 +4325,24 @@ function App() {
   findSimilarItemsRef.current = findSimilarItems;
   const expandedOverlayActions = useMemo<ExpandedOverlayActions>(
     () => ({
-      onClose: () => setSelectedItem(null),
+      onClose: () => {
+        const pending = pendingHistoryCloseRef.current;
+        if (!pending) {
+          setSelectedItem(null);
+          return;
+        }
+        pendingHistoryCloseRef.current = null;
+        const history = historyRef.current;
+        history.index = pending.index;
+        setHistoryPos({ index: history.index, length: history.entries.length });
+        selectionScrollRef.current = false;
+        selectionRectsRef.current = null;
+        setActiveSpaceId(pending.target.spaceId);
+        setActiveView(pending.target.view);
+        setQuery(pending.target.query);
+        setSimilaritySource(null);
+        setSelectedItem(null);
+      },
       onOpenPdf: setPdfViewerItem,
       onOpenReader: openReader,
       onFindSimilar: (item) => void findSimilarItemsRef.current(item),
@@ -5747,6 +5771,7 @@ function App() {
               spaces={selectedItemSpaces}
               originRectsRef={selectionRectsRef}
               frameRef={libraryFrameRef}
+              historyCloseRequest={historyCloseRequest}
             />
           </Suspense>
         )}

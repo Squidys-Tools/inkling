@@ -450,6 +450,7 @@ type ExpandedItemOverlayProps = {
   originRectsRef: RefObject<SourceRects | null>;
   /** The library frame the item view covers once it settles. */
   frameRef: RefObject<HTMLElement | null>;
+  historyCloseRequest: number;
 };
 
 export function ExpandedItemOverlay({
@@ -458,6 +459,7 @@ export function ExpandedItemOverlay({
   spaces,
   originRectsRef,
   frameRef,
+  historyCloseRequest,
 }: ExpandedItemOverlayProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
@@ -469,6 +471,7 @@ export function ExpandedItemOverlay({
   const flightIdRef = useRef(0);
   const flightRef = useRef<Flight | null>(null);
   const cancelPendingOpenRef = useRef(false);
+  const previousHistoryCloseRequestRef = useRef(historyCloseRequest);
   const hasSettledOnceRef = useRef(false);
   const actionsRef = useRef(actions);
   const [destination, setDestination] = useState<FlightRect | null>(null);
@@ -555,6 +558,12 @@ export function ExpandedItemOverlay({
     cancelPendingOpenRef.current = false;
     beginCloseFlight(itemRef.current, rects.card, false);
   }, [beginCloseFlight]);
+
+  useEffect(() => {
+    if (previousHistoryCloseRequestRef.current === historyCloseRequest) return;
+    previousHistoryCloseRequestRef.current = historyCloseRequest;
+    requestClose();
+  }, [historyCloseRequest, requestClose]);
 
   // The origin rectangle is a one-time snapshot supplied through a mutable ref.
   // Reading it again after opening would retarget the flight to a stale card.
