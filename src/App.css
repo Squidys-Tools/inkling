@@ -24,6 +24,14 @@
   --search-radius: 20px;
   --sidebar-radius: 14px;
   --toggle-radius: 12px;
+  --app-background: #0a0a09;
+  --library-frame: #0d0c0b;
+  --frame-radius: 16px;
+  --sidebar-width: 248px;
+  interpolate-size: allow-keywords;
+  --glass-fill: rgba(12, 11, 10, 0.62);
+  --glass-filter: blur(18px) saturate(140%) brightness(0.7);
+  --glass-active: rgba(255, 255, 255, 0.08);
   --font-ui: "Paper Mono", ui-monospace, monospace;
   font-family: var(--font-ui);
   color: var(--library-text);
@@ -128,7 +136,7 @@ a:focus-visible,
 .sidebar {
   top: 0;
   z-index: 30;
-  width: 248px;
+  width: var(--sidebar-width);
   height: 100vh;
   min-height: 0;
   padding: 39px 18px 21px;
@@ -684,6 +692,98 @@ a:focus-visible,
 .mobile-menu,
 .sidebar-scrim {
   display: none;
+}
+.edge-tab {
+  display: none;
+}
+@media (min-width: 781px) {
+  .app-shell {
+    background: var(--app-background);
+  }
+  .sidebar {
+    border-right-color: transparent;
+    background: transparent;
+  }
+  .main-content {
+    border: 1px solid var(--library-border);
+    border-right: 0;
+    border-radius: var(--frame-radius) 0 0 var(--frame-radius);
+    background: var(--library-frame);
+  }
+  .sidebar-close,
+  .sidebar-toggle {
+    display: none;
+  }
+  .edge-tab {
+    position: absolute;
+    top: 44px;
+    left: 0;
+    z-index: 32;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 34px;
+    color: var(--library-muted);
+    cursor: pointer;
+    transition:
+      left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.18s ease;
+  }
+  .edge-tab:hover {
+    color: var(--ink);
+  }
+  .edge-tab.at-sidebar {
+    left: var(--sidebar-width);
+  }
+  /* Open: a solid tab hanging off the frame's edge over the sidebar. */
+  .edge-tab.is-open {
+    --flip: 90deg;
+    margin-left: -25px;
+    border: 1px solid var(--library-border);
+    border-right: 0;
+    border-radius: 14px 0 0 14px;
+    background: var(--library-frame);
+    box-shadow:
+      -6px 0 14px rgba(0, 0, 0, 0.35),
+      inset 1px 1px 0 rgba(255, 255, 255, 0.06);
+    transform-origin: right center;
+  }
+  /* Closed: a glass tab just inside the frame. */
+  .edge-tab.is-closed {
+    --flip: -90deg;
+    border-left: 0;
+    border-radius: 0 14px 14px 0;
+    transform-origin: left center;
+  }
+  .edge-tab.flip-out {
+    animation: edge-tab-out 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+  .edge-tab.flip-in {
+    animation: edge-tab-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+@keyframes edge-tab-out {
+  from {
+    transform: perspective(300px) rotateY(0deg);
+  }
+  to {
+    transform: perspective(300px) rotateY(var(--flip));
+  }
+}
+@keyframes edge-tab-in {
+  from {
+    transform: perspective(300px) rotateY(var(--flip));
+  }
+  to {
+    transform: perspective(300px) rotateY(0deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Still fire animationend so the tab settles on its new side. */
+  .edge-tab.flip-out,
+  .edge-tab.flip-in {
+    animation-duration: 1ms;
+  }
 }
 .library-header {
   padding: 0;
@@ -2845,11 +2945,11 @@ a:focus-visible,
   .main-content {
     padding-inline: 30px;
   }
-  .sidebar {
-    width: 220px;
+  :root {
+    --sidebar-width: 220px;
   }
   .main-content {
-    width: calc(100vw - 220px);
+    width: calc(100vw - var(--sidebar-width));
   }
   .sidebar-toggle {
     left: -30px;
@@ -4145,11 +4245,9 @@ a:focus-visible,
   align-items: center;
   padding: 4px 9px;
   border-radius: 999px;
-  background: rgba(14, 14, 12, 0.72);
   color: #d8d2c6;
   font: 500 10px var(--font-ui);
   letter-spacing: 0.03em;
-  backdrop-filter: blur(6px);
   pointer-events: none;
 }
 .video-paper-play {
@@ -5271,4 +5369,77 @@ a:focus-visible,
 .settings-data-link:hover,
 .settings-data-link:focus-visible {
   color: var(--library-text);
+}
+
+/* Search: a glass pill naming the current view at rest, growing into the
+   search bar on focus or while a query is pinned. */
+.capture-bar {
+  justify-content: center;
+  align-items: center;
+  min-height: 50px;
+}
+.capture-bar .add-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+.capture-bar .search-field {
+  flex: 0 1 auto;
+  width: min(700px, 100% - 220px);
+  transition:
+    width 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
+    height 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
+    padding 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.search-rest {
+  display: none;
+}
+.capture-bar .search-field.is-resting {
+  width: fit-content;
+  height: 40px;
+  padding: 0 16px 0 13px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+.search-field.is-resting .search-rest {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--library-text);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.search-field.is-resting .search-rest svg {
+  opacity: 0.55;
+}
+.search-field.is-resting input,
+.search-field.is-resting kbd,
+.search-field.is-resting .field-mascot {
+  position: absolute;
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+@media (max-width: 780px) {
+  .capture-bar .search-field {
+    width: auto;
+    flex: 1;
+  }
+  .capture-bar .add-button {
+    position: static;
+  }
+}
+
+/* Dark liquid glass for controls floating over content. Panels stay solid. */
+.glass {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top-color: rgba(255, 255, 255, 0.16);
+  border-bottom-color: rgba(255, 255, 255, 0.04);
+  background: var(--glass-fill);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.3),
+    0 8px 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: var(--glass-filter);
 }

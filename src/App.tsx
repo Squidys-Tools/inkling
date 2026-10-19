@@ -19,6 +19,8 @@ import {
   AlertCircleIcon,
   Archive01Icon,
   ArrowDown01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
   ArrowUp01Icon,
   ArrowUpRight01Icon,
   Bookmark01Icon,
@@ -900,7 +902,7 @@ function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }
       <span className="card-play" aria-hidden="true">
         <HugeiconsIcon icon={PlayIcon} size={16} />
       </span>
-      <span className="card-video-badge">
+      <span className="card-video-badge glass">
         {item.video ? providerLabel(item.video.provider) : "Video"}
       </span>
     </div>
@@ -1462,6 +1464,37 @@ function keepTabFocusInside(event: KeyboardEvent, dialog: HTMLElement) {
     event.preventDefault();
     first.focus();
   }
+}
+
+// Desktop sidebar toggle attached to the library frame's left edge. When the
+// sidebar opens or closes it flips over that edge: the old side turns edge-on,
+// then the new side turns in. The drawn side lags `isOpen` until the turn ends.
+function SidebarEdgeTab({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
+  const [side, setSide] = useState(isOpen);
+  const [phase, setPhase] = useState<"idle" | "out" | "in">("idle");
+  useEffect(() => {
+    if (isOpen !== side && phase === "idle") setPhase("out");
+  }, [isOpen, side, phase]);
+  return (
+    <button
+      type="button"
+      className={`edge-tab ${isOpen ? "at-sidebar" : ""} ${side ? "is-open" : "is-closed glass"} ${phase === "idle" ? "" : `flip-${phase}`}`}
+      aria-label={isOpen ? "Close navigation" : "Open navigation"}
+      aria-expanded={isOpen}
+      aria-controls="library-navigation"
+      onClick={onToggle}
+      onAnimationEnd={() => {
+        if (phase === "out") {
+          setSide(isOpen);
+          setPhase("in");
+        } else {
+          setPhase("idle");
+        }
+      }}
+    >
+      <HugeiconsIcon icon={side ? ArrowLeft01Icon : ArrowRight01Icon} size={14} />
+    </button>
+  );
 }
 
 function App() {
@@ -4660,6 +4693,7 @@ function App() {
             </button>
           </div>
         </aside>
+        <SidebarEdgeTab isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen((open) => !open)} />
 
         <main className="main-content">
           <section className="library-header"></section>
@@ -4678,7 +4712,13 @@ function App() {
               </button>
             )}
             {!isSidebarOpen && sidebarActionErrorAlert}
-            <label className={`search-field${isSearchFocused ? " is-mascot" : ""}`}>
+            <label
+              className={`search-field glass${isSearchFocused ? " is-mascot" : ""}${isSearchFocused || query ? "" : " is-resting"}`}
+            >
+              <span className="search-rest" aria-hidden="true">
+                <HugeiconsIcon icon={Search01Icon} size={14} />
+                {activeSpace?.name ?? activeView}
+              </span>
               <span className="field-mascot" aria-hidden="true">
                 <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />
               </span>
@@ -4687,6 +4727,11 @@ function App() {
                 value={query}
                 onFocus={() => setIsSearchFocused(true)}
                 onBlur={() => setIsSearchFocused(false)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return;
+                  setQuery("");
+                  event.currentTarget.blur();
+                }}
                 onChange={(event) => {
                   setSimilaritySource(null);
                   setActiveSpaceId(null);
@@ -4696,9 +4741,7 @@ function App() {
                 placeholder="Search your mind"
                 aria-label="Search your mind"
               />
-              <kbd>
-                <span>/</span> to search
-              </kbd>
+              <kbd>esc to close</kbd>
             </label>
             <button
               type="button"
