@@ -4286,9 +4286,11 @@ function App() {
       setActiveView(target.view);
       setQuery(target.query);
       setSimilaritySource(null);
-      setSelectedItem(item ?? null);
+      if (item?.archived) selectArchivedLibraryItem(item);
+      else if (item) selectLibraryItem(item);
+      else setSelectedItem(null);
     },
-    [archivedItems, items],
+    [archivedItems, items, selectArchivedLibraryItem, selectLibraryItem],
   );
   const stepHistoryRef = useRef(stepHistory);
   stepHistoryRef.current = stepHistory;
