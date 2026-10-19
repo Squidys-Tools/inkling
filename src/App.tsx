@@ -130,11 +130,18 @@ const AliveBoard = lazy(() =>
 const RoamBoard = lazy(() =>
   import("./components/mascot/RoamBoard").then((module) => ({ default: module.RoamBoard })),
 );
+type SimilaritySource = {
+  id: string;
+  title: string;
+  kind: "image" | "text";
+};
+
 type NavSnapshot = {
   view: string;
   spaceId: string | null;
   query: string;
   itemId: string | null;
+  similaritySource: SimilaritySource | null;
 };
 
 const ExpandedItemOverlay = lazy(() =>
@@ -1772,11 +1779,8 @@ function App() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [isFindingSimilar, setIsFindingSimilar] = useState(false);
-  const [similaritySource, setSimilaritySource] = useState<{
-    id: string;
-    title: string;
-    kind: "image" | "text";
-  } | null>(null);
+  const [similaritySource, setSimilaritySource] = useState<SimilaritySource | null>(null);
+  const similaritySourceItemRef = useRef<LibraryItem | null>(null);
   const similaritySourceId = similaritySource?.id;
   const similaritySourceKind = similaritySource?.kind;
   const searchRef = useRef<HTMLInputElement>(null);
@@ -3170,6 +3174,7 @@ function App() {
       return;
     }
 
+    similaritySourceItemRef.current = item;
     setCaptureError(null);
     setIsFindingSimilar(true);
     try {
@@ -4287,7 +4292,7 @@ function App() {
     ],
   );
 
-  // In-memory back/forward history over view, search query, and open item.
+  // In-memory back/forward history over view, search query, similar results, and open item.
   // Query changes commit after a pause so typing does not add an entry per key.
   const historyRef = useRef<{ entries: NavSnapshot[]; index: number }>({ entries: [], index: 0 });
   const pendingHistoryCloseRef = useRef<{ target: NavSnapshot; index: number } | null>(null);
@@ -4298,6 +4303,7 @@ function App() {
     spaceId: activeSpaceId,
     query,
     itemId: selectedItemId,
+    similaritySource,
   };
   const navKey = JSON.stringify(navSnapshot);
   // biome-ignore lint/correctness/useExhaustiveDependencies: navKey encodes the snapshot
@@ -4310,7 +4316,11 @@ function App() {
       history.index = history.entries.length - 1;
       setHistoryPos({ index: history.index, length: history.entries.length });
     };
-    if (!current || current.query === navSnapshot.query) {
+    if (
+      !current ||
+      current.query === navSnapshot.query ||
+      current.similaritySource?.id !== navSnapshot.similaritySource?.id
+    ) {
       commit();
       return;
     }
@@ -4323,8 +4333,15 @@ function App() {
       const history = historyRef.current;
       const target = history.entries[history.index + delta];
       if (!target) return;
+      const current = history.entries[history.index];
+      const similarSourceItem =
+        target.itemId && target.itemId === current?.similaritySource?.id
+          ? similaritySourceItemRef.current
+          : null;
       const item = target.itemId
-        ? [...items, ...archivedItems].find((candidate) => String(candidate.id) === target.itemId)
+        ? ([...items, ...archivedItems].find(
+            (candidate) => String(candidate.id) === target.itemId,
+          ) ?? similarSourceItem)
         : undefined;
       // A vanished item restores as a closed overlay; keep the stack in step so it is not re-pushed.
       if (target.itemId && !item) target.itemId = null;
@@ -4333,7 +4350,7 @@ function App() {
         setActiveSpaceId(target.spaceId);
         setActiveView(target.view);
         setQuery(target.query);
-        setSimilaritySource(null);
+        setSimilaritySource(target.similaritySource);
         requestAnimationFrame(() => {
           void bringHistoryCardIntoView(selectedItem, filteredItemsRef.current).then((rects) => {
             selectionRectsRef.current = rects;
@@ -4349,7 +4366,7 @@ function App() {
       setActiveSpaceId(target.spaceId);
       setActiveView(target.view);
       setQuery(target.query);
-      setSimilaritySource(null);
+      setSimilaritySource(target.similaritySource);
       if (item?.archived) selectArchivedLibraryItem(item);
       else if (item) {
         requestAnimationFrame(() => {
@@ -4403,7 +4420,7 @@ function App() {
         setActiveSpaceId(pending.target.spaceId);
         setActiveView(pending.target.view);
         setQuery(pending.target.query);
-        setSimilaritySource(null);
+        setSimilaritySource(pending.target.similaritySource);
         setSelectedItem(null);
       },
       onOpenPdf: setPdfViewerItem,
