@@ -1873,6 +1873,52 @@ function App() {
     });
   }, []);
 
+  const bringHistoryCardIntoView = useCallback(
+    (item: LibraryItem, candidates: LibraryItem[]) =>
+      new Promise<SourceRects | null>((resolve) => {
+        const index = candidates.findIndex((candidate) => candidate.id === item.id);
+        const contentArea = libraryScrollRef.current;
+        const scrollElement = scrollViewport(contentArea);
+        if (index < 0 || !scrollElement) {
+          resolve(null);
+          return;
+        }
+
+        const viewportRect = rectFrom(scrollElement.getBoundingClientRect());
+        let rects = queryCardRects(item.id);
+        if (!rects || isCardTooFarOffscreen(rects.card, viewportRect)) {
+          if (rects) {
+            scrollElement.scrollTop += rects.card.top - viewportRect.top - 16;
+          } else {
+            const maxScroll = scrollElement.scrollHeight - scrollElement.clientHeight;
+            scrollElement.scrollTop = maxScroll * (index / Math.max(1, candidates.length - 1));
+          }
+        }
+
+        let frames = 0;
+        const waitForCard = () => {
+          rects = queryCardRects(item.id);
+          if (rects) {
+            const currentViewport = rectFrom(scrollElement.getBoundingClientRect());
+            if (isCardTooFarOffscreen(rects.card, currentViewport)) {
+              scrollElement.scrollTop += rects.card.top - currentViewport.top - 16;
+              requestAnimationFrame(waitForCard);
+              return;
+            }
+            resolve(rects);
+            return;
+          }
+          if (++frames >= 8) {
+            resolve(null);
+            return;
+          }
+          requestAnimationFrame(waitForCard);
+        };
+        requestAnimationFrame(waitForCard);
+      }),
+    [],
+  );
+
   const retryJob = useCallback(async (jobId: string) => {
     setCaptureError(null);
     try {
@@ -3875,6 +3921,8 @@ function App() {
     serendipityBatch,
     similaritySource,
   ]);
+  const filteredItemsRef = useRef(filteredItems);
+  filteredItemsRef.current = filteredItems;
   const showLibraryEdges = !isSerendipityView && filteredItems.length > 0;
 
   // The Regular Spaces an item can be filed into, and whether it already is.
@@ -4282,7 +4330,16 @@ function App() {
       if (target.itemId && !item) target.itemId = null;
       if (!target.itemId && selectedItem) {
         pendingHistoryCloseRef.current = { target, index: history.index + delta };
-        setHistoryCloseRequest((request) => request + 1);
+        setActiveSpaceId(target.spaceId);
+        setActiveView(target.view);
+        setQuery(target.query);
+        setSimilaritySource(null);
+        requestAnimationFrame(() => {
+          void bringHistoryCardIntoView(selectedItem, filteredItemsRef.current).then((rects) => {
+            selectionRectsRef.current = rects;
+            setHistoryCloseRequest((request) => request + 1);
+          });
+        });
         return;
       }
       history.index += delta;
@@ -4294,10 +4351,16 @@ function App() {
       setQuery(target.query);
       setSimilaritySource(null);
       if (item?.archived) selectArchivedLibraryItem(item);
-      else if (item) selectLibraryItem(item);
-      else setSelectedItem(null);
+      else if (item) {
+        requestAnimationFrame(() => {
+          void bringHistoryCardIntoView(item, filteredItemsRef.current).then((rects) => {
+            selectionRectsRef.current = rects;
+            setSelectedItem(item);
+          });
+        });
+      } else setSelectedItem(null);
     },
-    [archivedItems, items, selectArchivedLibraryItem, selectLibraryItem, selectedItem],
+    [archivedItems, bringHistoryCardIntoView, items, selectArchivedLibraryItem, selectedItem],
   );
   const stepHistoryRef = useRef(stepHistory);
   stepHistoryRef.current = stepHistory;
