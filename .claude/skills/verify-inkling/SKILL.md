@@ -13,7 +13,6 @@ Proves inkling behavior by driving the real Electron app over Chrome DevTools Pr
 - Stop only the pid this run recorded in `electron.pid` after confirming its cmdline. Never `pkill`, never match processes by name.
 - Run one integrated pass per change. Do not run the full suite; CI owns it.
 - Linux cannot verify Windows-only behavior (OCR through Windows.Media, WebView2). Report those as unverified.
-- Driving the app opens a real window on Windows. Ask the developer before launching it on their machine.
 - Drive through the UI handles below, not internal setters or test-only endpoints.
 
 ## Setup

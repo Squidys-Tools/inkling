@@ -103,7 +103,7 @@ An empty library is a bad test. Seed your run with a copy of real data instead o
 - Test meaningful logic or observable behavior. Do not render components to static markup just to assert props, and do not add tests that mirror the implementation or assert wiring with no behavior.
 - Ingestion and background changes ship with focused tests for that behavior. Extraction, OCR scoring, queue leases, recovery. A behavior change with no test is unfinished.
 - Background work is async. Wait on real completion, job drains and lease states, never on fixed sleeps. A test that needs a timeout to pass is wrong.
-- UI changes need one real pass in the running app before you call them done. Preview for layout, full app for anything native. Take a screenshot through the harness so the user can see it. The primary agent does this once after integrating. Subagents do not launch their own dev servers. Ask permission before driving a browser or the desktop on your own.
+- UI changes need one real pass in the running app before you call them done. Preview for layout, full app for anything native. Take a screenshot through the harness so the user can see it. The primary agent does this once after integrating. Subagents do not launch their own dev servers. Clean up what you launched when you are done.
 - Electron and frontend changes get focused tests, typecheck, and changed-file Biome. There are no local hooks — CI runs the frontend checks and Electron package smoke tests.
 
 ## Pull requests
@@ -183,5 +183,4 @@ These apply whenever you run inside T3 Code only, and they override nothing abov
 
 ## Additional tips
 
-- Do not verify with browsers or computer use unless the user agrees or asks.
 - Security is important, but should not be over-indexed on, especially for dev mode/maintainer-only features. The main threat is untrusted web content rendered locally; `docs/tech-stack.md` says to treat all fetched HTML as untrusted. Keep sanitizing and allowlists strict. Keep dev ergonomics simple.
