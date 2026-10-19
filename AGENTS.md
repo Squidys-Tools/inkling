@@ -58,7 +58,7 @@ We need to be on the same page with terminology. When communicating, use this la
 
 ## The three ways to hurt yourself
 
-1. **Killing by pattern.** Never `pkill -f`, `pgrep | kill`, or `kill` a PID you found by matching a name, path, or worktree string. Your own agent process has this worktree's path in its argv, and this machine runs several other dev servers at once. Kill only a PID you captured at spawn, or the owner of your port from `ss -H -ltnp` after confirming `/proc/<pid>/cwd` is your worktree.
+1. **Killing by pattern.** Never `pkill -f`, `pgrep | kill`, or `kill` a PID you found by matching a name, path, or worktree string. Your own agent process has this worktree's path in its argv, and this machine runs several other dev servers at once. Kill only a PID you captured at spawn, or the owner of your port after confirming it is your worktree (`Get-NetTCPConnection -LocalPort <port> -State Listen` and the `Win32_Process` command line on Windows, `ss -H -ltnp` and `/proc/<pid>/cwd` on Linux).
 
 2. **Writing to the live library.** The developer's real data is the SQLite file and asset store the running app owns. Reading it is fine. Copying from it for test fixtures is good. Never start a server against it, never open it read-write, never clean it up.
 
@@ -103,7 +103,7 @@ An empty library is a bad test. Seed your run with a copy of real data instead o
 - Test meaningful logic or observable behavior. Do not render components to static markup just to assert props, and do not add tests that mirror the implementation or assert wiring with no behavior.
 - Ingestion and background changes ship with focused tests for that behavior. Extraction, OCR scoring, queue leases, recovery. A behavior change with no test is unfinished.
 - Background work is async. Wait on real completion, job drains and lease states, never on fixed sleeps. A test that needs a timeout to pass is wrong.
-- UI changes need one real pass in the running app before you call them done. Preview for layout, full app for anything native. Take a screenshot through the harness so the user can see it. Ask permission before driving a browser or the desktop on your own.
+- UI changes need one real pass in the running app before you call them done. Preview for layout, full app for anything native. Take a screenshot through the harness so the user can see it. The primary agent does this once after integrating. Subagents do not launch their own dev servers. Clean up what you launched when you are done.
 - Electron and frontend changes get focused tests, typecheck, and changed-file Biome. There are no local hooks — CI runs the frontend checks and Electron package smoke tests.
 
 ## Pull requests
@@ -113,7 +113,7 @@ An empty library is a bad test. Seed your run with a copy of real data instead o
 - Body: the problem in a sentence or two, then how you fixed it. End with the model and harness that did the work.
 - UI changes need before/after images. Motion or timing needs a short video.
 - Upload PR evidence to GitHub. Never commit PR-only screenshots or assets such as `.github/pr-assets/`.
-- One concern per PR. If the description says "also", split it.
+- One request is one PR. Split it only when the maintainer asks.
 - When babysitting: poll checks and comments newer than the last push, verify each bot finding against the source, fix real ones, dismiss false positives with a written reason. Stay quiet when nothing is new. Stop when the bots are green on the latest commit.
 
 ## Linear issues
@@ -169,7 +169,7 @@ Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behav
 
 - Complexity belongs at the adapter boundary. Ingestion stays explicit, UI stays dumb.
 - Inferred types over annotations. `any` is the enemy.
-- Comments describe how a thing is used, and move when the code moves. To be used mostly to describe functions, not to annotate every line of behavior.
+- Comments say why: a constraint, an external quirk, or an invariant the code can't show. Don't restate names or signatures, narrate steps, or record history.
 - Our users should never notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations(with a slight execption for the mascot); they peg the GPU on high-refresh displays.
 - Capture paths stay fast and forgiving. Keep partial results when extraction fails. A URL with a title and domain beats an error card.
 - If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.
@@ -183,5 +183,4 @@ These apply whenever you run inside T3 Code only, and they override nothing abov
 
 ## Additional tips
 
-- Do not verify with browsers or computer use unless the user agrees or asks.
 - Security is important, but should not be over-indexed on, especially for dev mode/maintainer-only features. The main threat is untrusted web content rendered locally; `docs/tech-stack.md` says to treat all fetched HTML as untrusted. Keep sanitizing and allowlists strict. Keep dev ergonomics simple.
