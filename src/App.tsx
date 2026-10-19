@@ -1744,6 +1744,7 @@ function App() {
   const captureQuoteInputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
+  const libraryFrameRef = useRef<HTMLElement>(null);
   const libraryTransitionOverlayRef = useRef<HTMLDivElement>(null);
   const pendingLibraryViewPositionsRef = useRef<Map<string, LibraryCardPosition> | null>(null);
   const libraryViewAnimationsRef = useRef<Array<ReturnType<typeof gsap.timeline>>>([]);
@@ -4695,7 +4696,7 @@ function App() {
         </aside>
         <SidebarEdgeTab isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen((open) => !open)} />
 
-        <main className="main-content">
+        <main className="main-content" ref={libraryFrameRef}>
           <section className="library-header"></section>
 
           <section className="capture-bar" aria-label="Capture and search">
@@ -5614,8 +5615,7 @@ function App() {
               actions={expandedOverlayActions}
               spaces={selectedItemSpaces}
               originRectsRef={selectionRectsRef}
-              contentAreaRef={libraryScrollRef}
-              selectionScrollRef={selectionScrollRef}
+              frameRef={libraryFrameRef}
             />
           </Suspense>
         )}

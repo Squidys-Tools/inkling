@@ -17,16 +17,13 @@ import {
   Archive01Icon,
   ArrowUpRight01Icon,
   BookOpen01Icon,
-  CheckmarkCircle01Icon,
-  Copy01Icon,
   FileTextIcon,
-  Globe02Icon,
+  FolderAddIcon,
   Loading01Icon,
-  PinIcon,
   PlusSignIcon,
   RotateCwIcon,
   SparklesIcon,
-  Cancel01Icon,
+  StarIcon,
 } from "@hugeicons/core-free-icons";
 import type { LibraryItem } from "../lib/types";
 import { isElectronRuntime } from "../lib/libraryApi";
@@ -43,14 +40,9 @@ import {
 import {
   OVERLAY_EASE,
   OVERLAY_FLIGHT_MS,
-  isCardTooFarOffscreen,
-  overlayMediaHeight,
-  overlayPosition,
-  overlayWidth,
   prefersReducedMotion,
   queryCardRects,
   rectFrom,
-  scrollViewport,
   type FlightRect,
   type SourceRects,
 } from "./overlayMotion";
@@ -91,37 +83,25 @@ type OverlayAction = {
   title?: string;
 };
 
-type OverlayDestination = { frame: FlightRect; mediaHeight: number };
-
 type Flight =
-  | {
-      kind: "open";
-      id: number;
-      originCard: FlightRect;
-      originMediaHeight: number;
-      destination: OverlayDestination;
-    }
+  | { kind: "open"; id: number; from: FlightRect; to: FlightRect }
   | {
       kind: "close";
       id: number;
       fromItem: LibraryItem;
-      fromCard: FlightRect;
-      fromMediaHeight: number;
-      toRects: SourceRects | null;
+      from: FlightRect;
+      to: FlightRect | null;
       thenOpen: boolean;
     };
 
-const OVERLAY_RADIUS = 18;
+// The settled view's corners match the library frame it covers.
+const FRAME_RADIUS = "16px 0px 0px 16px";
 
 function clickOrigin(event: React.MouseEvent<HTMLElement>): ReaderOrigin {
   const rect = event.currentTarget.getBoundingClientRect();
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
-// Variant A (provenance row) derives its quiet metadata line from the item
-// itself: the file/media type comes from the pipeline (image extension or
-// kind), and the saved date is the item's own date. Tags render from the
-// item's tag list with an inline + Add affordance.
 function hostnameForUrl(url: string | undefined): string | null {
   if (!url) return null;
   try {
@@ -144,48 +124,31 @@ function fileTypeFor(item: LibraryItem): string {
     case "PDF":
       return "PDF";
     case "Video":
-      return "VIDEO";
+      return "Video";
     case "Article":
-      return "LINK";
+      return "Link";
     case "Post":
-      return "POST";
+      return "Post";
     case "Note":
-      return "NOTE";
+      return "Note";
     case "Quote":
-      return "QUOTE";
+      return "Quote";
     default:
-      return "FILE";
+      return "File";
   }
 }
 
-function savedLabelFor(date: string): string {
-  return `SAVED ${date.replace(/^saved\s+/iu, "").toUpperCase()}`;
-}
-
-// The overlay keeps two triage actions in view: a primary (read / play / open)
-// and secondary (open original / find similar). Everything after the first
-// entry renders in the secondary slot.
-function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): OverlayAction[] {
+// Content actions sit under the details: read, open the PDF, find similar.
+// Item housekeeping (star, Spaces, open original, archive) lives in the
+// action bar at the bottom of the inspector instead.
+function contentActions(item: LibraryItem, actions: ExpandedOverlayActions): OverlayAction[] {
   const list: OverlayAction[] = [];
-  const sourceHost = hostnameForUrl(item.sourceUrl);
   const hasReaderContent = Boolean(item.articleHtml || item.hasArticleContent);
-  const openOriginal: OverlayAction = {
-    key: "open-original",
-    label: sourceHost ?? item.source ?? "Open original",
-    icon: sourceHost ? (
-      <HugeiconsIcon icon={Globe02Icon} size={15} />
-    ) : (
-      <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />
-    ),
-    onClick: () => item.sourceUrl && window.open(item.sourceUrl, "_blank", "noopener,noreferrer"),
-    disabled: !item.sourceUrl,
-  };
-
   if (item.kind === "PDF" && item.fileUrl) {
     list.push({
       key: "open-pdf",
       label: "Open PDF",
-      icon: <HugeiconsIcon icon={FileTextIcon} size={15} />,
+      icon: <HugeiconsIcon icon={FileTextIcon} size={14} />,
       onClick: () => actions.onOpenPdf(item),
     });
   }
@@ -193,28 +156,17 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
     list.push({
       key: "read",
       label: "Read",
-      icon: <HugeiconsIcon icon={BookOpen01Icon} size={15} />,
+      icon: <HugeiconsIcon icon={BookOpen01Icon} size={14} />,
       onClick: (event) => actions.onOpenReader(item, clickOrigin(event)),
     });
   }
-  if (item.sourceUrl) list.push(openOriginal);
   if (isElectronRuntime() && ["Image", "Article", "Note", "Quote"].includes(item.kind)) {
     list.push({
       key: "find-similar",
       label: actions.isFindingSimilar ? "Finding similar…" : "Find similar",
-      icon: <HugeiconsIcon icon={SparklesIcon} size={15} />,
+      icon: <HugeiconsIcon icon={SparklesIcon} size={14} />,
       onClick: () => actions.onFindSimilar(item),
       disabled: actions.isFindingSimilar,
-    });
-  }
-  if (item.kind === "Article" && !hasReaderContent && item.sourceUrl) {
-    list.push({
-      key: "read-unavailable",
-      label: "Read",
-      icon: <HugeiconsIcon icon={BookOpen01Icon} size={15} />,
-      onClick: () => {},
-      disabled: true,
-      title: "No saved article text",
     });
   }
   return list;
@@ -223,7 +175,7 @@ function triageActions(item: LibraryItem, actions: ExpandedOverlayActions): Over
 function OverlayMedia({ item }: { item: LibraryItem }) {
   if (item.kind === "Note" && !item.image) {
     return (
-      <div className="expanded-overlay-media note-detail-media">
+      <div className="item-stage-art note-detail-media">
         <NoteArtwork item={item} />
       </div>
     );
@@ -231,7 +183,7 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.social?.provider === "x") {
     return (
-      <div className="expanded-overlay-media detail-x-post">
+      <div className="item-stage-art detail-x-post">
         <XPostEmbed
           key={item.social.postUrl}
           social={item.social}
@@ -249,7 +201,7 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.kind === "Video") {
     return (
-      <div className="expanded-overlay-media">
+      <div className="item-stage-art">
         <DetailVideoMedia item={item} />
       </div>
     );
@@ -257,23 +209,19 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.kind === "PDF") {
     return (
-      <div className="expanded-overlay-media">
+      <div className="item-stage-art">
         <PdfArtwork item={item} />
       </div>
     );
   }
 
   if (item.image) {
-    return (
-      <div className="expanded-overlay-media">
-        <img src={item.image} alt={item.imageAlt ?? item.title} className="detail-image" />
-      </div>
-    );
+    return <img src={item.image} alt={item.imageAlt ?? item.title} className="item-stage-image" />;
   }
 
   if (item.kind === "Quote") {
     return (
-      <div className="expanded-overlay-media">
+      <div className="item-stage-art">
         <div className="detail-art detail-quote-art paper-yellow">
           <span className="detail-quote-mark">“</span>
           <span>{item.kind}</span>
@@ -284,14 +232,14 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
 
   if (item.kind === "Post" && item.post) {
     return (
-      <div className="expanded-overlay-media">
+      <div className="item-stage-art">
         <PostArtwork post={item.post} />
       </div>
     );
   }
 
   return (
-    <div className="expanded-overlay-media">
+    <div className="item-stage-art">
       <div className={`detail-art ${item.accent ?? "ink"}`}>
         <KindIcon kind={item.kind} />
         <span>{item.kind}</span>
@@ -307,11 +255,11 @@ function detailTitleFor(item: LibraryItem): string {
 type ExpandedItemOverlayProps = {
   item: LibraryItem;
   actions: ExpandedOverlayActions;
-  /** Regular Spaces available to file this item in. Empty hides the row. */
+  /** Regular Spaces available to file this item in. Empty hides the Space control. */
   spaces?: OverlaySpaceChip[];
   originRectsRef: RefObject<SourceRects | null>;
-  contentAreaRef: RefObject<HTMLElement | null>;
-  selectionScrollRef: RefObject<boolean>;
+  /** The library frame the item view covers once it settles. */
+  frameRef: RefObject<HTMLElement | null>;
 };
 
 export function ExpandedItemOverlay({
@@ -319,32 +267,26 @@ export function ExpandedItemOverlay({
   actions,
   spaces,
   originRectsRef,
-  contentAreaRef,
-  selectionScrollRef,
+  frameRef,
 }: ExpandedItemOverlayProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
-  const mediaRef = useRef<HTMLDivElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const itemIdRef = useRef(item.id);
   const itemRef = useRef(item);
   const previousItemRef = useRef(item);
-  const copyTimerRef = useRef<number | null>(null);
   const flightIdRef = useRef(0);
   const flightRef = useRef<Flight | null>(null);
-  const destinationRef = useRef<OverlayDestination | null>(null);
   const cancelPendingOpenRef = useRef(false);
   const hasSettledOnceRef = useRef(false);
   const actionsRef = useRef(actions);
-  const [destination, setDestination] = useState<OverlayDestination | null>(null);
+  const [destination, setDestination] = useState<FlightRect | null>(null);
   const [flight, setFlight] = useState<Flight | null>(null);
   const [pendingOpen, setPendingOpen] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [linkCopyFailed, setLinkCopyFailed] = useState(false);
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const [isSpaceMenuOpen, setIsSpaceMenuOpen] = useState(false);
   const isEditingNoteRef = useRef(false);
   const isFocusModeRef = useRef(false);
 
@@ -362,110 +304,46 @@ export function ExpandedItemOverlay({
     isFocusModeRef.current = isFocusMode;
   }, [isEditingNote, isFocusMode]);
 
-  // The item whose content the dialog shows. During a closing flight that was
-  // triggered by switching items, the dialog flies back displaying the item it
+  // The item whose content the view shows. During a closing flight that was
+  // triggered by switching items, the view flies back displaying the item it
   // was showing, while React's item prop already points at the next one.
   const shownItem = flight?.kind === "close" ? flight.fromItem : item;
 
-  const contentAreaRect = useCallback((): FlightRect => {
-    const rect = contentAreaRef.current?.getBoundingClientRect();
+  const frameRect = useCallback((): FlightRect => {
+    const rect = frameRef.current?.getBoundingClientRect();
     if (rect) return rectFrom(rect);
     return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-  }, [contentAreaRef]);
+  }, [frameRef]);
 
-  // Lays the dialog out at the destination width, measures its natural
-  // content height, and picks a frame centered on the parent card.
+  // Grows the view from a card-sized rectangle into the library frame.
   const beginOpenFlight = useCallback(
-    (origin: SourceRects) => {
-      const dialog = dialogRef.current;
-      if (!dialog) return;
-      const content = contentAreaRect();
-      const width = overlayWidth(content);
-      const mediaHeight = overlayMediaHeight(itemRef.current, width, window.innerHeight);
-
-      dialog.style.width = `${width}px`;
-      dialog.style.height = "auto";
-      if (mediaRef.current) mediaRef.current.style.height = `${mediaHeight}px`;
-      const contentHeight = dialog.offsetHeight;
-      const availHeight = Math.max(content.height - 24 * 2, 240);
-      const height = Math.min(Math.max(contentHeight, 320), availHeight);
-      const position = overlayPosition(origin.card, content, width, height);
-
-      const destination: OverlayDestination = {
-        frame: { left: position.left, top: position.top, width, height },
-        mediaHeight,
-      };
-      destinationRef.current = destination;
-      setDestination(destination);
+    (from: FlightRect) => {
+      const to = frameRect();
+      setDestination(to);
       flightIdRef.current += 1;
-      setFlight({
-        kind: "open",
-        id: flightIdRef.current,
-        originCard: origin.card,
-        originMediaHeight: origin.media.height,
-        destination,
-      });
+      setFlight({ kind: "open", id: flightIdRef.current, from, to });
     },
-    [contentAreaRect],
+    [frameRect],
   );
 
   const beginCloseFlight = useCallback(
-    (closingItem: LibraryItem, toRects: SourceRects | null, thenOpen: boolean) => {
+    (closingItem: LibraryItem, to: FlightRect | null, thenOpen: boolean) => {
       const dialog = dialogRef.current;
-      const media = mediaRef.current;
       if (!dialog) {
         actionsRef.current.onClose();
         return;
       }
-      const fromCard = rectFrom(dialog.getBoundingClientRect());
-      const fromMediaHeight = media ? media.getBoundingClientRect().height : 0;
       flightIdRef.current += 1;
       setFlight({
         kind: "close",
         id: flightIdRef.current,
         fromItem: closingItem,
-        fromCard,
-        fromMediaHeight,
-        toRects,
+        from: rectFrom(dialog.getBoundingClientRect()),
+        to,
         thenOpen,
       });
     },
     [],
-  );
-
-  const beginOpenFlightFrom = useCallback(
-    (fromMediaHeight: number, origin: SourceRects) => {
-      const dialog = dialogRef.current;
-      if (!dialog) return;
-      const content = contentAreaRect();
-      const width = overlayWidth(content);
-      const mediaHeight = overlayMediaHeight(itemRef.current, width, window.innerHeight);
-
-      const measuredBefore = dialog.getBoundingClientRect();
-      dialog.style.width = `${width}px`;
-      dialog.style.height = "auto";
-      if (mediaRef.current) mediaRef.current.style.height = `${mediaHeight}px`;
-      const contentHeight = dialog.offsetHeight;
-      const availHeight = Math.max(content.height - 24 * 2, 240);
-      const height = Math.min(Math.max(contentHeight, 320), availHeight);
-      const position = overlayPosition(origin.card, content, width, height);
-
-      const destination: OverlayDestination = {
-        frame: { left: position.left, top: position.top, width, height },
-        mediaHeight,
-      };
-      destinationRef.current = destination;
-      setDestination(destination);
-      flightIdRef.current += 1;
-      setFlight({
-        kind: "open",
-        id: flightIdRef.current,
-        originCard: measuredBefore,
-        originMediaHeight: fromMediaHeight,
-        destination,
-      });
-    },
-    [contentAreaRect],
   );
 
   const requestClose = useCallback(() => {
@@ -485,17 +363,16 @@ export function ExpandedItemOverlay({
       return;
     }
     cancelPendingOpenRef.current = false;
-    beginCloseFlight(itemRef.current, rects, false);
+    beginCloseFlight(itemRef.current, rects.card, false);
   }, [beginCloseFlight]);
 
-  // Picks the overlay's frame before the opening animation starts. Openings
-  // always run over the general area of the item's parent card.
   // The origin rectangle is a one-time snapshot supplied through a mutable ref.
   // Reading it again after opening would retarget the flight to a stale card.
   // biome-ignore lint/correctness/useExhaustiveDependencies: This effect consumes the source-rectangle snapshot once on mount.
   useLayoutEffect(() => {
     const originRects = originRectsRef.current;
     if (!originRects || prefersReducedMotion()) {
+      setDestination(frameRect());
       gsap.fromTo(
         layerRef.current,
         { opacity: 0 },
@@ -503,27 +380,25 @@ export function ExpandedItemOverlay({
       );
       return;
     }
-    beginOpenFlight(originRects);
+    beginOpenFlight(originRects.card);
   }, [beginOpenFlight]);
 
-  // Runs every flight. GSAP owns the overlay's rectangle geometry. The real
-  // content stays mounted and laid out at the destination width for the whole
-  // flight — the frame is all that moves — so text never re-wraps and
-  // nothing unmounts or flashes mid-animation.
+  // Runs every flight. GSAP owns only the view's outer rectangle. While it
+  // flies, the stage fills the whole rectangle and the inspector is hidden, so
+  // the card reads as its own image growing into the frame; the inspector and
+  // the stage's margins ease in by CSS once it lands.
   useLayoutEffect(() => {
     if (!flight) return;
-    const media = mediaRef.current;
     const dialog = dialogRef.current;
+    if (!dialog) {
+      if (flight.kind === "close") actionsRef.current.onClose();
+      return;
+    }
+    const cardRadius = `${getComputedStyle(dialog).getPropertyValue("--sidebar-radius").trim() || "14px"}`;
+    const cardCorners = `${cardRadius} ${cardRadius} ${cardRadius} ${cardRadius}`;
+    const duration = OVERLAY_FLIGHT_MS / 1000;
 
     if (flight.kind === "open") {
-      if (!dialog || !media) return;
-      const cardRadius = Number.parseFloat(
-        getComputedStyle(dialog).getPropertyValue("--sidebar-radius"),
-      );
-      const duration = OVERLAY_FLIGHT_MS / 1000;
-      const hasEmbed =
-        itemRef.current.social?.provider === "x" ||
-        (itemRef.current.kind === "Video" && !!itemRef.current.video);
       const timeline = gsap.timeline({
         onComplete: () => {
           setFlight(null);
@@ -533,19 +408,10 @@ export function ExpandedItemOverlay({
       timeline
         .fromTo(
           dialog,
+          { ...flight.from, borderRadius: cardCorners },
           {
-            left: flight.originCard.left,
-            top: flight.originCard.top,
-            width: flight.originCard.width,
-            height: flight.originCard.height,
-            borderRadius: cardRadius,
-          },
-          {
-            left: flight.destination.frame.left,
-            top: flight.destination.frame.top,
-            width: flight.destination.frame.width,
-            height: flight.destination.frame.height,
-            borderRadius: OVERLAY_RADIUS,
+            ...flight.to,
+            borderRadius: FRAME_RADIUS,
             duration,
             ease: OVERLAY_EASE,
             autoRound: false,
@@ -553,40 +419,13 @@ export function ExpandedItemOverlay({
           0,
         )
         .fromTo(dialog, { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "power1.out" }, 0);
-      if (hasEmbed) {
-        // Third-party embeds keep a stable frame for the whole flight.
-        gsap.set(media, { height: flight.destination.mediaHeight });
-      } else {
-        timeline.fromTo(
-          media,
-          { height: flight.originMediaHeight },
-          {
-            height: flight.destination.mediaHeight,
-            duration,
-            ease: OVERLAY_EASE,
-            autoRound: false,
-          },
-          0,
-        );
-      }
       return () => {
         timeline.kill();
       };
     }
 
-    // Closing: the dialog returns to its source card and dissolves into it,
-    // or — when the source card is no longer mounted — fades out in place.
-    if (!dialog || !media) {
-      actionsRef.current.onClose();
-      return;
-    }
-    const cardRadius = Number.parseFloat(
-      getComputedStyle(dialog).getPropertyValue("--sidebar-radius"),
-    );
-    const duration = OVERLAY_FLIGHT_MS / 1000;
-    const hasEmbed =
-      flight.fromItem.social?.provider === "x" ||
-      (flight.fromItem.kind === "Video" && !!flight.fromItem.video);
+    // Closing: the view returns to its source card and dissolves into it, or —
+    // when the source card is no longer mounted — fades out in place.
     const timeline = gsap.timeline({
       onComplete: () => {
         if (flight.thenOpen && !cancelPendingOpenRef.current) {
@@ -597,22 +436,14 @@ export function ExpandedItemOverlay({
         }
       },
     });
-    if (flight.toRects) {
+    if (flight.to) {
       timeline
         .fromTo(
           dialog,
+          { ...flight.from },
           {
-            left: flight.fromCard.left,
-            top: flight.fromCard.top,
-            width: flight.fromCard.width,
-            height: flight.fromCard.height,
-          },
-          {
-            left: flight.toRects.card.left,
-            top: flight.toRects.card.top,
-            width: flight.toRects.card.width,
-            height: flight.toRects.card.height,
-            borderRadius: cardRadius,
+            ...flight.to,
+            borderRadius: cardCorners,
             duration,
             ease: OVERLAY_EASE,
             autoRound: false,
@@ -620,16 +451,6 @@ export function ExpandedItemOverlay({
           0,
         )
         .to(dialog, { opacity: 0, duration: 0.18, ease: "power1.in" }, duration - 0.18);
-      if (hasEmbed) {
-        gsap.set(media, { height: flight.fromMediaHeight });
-      } else {
-        timeline.fromTo(
-          media,
-          { height: flight.fromMediaHeight },
-          { height: flight.toRects.media.height, duration, ease: OVERLAY_EASE, autoRound: false },
-          0,
-        );
-      }
     } else {
       timeline.to(dialog, { opacity: 0, duration: 0.25, ease: "power1.in" });
     }
@@ -638,52 +459,28 @@ export function ExpandedItemOverlay({
     };
   }, [flight]);
 
-  // Re-clamps and re-measures the settled overlay when the window resizes.
+  // Follows the frame when the window resizes or the sidebar opens or closes.
   useEffect(() => {
-    const onResize = () => {
-      const dialog = dialogRef.current;
-      if (!dialog || !destinationRef.current) return;
-      const content = contentAreaRect();
-      const width = overlayWidth(content);
-      const mediaHeight = overlayMediaHeight(itemRef.current, width, window.innerHeight);
-      dialog.style.width = `${width}px`;
-      if (mediaRef.current) mediaRef.current.style.height = `${mediaHeight}px`;
-      const contentHeight = dialog.offsetHeight;
-      const availHeight = Math.max(content.height - 24 * 2, 240);
-      const height = Math.min(Math.max(contentHeight, 320), availHeight);
-      const cardCenterX =
-        destinationRef.current.frame.left + destinationRef.current.frame.width / 2;
-      const cardCenterY =
-        destinationRef.current.frame.top + destinationRef.current.frame.height / 2;
-      const position = overlayPosition(
-        { left: cardCenterX - width / 2, top: cardCenterY - height / 2, width, height },
-        content,
-        width,
-        height,
-      );
-      const next: OverlayDestination = {
-        frame: { left: position.left, top: position.top, width, height },
-        mediaHeight,
-      };
-      destinationRef.current = next;
-      setDestination(next);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [contentAreaRect]);
+    const frame = frameRef.current;
+    if (!frame) return;
+    const observer = new ResizeObserver(() => {
+      if (flightRef.current) return;
+      setDestination(frameRect());
+    });
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [frameRef, frameRect]);
 
-  // Switching items while the overlay is open runs sequentially: the open
-  // overlay first animates closed into the card it was showing, and only
-  // after it lands does the newly selected item animate open from its own
-  // card. Rapid clicks during the closing leg are absorbed — the flight
-  // completes once and then opens the most recently selected item.
+  // Switching items while the view is open runs sequentially: the open view
+  // first flies back into the card it was showing, and only after it lands
+  // does the newly selected item open from its own card. Rapid selections
+  // during the closing leg are absorbed — the flight completes once and then
+  // opens the most recently selected item.
   useLayoutEffect(() => {
     const previous = previousItemRef.current;
     if (previous.id === item.id) return;
     previousItemRef.current = item;
     if (isEditingNoteRef.current) {
-      // Card presses are absorbed while a note is being written, so this only
-      // catches a switch that arrived another way (Enter on a focused card).
       // Leave the editor rather than carry the draft onto another item.
       setIsEditingNote(false);
       setIsFocusMode(false);
@@ -694,24 +491,19 @@ export function ExpandedItemOverlay({
     if (activeFlight?.kind === "open") {
       // Retarget the in-progress open from its current visual state.
       const dialog = dialogRef.current;
-      const media = mediaRef.current;
-      const rects = queryCardRects(item.id);
-      if (!dialog || !media || !rects) return;
-      const fromMediaHeight = media.getBoundingClientRect().height;
+      if (!dialog) return;
       cancelPendingOpenRef.current = false;
-      beginOpenFlightFrom(fromMediaHeight, rects);
+      beginOpenFlight(rectFrom(dialog.getBoundingClientRect()));
       return;
     }
 
     // Settled: close into the old card, then open the new selection.
     cancelPendingOpenRef.current = false;
-    const previousRects = queryCardRects(previous.id);
-    beginCloseFlight(previous, previousRects, /* thenOpen */ true);
-  }, [item, beginOpenFlightFrom, beginCloseFlight]);
+    beginCloseFlight(previous, queryCardRects(previous.id)?.card ?? null, /* thenOpen */ true);
+  }, [item, beginOpenFlight, beginCloseFlight]);
 
   // When a sequential switch's closing leg lands, open the newly selected
-  // item from its own card. The dialog is measured at the destination width
-  // so the frame height fits its content with no leftover whitespace.
+  // item from its own card.
   useLayoutEffect(() => {
     if (!pendingOpen || flight) return;
     setPendingOpen(false);
@@ -725,7 +517,7 @@ export function ExpandedItemOverlay({
       actionsRef.current.onClose();
       return;
     }
-    beginOpenFlight(rects);
+    beginOpenFlight(rects.card);
   }, [pendingOpen, flight, beginOpenFlight]);
 
   // On close, hand focus back to the source card while it is still mounted.
@@ -745,7 +537,7 @@ export function ExpandedItemOverlay({
     [],
   );
 
-  // Move focus to the close control when the overlay finishes opening.
+  // Move focus to the close control when the view finishes opening.
   useLayoutEffect(() => {
     if (flight || !destination || hasSettledOnceRef.current) return;
     hasSettledOnceRef.current = true;
@@ -766,38 +558,10 @@ export function ExpandedItemOverlay({
     requestClose();
   };
 
-  // The content-area ref is read afresh for each scroll or resize event.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Mutable ref contents are intentionally read at event time.
-  useEffect(() => {
-    const checkSourceVisibility = () => {
-      if (selectionScrollRef.current) return;
-      // While a note is being written the source card is irrelevant: closing on
-      // scroll or resize would throw away the draft without a word.
-      if (isEditingNoteRef.current) return;
-      const contentArea = contentAreaRef.current;
-      const viewport = scrollViewport(contentArea);
-      const rects = queryCardRects(itemIdRef.current);
-      if (
-        !viewport ||
-        !rects ||
-        isCardTooFarOffscreen(rects.card, rectFrom(viewport.getBoundingClientRect()))
-      ) {
-        requestClose();
-      }
-    };
-
-    document.addEventListener("scroll", checkSourceVisibility, true);
-    window.addEventListener("resize", checkSourceVisibility);
-    return () => {
-      document.removeEventListener("scroll", checkSourceVisibility, true);
-      window.removeEventListener("resize", checkSourceVisibility);
-    };
-  }, [selectionScrollRef, requestClose]);
-
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      // A field inside the dialog owns its own Escape: the new-tag input and
+      // A field inside the view owns its own Escape: the new-tag input and
       // the editor's link URL field each cancel just themselves. This listener
       // runs in the capture phase, before their handlers get a chance to.
       if (event.target instanceof HTMLInputElement) return;
@@ -816,150 +580,6 @@ export function ExpandedItemOverlay({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [requestClose]);
 
-  // Modeless close: presses on empty library space dismiss the overlay, while
-  // presses on cards fall through to the card's own handler, which switches the
-  // overlay to that item. While a note is being written every press outside the
-  // dialog is absorbed, cards included, so it cannot silently cancel what was
-  // just typed, carry the panel to another item, or reach a control behind it.
-  // The close button, Escape and Save are the ways out.
-  useEffect(() => {
-    // True for presses the panel answers itself: anything outside the dialog,
-    // plus the cards too while a note is being written, so a stray press cannot
-    // navigate the overlay off an unsaved draft.
-    const shouldHandlePress = (target: EventTarget | null) => {
-      if (!(target instanceof Node)) return false;
-      if (dialogRef.current?.contains(target)) return false;
-      const onCard = target instanceof Element && target.closest(".library-card") !== null;
-      return !onCard || isEditingNoteRef.current;
-    };
-
-    const onPointerDown = (event: PointerEvent) => {
-      if (!shouldHandlePress(event.target)) return;
-      if (!isEditingNoteRef.current) {
-        requestClose();
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
-    // A control behind the panel can answer the press, the release, or the
-    // click, and those are separate events, so the press alone is not enough to
-    // absorb the interaction. mousedown is included rather than relying on the
-    // pointerdown cancel to suppress it.
-    const absorbHandledPress = (event: Event) => {
-      if (!isEditingNoteRef.current || !shouldHandlePress(event.target)) return;
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
-    document.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("mousedown", absorbHandledPress, true);
-    document.addEventListener("pointerup", absorbHandledPress, true);
-    document.addEventListener("mouseup", absorbHandledPress, true);
-    document.addEventListener("click", absorbHandledPress, true);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("mousedown", absorbHandledPress, true);
-      document.removeEventListener("pointerup", absorbHandledPress, true);
-      document.removeEventListener("mouseup", absorbHandledPress, true);
-      document.removeEventListener("click", absorbHandledPress, true);
-    };
-  }, [requestClose]);
-
-  useEffect(
-    () => () => {
-      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-    },
-    [],
-  );
-
-  const dialogFlying = flight?.kind === "open" || flight?.kind === "close";
-  const placedStyle: CSSProperties | undefined = destination
-    ? {
-        left: destination.frame.left,
-        top: destination.frame.top,
-        width: destination.frame.width,
-        height: destination.frame.height,
-      }
-    : undefined;
-
-  function copySourceLink() {
-    if (!shownItem.sourceUrl) return;
-    const resetCopyFeedback = () => {
-      setLinkCopied(false);
-      setLinkCopyFailed(false);
-    };
-    void navigator.clipboard
-      .writeText(shownItem.sourceUrl)
-      .then(() => {
-        setLinkCopied(true);
-        setLinkCopyFailed(false);
-        if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-        copyTimerRef.current = window.setTimeout(resetCopyFeedback, 2000);
-      })
-      .catch(() => {
-        setLinkCopied(false);
-        setLinkCopyFailed(true);
-        if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-        copyTimerRef.current = window.setTimeout(resetCopyFeedback, 2000);
-      });
-  }
-
-  const triage = triageActions(shownItem, actions);
-  const sourceAction = triage.find((action) => action.key === "open-original");
-  const otherActions = triage.filter((action) => action.key !== "open-original");
-  // Layout G (Paper): any item with readable content merges into a single
-  // row — Read/Open PDF + domain share the row, copy + forget are bare icons.
-  // Readable = whatever currently renders a Read button in the overlay.
-  const readAction = triage.find(
-    (action) =>
-      action.key === "read" || action.key === "open-pdf" || action.key === "read-unavailable",
-  );
-  const isReadRow = Boolean(readAction);
-  const isPinned = shownItem.favorite === true;
-
-  // Copy, pin and forget sit at the end of both toolbar layouts, so they are
-  // built once here rather than pasted into each row.
-  const itemControls = (
-    <>
-      {shownItem.sourceUrl && (
-        <button
-          type="button"
-          className="toolbar-icon"
-          onClick={copySourceLink}
-          aria-label="Copy link to original"
-          title={linkCopied ? "Copied" : linkCopyFailed ? "Copy failed" : "Copy link"}
-        >
-          {linkCopied ? (
-            <HugeiconsIcon icon={CheckmarkCircle01Icon} size={14} />
-          ) : (
-            <HugeiconsIcon icon={Copy01Icon} size={14} />
-          )}
-        </button>
-      )}
-      <button
-        type="button"
-        className="toolbar-icon"
-        onClick={() => void actions.onTogglePin(shownItem)}
-        aria-label={isPinned ? "Unpin from Top of mind" : "Pin to Top of mind"}
-        aria-pressed={isPinned}
-        title={isPinned ? "Unpin" : "Pin to Top of mind"}
-      >
-        <HugeiconsIcon icon={PinIcon} size={14} />
-      </button>
-      <button
-        type="button"
-        className="toolbar-icon toolbar-icon-muted"
-        onClick={() => void actions.onForget(shownItem)}
-        aria-label="Forget this item"
-        title="Forget"
-      >
-        <HugeiconsIcon icon={Archive01Icon} size={14} />
-      </button>
-    </>
-  );
-
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
   useLayoutEffect(() => {
@@ -968,10 +588,11 @@ export function ExpandedItemOverlay({
 
   // Selection changes reset this local editor state even though the selected ID
   // is only a trigger and is not read by the reset itself.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: The shown item ID intentionally triggers a tag-editor reset.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: The shown item ID intentionally triggers a reset.
   useEffect(() => {
     setIsAddingTag(false);
     setTagDraft("");
+    setIsSpaceMenuOpen(false);
   }, [shownItem.id]);
 
   const allTags = shownItem.tags;
@@ -985,8 +606,28 @@ export function ExpandedItemOverlay({
     setIsAddingTag(false);
   }
 
+  const isFlying = flight !== null;
+  const placedStyle: CSSProperties | undefined =
+    destination && !isFlying
+      ? {
+          left: destination.left,
+          top: destination.top,
+          width: destination.width,
+          height: destination.height,
+        }
+      : undefined;
+
   const isEditingNoteView = isEditingNote && shownItem.kind === "Note";
   const isFocusModeView = isFocusMode && isEditingNoteView;
+  const isPinned = shownItem.favorite === true;
+  const sourceHost = hostnameForUrl(shownItem.sourceUrl);
+  const memberSpaces = spaces?.filter((space) => space.member) ?? [];
+  const content = contentActions(shownItem, actions);
+  const savedDate = shownItem.date.replace(/^saved\s+/iu, "");
+  const size =
+    shownItem.mediaWidth && shownItem.mediaHeight
+      ? `${shownItem.mediaWidth} × ${shownItem.mediaHeight}`
+      : null;
 
   return (
     <div
@@ -995,170 +636,212 @@ export function ExpandedItemOverlay({
     >
       <section
         ref={dialogRef}
-        className={`expanded-overlay ${destination ? "is-placed" : ""} ${dialogFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""} ${isFocusModeView ? "is-focus-mode" : ""}`}
+        className={`expanded-overlay ${destination ? "is-placed" : ""} ${isFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""} ${isFocusModeView ? "is-focus-mode" : ""}`}
         role="dialog"
         aria-modal={false}
         aria-label={detailTitleFor(shownItem)}
-        style={
-          isFocusModeView
-            ? {
-                position: "relative",
-                left: "auto",
-                top: "auto",
-                width: "min(100%, 1060px)",
-                height: "100%",
-              }
-            : dialogFlying
-              ? undefined
-              : placedStyle
-        }
+        style={isFocusModeView ? undefined : placedStyle}
       >
-        <button
-          type="button"
-          ref={closeButtonRef}
-          className="expanded-overlay-close"
-          onClick={handleOverlayClose}
-          aria-label={
-            isFocusModeView
-              ? "Exit focus mode"
-              : isEditingNoteView
-                ? "Close editor"
-                : "Close details"
-          }
-        >
-          <HugeiconsIcon icon={Cancel01Icon} size={16} />
-        </button>
-
-        <div
-          className={`expanded-overlay-media ${shownItem.kind === "Note" && !shownItem.image ? "note-detail-media-band" : ""}`}
-          ref={mediaRef}
-          style={
-            dialogFlying
-              ? undefined
-              : ({
-                  height: destination
-                    ? overlayMediaHeight(shownItem, destination.frame.width, window.innerHeight)
-                    : undefined,
-                } as CSSProperties)
-          }
-        >
+        <div className="item-stage">
+          <div className="item-stage-title glass">{detailTitleFor(shownItem)}</div>
           <OverlayMedia item={shownItem} />
         </div>
 
-        <div
-          className="expanded-overlay-body"
-          ref={bodyRef}
-          style={dialogFlying && destination ? { width: destination.frame.width } : undefined}
-        >
-          {isEditingNoteView ? (
-            <Suspense
-              fallback={
-                <p className="expanded-overlay-description" role="status">
-                  Loading editor…
-                </p>
+        <aside className="item-inspector">
+          <header className="item-inspector-header">
+            <button
+              type="button"
+              ref={closeButtonRef}
+              className="item-close"
+              onClick={handleOverlayClose}
+              aria-label={
+                isFocusModeView
+                  ? "Exit focus mode"
+                  : isEditingNoteView
+                    ? "Close editor"
+                    : "Close details"
               }
             >
-              <RichNoteEditor
-                key={`edit-${shownItem.id}`}
-                embedded
-                body={shownItem.noteBody}
-                title={shownItem.title}
-                onSave={(body) => actions.onUpdateNote(shownItem, body)}
-                onEditingChange={(editing) => {
-                  setIsEditingNote(editing);
-                  if (!editing) setIsFocusMode(false);
-                }}
-                focusMode={isFocusModeView}
-                onFocusModeChange={setIsFocusMode}
-              />
-            </Suspense>
-          ) : shownItem.kind === "Quote" ? (
-            <>
-              <blockquote className="detail-quote">“{shownItem.title}”</blockquote>
-              {shownItem.description && (
-                <p className="detail-attribution">
-                  — {shownItem.description.replace(/^—\s*/u, "")}
-                </p>
-              )}
-            </>
-          ) : shownItem.kind === "Note" ? (
-            <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
-          ) : (
-            <>
-              <h2 className="expanded-overlay-title">{detailTitleFor(shownItem)}</h2>
-              {shownItem.description && (
-                <p className="expanded-overlay-description">{shownItem.description}</p>
-              )}
-            </>
-          )}
-          {!isEditingNoteView && shownItem.processing?.active && (
-            <div className="detail-processing" role="status">
-              <HugeiconsIcon icon={Loading01Icon} size={14} />
-              <span>{shownItem.processing.message ?? "Processing"}</span>
-              {shownItem.processing.progressTotal != null && (
-                <span>
-                  {shownItem.processing.progressCurrent}/{shownItem.processing.progressTotal}
-                </span>
-              )}
-            </div>
-          )}
-          {!isEditingNoteView && shownItem.processing?.failedJob && (
-            <div className="detail-processing failed" role="alert">
-              <HugeiconsIcon icon={AlertCircleIcon} size={14} />
-              <span>{shownItem.processing.failedJob.errorMessage ?? "Processing failed"}</span>
-              <button
-                type="button"
-                className="retry-button"
-                onClick={() => void actions.onRetryJob(shownItem.processing?.failedJob?.id ?? "")}
+              {isFocusModeView ? "Exit focus" : "Close"}
+              <kbd>esc</kbd>
+            </button>
+          </header>
+
+          <div className="item-inspector-body">
+            {isEditingNoteView ? (
+              <Suspense
+                fallback={
+                  <p className="item-note" role="status">
+                    Loading editor…
+                  </p>
+                }
               >
-                <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
-              </button>
-            </div>
-          )}
-          {!isEditingNoteView && (
-            <div className="detail-meta">
-              <div className="detail-filemeta">
-                <span className="filemeta-type">{fileTypeFor(shownItem)}</span>
-                <span className="filemeta-dot" aria-hidden="true" />
-                <span className="filemeta-saved">{savedLabelFor(shownItem.date)}</span>
-              </div>
-              <div className="detail-tags">
-                {allTags.map((tag) => (
-                  <span key={tag} className="detail-tag">
-                    #{tag}
-                  </span>
-                ))}
-                {isAddingTag ? (
-                  <input
-                    ref={tagInputRef}
-                    className="detail-tag-input"
-                    value={tagDraft}
-                    placeholder="tag name"
-                    aria-label="New tag name"
-                    onChange={(event) => setTagDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        submitTag();
-                      } else if (event.key === "Escape") {
-                        setTagDraft("");
-                        setIsAddingTag(false);
-                      }
-                    }}
-                    onBlur={submitTag}
-                  />
+                <RichNoteEditor
+                  key={`edit-${shownItem.id}`}
+                  embedded
+                  body={shownItem.noteBody}
+                  title={shownItem.title}
+                  onSave={(body) => actions.onUpdateNote(shownItem, body)}
+                  onEditingChange={(editing) => {
+                    setIsEditingNote(editing);
+                    if (!editing) setIsFocusMode(false);
+                  }}
+                  focusMode={isFocusModeView}
+                  onFocusModeChange={setIsFocusMode}
+                />
+              </Suspense>
+            ) : (
+              <>
+                {shownItem.kind === "Quote" ? (
+                  <>
+                    <blockquote className="detail-quote">“{shownItem.title}”</blockquote>
+                    {shownItem.description && (
+                      <p className="detail-attribution">
+                        — {shownItem.description.replace(/^—\s*/u, "")}
+                      </p>
+                    )}
+                  </>
                 ) : (
-                  <button
-                    type="button"
-                    className="detail-tag-add"
-                    onClick={() => setIsAddingTag(true)}
-                  >
-                    <HugeiconsIcon icon={PlusSignIcon} size={11} /> Add
-                  </button>
+                  <>
+                    <h2 className="item-title">{detailTitleFor(shownItem)}</h2>
+                    {shownItem.kind !== "Note" && shownItem.description && (
+                      <p className="item-note">{shownItem.description}</p>
+                    )}
+                  </>
                 )}
-              </div>
-              {spaces && spaces.length > 0 && (
-                <fieldset className="detail-spaces">
+
+                {shownItem.processing?.active && (
+                  <div className="detail-processing" role="status">
+                    <HugeiconsIcon icon={Loading01Icon} size={14} />
+                    <span>{shownItem.processing.message ?? "Processing"}</span>
+                    {shownItem.processing.progressTotal != null && (
+                      <span>
+                        {shownItem.processing.progressCurrent}/{shownItem.processing.progressTotal}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {shownItem.processing?.failedJob && (
+                  <div className="detail-processing failed" role="alert">
+                    <HugeiconsIcon icon={AlertCircleIcon} size={14} />
+                    <span>
+                      {shownItem.processing.failedJob.errorMessage ?? "Processing failed"}
+                    </span>
+                    <button
+                      type="button"
+                      className="retry-button"
+                      onClick={() =>
+                        void actions.onRetryJob(shownItem.processing?.failedJob?.id ?? "")
+                      }
+                    >
+                      <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
+                    </button>
+                  </div>
+                )}
+
+                <div className="item-tags">
+                  {memberSpaces.map((space) => (
+                    <span key={space.id} className="item-space-chip">
+                      <span className={`detail-space-dot ${space.color}`} aria-hidden="true" />
+                      {space.name}
+                    </span>
+                  ))}
+                  {allTags.map((tag) => (
+                    <span key={tag} className="item-tag">
+                      #{tag}
+                    </span>
+                  ))}
+                  {isAddingTag ? (
+                    <input
+                      ref={tagInputRef}
+                      className="detail-tag-input"
+                      value={tagDraft}
+                      placeholder="tag name"
+                      aria-label="New tag name"
+                      onChange={(event) => setTagDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          submitTag();
+                        } else if (event.key === "Escape") {
+                          setTagDraft("");
+                          setIsAddingTag(false);
+                        }
+                      }}
+                      onBlur={submitTag}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="item-tag-add"
+                      onClick={() => setIsAddingTag(true)}
+                      aria-label="Add a tag"
+                    >
+                      <HugeiconsIcon icon={PlusSignIcon} size={11} />
+                    </button>
+                  )}
+                </div>
+
+                <section className="item-details">
+                  <h3>Details</h3>
+                  <dl>
+                    <div>
+                      <dt>Saved</dt>
+                      <dd>{savedDate}</dd>
+                    </div>
+                    {(sourceHost || shownItem.source) && (
+                      <div>
+                        <dt>From</dt>
+                        <dd>{sourceHost ?? shownItem.source}</dd>
+                      </div>
+                    )}
+                    <div>
+                      <dt>Type</dt>
+                      <dd>{fileTypeFor(shownItem)}</dd>
+                    </div>
+                    {size && (
+                      <div>
+                        <dt>Size</dt>
+                        <dd className="is-mono">{size}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </section>
+
+                {(content.length > 0 || shownItem.kind === "Note") && (
+                  <div className="item-actions">
+                    {shownItem.kind === "Note" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsFocusMode(false);
+                          setIsEditingNote(true);
+                        }}
+                      >
+                        Edit note
+                      </button>
+                    )}
+                    {content.map((action) => (
+                      <button
+                        type="button"
+                        key={action.key}
+                        onClick={action.onClick}
+                        disabled={action.disabled}
+                        title={action.title}
+                      >
+                        {action.icon} {action.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {!isEditingNoteView && (
+            <footer className="item-action-bar">
+              {isSpaceMenuOpen && spaces && spaces.length > 0 && (
+                <fieldset className="item-space-menu">
                   <legend className="visually-hidden">Regular Spaces</legend>
                   {spaces.map((space) => (
                     <button
@@ -1175,114 +858,51 @@ export function ExpandedItemOverlay({
                   ))}
                 </fieldset>
               )}
-            </div>
-          )}
-
-          {isReadRow && otherActions.some((action) => action.key === "find-similar") && (
-            <div className="expanded-overlay-actions">
-              {otherActions
-                .filter((action) => action.key === "find-similar")
-                .map((action) => (
-                  <button
-                    type="button"
-                    key={action.key}
-                    className="overlay-action-secondary"
-                    onClick={action.onClick}
-                    disabled={action.disabled}
-                  >
-                    {action.icon} {action.label}
-                  </button>
-                ))}
-            </div>
-          )}
-
-          {isReadRow && readAction ? (
-            <div className="expanded-overlay-toolbar is-read-row">
               <button
                 type="button"
-                className="toolbar-primary toolbar-reading"
-                onClick={readAction.onClick}
-                disabled={readAction.disabled}
-                title={
-                  readAction.title ??
-                  (readAction.disabled ? "No saved content to read" : readAction.label)
-                }
+                className="item-bar-button"
+                onClick={() => void actions.onTogglePin(shownItem)}
+                aria-label={isPinned ? "Unstar" : "Star to Top of mind"}
+                aria-pressed={isPinned}
+                title={isPinned ? "Unstar" : "Star to Top of mind"}
               >
-                {readAction.icon} {readAction.label}
+                <HugeiconsIcon icon={StarIcon} size={15} />
               </button>
-              {sourceAction && (
+              {spaces && spaces.length > 0 && (
                 <button
                   type="button"
-                  className="toolbar-primary"
-                  onClick={sourceAction.onClick}
-                  disabled={sourceAction.disabled}
-                  title={
-                    sourceAction.disabled ? "No source link saved" : `Open ${sourceAction.label}`
-                  }
+                  className="item-bar-button"
+                  onClick={() => setIsSpaceMenuOpen((open) => !open)}
+                  aria-label="Move to Space"
+                  aria-expanded={isSpaceMenuOpen}
+                  title="Move to Space"
                 >
-                  {sourceAction.icon} {sourceAction.label}{" "}
-                  <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
+                  <HugeiconsIcon icon={FolderAddIcon} size={15} />
                 </button>
               )}
-              {itemControls}
-            </div>
-          ) : (
-            <>
-              {otherActions.length > 0 && (
-                <div className="expanded-overlay-actions">
-                  {otherActions.map((action, index) => (
-                    <button
-                      type="button"
-                      key={action.key}
-                      className={
-                        index === 0 ? "overlay-action-primary" : "overlay-action-secondary"
-                      }
-                      onClick={action.onClick}
-                      disabled={action.disabled}
-                      title={action.title}
-                    >
-                      {action.icon} {action.label}
-                    </button>
-                  ))}
-                </div>
+              {shownItem.sourceUrl && (
+                <button
+                  type="button"
+                  className="item-bar-button"
+                  onClick={() => window.open(shownItem.sourceUrl, "_blank", "noopener,noreferrer")}
+                  aria-label={`Open ${sourceHost ?? "original"}`}
+                  title={`Open ${sourceHost ?? "original"}`}
+                >
+                  <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />
+                </button>
               )}
-
-              <div className="expanded-overlay-toolbar">
-                {shownItem.kind === "Note" && (
-                  <button
-                    type="button"
-                    className="toolbar-primary"
-                    onClick={() => {
-                      setIsFocusMode(false);
-                      setIsEditingNote(true);
-                    }}
-                    aria-label="Edit note"
-                  >
-                    Edit note
-                  </button>
-                )}
-                {sourceAction && (
-                  <button
-                    type="button"
-                    className="toolbar-primary"
-                    onClick={sourceAction.onClick}
-                    disabled={sourceAction.disabled}
-                    title={
-                      sourceAction.disabled ? "No source link saved" : `Open ${sourceAction.label}`
-                    }
-                  >
-                    {sourceAction.icon} {sourceAction.label}{" "}
-                    <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
-                  </button>
-                )}
-                {itemControls}
-              </div>
-            </>
+              <button
+                type="button"
+                className="item-bar-button"
+                onClick={() => void actions.onForget(shownItem)}
+                aria-label="Archive"
+                title="Archive"
+              >
+                <HugeiconsIcon icon={Archive01Icon} size={15} />
+              </button>
+            </footer>
           )}
-
-          {/* Insertion point for related items (overlay PR 3); renders nothing until then. */}
-          <div className="expanded-overlay-related" hidden />
-        </div>
+        </aside>
       </section>
     </div>
   );
