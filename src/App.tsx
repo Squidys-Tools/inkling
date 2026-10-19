@@ -27,6 +27,7 @@ import {
   Camera01Icon,
   Clock01Icon,
   Database02Icon,
+  Download04Icon,
   Grid2X2Icon,
   Edit01Icon,
   HelpCircleIcon,
@@ -48,8 +49,8 @@ import {
   Cancel01Icon,
   CircleCheckIcon,
   CircleIcon,
-  CheckListIcon,
   FileTextIcon,
+  Upload04Icon,
 } from "@hugeicons/core-free-icons";
 import {
   assetUrl,
@@ -1469,6 +1470,47 @@ function keepTabFocusInside(event: KeyboardEvent, dialog: HTMLElement) {
 // Desktop sidebar toggle attached to the library frame's left edge. When the
 // sidebar opens or closes it flips over that edge: the old side turns edge-on,
 // then the new side turns in. The drawn side lags `isOpen` until the turn ends.
+// Library makeup for Settings: how many things are kept, split by kind.
+const MAKEUP_GROUPS: Array<{ label: string; kinds: ItemKind[]; color: string }> = [
+  { label: "Images", kinds: ["Image"], color: "#b0714f" },
+  { label: "Articles", kinds: ["Article"], color: "#c9a27a" },
+  { label: "PDFs", kinds: ["PDF"], color: "#7f9a8c" },
+  { label: "Notes & quotes", kinds: ["Note", "Quote"], color: "#8e9bbf" },
+  { label: "Videos & posts", kinds: ["Video", "Post"], color: "#a88ab5" },
+  { label: "Files", kinds: ["File"], color: "#5e5850" },
+];
+
+function LibraryMakeup({ items }: { items: LibraryItem[] }) {
+  const groups = MAKEUP_GROUPS.map((group) => ({
+    ...group,
+    count: items.filter((item) => group.kinds.includes(item.kind)).length,
+  })).filter((group) => group.count > 0);
+  return (
+    <div className="settings-makeup">
+      <p className="settings-makeup-total">
+        {items.length.toLocaleString()} {items.length === 1 ? "thing" : "things"}
+      </p>
+      {groups.length > 0 && (
+        <>
+          <div className="settings-makeup-bar" aria-hidden="true">
+            {groups.map((group) => (
+              <span key={group.label} style={{ flexGrow: group.count, background: group.color }} />
+            ))}
+          </div>
+          <ul className="settings-makeup-legend">
+            {groups.map((group) => (
+              <li key={group.label}>
+                <span style={{ background: group.color }} aria-hidden="true" />
+                {group.label} {group.count.toLocaleString()}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SidebarEdgeTab({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
   const [side, setSide] = useState(isOpen);
   const [phase, setPhase] = useState<"idle" | "out" | "in">("idle");
@@ -1562,7 +1604,7 @@ function App() {
       cancelled = true;
     };
   }, [canUseDesktopBackend]);
-  const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("archive");
+  const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("data");
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(
     shouldUseSeedLibrary() ? browserArchivedItems : [],
   );
@@ -3468,9 +3510,9 @@ function App() {
     };
   }, [isSettingsOpen]);
 
-  // Settings reopens on Archive, the way it behaved while that was the only tab.
+  // Settings reopens on Library, its first tab.
   useEffect(() => {
-    if (!isSettingsOpen) setSettingsTab("archive");
+    if (!isSettingsOpen) setSettingsTab("data");
   }, [isSettingsOpen]);
 
   useEffect(() => {
@@ -4656,7 +4698,10 @@ function App() {
               aria-expanded={isSettingsOpen}
               aria-controls="settings-modal"
               title="Settings"
-              onClick={() => setIsSettingsOpen(true)}
+              onClick={() => {
+                setSelectedItem(null);
+                setIsSettingsOpen(true);
+              }}
             >
               <HugeiconsIcon icon={Settings01Icon} size={17} />
               <span>Settings</span>
@@ -5342,6 +5387,15 @@ function App() {
                   <div className="settings-sidebar-content">
                     <button
                       type="button"
+                      className={`settings-tab ${settingsTab === "data" ? "active" : ""}`}
+                      aria-current={settingsTab === "data" ? "page" : undefined}
+                      onClick={() => setSettingsTab("data")}
+                    >
+                      <HugeiconsIcon icon={Database02Icon} size={16} />
+                      <span>Library</span>
+                    </button>
+                    <button
+                      type="button"
                       className={`settings-tab ${settingsTab === "archive" ? "active" : ""}`}
                       aria-current={settingsTab === "archive" ? "page" : undefined}
                       onClick={() => setSettingsTab("archive")}
@@ -5352,23 +5406,15 @@ function App() {
                     </button>
                     <button
                       type="button"
-                      className={`settings-tab ${settingsTab === "data" ? "active" : ""}`}
-                      aria-current={settingsTab === "data" ? "page" : undefined}
-                      onClick={() => setSettingsTab("data")}
-                    >
-                      <HugeiconsIcon icon={Database02Icon} size={16} />
-                      <span>Data</span>
-                    </button>
-                    <button
-                      type="button"
                       className={`settings-tab ${settingsTab === "extension" ? "active" : ""}`}
                       aria-current={settingsTab === "extension" ? "page" : undefined}
                       onClick={() => setSettingsTab("extension")}
                     >
                       <HugeiconsIcon icon={Link01Icon} size={16} />
-                      <span>Extension</span>
+                      <span>Browser extension</span>
                     </button>
                   </div>
+                  <p className="settings-sidebar-footer">Everything stays on this machine.</p>
                 </aside>
 
                 {settingsTab === "archive" ? (
@@ -5376,68 +5422,71 @@ function App() {
                     <header className="settings-panel-header">
                       <div className="settings-panel-header-content">
                         <div className="settings-panel-heading">
-                          <h2 id="archive-panel-title">Archived items</h2>
+                          <h2 id="archive-panel-title">Archive</h2>
                         </div>
-                        <div className="settings-panel-count-row">
-                          <span className="settings-panel-count">
-                            {archivedItems.length} {archivedItems.length === 1 ? "item" : "items"}{" "}
-                            in archive
-                          </span>
-                          <fieldset className="settings-archive-actions">
-                            <legend className="visually-hidden">Archive actions</legend>
-                            {isArchiveSelectionMode && (
-                              <>
-                                <span
-                                  className="settings-selected-count"
-                                  role="status"
-                                  aria-live="polite"
-                                >
-                                  {selectedArchivedIds.size} selected
-                                </span>
-                                <button
-                                  type="button"
-                                  className="settings-batch-button settings-batch-recover"
-                                  disabled={selectedArchivedIds.size === 0}
-                                  onClick={() => void recoverSelectedArchivedItems()}
-                                >
-                                  Recover
-                                </button>
-                                <button
-                                  type="button"
-                                  className="settings-batch-button settings-batch-delete"
-                                  disabled={selectedArchivedIds.size === 0}
-                                  onClick={() => void deleteSelectedArchivedItems()}
-                                >
-                                  Delete
-                                </button>
-                              </>
-                            )}
-                            <button
-                              type="button"
-                              className={`settings-select-button ${isArchiveSelectionMode ? "is-active" : ""}`}
-                              aria-pressed={isArchiveSelectionMode}
-                              aria-label={
-                                isArchiveSelectionMode
-                                  ? "Exit multi-select mode"
-                                  : "Select archived items"
-                              }
-                              onClick={toggleArchiveSelectionMode}
-                            >
-                              <HugeiconsIcon icon={CheckListIcon} size={15} />
-                              <span>Select</span>
-                            </button>
-                          </fieldset>
-                        </div>
+                        <p className="settings-panel-note">
+                          {archivedItems.length === 1
+                            ? "1 thing you put away. It waits here,"
+                            : `${archivedItems.length} things you put away. They wait here,`}{" "}
+                          out of your library, until you bring{" "}
+                          {archivedItems.length === 1 ? "it" : "them"} back or let{" "}
+                          {archivedItems.length === 1 ? "it" : "them"} go.
+                        </p>
                       </div>
-                      <button
-                        ref={settingsCloseRef}
-                        type="button"
-                        className="icon-button small settings-close"
-                        onClick={() => setIsSettingsOpen(false)}
-                        aria-label="Close settings"
-                      >
-                        <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                      </button>
+                      <div className="settings-panel-tools">
+                        <fieldset className="settings-archive-actions">
+                          <legend className="visually-hidden">Archive actions</legend>
+                          {isArchiveSelectionMode && (
+                            <>
+                              <span
+                                className="settings-selected-count"
+                                role="status"
+                                aria-live="polite"
+                              >
+                                {selectedArchivedIds.size} selected
+                              </span>
+                              <button
+                                type="button"
+                                className="settings-batch-button settings-batch-recover"
+                                disabled={selectedArchivedIds.size === 0}
+                                onClick={() => void recoverSelectedArchivedItems()}
+                              >
+                                Recover
+                              </button>
+                              <button
+                                type="button"
+                                className="settings-batch-button settings-batch-delete"
+                                disabled={selectedArchivedIds.size === 0}
+                                onClick={() => void deleteSelectedArchivedItems()}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            className={`settings-select-button ${isArchiveSelectionMode ? "is-active" : ""}`}
+                            aria-pressed={isArchiveSelectionMode}
+                            aria-label={
+                              isArchiveSelectionMode
+                                ? "Exit multi-select mode"
+                                : "Select archived items"
+                            }
+                            onClick={toggleArchiveSelectionMode}
+                          >
+                            <span>{isArchiveSelectionMode ? "Done" : "Select"}</span>
+                          </button>
+                        </fieldset>
+                        <button
+                          ref={settingsCloseRef}
+                          type="button"
+                          className="icon-button small settings-close"
+                          onClick={() => setIsSettingsOpen(false)}
+                          aria-label="Close settings"
+                        >
+                          <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                        </button>
+                      </div>
                     </header>
 
                     <div className="settings-archive-scroll">
@@ -5471,8 +5520,8 @@ function App() {
                           <h2 id="data-panel-title">Your library</h2>
                         </div>
                         <p className="settings-panel-note">
-                          Your library stays on this machine. Restoring adds saved items without
-                          replacing anything already here.
+                          It lives in one folder on this computer. Back it up by exporting a copy,
+                          or bring an old copy back in.
                         </p>
                       </div>
                       <button
@@ -5487,53 +5536,67 @@ function App() {
                     </header>
 
                     <div className="settings-data-scroll">
-                      <div className="settings-data-card">
-                        <div className="settings-data-heading">
-                          <HugeiconsIcon icon={Database02Icon} size={17} />
+                      <LibraryMakeup items={items} />
+                      <div className="settings-data-row">
+                        <span className="settings-data-icon" aria-hidden="true">
+                          <HugeiconsIcon
+                            icon={isExportingLibrary ? Loading01Icon : Download04Icon}
+                            size={16}
+                          />
+                        </span>
+                        <div className="settings-data-text">
                           <h3>Export a copy</h3>
+                          <p>
+                            A dated folder with the database, every file, and a manifest. Keep it on
+                            another drive.
+                          </p>
+                          {!canUseLibraryFolderPicker ? (
+                            <p className="settings-data-hint">Export runs in the desktop app.</p>
+                          ) : null}
+                          {lastExport ? (
+                            <div className="settings-data-result" role="status" aria-live="polite">
+                              <span className="settings-data-summary">
+                                {formatExportSummary(lastExport)}
+                              </span>
+                              <span className="settings-data-path">{lastExport.directory}</span>
+                            </div>
+                          ) : null}
                         </div>
-                        <p>
-                          Writes a dated folder holding a snapshot of the database, the files your
-                          items point at, and a manifest describing both. Keep it on another drive
-                          to back the library up.
-                        </p>
                         <button
                           type="button"
-                          className={`settings-data-button ${isExportingLibrary ? "is-busy" : ""}`}
+                          className={`settings-data-button is-primary ${isExportingLibrary ? "is-busy" : ""}`}
                           disabled={
                             !canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary
                           }
                           onClick={() => void exportLibraryToFolder()}
                         >
-                          <HugeiconsIcon
-                            icon={isExportingLibrary ? Loading01Icon : ArrowDown01Icon}
-                            size={15}
-                          />
-                          <span>
-                            {isExportingLibrary ? "Exporting…" : "Choose folder and export"}
-                          </span>
+                          {isExportingLibrary ? "Exporting…" : "Export…"}
                         </button>
-                        {!canUseLibraryFolderPicker ? (
-                          <p className="settings-data-hint">Export runs in the desktop app.</p>
-                        ) : null}
-                        {lastExport ? (
-                          <div className="settings-data-result" role="status" aria-live="polite">
-                            <span className="settings-data-summary">
-                              {formatExportSummary(lastExport)}
-                            </span>
-                            <span className="settings-data-path">{lastExport.directory}</span>
-                          </div>
-                        ) : null}
                       </div>
-                      <div className="settings-data-card">
-                        <div className="settings-data-heading">
-                          <HugeiconsIcon icon={Database02Icon} size={17} />
+                      <div className="settings-data-row">
+                        <span className="settings-data-icon" aria-hidden="true">
+                          <HugeiconsIcon
+                            icon={isImportingLibrary ? Loading01Icon : Upload04Icon}
+                            size={16}
+                          />
+                        </span>
+                        <div className="settings-data-text">
                           <h3>Restore from an export</h3>
+                          <p>
+                            Adds its items, files and Spaces here. Nothing already in your library
+                            gets replaced.
+                          </p>
+                          {!canUseLibraryFolderPicker ? (
+                            <p className="settings-data-hint">Restore runs in the desktop app.</p>
+                          ) : null}
+                          {lastImport ? (
+                            <div className="settings-data-result" role="status" aria-live="polite">
+                              <span className="settings-data-summary">
+                                {formatImportSummary(lastImport)}
+                              </span>
+                            </div>
+                          ) : null}
                         </div>
-                        <p>
-                          Choose a complete Inkling export folder to add its items, files, and
-                          Spaces to this library. Existing items are left unchanged.
-                        </p>
                         <button
                           type="button"
                           className={`settings-data-button ${isImportingLibrary ? "is-busy" : ""}`}
@@ -5542,24 +5605,8 @@ function App() {
                           }
                           onClick={() => void importLibraryFromFolder()}
                         >
-                          <HugeiconsIcon
-                            icon={isImportingLibrary ? Loading01Icon : ArrowUp01Icon}
-                            size={15}
-                          />
-                          <span>
-                            {isImportingLibrary ? "Restoring…" : "Choose export and restore"}
-                          </span>
+                          {isImportingLibrary ? "Restoring…" : "Restore…"}
                         </button>
-                        {!canUseLibraryFolderPicker ? (
-                          <p className="settings-data-hint">Restore runs in the desktop app.</p>
-                        ) : null}
-                        {lastImport ? (
-                          <div className="settings-data-result" role="status" aria-live="polite">
-                            <span className="settings-data-summary">
-                              {formatImportSummary(lastImport)}
-                            </span>
-                          </div>
-                        ) : null}
                       </div>
                       <button
                         type="button"

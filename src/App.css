@@ -2944,7 +2944,7 @@ a:focus-visible,
 .settings-select-button.is-active {
   background: #f2ece1;
 }
-.settings-close {
+.settings-panel-header .settings-close {
   width: 30px;
   height: 30px;
   border-color: var(--rule);
@@ -2961,7 +2961,7 @@ a:focus-visible,
 }
 .settings-archive-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 14px;
   align-items: start;
 }
@@ -5370,6 +5370,197 @@ a:focus-visible,
   border-radius: 12px;
   background: var(--library-surface);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+
+/* Settings: a dark sheet with the section list on the bare background and the
+   open section on a raised frame, matching the library frame. */
+.settings-modal-backdrop {
+  background: rgba(10, 10, 9, 0.62);
+}
+.settings-modal {
+  width: min(1080px, 100%);
+  height: min(640px, 100%);
+  border-color: var(--library-border);
+  background: var(--app-background);
+}
+.settings-modal-sidebar {
+  width: 232px;
+  min-width: 232px;
+  padding: 30px 12px 22px;
+  border-right: 0;
+  background: transparent;
+}
+.settings-sidebar-header h2 {
+  font-size: 17px;
+}
+.settings-tab {
+  min-height: 34px;
+  border-radius: var(--row-radius, 9px);
+  color: #c9c1b6;
+}
+.settings-tab.active {
+  background: var(--glass-active);
+}
+.settings-sidebar-footer {
+  margin: auto 0 0;
+  padding: 0 10px;
+  color: var(--library-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.settings-panel {
+  padding: 32px 40px;
+  border-left: 1px solid var(--library-border);
+  border-radius: var(--library-radius-overlay) 0 0 var(--library-radius-overlay);
+  background: var(--library-frame);
+}
+.settings-panel-header {
+  border-bottom: 0;
+}
+.settings-panel-header h2 {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.settings-panel-note {
+  max-width: 52ch;
+  font-size: 13px;
+}
+.settings-panel-tools {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+.settings-panel-header .settings-close {
+  width: 32px;
+  height: 32px;
+  border-color: var(--library-border);
+  border-radius: 999px;
+  background: transparent;
+}
+.settings-batch-button,
+.settings-select-button {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+.settings-select-button {
+  border-color: var(--library-border);
+  background: transparent;
+  color: var(--library-text);
+}
+.settings-select-button:hover,
+.settings-select-button.is-active {
+  background: var(--glass-active);
+}
+.settings-data-scroll {
+  gap: 0;
+  padding-top: 28px;
+}
+.settings-makeup {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 20px 22px;
+  border: 1px solid var(--library-border);
+  border-radius: 16px;
+  background: var(--library-surface);
+}
+.settings-makeup-total {
+  margin: 0;
+  color: var(--library-text);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.settings-makeup-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+}
+.settings-makeup-bar span {
+  flex-basis: 0;
+}
+.settings-makeup-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0;
+  padding: 0;
+  color: var(--library-muted);
+  font-size: 12px;
+  list-style: none;
+}
+.settings-makeup-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-makeup-legend li span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.settings-data-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 0;
+}
+.settings-data-row:not(:last-of-type) {
+  border-bottom: 1px solid var(--library-border);
+}
+.settings-data-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--library-surface-raised);
+  color: var(--library-text);
+}
+.settings-data-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.settings-data-text h3 {
+  margin: 0;
+  color: var(--library-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+.settings-data-text p {
+  margin: 0;
+  color: var(--library-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.settings-data-button {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0 18px;
+  border-color: var(--library-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--library-text);
+  font-size: 13px;
+}
+.settings-data-button.is-primary {
+  border-color: #e8e0d4;
+  background: #e8e0d4;
+  color: #141210;
+}
+.settings-data-link {
+  margin-top: 20px;
 }
 
 /* Dark liquid glass for controls floating over content. Panels stay solid. */
