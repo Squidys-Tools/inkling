@@ -686,6 +686,31 @@ a:focus-visible,
   background: transparent;
   color: var(--ink);
 }
+.history-nav {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+.history-button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--library-muted);
+  cursor: pointer;
+  transition: color 0.18s ease;
+}
+.history-button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--ink);
+}
+.history-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 .sidebar-toggle:active {
   transform: translateY(1px);
 }

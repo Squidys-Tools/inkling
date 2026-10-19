@@ -130,6 +130,13 @@ const AliveBoard = lazy(() =>
 const RoamBoard = lazy(() =>
   import("./components/mascot/RoamBoard").then((module) => ({ default: module.RoamBoard })),
 );
+type NavSnapshot = {
+  view: string;
+  spaceId: string | null;
+  query: string;
+  itemId: string | null;
+};
+
 const ExpandedItemOverlay = lazy(() =>
   import("./components/ExpandedItemOverlay").then((module) => ({
     default: module.ExpandedItemOverlay,
@@ -4232,6 +4239,79 @@ function App() {
     ],
   );
 
+  // In-memory back/forward history over view, search query, and open item.
+  // Query changes commit after a pause so typing does not add an entry per key.
+  const historyRef = useRef<{ entries: NavSnapshot[]; index: number }>({ entries: [], index: 0 });
+  const [historyPos, setHistoryPos] = useState({ index: 0, length: 0 });
+  const navSnapshot: NavSnapshot = {
+    view: activeView,
+    spaceId: activeSpaceId,
+    query,
+    itemId: selectedItemId,
+  };
+  const navKey = JSON.stringify(navSnapshot);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: navKey encodes the snapshot
+  useEffect(() => {
+    const history = historyRef.current;
+    const current = history.entries[history.index];
+    if (current && JSON.stringify(current) === navKey) return;
+    const commit = () => {
+      history.entries.splice(history.index + 1, history.entries.length, navSnapshot);
+      history.index = history.entries.length - 1;
+      setHistoryPos({ index: history.index, length: history.entries.length });
+    };
+    if (!current || current.query === navSnapshot.query) {
+      commit();
+      return;
+    }
+    const timer = window.setTimeout(commit, 600);
+    return () => window.clearTimeout(timer);
+  }, [navKey]);
+
+  const stepHistory = useCallback(
+    (delta: -1 | 1) => {
+      const history = historyRef.current;
+      const target = history.entries[history.index + delta];
+      if (!target) return;
+      history.index += delta;
+      setHistoryPos({ index: history.index, length: history.entries.length });
+      const item = target.itemId
+        ? [...items, ...archivedItems].find((candidate) => String(candidate.id) === target.itemId)
+        : undefined;
+      // A vanished item restores as a closed overlay; keep the stack in step so it is not re-pushed.
+      if (target.itemId && !item) target.itemId = null;
+      selectionScrollRef.current = false;
+      selectionRectsRef.current = null;
+      setActiveSpaceId(target.spaceId);
+      setActiveView(target.view);
+      setQuery(target.query);
+      setSimilaritySource(null);
+      setSelectedItem(item ?? null);
+    },
+    [archivedItems, items],
+  );
+  const stepHistoryRef = useRef(stepHistory);
+  stepHistoryRef.current = stepHistory;
+  useEffect(() => {
+    const onMouseUp = (event: MouseEvent) => {
+      if (event.button !== 3 && event.button !== 4) return;
+      event.preventDefault();
+      stepHistoryRef.current(event.button === 3 ? -1 : 1);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      stepHistoryRef.current(event.key === "ArrowLeft" ? -1 : 1);
+    };
+    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
   const findSimilarItemsRef = useRef(findSimilarItems);
   findSimilarItemsRef.current = findSimilarItems;
   const expandedOverlayActions = useMemo<ExpandedOverlayActions>(
@@ -4738,6 +4818,28 @@ function App() {
               </button>
             )}
             {!isSidebarOpen && sidebarActionErrorAlert}
+            <div className="history-nav">
+              <button
+                type="button"
+                className="history-button"
+                aria-label="Back"
+                title="Back"
+                disabled={historyPos.index <= 0}
+                onClick={() => stepHistory(-1)}
+              >
+                <HugeiconsIcon icon={ArrowLeft01Icon} size={16} />
+              </button>
+              <button
+                type="button"
+                className="history-button"
+                aria-label="Forward"
+                title="Forward"
+                disabled={historyPos.index >= historyPos.length - 1}
+                onClick={() => stepHistory(1)}
+              >
+                <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+              </button>
+            </div>
             <label
               className={`search-field glass${isSearchFocused ? " is-mascot" : ""}${isSearchFocused || query ? "" : " is-resting"}`}
             >
