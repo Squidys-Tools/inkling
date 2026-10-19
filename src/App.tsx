@@ -4424,26 +4424,6 @@ function App() {
             />
           )}
         </AnimatePresence>
-        {!isDesktopRuntime() && shouldUseSeedLibrary() && (
-          <div
-            data-testid="web-preview-badge"
-            title="Web preview shows deterministic sample data. No desktop backend is connected."
-            style={{
-              position: "fixed",
-              top: 12,
-              left: 12,
-              zIndex: 1000,
-              pointerEvents: "none",
-              padding: "4px 8px",
-              fontSize: 12,
-              borderRadius: 999,
-              background: "#f5f0dc",
-              color: "#5c4a12",
-            }}
-          >
-            Web preview — sample data
-          </div>
-        )}
         <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup">
             <MascotHomeSlot isSearchFocused={isSearchFocused} />

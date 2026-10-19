@@ -833,7 +833,6 @@ export function ExpandedItemOverlay({
         style={isFocusModeView ? undefined : placedStyle}
       >
         <div className="item-stage">
-          <div className="item-stage-title glass">{detailTitleFor(shownItem)}</div>
           <OverlayMedia item={shownItem} />
         </div>
 

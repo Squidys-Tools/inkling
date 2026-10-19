@@ -5089,7 +5089,7 @@ a:focus-visible,
   inset: 8px 320px 8px 8px;
   display: grid;
   place-items: center;
-  padding: 64px 40px 72px;
+  padding: 72px 40px 72px;
   overflow: hidden;
   border: 1px solid var(--library-border);
   border-radius: 20px;
@@ -5104,27 +5104,6 @@ a:focus-visible,
   padding: 0;
   border-color: transparent;
   border-radius: inherit;
-}
-.item-stage-title {
-  position: absolute;
-  top: 9px;
-  left: 50%;
-  z-index: 1;
-  max-width: calc(100% - 160px);
-  overflow: hidden;
-  padding: 8px 16px;
-  border-radius: 17px;
-  color: var(--library-text);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 16px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  translate: -50% 0;
-  transition: opacity 0.2s ease;
-}
-.expanded-overlay.is-flying .item-stage-title {
-  opacity: 0;
 }
 .item-stage-image {
   position: absolute;
