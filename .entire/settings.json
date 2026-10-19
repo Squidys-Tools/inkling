@@ -1,6 +1,7 @@
 {
   "enabled": true,
   "telemetry": true,
+  "vercel": true,
   "checkpoints": {
     "primary": {
       "type": "git-refs"
