@@ -79,6 +79,8 @@ Guardrails:
 - Item processing status asks for only the latest job of each kind and no longer fails on very large libraries.
 - When background work finishes, the library updates only the cards it touched instead of reloading every item, and the periodic safety refresh skips the reload when nothing in the library has changed.
 - The installed app no longer crashes with "Cannot find module 'regenerator-runtime/runtime'" when OCR starts.
+- A corrupt image now fails its OCR job quietly instead of opening a main-process error dialog.
+- Finishing OCR no longer moves an image to the top of the library.
 - The app no longer contacts Google Fonts or Twitter/X at startup: reader fonts are bundled with the app and the content security policy no longer allows Google Fonts requests
 - X post embeds load the X widget only when the user clicks to load the post, so cards and saved links no longer contact X or Twitter on open
 - The library bottom fade no longer shows a hard edge where the blur band starts or where it meets the padding below the grid: one blur layer feathers out through an eased mask, and a canvas-colored scrim dissolves content into the background at the grid's clip line (#149)

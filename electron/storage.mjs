@@ -1197,11 +1197,12 @@ class LibraryStorage {
       metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
     delete ocrMetadata.ocrText;
     ocrMetadata.ocrEngine = String(engine);
-    const now = nowMillis();
-    ocrMetadata.ocrCompletedAt = now;
+    ocrMetadata.ocrCompletedAt = nowMillis();
+    // Leaves updated_at alone: the library sorts by it, and background OCR
+    // finishing should not move a card the user did not touch.
     this.db
-      .prepare("UPDATE items SET ocr_text = ?, metadata = ?, updated_at = ? WHERE id = ?")
-      .run(String(text), JSON.stringify(ocrMetadata), now, id);
+      .prepare("UPDATE items SET ocr_text = ?, metadata = ? WHERE id = ?")
+      .run(String(text), JSON.stringify(ocrMetadata), id);
   }
 
   storeEmbedding(itemId, kind, model, bytes, dimension) {
