@@ -5847,7 +5847,6 @@ function App() {
                         <p className="settings-panel-note">How inkling behaves across the app.</p>
                       </div>
                       <button
-                        ref={settingsCloseRef}
                         type="button"
                         className="icon-button small settings-close"
                         onClick={() => setIsSettingsOpen(false)}
@@ -5860,7 +5859,7 @@ function App() {
                     <div className="settings-data-scroll">
                       <div className="settings-data-card">
                         <div className="settings-data-heading">
-                          <HugeiconsIcon icon={SparklesIcon} size={17} />
+                          <HugeiconsIcon icon={PlayIcon} size={17} />
                           <h3>Welcome tour</h3>
                         </div>
                         <p>
