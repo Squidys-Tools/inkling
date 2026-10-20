@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, protocol, session, shell } from "electron";
 import electronUpdater from "electron-updater";
+import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
@@ -24,7 +25,8 @@ const libraryDirectory = resolveLibraryDataDirectory({
 });
 const updateController = createUpdateController({
   autoUpdater,
-  isPackaged: app.isPackaged,
+  // Unpacked `build:dir` output ships without app-update.yml, so it has no feed to check.
+  isPackaged: app.isPackaged && existsSync(join(process.resourcesPath, "app-update.yml")),
   platform: process.platform,
 });
 app.setPath("userData", libraryDirectory);
