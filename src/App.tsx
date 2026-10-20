@@ -1529,7 +1529,9 @@ function App() {
       cancelled = true;
     };
   }, [canUseDesktopBackend]);
-  const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("archive");
+  const [settingsTab, setSettingsTab] = useState<"general" | "archive" | "data" | "extension">(
+    "general",
+  );
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(
     shouldUseSeedLibrary() ? browserArchivedItems : [],
   );
@@ -3434,9 +3436,9 @@ function App() {
     };
   }, [isSettingsOpen]);
 
-  // Settings reopens on Archive, the way it behaved while that was the only tab.
+  // Settings always reopens on General.
   useEffect(() => {
-    if (!isSettingsOpen) setSettingsTab("archive");
+    if (!isSettingsOpen) setSettingsTab("general");
   }, [isSettingsOpen]);
 
   useEffect(() => {
@@ -4348,26 +4350,6 @@ function App() {
             />
           )}
         </AnimatePresence>
-        {!isDesktopRuntime() && shouldUseSeedLibrary() && (
-          <div
-            data-testid="web-preview-badge"
-            title="Web preview shows deterministic sample data. No desktop backend is connected."
-            style={{
-              position: "fixed",
-              top: 12,
-              left: 12,
-              zIndex: 1000,
-              pointerEvents: "none",
-              padding: "4px 8px",
-              fontSize: 12,
-              borderRadius: 999,
-              background: "#f5f0dc",
-              color: "#5c4a12",
-            }}
-          >
-            Web preview — sample data
-          </div>
-        )}
         <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup">
             <MascotHomeSlot isSearchFocused={isSearchFocused} />
@@ -5298,6 +5280,15 @@ function App() {
                   <div className="settings-sidebar-content">
                     <button
                       type="button"
+                      className={`settings-tab ${settingsTab === "general" ? "active" : ""}`}
+                      aria-current={settingsTab === "general" ? "page" : undefined}
+                      onClick={() => setSettingsTab("general")}
+                    >
+                      <HugeiconsIcon icon={Settings01Icon} size={16} />
+                      <span>General</span>
+                    </button>
+                    <button
+                      type="button"
                       className={`settings-tab ${settingsTab === "archive" ? "active" : ""}`}
                       aria-current={settingsTab === "archive" ? "page" : undefined}
                       onClick={() => setSettingsTab("archive")}
@@ -5327,7 +5318,51 @@ function App() {
                   </div>
                 </aside>
 
-                {settingsTab === "archive" ? (
+                {settingsTab === "general" ? (
+                  <section className="settings-panel" aria-labelledby="general-panel-title">
+                    <header className="settings-panel-header">
+                      <div className="settings-panel-header-content">
+                        <div className="settings-panel-heading">
+                          <h2 id="general-panel-title">General</h2>
+                        </div>
+                        <p className="settings-panel-note">How inkling behaves across the app.</p>
+                      </div>
+                      <button
+                        ref={settingsCloseRef}
+                        type="button"
+                        className="icon-button small settings-close"
+                        onClick={() => setIsSettingsOpen(false)}
+                        aria-label="Close settings"
+                      >
+                        <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                      </button>
+                    </header>
+
+                    <div className="settings-data-scroll">
+                      <div className="settings-data-card">
+                        <div className="settings-data-heading">
+                          <HugeiconsIcon icon={SparklesIcon} size={17} />
+                          <h3>Welcome tour</h3>
+                        </div>
+                        <p>
+                          Replay the screens from your first launch: saving things, finding them
+                          again, and keeping your library on this computer.
+                        </p>
+                        <button
+                          type="button"
+                          className="settings-data-button"
+                          onClick={() => {
+                            setIsSettingsOpen(false);
+                            setIsFirstRunOpen(true);
+                          }}
+                        >
+                          <HugeiconsIcon icon={PlayIcon} size={15} />
+                          <span>Show the welcome again</span>
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                ) : settingsTab === "archive" ? (
                   <section className="settings-panel" aria-labelledby="archive-panel-title">
                     <header className="settings-panel-header">
                       <div className="settings-panel-header-content">
@@ -5517,16 +5552,6 @@ function App() {
                           </div>
                         ) : null}
                       </div>
-                      <button
-                        type="button"
-                        className="settings-data-link"
-                        onClick={() => {
-                          setIsSettingsOpen(false);
-                          setIsFirstRunOpen(true);
-                        }}
-                      >
-                        Show the welcome again
-                      </button>
                     </div>
                   </section>
                 ) : (

@@ -21,7 +21,28 @@ export interface InklingMascotProps {
   state?: StateId;
   /** Play the state live (breathing, blinking, gaze drift). Ignored when frozenAt is set. */
   playing?: boolean;
+  /**
+   * Hold the head turned toward a fixed direction, in degrees (positive yaw =
+   * right, positive pitch = up). It replaces the gaze of every expression, so
+   * the face can change mood while the eyes keep looking at the same spot. A
+   * little drift stays, so the eyes still feel alive.
+   */
+  look?: { yaw: number; pitch: number };
+  /**
+   * Playback rate of the live animation (1 = normal, 0.5 = half speed). It scales
+   * the clock, so breathing, drift, blinks and morphs all slow together.
+   */
+  speed?: number;
 }
+
+const HELD_LOOK_WANDER = 0.35;
+
+const heldLook = (look: { yaw: number; pitch: number }) => ({
+  ...look,
+  mix: 1,
+  spin: 0,
+  wander: HELD_LOOK_WANDER,
+});
 
 /**
  * Self-contained mascot: owns its engine and animation loop. Used by the
@@ -39,12 +60,19 @@ export function InklingMascot({
   frozenAt,
   state = "idle",
   playing = true,
+  look,
+  speed = 1,
 }: InklingMascotProps) {
   const shapeRadii = SHAPE_BY_ID.get(shape)?.radii ?? SHAPE_BY_ID.get(DEFAULT_SHAPE)?.radii ?? null;
   const ink = inkOverride ?? COLOR_BY_ID.get(color)?.hex ?? "#1a1a1a";
   const expr = EXPRESSION_BY_ID.get(expression) ?? null;
 
-  const [engine] = useState(() => new BotEngine(RAYON, state, shapeRadii, expr));
+  const [engine] = useState(() => {
+    const created = new BotEngine(RAYON, state, shapeRadii, expr);
+    // Dated before the clock starts so the very first frame already looks there.
+    if (look) created.setLook(heldLook(look), -10);
+    return created;
+  });
   const [frame, setFrame] = useState<BotFrame>(() => engine.sample(frozenAt ?? 0));
   // Running clock, shared with the transition setters below. Dating a change
   // at a stale time (e.g. always 0) completes its morph instantly and reads
@@ -56,6 +84,13 @@ export function InklingMascot({
     engine.setExpression(expr, clockRef.current);
     if (frozenAt !== undefined) setFrame(engine.sample(frozenAt));
   }, [engine, shapeRadii, expr, frozenAt]);
+
+  const lookYaw = look?.yaw;
+  const lookPitch = look?.pitch;
+  useEffect(() => {
+    if (lookYaw === undefined || lookPitch === undefined) engine.setLook(null, clockRef.current);
+    else engine.setLook(heldLook({ yaw: lookYaw, pitch: lookPitch }), clockRef.current);
+  }, [engine, lookYaw, lookPitch]);
 
   useEffect(() => {
     if (engine.state !== state) engine.setState(state, clockRef.current);
@@ -71,13 +106,13 @@ export function InklingMascot({
       raf = requestAnimationFrame(tick);
       const dt = last ? Math.min((ms - last) / 1000, 0.064) : 0;
       last = ms;
-      clock += dt;
+      clock += dt * speed;
       clockRef.current = clock;
       setFrame(engine.sample(clock));
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [engine, frozenAt, playing]);
+  }, [engine, frozenAt, playing, speed]);
 
   return <MascotFigure frame={frame} size={size} ink={ink} paper={paper} />;
 }

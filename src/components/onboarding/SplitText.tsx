@@ -36,7 +36,7 @@ export function SplitText({
     // or the finished headline would flash before its letters drop out.
     const run = () => {
       if (cancelled) return;
-      split = GsapSplitText.create(el, { type: "chars" });
+      split = GsapSplitText.create(el, { type: "words,chars" });
       el.style.visibility = "";
       tween = gsap.from(split.chars, {
         opacity: 0,

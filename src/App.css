@@ -4928,6 +4928,14 @@ a:focus-visible,
   color: var(--library-muted);
   white-space: nowrap;
 }
+.first-run-headline.is-wrapped {
+  white-space: normal;
+}
+/* SplitText's inline-block words would otherwise sit on the baseline and
+   open up taller lines mid-animation than the reverted text has. */
+.first-run-headline div {
+  vertical-align: top;
+}
 .first-run-headline.is-centered,
 .first-run-body.is-centered {
   left: 0;
@@ -4984,6 +4992,40 @@ a:focus-visible,
 .first-run-quiet:focus-visible {
   color: var(--library-text);
 }
+/* The first and last screens' text block, about 1.3x the other screens' type. Its
+   positions are set inline in FirstRunOverlay. */
+.first-run-stage.is-large .first-run-headline {
+  font-size: 73px;
+}
+.first-run-stage.is-large .first-run-body {
+  font-size: 23px;
+}
+.first-run-stage.is-large .first-run-keys {
+  gap: 10px;
+  font-size: 17px;
+}
+.first-run-stage.is-large .first-run-keys kbd {
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 16px;
+}
+.first-run-stage.is-large .first-run-keys span {
+  margin-left: 10px;
+}
+.first-run-stage.is-large .first-run-actions {
+  gap: 18px;
+}
+.first-run-stage.is-large .first-run-primary {
+  height: 60px;
+  padding: 0 36px;
+  font-size: 21px;
+}
+.first-run-stage.is-large .first-run-crumb {
+  font-size: 16px;
+}
+.first-run-stage.is-large .first-run-quiet {
+  font-size: 20px;
+}
 .first-run-stage {
   animation: first-run-enter 320ms ease-out both;
 }
@@ -5000,8 +5042,8 @@ a:focus-visible,
 }
 .first-run-card {
   position: absolute;
-  width: 168px;
-  height: 196px;
+  width: var(--memory-card-w);
+  height: var(--memory-card-h);
   overflow: hidden;
   border-radius: 18px;
   background: var(--library-surface);
@@ -5018,9 +5060,9 @@ a:focus-visible,
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 28px;
   text-align: center;
-  font-size: 17px;
+  font-size: 21px;
   line-height: 1.35;
   color: var(--library-text);
 }
@@ -5046,179 +5088,379 @@ a:focus-visible,
     opacity: 0;
   }
 }
+.memory-match {
+  --memory-card-w: 212px;
+  --memory-card-h: 248px;
+}
 .memory-found {
-  left: 588px;
-  top: 52px;
+  left: 580px;
+  top: 40px;
+  animation: first-run-enter 450ms ease-out both;
 }
-.first-run-connector {
+/* The empty frame the photo will arrive in. */
+.memory-slot {
   position: absolute;
-  width: 164px;
-  height: 1px;
-  background: var(--library-border);
+  left: 580px;
+  top: 40px;
+  width: var(--memory-card-w);
+  height: var(--memory-card-h);
+  box-sizing: border-box;
+  border: 1.5px dashed var(--library-border);
+  border-radius: 18px;
 }
-.first-run-connector-fill {
+.memory-trail {
   position: absolute;
-  inset: 0;
-  background: var(--library-accent);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 700ms cubic-bezier(0.65, 0, 0.35, 1);
+  width: 200px;
+  height: 0;
 }
-.first-run-connector-dot {
+/* Each dot lights up in turn, so the glow travels left to right and the
+   trail is left behind it. Runs once; nothing repaints afterwards. */
+.memory-dot {
   position: absolute;
-  left: -3px;
-  top: -3px;
   width: 7px;
   height: 7px;
+  margin: -3.5px 0 0 -3.5px;
   border-radius: 50%;
   background: var(--library-accent);
   opacity: 0;
-  transition:
-    transform 700ms cubic-bezier(0.65, 0, 0.35, 1),
-    opacity 200ms ease;
 }
-.memory-match:not(.is-typing) .first-run-connector-fill {
-  transform: scaleX(1);
+.memory-dot.is-last {
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
 }
-.memory-match:not(.is-typing) .first-run-connector-dot {
-  opacity: 1;
-  transform: translateX(164px);
+.memory-match:not(.is-typing) .memory-dot {
+  animation: memory-dot 420ms cubic-bezier(0.3, 0.7, 0.3, 1) var(--memory-dot-delay) both;
 }
-.first-run-caption {
-  position: absolute;
-  width: 168px;
-  text-align: center;
-  font-family: var(--font-ui);
-  font-size: 12px;
-  color: var(--library-muted);
+.memory-match:not(.is-typing) .memory-dot.is-last {
+  animation-name: memory-dot-last;
 }
-.kept-orbit {
+@keyframes memory-dot {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.8);
+    box-shadow: 0 0 12px var(--library-accent);
+  }
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+    box-shadow: 0 0 0 transparent;
+  }
+}
+@keyframes memory-dot-last {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(2);
+    box-shadow: 0 0 16px var(--library-accent);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 6px var(--library-accent);
+  }
+}
+.kept-floating {
   position: absolute;
   z-index: 0;
   inset: 0;
 }
+/* Mini inkling cards (the real card CSS is tuned for the grid, so these
+   borrow its colours and type at onboarding scale). KeptFloating sets each
+   card's transform; the layers differ only in how clear and how lifted. */
 .kept-card {
   position: absolute;
   left: 0;
   top: 0;
   overflow: hidden;
   border: 1px solid var(--library-border);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--library-surface);
-  box-shadow: 0 10px 28px rgb(0 0 0 / 0.35);
-  will-change: transform, opacity;
+  color: var(--library-text);
+  will-change: transform;
+  animation: first-run-enter 700ms ease-out both;
 }
-.kept-card img {
+.kept-card.is-far {
+  border-radius: 9px;
+  opacity: 0.6;
+  filter: blur(1.5px);
+}
+.kept-card.is-mid {
+  border-radius: 10px;
+  opacity: 0.85;
+  animation-delay: 120ms;
+}
+.kept-card.is-near {
+  box-shadow: 0 18px 40px rgb(0 0 0 / 0.55);
+  animation-delay: 240ms;
+}
+.kept-card.is-photo,
+.kept-card.is-video {
+  border: 0;
+}
+.kept-fill {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.kept-card.is-article,
-.kept-card.is-note,
-.kept-card.is-post {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 12px;
-}
-.kept-kicker {
-  color: var(--library-muted);
-  font: 9px / 1.2 var(--font-ui);
-}
-.kept-article-title {
-  color: var(--library-text);
-  font:
-    15px / 1.2 Georgia,
-    serif;
-}
-.kept-rule {
-  width: 40%;
-  height: 1px;
-  margin-top: auto;
-  background: var(--library-border);
+.kept-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(12 12 10 / 0.02) 40%, rgb(12 12 10 / 0.5));
 }
 .kept-play {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 0;
-  height: 0;
-  margin: -9px 0 0 -6px;
-  border-style: solid;
-  border-width: 9px 0 9px 15px;
-  border-color: transparent transparent transparent rgb(255 255 255 / 0.9);
+  inset: 0;
+  margin: auto;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(18 18 16 / 0.78);
+  color: #f2ede2;
+  box-shadow:
+    0 8px 24px rgb(0 0 0 / 0.45),
+    inset 0 0 0 1px rgb(255 255 255 / 0.22);
 }
-.kept-quote-mark {
+.kept-badge {
   position: absolute;
-  left: 10px;
-  top: 4px;
-  color: #c4ba8c;
-  font:
-    54px / 1 Georgia,
-    serif;
+  left: 9px;
+  bottom: 9px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgb(14 14 12 / 0.72);
+  color: #d8d2c6;
+  font: 500 10px var(--font-ui);
+  letter-spacing: 0.03em;
 }
-.kept-quote-text {
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 14px;
-  color: var(--library-text);
-  font:
-    italic 13px / 1.3 Georgia,
-    serif;
-}
-.kept-note-title {
-  color: #9fb9b7;
-  font-size: 14px;
-  line-height: 1.25;
-}
-.kept-note-line {
-  height: 5px;
-  border-radius: 3px;
-  background: var(--library-border);
-}
-.kept-note-line.is-short {
-  width: 60%;
-}
-.kept-pdf-label {
-  position: absolute;
-  left: 13px;
-  top: 18px;
-  color: #9db8a6;
-  font: 700 22px / 0.95 var(--font-ui);
-  letter-spacing: -0.07em;
-}
-.kept-pdf-rule {
-  position: absolute;
-  left: 13px;
-  bottom: 30px;
-  width: 40%;
-  height: 1px;
-  background: #5a7263;
-}
-.kept-pdf-pages {
-  position: absolute;
-  left: 13px;
-  bottom: 12px;
+.kept-kicker {
   color: var(--library-muted);
-  font: 9px / 1 var(--font-ui);
+  font: 9px var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
 }
-.kept-post-head {
+.kept-domain {
+  overflow: hidden;
+  color: var(--library-muted);
+  font: 9px var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kept-card strong {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.kept-article-image {
+  display: block;
+  width: 100%;
+  height: 52%;
+  object-fit: cover;
+}
+.kept-article-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 11px;
+}
+/* The quote reuses the library card's paper art, filling the whole card. */
+.kept-quote {
+  position: absolute;
+  inset: 0;
+  aspect-ratio: auto;
+}
+.reads-pictures {
+  position: absolute;
+  left: 500px;
+  top: 0;
+  width: 428px;
+  height: 540px;
+}
+.reads-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 92px;
+  border-radius: 10px;
+  object-fit: cover;
+  animation: reads-card-in 520ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(300ms + var(--order) * 70ms);
+}
+.reads-card.is-behind {
+  opacity: 0.18;
+  transition:
+    transform 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 600ms ease-out;
+}
+@keyframes reads-card-in {
+  from {
+    translate: 0 16px;
+    opacity: 0;
+  }
+}
+.reads-search {
+  position: absolute;
+  left: 0;
+  top: 64px;
   display: flex;
   align-items: center;
+  gap: 12px;
+  width: 428px;
+  height: 50px;
+  padding: 0 18px;
+  box-sizing: border-box;
+  border: 1px solid #3a3430;
+  border-radius: 20px;
+  background: var(--library-surface);
+  font-size: 15px;
+}
+.reads-eyes {
+  display: flex;
+  gap: 4px;
+  padding: 3px 0 0 2px;
+}
+.reads-eyes span {
+  width: 5px;
+  height: 11px;
+  border-radius: 3px;
+  background: var(--library-text);
+}
+.reads-caret {
+  width: 1.5px;
+  height: 18px;
+  margin-left: -10px;
+  background: var(--library-muted);
+  animation: memory-caret 1s steps(1) infinite;
+}
+.reads-pictures.is-scan .reads-eyes span {
+  animation: reads-blink 320ms ease-in-out 250ms;
+}
+@keyframes reads-blink {
+  50% {
+    transform: scaleY(0.15);
+  }
+}
+.reads-receipt {
+  position: absolute;
+  z-index: 1;
+  left: 104px;
+  top: 146px;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+  width: 220px;
+  height: 330px;
+  padding: 26px 22px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #f1eadc;
+  box-shadow: 0 24px 56px rgb(0 0 0 / 0.7);
+  color: #3a332d;
+  font: 11px / 16px var(--font-ui);
+  white-space: nowrap;
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1) 170ms;
+  animation: reads-card-in 520ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(300ms + var(--order) * 70ms);
 }
-.kept-post-avatar {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--library-accent);
+/* The scan beam: a lit edge dragging a short trail down the receipt, once. */
+.reads-beam {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 56px;
+  border-bottom: 2px solid var(--library-accent);
+  background: linear-gradient(to bottom, transparent, rgb(176 113 79 / 0.32));
+  box-shadow: 0 6px 18px rgb(176 113 79 / 0.55);
+  opacity: 0;
+  pointer-events: none;
 }
-.kept-post-text {
-  color: var(--library-text);
+.reads-pictures.is-scan .reads-beam {
+  animation: reads-scan 1500ms linear;
+}
+@keyframes reads-scan {
+  0% {
+    transform: translateY(-58px);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(272px);
+    opacity: 0;
+  }
+}
+.reads-receipt-kicker {
+  color: #7a7266;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+.reads-receipt-kicker.is-footer {
+  padding-top: 18px;
+}
+.reads-receipt-name {
+  position: relative;
+  align-self: center;
+  margin: 8px 0 0;
+  padding: 3px 8px;
+  color: #2a2420;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: 0.06em;
+  isolation: isolate;
+}
+.reads-receipt-mark {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 1.5px solid var(--library-accent);
+  border-radius: 6px;
+  background: rgb(176 113 79 / 0.28);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 500ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+.reads-pictures.is-found .reads-receipt-mark {
+  transform: none;
+}
+.reads-receipt-rule {
+  margin: 8px 0 2px;
+  border-bottom: 1px dashed #c9bfae;
+}
+.reads-receipt-line {
+  display: flex;
+  justify-content: space-between;
+}
+.reads-receipt-line.is-total {
+  padding-top: 6px;
+  color: #2a2420;
   font-size: 12px;
-  line-height: 1.35;
+  font-weight: 500;
 }
 .first-run-crumb {
   position: absolute;
@@ -5251,24 +5493,24 @@ a:focus-visible,
   .first-run-mascot {
     animation: none;
   }
-  .first-run-connector-fill,
-  .first-run-connector-dot {
+  .reads-card,
+  .reads-receipt,
+  .reads-receipt-mark {
+    animation: none;
     transition: none;
   }
-}
-.settings-data-link {
-  align-self: flex-start;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--library-muted);
-  font: inherit;
-  font-size: 13px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-.settings-data-link:hover,
-.settings-data-link:focus-visible {
-  color: var(--library-text);
+  .reads-beam {
+    display: none;
+  }
+  .kept-card,
+  .memory-found {
+    animation: none;
+  }
+  .memory-dot {
+    animation: none !important;
+    opacity: 0.5;
+  }
+  .memory-dot.is-last {
+    opacity: 1;
+  }
 }
