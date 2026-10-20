@@ -49,7 +49,6 @@ export type ExpandedOverlayActions = {
   onClose: () => void;
   onOpenPdf: (item: LibraryItem) => void;
   onOpenReader: (item: LibraryItem, origin: ReaderOrigin) => void;
-  onFindSimilar: (item: LibraryItem) => void;
   onForget: (item: LibraryItem) => void | Promise<void>;
   onTogglePin: (item: LibraryItem) => void | Promise<void>;
   onRetryJob: (jobId: string) => void | Promise<void>;
@@ -64,7 +63,6 @@ export type ExpandedOverlayActions = {
   onShowInFolder?: (item: LibraryItem) => void;
   /** Permanent delete. Only offered for archived items. Hidden when absent. */
   onDelete?: (item: LibraryItem) => void;
-  isFindingSimilar: boolean;
 };
 
 /** A Regular Space chip: filing an item in and taking it back out happen in the
@@ -160,11 +158,23 @@ function clampPan(pan: Offset, shown: Size, frame: Size): Offset {
 
 // Zoom and pan live here, not in the overlay, so panning re-renders only this
 // stage. The key on the caller resets zoom when the shown item changes.
-function ZoomableImage({ src, alt }: { src: string; alt: string }) {
+function ZoomableImage({
+  src,
+  originalSrc,
+  alt,
+}: {
+  src: string;
+  /** The full-size file. Swapped in once the image is zoomed past fit. */
+  originalSrc?: string;
+  alt: string;
+}) {
   const frameRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ pointerX: number; pointerY: number; origin: Offset } | null>(null);
   const [frame, setFrame] = useState<Size | null>(null);
+  // The thumbnail's size. It fixes the layout box, so the original can swap in
+  // without the picture moving or resizing.
   const [natural, setNatural] = useState<Size | null>(null);
+  const [original, setOriginal] = useState<{ url: string; width: number } | null>(null);
   // null means fit, which follows the frame as the window resizes.
   const [zoomLevel, setZoomLevel] = useState<number | null>(null);
   const [pan, setPan] = useState<Offset>({ x: 0, y: 0 });
@@ -196,6 +206,34 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
   const shown = natural ? { width: natural.width * zoom, height: natural.height * zoom } : null;
   const offset = ready && shown ? clampPan(pan, shown, frame) : { x: 0, y: 0 };
   const showPixels = ready && zoom >= PIXEL_ZOOM;
+  // How many original pixels sit in one thumbnail pixel. The pixel grid draws
+  // one cell per original pixel, so it lines up with what is on screen.
+  const sourceScale = original && natural ? original.width / natural.width : 1;
+  const displayedSrc = original?.url ?? src;
+  // The layout box is the thumbnail's fitted size, set explicitly so a larger
+  // original cannot change it.
+  const base =
+    ready && natural
+      ? { width: natural.width * Math.min(1, fit), height: natural.height * Math.min(1, fit) }
+      : null;
+
+  // Past fit, load the original. It is decoded before the swap, so the picture
+  // never flashes back to empty.
+  useEffect(() => {
+    if (!isZoomed || original || !originalSrc || originalSrc === src) return;
+    let cancelled = false;
+    const probe = new Image();
+    probe.src = originalSrc;
+    probe.decode().then(
+      () => {
+        if (!cancelled) setOriginal({ url: originalSrc, width: probe.naturalWidth });
+      },
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [isZoomed, original, originalSrc, src]);
 
   const nextStep = ZOOM_STEPS.find((step) => step > zoom);
   const previousStep = [...ZOOM_STEPS].reverse().find((step) => step < zoom);
@@ -251,17 +289,20 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
         onPointerCancel={endDrag}
       >
         <img
-          src={src}
+          src={displayedSrc}
           alt={alt}
           className="item-stage-image"
           draggable={!isZoomed}
           onLoad={(event) => {
             const { naturalWidth, naturalHeight } = event.currentTarget;
+            // Only the first load sets the layout; the original leaves it alone.
             if (naturalWidth > 0 && naturalHeight > 0) {
-              setNatural({ width: naturalWidth, height: naturalHeight });
+              setNatural((previous) => previous ?? { width: naturalWidth, height: naturalHeight });
             }
           }}
           style={{
+            width: base?.width,
+            height: base?.height,
             transform: isZoomed
               ? `translate(${offset.x}px, ${offset.y}px) scale(${zoom / fit})`
               : undefined,
@@ -275,7 +316,7 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
               width: shown.width,
               height: shown.height,
               translate: `calc(-50% + ${offset.x}px) calc(-50% + ${offset.y}px)`,
-              backgroundSize: `${zoom}px ${zoom}px`,
+              backgroundSize: `${zoom / sourceScale}px ${zoom / sourceScale}px`,
             }}
           />
         )}
@@ -371,7 +412,14 @@ function OverlayMedia({ item }: { item: LibraryItem }) {
   }
 
   if (item.image) {
-    return <ZoomableImage key={item.id} src={item.image} alt={item.imageAlt ?? item.title} />;
+    return (
+      <ZoomableImage
+        key={item.id}
+        src={item.image}
+        originalSrc={item.kind === "Image" ? item.fileUrl : undefined}
+        alt={item.imageAlt ?? item.title}
+      />
+    );
   }
 
   if (item.kind === "Quote") {
@@ -1321,7 +1369,7 @@ export function ExpandedItemOverlay({
                       title={space.member ? `Remove from ${space.name}` : `Add to ${space.name}`}
                       onClick={() => void actions.onToggleSpace?.(shownItem, space.id)}
                     >
-                      <span className={`detail-space-dot ${space.color}`} aria-hidden="true" />
+                      <SpaceBlob color={space.color} />
                       <span className="detail-space-name">{space.name}</span>
                     </button>
                   ))}

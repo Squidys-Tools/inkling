@@ -1,15 +1,10 @@
 import GradualBlur from "./GradualBlur/GradualBlur";
 
-export function LibraryEdgeFade({ edge }: { edge: "top" | "bottom" }) {
+// Dissolves the grid into the canvas where it clips at the bottom edge.
+export function LibraryEdgeFade() {
   return (
-    <div className={`library-edge-fade is-${edge}`} aria-hidden="true">
-      <GradualBlur
-        position={edge}
-        height="100%"
-        strength={1}
-        layers={edge === "top" ? 1 : 2}
-        zIndex={0}
-      />
+    <div className="library-edge-fade" aria-hidden="true">
+      <GradualBlur position="bottom" height="100%" strength={1} layers={2} zIndex={0} />
     </div>
   );
 }

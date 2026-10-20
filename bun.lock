@@ -14,7 +14,6 @@
         "@fontsource/eb-garamond": "^5.3.0",
         "@fontsource/fraunces": "^5.3.0",
         "@fontsource/gelasio": "^5.3.0",
-        "@fontsource/gloria-hallelujah": "^5.3.0",
         "@fontsource/ibm-plex-serif": "^5.3.0",
         "@fontsource/inter": "^5.3.0",
         "@fontsource/libre-baskerville": "^5.3.0",
@@ -162,8 +161,6 @@
     "@fontsource/fraunces": ["@fontsource/fraunces@5.3.0", "", {}, "sha512-LEHTOBiZufQzAvnAe2rZ8ZknbDS28Q9kzwb0L+gZJEmjLGr8hhZ/5NuHXwDuHBWhVXYoiGGXmrb0H6Ko/RrHTg=="],
 
     "@fontsource/gelasio": ["@fontsource/gelasio@5.3.0", "", {}, "sha512-V95Jr9GxtSCkigiWKEDTIqajefhJHk8251aQYrMBmrdSeYnjgbKRYxLjGpr3/NjpOAf2bejIiZPwtzJ9Bcpsgw=="],
-
-    "@fontsource/gloria-hallelujah": ["@fontsource/gloria-hallelujah@5.3.0", "", {}, "sha512-U4gt7qqWGn4bysvZZ9BBv8dlRzb11dFUMV8t7xQg26th2zPou/obRjR7MlxeTvVxYd1geWnvZAJprh/bQOG3dw=="],
 
     "@fontsource/ibm-plex-serif": ["@fontsource/ibm-plex-serif@5.3.0", "", {}, "sha512-zwPfHB7EJbS5B8qnitPigJYzNdnt6PUeaoOA1gAAt//1pjpTVZN5sOU14NIAZ+C1xypL6GWsUG2VMYJW9bhJqQ=="],
 

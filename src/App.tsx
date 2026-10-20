@@ -88,6 +88,7 @@ import {
   getLibrarySize,
   getPairingToken,
   regeneratePairingToken,
+  showItemInFolder,
   showLibraryFolder,
   isDesktopRuntime,
   isElectronRuntime,
@@ -108,6 +109,7 @@ import {
   type LibraryImportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
+  type SpaceColor,
   type SpaceKind,
   type StoredLibraryCard,
   type StoredLibraryItemDetail,
@@ -136,18 +138,11 @@ const AliveBoard = lazy(() =>
 const RoamBoard = lazy(() =>
   import("./components/mascot/RoamBoard").then((module) => ({ default: module.RoamBoard })),
 );
-type SimilaritySource = {
-  id: string;
-  title: string;
-  kind: "image" | "text";
-};
-
 type NavSnapshot = {
   view: string;
   spaceId: string | null;
   query: string;
   itemId: string | null;
-  similaritySource: SimilaritySource | null;
 };
 
 const ExpandedItemOverlay = lazy(() =>
@@ -403,8 +398,12 @@ async function storedItemToLibraryItem(
     (await assetUrl(item.thumbnailPath ?? (kind === "Image" ? item.localAssetPath : null))) ??
     remoteImage ??
     videoLink?.posterUrl;
+  // For an image this is the original file, which the item view swaps in once
+  // the user zooms past fit. It is not a fallback thumbnail.
   const fileUrl =
-    kind === "PDF" || kind === "Video" ? await assetUrl(item.localAssetPath) : undefined;
+    kind === "PDF" || kind === "Video" || kind === "Image"
+      ? await assetUrl(item.localAssetPath)
+      : undefined;
   const source = social
     ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
     : item.sourceLabel || item.sourceUrl || "Quick note";
@@ -442,6 +441,7 @@ async function storedItemToLibraryItem(
     mediaAspectRatio:
       storedAspectRatio ?? (mediaWidth && mediaHeight ? mediaWidth / mediaHeight : undefined),
     pdfPageCount,
+    palette: item.palette?.length ? item.palette : undefined,
     durationSeconds: positiveNumber(item.metadata.durationSeconds),
     fileSizeBytes: positiveNumber(item.metadata.fileSizeBytes),
     readingMinutes: positiveNumber(item.metadata.readingMinutes),
@@ -843,7 +843,7 @@ const seedSpaceItems: Record<string, string[]> = {
   "seed-weekend-reading": ["5", "13"],
 };
 
-const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
+const SPACE_COLORS: SpaceColor[] = ["blue", "orange", "green", "pink", "purple", "yellow"];
 
 const LIBRARY_VIEW_TRANSITION_MS = 440;
 const LIBRARY_VIEW_EASE = "circ.inOut";
@@ -1615,9 +1615,6 @@ function LibraryMakeup({
   );
 }
 
-// Desktop sidebar toggle attached to the library frame's left edge. When the
-// sidebar opens or closes it flips over that edge: the old side turns edge-on,
-// then the new side turns in. The drawn side lags `isOpen` until the turn ends.
 // Paper's Everything glyph. Hugeicons has no 3x3 dot grid, so it is drawn here.
 function NavDotGridIcon() {
   return (
@@ -1643,6 +1640,9 @@ function SpaceMark() {
   );
 }
 
+// Desktop sidebar toggle attached to the library frame's left edge. When the
+// sidebar opens or closes it flips over that edge: the old side turns edge-on,
+// then the new side turns in. The drawn side lags `isOpen` until the turn ends.
 function SidebarEdgeTab({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
   const [side, setSide] = useState(isOpen);
   const [phase, setPhase] = useState<"idle" | "out" | "in">("idle");
@@ -1736,7 +1736,9 @@ function App() {
       cancelled = true;
     };
   }, [canUseDesktopBackend]);
-  const [settingsTab, setSettingsTab] = useState<"general" | "archive" | "data" | "extension">("data");
+  const [settingsTab, setSettingsTab] = useState<"general" | "archive" | "data" | "extension">(
+    "data",
+  );
   // Optional facts Settings shows when the desktop backend can supply them.
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [librarySizeBytes, setLibrarySizeBytes] = useState<number | null>(null);
@@ -1900,11 +1902,6 @@ function App() {
   const [sidebarActionError, setSidebarActionError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
-  const [isFindingSimilar, setIsFindingSimilar] = useState(false);
-  const [similaritySource, setSimilaritySource] = useState<SimilaritySource | null>(null);
-  const similaritySourceItemRef = useRef<LibraryItem | null>(null);
-  const similaritySourceId = similaritySource?.id;
-  const similaritySourceKind = similaritySource?.kind;
   const searchRef = useRef<HTMLInputElement>(null);
   const captureModalRef = useRef<HTMLElement | null>(null);
   const captureReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -2163,6 +2160,20 @@ function App() {
     });
   }, []);
 
+  // The backend resolves false when the item has nothing on disk to point at.
+  const showItemInFolderFromOverlay = useCallback((item: LibraryItem) => {
+    void showItemInFolder(String(item.id))
+      .then((shown) => {
+        if (!shown) toast("Nothing is stored on disk for this item", { closeButton: true });
+      })
+      .catch((error: unknown) => {
+        toast.error("Could not show the item in its folder", {
+          description: error instanceof Error ? error.message : String(error),
+          closeButton: true,
+        });
+      });
+  }, []);
+
   // Export uses the native folder picker and storage backend for the active desktop shell.
   const exportLibraryToFolder = useCallback(async () => {
     if (!canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary) return;
@@ -2185,7 +2196,10 @@ function App() {
     try {
       const report = await exportLibrary(destination);
       setLastExport(report);
-      setLastCopy({ exportedAt: Date.now(), items: report.items });
+      // The backend stamps the copy; read it back rather than guessing the time here.
+      void getLastExport()
+        .then((copy) => setLastCopy(copy ?? null))
+        .catch(() => undefined);
       toast.success(
         report.skippedAssets > 0 ? "Library exported with skipped assets" : "Library exported",
         {
@@ -3303,43 +3317,10 @@ function App() {
     }
   }
 
-  async function findSimilarItems(item: LibraryItem) {
-    const kind = item.kind === "Image" ? "image" : "text";
-    if (!canUseDesktopBackend) {
-      setCaptureError("Similarity is available in the Windows app.");
-      return;
-    }
-
-    similaritySourceItemRef.current = item;
-    setCaptureError(null);
-    setIsFindingSimilar(true);
-    try {
-      const storedItems = await searchSimilarItems(String(item.id), kind);
-      const summaries = await getProcessingSummaries(
-        storedItems.map((storedItem) => storedItem.id),
-      );
-      const libraryItems = await Promise.all(
-        storedItems.map((storedItem) =>
-          storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
-        ),
-      );
-      setQuery("");
-      clearToDefaultView();
-      setSimilaritySource({ id: String(item.id), title: item.title, kind });
-      setItems(libraryItems);
-      setSelectedItem(null);
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsFindingSimilar(false);
-    }
-  }
-
   function selectSpace(space: StoredSpace) {
     setActiveSpaceId(space.id);
     setActiveView(space.name);
     setQuery("");
-    setSimilaritySource(null);
     setSelectedItem(null);
   }
 
@@ -3347,7 +3328,6 @@ function App() {
     setActiveSpaceId(null);
     setActiveView("Serendipity");
     setQuery("");
-    setSimilaritySource(null);
     setSelectedItem(null);
   }
 
@@ -3842,14 +3822,11 @@ function App() {
       loading = true;
       try {
         await initializeStorage();
-        const storedItemsPromise =
-          similaritySourceId && similaritySourceKind
-            ? searchSimilarItems(similaritySourceId, similaritySourceKind)
-            : activeSpaceId
-              ? listSpaceItems(activeSpaceId)
-              : debouncedQuery.trim()
-                ? searchItems(debouncedQuery)
-                : listActiveItems();
+        const storedItemsPromise = activeSpaceId
+          ? listSpaceItems(activeSpaceId)
+          : debouncedQuery.trim()
+            ? searchItems(debouncedQuery)
+            : listActiveItems();
         const activeJobsPromise = canUseDesktopBackend
           ? countActiveJobs().catch(() => null)
           : Promise.resolve(null);
@@ -3946,13 +3923,7 @@ function App() {
       window.clearInterval(refreshTimer);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [
-    debouncedQuery,
-    similaritySourceId,
-    similaritySourceKind,
-    activeSpaceId,
-    canUseDesktopBackend,
-  ]);
+  }, [debouncedQuery, activeSpaceId, canUseDesktopBackend]);
 
   // Version, size and last copy are optional: each stays hidden when the
   // desktop backend cannot supply it (preview, or a failed call).
@@ -4030,10 +4001,10 @@ function App() {
     itemsRef.current = items;
   }, [items]);
 
-  // The pins nav item clears the query and any similarity source, so the view
-  // normally reads the whole library. The flag still guards the empty state
-  // against a search that a refresh or a restored view can narrow.
-  const pinsViewIsEmpty = isPinsView && isEmptyPinsView({ query, similaritySource });
+  // The pins nav item clears the query, so the view normally reads the whole
+  // library. The flag still guards the empty state against a search that a
+  // restored view can narrow.
+  const pinsViewIsEmpty = isPinsView && isEmptyPinsView({ query });
   const serendipityCandidates = useMemo(
     () =>
       isSerendipityView
@@ -4054,7 +4025,7 @@ function App() {
     return items.filter((item) => {
       const matchesQuery = !normalizedQuery
         ? true
-        : canUseDesktopBackend || similaritySource || activeSpace
+        : canUseDesktopBackend || activeSpace
           ? true
           : [item.title, item.description, item.source, item.kind, ...item.tags]
               .join(" ")
@@ -4082,11 +4053,14 @@ function App() {
     localSpaceItems,
     query,
     serendipityBatch,
-    similaritySource,
   ]);
   const filteredItemsRef = useRef(filteredItems);
   filteredItemsRef.current = filteredItems;
   const showLibraryEdges = !isSerendipityView && filteredItems.length > 0;
+  // Both sit under the toolbar in one column, so a capture error and the pinned
+  // query row stack instead of overlapping.
+  const showFilterRow = isSerendipityView || (!isSearchFocused && query.trim() !== "");
+  const showCaptureError = Boolean(captureError) && !isAdding;
 
   // The Regular Spaces an item can be filed into, and whether it already is.
   // Smart Spaces are excluded: their contents come from the query, so a chip
@@ -4464,10 +4438,11 @@ function App() {
     ],
   );
 
-  // In-memory back/forward history over view, search query, similar results, and open item.
+  // In-memory back/forward history over view, search query, and open item.
   // Query changes commit after a pause so typing does not add an entry per key.
   const historyRef = useRef<{ entries: NavSnapshot[]; index: number }>({ entries: [], index: 0 });
   const restoringNavKeyRef = useRef<string | null>(null);
+  const similarItemCacheRef = useRef(new Map<string, LibraryItem>());
   const pendingHistoryCloseRef = useRef<{ target: NavSnapshot; index: number } | null>(null);
   const [historyPos, setHistoryPos] = useState({ index: 0, length: 0 });
   const [historyCloseRequest, setHistoryCloseRequest] = useState(0);
@@ -4476,7 +4451,6 @@ function App() {
     spaceId: activeSpaceId,
     query,
     itemId: selectedItemId,
-    similaritySource,
   };
   const navKey = JSON.stringify(navSnapshot);
   // biome-ignore lint/correctness/useExhaustiveDependencies: navKey encodes the snapshot
@@ -4494,11 +4468,7 @@ function App() {
       history.index = history.entries.length - 1;
       setHistoryPos({ index: history.index, length: history.entries.length });
     };
-    if (
-      !current ||
-      current.query === navSnapshot.query ||
-      current.similaritySource?.id !== navSnapshot.similaritySource?.id
-    ) {
+    if (!current || current.query === navSnapshot.query) {
       commit();
       return;
     }
@@ -4514,15 +4484,12 @@ function App() {
       const history = historyRef.current;
       const target = history.entries[history.index + delta];
       if (!target) return;
-      const current = history.entries[history.index];
-      const similarSourceItem =
-        target.itemId && target.itemId === current?.similaritySource?.id
-          ? similaritySourceItemRef.current
-          : null;
+      // Similar items are not always in the grid's list, so a step back to one
+      // falls back to the copy the Similar lookup kept.
       const item = target.itemId
         ? ([...items, ...archivedItems].find(
             (candidate) => String(candidate.id) === target.itemId,
-          ) ?? similarSourceItem)
+          ) ?? similarItemCacheRef.current.get(target.itemId))
         : undefined;
       // A vanished item restores as a closed overlay; keep the stack in step so it is not re-pushed.
       if (target.itemId && !item) target.itemId = null;
@@ -4532,7 +4499,6 @@ function App() {
         setActiveSpaceId(target.spaceId);
         setActiveView(target.view);
         setQuery(target.query);
-        setSimilaritySource(target.similaritySource);
         requestAnimationFrame(() => {
           void bringHistoryCardIntoView(selectedItem, filteredItemsRef.current).then((rects) => {
             selectionRectsRef.current = rects;
@@ -4548,7 +4514,6 @@ function App() {
       setActiveSpaceId(target.spaceId);
       setActiveView(target.view);
       setQuery(target.query);
-      setSimilaritySource(target.similaritySource);
       if (item?.archived) selectArchivedLibraryItem(item);
       else if (item) {
         requestAnimationFrame(() => {
@@ -4583,8 +4548,8 @@ function App() {
     };
   }, []);
 
-  // The item view's Similar tab. Same lookup as findSimilarItems, but it only
-  // returns the items and leaves the library grid alone.
+  // The item view's Similar tab. It returns the items and leaves the library
+  // grid alone.
   const loadSimilarLibraryItems = useCallback(
     async (item: LibraryItem): Promise<LibraryItem[]> => {
       if (!canUseDesktopBackend) return [];
@@ -4595,11 +4560,15 @@ function App() {
       const summaries = await getProcessingSummaries(
         storedItems.map((storedItem) => storedItem.id),
       );
-      return Promise.all(
+      const libraryItems = await Promise.all(
         storedItems.map((storedItem) =>
           storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
         ),
       );
+      for (const libraryItem of libraryItems) {
+        similarItemCacheRef.current.set(String(libraryItem.id), libraryItem);
+      }
+      return libraryItems;
     },
     [canUseDesktopBackend],
   );
@@ -4617,8 +4586,6 @@ function App() {
     [bringHistoryCardIntoView],
   );
 
-  const findSimilarItemsRef = useRef(findSimilarItems);
-  findSimilarItemsRef.current = findSimilarItems;
   const expandedOverlayActions = useMemo<ExpandedOverlayActions>(
     () => ({
       onClose: () => {
@@ -4636,14 +4603,13 @@ function App() {
         setActiveSpaceId(pending.target.spaceId);
         setActiveView(pending.target.view);
         setQuery(pending.target.query);
-        setSimilaritySource(pending.target.similaritySource);
         setSelectedItem(null);
       },
       onOpenPdf: setPdfViewerItem,
       onOpenReader: openReader,
-      onFindSimilar: (item) => void findSimilarItemsRef.current(item),
       onLoadSimilar: loadSimilarLibraryItems,
       onOpenItem: openSimilarItem,
+      onShowInFolder: canUseDesktopBackend ? showItemInFolderFromOverlay : undefined,
       onDelete: deleteArchivedLibraryItem,
       onForget: forgetItem,
       onTogglePin: togglePinItem,
@@ -4651,18 +4617,18 @@ function App() {
       onAddTag: addTagToItem,
       onUpdateNote: updateNote,
       onToggleSpace: (item, spaceId) => void handleToggleItemInSpace(item, spaceId),
-      isFindingSimilar,
     }),
     [
       addTagToItem,
+      canUseDesktopBackend,
       deleteArchivedLibraryItem,
       forgetItem,
       handleToggleItemInSpace,
-      isFindingSimilar,
       loadSimilarLibraryItems,
       openReader,
       openSimilarItem,
       retryJob,
+      showItemInFolderFromOverlay,
       togglePinItem,
       updateNote,
     ],
@@ -4690,8 +4656,7 @@ function App() {
       : items.some((item) => item.processing?.active);
   // `captureError` is the shared error channel for the whole app, so it cannot
   // also mean "a save the user asked for failed" — a retried job, a renamed
-  // Space, and the archive all write to it, and "Find similar" in the web
-  // preview writes to it on purpose. Captures get their own count, and the
+  // Space, and the archive all write to it. Captures get their own count, and the
   // mascot spends one on a single sad walk home.
   const [captureFailures, setCaptureFailures] = useState(0);
   const failCapture = useCallback((message: string) => {
@@ -4864,7 +4829,6 @@ function App() {
                 setActiveSpaceId(null);
                 setActiveView("Top of mind");
                 setQuery("");
-                setSimilaritySource(null);
                 setSelectedItem(null);
               }}
             >
@@ -5223,7 +5187,6 @@ function App() {
                   event.currentTarget.blur();
                 }}
                 onChange={(event) => {
-                  setSimilaritySource(null);
                   setActiveSpaceId(null);
                   setActiveView("Everything");
                   setQuery(event.target.value);
@@ -5243,40 +5206,42 @@ function App() {
               <HugeiconsIcon icon={PlusSignIcon} size={14} />
               <span>{isCapturing ? "Saving…" : "Add"}</span>
             </button>
-            {captureError && !isAdding && (
-              <p className="capture-error glass">Couldn’t save this yet: {captureError}</p>
-            )}
-            {(isSerendipityView || (!isSearchFocused && (query.trim() || similaritySource))) && (
-              <div className="filter-row">
-                {!isSerendipityView && (similaritySource || query.trim()) && (
-                  <div className="query-chip glass">
-                    <span className="query-chip-text">
-                      {similaritySource ? `similar to “${similaritySource.title}”` : query.trim()}
-                    </span>
-                    <button
-                      type="button"
-                      className="query-chip-clear"
-                      aria-label={similaritySource ? "Clear similar search" : "Clear search"}
-                      title={similaritySource ? "Clear similar search" : "Clear search"}
-                      onClick={() => (similaritySource ? setSimilaritySource(null) : setQuery(""))}
-                    >
-                      <HugeiconsIcon icon={Cancel01Icon} size={13} />
-                    </button>
+            {(showFilterRow || showCaptureError) && (
+              <div className="capture-status">
+                {showFilterRow && (
+                  <div className="filter-row">
+                    {!isSerendipityView && query.trim() && (
+                      <div className="query-chip glass">
+                        <span className="query-chip-text">{query.trim()}</span>
+                        <button
+                          type="button"
+                          className="query-chip-clear"
+                          aria-label="Clear search"
+                          title="Clear search"
+                          onClick={() => setQuery("")}
+                        >
+                          <HugeiconsIcon icon={Cancel01Icon} size={13} />
+                        </button>
+                      </div>
+                    )}
+                    <div className="result-context">
+                      <AnimatedCount className="result-count" value={filteredItems.length} />
+                      {isSerendipityView ? (
+                        <> older {filteredItems.length === 1 ? "save" : "saves"} in this walk</>
+                      ) : (
+                        ` ${filteredItems.length === 1 ? "result" : "results"}`
+                      )}
+                      {!isSerendipityView && query.trim() ? (
+                        <button type="button" className="quiet-link" onClick={beginSaveSearch}>
+                          <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 )}
-                <div className="result-context">
-                  <AnimatedCount className="result-count" value={filteredItems.length} />
-                  {isSerendipityView ? (
-                    <> older {filteredItems.length === 1 ? "save" : "saves"} in this walk</>
-                  ) : (
-                    ` ${filteredItems.length === 1 ? "result" : "results"}`
-                  )}
-                  {!isSerendipityView && query.trim() && !similaritySource ? (
-                    <button type="button" className="quiet-link" onClick={beginSaveSearch}>
-                      <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
-                    </button>
-                  ) : null}
-                </div>
+                {showCaptureError && (
+                  <p className="capture-error glass">Couldn’t save this yet: {captureError}</p>
+                )}
               </div>
             )}
           </section>
@@ -5715,14 +5680,6 @@ function App() {
                           here.
                         </p>
                       </>
-                    ) : similaritySource ? (
-                      <>
-                        <h2>Nothing similar yet.</h2>
-                        <p>
-                          This item is still being indexed, or nothing in the library is close to it
-                          yet.
-                        </p>
-                      </>
                     ) : pinsViewIsEmpty ? (
                       <>
                         <h2>Nothing pinned yet.</h2>
@@ -5740,7 +5697,6 @@ function App() {
                         className="text-button"
                         onClick={() => {
                           setQuery("");
-                          setSimilaritySource(null);
                           clearToDefaultView();
                         }}
                       >
@@ -5759,7 +5715,7 @@ function App() {
             />
           </div>
 
-          {showLibraryEdges && <LibraryEdgeFade edge="bottom" />}
+          {showLibraryEdges && <LibraryEdgeFade />}
         </main>
 
         <AnimatePresence>
@@ -5848,24 +5804,26 @@ function App() {
                       </div>
                       <button
                         type="button"
-                        className="icon-button small settings-close"
+                        className="icon-button settings-close"
                         onClick={() => setIsSettingsOpen(false)}
                         aria-label="Close settings"
                       >
-                        <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                        <HugeiconsIcon icon={Cancel01Icon} size={14} />
                       </button>
                     </header>
 
-                    <div className="settings-data-scroll">
-                      <div className="settings-data-card">
-                        <div className="settings-data-heading">
+                    <div className="settings-scroll">
+                      <div className="settings-data-row">
+                        <span className="settings-data-icon" aria-hidden="true">
                           <HugeiconsIcon icon={PlayIcon} size={17} />
+                        </span>
+                        <div className="settings-data-text">
                           <h3>Welcome tour</h3>
+                          <p>
+                            Replay the screens from your first launch: saving things, finding them
+                            again, and keeping your library on this computer.
+                          </p>
                         </div>
-                        <p>
-                          Replay the screens from your first launch: saving things, finding them
-                          again, and keeping your library on this computer.
-                        </p>
                         <button
                           type="button"
                           className="settings-data-button"
@@ -5874,8 +5832,7 @@ function App() {
                             setIsFirstRunOpen(true);
                           }}
                         >
-                          <HugeiconsIcon icon={PlayIcon} size={15} />
-                          <span>Show the welcome again</span>
+                          Show the welcome again
                         </button>
                       </div>
                     </div>

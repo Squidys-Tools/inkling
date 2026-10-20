@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterAll, afterEach, expect, test } from "bun:test";
 import {
   existsSync,
   mkdirSync,
@@ -27,6 +27,21 @@ import parity from "./fixtures/storage-parity.json";
 
 const roots: string[] = [];
 const databases = new Set<DatabaseSync>();
+const workers = new Set<JobWorker>();
+
+function createWorker(
+  library: ReturnType<typeof openLibraryStorage>,
+  options: ConstructorParameters<typeof JobWorker>[1],
+) {
+  const worker = new JobWorker(library, options);
+  workers.add(worker);
+  return worker;
+}
+
+async function stopWorker(worker: JobWorker) {
+  workers.delete(worker);
+  await worker.stop();
+}
 
 function trackDatabase(database: DatabaseSync) {
   databases.add(database);
@@ -102,9 +117,16 @@ function vector(values: number[]) {
   return bytes;
 }
 
-afterEach(() => {
+afterEach(async () => {
+  for (const worker of workers) await stopWorker(worker);
+  workers.clear();
   for (const database of databases) database.close();
   databases.clear();
+  Bun.gc(true);
+});
+
+afterAll(() => {
+  Bun.gc(true);
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -130,6 +152,12 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
   expect(library.listSpaceItems(smart.id).map((item) => item.id)).toEqual(parity.smartSpace);
   library.addSpaceItem(regular.id, "me-fuji-night");
   library.addSpaceItem(regular.id, "me-lanterns");
+  library.updateSpace({ id: regular.id, color: "yellow" });
+  expect(library.listSpaces()).toMatchObject([
+    { id: smart.id, kind: "smart" },
+    { id: regular.id, kind: "regular", color: "yellow", itemCount: 2 },
+  ]);
+  expect(library.listSpaces()[0]).not.toHaveProperty("itemCount");
   expect(library.listSpaceItems(regular.id, 0)).toHaveLength(1);
   library.db
     .prepare(
@@ -769,7 +797,7 @@ test("restore preserves Space kinds, ordering, and Regular Space membership", as
     body: "Find quiet places to stay.",
     metadata: { tags: ["japan"] },
   });
-  const regular = library.createSpace({ name: "Read later", kind: "regular" });
+  const regular = library.createSpace({ name: "Read later", kind: "regular", color: "yellow" });
   library.addSpaceItem(regular.id, item.id);
   library.createSpace({ name: "Japan", query: { tag: "japan" } });
   const destination = join(root, "exports");
@@ -783,6 +811,8 @@ test("restore preserves Space kinds, ordering, and Regular Space membership", as
     ["Read later", "regular"],
     ["Japan", "smart"],
   ]);
+  expect(restored.listSpaces()[0].color).toBe("yellow");
+  expect(restored.listSpaces()[0].itemCount).toBe(1);
   expect(restored.listSpaceItems(regular.id).map((restoredItem) => restoredItem.id)).toEqual([
     item.id,
   ]);
@@ -863,7 +893,7 @@ test("the Electron worker leaves unregistered processors queued instead of block
     )
     .run();
   library.jobs.enqueue("pending-item", "ocr_pdf_page");
-  const worker = new JobWorker(library, { processors: {} });
+  const worker = createWorker(library, { processors: {} });
   await worker.pump();
   expect(library.jobs.getForItem("pending-item")[0]?.status).toBe("pending");
   expect(library.jobs.countActive()).toBe(1);
@@ -884,7 +914,7 @@ test("stopping the Electron worker waits for its active job and leaves later wor
   const started = new Promise<void>((resolve) => (signalStarted = resolve));
   const blocked = new Promise<void>((resolve) => (releaseJob = resolve));
   let processed = 0;
-  const worker = new JobWorker(library, {
+  const worker = createWorker(library, {
     processors: {
       blocked: async () => {
         processed += 1;
@@ -965,7 +995,7 @@ test("the worker admits idle work only when nothing processable is pending and d
   library.jobs.enqueue("b", "unregistered");
   const order: string[] = [];
   let idleCalls = 0;
-  const worker = new JobWorker(library, {
+  const worker = createWorker(library, {
     processors: {
       queued: async (job) => void order.push(`queued:${job.itemId}`),
       idle: async (job) => void order.push(`idle:${job.itemId}`),
@@ -976,7 +1006,7 @@ test("the worker admits idle work only when nothing processable is pending and d
     },
   });
   await worker.pump();
-  await worker.stop();
+  await stopWorker(worker);
 
   expect(order).toEqual(["queued:a", "idle:a", "idle:a"]);
   expect(idleCalls).toBe(3);

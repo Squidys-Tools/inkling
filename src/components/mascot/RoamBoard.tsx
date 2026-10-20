@@ -114,14 +114,12 @@ export function RoamBoard() {
           </div>
         </div>
         <div
-          className="library-toolbar"
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            padding: "var(--small-component) 0 10px",
-          }}
+          className="filter-row"
+          style={{ height: "auto", padding: "var(--small-component) 0 10px" }}
         >
-          <span className="result-count">28 items</span>
+          <div className="result-context">
+            <span className="result-count">28 items</span>
+          </div>
         </div>
         <div className="library-scroll" style={{ flex: 1, minHeight: 0, position: "relative" }}>
           <div

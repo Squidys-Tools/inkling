@@ -1,17 +1,8 @@
-@import "@fontsource/gloria-hallelujah/400.css";
 @import "@fontsource/libre-baskerville/400.css";
 @import "@fontsource/libre-baskerville/700.css";
 @import "@fontsource/libre-baskerville/400-italic.css";
 @import "@fontsource-variable/dm-sans/wght.css";
 @import "@fontsource/dm-mono/400.css";
-@font-face {
-  font-family: "Paper Mono";
-  src: url("/fonts/paper-mono-variable.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 100 800;
-  font-display: swap;
-}
-
 :root {
   --library-accent: #b0714f;
   --library-border: #262221;
@@ -378,25 +369,35 @@ a:focus-visible,
   cursor: pointer;
 }
 /* Paper's blob, coloured by the Space's colour. Every colour Space storage can
-   hold needs a rule here, or that Space draws in the muted fallback. */
+   hold needs a rule here, or that Space draws in the muted fallback. The item
+   view's Space chips use the same colours. */
 .space-dot-mark {
   display: block;
   color: var(--library-muted);
 }
-.space-dot-mark.orange {
-  color: #b0714f;
+.space-dot-mark.orange,
+.detail-space-blob.orange {
+  color: var(--orange);
 }
-.space-dot-mark.green {
+.space-dot-mark.green,
+.detail-space-blob.green {
   color: #7f9a8c;
 }
-.space-dot-mark.blue {
+.space-dot-mark.blue,
+.detail-space-blob.blue {
   color: #8e9bbf;
 }
-.space-dot-mark.pink {
+.space-dot-mark.pink,
+.detail-space-blob.pink {
   color: #c98b8b;
 }
-.space-dot-mark.purple {
+.space-dot-mark.purple,
+.detail-space-blob.purple {
   color: #a88ab5;
+}
+.space-dot-mark.yellow,
+.detail-space-blob.yellow {
+  color: #c9b27a;
 }
 .space-actions {
   width: 0;
@@ -541,7 +542,7 @@ a:focus-visible,
   color: var(--ink);
 }
 .space-kind-option.is-active {
-  background: #241c16;
+  background: var(--orange-soft);
   color: var(--orange);
   font-weight: 600;
 }
@@ -612,25 +613,6 @@ a:focus-visible,
   cursor: progress;
   opacity: 0.7;
 }
-.storage-label {
-  display: flex;
-  justify-content: space-between;
-  color: var(--library-muted);
-  font: 11px var(--font-ui);
-}
-.storage-track {
-  height: 4px;
-  margin: 10px 0 8px;
-  border-radius: 99px;
-  background: #33322e;
-  overflow: hidden;
-}
-.storage-track span {
-  display: block;
-  width: 24%;
-  height: 100%;
-  background: var(--orange);
-}
 
 .main-content {
   width: auto;
@@ -644,29 +626,6 @@ a:focus-visible,
   position: relative;
   overflow: hidden;
   transition: padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.topbar {
-  height: var(--topbar-height);
-  padding-top: var(--titlebar-height);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--rule);
-}
-.topbar-title {
-  font: 600 18px / 1.2 var(--font-ui);
-  color: var(--ink);
-}
-.topbar-left {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 .sidebar-close {
   display: inline-flex;
@@ -817,22 +776,6 @@ a:focus-visible,
     animation-duration: 1ms;
   }
 }
-.library-header {
-  padding: 0;
-}
-.quiet-link {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 0;
-  background: transparent;
-  color: var(--orange);
-  cursor: pointer;
-  font-size: 12px;
-}
-.quiet-link:hover {
-  color: #f08a5a;
-}
 .capture-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -978,7 +921,7 @@ a:focus-visible,
 }
 .capture-option.selected {
   border-color: #6b8f7a;
-  background: #26332c;
+  background: var(--green-soft);
 }
 .capture-option:disabled {
   cursor: wait;
@@ -1071,32 +1014,9 @@ a:focus-visible,
   justify-content: flex-end;
   gap: 8px;
 }
-.capture-cancel {
-  padding: 7px 11px;
-  border: 1px solid var(--library-border);
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 12px;
-}
 .capture-cancel:hover {
   border-color: #5a5750;
   color: var(--ink);
-}
-.capture-type {
-  color: #8fae9b;
-  font: 10px var(--font-ui);
-}
-.capture-save {
-  border: 0;
-  border-radius: 7px;
-  padding: 8px 12px;
-  background: var(--green);
-  color: #14201a;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
 }
 .capture-save:hover:not(:disabled) {
   background: #91b19d;
@@ -1112,19 +1032,6 @@ a:focus-visible,
   font: 11px var(--font-ui);
   line-height: 1.55;
 }
-.live-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 7px;
-  border-radius: 50%;
-  background: #7f9d89;
-}
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
 .quiet-link {
   display: flex;
   align-items: center;
@@ -1137,86 +1044,6 @@ a:focus-visible,
 }
 .quiet-link:hover {
   color: #f08a5a;
-}
-.capture-tool-button {
-  height: 50px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 13px;
-  border: 1px solid var(--library-border);
-  border-radius: var(--button-radius-normal);
-  background: #232320;
-  color: var(--library-muted);
-  cursor: pointer;
-  font-size: 12px;
-}
-.capture-tool-button:hover {
-  border-color: #4a4842;
-  background: #2a2a26;
-}
-.capture-tool-button:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-.quick-capture {
-  min-height: 52px;
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 7px 9px;
-  border: 1px solid #35443c;
-  border-radius: var(--button-radius-normal);
-  background: #232b27;
-  animation: settle 0.35s ease both;
-}
-.quick-capture-icon {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 7px;
-  background: var(--green);
-  color: white;
-}
-.quick-capture input {
-  flex: 1;
-  border: 0;
-  outline: 0;
-  color: var(--ink);
-  background: transparent;
-  font-size: 13px;
-}
-.capture-type {
-  color: #8fae9b;
-  font: 10px var(--font-ui);
-}
-.capture-save {
-  border: 0;
-  border-radius: 6px;
-  padding: 8px 12px;
-  background: var(--green);
-  color: #14201a;
-  cursor: pointer;
-  font-size: 12px;
-}
-.capture-close {
-  border: 0;
-  background: transparent;
-  color: #8fae9b;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-}
-.quick-capture.quote-mode {
-  align-items: flex-start;
-  padding: 12px;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.quick-capture.quote-mode .quick-capture-icon {
-  margin-top: 2px;
 }
 .quote-capture-fields {
   flex: 1;
@@ -1258,11 +1085,6 @@ a:focus-visible,
 }
 .quote-capture-row input:focus {
   border-color: var(--green);
-}
-.quick-capture.quote-mode .capture-type,
-.quick-capture.quote-mode .capture-save,
-.quick-capture.quote-mode .capture-close {
-  align-self: center;
 }
 /* Library grid and cards (Paper artboard 1.1). Masonry columns are 286px with a
    12px gap; App.tsx mirrors both (GRID_GAP, TARGET_CARD_WIDTH). Virtuoso lays the
@@ -1507,7 +1329,7 @@ a:focus-visible,
 /* Note, PDF and file share the typed layout (ItemMedia.tsx TypedArtwork). Grid
    cards are 300px tall. Video is 190px. */
 :is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
-  :is(.note-card, .pdf-card, .file-card) {
+:is(.note-card, .pdf-card, .file-card) {
   aspect-ratio: auto;
   height: 300px;
 }
@@ -1587,10 +1409,10 @@ a:focus-visible,
   background: var(--library-accent);
 }
 .pdf-legend span:nth-child(2) {
-  background: #3a3524;
+  background: var(--yellow-soft);
 }
 .pdf-legend span:nth-child(3) {
-  background: #7fa08d;
+  background: var(--green);
 }
 .pdf-page-count {
   position: relative;
@@ -1625,8 +1447,7 @@ a:focus-visible,
 .quote-card .card-kicker span:first-child {
   color: #b3ad8d;
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
-  .quote-card {
+:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list)) .quote-card {
   aspect-ratio: auto;
   min-height: 250px;
   display: flex;
@@ -1659,7 +1480,9 @@ a:focus-visible,
   flex: none;
   height: 58px;
   color: #c4ba8c;
-  font: 110px / 100px Georgia, serif;
+  font:
+    110px / 100px Georgia,
+    serif;
 }
 .quote-preview {
   margin: 0;
@@ -1847,7 +1670,9 @@ a:focus-visible,
 }
 .list-mode .quote-mark {
   height: 40px;
-  font: 56px / 40px Georgia, serif;
+  font:
+    56px / 40px Georgia,
+    serif;
 }
 .list-mode .quote-preview {
   font-size: 15px;
@@ -2161,18 +1986,9 @@ a:focus-visible,
     margin-top: 18px;
   }
 }
-.topbar,
 .library-header {
+  padding: 0;
   flex: 0 0 auto;
-}
-
-.library-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-  position: relative;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
 }
 .library-scroll::-webkit-scrollbar {
   display: none;
@@ -2183,12 +1999,10 @@ a:focus-visible,
   position: absolute;
   left: 0;
   right: 0;
+  bottom: 0;
   height: 120px;
   z-index: 1;
   pointer-events: none;
-}
-.library-edge-fade.is-bottom {
-  bottom: 0;
 }
 /* The grid clips at the scroller's edges, and blurred cards stay bright, so a
    scrim is what dissolves content into the canvas at those clip lines. It sits
@@ -2252,21 +2066,6 @@ a:focus-visible,
   min-height: 155px;
   display: block;
 }
-.overlay-action-secondary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px var(--small-component);
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 12px;
-}
-.overlay-action-secondary {
-  border: 1px solid var(--rule);
-  background: transparent;
-  color: var(--ink);
-}
 .overlay-action-secondary:hover:not(:disabled) {
   border-color: #4a4842;
   background: var(--library-surface-raised);
@@ -2325,16 +2124,6 @@ a:focus-visible,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.detail-space-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--library-muted);
-  flex: 0 0 auto;
-}
-.detail-space-dot.orange {
-  background: var(--orange);
-}
 @keyframes settle {
   from {
     opacity: 0;
@@ -2346,13 +2135,11 @@ a:focus-visible,
   }
 }
 @media (max-width: 1120px) {
-  .main-content {
-    padding-inline: 14px;
-  }
   :root {
     --sidebar-width: 220px;
   }
   .main-content {
+    padding-inline: 14px;
     width: calc(100vw - var(--sidebar-width));
   }
   .sidebar-toggle {
@@ -2450,13 +2237,6 @@ a:focus-visible,
   opacity: 0.45;
   cursor: default;
 }
-.job-summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--green);
-}
-.job-summary svg,
 .card-processing svg,
 .detail-processing > svg {
   animation: spin 1.2s linear infinite;
@@ -2885,22 +2665,6 @@ a:focus-visible,
   font: 400 11px / 14px var(--font-mono);
   overflow-wrap: anywhere;
 }
-.settings-data-link {
-  align-self: flex-start;
-  margin-top: 16px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--library-muted);
-  font: 400 13px / 16px var(--font-ui);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-.settings-data-link:hover,
-.settings-data-link:focus-visible {
-  color: var(--library-text);
-}
 .settings-pairing {
   display: flex;
   flex-direction: column;
@@ -3155,23 +2919,47 @@ a:focus-visible,
 .capture-option:active:not(:disabled),
 .capture-save:active:not(:disabled),
 .capture-cancel:active,
-.overlay-action-primary:active:not(:disabled),
 .overlay-action-secondary:active:not(:disabled) {
   transform: scale(0.96);
 }
 .capture-save {
+  font-weight: 600;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: var(--green);
+  color: #14201a;
+  cursor: pointer;
+  font-size: 12px;
   transition:
     transform 0.16s cubic-bezier(0.23, 1, 0.32, 1),
     background 0.18s ease;
 }
 .capture-cancel {
+  padding: 7px 11px;
+  border: 1px solid var(--library-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
   transition:
     transform 0.16s cubic-bezier(0.23, 1, 0.32, 1),
     color 0.15s ease,
     border-color 0.15s ease;
 }
-.overlay-action-primary,
 .overlay-action-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px var(--small-component);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
   transition:
     transform 0.16s cubic-bezier(0.23, 1, 0.32, 1),
     background 0.18s ease,
@@ -3504,15 +3292,6 @@ a:focus-visible,
 .pdf-viewer-status > svg {
   animation: spin 1.2s linear infinite;
 }
-.post-art {
-  min-height: 185px;
-  display: flex;
-  flex-direction: column;
-  padding: 18px;
-  overflow: hidden;
-  background: #e8f0f2;
-  color: #243d42;
-}
 .library-card .post-art {
   min-height: 0;
   aspect-ratio: var(--card-media-ratio, 1.45);
@@ -3522,17 +3301,6 @@ a:focus-visible,
   display: flex;
   align-items: center;
   gap: 9px;
-}
-.post-avatar {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: #243d42;
-  color: #e8f0f2;
-  font: 500 15px / 1 var(--font-ui);
 }
 .post-author > span:nth-child(2) {
   min-width: 0;
@@ -3553,14 +3321,6 @@ a:focus-visible,
 .post-author > svg {
   margin-left: auto;
   color: #6b8589;
-}
-.post-art > p {
-  max-width: none;
-  min-height: 0;
-  margin: auto 0 13px;
-  color: #243d42;
-  font: 500 18px / 1.2 var(--font-ui);
-  letter-spacing: -0.035em;
 }
 .post-date {
   padding-top: 10px;
@@ -3684,25 +3444,25 @@ a:focus-visible,
 .x-post-embed {
   width: 100%;
 }
-.x-post-loading {
-  display: grid;
-  min-height: 180px;
-  place-items: center;
-  color: #6b8589;
-  font: 10px var(--font-ui);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-.open-source:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-}
-
 .post-art {
+  min-height: 185px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #243d42;
   padding: 20px;
   background: #edf4f5;
 }
 .post-avatar {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #243d42;
+  color: #e8f0f2;
+  font: 500 15px / 1 var(--font-ui);
   position: relative;
   overflow: hidden;
 }
@@ -3726,6 +3486,11 @@ a:focus-visible,
   letter-spacing: -0.1em;
 }
 .post-art > p {
+  min-height: 0;
+  margin: auto 0 13px;
+  color: #243d42;
+  font: 500 18px / 1.2 var(--font-ui);
+  letter-spacing: -0.035em;
   max-width: 22ch;
   font-size: 20px;
 }
@@ -3811,25 +3576,6 @@ a:focus-visible,
   color: var(--muted);
   font-size: 13px;
   line-height: 1.55;
-}
-.note-editor-edit,
-.note-editor-cancel,
-.note-editor-save {
-  border-radius: 7px;
-  cursor: pointer;
-  font-size: 11px;
-}
-.note-editor-edit {
-  margin-top: 14px;
-  padding: 7px 10px;
-  border: 1px solid var(--rule);
-  background: transparent;
-  color: var(--muted);
-}
-.note-editor-edit:hover {
-  border-color: #5a5750;
-  background: var(--library-surface-raised);
-  color: var(--ink);
 }
 .note-editor-toolbar {
   display: flex;
@@ -3966,6 +3712,9 @@ a:focus-visible,
 }
 .note-editor-cancel,
 .note-editor-save {
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 11px;
   padding: 7px 10px;
 }
 .note-editor-cancel {
@@ -4462,24 +4211,6 @@ a:focus-visible,
   color: var(--library-text);
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
-.first-run-stage {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 960px;
-  height: 540px;
-  transform-origin: center;
-}
-/* One type and control scale for every welcome screen, in stage pixels. The
-   stage itself scales with the window (FirstRunOverlay), so these never do. */
-.first-run-stage {
-  --fr-headline: 68px;
-  --fr-body: 21px;
-  --fr-small: 15px;
-  --fr-button-h: 54px;
-  --fr-button: 19px;
-  --fr-quiet: 18px;
-}
 .first-run-headline {
   position: absolute;
   margin: 0;
@@ -4519,19 +4250,6 @@ a:focus-visible,
   font-family: var(--font-ui);
   font-size: var(--fr-small);
   color: var(--library-muted);
-}
-.first-run-keys kbd {
-  min-width: 34px;
-  padding: 5px 11px;
-  box-sizing: border-box;
-  border: 1px solid var(--library-border);
-  border-bottom-width: 2px;
-  border-radius: 8px;
-  background: var(--library-surface);
-  color: var(--library-text);
-  font-family: inherit;
-  font-size: var(--fr-small);
-  text-align: center;
 }
 .first-run-keys span {
   margin-left: 8px;
@@ -4585,11 +4303,24 @@ a:focus-visible,
 }
 .first-run-mascot.is-leaving {
   animation: fr-mascot-out 320ms cubic-bezier(0.55, 0, 0.75, 0.4) both;
-}
+} /* One type and control scale for every welcome screen, in stage pixels. The
+   stage itself scales with the window (FirstRunOverlay), so these never do. */
 /* Screens trade places sideways: --fr-dir is 1 going forward and -1 going
    back, so the outgoing screen slips one way and the next arrives from the
    other. Only opacity, translate and filter move, never the stage's scale. */
 .first-run-stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 960px;
+  height: 540px;
+  transform-origin: center;
+  --fr-headline: 68px;
+  --fr-body: 21px;
+  --fr-small: 15px;
+  --fr-button-h: 54px;
+  --fr-button: 19px;
+  --fr-quiet: 18px;
   animation: fr-stage-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .first-run-stage.is-leaving {
@@ -4617,9 +4348,19 @@ a:focus-visible,
 }
 .first-run-crumb .breadcrumb-list > :nth-child(5) {
   animation-delay: calc(var(--fr-copy-delay, 0s) + 680ms);
-}
-/* Each key taps down once, in order, as if pressed. */
+} /* Each key taps down once, in order, as if pressed. */
 .first-run-keys kbd {
+  min-width: 34px;
+  padding: 5px 11px;
+  box-sizing: border-box;
+  border: 1px solid var(--library-border);
+  border-bottom-width: 2px;
+  border-radius: 8px;
+  background: var(--library-surface);
+  color: var(--library-text);
+  font-family: inherit;
+  font-size: var(--fr-small);
+  text-align: center;
   animation: fr-key-press 260ms ease-out calc(var(--fr-copy-delay, 0s) + 700ms);
 }
 .first-run-keys kbd + kbd {
@@ -5191,10 +4932,16 @@ a:focus-visible,
 .capture-bar > * {
   pointer-events: auto;
 }
-.capture-bar > .filter-row {
+.capture-bar > .capture-status {
   pointer-events: none;
 }
 .library-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   margin-top: -52px;
 }
 .history-nav,
@@ -5255,7 +5002,7 @@ a:focus-visible,
   width: 26px;
   height: 26px;
   border-radius: 999px;
-  background: #ffffff14;
+  background: var(--glass-active);
   pointer-events: none;
 }
 
@@ -5432,23 +5179,28 @@ a:focus-visible,
   opacity: 0.65;
 }
 
-/* Pinned query or similar-to context, under the toolbar. The grid keeps its
-   place underneath, so this overlays rather than pushing the grid down. */
-.filter-row {
+/* The pinned query row and a capture error, under the toolbar. They overlay the
+   grid rather than pushing it down, and stack in one column. */
+.capture-status {
   position: absolute;
   top: 100%;
   left: 0;
   right: 0;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+.filter-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   height: 44px;
   padding-bottom: 6px;
-  pointer-events: none;
 }
-.filter-row .query-chip,
-.filter-row .quiet-link {
+.capture-status .query-chip,
+.capture-status .quiet-link,
+.capture-status .capture-error {
   pointer-events: auto;
 }
 .query-chip {
@@ -5500,10 +5252,8 @@ a:focus-visible,
 }
 
 .capture-error {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  margin: 0;
+  align-self: flex-start;
+  margin: 8px 0 0;
   padding: 6px 12px;
   border-radius: 999px;
   color: #d07055;
@@ -5797,13 +5547,10 @@ a:focus-visible,
   font-size: 13px;
   line-height: 16px;
 }
-/* Same colour rule as the sidebar's Space marks: only orange is distinct so far. */
+/* The blob's colour comes from the Space's colour class (see .space-dot-mark). */
 .detail-space-blob {
   flex: 0 0 auto;
   color: var(--library-muted);
-}
-.detail-space-blob.orange {
-  color: var(--orange);
 }
 .item-tag {
   color: #a8a096;
@@ -5851,7 +5598,7 @@ a:focus-visible,
 }
 .item-details dd {
   margin: 0;
-  color: #c9c1b6;
+  color: var(--library-text-soft);
   font-size: 13px;
   text-align: right;
   overflow-wrap: anywhere;
@@ -5874,7 +5621,7 @@ a:focus-visible,
   border: 1px solid var(--library-border);
   border-radius: var(--button-radius-normal);
   background: var(--library-surface);
-  color: #c9c1b6;
+  color: var(--library-text-soft);
   cursor: pointer;
   font-size: 12px;
 }
@@ -5966,7 +5713,9 @@ a:focus-visible,
 }
 .item-similar-quote-mark {
   color: #c4ba8c;
-  font: 26px / 20px Georgia, serif;
+  font:
+    26px / 20px Georgia,
+    serif;
 }
 .item-similar-quote-text {
   display: -webkit-box;

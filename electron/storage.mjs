@@ -215,6 +215,9 @@ function spaceFromRow(row) {
     position: row.position,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    ...(row.kind === "regular" && row.item_count != null
+      ? { itemCount: Number(row.item_count) }
+      : {}),
   };
 }
 
@@ -469,9 +472,35 @@ function validateImportedSpace(space) {
   return { ...space, query: JSON.stringify(parseImportedSpaceQuery(space.query)) };
 }
 
+function readImportStage(databasePath) {
+  const stage = openLibraryStorage(databasePath);
+  try {
+    return {
+      items: stage.db
+        .prepare(`SELECT id, kind, title, description, body, body_format, source_url,
+        source_label, local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
+        archived, favorite FROM items ORDER BY created_at, id`)
+        .all(),
+      spaces: stage.db
+        .prepare("SELECT * FROM spaces ORDER BY position, created_at, id")
+        .all()
+        .map(validateImportedSpace),
+      memberships: stage.db
+        .prepare(
+          "SELECT space_id, item_id, added_at FROM space_items ORDER BY added_at, space_id, item_id",
+        )
+        .all(),
+    };
+  } finally {
+    stage.db.close();
+  }
+}
+
 function normalizeSpaceColor(color) {
   const normalized = nonEmpty(color)?.toLowerCase();
-  return ["blue", "orange", "green", "pink", "purple"].includes(normalized) ? normalized : "blue";
+  return ["blue", "orange", "green", "pink", "purple", "yellow"].includes(normalized)
+    ? normalized
+    : "blue";
 }
 
 function validateItemId(id) {
@@ -1723,7 +1752,11 @@ class LibraryStorage {
 
   listSpaces() {
     return this.db
-      .prepare("SELECT * FROM spaces ORDER BY position, created_at")
+      .prepare(`SELECT spaces.*, membership.item_count FROM spaces
+        LEFT JOIN (
+          SELECT space_id, COUNT(*) AS item_count FROM space_items GROUP BY space_id
+        ) membership ON membership.space_id = spaces.id
+        ORDER BY spaces.position, spaces.created_at`)
       .all()
       .map(spaceFromRow);
   }
@@ -2081,25 +2114,10 @@ class LibraryStorage {
 
     const stageRoot = await mkdtemp(join(libraryDirectory, ".inkling-import-"));
     const stageDatabase = join(stageRoot, "library.sqlite3");
-    let stage;
     const movedAssetDirectories = [];
     try {
       await copyFile(sourceDatabasePath, stageDatabase);
-      stage = openLibraryStorage(stageDatabase);
-      const items = stage.db
-        .prepare(`SELECT id, kind, title, description, body, body_format, source_url,
-        source_label, local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
-        archived, favorite FROM items ORDER BY created_at, id`)
-        .all();
-      const spaces = stage.db
-        .prepare("SELECT * FROM spaces ORDER BY position, created_at, id")
-        .all()
-        .map(validateImportedSpace);
-      const memberships = stage.db
-        .prepare(
-          "SELECT space_id, item_id, added_at FROM space_items ORDER BY added_at, space_id, item_id",
-        )
-        .all();
+      const { items, spaces, memberships } = readImportStage(stageDatabase);
       if (
         items.length !== Number(manifest.counts?.items) ||
         spaces.length !== Number(manifest.counts?.spaces)
@@ -2370,7 +2388,8 @@ class LibraryStorage {
         unverifiedAssetFiles,
       };
     } finally {
-      stage?.db.close();
+      // Bun keeps closed SQLite files locked until temporary statement wrappers finalize.
+      if (typeof Bun !== "undefined") Bun.gc(true);
       await rm(stageRoot, { recursive: true, force: true });
     }
   }

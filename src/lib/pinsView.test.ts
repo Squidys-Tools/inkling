@@ -20,8 +20,7 @@ describe("isEmptyPinsView", () => {
     expect(isEmptyPinsView({ query: "   " })).toBe(true);
   });
 
-  it("reports a search miss when a query or similarity search is active", () => {
+  it("reports a search miss when a query is active", () => {
     expect(isEmptyPinsView({ query: "lanterns" })).toBe(false);
-    expect(isEmptyPinsView({ similaritySource: { id: "1" } })).toBe(false);
   });
 });

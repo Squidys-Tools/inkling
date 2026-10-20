@@ -141,11 +141,12 @@ export type SmartSpaceQuery = {
 /** A "smart" Space re-runs its saved query; a "regular" Space holds the items
  *  the user filed into it. Fixed at creation. */
 export type SpaceKind = "smart" | "regular";
+export type SpaceColor = "blue" | "orange" | "green" | "pink" | "purple" | "yellow";
 
 export type StoredSpace = {
   id: string;
   name: string;
-  color: string;
+  color: SpaceColor;
   query: SmartSpaceQuery;
   kind: SpaceKind;
   position: number;
@@ -157,7 +158,7 @@ export type StoredSpace = {
 
 export type CreateSpaceInput = {
   name: string;
-  color?: string;
+  color?: SpaceColor;
   query?: SmartSpaceQuery;
   kind?: SpaceKind;
 };
@@ -165,7 +166,7 @@ export type CreateSpaceInput = {
 export type UpdateSpaceInput = {
   id: string;
   name?: string;
-  color?: string;
+  color?: SpaceColor;
   query?: SmartSpaceQuery;
   position?: number;
 };
