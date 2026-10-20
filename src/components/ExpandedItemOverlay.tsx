@@ -14,19 +14,13 @@ import { gsap } from "gsap";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   AlertCircleIcon,
-  Archive01Icon,
-  ArrowUpRight01Icon,
   BookOpen01Icon,
   FileTextIcon,
-  FolderAddIcon,
   Loading01Icon,
   PlusSignIcon,
   RotateCwIcon,
-  SparklesIcon,
-  StarIcon,
 } from "@hugeicons/core-free-icons";
 import type { LibraryItem } from "../lib/types";
-import { isElectronRuntime } from "../lib/libraryApi";
 import type { ReaderOrigin } from "../ReaderView";
 import {
   KindIcon,
@@ -62,6 +56,14 @@ export type ExpandedOverlayActions = {
   onAddTag?: (item: LibraryItem, tag: string) => void | Promise<void>;
   onUpdateNote: (item: LibraryItem, body: string) => void | Promise<void>;
   onToggleSpace?: (item: LibraryItem, spaceId: string) => void | Promise<void>;
+  /** Items similar to this one, for the Similar tab. */
+  onLoadSimilar: (item: LibraryItem) => Promise<LibraryItem[]>;
+  /** Opens another item from the Similar tab as a new history step. */
+  onOpenItem: (item: LibraryItem) => void;
+  /** Hidden when absent. */
+  onShowInFolder?: (item: LibraryItem) => void;
+  /** Permanent delete. Only offered for archived items. Hidden when absent. */
+  onDelete?: (item: LibraryItem) => void;
   isFindingSimilar: boolean;
 };
 
@@ -111,36 +113,8 @@ function hostnameForUrl(url: string | undefined): string | null {
   }
 }
 
-function fileTypeFor(item: LibraryItem): string {
-  if (item.kind === "Image") {
-    const match = item.image?.split("?")[0].match(/\.([a-z0-9]{2,5})$/iu);
-    if (match) {
-      const extension = match[1].toLowerCase();
-      return extension === "jpeg" ? "JPG" : extension.toUpperCase();
-    }
-    return "JPG";
-  }
-  switch (item.kind) {
-    case "PDF":
-      return "PDF";
-    case "Video":
-      return "Video";
-    case "Article":
-      return "Link";
-    case "Post":
-      return "Post";
-    case "Note":
-      return "Note";
-    case "Quote":
-      return "Quote";
-    default:
-      return "File";
-  }
-}
-
-// Content actions sit under the details: read, open the PDF, find similar.
-// Item housekeeping (star, Spaces, open original, archive) lives in the
-// action bar at the bottom of the inspector instead.
+// Content actions sit under the details: read and open the PDF. Item housekeeping
+// (star, Spaces, open original, archive, delete) lives in the action bar instead.
 function contentActions(item: LibraryItem, actions: ExpandedOverlayActions): OverlayAction[] {
   const list: OverlayAction[] = [];
   const hasReaderContent = Boolean(item.articleHtml || item.hasArticleContent);
@@ -158,15 +132,6 @@ function contentActions(item: LibraryItem, actions: ExpandedOverlayActions): Ove
       label: "Read",
       icon: <HugeiconsIcon icon={BookOpen01Icon} size={14} />,
       onClick: (event) => actions.onOpenReader(item, clickOrigin(event)),
-    });
-  }
-  if (isElectronRuntime() && ["Image", "Article", "Note", "Quote"].includes(item.kind)) {
-    list.push({
-      key: "find-similar",
-      label: actions.isFindingSimilar ? "Finding similar…" : "Find similar",
-      icon: <HugeiconsIcon icon={SparklesIcon} size={14} />,
-      onClick: () => actions.onFindSimilar(item),
-      disabled: actions.isFindingSimilar,
     });
   }
   return list;
@@ -442,6 +407,202 @@ function detailTitleFor(item: LibraryItem): string {
   return item.kind === "PDF" ? pdfPreviewTitle(item.title) || item.title : item.title;
 }
 
+// Paper's blob marker. It takes the Space colour through the class on the svg.
+const SPACE_BLOB_PATH =
+  "M-96.539 5.45c-1.2 0-2.475-0.125-4-0.7-1.1-0.375-2.125-1-3.35-1.2-2.225-0.375-4.1-0.15-5.775 0.775-1.55 0.825-2.925 2.275-3.725 3.925-0.975 2.075-0.75 4.375-2.4 6.575-0.9 1.275-1.6 1.675-2.4 2.8-0.85 1.2-1.325 2.4-1.35 4.05-0.075 4.8 4.375 10.35 9.225 12.05 2.025 0.65 3.7 0.55 5.45-0.075 1-0.35 2.175-0.95 3.175-1.325 1.325-0.375 2.375-0.5 3.875-0.35 1.275 0.125 2.375 0.425 3.6 0.375 3.275-0.075 5.65-2.175 5.65-5.95 0-1.4-0.25-2.475-0.15-4.1 0.3-3.05 1.925-4.025 2.75-6.475 0.925-3.1 0.4-6.95-3.1-9.15-1.1-0.65-2.3-1.3-3.875-1.45-0.95-0.025-1.825 0.1-2.775 0.175l-0.825 0.05z";
+
+function SpaceBlob({ color }: { color: string }) {
+  return (
+    <svg
+      className={`detail-space-blob ${color}`}
+      width="13"
+      height="12"
+      viewBox="-121.289 2 37.5 34"
+      aria-hidden="true"
+    >
+      <path fill="currentColor" d={SPACE_BLOB_PATH} />
+    </svg>
+  );
+}
+
+// Action bar glyphs, drawn at Paper's 15px with a 1.8 stroke.
+function BarGlyph({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {children}
+    </svg>
+  );
+}
+
+function PaletteSwatches({ palette }: { palette?: string[] }) {
+  if (!palette?.length) return null;
+  return (
+    <div className="item-swatches" aria-hidden="true">
+      {palette.map((color) => (
+        <span key={color} className="item-swatch" style={{ backgroundColor: color }} />
+      ))}
+    </div>
+  );
+}
+
+// Similar tiles sit in two columns. An image's height follows its shape, clamped
+// to the range Paper uses; the other tiles have fixed heights.
+const SIMILAR_TILE_WIDTH = 139;
+const SIMILAR_TILE_GAP = 8;
+
+function similarTileHeight(item: LibraryItem): number {
+  if (item.image) {
+    const ratio = item.mediaWidth && item.mediaHeight ? item.mediaHeight / item.mediaWidth : 1.25;
+    return Math.round(Math.min(200, Math.max(100, SIMILAR_TILE_WIDTH * ratio)));
+  }
+  if (item.kind === "Quote") return 150;
+  if (item.kind === "Note") return 170;
+  return 120;
+}
+
+// Each tile goes to the shorter column, so the two columns end at similar heights.
+function splitIntoColumns(items: LibraryItem[]): [LibraryItem[], LibraryItem[]] {
+  const columns: [LibraryItem[], LibraryItem[]] = [[], []];
+  const heights = [0, 0];
+  for (const item of items) {
+    const shorter = heights[0] <= heights[1] ? 0 : 1;
+    columns[shorter].push(item);
+    heights[shorter] += similarTileHeight(item) + SIMILAR_TILE_GAP;
+  }
+  return columns;
+}
+
+function wordCount(text: string): number {
+  return text.trim().split(/\s+/u).filter(Boolean).length;
+}
+
+function SimilarTile({ item, onOpen }: { item: LibraryItem; onOpen: (item: LibraryItem) => void }) {
+  const style = { height: similarTileHeight(item) };
+  const open = () => onOpen(item);
+
+  if (item.image) {
+    return (
+      <button
+        type="button"
+        className="item-similar-tile is-image"
+        style={style}
+        aria-label={item.title}
+        onClick={open}
+      >
+        <img src={item.image} alt="" loading="lazy" decoding="async" />
+      </button>
+    );
+  }
+
+  if (item.kind === "Quote") {
+    const attribution = item.description.replace(/^—\s*/u, "");
+    return (
+      <button
+        type="button"
+        className="item-similar-tile is-quote"
+        style={style}
+        aria-label={item.title}
+        onClick={open}
+      >
+        <span className="item-similar-quote-mark" aria-hidden="true">
+          “
+        </span>
+        <span className="item-similar-quote-text">{item.title}</span>
+        {attribution ? <span className="item-similar-caption">{attribution}</span> : null}
+      </button>
+    );
+  }
+
+  if (item.kind === "Note") {
+    return (
+      <button
+        type="button"
+        className="item-similar-tile is-note"
+        style={style}
+        aria-label={item.title}
+        onClick={open}
+      >
+        <span className="item-similar-label">Note</span>
+        <span className="item-similar-note-title">{item.title}</span>
+        <span className="item-similar-caption">
+          {wordCount(item.noteBody ?? item.description)} words
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="item-similar-tile is-text"
+      style={style}
+      aria-label={item.title}
+      onClick={open}
+    >
+      <span className="item-similar-label">{item.kind}</span>
+      <span className="item-similar-text-title">{item.title}</span>
+    </button>
+  );
+}
+
+function SimilarColumns({
+  items,
+  onOpen,
+}: {
+  items: LibraryItem[];
+  onOpen: (item: LibraryItem) => void;
+}) {
+  const [left, right] = splitIntoColumns(items);
+  return (
+    <div className="item-similar">
+      <div className="item-similar-column">
+        {left.map((tile) => (
+          <SimilarTile key={String(tile.id)} item={tile} onOpen={onOpen} />
+        ))}
+      </div>
+      <div className="item-similar-column">
+        {right.map((tile) => (
+          <SimilarTile key={String(tile.id)} item={tile} onOpen={onOpen} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SimilarPanel({
+  item,
+  similar,
+  onOpen,
+}: {
+  item: LibraryItem;
+  /** null while the lookup for this item is still running. */
+  similar: LibraryItem[] | null;
+  onOpen: (item: LibraryItem) => void;
+}) {
+  return (
+    <>
+      <div className="item-title-block is-similar">
+        <h2 className="item-title">{detailTitleFor(item)}</h2>
+        <PaletteSwatches palette={item.palette} />
+      </div>
+      {similar?.length === 0 && <p className="item-similar-empty">Nothing similar yet.</p>}
+      {similar && similar.length > 0 && <SimilarColumns items={similar} onOpen={onOpen} />}
+    </>
+  );
+}
+
+type InspectorTab = "info" | "similar";
+
 type ExpandedItemOverlayProps = {
   item: LibraryItem;
   actions: ExpandedOverlayActions;
@@ -451,6 +612,10 @@ type ExpandedItemOverlayProps = {
   /** The library frame the item view covers once it settles. */
   frameRef: RefObject<HTMLElement | null>;
   historyCloseRequest: number;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  onStepBack: () => void;
+  onStepForward: () => void;
 };
 
 export function ExpandedItemOverlay({
@@ -460,6 +625,10 @@ export function ExpandedItemOverlay({
   originRectsRef,
   frameRef,
   historyCloseRequest,
+  canGoBack,
+  canGoForward,
+  onStepBack,
+  onStepForward,
 }: ExpandedItemOverlayProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
@@ -480,6 +649,9 @@ export function ExpandedItemOverlay({
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isSpaceMenuOpen, setIsSpaceMenuOpen] = useState(false);
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("info");
+  // The similar items for one item. Tied to its id so a stale list never shows for another item.
+  const [similar, setSimilar] = useState<{ itemId: string; items: LibraryItem[] } | null>(null);
   const isEditingNoteRef = useRef(false);
   const isFocusModeRef = useRef(false);
 
@@ -712,12 +884,13 @@ export function ExpandedItemOverlay({
       return;
     }
     const rects = queryCardRects(itemRef.current.id);
+    // No card to fly from (the item is filtered out of the grid): fade it in place.
     if (!rects) {
-      actionsRef.current.onClose();
+      beginOpenFlight(frameRect());
       return;
     }
     beginOpenFlight(rects.card);
-  }, [pendingOpen, flight, beginOpenFlight]);
+  }, [pendingOpen, flight, beginOpenFlight, frameRect]);
 
   // On close, hand focus back to the source card while it is still mounted.
   // Skipping the restore when focus already moved elsewhere (nav, search)
@@ -792,7 +965,32 @@ export function ExpandedItemOverlay({
     setIsAddingTag(false);
     setTagDraft("");
     setIsSpaceMenuOpen(false);
+    setInspectorTab("info");
   }, [shownItem.id]);
+
+  // Looks up similar items when the Similar tab is open. Reloads only when the
+  // shown item changes, not on every edit to its record.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Keyed on the item ID; the lookup reads the item it was started for.
+  useEffect(() => {
+    if (inspectorTab !== "similar") return;
+    const itemId = String(shownItem.id);
+    let cancelled = false;
+    actionsRef.current.onLoadSimilar(shownItem).then(
+      (items) => {
+        if (!cancelled)
+          setSimilar({
+            itemId,
+            items: items.filter((candidate) => String(candidate.id) !== itemId),
+          });
+      },
+      () => {
+        if (!cancelled) setSimilar({ itemId, items: [] });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [inspectorTab, shownItem.id]);
 
   const allTags = shownItem.tags;
 
@@ -818,6 +1016,10 @@ export function ExpandedItemOverlay({
 
   const isEditingNoteView = isEditingNote && shownItem.kind === "Note";
   const isFocusModeView = isFocusMode && isEditingNoteView;
+  // The tabs step aside while the note editor owns the inspector.
+  const showTabs = !isEditingNoteView;
+  const isSimilarTab = showTabs && inspectorTab === "similar";
+  const similarItems = similar?.itemId === String(shownItem.id) ? similar.items : null;
   const isPinned = shownItem.favorite === true;
   const sourceHost = hostnameForUrl(shownItem.sourceUrl);
   const memberSpaces = spaces?.filter((space) => space.member) ?? [];
@@ -843,10 +1045,78 @@ export function ExpandedItemOverlay({
       >
         <div className="item-stage">
           <OverlayMedia item={shownItem} />
+          <div className="item-stage-toolbar glass">
+            <button
+              type="button"
+              className="item-history-button"
+              aria-label="Back"
+              title="Back"
+              disabled={!canGoBack}
+              onClick={onStepBack}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="item-history-button"
+              aria-label="Forward"
+              title="Forward"
+              disabled={!canGoForward}
+              onClick={onStepForward}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <aside className="item-inspector">
           <header className="item-inspector-header">
+            {showTabs && (
+              <div className="item-inspector-tabs" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  className="item-inspector-tab"
+                  aria-selected={inspectorTab === "info"}
+                  onClick={() => setInspectorTab("info")}
+                >
+                  Info
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  className="item-inspector-tab"
+                  aria-selected={inspectorTab === "similar"}
+                  onClick={() => setInspectorTab("similar")}
+                >
+                  Similar
+                </button>
+              </div>
+            )}
             <button
               type="button"
               ref={closeButtonRef}
@@ -888,6 +1158,8 @@ export function ExpandedItemOverlay({
                   onFocusModeChange={setIsFocusMode}
                 />
               </Suspense>
+            ) : isSimilarTab ? (
+              <SimilarPanel item={shownItem} similar={similarItems} onOpen={actions.onOpenItem} />
             ) : (
               <>
                 {shownItem.kind === "Quote" ? (
@@ -901,7 +1173,10 @@ export function ExpandedItemOverlay({
                   </>
                 ) : (
                   <>
-                    <h2 className="item-title">{detailTitleFor(shownItem)}</h2>
+                    <div className="item-title-block">
+                      <h2 className="item-title">{detailTitleFor(shownItem)}</h2>
+                      <PaletteSwatches palette={shownItem.palette} />
+                    </div>
                     {shownItem.kind !== "Note" && shownItem.description && (
                       <p className="item-note">{shownItem.description}</p>
                     )}
@@ -940,7 +1215,7 @@ export function ExpandedItemOverlay({
                 <div className="item-tags">
                   {memberSpaces.map((space) => (
                     <span key={space.id} className="item-space-chip">
-                      <span className={`detail-space-dot ${space.color}`} aria-hidden="true" />
+                      <SpaceBlob color={space.color} />
                       {space.name}
                     </span>
                   ))}
@@ -993,10 +1268,6 @@ export function ExpandedItemOverlay({
                         <dd>{sourceHost ?? shownItem.source}</dd>
                       </div>
                     )}
-                    <div>
-                      <dt>Type</dt>
-                      <dd>{fileTypeFor(shownItem)}</dd>
-                    </div>
                     {size && (
                       <div>
                         <dt>Size</dt>
@@ -1064,7 +1335,12 @@ export function ExpandedItemOverlay({
                 aria-pressed={isPinned}
                 title={isPinned ? "Unstar" : "Star to Top of mind"}
               >
-                <HugeiconsIcon icon={StarIcon} size={15} />
+                <BarGlyph>
+                  <path
+                    d="M12 3l2.4 5.6L20 9.3l-4.3 3.9 1.2 5.8L12 16.1 7.1 19l1.2-5.8L4 9.3l5.6-.7z"
+                    fill={isPinned ? "currentColor" : "none"}
+                  />
+                </BarGlyph>
               </button>
               {spaces && spaces.length > 0 && (
                 <button
@@ -1075,7 +1351,9 @@ export function ExpandedItemOverlay({
                   aria-expanded={isSpaceMenuOpen}
                   title="Move to Space"
                 >
-                  <HugeiconsIcon icon={FolderAddIcon} size={15} />
+                  <BarGlyph>
+                    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  </BarGlyph>
                 </button>
               )}
               {shownItem.sourceUrl && (
@@ -1086,7 +1364,23 @@ export function ExpandedItemOverlay({
                   aria-label={`Open ${sourceHost ?? "original"}`}
                   title={`Open ${sourceHost ?? "original"}`}
                 >
-                  <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />
+                  <BarGlyph>
+                    <path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
+                  </BarGlyph>
+                </button>
+              )}
+              {actions.onShowInFolder && (
+                <button
+                  type="button"
+                  className="item-bar-button"
+                  onClick={() => actions.onShowInFolder?.(shownItem)}
+                  aria-label="Show in folder"
+                  title="Show in folder"
+                >
+                  <BarGlyph>
+                    <path d="M3 18V7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v1" />
+                    <path d="M3 18l2.6-6.4A2 2 0 0 1 7.5 10H21l-2.8 7.4A2 2 0 0 1 16.3 19H4a1 1 0 0 1-1-1z" />
+                  </BarGlyph>
                 </button>
               )}
               <button
@@ -1096,8 +1390,24 @@ export function ExpandedItemOverlay({
                 aria-label="Archive"
                 title="Archive"
               >
-                <HugeiconsIcon icon={Archive01Icon} size={15} />
+                <BarGlyph>
+                  <rect x="3" y="4" width="18" height="4" rx="1" />
+                  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M10 12h4" />
+                </BarGlyph>
               </button>
+              {actions.onDelete && shownItem.archived && (
+                <button
+                  type="button"
+                  className="item-bar-button is-end"
+                  onClick={() => actions.onDelete?.(shownItem)}
+                  aria-label="Delete permanently"
+                  title="Delete permanently"
+                >
+                  <BarGlyph>
+                    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+                  </BarGlyph>
+                </button>
+              )}
             </footer>
           )}
         </aside>

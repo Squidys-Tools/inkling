@@ -14,6 +14,7 @@ export type StoredLibraryItem = {
   sourceLabel: string | null;
   localAssetPath: string | null;
   thumbnailPath: string | null;
+  palette?: string[];
   ocrText: string;
   metadata: Record<string, unknown>;
   createdAt: number;
@@ -41,6 +42,9 @@ export type StoredLibraryCard = Omit<
     mediaHeight?: unknown;
     mediaAspectRatio?: unknown;
     pdfPageCount?: unknown;
+    durationSeconds?: unknown;
+    fileSizeBytes?: unknown;
+    readingMinutes?: unknown;
   };
   hasArticleContent: boolean;
 };
@@ -147,6 +151,8 @@ export type StoredSpace = {
   position: number;
   createdAt: number;
   updatedAt: number;
+  /** How many items the Space holds, when the core reports it. The sidebar shows it when present. */
+  itemCount?: number;
 };
 
 export type CreateSpaceInput = {
@@ -238,6 +244,39 @@ export async function initializeStorage() {
     throw error;
   });
   return storageInitialization;
+}
+
+export async function getAppVersion() {
+  if (!isDesktopRuntime()) return undefined;
+  return invoke<string>("get_app_version");
+}
+
+export type LibrarySize = { bytes: number };
+
+export async function getLibrarySize(refresh = true) {
+  if (!isDesktopRuntime()) return undefined;
+  await initializeStorage();
+  return invoke<LibrarySize>("get_library_size", { refresh });
+}
+
+export type LastExport = { exportedAt: number; items: number };
+
+export async function getLastExport() {
+  if (!isDesktopRuntime()) return undefined;
+  await initializeStorage();
+  return invoke<LastExport | null>("get_last_export");
+}
+
+export async function showLibraryFolder() {
+  if (!isDesktopRuntime()) return false;
+  await initializeStorage();
+  return invoke<boolean>("show_library_folder");
+}
+
+export async function showItemInFolder(id: string) {
+  if (!isDesktopRuntime()) return false;
+  await initializeStorage();
+  return invoke<boolean>("show_item_in_folder", { id });
 }
 
 async function withInitializedStorage<T>(operation: () => Promise<T>) {

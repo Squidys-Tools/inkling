@@ -5,8 +5,8 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
-  rmSync,
   writeFileSync,
+  rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -722,6 +722,24 @@ test("export counts and copies assets from the database snapshot", async () => {
   expect(
     JSON.parse(readFileSync(join(report.directory, "manifest.json"), "utf8")).counts.items,
   ).toBe(1);
+});
+
+test("successful export details persist across reopening the library", async () => {
+  const { root, library } = temporaryLibrary();
+  library.createNote({ title: "Exported note", body: "A small library copy." });
+  const destination = join(root, "exports");
+  mkdirSync(destination);
+
+  const report = await library.exportLibrary(destination, 0);
+  const lastExport = library.getLastExport();
+  expect(lastExport).toMatchObject({
+    exportedAt: expect.any(Number),
+    items: report.items,
+  });
+  closeDatabase(library.db);
+
+  const reopened = trackedLibrary(join(root, "library.sqlite3"));
+  expect(reopened.getLastExport()).toEqual(lastExport);
 });
 
 test("restore rejects item ids that could escape the managed asset directory", async () => {

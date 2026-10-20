@@ -9,6 +9,7 @@ import { extractPdfTextByPages } from "./pdf.mjs";
 import {
   JOB_LEASE_MILLIS,
   JobWorker,
+  IMAGE_PALETTE_JOB,
   openLibraryStorage,
   PDF_THUMBNAIL_JOB,
   URL_ENRICHMENT_JOB,
@@ -328,6 +329,23 @@ test("PDF capture stays instant and the OCR job publishes the page-one thumbnail
       .map((job) => job.kind)
       .sort(),
   ).toEqual(["generate_embedding", "ocr_pdf_page"]);
+  await ai.close();
+});
+
+test("image palette job reads the thumbnail and persists five dominant colors", async () => {
+  const { root, library } = temporaryLibrary();
+  const image = await library.saveFile({
+    fileName: "palette.png",
+    mimeType: "image/png",
+    kind: "image",
+    bytes: [...readFileSync("benchmarks/corpus/images/image-columns-01.png")],
+  });
+  const ai = createAiJobProcessors({ modelCacheDirectory: join(root, "models"), ...unusedModels });
+  await ai.processors[IMAGE_PALETTE_JOB]({ itemId: image.id }, library);
+  expect(library.getItem(image.id)?.palette).toHaveLength(5);
+  expect(library.getItem(image.id)?.palette?.every((color) => /^#[0-9a-f]{6}$/i.test(color))).toBe(
+    true,
+  );
   await ai.close();
 });
 

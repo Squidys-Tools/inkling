@@ -20,8 +20,9 @@ import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
 const SCHEMA_VERSION = 8;
 export const JOB_LEASE_MILLIS = 5 * 60 * 1000;
 export const PDF_THUMBNAIL_JOB = "pdf_thumbnail";
+export const IMAGE_PALETTE_JOB = "image_palette";
 export const URL_ENRICHMENT_JOB = "enrich_url";
-const SILENT_JOB_KINDS = new Set([PDF_THUMBNAIL_JOB]);
+const SILENT_JOB_KINDS = new Set([PDF_THUMBNAIL_JOB, IMAGE_PALETTE_JOB]);
 const silentKindsSql = [...SILENT_JOB_KINDS].map((kind) => `'${kind}'`).join(", ");
 
 const maxFileBytes = 50 * 1024 * 1024;
@@ -151,6 +152,7 @@ function parseObject(value, label = "metadata") {
 
 function itemFromRow(row) {
   if (!row) return null;
+  const metadata = parseJson(row.metadata, {});
   return {
     id: row.id,
     kind: row.kind,
@@ -163,7 +165,8 @@ function itemFromRow(row) {
     localAssetPath: row.local_asset_path,
     thumbnailPath: row.thumbnail_path,
     ocrText: row.ocr_text,
-    metadata: parseJson(row.metadata, {}),
+    metadata,
+    palette: Array.isArray(metadata.palette) ? metadata.palette : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archived: row.archived !== 0,
@@ -189,6 +192,7 @@ function cardItem(item) {
     sourceLabel: item.sourceLabel,
     localAssetPath: item.localAssetPath,
     thumbnailPath: item.thumbnailPath,
+    palette: Array.isArray(metadata.palette) ? metadata.palette : undefined,
     ocrText: String(item.ocrText ?? "")
       .trim()
       .slice(0, 180),
@@ -1481,7 +1485,10 @@ class LibraryStorage {
             now,
           );
       }
-      if (kind === "image") this.jobs.enqueue(id, "ocr_image", { notify: false });
+      if (kind === "image") {
+        this.jobs.enqueue(id, "ocr_image", { notify: false });
+        this.jobs.enqueue(id, IMAGE_PALETTE_JOB, { notify: false });
+      }
       if (kind === "pdf") this.jobs.enqueue(id, "ocr_pdf_page", { notify: false });
       this.jobs.enqueue(id, "generate_embedding", { notify: false });
       this.db.exec("COMMIT");
@@ -1527,6 +1534,41 @@ class LibraryStorage {
     } finally {
       await rm(staging, { recursive: true, force: true });
     }
+  }
+
+  nextImagePaletteCandidate(afterRowid) {
+    return this.db
+      .prepare(`SELECT rowid, id FROM items
+        WHERE kind = 'image' AND thumbnail_path IS NOT NULL AND rowid > ?
+        AND NOT EXISTS (SELECT 1 FROM jobs WHERE item_id = items.id AND kind = ? AND status = 'failed')
+        AND json_type(metadata, '$.palette') IS NULL
+        ORDER BY rowid LIMIT 1`)
+      .get(afterRowid, IMAGE_PALETTE_JOB);
+  }
+
+  storeImagePalette(id, palette) {
+    if (
+      !Array.isArray(palette) ||
+      palette.length !== 5 ||
+      palette.some((color) => typeof color !== "string" || !/^#[0-9a-f]{6}$/i.test(color))
+    ) {
+      throw new Error("invalid storage input: image palette must contain five hex colors");
+    }
+    const item = this.getItem(id);
+    if (item?.kind !== "image") return false;
+    const metadata = { ...item.metadata, palette };
+    const updated = this.db
+      .prepare("UPDATE items SET metadata = ? WHERE id = ? AND kind = 'image'")
+      .run(JSON.stringify(metadata), id).changes;
+    if (updated) this.jobs.notify(id);
+    return updated > 0;
+  }
+
+  getLastExport() {
+    const row = this.db.prepare("SELECT value FROM app_settings WHERE key = 'last_export'").get();
+    const value = parseJson(row?.value, null);
+    if (!value || !Number.isFinite(value.exportedAt) || !Number.isInteger(value.items)) return null;
+    return { exportedAt: value.exportedAt, items: value.items };
   }
 
   resolveAssetPath(assetPath) {
@@ -1960,7 +2002,7 @@ class LibraryStorage {
         regenerable: { tables: ["item_embeddings", "items_fts"], columns: ["items.ocr_text"] },
       };
       await writeFile(join(directory, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-      return {
+      const report = {
         directory,
         items: itemIds.length,
         archivedItems,
@@ -1970,6 +2012,11 @@ class LibraryStorage {
         databaseBytes,
         assetsBytes: copied.assetsBytes,
       };
+      this.db
+        .prepare(`INSERT INTO app_settings (key, value) VALUES ('last_export', ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+        .run(JSON.stringify({ exportedAt, items: report.items }));
+      return report;
     } catch (error) {
       await rm(directory, { recursive: true, force: true });
       throw error;

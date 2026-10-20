@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createEmbeddingEngine } from "./embeddings.mjs";
 import { IMAGE_MODEL } from "./embedding-contract.mjs";
 import { createTesseractOcr } from "./ocr.mjs";
-import { markdownToPlainText, PDF_THUMBNAIL_JOB } from "./storage.mjs";
+import { IMAGE_PALETTE_JOB, markdownToPlainText, PDF_THUMBNAIL_JOB } from "./storage.mjs";
 
 async function itemAsset(storage, item) {
   if (!item?.localAssetPath) throw new Error("item has no local asset path");
@@ -55,6 +55,8 @@ export function createAiJobProcessors({
 } = {}) {
   let thumbnailCursor = 0;
   let thumbnailBackfillDone = false;
+  let paletteCursor = 0;
+  let paletteBackfillDone = false;
 
   const processors = {
     async enrich_url(job, storage, workerId) {
@@ -118,6 +120,17 @@ export function createAiJobProcessors({
       await storage.storePdfThumbnail(item.id, await renderPdfFirstPage(pdfBytes));
     },
 
+    async [IMAGE_PALETTE_JOB](job, storage) {
+      const item = storage.getItem(job.itemId);
+      if (item?.kind !== "image") throw new Error("image item not found");
+      if (!item.thumbnailPath) throw new Error("image thumbnail is not ready");
+      const { dominantImageColors } = await import("./thumbnail.mjs");
+      const colors = await dominantImageColors(
+        await readFile(await storage.resolveAssetPath(item.thumbnailPath)),
+      );
+      storage.storeImagePalette(item.id, colors);
+    },
+
     async generate_embedding(job, storage, workerId) {
       const item = storage.getItem(job.itemId);
       if (!item) throw new Error("item not found");
@@ -168,6 +181,15 @@ export function createAiJobProcessors({
   return {
     processors,
     onIdle(storage) {
+      if (!paletteBackfillDone) {
+        const nextPalette = storage.nextImagePaletteCandidate(paletteCursor);
+        if (nextPalette) {
+          storage.jobs.enqueue(nextPalette.id, IMAGE_PALETTE_JOB, { notify: false });
+          paletteCursor = nextPalette.rowid;
+          return;
+        }
+        paletteBackfillDone = true;
+      }
       if (thumbnailBackfillDone) return;
       const next = storage.nextPdfThumbnailCandidate(thumbnailCursor);
       if (!next) {

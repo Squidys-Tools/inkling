@@ -39,6 +39,14 @@ export function scrollViewport(root: HTMLElement | null): HTMLElement | null {
   return root.querySelector<HTMLElement>('[data-testid="virtuoso-scroller"]') ?? root;
 }
 
+// The floating toolbar covers the top of the grid, so a card only counts as
+// visible below the toolbar's bottom edge.
+export function scrollViewportRect(scroller: HTMLElement, toolbar: HTMLElement | null): FlightRect {
+  const rect = rectFrom(scroller.getBoundingClientRect());
+  const top = Math.max(rect.top, toolbar?.getBoundingClientRect().bottom ?? rect.top);
+  return { ...rect, top, height: Math.max(0, rect.top + rect.height - top) };
+}
+
 // Measures the live grid card for an item, if it is still mounted. Returns
 // viewport coordinates so flights can run inside the fixed overlay layer.
 export function queryCardRects(id: string | number): SourceRects | null {

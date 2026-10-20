@@ -19,7 +19,13 @@ export type LibraryItem = {
   mediaWidth?: number;
   mediaHeight?: number;
   mediaAspectRatio?: number;
+  /** Dominant colours as CSS colour strings, shown as swatches in the item view. */
+  palette?: string[];
   pdfPageCount?: number;
+  // Card-only facts the backend may index. Each one renders only when present.
+  durationSeconds?: number;
+  fileSizeBytes?: number;
+  readingMinutes?: number;
   fileUrl?: string;
   imageAlt?: string;
   sourceUrl?: string;

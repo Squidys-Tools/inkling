@@ -102,3 +102,29 @@ export async function createImageThumbnail(bytes) {
     height: isRotated ? width : height,
   };
 }
+
+export async function dominantImageColors(bytes) {
+  const input = await sharpImageInput(bytes);
+  const { data, info } = await sharp(input, { limitInputPixels: maxImagePixels })
+    .resize({ width: 64, height: 64, fit: "inside", withoutEnlargement: true })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const bins = new Map();
+  for (let index = 0; index < data.length; index += info.channels) {
+    const red = data[index] >> 4;
+    const green = data[index + 1] >> 4;
+    const blue = data[index + 2] >> 4;
+    const key = (red << 8) | (green << 4) | blue;
+    bins.set(key, (bins.get(key) ?? 0) + 1);
+  }
+  const colors = [...bins]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 5)
+    .map(
+      ([key]) =>
+        `#${((key >> 8) * 17).toString(16).padStart(2, "0")}${(((key >> 4) & 15) * 17).toString(16).padStart(2, "0")}${((key & 15) * 17).toString(16).padStart(2, "0")}`,
+    );
+  while (colors.length < 5) colors.push(colors.at(-1) ?? "#000000");
+  return colors;
+}

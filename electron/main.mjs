@@ -7,6 +7,7 @@ import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "../src/lib/deepLinkC
 import { startCaptureServer } from "./capture-server.mjs";
 import { createAiJobProcessors, enqueueStaleImageEmbeddings } from "./ai-jobs.mjs";
 import { createSingleFlightDirectoryPicker } from "./native-dialog.mjs";
+import { createLibrarySizeCache } from "./library-size.mjs";
 import { createUpdateController } from "./updater.mjs";
 import { JobWorker, openLibraryStorage, resolveLibraryDataDirectory } from "./storage.mjs";
 import { snapshotDatabase } from "./sqlite-snapshot.mjs";
@@ -34,6 +35,10 @@ let libraryStorage;
 let jobWorker;
 let captureServer;
 let aiJobProcessors;
+const librarySizeCache = createLibrarySizeCache(
+  join(libraryDirectory, "library.sqlite3"),
+  join(libraryDirectory, "assets"),
+);
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -154,6 +159,24 @@ const chooseLibraryDirectory = createSingleFlightDirectoryPicker({
 function registerLibraryCommands() {
   const storageCommands = {
     initialize_storage: () => initializeLibraryStorage(),
+    get_app_version: () => app.getVersion(),
+    get_library_size: async ({ refresh = false }) => {
+      initializeLibraryStorage();
+      return librarySizeCache.get({ refresh: Boolean(refresh) });
+    },
+    get_last_export: () => requireLibraryStorage().getLastExport(),
+    show_library_folder: async () => {
+      const error = await shell.openPath(libraryDirectory);
+      if (error) throw new Error(error);
+      return true;
+    },
+    show_item_in_folder: async ({ id }) => {
+      const item = requireLibraryStorage().getItem(id);
+      if (!item?.localAssetPath) return false;
+      const assetPath = await requireLibraryStorage().resolveAssetPath(item.localAssetPath);
+      shell.showItemInFolder(assetPath);
+      return true;
+    },
     list_active_items: () => requireLibraryStorage().listActiveItems(),
     list_archived_items: () => requireLibraryStorage().listArchivedItems(),
     get_item: ({ id }) => requireLibraryStorage().getItem(id),
