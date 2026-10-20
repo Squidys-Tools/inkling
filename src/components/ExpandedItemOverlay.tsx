@@ -20,6 +20,7 @@ import {
   PlusSignIcon,
   RotateCwIcon,
 } from "@hugeicons/core-free-icons";
+import { isElectronRuntime } from "../lib/libraryApi";
 import type { LibraryItem } from "../lib/types";
 import type { ReaderOrigin } from "../ReaderView";
 import {
@@ -722,10 +723,15 @@ export function ExpandedItemOverlay({
   // was showing, while React's item prop already points at the next one.
   const shownItem = flight?.kind === "close" ? flight.fromItem : item;
 
+  // In the desktop app the window controls sit over the band the shell reserves at
+  // the top of the frame (its padding-top), so the view starts below that band.
   const frameRect = useCallback((): FlightRect => {
-    const rect = frameRef.current?.getBoundingClientRect();
-    if (rect) return rectFrom(rect);
-    return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    const frame = frameRef.current;
+    if (!frame) return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    const rect = rectFrom(frame.getBoundingClientRect());
+    if (!isElectronRuntime()) return rect;
+    const band = Number.parseFloat(getComputedStyle(frame).paddingTop) || 0;
+    return { ...rect, top: rect.top + band, height: rect.height - band };
   }, [frameRef]);
 
   // Grows the view from a card-sized rectangle into the library frame.

@@ -4060,6 +4060,9 @@ function App() {
   // Both sit under the toolbar in one column, so a capture error and the pinned
   // query row stack instead of overlapping.
   const showFilterRow = isSerendipityView || (!isSearchFocused && query.trim() !== "");
+  // A pinned query has its own band above the grid, so the grid starts below it.
+  // Only this boolean reaches the DOM, so typing does not restyle the grid.
+  const hasPinnedQuery = !isSerendipityView && showFilterRow;
   const showCaptureError = Boolean(captureError) && !isAdding;
 
   // The Regular Spaces an item can be filed into, and whether it already is.
@@ -5552,7 +5555,10 @@ function App() {
             )}
           </AnimatePresence>
 
-          <div className="library-scroll" ref={libraryScrollRef}>
+          <div
+            className={`library-scroll${hasPinnedQuery ? " has-pinned-query" : ""}`}
+            ref={libraryScrollRef}
+          >
             {isSerendipityView ? (
               <section
                 className="serendipity-stage"
