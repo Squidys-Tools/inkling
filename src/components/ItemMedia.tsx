@@ -84,19 +84,36 @@ export function pdfPreviewTitle(value: string): string {
 
 export function PdfArtwork({ item }: { item: LibraryItem }) {
   return (
+    <DocumentArtwork
+      label="PDF"
+      title={pdfPreviewTitle(item.title) || "Document"}
+      count={item.pdfPageCount ? `${item.pdfPageCount} PAGES` : "PDF"}
+    />
+  );
+}
+
+/** The shared PDF and note thumbnail; onboarding draws its sample cards with it too. */
+export function DocumentArtwork({
+  label,
+  title,
+  count,
+}: {
+  label: string;
+  title: string;
+  count: string;
+}) {
+  return (
     <div className="pdf-artwork">
       <img src={pdfPointillismOptionB} alt="" className="pdf-shader" />
-      <span className="pdf-label">PDF</span>
+      <span className="pdf-label">{label}</span>
       <span className="pdf-mark" aria-hidden="true" />
-      <span className="pdf-title">{pdfPreviewTitle(item.title) || "Document"}</span>
+      <span className="pdf-title">{title}</span>
       <div className="pdf-legend" aria-hidden="true">
         <span />
         <span />
         <span />
       </div>
-      <span className="pdf-page-count">
-        {item.pdfPageCount ? `${item.pdfPageCount} PAGES` : "PDF"}
-      </span>
+      <span className="pdf-page-count">{count}</span>
     </div>
   );
 }
@@ -119,18 +136,11 @@ export function NoteArtwork({ item }: { item: LibraryItem }) {
     item.noteBody === undefined ? item.description : markdownToPlainText(item.noteBody),
   );
   return (
-    <div className="pdf-artwork">
-      <img src={pdfPointillismOptionB} alt="" className="pdf-shader" />
-      <span className="pdf-label">NOTE</span>
-      <span className="pdf-mark" aria-hidden="true" />
-      <span className="pdf-title">{item.title?.trim() || "Untitled note"}</span>
-      <div className="pdf-legend" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
-      <span className="pdf-page-count">{words > 0 ? `${words} WORDS` : "NOTE"}</span>
-    </div>
+    <DocumentArtwork
+      label="NOTE"
+      title={item.title?.trim() || "Untitled note"}
+      count={words > 0 ? `${words} WORDS` : "NOTE"}
+    />
   );
 }
 

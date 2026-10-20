@@ -100,10 +100,12 @@ function driftBody(t: number): Pose {
   const wave = (base: number, depth: number, period: number, phase: number) =>
     base + depth * Math.sin((t * TAU) / period + phase);
   // Amplitudes : chacune s'eteint presque puis revient, a son heure.
-  const a5 = wave(0.055, 0.032, 14, 0);
-  const a3 = wave(0.04, 0.022, 10, 2.1);
-  const a2 = wave(0.03, 0.016, 21, 4.2);
-  const a7 = wave(0.012, 0.006, 6, 1.3);
+  // INKLING EXTENSION: scaled to 0.6 of the original, which pulled lobes deep
+  // enough to read as dents and to crowd the eyes.
+  const a5 = wave(0.033, 0.019, 14, 0);
+  const a3 = wave(0.024, 0.013, 10, 2.1);
+  const a2 = wave(0.018, 0.0096, 21, 4.2);
+  const a7 = wave(0.0072, 0.0036, 6, 1.3);
   // Phases : les lobes 5 et 3 circulent en sens inverse, les autres
   // glissent lentement — la figure ne repasse jamais deux fois pareille.
   const p5 = 0.8 + (t * TAU) / 26;
