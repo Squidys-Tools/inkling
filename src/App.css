@@ -4911,10 +4911,20 @@ a:focus-visible,
   height: 540px;
   transform-origin: center;
 }
+/* One type and control scale for every welcome screen, in stage pixels. The
+   stage itself scales with the window (FirstRunOverlay), so these never do. */
+.first-run-stage {
+  --fr-headline: 68px;
+  --fr-body: 21px;
+  --fr-small: 15px;
+  --fr-button-h: 54px;
+  --fr-button: 19px;
+  --fr-quiet: 18px;
+}
 .first-run-headline {
   position: absolute;
   margin: 0;
-  font-size: 56px;
+  font-size: var(--fr-headline);
   font-weight: 500;
   letter-spacing: -0.03em;
   line-height: 1.05;
@@ -4923,8 +4933,8 @@ a:focus-visible,
 .first-run-body {
   position: absolute;
   margin: 0;
-  font-size: 18px;
-  line-height: 1.6;
+  font-size: var(--fr-body);
+  line-height: 1.55;
   color: var(--library-muted);
   white-space: nowrap;
 }
@@ -4948,97 +4958,161 @@ a:focus-visible,
   align-items: center;
   gap: 8px;
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: var(--fr-small);
   color: var(--library-muted);
 }
 .first-run-keys kbd {
-  padding: 3px 9px;
+  min-width: 34px;
+  padding: 5px 11px;
+  box-sizing: border-box;
   border: 1px solid var(--library-border);
-  border-radius: 6px;
+  border-bottom-width: 2px;
+  border-radius: 8px;
   background: var(--library-surface);
   color: var(--library-text);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fr-small);
+  text-align: center;
 }
 .first-run-keys span {
   margin-left: 8px;
+}
+.first-run-crumb .breadcrumb-list {
+  font-size: var(--fr-small);
 }
 .first-run-actions {
   position: absolute;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 18px;
 }
 .first-run-primary {
-  height: 46px;
-  padding: 0 28px;
+  min-width: 204px;
+  height: var(--fr-button-h);
+  padding: 0 32px;
   border: 0;
   border-radius: 999px;
   background: var(--library-text);
   color: var(--library-canvas);
   font: inherit;
-  font-size: 16px;
+  font-size: var(--fr-button);
   cursor: pointer;
 }
 .first-run-quiet {
+  height: var(--fr-button-h);
+  padding: 0 4px;
   border: 0;
   background: transparent;
   color: var(--library-muted);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--fr-quiet);
   cursor: pointer;
 }
 .first-run-quiet:hover,
 .first-run-quiet:focus-visible {
   color: var(--library-text);
 }
-/* The first and last screens' text block, about 1.3x the other screens' type. Its
-   positions are set inline in FirstRunOverlay. */
-.first-run-stage.is-large .first-run-headline {
-  font-size: 73px;
+.first-run-mascot {
+  position: absolute;
+  line-height: 0;
+  pointer-events: none;
+  animation: fr-mascot-in 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.first-run-stage.is-large .first-run-body {
-  font-size: 23px;
+.first-run-mascot.is-right {
+  --fr-corner: 1;
 }
-.first-run-stage.is-large .first-run-keys {
-  gap: 10px;
-  font-size: 17px;
+.first-run-mascot.is-left {
+  --fr-corner: -1;
 }
-.first-run-stage.is-large .first-run-keys kbd {
-  padding: 4px 12px;
-  border-radius: 8px;
-  font-size: 16px;
+.first-run-mascot.is-leaving {
+  animation: fr-mascot-out 320ms cubic-bezier(0.55, 0, 0.75, 0.4) both;
 }
-.first-run-stage.is-large .first-run-keys span {
-  margin-left: 10px;
-}
-.first-run-stage.is-large .first-run-actions {
-  gap: 18px;
-}
-.first-run-stage.is-large .first-run-primary {
-  height: 60px;
-  padding: 0 36px;
-  font-size: 21px;
-}
-.first-run-stage.is-large .first-run-crumb {
-  font-size: 16px;
-}
-.first-run-stage.is-large .first-run-quiet {
-  font-size: 20px;
-}
+/* Screens trade places sideways: --fr-dir is 1 going forward and -1 going
+   back, so the outgoing screen slips one way and the next arrives from the
+   other. Only opacity, translate and filter move, never the stage's scale. */
 .first-run-stage {
-  animation: first-run-enter 320ms ease-out both;
+  animation: fr-stage-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.first-run-stage.is-leaving {
+  pointer-events: none;
+  animation: fr-stage-out 320ms cubic-bezier(0.55, 0, 0.75, 0.4) both;
+}
+.first-run-overlay.is-closing {
+  pointer-events: none;
+  animation: fr-fade-out 320ms ease-in both;
+}
+/* The copy under each headline rises in once the headline has mostly landed. */
+.first-run-body,
+.first-run-keys,
+.first-run-crumb .breadcrumb-list > * {
+  animation: fr-rise 640ms cubic-bezier(0.22, 1, 0.36, 1) var(--fr-copy-delay, 0s) both;
+}
+.first-run-crumb .breadcrumb-list > :nth-child(2) {
+  animation-delay: calc(var(--fr-copy-delay, 0s) + 260ms);
+}
+.first-run-crumb .breadcrumb-list > :nth-child(3) {
+  animation-delay: calc(var(--fr-copy-delay, 0s) + 340ms);
+}
+.first-run-crumb .breadcrumb-list > :nth-child(4) {
+  animation-delay: calc(var(--fr-copy-delay, 0s) + 600ms);
+}
+.first-run-crumb .breadcrumb-list > :nth-child(5) {
+  animation-delay: calc(var(--fr-copy-delay, 0s) + 680ms);
+}
+/* Each key taps down once, in order, as if pressed. */
+.first-run-keys kbd {
+  animation: fr-key-press 260ms ease-out calc(var(--fr-copy-delay, 0s) + 700ms);
+}
+.first-run-keys kbd + kbd {
+  animation-delay: calc(var(--fr-copy-delay, 0s) + 820ms);
 }
 @keyframes first-run-enter {
   from {
     opacity: 0;
   }
 }
-.first-run-mascot {
-  position: absolute;
-  line-height: 0;
-  pointer-events: none;
-  animation: first-run-enter 600ms ease-out both;
+@keyframes fr-stage-in {
+  from {
+    opacity: 0;
+    translate: calc(var(--fr-dir, 1) * 40px) 0;
+  }
+}
+@keyframes fr-stage-out {
+  to {
+    opacity: 0;
+    translate: calc(var(--fr-dir, 1) * -40px) 0;
+    filter: blur(6px);
+  }
+}
+@keyframes fr-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes fr-rise {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+@keyframes fr-mascot-in {
+  from {
+    opacity: 0;
+    translate: calc(var(--fr-corner) * 10%) 16%;
+  }
+}
+@keyframes fr-mascot-out {
+  to {
+    opacity: 0;
+    translate: calc(var(--fr-corner) * 6%) 10%;
+  }
+}
+@keyframes fr-key-press {
+  45% {
+    translate: 0 2px;
+    border-bottom-width: 1px;
+    background: var(--library-border);
+  }
 }
 .first-run-card {
   position: absolute;
@@ -5062,7 +5136,7 @@ a:focus-visible,
   justify-content: center;
   padding: 28px;
   text-align: center;
-  font-size: 21px;
+  font-size: var(--fr-body);
   line-height: 1.35;
   color: var(--library-text);
 }
@@ -5074,11 +5148,14 @@ a:focus-visible,
   object-fit: cover;
   filter: blur(12px) brightness(0.5) saturate(0.9);
 }
+/* Takes no room in the line (the right margin cancels its width), so it
+   never wraps on its own ahead of the word it follows. */
 .memory-caret {
   display: inline-block;
   width: 1.5px;
   height: 1.05em;
   margin-left: 2px;
+  margin-right: -3.5px;
   vertical-align: -0.15em;
   background: var(--library-text);
   animation: memory-caret 1s steps(1) infinite;
@@ -5089,19 +5166,26 @@ a:focus-visible,
   }
 }
 .memory-match {
-  --memory-card-w: 212px;
-  --memory-card-h: 248px;
+  --memory-card-w: 264px;
+  --memory-card-h: 308px;
+  --memory-top: 0px;
+}
+.memory-card {
+  left: 131px;
+  top: var(--memory-top);
+  animation: fr-rise 640ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
 }
 .memory-found {
-  left: 580px;
-  top: 40px;
+  left: 565px;
+  top: var(--memory-top);
   animation: first-run-enter 450ms ease-out both;
 }
 /* The empty frame the photo will arrive in. */
 .memory-slot {
   position: absolute;
-  left: 580px;
-  top: 40px;
+  left: 565px;
+  top: var(--memory-top);
+  animation: fr-rise 640ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both;
   width: var(--memory-card-w);
   height: var(--memory-card-h);
   box-sizing: border-box;
@@ -5110,7 +5194,9 @@ a:focus-visible,
 }
 .memory-trail {
   position: absolute;
-  width: 200px;
+  left: 395px;
+  top: calc(var(--memory-top) + var(--memory-card-h) / 2);
+  width: 170px;
   height: 0;
 }
 /* Each dot lights up in turn, so the glow travels left to right and the
@@ -5185,7 +5271,7 @@ a:focus-visible,
   background: var(--library-surface);
   color: var(--library-text);
   will-change: transform;
-  animation: first-run-enter 700ms ease-out both;
+  animation: kept-card-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .kept-card.is-far {
   border-radius: 9px;
@@ -5195,11 +5281,16 @@ a:focus-visible,
 .kept-card.is-mid {
   border-radius: 10px;
   opacity: 0.85;
-  animation-delay: 120ms;
 }
 .kept-card.is-near {
   box-shadow: 0 18px 40px rgb(0 0 0 / 0.55);
-  animation-delay: 240ms;
+}
+/* KeptFloating owns transform, so the cards grow in with scale. */
+@keyframes kept-card-in {
+  from {
+    opacity: 0;
+    scale: 0.88;
+  }
 }
 .kept-card.is-photo,
 .kept-card.is-video {
@@ -5287,7 +5378,7 @@ a:focus-visible,
 }
 .reads-pictures {
   position: absolute;
-  left: 500px;
+  left: 524px;
   top: 0;
   width: 428px;
   height: 540px;
@@ -5329,6 +5420,7 @@ a:focus-visible,
   border-radius: 20px;
   background: var(--library-surface);
   font-size: 15px;
+  animation: fr-rise 640ms cubic-bezier(0.22, 1, 0.36, 1) 150ms both;
 }
 .reads-eyes {
   display: flex;
@@ -5490,10 +5582,17 @@ a:focus-visible,
 }
 @media (prefers-reduced-motion: reduce) {
   .first-run-stage,
-  .first-run-mascot {
+  .first-run-mascot,
+  .first-run-body,
+  .first-run-keys,
+  .first-run-keys kbd,
+  .first-run-crumb .breadcrumb-list > *,
+  .memory-card,
+  .memory-slot {
     animation: none;
   }
   .reads-card,
+  .reads-search,
   .reads-receipt,
   .reads-receipt-mark {
     animation: none;

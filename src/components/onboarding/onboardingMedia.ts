@@ -1,6 +1,5 @@
 import book from "../../assets/onboarding/book.webp";
 import car from "../../assets/onboarding/car.webp";
-import daisy from "../../assets/onboarding/daisy.webp";
 import delphinium from "../../assets/onboarding/delphinium.webp";
 import deskPlant from "../../assets/onboarding/desk-plant.webp";
 import field from "../../assets/onboarding/field.webp";
@@ -9,7 +8,6 @@ import pottery from "../../assets/onboarding/pottery.webp";
 import record from "../../assets/onboarding/record.webp";
 import redRocks from "../../assets/onboarding/red-rocks.webp";
 import sea from "../../assets/onboarding/sea.webp";
-import sketching from "../../assets/onboarding/sketching.webp";
 import sprig from "../../assets/onboarding/sprig.webp";
 import stairs from "../../assets/onboarding/stairs.webp";
 import vases from "../../assets/onboarding/vases.webp";
@@ -21,7 +19,6 @@ import vases from "../../assets/onboarding/vases.webp";
 export const onboardingPhotos = {
   book,
   car,
-  daisy,
   delphinium,
   deskPlant,
   field,
@@ -30,7 +27,6 @@ export const onboardingPhotos = {
   record,
   redRocks,
   sea,
-  sketching,
   sprig,
   stairs,
   vases,

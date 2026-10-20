@@ -15,6 +15,8 @@ export function OnboardingMascot({
   faces,
   look,
   speed = 1,
+  side,
+  leaving = false,
   style,
 }: {
   size: number;
@@ -23,6 +25,10 @@ export function OnboardingMascot({
   look: { yaw: number; pitch: number };
   /** Playback rate of the animation and the face changes (1 = normal). */
   speed?: number;
+  /** Which bottom corner it hangs off; it rises in from, and sinks back toward, that corner. */
+  side: "left" | "right";
+  /** Set while the screen plays its exit. */
+  leaving?: boolean;
   style?: CSSProperties;
 }) {
   const [reduced] = useState(prefersReducedMotion);
@@ -38,7 +44,11 @@ export function OnboardingMascot({
   }, [faces, reduced, speed]);
 
   return (
-    <div className="first-run-mascot" style={style} aria-hidden="true">
+    <div
+      className={`first-run-mascot is-${side}${leaving ? " is-leaving" : ""}`}
+      style={style}
+      aria-hidden="true"
+    >
       <InklingMascot
         size={size}
         state="inkling-drift-faced"

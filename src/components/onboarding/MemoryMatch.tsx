@@ -15,14 +15,14 @@ const DOT_MS = 420;
 /** The photo is handed over as the last dot lands. */
 const SEARCH_MS = (TRAIL_DOTS - 1) * DOT_STEP_MS + DOT_MS;
 /** Matches --memory-card-w / --memory-card-h in App.css. */
-const CARD_ASPECT = 212 / 248;
+const CARD_ASPECT = 264 / 308;
 
 type Phase = "typing" | "searching" | "found";
 
 /** Dots hop along a shallow arc between the two cards; each is positioned once and never moves. */
 const trail = Array.from({ length: TRAIL_DOTS }, (_, i) => {
   const t = i / (TRAIL_DOTS - 1);
-  return { left: 24 + t * 152, top: -Math.sin(Math.PI * t) * 22, delay: i * DOT_STEP_MS };
+  return { left: 18 + t * 134, top: -Math.sin(Math.PI * t) * 22, delay: i * DOT_STEP_MS };
 });
 
 /**
@@ -57,14 +57,17 @@ export function MemoryMatch() {
 
   return (
     <div className={`memory-match is-${phase}`} aria-hidden="true">
-      <div className="first-run-card memory-card" style={{ left: 168, top: 40 }}>
+      <div className="first-run-card memory-card">
         <img className="memory-card-art" src={onboardingPhotos.redRocks} alt="" draggable={false} />
+        {/* One inline run, so the caret follows the last letter as the line wraps. */}
         <span className="first-run-card-text">
-          {MEMORY.slice(0, typed)}
-          {phase === "typing" ? <span className="memory-caret" /> : null}
+          <span>
+            {MEMORY.slice(0, typed)}
+            {phase === "typing" ? <span className="memory-caret" /> : null}
+          </span>
         </span>
       </div>
-      <div className="memory-trail" style={{ left: 380, top: 164 }}>
+      <div className="memory-trail">
         {trail.map((dot, i) => (
           <span
             key={dot.left}
