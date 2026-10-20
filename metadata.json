@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M5DTJH0HM5RVSTX1Y6GH5H7K",
+  "strategy": "manual-commit",
+  "branch": "feat/glass-surface",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "biome.jsonc"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 192,
+    "cache_creation_tokens": 225279,
+    "cache_read_tokens": 14621649,
+    "output_tokens": 86698,
+    "api_call_count": 95
+  }
+}
