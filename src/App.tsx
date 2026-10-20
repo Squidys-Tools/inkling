@@ -4295,6 +4295,7 @@ function App() {
   // In-memory back/forward history over view, search query, similar results, and open item.
   // Query changes commit after a pause so typing does not add an entry per key.
   const historyRef = useRef<{ entries: NavSnapshot[]; index: number }>({ entries: [], index: 0 });
+  const restoringNavKeyRef = useRef<string | null>(null);
   const pendingHistoryCloseRef = useRef<{ target: NavSnapshot; index: number } | null>(null);
   const [historyPos, setHistoryPos] = useState({ index: 0, length: 0 });
   const [historyCloseRequest, setHistoryCloseRequest] = useState(0);
@@ -4308,6 +4309,11 @@ function App() {
   const navKey = JSON.stringify(navSnapshot);
   // biome-ignore lint/correctness/useExhaustiveDependencies: navKey encodes the snapshot
   useEffect(() => {
+    const restoringNavKey = restoringNavKeyRef.current;
+    if (restoringNavKey) {
+      if (restoringNavKey === navKey) restoringNavKeyRef.current = null;
+      return;
+    }
     const history = historyRef.current;
     const current = history.entries[history.index];
     if (current && JSON.stringify(current) === navKey) return;
@@ -4324,7 +4330,10 @@ function App() {
       commit();
       return;
     }
-    const timer = window.setTimeout(commit, 600);
+    const timer = window.setTimeout(() => {
+      if (restoringNavKeyRef.current || history.entries[history.index] !== current) return;
+      commit();
+    }, 600);
     return () => window.clearTimeout(timer);
   }, [navKey]);
 
@@ -4345,6 +4354,7 @@ function App() {
         : undefined;
       // A vanished item restores as a closed overlay; keep the stack in step so it is not re-pushed.
       if (target.itemId && !item) target.itemId = null;
+      restoringNavKeyRef.current = JSON.stringify(target);
       if (!target.itemId && selectedItem) {
         pendingHistoryCloseRef.current = { target, index: history.index + delta };
         setActiveSpaceId(target.spaceId);
