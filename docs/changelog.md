@@ -76,6 +76,8 @@ Guardrails:
 - Local videos get a poster frame from a background job, so video cards no longer load the video file to show a frame, and a video without one shows the typed video card instead of an empty tile.
 - Library files are streamed with byte-range support instead of being read whole into memory, so large videos and PDFs start sooner and videos can seek.
 - The Settings Archive tab reads the archive only when it is opened and renders only the cards near the scroll position.
+- Item processing status asks for only the latest job of each kind and no longer fails on very large libraries.
+- The installed app no longer crashes with "Cannot find module 'regenerator-runtime/runtime'" when OCR starts.
 - The app no longer contacts Google Fonts or Twitter/X at startup: reader fonts are bundled with the app and the content security policy no longer allows Google Fonts requests
 - X post embeds load the X widget only when the user clicks to load the post, so cards and saved links no longer contact X or Twitter on open
 - The library bottom fade no longer shows a hard edge where the blur band starts or where it meets the padding below the grid: one blur layer feathers out through an eased mask, and a canvas-colored scrim dissolves content into the background at the grid's clip line (#149)
@@ -86,7 +88,7 @@ Guardrails:
 - Library cards load remote images in CORS mode and the desktop app adds a CORS header to image responses, so the liquid glass canvas can draw them; no extra requests are made (#170)
 - Electron defers canvas system-font loading until PDF work runs; BMP and ICO thumbnails use canvas without loading system fonts.
 - Library cards form a denser masonry grid with tighter gutters and natural media proportions; note and quote previews stay readable, while list, Archive, and Serendipity views keep their existing geometry.
-- Desktop window opens at 960 × 540 instead of 1000 × 800; the 320 × 360 minimum size is unchanged.
+- Desktop window opens at 1280 × 720 instead of 1000 × 800; the 320 × 360 minimum size is unchanged.
 - Developer experience: `tsc-rs` is the blocking typecheck gate for the root, benchmark, extension, and ingestion-shared projects, including the build scripts, and real `tsc` runs as a non-blocking CI canary (`typecheck:tsc`).
 - Developer commands share one namespace: `dev:app` runs the desktop app, `build:installer` builds the Windows installer, and `check` runs every gate; the old `electron:*`, `check:frontend`, and `knip:check` names are removed.
 - Biome now formats and lints project files locally, and frontend CI enforces those checks (#109).

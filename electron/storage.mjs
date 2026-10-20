@@ -808,13 +808,16 @@ export class JobQueue {
     return id;
   }
 
+  // Only each item's latest job per kind counts toward its status. The ids go in
+  // as one JSON value so a large library cannot hit SQLite's parameter limit.
   getForItems(itemIds) {
     if (!Array.isArray(itemIds) || itemIds.length === 0) return [];
-    const placeholders = itemIds.map(() => "?").join(", ");
     return this.db
-      .prepare(`SELECT * FROM jobs WHERE item_id IN (${placeholders}) AND kind NOT IN (${silentKindsSql})
-        ORDER BY created_at DESC`)
-      .all(...itemIds)
+      .prepare(`SELECT * FROM (
+          SELECT *, ROW_NUMBER() OVER (PARTITION BY item_id, kind ORDER BY created_at DESC) AS rank
+          FROM jobs WHERE item_id IN (SELECT value FROM json_each(?)) AND kind NOT IN (${silentKindsSql})
+        ) WHERE rank = 1 ORDER BY created_at DESC`)
+      .all(JSON.stringify(itemIds))
       .map(jobFromRow);
   }
 

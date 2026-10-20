@@ -1193,3 +1193,23 @@ test("PDF thumbnail candidates walk the kind index by rowid without sorting and 
   ).toBe(true);
   expect(plan.some((detail) => detail.includes("TEMP B-TREE"))).toBe(false);
 });
+
+test("item job lookups return the latest job of each kind, for any number of items", () => {
+  const { library } = temporaryLibrary();
+  library.db
+    .prepare(
+      "INSERT INTO items (id, kind, created_at, updated_at) VALUES ('ocr-item', 'image', 1, 1)",
+    )
+    .run();
+  let now = 1_000;
+  const queue = new JobQueue(library.db, { now: () => now });
+  const first = queue.enqueue("ocr-item", "ocr_image");
+  queue.claimNext("worker");
+  queue.complete(first, "worker");
+  now += 1;
+  const second = queue.enqueue("ocr-item", "ocr_image");
+
+  // More ids than SQLite allows as bound parameters.
+  const ids = ["ocr-item", ...Array.from({ length: 40_000 }, (_, index) => `missing-${index}`)];
+  expect(queue.getForItems(ids).map((job) => job.id)).toEqual([second]);
+});
