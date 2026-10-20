@@ -1736,7 +1736,7 @@ function App() {
       cancelled = true;
     };
   }, [canUseDesktopBackend]);
-  const [settingsTab, setSettingsTab] = useState<"archive" | "data" | "extension">("data");
+  const [settingsTab, setSettingsTab] = useState<"general" | "archive" | "data" | "extension">("data");
   // Optional facts Settings shows when the desktop backend can supply them.
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [librarySizeBytes, setLibrarySizeBytes] = useState<number | null>(null);
@@ -5804,6 +5804,15 @@ function App() {
                     </button>
                     <button
                       type="button"
+                      className={`settings-tab ${settingsTab === "general" ? "active" : ""}`}
+                      aria-current={settingsTab === "general" ? "page" : undefined}
+                      onClick={() => setSettingsTab("general")}
+                    >
+                      <HugeiconsIcon icon={Settings01Icon} size={15} />
+                      <span>General</span>
+                    </button>
+                    <button
+                      type="button"
                       className={`settings-tab ${settingsTab === "archive" ? "active" : ""}`}
                       aria-current={settingsTab === "archive" ? "page" : undefined}
                       onClick={() => setSettingsTab("archive")}
@@ -5828,7 +5837,51 @@ function App() {
                   </div>
                 </aside>
 
-                {settingsTab === "archive" ? (
+                {settingsTab === "general" ? (
+                  <section className="settings-panel" aria-labelledby="general-panel-title">
+                    <header className="settings-panel-header">
+                      <div className="settings-panel-header-content">
+                        <div className="settings-panel-heading">
+                          <h2 id="general-panel-title">General</h2>
+                        </div>
+                        <p className="settings-panel-note">How inkling behaves across the app.</p>
+                      </div>
+                      <button
+                        ref={settingsCloseRef}
+                        type="button"
+                        className="icon-button small settings-close"
+                        onClick={() => setIsSettingsOpen(false)}
+                        aria-label="Close settings"
+                      >
+                        <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                      </button>
+                    </header>
+
+                    <div className="settings-data-scroll">
+                      <div className="settings-data-card">
+                        <div className="settings-data-heading">
+                          <HugeiconsIcon icon={SparklesIcon} size={17} />
+                          <h3>Welcome tour</h3>
+                        </div>
+                        <p>
+                          Replay the screens from your first launch: saving things, finding them
+                          again, and keeping your library on this computer.
+                        </p>
+                        <button
+                          type="button"
+                          className="settings-data-button"
+                          onClick={() => {
+                            setIsSettingsOpen(false);
+                            setIsFirstRunOpen(true);
+                          }}
+                        >
+                          <HugeiconsIcon icon={PlayIcon} size={15} />
+                          <span>Show the welcome again</span>
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                ) : settingsTab === "archive" ? (
                   <section className="settings-panel" aria-labelledby="archive-panel-title">
                     <header className="settings-panel-header">
                       <div className="settings-panel-header-content">
@@ -6026,16 +6079,6 @@ function App() {
                           {isImportingLibrary ? "Restoring…" : "Restore…"}
                         </button>
                       </div>
-                      <button
-                        type="button"
-                        className="settings-data-link"
-                        onClick={() => {
-                          setIsSettingsOpen(false);
-                          setIsFirstRunOpen(true);
-                        }}
-                      >
-                        Show the welcome again
-                      </button>
                     </div>
                   </section>
                 ) : (

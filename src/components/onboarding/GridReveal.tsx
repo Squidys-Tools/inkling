@@ -16,7 +16,7 @@ const LAST_SPLIT = 0.92;
 // how long one cell takes to separate, in progress units
 const MORPH = 0.055;
 const SAMPLE = 128;
-const COLOR_MS = 420;
+const COLOR_MS = 525;
 const GUTTER_FROM = 0.35;
 const GUTTER_TO = 0.75;
 const PHOTO_FROM = 0.93;
@@ -441,9 +441,9 @@ export function GridReveal({
       const ready = scene.image !== null;
       // the image landing is what finishes the run, not the clock
       const target = ready ? 1 : selfPaced(elapsed * 1000, estimatedDuration);
-      eased += (target - eased) * (1 - Math.exp(-dt * 5.5));
+      eased += (target - eased) * (1 - Math.exp(-dt * 4.4));
       const wanted = Math.min(eased, ready ? 1 : WAIT_CAP);
-      split += (wanted - split) * (1 - Math.exp(-dt * 4));
+      split += (wanted - split) * (1 - Math.exp(-dt * 3.2));
       render(split, now);
 
       // nothing moves after this, so stop burning frames
