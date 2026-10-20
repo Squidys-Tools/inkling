@@ -254,7 +254,7 @@ export async function getAppVersion() {
 
 export type LibrarySize = { bytes: number };
 
-export async function getLibrarySize(refresh = true) {
+export async function getLibrarySize(refresh = false) {
   if (!isDesktopRuntime()) return undefined;
   await initializeStorage();
   return invoke<LibrarySize>("get_library_size", { refresh });

@@ -86,6 +86,7 @@ import {
   getAppVersion,
   getLastExport,
   getLibrarySize,
+  type LibrarySize,
   getPairingToken,
   regeneratePairingToken,
   showItemInFolder,
@@ -3926,20 +3927,26 @@ function App() {
   }, [debouncedQuery, activeSpaceId, canUseDesktopBackend]);
 
   // Version, size and last copy are optional: each stays hidden when the
-  // desktop backend cannot supply it (preview, or a failed call).
+  // desktop backend cannot supply it (preview, or a failed call). The size
+  // walks every asset file, so Settings shows the last measured value at once
+  // and replaces it when a fresh walk finishes, without holding up the rest.
   useEffect(() => {
     if (!isSettingsOpen || !isDesktopRuntime()) return;
     let cancelled = false;
     void Promise.all([
       getAppVersion().catch(() => undefined),
-      getLibrarySize().catch(() => undefined),
       getLastExport().catch(() => undefined),
-    ]).then(([version, size, copy]) => {
+    ]).then(([version, copy]) => {
       if (cancelled) return;
       setAppVersion(version ?? null);
-      setLibrarySizeBytes(size?.bytes ?? null);
       setLastCopy(copy ?? null);
     });
+    const showSize = (size: LibrarySize | undefined) => {
+      if (!cancelled && size) setLibrarySizeBytes(size.bytes);
+    };
+    // Fired together so a first open, with nothing cached yet, shares one walk.
+    void getLibrarySize().then(showSize, () => undefined);
+    void getLibrarySize(true).then(showSize, () => undefined);
     return () => {
       cancelled = true;
     };

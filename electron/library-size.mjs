@@ -20,26 +20,24 @@ export function createLibrarySizeCache(databasePath, assetsDirectory) {
   let refreshing;
   return {
     get({ refresh = false } = {}) {
-      if (refresh || !cached) {
-        refreshing ??= (async () => {
-          const [database, assets] = await Promise.all([
-            stat(databasePath).then(
-              (info) => info.size,
-              (error) => {
-                if (error.code === "ENOENT") return 0;
-                throw error;
-              },
-            ),
-            directoryBytes(assetsDirectory),
-          ]);
-          cached = { bytes: database + assets };
-          return cached;
-        })().finally(() => {
-          refreshing = undefined;
-        });
-        if (refresh) return refreshing;
-      }
-      return refreshing ?? Promise.resolve(cached);
+      if (cached && !refresh) return Promise.resolve(cached);
+      refreshing ??= (async () => {
+        const [database, assets] = await Promise.all([
+          stat(databasePath).then(
+            (info) => info.size,
+            (error) => {
+              if (error.code === "ENOENT") return 0;
+              throw error;
+            },
+          ),
+          directoryBytes(assetsDirectory),
+        ]);
+        cached = { bytes: database + assets };
+        return cached;
+      })().finally(() => {
+        refreshing = undefined;
+      });
+      return refreshing;
     },
   };
 }
