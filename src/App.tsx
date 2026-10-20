@@ -982,25 +982,22 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
     <div className="library-card-slot" data-library-index={index}>
       <article
         className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : (item.accent ?? "")} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? "archive-card-selected" : ""}`}
-        aria-label={`Open details for ${item.title}`}
+        aria-label={archiveSelectionMode ? item.title : `Open details for ${item.title}`}
         data-library-item-id={String(item.id)}
         style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
         onClick={handleCardSelect}
-        tabIndex={0}
+        tabIndex={archiveSelectionMode ? -1 : 0}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
           if (event.key !== "Enter" && event.key !== " ") return;
           event.preventDefault();
-          if (archiveSelectionMode) {
-            context.onToggleArchivedItem?.(item);
-          } else {
-            context.onSelectItem(item, cardRectsFor(event.currentTarget));
-          }
+          context.onSelectItem(item, cardRectsFor(event.currentTarget));
         }}
       >
         {context.onDeleteArchivedItem && (
           <button
             type="button"
+            tabIndex={archiveSelectionMode ? 0 : undefined}
             className={`archive-card-delete ${archiveSelectionMode ? "archive-card-select" : ""} ${isArchivedItemSelected ? "is-selected" : ""}`}
             aria-label={
               archiveSelectionMode
@@ -1486,6 +1483,8 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isFirstRunOpen, setIsFirstRunOpen] = useState(false);
+  const isFirstRunOpenRef = useRef(isFirstRunOpen);
+  isFirstRunOpenRef.current = isFirstRunOpen;
   // The desktop window stays hidden until this settles (inkling:window:ready),
   // so a first launch opens straight onto the welcome instead of flashing the
   // library. When the welcome runs, it reports ready once it has painted.
@@ -3416,7 +3415,7 @@ function App() {
     return () => {
       window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", onSettingsKeyDown);
-      previouslyFocused?.focus();
+      if (!isFirstRunOpenRef.current) previouslyFocused?.focus();
     };
   }, [isSettingsOpen]);
 
@@ -5170,14 +5169,17 @@ function App() {
                     tabIndex={0}
                     onKeyDown={(event) => {
                       const { currentTarget } = event;
+                      const keepFocusInGrid = () => currentTarget.focus();
                       if (event.key === "Home") {
                         event.preventDefault();
                         currentTarget.scrollTop = 0;
+                        keepFocusInGrid();
                         return;
                       }
                       if (event.key === "End") {
                         event.preventDefault();
                         currentTarget.scrollTop = currentTarget.scrollHeight;
+                        keepFocusInGrid();
                         return;
                       }
 
@@ -5194,6 +5196,7 @@ function App() {
                         ? currentTarget.clientHeight * 0.8
                         : Math.max(40, currentTarget.clientHeight * 0.1);
                       currentTarget.scrollTop += direction * distance;
+                      keepFocusInGrid();
                     }}
                     columnCount={listMode ? 1 : gridColumnCount}
                     data={filteredItems}
@@ -5566,6 +5569,16 @@ function App() {
                           </div>
                         ) : null}
                       </div>
+                      <button
+                        type="button"
+                        className="settings-data-link"
+                        onClick={() => {
+                          setIsFirstRunOpen(true);
+                          setIsSettingsOpen(false);
+                        }}
+                      >
+                        Show the welcome again
+                      </button>
                     </div>
                   </section>
                 ) : (

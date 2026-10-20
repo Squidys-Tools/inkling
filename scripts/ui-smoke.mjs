@@ -393,7 +393,6 @@ async function run() {
     await step("settings opens on the Archive tab", async () => {
       await cdp.evaluate(clickSelector, 'button[aria-label="Settings"]');
       await waitFor("settings sections", hasSelector, 'aside[aria-label="Settings sections"]');
-      await cdp.evaluate(clickByText, ".settings-tab", "Archive");
       await waitFor(
         "archive tab to be selected",
         hasSelector,
@@ -413,12 +412,241 @@ async function run() {
       });
       await waitFor("settings to close", isGone, 'aside[aria-label="Settings sections"]');
     });
-    await step("onboarding keeps keyboard focus inside its dialog", async () => {
+    await step("archive selection mode toggles items from its own keyboard stop", async () => {
+      const key = async (value, code, windowsVirtualKeyCode) => {
+        await cdp.send("Input.dispatchKeyEvent", {
+          type: "rawKeyDown",
+          key: value,
+          code,
+          windowsVirtualKeyCode,
+          nativeVirtualKeyCode: windowsVirtualKeyCode,
+        });
+        if (value === "Enter")
+          await cdp.send("Input.dispatchKeyEvent", {
+            type: "char",
+            key: value,
+            text: "\r",
+            unmodifiedText: "\r",
+            windowsVirtualKeyCode,
+          });
+        await cdp.send("Input.dispatchKeyEvent", {
+          type: "keyUp",
+          key: value,
+          code,
+          windowsVirtualKeyCode,
+        });
+      };
+      await cdp.evaluate(clickByText, ".nav-item", "Serendipity");
+      await waitFor("serendipity view", hasSelector, '[data-testid="serendipity-view"]');
+      const forgottenTitle = await cdp.evaluate(() => {
+        const button = document.querySelector('[data-testid="serendipity-forget"]');
+        return (
+          button?.closest(".serendipity-copy")?.querySelector("h2")?.textContent?.trim() ?? null
+        );
+      });
+      await cdp.evaluate(clickSelector, '[data-testid="serendipity-forget"]');
+      await cdp.evaluate(() => document.activeElement?.blur());
+      for (let i = 0; i < 12; i++) {
+        await key("Tab", "Tab", 9);
+        const onEverything = await cdp.evaluate(
+          () => document.activeElement?.textContent?.trim().startsWith("Everything") === true,
+        );
+        if (onEverything) break;
+      }
+      await key("Enter", "Enter", 13);
+      await waitFor(
+        "the library grid to come back",
+        () => document.querySelector(".library-grid") !== null,
+      );
+      await cdp.evaluate(setInputValue, 'input[aria-label="Search your mind"]', "");
+      await waitFor(
+        "the next serendipity item to appear",
+        (title) => {
+          const heading = document.querySelector(".serendipity-copy h2");
+          return heading?.textContent?.trim() !== title;
+        },
+        forgottenTitle,
+      );
       await cdp.evaluate(clickSelector, 'button[aria-label="Settings"]');
       await waitFor("settings sections", hasSelector, 'aside[aria-label="Settings sections"]');
-      await cdp.evaluate(clickByText, ".settings-tab", "Data");
+      await cdp.evaluate(() => document.activeElement?.blur());
+      let selectModeFocused = false;
+      for (let i = 0; i < 12; i++) {
+        await key("Tab", "Tab", 9);
+        selectModeFocused = await cdp.evaluate(
+          () => document.activeElement?.getAttribute("aria-label") === "Select archived items",
+        );
+        if (selectModeFocused) break;
+      }
+      if (!selectModeFocused) throw new Error("Tab did not reach the multi-select toggle");
+      await key("Enter", "Enter", 13);
+      await waitFor(
+        "multi-select mode",
+        hasSelector,
+        'button[aria-label="Exit multi-select mode"]',
+      );
+      await waitFor("archived card", () => {
+        return [...document.querySelectorAll(".settings-archive-grid .library-card")].length === 1;
+      });
+
+      await cdp.evaluate(() => document.activeElement?.blur());
+      let selectButtonFocused = false;
+      for (let i = 0; i < 12; i++) {
+        await key("Tab", "Tab", 9);
+        const focused = await cdp.evaluate(() => {
+          const active = document.activeElement;
+          return {
+            label: active?.getAttribute("aria-label") ?? active?.className ?? null,
+            onArticle: active?.classList.contains("library-card") === true,
+            onSelectButton: active?.classList.contains("archive-card-select") === true,
+          };
+        });
+        if (focused.onArticle)
+          throw new Error("the archived article was reachable by Tab during selection mode");
+        if (focused.onSelectButton) {
+          selectButtonFocused = true;
+          break;
+        }
+      }
+      if (!selectButtonFocused) throw new Error("Tab did not reach the archived Select button");
+      const selectButton = await cdp.evaluate(() => {
+        const button = document.activeElement;
+        if (!(button instanceof HTMLElement)) return null;
+        return {
+          label: button.getAttribute("aria-label"),
+          articleLabel: button.closest(".library-card")?.getAttribute("aria-label") ?? null,
+          articleTabIndex: button.closest(".library-card")?.tabIndex ?? null,
+        };
+      });
+      if (!selectButton?.label?.startsWith("Select "))
+        throw new Error(`selection mode button is named ${selectButton.label}`);
+      if (selectButton.articleTabIndex !== -1)
+        throw new Error("the archived article stayed in the Tab order during selection mode");
+      if (selectButton.articleLabel !== forgottenTitle)
+        throw new Error(
+          `selection mode article is named ${selectButton.articleLabel}, expected ${forgottenTitle}`,
+        );
+      await key("Enter", "Enter", 13);
+      await waitFor("archived item to be selected", () => {
+        return (
+          document.querySelector(".settings-selected-count")?.textContent?.trim() ===
+            "1 selected" &&
+          document
+            .querySelector(".settings-archive-grid .archive-card-select")
+            ?.getAttribute("aria-pressed") === "true"
+        );
+      });
+      await cdp.evaluate(() => document.activeElement?.blur());
+      let exitSelectFocused = false;
+      for (let i = 0; i < 12; i++) {
+        await key("Tab", "Tab", 9);
+        exitSelectFocused = await cdp.evaluate(
+          () => document.activeElement?.getAttribute("aria-label") === "Exit multi-select mode",
+        );
+        if (exitSelectFocused) break;
+      }
+      if (!exitSelectFocused) throw new Error("Tab did not reach the multi-select toggle");
+      await key("Enter", "Enter", 13);
+      await waitFor(
+        "selection mode to close",
+        isGone,
+        'button[aria-label="Exit multi-select mode"]',
+      );
+      await cdp.evaluate(() => document.activeElement?.blur());
+      let deleteButtonFocused = false;
+      for (let i = 0; i < 12; i++) {
+        await key("Tab", "Tab", 9);
+        deleteButtonFocused = await cdp.evaluate(
+          () => document.activeElement?.classList.contains("archive-card-delete") === true,
+        );
+        if (deleteButtonFocused) break;
+      }
+      if (!deleteButtonFocused)
+        throw new Error("the archived Delete button left the Tab order after selection mode");
+      const restored = await cdp.evaluate(() => {
+        const card = document.querySelector(".settings-archive-grid .library-card");
+        return card instanceof HTMLElement
+          ? {
+              label: card.getAttribute("aria-label"),
+              tabIndex: card.tabIndex,
+            }
+          : null;
+      });
+      if (restored?.tabIndex !== 0)
+        throw new Error("the archived card did not return to its normal keyboard stop");
+      if (restored.label !== `Open details for ${forgottenTitle}`)
+        throw new Error(`archived card is named ${restored.label} after leaving selection mode`);
+      await key("Escape", "Escape", 27);
+      await waitFor("settings to close", isGone, 'aside[aria-label="Settings sections"]');
+    });
+    await step("onboarding keeps keyboard focus inside its dialog", async () => {
+      const key = async (value, code, windowsVirtualKeyCode) => {
+        await cdp.send("Input.dispatchKeyEvent", {
+          type: "rawKeyDown",
+          key: value,
+          code,
+          windowsVirtualKeyCode,
+          nativeVirtualKeyCode: windowsVirtualKeyCode,
+        });
+        if (value === "Enter")
+          await cdp.send("Input.dispatchKeyEvent", {
+            type: "char",
+            key: value,
+            text: "\r",
+            unmodifiedText: "\r",
+            windowsVirtualKeyCode,
+          });
+        await cdp.send("Input.dispatchKeyEvent", {
+          type: "keyUp",
+          key: value,
+          code,
+          windowsVirtualKeyCode,
+        });
+      };
+      for (let i = 0; i < 60; i++) {
+        const isGear = await cdp.evaluate(() =>
+          Boolean(document.activeElement?.matches('button[aria-label="Settings"]')),
+        );
+        if (isGear) break;
+        await key("Tab", "Tab", 9);
+      }
+      if (
+        !(await cdp.evaluate(() =>
+          Boolean(document.activeElement?.matches('button[aria-label="Settings"]')),
+        ))
+      )
+        throw new Error("Tab did not reach the Settings button");
+      await key("Enter", "Enter", 13);
+      await waitFor("settings sections", hasSelector, 'aside[aria-label="Settings sections"]');
+      await cdp.evaluate(() => document.activeElement?.blur());
+      let dataTabFocused = false;
+      for (let i = 0; i < 10; i++) {
+        await key("Tab", "Tab", 9);
+        dataTabFocused = await cdp.evaluate(
+          () => document.activeElement?.textContent?.trim().startsWith("Data") === true,
+        );
+        if (dataTabFocused) break;
+      }
+      if (!dataTabFocused) throw new Error("Tab did not reach the Data settings tab");
+      await key("Enter", "Enter", 13);
+      await waitFor("Data tab to be selected", () => {
+        const tab = [...document.querySelectorAll(".settings-tab")].find(
+          (node) => node.textContent?.trim() === "Data",
+        );
+        return tab?.classList.contains("active") === true;
+      });
       await waitFor("welcome rerun control", hasSelector, ".settings-data-link");
-      await cdp.evaluate(clickSelector, ".settings-data-link");
+      await cdp.evaluate(() => document.activeElement?.blur());
+      let welcomeControlFocused = false;
+      for (let i = 0; i < 10; i++) {
+        await key("Tab", "Tab", 9);
+        welcomeControlFocused = await cdp.evaluate(
+          () => document.activeElement?.classList.contains("settings-data-link") === true,
+        );
+        if (welcomeControlFocused) break;
+      }
+      if (!welcomeControlFocused) throw new Error("Tab did not reach the welcome rerun control");
+      await key("Enter", "Enter", 13);
       await waitFor("welcome dialog", hasSelector, ".first-run-overlay[aria-modal='true']");
       if (!(await cdp.evaluate(isFocused, ".first-run-primary")))
         throw new Error("welcome dialog did not focus Continue on open");
