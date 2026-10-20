@@ -1159,6 +1159,15 @@ class LibraryStorage {
     return itemSelect(this.db, "archived = 1");
   }
 
+  // Active items only, so an archived or deleted id is simply absent from the
+  // result. The ids go in as one JSON value to stay under SQLite's parameter limit.
+  getItemCards(ids) {
+    if (!Array.isArray(ids) || ids.length === 0) return [];
+    return itemSelect(this.db, "archived = 0 AND id IN (SELECT value FROM json_each(?))", [
+      JSON.stringify(ids),
+    ]);
+  }
+
   getItem(id) {
     const row = this.db
       .prepare(

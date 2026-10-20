@@ -77,6 +77,7 @@ Guardrails:
 - Library files are streamed with byte-range support instead of being read whole into memory, so large videos and PDFs start sooner and videos can seek.
 - The Settings Archive tab reads the archive only when it is opened and renders only the cards near the scroll position.
 - Item processing status asks for only the latest job of each kind and no longer fails on very large libraries.
+- When background work finishes, the library updates only the cards it touched instead of reloading every item.
 - The installed app no longer crashes with "Cannot find module 'regenerator-runtime/runtime'" when OCR starts.
 - The app no longer contacts Google Fonts or Twitter/X at startup: reader fonts are bundled with the app and the content security policy no longer allows Google Fonts requests
 - X post embeds load the X widget only when the user clicks to load the post, so cards and saved links no longer contact X or Twitter on open

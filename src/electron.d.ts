@@ -12,6 +12,7 @@ type ElectronCommand =
   | "list_active_items"
   | "list_archived_items"
   | "get_item"
+  | "get_item_cards"
   | "get_item_content"
   | "search_items"
   | "search_similar_images"

@@ -81,6 +81,7 @@ import {
   getProcessingSummaries,
   enqueueOcrJob,
   getItem,
+  getItemCards,
   getItemContent,
   retryProcessingJob,
   getCaptureStatus,
@@ -185,6 +186,7 @@ import { shouldUseSeedLibrary } from "./lib/previewMode";
 import { markdownToPlainText, normalizeNoteBody, NOTE_BODY_FORMAT } from "./lib/notes";
 import { serendipityItems } from "./lib/serendipity";
 import { isEmptyPinsView, matchesPinsView } from "./lib/pinsView";
+import { patchItems } from "./lib/patchItems";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
 // the repo so the web preview shows a real library out of the box. The eager
 // glob below resolves to an empty map when that file is absent, so clones
@@ -3813,6 +3815,51 @@ function App() {
     let cancelled = false;
     let loading = false;
     let queued = false;
+    // Bumped by every full load, so a patch fetched before one cannot land over
+    // data that load read afterwards.
+    let fullLoadEpoch = 0;
+    // Job events name the item they touched. Only the plain library can patch
+    // in place: a query or Space can gain or lose members when a job lands.
+    const patchesInPlace = !activeSpaceId && !debouncedQuery.trim();
+    const changedIds = new Set<string>();
+    let reloadAll = false;
+
+    // A refresh can resolve with data older than two writes this session
+    // already made: a note body still in the cache, and a pin the backend has
+    // not confirmed. Both are re-applied so the grid, the overlay, and Top of
+    // mind cannot disagree with what the user just did.
+    function withSessionState(item: LibraryItem) {
+      const noteBody = noteBodyCacheRef.current.get(String(item.id));
+      const pinned = pinnedOverridesRef.current.get(String(item.id));
+      const withNote = noteBody === undefined ? item : { ...item, noteBody };
+      return pinned === undefined ? withNote : { ...withNote, favorite: pinned };
+    }
+
+    function syncSelectedItem(libraryItems: LibraryItem[]) {
+      setSelectedItem((current) => {
+        if (
+          !current?.sourceUrl ||
+          (current.kind !== "Article" && current.kind !== "Video" && current.kind !== "Post")
+        ) {
+          return current;
+        }
+        const refreshed = libraryItems.find((item) => String(item.id) === String(current.id));
+        if (!refreshed) return current;
+        const changed =
+          current.kind !== refreshed.kind ||
+          current.title !== refreshed.title ||
+          current.description !== refreshed.description ||
+          current.source !== refreshed.source ||
+          current.sourceUrl !== refreshed.sourceUrl ||
+          current.image !== refreshed.image ||
+          current.mediaAspectRatio !== refreshed.mediaAspectRatio ||
+          current.hasArticleContent !== refreshed.hasArticleContent ||
+          current.processing?.active !== refreshed.processing?.active ||
+          current.processing?.failedJob?.id !== refreshed.processing?.failedJob?.id ||
+          current.processing?.failedJob?.status !== refreshed.processing?.failedJob?.status;
+        return changed ? { ...current, ...refreshed } : current;
+      });
+    }
 
     async function loadItems() {
       // A refresh requested mid-flight is requeued instead of dropped, so a
@@ -3822,6 +3869,7 @@ function App() {
         return;
       }
       loading = true;
+      fullLoadEpoch += 1;
       try {
         await initializeStorage();
         const storedItemsPromise = activeSpaceId
@@ -3842,43 +3890,8 @@ function App() {
         );
         if (!cancelled) {
           if (activeJobs !== null) setActiveJobCount(activeJobs);
-          // A refresh can resolve with data older than two writes this session
-          // already made: a note body still in the cache, and a pin the backend
-          // has not confirmed. Both are re-applied so the grid, the overlay, and
-          // Top of mind cannot disagree with what the user just did.
-          const noteBodies = noteBodyCacheRef.current;
-          const overrides = pinnedOverridesRef.current;
-          setItems(
-            libraryItems.map((item) => {
-              const noteBody = noteBodies.get(String(item.id));
-              const pinned = overrides.get(String(item.id));
-              const withNote = noteBody === undefined ? item : { ...item, noteBody };
-              return pinned === undefined ? withNote : { ...withNote, favorite: pinned };
-            }),
-          );
-          setSelectedItem((current) => {
-            if (
-              !current?.sourceUrl ||
-              (current.kind !== "Article" && current.kind !== "Video" && current.kind !== "Post")
-            ) {
-              return current;
-            }
-            const refreshed = libraryItems.find((item) => String(item.id) === String(current.id));
-            if (!refreshed) return current;
-            const changed =
-              current.kind !== refreshed.kind ||
-              current.title !== refreshed.title ||
-              current.description !== refreshed.description ||
-              current.source !== refreshed.source ||
-              current.sourceUrl !== refreshed.sourceUrl ||
-              current.image !== refreshed.image ||
-              current.mediaAspectRatio !== refreshed.mediaAspectRatio ||
-              current.hasArticleContent !== refreshed.hasArticleContent ||
-              current.processing?.active !== refreshed.processing?.active ||
-              current.processing?.failedJob?.id !== refreshed.processing?.failedJob?.id ||
-              current.processing?.failedJob?.status !== refreshed.processing?.failedJob?.status;
-            return changed ? { ...current, ...refreshed } : current;
-          });
+          setItems(libraryItems.map(withSessionState));
+          syncSelectedItem(libraryItems);
         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -3888,6 +3901,46 @@ function App() {
           queued = false;
           await loadItems();
         }
+      }
+    }
+
+    // Applies just the items a burst of job events named. Anything that cannot
+    // be patched safely falls back to the full load.
+    async function patchChangedItems() {
+      const ids = [...changedIds];
+      changedIds.clear();
+      if (ids.length === 0) return;
+      // A full load in flight may have read before these jobs finished.
+      if (loading) {
+        queued = true;
+        return;
+      }
+      const epoch = fullLoadEpoch;
+      try {
+        const [cards, summaries, activeJobs] = await Promise.all([
+          getItemCards(ids),
+          getProcessingSummaries(ids),
+          countActiveJobs().catch(() => null),
+        ]);
+        // An active item the list has never seen is new, and where it sorts is
+        // the full load's call.
+        const known = new Set(itemsRef.current.map((item) => String(item.id)));
+        if (cards.some((card) => !known.has(card.id))) {
+          void loadItems();
+          return;
+        }
+        const libraryItems = await Promise.all(
+          cards.map((card) => storedItemToLibraryItem(card, summaries.get(card.id))),
+        );
+        if (cancelled || epoch !== fullLoadEpoch) return;
+        if (activeJobs !== null) setActiveJobCount(activeJobs);
+        const patched = new Map(
+          libraryItems.map((item) => [String(item.id), withSessionState(item)]),
+        );
+        setItems((current) => patchItems(current, new Set(ids), patched));
+        syncSelectedItem(libraryItems);
+      } catch {
+        if (!cancelled) void loadItems();
       }
     }
 
@@ -3901,9 +3954,19 @@ function App() {
     loadItemsRef.current = loadItems;
     let coalesceTimer = 0;
     let removeJobListener: (() => void) | null = null;
-    void listenForJobUpdates(() => {
+    void listenForJobUpdates((payload) => {
+      if (patchesInPlace && payload?.itemId) changedIds.add(String(payload.itemId));
+      else reloadAll = true;
       window.clearTimeout(coalesceTimer);
-      coalesceTimer = window.setTimeout(() => loadItemsRef.current(), 400);
+      coalesceTimer = window.setTimeout(() => {
+        if (reloadAll) {
+          reloadAll = false;
+          changedIds.clear();
+          void loadItems();
+        } else {
+          void patchChangedItems();
+        }
+      }, 400);
     })
       .then((removeListener) => {
         if (cancelled) removeListener();
