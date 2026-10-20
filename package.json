@@ -124,6 +124,14 @@
     "asarUnpack": [
       "**/tesseract.js/**/*",
       "**/tesseract.js-core/**/*",
+      "**/node_modules/regenerator-runtime/**/*",
+      "**/node_modules/is-url/**/*",
+      "**/node_modules/bmp-js/**/*",
+      "**/node_modules/wasm-feature-detect/**/*",
+      "**/node_modules/node-fetch/**/*",
+      "**/node_modules/whatwg-url/**/*",
+      "**/node_modules/tr46/**/*",
+      "**/node_modules/webidl-conversions/**/*",
       "**/@tesseract.js-data/eng/**/*",
       "**/onnxruntime-node/bin/**/*",
       "**/@img/sharp-*/**/*"
