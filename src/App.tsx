@@ -1040,6 +1040,10 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
           if (event.target !== event.currentTarget) return;
           if (event.key !== "Enter" && event.key !== " ") return;
           event.preventDefault();
+          if (archiveSelectionMode) {
+            context.onToggleArchivedItem?.(item);
+            return;
+          }
           context.onSelectItem(item, cardRectsFor(event.currentTarget));
         }}
       >
@@ -4692,17 +4696,31 @@ function App() {
                     tabIndex={0}
                     onKeyDown={(event) => {
                       const { currentTarget } = event;
-                      const keepFocusInGrid = () => currentTarget.focus();
+                      const focusedElement = document.activeElement;
+                      const restoreFocusIfTargetUnmounts = () => {
+                        if (
+                          !(focusedElement instanceof HTMLElement) ||
+                          focusedElement === currentTarget ||
+                          !currentTarget.contains(focusedElement)
+                        )
+                          return;
+                        window.requestAnimationFrame(() => {
+                          window.requestAnimationFrame(() => {
+                            if (!focusedElement.isConnected && currentTarget.isConnected)
+                              currentTarget.focus();
+                          });
+                        });
+                      };
                       if (event.key === "Home") {
                         event.preventDefault();
                         currentTarget.scrollTop = 0;
-                        keepFocusInGrid();
+                        restoreFocusIfTargetUnmounts();
                         return;
                       }
                       if (event.key === "End") {
                         event.preventDefault();
                         currentTarget.scrollTop = currentTarget.scrollHeight;
-                        keepFocusInGrid();
+                        restoreFocusIfTargetUnmounts();
                         return;
                       }
 
@@ -4719,7 +4737,7 @@ function App() {
                         ? currentTarget.clientHeight * 0.8
                         : Math.max(40, currentTarget.clientHeight * 0.1);
                       currentTarget.scrollTop += direction * distance;
-                      keepFocusInGrid();
+                      restoreFocusIfTargetUnmounts();
                     }}
                     columnCount={listMode ? 1 : gridColumnCount}
                     data={filteredItems}
