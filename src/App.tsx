@@ -122,6 +122,7 @@ import { classifyFile } from "./lib/ingestion/file-classification";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "./lib/deepLink";
 import { parseHttpUrl, safePublicImageUrl } from "./lib/ingestion/url";
 import { AnimatedCount } from "./components/AnimatedCount";
+import { ArchiveGrid } from "./components/ArchiveGrid";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
@@ -397,6 +398,8 @@ async function storedItemToLibraryItem(
   const mediaHeight =
     positiveNumber(item.metadata.mediaHeight) ?? positiveNumber(indexedImageDimensions?.height);
   const storedAspectRatio = positiveNumber(item.metadata.mediaAspectRatio);
+  // A new image's thumbnail is made in the background, so until it lands (or
+  // if it never can be) the card shows the original instead of a placeholder.
   const image =
     (await assetUrl(item.thumbnailPath ?? (kind === "Image" ? item.localAssetPath : null))) ??
     remoteImage ??
@@ -908,43 +911,21 @@ function VideoPill({ item }: { item: LibraryItem }) {
   );
 }
 
+// Cards are static thumbnails that open the details overlay on click. The
+// pill is a purely visual affordance — playback happens in the overlay, which is
+// the only place a local video file is loaded.
 function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }) {
-  if (!item.video && !item.fileUrl && !item.image) {
-    return (
-      <div className="card-paper-art video-art" aria-hidden={!item.sourceUrl}>
-        <UrlFallbackLabel item={item} />
-        <VideoPill item={item} />
-      </div>
-    );
-  }
-
-  // Cards are static thumbnails that open the details overlay on click. The
-  // pill is a purely visual affordance — playback happens in the overlay.
   return (
     <div className="card-image-wrap">
-      {item.image ? (
-        <img
-          src={item.image}
-          crossOrigin={canvasImageCrossOrigin(item.image)}
-          alt={item.imageAlt ?? item.title}
-          className="card-image"
-          loading="lazy"
-          decoding="async"
-          fetchPriority={index < 6 ? "high" : undefined}
-        />
-      ) : item.fileUrl ? (
-        <video
-          className="card-image"
-          src={item.fileUrl}
-          muted
-          playsInline
-          preload="metadata"
-          aria-label={item.title}
-          onLoadedMetadata={(event) => {
-            event.currentTarget.currentTime = 0.01;
-          }}
-        />
-      ) : null}
+      <img
+        src={item.image}
+        crossOrigin={canvasImageCrossOrigin(item.image)}
+        alt={item.imageAlt ?? item.title}
+        className="card-image"
+        loading="lazy"
+        decoding="async"
+        fetchPriority={index < 6 ? "high" : undefined}
+      />
       <VideoPill item={item} />
     </div>
   );
@@ -965,7 +946,7 @@ function cardText(value: string | undefined, fallback: string): string {
 }
 
 // Each type gets its own card class; App.css keys the typed layouts off these.
-// Posts and images with no artwork fall back to the typed file layout.
+// Posts, images and videos with no artwork fall back to the typed file layout.
 function cardKindClass(item: LibraryItem): string {
   switch (item.kind) {
     case "Note":
@@ -977,7 +958,7 @@ function cardKindClass(item: LibraryItem): string {
     case "Article":
       return "article-card";
     case "Video":
-      return "video-card";
+      return item.image ? "video-card" : "file-card";
     case "File":
       return "file-card";
     case "Post":
@@ -1077,7 +1058,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
             <div className="x-post-art">
               <PostArtwork post={item.post} />
             </div>
-          ) : item.kind === "Video" ? (
+          ) : item.kind === "Video" && item.image ? (
             <LibraryVideoMedia item={item} index={index} />
           ) : item.image ? (
             <div className="card-image-wrap">
@@ -1120,9 +1101,10 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                   )}
                 </>
               )}
-              {(item.kind === "File" || item.kind === "Post" || item.kind === "Image") && (
-                <FileArtwork item={item} />
-              )}
+              {(item.kind === "File" ||
+                item.kind === "Post" ||
+                item.kind === "Image" ||
+                item.kind === "Video") && <FileArtwork item={item} />}
             </div>
           )}
           {isArchiveTile && (
@@ -1760,6 +1742,9 @@ function App() {
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(
     shouldUseSeedLibrary() ? browserArchivedItems : [],
   );
+  // The archive is read only while its tab is open, so until that read lands
+  // the list is unknown and Settings must not show a count or an empty state.
+  const [isArchiveLoaded, setIsArchiveLoaded] = useState(shouldUseSeedLibrary);
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
   const [isExportingLibrary, setIsExportingLibrary] = useState(false);
   const [lastExport, setLastExport] = useState<LibraryExportReport | null>(null);
@@ -2271,12 +2256,10 @@ function App() {
       try {
         setSpaces(await listSpaces());
         const storedItems = await listArchivedItems();
-        const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
         setArchivedItems(
-          await Promise.all(
-            storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
-          ),
+          await Promise.all(storedItems.map((item) => storedItemToLibraryItem(item))),
         );
+        setIsArchiveLoaded(true);
         loadItemsRef.current();
       } catch (error) {
         setCaptureError(error instanceof Error ? error.message : String(error));
@@ -2999,13 +2982,12 @@ function App() {
 
   async function persistFile(file: File, captureSource: string) {
     const kind = classifyFile(file);
-    const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
     if (canUseDesktopBackend) {
       const storedItem = await saveFile({
         fileName: file.name,
         mimeType: file.type,
         kind,
-        bytes,
+        bytes: new Uint8Array(await file.arrayBuffer()),
       });
       const libraryItem = await storedItemToLibraryItem(storedItem);
       setItems((current) => [libraryItem, ...current]);
@@ -3971,17 +3953,19 @@ function App() {
     };
   }, [isSettingsOpen]);
 
+  // Only the Archive tab reads the archive. Its cards show no processing state,
+  // and an item opened from here fetches its own summary, so none are read here.
+  const isArchiveTabOpen = isSettingsOpen && settingsTab === "archive";
   useEffect(() => {
-    if (!isSettingsOpen || shouldUseSeedLibrary()) return;
+    if (!isArchiveTabOpen || shouldUseSeedLibrary()) return;
     let cancelled = false;
 
     async function loadArchivedItems() {
       try {
         await initializeStorage();
         const storedItems = await listArchivedItems();
-        const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
         const nextItems = await Promise.all(
-          storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
+          storedItems.map((item) => storedItemToLibraryItem(item)),
         );
         if (!cancelled) {
           setArchivedItems(
@@ -3990,6 +3974,7 @@ function App() {
               return noteBody === undefined ? item : { ...item, noteBody };
             }),
           );
+          setIsArchiveLoaded(true);
         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -4000,12 +3985,19 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [isSettingsOpen]);
+  }, [isArchiveTabOpen]);
 
   useEffect(() => {
     if (isSettingsOpen) return;
     setIsArchiveSelectionMode(false);
     setSelectedArchivedIds(new Set());
+  }, [isSettingsOpen]);
+
+  // Each Settings session starts with the archive unread, so a list left from an
+  // earlier session, including one an import read while Settings was closed, is
+  // never shown as current.
+  useEffect(() => {
+    if (isSettingsOpen) setIsArchiveLoaded(shouldUseSeedLibrary());
   }, [isSettingsOpen]);
 
   useEffect(() => {
@@ -5819,7 +5811,9 @@ function App() {
                     >
                       <HugeiconsIcon icon={Archive01Icon} size={15} />
                       <span>Archive</span>
-                      <span className="settings-tab-count">{archivedItems.length}</span>
+                      {isArchiveLoaded && (
+                        <span className="settings-tab-count">{archivedItems.length}</span>
+                      )}
                     </button>
                     <button
                       type="button"
@@ -5887,14 +5881,16 @@ function App() {
                         <div className="settings-panel-heading">
                           <h2 id="archive-panel-title">Archive</h2>
                         </div>
-                        <p className="settings-panel-note">
-                          {archivedItems.length === 1
-                            ? "1 thing you put away. It waits here,"
-                            : `${archivedItems.length} things you put away. They wait here,`}{" "}
-                          out of your library, until you bring{" "}
-                          {archivedItems.length === 1 ? "it" : "them"} back or let{" "}
-                          {archivedItems.length === 1 ? "it" : "them"} go.
-                        </p>
+                        {isArchiveLoaded && (
+                          <p className="settings-panel-note">
+                            {archivedItems.length === 1
+                              ? "1 thing you put away. It waits here,"
+                              : `${archivedItems.length} things you put away. They wait here,`}{" "}
+                            out of your library, until you bring{" "}
+                            {archivedItems.length === 1 ? "it" : "them"} back or let{" "}
+                            {archivedItems.length === 1 ? "it" : "them"} go.
+                          </p>
+                        )}
                       </div>
                       <div className="settings-panel-tools">
                         <fieldset className="settings-archive-actions">
@@ -5951,28 +5947,25 @@ function App() {
                       </div>
                     </header>
 
-                    <div className="settings-scroll">
-                      {archivedItems.length > 0 ? (
-                        <div className="settings-archive-grid">
-                          {archivedItems.map((item, index) => (
-                            <VirtualizedLibraryItem
-                              key={String(item.id)}
-                              data={item}
-                              index={index}
-                              context={archivedCardContext}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="settings-empty-state">
-                          <div className="settings-empty-icon">
-                            <HugeiconsIcon icon={Archive01Icon} size={19} />
+                    {isArchiveLoaded && archivedItems.length > 0 ? (
+                      <ArchiveGrid
+                        data={archivedItems}
+                        context={archivedCardContext}
+                        ItemContent={VirtualizedLibraryItem}
+                      />
+                    ) : (
+                      <div className="settings-scroll">
+                        {isArchiveLoaded && (
+                          <div className="settings-empty-state">
+                            <div className="settings-empty-icon">
+                              <HugeiconsIcon icon={Archive01Icon} size={19} />
+                            </div>
+                            <h4>Your archive is empty.</h4>
+                            <p>Items you forget from the library will appear here.</p>
                           </div>
-                          <h4>Your archive is empty.</h4>
-                          <p>Items you forget from the library will appear here.</p>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </section>
                 ) : settingsTab === "data" ? (
                   <section className="settings-panel" aria-labelledby="data-panel-title">

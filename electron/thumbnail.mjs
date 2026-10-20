@@ -53,21 +53,49 @@ function validateIconImage(bytes) {
   }
 }
 
+// BMP and ICO are not sharp formats, so they get header checks here and a
+// canvas decode later. Returns false for anything else.
+function validateLegacyImageHeader(bytes) {
+  const isBitmap = bytes.subarray(0, 2).toString("ascii") === "BM";
+  const isIcon = bytes.length >= 6 && bytes.readUInt16LE(0) === 0 && bytes.readUInt16LE(2) === 1;
+  if (!isBitmap && !isIcon) return false;
+  if (isIcon) validateIconImage(bytes);
+  if (isBitmap && bytes.length >= 26) {
+    const coreHeader = bytes.readUInt32LE(14) === 12;
+    const width = coreHeader ? bytes.readUInt16LE(18) : bytes.readInt32LE(18);
+    const height = coreHeader ? bytes.readUInt16LE(20) : bytes.readInt32LE(22);
+    validateImageDimensions(Math.abs(width), Math.abs(height));
+  }
+  return true;
+}
+
+function orientedSize({ width, height, orientation }) {
+  const isRotated = orientation != null && orientation >= 5 && orientation <= 8;
+  return isRotated ? { width: height, height: width } : { width, height };
+}
+
+// Capture's gate. It reads the header only, so even a 50 MB original costs
+// milliseconds; resizing is left to the background thumbnail job. BMP and ICO
+// have no cheap size read, so they return null and gain their size with the
+// thumbnail.
+export async function inspectImage(bytes) {
+  let metadata;
+  try {
+    metadata = await sharp(bytes, { limitInputPixels: maxImagePixels }).metadata();
+  } catch (error) {
+    if (!validateLegacyImageHeader(bytes)) throw error;
+    return null;
+  }
+  validateImageDimensions(metadata.width, metadata.height);
+  return orientedSize(metadata);
+}
+
 export async function sharpImageInput(bytes) {
   try {
     await sharp(bytes, { limitInputPixels: maxImagePixels }).metadata();
     return bytes;
   } catch (error) {
-    const isBitmap = bytes.subarray(0, 2).toString("ascii") === "BM";
-    const isIcon = bytes.length >= 6 && bytes.readUInt16LE(0) === 0 && bytes.readUInt16LE(2) === 1;
-    if (!isBitmap && !isIcon) throw error;
-    if (isIcon) validateIconImage(bytes);
-    if (isBitmap && bytes.length >= 26) {
-      const coreHeader = bytes.readUInt32LE(14) === 12;
-      const width = coreHeader ? bytes.readUInt16LE(18) : bytes.readInt32LE(18);
-      const height = coreHeader ? bytes.readUInt16LE(20) : bytes.readInt32LE(22);
-      validateImageDimensions(Math.abs(width), Math.abs(height));
-    }
+    if (!validateLegacyImageHeader(bytes)) throw error;
     const [{ CanvasElement }, { default: loadImage }] = await Promise.all([
       import("@napi-rs/canvas/js-binding.js"),
       import("@napi-rs/canvas/load-image.js"),
@@ -83,9 +111,8 @@ export async function sharpImageInput(bytes) {
 export async function createImageThumbnail(bytes) {
   const input = await sharpImageInput(bytes);
   const image = sharp(input, { limitInputPixels: maxImagePixels });
-  const { width, height, orientation } = await image.metadata();
-  validateImageDimensions(width, height);
-  const isRotated = orientation != null && orientation >= 5 && orientation <= 8;
+  const metadata = await image.metadata();
+  validateImageDimensions(metadata.width, metadata.height);
   const thumbnail = await image
     .rotate()
     .resize({
@@ -96,11 +123,7 @@ export async function createImageThumbnail(bytes) {
     })
     .webp()
     .toBuffer();
-  return {
-    bytes: thumbnail,
-    width: isRotated ? height : width,
-    height: isRotated ? width : height,
-  };
+  return { bytes: thumbnail, ...orientedSize(metadata) };
 }
 
 export async function dominantImageColors(bytes) {

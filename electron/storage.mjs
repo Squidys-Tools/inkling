@@ -15,14 +15,22 @@ import {
 } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { types } from "node:util";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
 
 const SCHEMA_VERSION = 8;
 export const JOB_LEASE_MILLIS = 5 * 60 * 1000;
 export const PDF_THUMBNAIL_JOB = "pdf_thumbnail";
 export const IMAGE_PALETTE_JOB = "image_palette";
+export const IMAGE_THUMBNAIL_JOB = "image_thumbnail";
+export const VIDEO_POSTER_JOB = "video_poster";
 export const URL_ENRICHMENT_JOB = "enrich_url";
-const SILENT_JOB_KINDS = new Set([PDF_THUMBNAIL_JOB, IMAGE_PALETTE_JOB]);
+const SILENT_JOB_KINDS = new Set([
+  PDF_THUMBNAIL_JOB,
+  IMAGE_PALETTE_JOB,
+  IMAGE_THUMBNAIL_JOB,
+  VIDEO_POSTER_JOB,
+]);
 const silentKindsSql = [...SILENT_JOB_KINDS].map((kind) => `'${kind}'`).join(", ");
 
 const maxFileBytes = 50 * 1024 * 1024;
@@ -527,6 +535,16 @@ function sanitizeFileName(value) {
   const stem = name.split(".")[0].toUpperCase();
   if (/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/.test(stem)) name = `_${name}`;
   return name;
+}
+
+// File bytes cross IPC as a Uint8Array or ArrayBuffer, which structured clone
+// moves as one block. A number array would be several times larger and slow.
+function fileInputBuffer(value) {
+  if (types.isAnyArrayBuffer(value)) return Buffer.from(value);
+  if (ArrayBuffer.isView(value)) {
+    return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+  }
+  throw new Error("invalid storage input: file bytes must be a Uint8Array or ArrayBuffer");
 }
 
 function normalizeFileKind(kind, mimeType, fileName) {
@@ -1104,7 +1122,13 @@ export function openLibraryStorage(databasePath, options = {}) {
 }
 
 class LibraryStorage {
-  constructor(databasePath, db, fts5Enabled, jobs, { createThumbnail, createSnapshot } = {}) {
+  constructor(
+    databasePath,
+    db,
+    fts5Enabled,
+    jobs,
+    { createThumbnail, inspectImage, createSnapshot } = {},
+  ) {
     this.databasePath = databasePath;
     this.assetsRoot = join(dirname(databasePath), "assets");
     this.assetsDirectory = join(this.assetsRoot, "items");
@@ -1112,6 +1136,7 @@ class LibraryStorage {
     this.fts5Enabled = fts5Enabled;
     this.jobs = jobs;
     this.createThumbnail = createThumbnail;
+    this.inspectImage = inspectImage;
     this.createSnapshot = createSnapshot;
   }
 
@@ -1452,31 +1477,22 @@ class LibraryStorage {
     const id = validateItemId(input.id ?? randomUUID());
     const mimeType = nonEmpty(input.mimeType)?.toLowerCase() ?? null;
     const kind = normalizeFileKind(input.kind, mimeType, fileName);
-    const bytes = Buffer.from(input.bytes ?? []);
+    const bytes = fileInputBuffer(input.bytes);
     if (bytes.length > maxFileBytes)
       throw new Error("invalid storage input: file exceeds the 50 MB input limit");
     if (bytes.length === 0) throw new Error("invalid storage input: file bytes cannot be empty");
-    let thumbnail = null;
-    if (kind === "image") {
-      if (!this.createThumbnail) throw new Error("image thumbnail generation is unavailable");
-      thumbnail = await this.createThumbnail(bytes);
-    }
+    // Header only: it refuses a non-image or oversized one and gives the card its
+    // shape. Resizing is the image_thumbnail job's work, never capture's.
+    const size = kind === "image" ? await this.inspectImage?.(bytes) : null;
     const itemDirectory = join(this.assetsDirectory, id);
     await mkdir(itemDirectory, { recursive: true });
     const originalPath = join(itemDirectory, fileName);
     await writeFile(originalPath, bytes);
-    let thumbnailPath = null;
-    let dimensions = null;
-    if (thumbnail) {
-      await writeFile(join(itemDirectory, "thumbnail.webp"), thumbnail.bytes);
-      thumbnailPath = `assets/items/${id}/thumbnail.webp`;
-      dimensions = [thumbnail.width, thumbnail.height];
-    }
     const metadata = {
       fileName,
       mimeType,
       byteLength: bytes.length,
-      ...(dimensions ? { mediaWidth: dimensions[0], mediaHeight: dimensions[1] } : {}),
+      ...(size ? { mediaWidth: size.width, mediaHeight: size.height } : {}),
     };
     const now = nowMillis();
     const title = fileName;
@@ -1486,14 +1502,13 @@ class LibraryStorage {
       if (existing) {
         this.db
           .prepare(`UPDATE items SET kind = ?, title = ?, description = NULL, body = '', body_format = 'md',
-          source_label = ?, local_asset_path = ?, thumbnail_path = ?, ocr_text = '', metadata = ?, archived = 0,
+          source_label = ?, local_asset_path = ?, thumbnail_path = NULL, ocr_text = '', metadata = ?, archived = 0,
           updated_at = ? WHERE id = ?`)
           .run(
             kind,
             title,
             mimeType,
             relativeAssetPath(`items/${id}/${fileName}`),
-            thumbnailPath,
             JSON.stringify(metadata),
             now,
             id,
@@ -1501,24 +1516,26 @@ class LibraryStorage {
       } else {
         this.db
           .prepare(`INSERT INTO items (id, kind, title, body, body_format, source_label, local_asset_path,
-          thumbnail_path, metadata, ocr_text, created_at, updated_at) VALUES (?, ?, ?, '', 'md', ?, ?, ?, ?, '', ?, ?)`)
+          metadata, ocr_text, created_at, updated_at) VALUES (?, ?, ?, '', 'md', ?, ?, ?, '', ?, ?)`)
           .run(
             id,
             kind,
             title,
             mimeType,
             relativeAssetPath(`items/${id}/${fileName}`),
-            thumbnailPath,
             JSON.stringify(metadata),
             now,
             now,
           );
       }
       if (kind === "image") {
+        // The palette job reads the thumbnail, so the thumbnail job queues it.
+        this.jobs.enqueue(id, IMAGE_THUMBNAIL_JOB, { notify: false });
         this.jobs.enqueue(id, "ocr_image", { notify: false });
-        this.jobs.enqueue(id, IMAGE_PALETTE_JOB, { notify: false });
       }
       if (kind === "pdf") this.jobs.enqueue(id, "ocr_pdf_page", { notify: false });
+      // Queued ahead of the embedding so the card gets its poster before model loading.
+      if (kind === "video") this.jobs.enqueue(id, VIDEO_POSTER_JOB, { notify: false });
       this.jobs.enqueue(id, "generate_embedding", { notify: false });
       this.db.exec("COMMIT");
     } catch (error) {
@@ -1538,11 +1555,36 @@ class LibraryStorage {
       .get(afterRowid, PDF_THUMBNAIL_JOB);
   }
 
-  async storePdfThumbnail(id, png) {
+  nextVideoPosterCandidate(afterRowid) {
+    return this.db
+      .prepare(`SELECT rowid, id FROM items
+        WHERE kind = 'video' AND rowid > ? AND thumbnail_path IS NULL AND local_asset_path != ''
+        AND NOT EXISTS (SELECT 1 FROM jobs WHERE item_id = items.id AND kind = ? AND status = 'failed')
+        ORDER BY rowid LIMIT 1`)
+      .get(afterRowid, VIDEO_POSTER_JOB);
+  }
+
+  storePdfThumbnail(id, png) {
+    return this.storeDerivedThumbnail(id, "pdf", png);
+  }
+
+  storeVideoPoster(id, png) {
+    return this.storeDerivedThumbnail(id, "video", png);
+  }
+
+  // The decoded size also lands in the metadata: BMP and ICO captures have no
+  // header-only size, and an EXIF-rotated photo needs its oriented one.
+  storeImageThumbnail(id, bytes) {
+    return this.storeDerivedThumbnail(id, "image", bytes, { recordSize: true });
+  }
+
+  // Kinds whose thumbnail is rendered after capture, so the stored row may still
+  // be waiting for one. An existing thumbnail is never replaced.
+  async storeDerivedThumbnail(id, kind, png, { recordSize = false } = {}) {
     const pending = () =>
       this.db
-        .prepare("SELECT 1 FROM items WHERE id = ? AND kind = 'pdf' AND thumbnail_path IS NULL")
-        .get(id);
+        .prepare("SELECT 1 FROM items WHERE id = ? AND kind = ? AND thumbnail_path IS NULL")
+        .get(id, kind);
     if (!pending()) return false;
     if (!this.createThumbnail) throw new Error("image thumbnail generation is unavailable");
     const thumbnail = await this.createThumbnail(png);
@@ -1554,10 +1596,18 @@ class LibraryStorage {
       if (!pending()) return false;
       await rename(staged, join(this.assetsDirectory, id, "thumbnail.webp"));
       const updated = this.db
-        .prepare(
-          "UPDATE items SET thumbnail_path = ? WHERE id = ? AND kind = 'pdf' AND thumbnail_path IS NULL",
-        )
-        .run(thumbnailPath, id).changes;
+        .prepare(`UPDATE items SET thumbnail_path = ?,
+          metadata = CASE WHEN ? THEN json_set(metadata, '$.mediaWidth', ?, '$.mediaHeight', ?)
+            ELSE metadata END
+          WHERE id = ? AND kind = ? AND thumbnail_path IS NULL`)
+        .run(
+          thumbnailPath,
+          Number(recordSize),
+          thumbnail.width ?? null,
+          thumbnail.height ?? null,
+          id,
+          kind,
+        ).changes;
       if (updated) this.jobs.notify(id);
       return updated > 0;
     } finally {
@@ -2328,7 +2378,11 @@ class LibraryStorage {
               item.favorite,
             );
           if (item.kind === "image") this.jobs.enqueue(item.id, "ocr_image", { notify: false });
+          if (item.kind === "image" && !item.thumbnail_path)
+            this.jobs.enqueue(item.id, IMAGE_THUMBNAIL_JOB, { notify: false });
           if (item.kind === "pdf") this.jobs.enqueue(item.id, "ocr_pdf_page", { notify: false });
+          if (item.kind === "video" && !item.thumbnail_path)
+            this.jobs.enqueue(item.id, VIDEO_POSTER_JOB, { notify: false });
           this.jobs.enqueue(item.id, "generate_embedding", { notify: false });
           importedItemIds.add(item.id);
           importedItems += 1;

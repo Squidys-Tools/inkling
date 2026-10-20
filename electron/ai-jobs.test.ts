@@ -14,11 +14,12 @@ import {
   JOB_LEASE_MILLIS,
   JobWorker,
   IMAGE_PALETTE_JOB,
+  IMAGE_THUMBNAIL_JOB,
   openLibraryStorage,
   PDF_THUMBNAIL_JOB,
   URL_ENRICHMENT_JOB,
 } from "./storage.mjs";
-import { createImageThumbnail } from "./thumbnail.mjs";
+import { createImageThumbnail, inspectImage } from "./thumbnail.mjs";
 
 const roots: string[] = [];
 const libraries: ReturnType<typeof openLibraryStorage>[] = [];
@@ -55,6 +56,7 @@ function temporaryLibrary(options = {}) {
   roots.push(root);
   const library = openLibraryStorage(join(root, "library.sqlite3"), {
     createThumbnail: createImageThumbnail,
+    inspectImage,
     ...options,
   });
   libraries.push(library);
@@ -88,13 +90,13 @@ test("Electron jobs OCR captured files, index their text, and persist matching m
     fileName: "image-columns-01.png",
     mimeType: "image/png",
     kind: "image",
-    bytes: [...readFileSync("benchmarks/corpus/images/image-columns-01.png")],
+    bytes: readFileSync("benchmarks/corpus/images/image-columns-01.png"),
   });
   const pdf = await library.saveFile({
     fileName: "pdf-native-text-01.pdf",
     mimeType: "application/pdf",
     kind: "pdf",
-    bytes: [...readFileSync("benchmarks/corpus/pdfs/pdf-native-text-01.pdf")],
+    bytes: readFileSync("benchmarks/corpus/pdfs/pdf-native-text-01.pdf"),
   });
   library.storeEmbedding(image.id, "image", "nomic-embed-vision-v1.5", Buffer.alloc(8), 2);
   expect(enqueueStaleImageEmbeddings(library)).toBe(1);
@@ -201,12 +203,12 @@ test("embedding text keeps the shared document inputs and markdown projection", 
   ).toBe("Reading list\n\nNomic A local model.\n\nCover text");
 });
 
-const pdfFixture = (name: string) => [...readFileSync(`benchmarks/corpus/pdfs/${name}.pdf`)];
+const pdfFixture = (name: string) => readFileSync(`benchmarks/corpus/pdfs/${name}.pdf`);
 
 function savePdf(
   library: ReturnType<typeof openLibraryStorage>,
   fileName: string,
-  bytes: number[],
+  bytes: Uint8Array,
 ) {
   return library.saveFile({ fileName, mimeType: "application/pdf", kind: "pdf", bytes });
 }
@@ -372,20 +374,181 @@ test("PDF capture stays instant and the OCR job publishes the page-one thumbnail
   await closeProcessors(ai);
 });
 
-test("image palette job reads the thumbnail and persists five dominant colors", async () => {
-  const { root, library } = temporaryLibrary();
-  const image = await library.saveFile({
-    fileName: "palette.png",
+const imageFixture = () => readFileSync("benchmarks/corpus/images/image-columns-01.png");
+
+function saveImage(library: ReturnType<typeof openLibraryStorage>, fileName = "photo.png") {
+  return library.saveFile({
+    fileName,
     mimeType: "image/png",
     kind: "image",
-    bytes: [...readFileSync("benchmarks/corpus/images/image-columns-01.png")],
+    bytes: imageFixture(),
   });
+}
+
+function thumbnailLane(
+  library: ReturnType<typeof openLibraryStorage>,
+  ai: ReturnType<typeof createProcessors>,
+  options: Omit<NonNullable<ConstructorParameters<typeof JobWorker>[1]>, "processors"> = {},
+) {
+  return createWorker(library, { processors: ai.thumbnailProcessors, ...options });
+}
+
+test("image capture stays instant and the thumbnail job publishes the card image", async () => {
+  const events: string[] = [];
+  let thumbnailCalls = 0;
+  const { root, library } = temporaryLibrary({
+    jobQueue: { onUpdated: (id: string) => events.push(id) },
+    createThumbnail: async (bytes: Buffer) => {
+      thumbnailCalls += 1;
+      return createImageThumbnail(bytes);
+    },
+  });
+  const image = await saveImage(library);
+  const source = await sharp(imageFixture()).metadata();
+
+  expect(thumbnailCalls).toBe(0);
+  expect(image.thumbnailPath).toBeNull();
+  expect(image.metadata).toMatchObject({ mediaWidth: source.width, mediaHeight: source.height });
+  const itemDirectory = join(root, "assets", "items", image.id);
+  expect(readdirSync(itemDirectory)).toEqual(["photo.png"]);
+  events.length = 0;
+
   const ai = createAiJobProcessors({ modelCacheDirectory: join(root, "models"), ...unusedModels });
+  await thumbnailLane(library, ai, { workerId: "thumbnail-test" }).pump();
+
+  expect(thumbnailCalls).toBe(1);
+  expect(library.getItem(image.id)?.thumbnailPath).toBe(`assets/items/${image.id}/thumbnail.webp`);
+  const thumbnail = await sharp(readFileSync(join(itemDirectory, "thumbnail.webp"))).metadata();
+  expect(thumbnail).toMatchObject({ format: "webp" });
+  expect(Math.max(thumbnail.width ?? 0, thumbnail.height ?? 0)).toBeLessThanOrEqual(512);
+  // The renderer hears about it through the same event as every other item update.
+  expect(events).toEqual([image.id]);
+  expect(library.jobs.getForItem(image.id).map((job) => job.kind)).not.toContain(
+    IMAGE_THUMBNAIL_JOB,
+  );
+  await closeProcessors(ai);
+});
+
+test("the image palette job waits for the thumbnail job, then persists five dominant colors", async () => {
+  const { root, library } = temporaryLibrary();
+  const image = await saveImage(library, "palette.png");
+  const ai = createAiJobProcessors({ modelCacheDirectory: join(root, "models"), ...unusedModels });
+  const paletteJobs = () =>
+    library.db.prepare("SELECT status FROM jobs WHERE kind = ?").all(IMAGE_PALETTE_JOB);
+  expect(paletteJobs()).toEqual([]);
+
+  await thumbnailLane(library, ai).pump();
+  expect(paletteJobs()).toEqual([{ status: "pending" }]);
   await ai.processors[IMAGE_PALETTE_JOB]({ itemId: image.id }, library);
+
   expect(library.getItem(image.id)?.palette).toHaveLength(5);
   expect(library.getItem(image.id)?.palette?.every((color) => /^#[0-9a-f]{6}$/i.test(color))).toBe(
     true,
   );
+  await closeProcessors(ai);
+});
+
+test("a failed thumbnail keeps the item and the OCR and embedding work, with nothing to retry on screen", async () => {
+  const { root, library } = temporaryLibrary({
+    createThumbnail: async () => {
+      throw new Error("image processing error: unable to decode image");
+    },
+  });
+  const image = await saveImage(library, "corrupt.png");
+  const ai = createAiJobProcessors({ modelCacheDirectory: join(root, "models"), ...unusedModels });
+  const worker = createWorker(library, { processors: ai.processors, workerId: "main-lane" });
+
+  await thumbnailLane(library, ai).pump();
+  await worker.pump();
+  await stopWorker(worker);
+
+  expect(library.getItem(image.id)).toMatchObject({ id: image.id, kind: "image" });
+  expect(library.getItem(image.id)?.thumbnailPath).toBeNull();
+  expect(
+    library.db
+      .prepare("SELECT status, retry_count FROM jobs WHERE kind = ?")
+      .get(IMAGE_THUMBNAIL_JOB),
+  ).toEqual({ status: "failed", retry_count: 3 });
+  expect(
+    library.db.prepare("SELECT 1 FROM jobs WHERE kind = ?").get(IMAGE_PALETTE_JOB),
+  ).toBeUndefined();
+  expect(library.jobs.getForItem(image.id).map((job) => job.status)).toEqual([
+    "completed",
+    "completed",
+  ]);
+  expect(library.jobs.countActive()).toBe(0);
+  await closeProcessors(ai);
+});
+
+test("the thumbnail lane finishes while the main worker is held inside a long job", async () => {
+  const { root, library } = temporaryLibrary();
+  const image = await saveImage(library);
+  let ocrStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    ocrStarted = resolve;
+  });
+  let finishOcr!: (text: string) => void;
+  const ai = createAiJobProcessors({
+    modelCacheDirectory: join(root, "models"),
+    ...unusedModels,
+    ocr: {
+      recognize: () =>
+        new Promise<string>((resolve) => {
+          finishOcr = resolve;
+          ocrStarted();
+        }),
+    },
+  });
+  const main = createWorker(library, { processors: ai.processors, workerId: "main-lane" });
+  const mainRun = main.pump();
+  await started;
+
+  await thumbnailLane(library, ai).pump();
+  expect(library.getItem(image.id)?.thumbnailPath).toBe(`assets/items/${image.id}/thumbnail.webp`);
+
+  finishOcr("");
+  await mainRun;
+  await stopWorker(main);
+  await closeProcessors(ai);
+});
+
+test("a pending thumbnail job survives closing and reopening the library", async () => {
+  const { root, library } = temporaryLibrary();
+  const image = await saveImage(library);
+  library.db.close();
+  libraries.splice(libraries.indexOf(library), 1);
+
+  const reopened = openLibraryStorage(join(root, "library.sqlite3"), {
+    createThumbnail: createImageThumbnail,
+  });
+  libraries.push(reopened);
+  expect(reopened.getItem(image.id)?.thumbnailPath).toBeNull();
+  const ai = createAiJobProcessors({ modelCacheDirectory: join(root, "models"), ...unusedModels });
+  await thumbnailLane(reopened, ai).start().stop();
+
+  expect(reopened.getItem(image.id)?.thumbnailPath).toBe(`assets/items/${image.id}/thumbnail.webp`);
+  await closeProcessors(ai);
+});
+
+test("a thumbnail job whose worker died resumes after its lease expires", async () => {
+  let clock = 1_000_000;
+  const { root, library } = temporaryLibrary({ jobQueue: { now: () => clock } });
+  const image = await saveImage(library);
+  const job = library.db.prepare("SELECT id FROM jobs WHERE kind = ?").get(IMAGE_THUMBNAIL_JOB);
+  expect(library.jobs.claimNext("crashed-worker", [IMAGE_THUMBNAIL_JOB])?.id).toBe(job.id);
+  const ai = createAiJobProcessors({ modelCacheDirectory: join(root, "models"), ...unusedModels });
+
+  // Still leased: a restart inside the lease must not run it twice.
+  await thumbnailLane(library, ai).start().stop();
+  expect(library.getItem(image.id)?.thumbnailPath).toBeNull();
+
+  clock += JOB_LEASE_MILLIS + 1;
+  await thumbnailLane(library, ai).start().stop();
+
+  expect(library.getItem(image.id)?.thumbnailPath).toBe(`assets/items/${image.id}/thumbnail.webp`);
+  expect(
+    library.db.prepare("SELECT status FROM jobs WHERE kind = ?").all(IMAGE_THUMBNAIL_JOB),
+  ).toEqual([{ status: "completed" }]);
   await closeProcessors(ai);
 });
 
@@ -395,7 +558,7 @@ test("backfill drains one missing PDF thumbnail at a time, hides the work, and s
     jobQueue: { onUpdated: (id: string) => events.push(id) },
   });
   const first = await savePdf(library, "native.pdf", pdfFixture("pdf-native-text-01"));
-  const broken = await savePdf(library, "broken.pdf", [...Buffer.from("not a pdf")]);
+  const broken = await savePdf(library, "broken.pdf", Buffer.from("not a pdf"));
   const second = await savePdf(library, "tables.pdf", pdfFixture("pdf-tables-01"));
   library.db.prepare("DELETE FROM jobs").run();
   events.length = 0;

@@ -270,7 +270,13 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
       <div className="detail-video">
         {/* This local upload has no caption metadata in the item model; do not fabricate an empty track. */}
         {/* biome-ignore lint/a11y/useMediaCaption: Captions are unavailable for this user-supplied file. */}
-        <video className="detail-native-video" src={item.fileUrl} controls preload="metadata" />
+        <video
+          className="detail-native-video"
+          src={item.fileUrl}
+          poster={item.image}
+          controls
+          preload="metadata"
+        />
       </div>
     );
   }

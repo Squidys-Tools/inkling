@@ -72,6 +72,10 @@ Guardrails:
 ### Fixed
 
 - URL captures from Add, paste, deep links, and the browser extension now appear immediately and enrich the same item through the retryable local job queue.
+- Image captures appear immediately: files travel to the backend as binary data instead of a number array, and the thumbnail is made by a background job that survives restarts instead of blocking the save.
+- Local videos get a poster frame from a background job, so video cards no longer load the video file to show a frame, and a video without one shows the typed video card instead of an empty tile.
+- Library files are streamed with byte-range support instead of being read whole into memory, so large videos and PDFs start sooner and videos can seek.
+- The Settings Archive tab reads the archive only when it is opened and renders only the cards near the scroll position.
 - The app no longer contacts Google Fonts or Twitter/X at startup: reader fonts are bundled with the app and the content security policy no longer allows Google Fonts requests
 - X post embeds load the X widget only when the user clicks to load the post, so cards and saved links no longer contact X or Twitter on open
 - The library bottom fade no longer shows a hard edge where the blur band starts or where it meets the padding below the grid: one blur layer feathers out through an eased mask, and a canvas-colored scrim dissolves content into the background at the grid's clip line (#149)

@@ -15,6 +15,7 @@ import { DatabaseSync } from "node:sqlite";
 import { personalSeedItems } from "../src/seedPersonal";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
 import {
+  IMAGE_THUMBNAIL_JOB,
   JobQueue,
   JobWorker,
   JOB_LEASE_MILLIS,
@@ -643,7 +644,7 @@ test("file capture persists its item and asset before queued processing becomes 
     fileName: "quick note.txt",
     mimeType: "text/plain",
     kind: "other",
-    bytes: [...Buffer.from("captured immediately")],
+    bytes: new TextEncoder().encode("captured immediately"),
   });
 
   expect(item).toMatchObject({
@@ -659,24 +660,113 @@ test("file capture persists its item and asset before queued processing becomes 
   expect(library.jobs.countActive()).toBe(1);
 });
 
-test("image capture awaits asynchronous thumbnails and persists source dimensions", async () => {
+test("file bytes arrive as a typed array view or an ArrayBuffer, never a number array", async () => {
+  const { root, library } = temporaryLibrary();
+  const text = new TextEncoder().encode("exact bytes");
+  // A view into a larger buffer, as a pooled Buffer is: only its window is the file.
+  const padded = new Uint8Array(text.length + 8);
+  padded.set(text, 4);
+  const saved = (name: string, bytes: unknown) =>
+    library.saveFile({ fileName: name, mimeType: "text/plain", kind: "other", bytes });
+  const read = (id: string, name: string) =>
+    readFileSync(join(root, "assets", "items", id, name), "utf8");
+
+  const view = await saved("view.txt", padded.subarray(4, 4 + text.length));
+  const buffer = await saved("buffer.txt", text.buffer.slice(0));
+  expect(read(view.id, "view.txt")).toBe("exact bytes");
+  expect(read(buffer.id, "buffer.txt")).toBe("exact bytes");
+
+  await expect(saved("array.txt", [...text])).rejects.toThrow(
+    "must be a Uint8Array or ArrayBuffer",
+  );
+  await expect(saved("missing.txt", undefined)).rejects.toThrow("Uint8Array or ArrayBuffer");
+  await expect(saved("empty.txt", new Uint8Array())).rejects.toThrow("cannot be empty");
+});
+
+test("image capture saves the item and header-read size without resizing", async () => {
+  let resized = 0;
   const { root, library } = temporaryLibrary({
-    createThumbnail: async () => ({ bytes: Buffer.from("thumbnail"), width: 1200, height: 800 }),
+    inspectImage: async () => ({ width: 1200, height: 800 }),
+    createThumbnail: async () => {
+      resized += 1;
+      return { bytes: Buffer.from("thumbnail"), width: 1200, height: 800 };
+    },
   });
   const item = await library.saveFile({
     fileName: "photo.png",
     mimeType: "image/png",
-    bytes: [...Buffer.from("source image")],
+    bytes: new TextEncoder().encode("source image"),
   });
 
+  expect(resized).toBe(0);
   expect(item).toMatchObject({
     kind: "image",
-    thumbnailPath: `assets/items/${item.id}/thumbnail.webp`,
+    thumbnailPath: null,
     metadata: { mediaWidth: 1200, mediaHeight: 800 },
+  });
+  const itemDirectory = join(root, "assets", "items", item.id);
+  expect(readdirSync(itemDirectory)).toEqual(["photo.png"]);
+  expect(
+    library.db
+      .prepare("SELECT kind, status FROM jobs WHERE item_id = ? ORDER BY kind")
+      .all(item.id),
+  ).toEqual([
+    { kind: "generate_embedding", status: "pending" },
+    { kind: IMAGE_THUMBNAIL_JOB, status: "pending" },
+    { kind: "ocr_image", status: "pending" },
+  ]);
+  expect(library.jobs.getForItem(item.id).map((job) => job.kind)).not.toContain(
+    IMAGE_THUMBNAIL_JOB,
+  );
+});
+
+test("image capture refuses what inspection rejects before it stores anything", async () => {
+  const { root, library } = temporaryLibrary({
+    inspectImage: async () => {
+      throw new Error("image processing error: image dimensions exceed safe limits");
+    },
+  });
+  await expect(
+    library.saveFile({
+      fileName: "huge.png",
+      kind: "image",
+      bytes: new TextEncoder().encode("not really"),
+    }),
+  ).rejects.toThrow("safe limits");
+
+  expect(library.db.prepare("SELECT COUNT(*) AS count FROM items").get().count).toBe(0);
+  expect(library.db.prepare("SELECT COUNT(*) AS count FROM jobs").get().count).toBe(0);
+  expect(existsSync(join(root, "assets", "items"))).toBe(false);
+});
+
+test("image thumbnails publish once, record the decoded size, and tell the renderer", async () => {
+  const events: string[] = [];
+  const { root, library } = temporaryLibrary({
+    jobQueue: { onUpdated: (id: string) => events.push(id) },
+    inspectImage: async () => null,
+    createThumbnail: async () => ({ bytes: Buffer.from("thumbnail"), width: 640, height: 480 }),
+  });
+  const source = new TextEncoder().encode("source image");
+  const item = await library.saveFile({ fileName: "photo.bmp", kind: "image", bytes: source });
+  const note = library.createNote({ title: "Not an image", body: "text" });
+  events.length = 0;
+
+  expect(item.metadata.mediaWidth).toBeUndefined();
+  expect(await library.storeImageThumbnail(note.id, source)).toBe(false);
+  expect(await library.storeImageThumbnail("missing", source)).toBe(false);
+  expect(await library.storeImageThumbnail(item.id, source)).toBe(true);
+  expect(await library.storeImageThumbnail(item.id, source)).toBe(false);
+
+  expect(events).toEqual([item.id]);
+  expect(library.getItem(item.id)).toMatchObject({
+    thumbnailPath: `assets/items/${item.id}/thumbnail.webp`,
+    metadata: { mediaWidth: 640, mediaHeight: 480, byteLength: source.length },
+    updatedAt: item.updatedAt,
   });
   expect(readFileSync(join(root, "assets", "items", item.id, "thumbnail.webp"), "utf8")).toBe(
     "thumbnail",
   );
+  expect(readdirSync(root).filter((name) => name.startsWith(".inkling-thumbnail-"))).toEqual([]);
 });
 
 test("export snapshots and hashes assets; restore rejects tampering and imports the verified copy", async () => {
@@ -846,7 +936,7 @@ test("restore removes staged assets when the active library rejects its transact
     fileName: "reference.txt",
     mimeType: "text/plain",
     kind: "other",
-    bytes: [...Buffer.from("verified local file")],
+    bytes: new TextEncoder().encode("verified local file"),
   });
   const destination = join(root, "exports");
   mkdirSync(destination);
@@ -1024,7 +1114,7 @@ test("PDF thumbnails publish once, touch only thumbnail_path, and survive export
   const pdf = await library.saveFile({
     fileName: "paper.pdf",
     mimeType: "application/pdf",
-    bytes: [...Buffer.from("%PDF-1.4")],
+    bytes: new TextEncoder().encode("%PDF-1.4"),
   });
   const note = library.createNote({ title: "Not a PDF", body: "text" });
   const before = library.getItem(pdf.id);

@@ -98,7 +98,9 @@ export type SaveFileInput = {
   fileName: string;
   mimeType: string;
   kind: "image" | "pdf" | "video" | "other";
-  bytes: number[];
+  // Structured clone moves a typed array as one block across IPC; a number
+  // array would be several times larger and slow to copy.
+  bytes: Uint8Array;
 };
 
 type ProcessingJobKind = "ocr_image" | "ocr_pdf_page" | "generate_embedding" | "enrich_url";

@@ -3,7 +3,13 @@ import { join } from "node:path";
 import { createEmbeddingEngine } from "./embeddings.mjs";
 import { IMAGE_MODEL } from "./embedding-contract.mjs";
 import { createTesseractOcr } from "./ocr.mjs";
-import { IMAGE_PALETTE_JOB, markdownToPlainText, PDF_THUMBNAIL_JOB } from "./storage.mjs";
+import {
+  IMAGE_PALETTE_JOB,
+  IMAGE_THUMBNAIL_JOB,
+  markdownToPlainText,
+  PDF_THUMBNAIL_JOB,
+  VIDEO_POSTER_JOB,
+} from "./storage.mjs";
 
 async function itemAsset(storage, item) {
   if (!item?.localAssetPath) throw new Error("item has no local asset path");
@@ -52,11 +58,14 @@ export function createAiJobProcessors({
     const { ingestUrl } = await import("../dist/electron/url-ingestion.mjs");
     return ingestUrl(sourceUrl);
   },
+  nativeImage,
 } = {}) {
   let thumbnailCursor = 0;
   let thumbnailBackfillDone = false;
   let paletteCursor = 0;
   let paletteBackfillDone = false;
+  let posterCursor = 0;
+  let posterBackfillDone = false;
 
   const processors = {
     async enrich_url(job, storage, workerId) {
@@ -178,8 +187,33 @@ export function createAiJobProcessors({
     },
   };
 
+  // A separate set because it runs on its own worker: a new card waits on these
+  // jobs, and OCR or model loading can hold the main worker for minutes.
+  const thumbnailProcessors = {
+    async [IMAGE_THUMBNAIL_JOB](job, storage) {
+      const item = storage.getItem(job.itemId);
+      if (item?.kind !== "image") throw new Error("image item not found");
+      if (await storage.storeImageThumbnail(item.id, await itemAsset(storage, item))) {
+        storage.jobs.enqueue(item.id, IMAGE_PALETTE_JOB, { notify: false });
+      }
+    },
+
+    async [VIDEO_POSTER_JOB](job, storage) {
+      const item = storage.getItem(job.itemId);
+      if (item?.kind !== "video") throw new Error("video item not found");
+      if (!item.localAssetPath) throw new Error("item has no local asset path");
+      const { createVideoPoster } = await import("./video-poster.mjs");
+      const poster = await createVideoPoster(await storage.resolveAssetPath(item.localAssetPath), {
+        nativeImage,
+      });
+      if (!poster) throw new Error("no poster available for this video");
+      await storage.storeVideoPoster(item.id, poster);
+    },
+  };
+
   return {
     processors,
+    thumbnailProcessors,
     onIdle(storage) {
       if (!paletteBackfillDone) {
         const nextPalette = storage.nextImagePaletteCandidate(paletteCursor);
@@ -189,6 +223,15 @@ export function createAiJobProcessors({
           return;
         }
         paletteBackfillDone = true;
+      }
+      if (!posterBackfillDone) {
+        const nextPoster = storage.nextVideoPosterCandidate(posterCursor);
+        if (nextPoster) {
+          storage.jobs.enqueue(nextPoster.id, VIDEO_POSTER_JOB, { notify: false });
+          posterCursor = nextPoster.rowid;
+          return;
+        }
+        posterBackfillDone = true;
       }
       if (thumbnailBackfillDone) return;
       const next = storage.nextPdfThumbnailCandidate(thumbnailCursor);

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import sharp from "sharp";
-import { createImageThumbnail, validateImageDimensions } from "./thumbnail.mjs";
+import { createImageThumbnail, inspectImage, validateImageDimensions } from "./thumbnail.mjs";
 
 test("image thumbnails resize asynchronously and preserve source dimensions", async () => {
   const source = await sharp({
@@ -27,6 +27,40 @@ test("image thumbnails apply EXIF orientation before resizing", async () => {
 
   expect(thumbnail).toMatchObject({ width: 768, height: 1024 });
   expect(output).toMatchObject({ width: 384, height: 512, format: "webp" });
+});
+
+test("inspecting an image reads the oriented size and refuses what capture must not keep", async () => {
+  const jpeg = await sharp({
+    create: { width: 1024, height: 768, channels: 3, background: "#335577" },
+  })
+    .withMetadata({ orientation: 6 })
+    .jpeg()
+    .toBuffer();
+  expect(await inspectImage(jpeg)).toEqual({ width: 768, height: 1024 });
+
+  const tooWide = await sharp({
+    create: { width: 20_001, height: 1, channels: 3, background: "#335577" },
+  })
+    .png()
+    .toBuffer();
+  await expect(inspectImage(tooWide)).rejects.toThrow("safe limits");
+  await expect(inspectImage(Buffer.from("definitely not an image"))).rejects.toThrow();
+});
+
+test("inspecting a BMP checks its header and leaves the size to the thumbnail", async () => {
+  const bitmap = Buffer.alloc(26 + 8);
+  bitmap.write("BM");
+  bitmap.writeUInt32LE(bitmap.length, 2);
+  bitmap.writeUInt32LE(26, 10);
+  bitmap.writeUInt32LE(12, 14);
+  bitmap.writeUInt16LE(2, 18);
+  bitmap.writeUInt16LE(2, 20);
+  bitmap.writeUInt16LE(1, 22);
+  bitmap.writeUInt16LE(24, 24);
+  expect(await inspectImage(bitmap)).toBeNull();
+
+  bitmap.writeUInt16LE(20_001, 18);
+  await expect(inspectImage(bitmap)).rejects.toThrow("safe limits");
 });
 
 test("image dimensions respect side and decoded-allocation limits", () => {
