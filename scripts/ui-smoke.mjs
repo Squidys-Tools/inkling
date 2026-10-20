@@ -390,14 +390,15 @@ async function run() {
       if (after !== before)
         throw new Error(`deleting the space changed the card count from ${before} to ${after}`);
     });
-    await step("settings opens on the Archive tab", async () => {
+    await step("settings opens on the General tab", async () => {
       await cdp.evaluate(clickSelector, 'button[aria-label="Settings"]');
       await waitFor("settings sections", hasSelector, 'aside[aria-label="Settings sections"]');
-      await waitFor(
-        "archive tab to be selected",
-        hasSelector,
-        '.settings-tab.active[aria-current="page"]',
-      );
+      await waitFor("General tab to be selected", () => {
+        const tab = [...document.querySelectorAll(".settings-tab")].find(
+          (node) => node.textContent?.trim() === "General",
+        );
+        return tab?.classList.contains("active") === true;
+      });
       await cdp.send("Input.dispatchKeyEvent", {
         type: "keyDown",
         key: "Escape",
@@ -470,6 +471,28 @@ async function run() {
       await cdp.evaluate(clickSelector, 'button[aria-label="Settings"]');
       await waitFor("settings sections", hasSelector, 'aside[aria-label="Settings sections"]');
       await cdp.evaluate(() => document.activeElement?.blur());
+      let archiveTabFocused = false;
+      for (let i = 0; i < 12; i++) {
+        await key("Tab", "Tab", 9);
+        archiveTabFocused = await cdp.evaluate(() => {
+          const active = document.activeElement;
+          return (
+            active instanceof HTMLButtonElement &&
+            active.classList.contains("settings-tab") &&
+            active.querySelector("span")?.textContent?.trim() === "Archive"
+          );
+        });
+        if (archiveTabFocused) break;
+      }
+      if (!archiveTabFocused) throw new Error("Tab did not reach the Archive settings tab");
+      await key("Enter", "Enter", 13);
+      await waitFor("Archive tab to be selected", () => {
+        const tab = [...document.querySelectorAll(".settings-tab")].find(
+          (node) => node.querySelector("span")?.textContent?.trim() === "Archive",
+        );
+        return tab?.classList.contains("active") === true;
+      });
+      await cdp.evaluate(() => document.activeElement?.blur());
       let selectModeFocused = false;
       for (let i = 0; i < 12; i++) {
         await key("Tab", "Tab", 9);
@@ -534,6 +557,45 @@ async function run() {
           document
             .querySelector(".settings-archive-grid .archive-card-select")
             ?.getAttribute("aria-pressed") === "true"
+        );
+      });
+      const cardPoint = await cdp.evaluate((title) => {
+        const card = [...document.querySelectorAll(".settings-archive-grid .library-card")].find(
+          (node) => node.getAttribute("aria-label") === title,
+        );
+        if (!(card instanceof HTMLElement)) return null;
+        const rect = card.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      }, forgottenTitle);
+      if (!cardPoint) throw new Error("could not locate the selected archived card");
+      await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...cardPoint });
+      await cdp.send("Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        ...cardPoint,
+        button: "left",
+        clickCount: 1,
+      });
+      await cdp.send("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        ...cardPoint,
+        button: "left",
+        clickCount: 1,
+      });
+      await waitFor("card click to focus and deselect it", () => {
+        const card = document.querySelector(".settings-archive-grid .library-card");
+        return (
+          document.querySelector(".settings-selected-count")?.textContent?.trim() ===
+            "0 selected" && document.activeElement === card
+        );
+      });
+      await key("Enter", "Enter", 13);
+      await waitFor("Enter on an archived card to toggle selection", () => {
+        const card = document.querySelector(".settings-archive-grid .library-card");
+        return (
+          document.querySelector(".settings-selected-count")?.textContent?.trim() ===
+            "1 selected" &&
+          document.activeElement === card &&
+          !document.querySelector(".expanded-overlay")
         );
       });
       await cdp.evaluate(() => document.activeElement?.blur());
@@ -619,30 +681,34 @@ async function run() {
       await key("Enter", "Enter", 13);
       await waitFor("settings sections", hasSelector, 'aside[aria-label="Settings sections"]');
       await cdp.evaluate(() => document.activeElement?.blur());
-      let dataTabFocused = false;
+      let generalTabFocused = false;
       for (let i = 0; i < 10; i++) {
         await key("Tab", "Tab", 9);
-        dataTabFocused = await cdp.evaluate(
-          () => document.activeElement?.textContent?.trim().startsWith("Data") === true,
+        generalTabFocused = await cdp.evaluate(
+          () => document.activeElement?.textContent?.trim().startsWith("General") === true,
         );
-        if (dataTabFocused) break;
+        if (generalTabFocused) break;
       }
-      if (!dataTabFocused) throw new Error("Tab did not reach the Data settings tab");
+      if (!generalTabFocused) throw new Error("Tab did not reach the General settings tab");
       await key("Enter", "Enter", 13);
-      await waitFor("Data tab to be selected", () => {
+      await waitFor("General tab to be selected", () => {
         const tab = [...document.querySelectorAll(".settings-tab")].find(
-          (node) => node.textContent?.trim() === "Data",
+          (node) => node.textContent?.trim() === "General",
         );
         return tab?.classList.contains("active") === true;
       });
-      await waitFor("welcome rerun control", hasSelector, ".settings-data-link");
+      await waitFor("welcome rerun control", hasSelector, "button.settings-data-button");
       await cdp.evaluate(() => document.activeElement?.blur());
       let welcomeControlFocused = false;
       for (let i = 0; i < 10; i++) {
         await key("Tab", "Tab", 9);
-        welcomeControlFocused = await cdp.evaluate(
-          () => document.activeElement?.classList.contains("settings-data-link") === true,
-        );
+        welcomeControlFocused = await cdp.evaluate(() => {
+          const active = document.activeElement;
+          return (
+            active?.classList.contains("settings-data-button") === true &&
+            active.textContent?.trim() === "Show the welcome again"
+          );
+        });
         if (welcomeControlFocused) break;
       }
       if (!welcomeControlFocused) throw new Error("Tab did not reach the welcome rerun control");
@@ -726,122 +792,214 @@ async function run() {
       );
       if (searchValue !== "") throw new Error("the slash shortcut typed into the search field");
     });
-    await step("keyboard scrolling exposes every virtualized library card", async () => {
-      const key = async (value, code, windowsVirtualKeyCode) => {
-        for (const type of ["keyDown", "keyUp"])
-          await cdp.send("Input.dispatchKeyEvent", {
-            type,
-            key: value,
-            code,
-            windowsVirtualKeyCode,
+    await step(
+      "keyboard scrolling exposes virtualized cards and preserves nested focus",
+      async () => {
+        const key = async (value, code, windowsVirtualKeyCode) => {
+          for (const type of ["keyDown", "keyUp"])
+            await cdp.send("Input.dispatchKeyEvent", {
+              type,
+              key: value,
+              code,
+              windowsVirtualKeyCode,
+            });
+        };
+        const gridState = () =>
+          cdp.evaluate(() => {
+            const grid = document.querySelector(".library-grid");
+            if (!(grid instanceof HTMLElement)) return null;
+            const cards = [...grid.querySelectorAll(".library-card[data-library-item-id]")];
+            return {
+              scrollTop: grid.scrollTop,
+              maxScroll: grid.scrollHeight - grid.clientHeight,
+              cardIds: cards.map((card) => card.dataset.libraryItemId),
+              cardsAreFocusable: cards.every((card) => card.tabIndex === 0),
+              gridHasFocus: document.activeElement === grid,
+            };
           });
-      };
-      const gridState = () =>
-        cdp.evaluate(() => {
-          const grid = document.querySelector(".library-grid");
-          if (!(grid instanceof HTMLElement)) return null;
-          const cards = [...grid.querySelectorAll(".library-card[data-library-item-id]")];
-          return {
-            scrollTop: grid.scrollTop,
-            maxScroll: grid.scrollHeight - grid.clientHeight,
-            cardIds: cards.map((card) => card.dataset.libraryItemId),
-            cardsAreFocusable: cards.every((card) => card.tabIndex === 0),
-            gridHasFocus: document.activeElement === grid,
-          };
-        });
-      const settle = async () => {
-        let previous = "";
-        let stablePolls = 0;
-        const deadline = Date.now() + 3_000;
-        while (Date.now() < deadline) {
-          const state = await gridState();
-          if (!state) throw new Error("library grid was removed while scrolling");
-          const signature = JSON.stringify(state);
-          stablePolls = signature === previous ? stablePolls + 1 : 0;
-          if (stablePolls >= 2) return state;
-          previous = signature;
-          await sleep(50);
-        }
-        throw new Error("library grid did not settle after keyboard scrolling");
-      };
+        const settle = async () => {
+          let previous = "";
+          let stablePolls = 0;
+          const deadline = Date.now() + 3_000;
+          while (Date.now() < deadline) {
+            const state = await gridState();
+            if (!state) throw new Error("library grid was removed while scrolling");
+            const signature = JSON.stringify(state);
+            stablePolls = signature === previous ? stablePolls + 1 : 0;
+            if (stablePolls >= 2) return state;
+            previous = signature;
+            await sleep(50);
+          }
+          throw new Error("library grid did not settle after keyboard scrolling");
+        };
 
-      let reachedLibraryRegion = false;
-      for (let i = 0; i < 24; i++) {
-        await key("Tab", "Tab", 9);
-        if (await cdp.evaluate(isFocused, ".library-grid")) {
-          reachedLibraryRegion = true;
-          break;
+        let reachedLibraryRegion = false;
+        for (let i = 0; i < 24; i++) {
+          await key("Tab", "Tab", 9);
+          if (await cdp.evaluate(isFocused, ".library-grid")) {
+            reachedLibraryRegion = true;
+            break;
+          }
         }
-      }
-      if (!reachedLibraryRegion)
-        throw new Error("Tab did not reach the named library-items region");
-      const expectedCount = await cdp.evaluate(() => {
-        const everything = [...document.querySelectorAll(".nav-item")].find(
-          (button) => button.querySelector("span")?.textContent?.trim() === "Everything",
-        );
-        return Number(everything?.querySelector(".nav-count")?.textContent);
-      });
-      if (!Number.isInteger(expectedCount) || expectedCount < 1)
-        throw new Error("could not read the library's item count");
-      await key("Home", "Home", 36);
-      let state = await settle();
-      const visited = new Set();
-      const collectMountedCards = (current) => {
-        if (!current.cardsAreFocusable)
-          throw new Error("a mounted library card is missing from the Tab order");
-        for (const id of current.cardIds) visited.add(id);
-      };
-      collectMountedCards(state);
-      await key("PageDown", "PageDown", 34);
-      await waitFor(
-        "library region to page down",
-        (previous) => {
-          const grid = document.querySelector(".library-grid");
-          return grid instanceof HTMLElement && grid.scrollTop > previous;
-        },
-        state.scrollTop,
-      );
-      state = await settle();
-      for (let i = 0; i < 60; i++) {
+        if (!reachedLibraryRegion)
+          throw new Error("Tab did not reach the named library-items region");
+        const expectedCount = await cdp.evaluate(() => {
+          const everything = [...document.querySelectorAll(".nav-item")].find(
+            (button) => button.querySelector("span")?.textContent?.trim() === "Everything",
+          );
+          return Number(everything?.querySelector(".nav-count")?.textContent);
+        });
+        if (!Number.isInteger(expectedCount) || expectedCount < 1)
+          throw new Error("could not read the library's item count");
+        await key("Home", "Home", 36);
+        let state = await settle();
+        const visited = new Set();
+        const collectMountedCards = (current) => {
+          if (!current.cardsAreFocusable)
+            throw new Error("a mounted library card is missing from the Tab order");
+          for (const id of current.cardIds) visited.add(id);
+        };
         collectMountedCards(state);
-        if (!state.gridHasFocus)
-          throw new Error("keyboard scrolling moved focus out of the library region");
-        if (state.scrollTop >= state.maxScroll - 1) break;
-        const previousScrollTop = state.scrollTop;
-        await key("ArrowDown", "ArrowDown", 40);
+        await key("PageDown", "PageDown", 34);
         await waitFor(
-          "library region to scroll down",
+          "library region to page down",
           (previous) => {
             const grid = document.querySelector(".library-grid");
             return grid instanceof HTMLElement && grid.scrollTop > previous;
           },
-          previousScrollTop,
+          state.scrollTop,
         );
         state = await settle();
-      }
-      collectMountedCards(state);
-      if (visited.size !== expectedCount)
-        throw new Error(
-          `keyboard scrolling exposed ${visited.size} of ${expectedCount} library cards`,
+        for (let i = 0; i < 60; i++) {
+          collectMountedCards(state);
+          if (!state.gridHasFocus)
+            throw new Error("keyboard scrolling moved focus out of the library region");
+          if (state.scrollTop >= state.maxScroll - 1) break;
+          const previousScrollTop = state.scrollTop;
+          await key("ArrowDown", "ArrowDown", 40);
+          await waitFor(
+            "library region to scroll down",
+            (previous) => {
+              const grid = document.querySelector(".library-grid");
+              return grid instanceof HTMLElement && grid.scrollTop > previous;
+            },
+            previousScrollTop,
+          );
+          state = await settle();
+        }
+        collectMountedCards(state);
+        if (visited.size !== expectedCount)
+          throw new Error(
+            `keyboard scrolling exposed ${visited.size} of ${expectedCount} library cards`,
+          );
+        await key("Tab", "Tab", 9);
+        const focusedCard = await cdp.evaluate(() => {
+          const card = document.activeElement?.closest(".library-card[data-library-item-id]");
+          return card instanceof HTMLElement
+            ? {
+                id: card.dataset.libraryItemId,
+                outline: getComputedStyle(card).outlineStyle,
+                outlineWidth: getComputedStyle(card).outlineWidth,
+              }
+            : null;
+        });
+        if (focusedCard?.outline !== "solid" || focusedCard.outlineWidth !== "2px")
+          throw new Error("Tab did not focus a library card with a visible focus indicator");
+        const cardFocused = await cdp.evaluate((id) => {
+          const card = [
+            ...document.querySelectorAll(".library-grid .library-card[data-library-item-id]"),
+          ].find((item) => item.getAttribute("data-library-item-id") === id);
+          if (!(card instanceof HTMLElement)) return false;
+          card.focus({ preventScroll: true });
+          return document.activeElement === card;
+        }, focusedCard.id);
+        if (!cardFocused) throw new Error("could not focus the library card before opening it");
+        await key("Enter", "Enter", 13);
+        await waitFor("focused library card to open", hasSelector, ".expanded-overlay");
+        await key("Escape", "Escape", 27);
+        await waitFor("focused library card to close", isGone, ".expanded-overlay");
+        await waitFor(
+          "detail close to restore focus to its card",
+          (id) => {
+            const card = document.activeElement?.closest(".library-card[data-library-item-id]");
+            return card?.getAttribute("data-library-item-id") === id;
+          },
+          focusedCard.id,
         );
-      await key("Tab", "Tab", 9);
-      const focusedCard = await cdp.evaluate(() => {
-        const card = document.activeElement?.closest(".library-card[data-library-item-id]");
-        return card instanceof HTMLElement
-          ? {
-              id: card.dataset.libraryItemId,
-              outline: getComputedStyle(card).outlineStyle,
-              outlineWidth: getComputedStyle(card).outlineWidth,
-            }
-          : null;
-      });
-      if (focusedCard?.outline !== "solid" || focusedCard.outlineWidth !== "2px")
-        throw new Error("Tab did not focus a library card with a visible focus indicator");
-      await key("Enter", "Enter", 13);
-      await waitFor("focused library card to open", hasSelector, ".expanded-overlay");
-      await key("Escape", "Escape", 27);
-      await waitFor("focused library card to close", isGone, ".expanded-overlay");
-    });
+        await key("Home", "Home", 36);
+        await waitFor(
+          "focus to remain on the card or return to its grid after scrolling Home",
+          (id) => {
+            const grid = document.querySelector(".library-grid");
+            const card = [
+              ...(grid?.querySelectorAll(".library-card[data-library-item-id]") ?? []),
+            ].find((item) => item.getAttribute("data-library-item-id") === id);
+            return (
+              grid instanceof HTMLElement &&
+              ((document.activeElement === grid && !card) || document.activeElement === card)
+            );
+          },
+          focusedCard.id,
+        );
+
+        const focusProbe = await cdp.evaluate(() => {
+          const grid = document.querySelector(".library-grid");
+          if (!(grid instanceof HTMLElement)) return null;
+          const card = grid.querySelector(".library-card[data-library-item-id]");
+          const id = card?.getAttribute("data-library-item-id");
+          if (!id) return null;
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "smoke-focus-probe";
+          button.setAttribute("aria-label", "Keyboard scroll focus probe");
+          button.dataset.cardId = id;
+          button.textContent = "Keyboard probe";
+          button.style.position = "absolute";
+          button.style.top = "0";
+          button.style.left = "0";
+          grid.append(button);
+          return id;
+        });
+        if (!focusProbe) throw new Error("could not add a nested library-grid control");
+        const cardActionId = focusProbe;
+        await cdp.evaluate(
+          () =>
+            new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+        );
+        const nestedProbeFocused = await cdp.evaluate(() => {
+          const probe = document.querySelector(".smoke-focus-probe");
+          if (!(probe instanceof HTMLButtonElement)) return false;
+          probe.focus({ preventScroll: true });
+          return document.activeElement === probe;
+        });
+        if (!nestedProbeFocused) throw new Error("could not focus the nested library-grid control");
+        const scrollBeforeNestedAction = await cdp.evaluate(
+          () => document.querySelector(".library-grid")?.scrollTop ?? null,
+        );
+        await key("ArrowDown", "ArrowDown", 40);
+        await waitFor(
+          "the grid to scroll from a nested card action",
+          (previous) => {
+            const grid = document.querySelector(".library-grid");
+            return grid instanceof HTMLElement && grid.scrollTop > previous;
+          },
+          scrollBeforeNestedAction,
+        );
+        await waitFor(
+          "the nested card control to keep keyboard focus",
+          (id) => {
+            const active = document.activeElement;
+            return (
+              active instanceof HTMLButtonElement &&
+              active.classList.contains("smoke-focus-probe") &&
+              active.dataset.cardId === id
+            );
+          },
+          cardActionId,
+        );
+        await cdp.evaluate(() => document.querySelector(".smoke-focus-probe")?.remove());
+      },
+    );
     await step("no console errors during the run", async () => {
       if (cdp.consoleErrors.length > 0) throw new Error(cdp.consoleErrors.slice(0, 5).join(" | "));
     });
