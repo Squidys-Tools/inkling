@@ -1159,6 +1159,12 @@ class LibraryStorage {
     return itemSelect(this.db, "archived = 1");
   }
 
+  // Rows written through this connection since it opened. The main process is
+  // the only writer, so an unchanged count means the library has not changed.
+  changeCount() {
+    return this.db.prepare("SELECT total_changes() AS changes").get().changes;
+  }
+
   // Active items only, so an archived or deleted id is simply absent from the
   // result. The ids go in as one JSON value to stay under SQLite's parameter limit.
   getItemCards(ids) {

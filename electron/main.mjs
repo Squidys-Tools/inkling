@@ -213,6 +213,7 @@ function registerLibraryCommands() {
     list_archived_items: () => requireLibraryStorage().listArchivedItems(),
     get_item: ({ id }) => requireLibraryStorage().getItem(id),
     get_item_cards: ({ ids }) => requireLibraryStorage().getItemCards(ids),
+    get_change_count: () => requireLibraryStorage().changeCount(),
     get_item_content: ({ id }) => requireLibraryStorage().getItemContent(id),
     search_items: async ({ query, limit }) => {
       const text = String(query ?? "").trim();

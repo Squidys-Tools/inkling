@@ -82,6 +82,7 @@ import {
   enqueueOcrJob,
   getItem,
   getItemCards,
+  getChangeCount,
   getItemContent,
   retryProcessingJob,
   getCaptureStatus,
@@ -3823,6 +3824,11 @@ function App() {
     const patchesInPlace = !activeSpaceId && !debouncedQuery.trim();
     const changedIds = new Set<string>();
     let reloadAll = false;
+    // The backend's write count as of the last full load. The fallback refresh
+    // below only reloads when it has moved, so an idle library is never re-read.
+    let seenChanges: number | null = null;
+    const readChanges = () =>
+      canUseDesktopBackend ? getChangeCount().catch(() => null) : Promise.resolve(null);
 
     // A refresh can resolve with data older than two writes this session
     // already made: a note body still in the cache, and a pin the backend has
@@ -3872,6 +3878,9 @@ function App() {
       fullLoadEpoch += 1;
       try {
         await initializeStorage();
+        // Asked before the items: the main process answers in order, so a write
+        // landing between the two reads still moves the count past this value.
+        const changesPromise = readChanges();
         const storedItemsPromise = activeSpaceId
           ? listSpaceItems(activeSpaceId)
           : debouncedQuery.trim()
@@ -3880,7 +3889,8 @@ function App() {
         const activeJobsPromise = canUseDesktopBackend
           ? countActiveJobs().catch(() => null)
           : Promise.resolve(null);
-        const [storedItems, activeJobs] = await Promise.all([
+        const [changes, storedItems, activeJobs] = await Promise.all([
+          changesPromise,
           storedItemsPromise,
           activeJobsPromise,
         ]);
@@ -3889,6 +3899,7 @@ function App() {
           storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
         );
         if (!cancelled) {
+          seenChanges = changes;
           if (activeJobs !== null) setActiveJobCount(activeJobs);
           setItems(libraryItems.map(withSessionState));
           syncSelectedItem(libraryItems);
@@ -3973,12 +3984,16 @@ function App() {
         else removeJobListener = removeListener;
       })
       .catch(() => {});
+    const reloadIfChanged = async () => {
+      const changes = seenChanges === null ? null : await readChanges();
+      if (changes === null || changes !== seenChanges) void loadItems();
+    };
     const refreshTimer = window.setInterval(() => {
       if (document.hidden) return;
-      void loadItems();
+      void reloadIfChanged();
     }, 30000);
     const handleVisibility = () => {
-      if (!document.hidden) void loadItems();
+      if (!document.hidden) void reloadIfChanged();
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {

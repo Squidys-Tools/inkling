@@ -1213,3 +1213,16 @@ test("item job lookups return the latest job of each kind, for any number of ite
   const ids = ["ocr-item", ...Array.from({ length: 40_000 }, (_, index) => `missing-${index}`)];
   expect(queue.getForItems(ids).map((job) => job.id)).toEqual([second]);
 });
+
+test("the change count holds still on reads and moves on every write", () => {
+  const { library } = temporaryLibrary();
+  const before = library.changeCount();
+  library.listActiveItems();
+  expect(library.changeCount()).toBe(before);
+  library.db
+    .prepare(
+      "INSERT INTO items (id, kind, created_at, updated_at) VALUES ('counted', 'note', 1, 1)",
+    )
+    .run();
+  expect(library.changeCount()).toBeGreaterThan(before);
+});

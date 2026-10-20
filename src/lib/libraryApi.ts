@@ -307,6 +307,10 @@ export async function getItemCards(ids: string[]) {
   return invoke<StoredLibraryCard[]>("get_item_cards", { ids });
 }
 
+export async function getChangeCount() {
+  return invoke<number>("get_change_count");
+}
+
 export async function searchItems(query: string) {
   return invoke<StoredLibraryCard[]>("search_items", { query, limit: 100 });
 }
