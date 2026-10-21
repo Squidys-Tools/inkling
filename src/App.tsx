@@ -5757,9 +5757,8 @@ function App() {
                 aria-hidden="true"
               />
             </div>
+            {showLibraryEdges && <LibraryEdgeFade />}
           </LiquidGlass>
-
-          {showLibraryEdges && <LibraryEdgeFade />}
         </main>
 
         <AnimatePresence>
