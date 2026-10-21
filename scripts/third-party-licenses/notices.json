@@ -7,6 +7,13 @@
     "noticeFile": "src/components/mascot/bot/LICENSE.md"
   },
   {
+    "name": "React Bits Count Up",
+    "license": "MIT + Commons Clause",
+    "sourceUrl": "https://reactbits.dev/text-animations/count-up",
+    "description": "The rolling item count above the library.",
+    "noticeFile": "src/components/GradualBlur/LICENSE.md"
+  },
+  {
     "name": "React Bits Gradual Blur",
     "license": "MIT + Commons Clause",
     "sourceUrl": "https://reactbits.dev/animations/gradual-blur",

@@ -1,0 +1,61 @@
+/* Same surface as the item view's Space menu, so the app's small menus read as
+   one family. */
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 5px;
+  border: 1px solid var(--library-border);
+  border-radius: 12px;
+  background: var(--library-surface);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  animation: context-menu-in 0.12s cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes context-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .context-menu {
+    animation: none;
+  }
+}
+.context-menu-item {
+  display: flex;
+  width: 100%;
+  height: 32px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--library-text-soft);
+  cursor: pointer;
+  font: 13px var(--font-ui);
+  text-align: left;
+  white-space: nowrap;
+}
+.context-menu-item svg {
+  flex: 0 0 auto;
+  color: var(--library-muted);
+}
+.context-menu-item:hover,
+.context-menu-item:focus-visible,
+.context-menu-item:focus {
+  outline: 0;
+  background: var(--glass-active);
+  color: var(--library-text);
+}
+.context-menu-item:is(:hover, :focus) svg {
+  color: var(--library-text);
+}
+.context-menu-separator {
+  border: 0;
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--library-border);
+}

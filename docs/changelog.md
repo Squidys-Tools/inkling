@@ -28,6 +28,7 @@ Guardrails:
 
 ### Added
 
+- Right-click a card to open, read, star, open its link, copy its link, show it in its folder, or archive it (#170)
 - Settings → General → Open source licenses lists every shipped dependency, vendored component, and bundled model with its license text and source (#170)
 - Settings → Appearance switches components between alternative looks while we compare them, starting with the grid/list toggle as the current pill or a coss ui segmented control (#170)
 - First-run welcome flow on first launch of the installed app, replayable from Settings → General
