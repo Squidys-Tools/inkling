@@ -1,6 +1,30 @@
 import { rmSync } from "node:fs";
-import { defineConfig } from "vite";
+import { fileURLToPath } from "node:url";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import { collectThirdPartyLicenses } from "./scripts/third-party-licenses/collect.mjs";
+
+const LICENSES_FILE = "third-party-licenses.json";
+
+// Settings → General → Open source licenses fetches this file beside
+// index.html, so the notices stay out of the app bundle until someone looks.
+function thirdPartyLicenses(): Plugin {
+  const collect = () => collectThirdPartyLicenses(fileURLToPath(new URL(".", import.meta.url)));
+  return {
+    name: "inkling-third-party-licenses",
+    configureServer(server) {
+      server.middlewares.use(`/${LICENSES_FILE}`, (_request, response) => {
+        response.setHeader("Content-Type", "application/json");
+        response.end(JSON.stringify(collect().entries));
+      });
+    },
+    generateBundle() {
+      const { entries, warnings } = collect();
+      for (const warning of warnings) this.warn(warning);
+      this.emitFile({ type: "asset", fileName: LICENSES_FILE, source: JSON.stringify(entries) });
+    },
+  };
+}
 
 // Vite copies public/ verbatim and offers no exclude list, so the demo seed
 // folder is removed from the output after the copy. Everything else in
@@ -36,7 +60,9 @@ export default defineConfig(async ({ mode }) => {
   const includeSeed = mode !== "app";
 
   return {
-    plugins: includeSeed ? [react()] : [react(), excludeSeedFromAppBuild()],
+    plugins: includeSeed
+      ? [react(), thirdPartyLicenses()]
+      : [react(), thirdPartyLicenses(), excludeSeedFromAppBuild()],
 
     // Read by the seed glob in src/App.tsx. A `define` rather than a runtime
     // check, so the false branch is dropped and the seed module is never

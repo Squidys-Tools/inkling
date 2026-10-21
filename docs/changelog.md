@@ -28,6 +28,7 @@ Guardrails:
 
 ### Added
 
+- Settings → General → Open source licenses lists every shipped dependency, vendored component, and bundled model with its license text and source (#170)
 - Settings → Appearance switches components between alternative looks while we compare them, starting with the grid/list toggle as the current pill or a coss ui segmented control (#170)
 - First-run welcome flow on first launch of the installed app, replayable from Settings → General
 - PDF cards now show page-one thumbnails generated in the background after capture; existing PDFs are backfilled one at a time when the job queue is idle.

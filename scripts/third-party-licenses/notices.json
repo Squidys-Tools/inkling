@@ -1,0 +1,37 @@
+[
+  {
+    "name": "bloub",
+    "license": "MIT",
+    "sourceUrl": "https://github.com/jeremy-prt/bloub",
+    "description": "The mascot's animation engine, vendored in src/components/mascot/bot.",
+    "noticeFile": "src/components/mascot/bot/LICENSE.md"
+  },
+  {
+    "name": "React Bits Gradual Blur",
+    "license": "MIT + Commons Clause",
+    "sourceUrl": "https://reactbits.dev/animations/gradual-blur",
+    "description": "The blur at the library's top and bottom edges.",
+    "noticeFile": "src/components/GradualBlur/LICENSE.md"
+  },
+  {
+    "name": "coss ui segmented control",
+    "license": "MIT",
+    "sourceUrl": "https://github.com/cosscom/coss/tree/main/packages/kloq",
+    "description": "The segmented control's styling.",
+    "noticeFile": "src/components/SegmentedControl/LICENSE.md"
+  },
+  {
+    "name": "nomic-embed-text-v1.5",
+    "license": "Apache-2.0",
+    "sourceUrl": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5",
+    "description": "The text model behind search. Copyright Nomic AI.",
+    "noticeFile": "scripts/third-party-licenses/Apache-2.0.txt"
+  },
+  {
+    "name": "nomic-embed-vision-v1.5",
+    "license": "Apache-2.0",
+    "sourceUrl": "https://huggingface.co/nomic-ai/nomic-embed-vision-v1.5",
+    "description": "The image model behind search. Copyright Nomic AI.",
+    "noticeFile": "scripts/third-party-licenses/Apache-2.0.txt"
+  }
+]

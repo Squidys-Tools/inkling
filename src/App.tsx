@@ -53,6 +53,7 @@ import {
   FileTextIcon,
   Folder01Icon,
   Upload04Icon,
+  LicenseThirdPartyIcon,
   PaintBoardIcon,
 } from "@hugeicons/core-free-icons";
 import {
@@ -126,6 +127,7 @@ import { AnimatedCount } from "./components/AnimatedCount";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
+import { OpenSourceLicenses } from "./components/OpenSourceLicenses/OpenSourceLicenses";
 import { SegmentedControl } from "./components/SegmentedControl/SegmentedControl";
 import { APPEARANCE_OPTIONS, useAppearance } from "./lib/appearance";
 import { canvasImageCrossOrigin, LiquidGlass } from "./components/LiquidGlass";
@@ -1694,7 +1696,7 @@ function App() {
     };
   }, [canUseDesktopBackend]);
   const [settingsTab, setSettingsTab] = useState<
-    "general" | "appearance" | "archive" | "data" | "extension"
+    "general" | "licenses" | "appearance" | "archive" | "data" | "extension"
   >("general");
   const [appearance, setAppearanceOption] = useAppearance();
   // Optional facts Settings shows when the desktop backend can supply them.
@@ -5270,7 +5272,7 @@ function App() {
                   <div className="settings-sidebar-content">
                     <button
                       type="button"
-                      className={`settings-tab ${settingsTab === "general" ? "active" : ""}`}
+                      className={`settings-tab ${settingsTab === "general" || settingsTab === "licenses" ? "active" : ""}`}
                       aria-current={settingsTab === "general" ? "page" : undefined}
                       onClick={() => setSettingsTab("general")}
                     >
@@ -5362,8 +5364,29 @@ function App() {
                           Show the welcome again
                         </button>
                       </div>
+                      <div className="settings-data-row">
+                        <span className="settings-data-icon" aria-hidden="true">
+                          <HugeiconsIcon icon={LicenseThirdPartyIcon} size={17} />
+                        </span>
+                        <div className="settings-data-text">
+                          <h3>Open source licenses</h3>
+                          <p>The projects inkling is built on, and the terms they come with.</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="settings-data-button"
+                          onClick={() => setSettingsTab("licenses")}
+                        >
+                          View licenses
+                        </button>
+                      </div>
                     </div>
                   </section>
+                ) : settingsTab === "licenses" ? (
+                  <OpenSourceLicenses
+                    onBack={() => setSettingsTab("general")}
+                    onClose={() => setIsSettingsOpen(false)}
+                  />
                 ) : settingsTab === "appearance" ? (
                   <section className="settings-panel" aria-labelledby="appearance-panel-title">
                     <header className="settings-panel-header">
