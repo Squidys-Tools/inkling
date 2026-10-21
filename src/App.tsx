@@ -22,6 +22,7 @@ import {
   Copy01Icon,
   LinkSquare02Icon,
   ArrowDown01Icon,
+  ArrowLeft01Icon,
   ArrowUp01Icon,
   ArrowUpRight01Icon,
   Bookmark01Icon,
@@ -1594,6 +1595,29 @@ function SpaceMark() {
   );
 }
 
+// Settings → Appearance "Edge grip": the sidebar opens and closes from the
+// library frame's left edge. Nothing shows at rest while the sidebar is open;
+// hovering or focusing the edge raises a grip and a knob. Closed, a faint grip
+// stays on the window's edge so there is always a way back.
+function SidebarEdgeGrip({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
+  const label = isOpen ? "Close sidebar" : "Open sidebar";
+  return (
+    <button
+      type="button"
+      className={`edge-grip ${isOpen ? "is-open" : ""}`}
+      aria-label={label}
+      aria-expanded={isOpen}
+      aria-controls="library-navigation"
+      onClick={onToggle}
+    >
+      <span className="edge-grip-bar" />
+      <span className="edge-grip-knob css-glass" data-tooltip={`${label} · Ctrl+\\`}>
+        <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
+      </span>
+    </button>
+  );
+}
+
 function App() {
   const canUseDesktopBackend = isDesktopRuntime() && !shouldUseSeedLibrary();
   const canUseLibraryFolderPicker = isDesktopRuntime() && !shouldUseSeedLibrary();
@@ -3110,6 +3134,7 @@ function App() {
       if (shortcut === "search") searchRef.current?.focus();
       else if (shortcut === "new-note" && !isCapturing) openCaptureRef.current("note");
       else if (shortcut === "help") setIsShortcutsOpen(true);
+      else if (shortcut === "sidebar") setIsSidebarOpen((open) => !open);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -4297,7 +4322,7 @@ function App() {
     <MotionConfig reducedMotion="user">
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Drag and drop is an optional capture path; Add, paste, and extension capture remain keyboard-accessible. */}
       <div
-        className={`app-shell ${isElectronRuntime() ? "electron-shell" : ""} ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`}
+        className={`app-shell ${isElectronRuntime() ? "electron-shell" : ""} ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""} ${appearance.sidebarToggle === "edge" ? "sidebar-edge" : ""}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -4632,6 +4657,13 @@ function App() {
             </button>
           </div>
         </aside>
+        {/* A closed sidebar's grip would sit over an open item's stage. */}
+        {appearance.sidebarToggle === "edge" && (isSidebarOpen || !selectedItem) && (
+          <SidebarEdgeGrip
+            isOpen={isSidebarOpen}
+            onToggle={() => setIsSidebarOpen((open) => !open)}
+          />
+        )}
 
         {/* An open item replaces the library, which stays mounted underneath so
             the item can fly back into its card. */}
@@ -5004,6 +5036,12 @@ function App() {
                   </div>
                   <div>
                     <dt>
+                      <kbd>Ctrl</kbd> or <kbd>⌘</kbd> + <kbd>\</kbd>
+                    </dt>
+                    <dd>Show or hide the sidebar</dd>
+                  </div>
+                  <div>
+                    <dt>
                       <kbd>?</kbd>
                     </dt>
                     <dd>Show keyboard shortcuts</dd>
@@ -5203,6 +5241,23 @@ function App() {
                           value={appearance.viewToggle}
                           onChange={(value) => setAppearanceOption("viewToggle", value)}
                           options={APPEARANCE_OPTIONS.viewToggle}
+                        />
+                      </div>
+                      <div className="settings-data-row">
+                        <span className="settings-data-icon" aria-hidden="true">
+                          <HugeiconsIcon icon={SidebarLeftIcon} size={17} />
+                        </span>
+                        <div className="settings-data-text">
+                          <h3>Sidebar button</h3>
+                          <p>How the sidebar opens and closes.</p>
+                        </div>
+                        <SegmentedControl
+                          className="settings-segmented"
+                          name="appearance-sidebar-toggle"
+                          label="Sidebar button style"
+                          value={appearance.sidebarToggle}
+                          onChange={(value) => setAppearanceOption("sidebarToggle", value)}
+                          options={APPEARANCE_OPTIONS.sidebarToggle}
                         />
                       </div>
                     </div>

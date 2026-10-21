@@ -660,6 +660,10 @@ a:focus-visible,
 .sidebar-scrim {
   display: none;
 }
+/* The narrow layout keeps its buttons; the grip is desktop only. */
+.edge-grip {
+  display: none;
+}
 @media (min-width: 781px) {
   .app-shell {
     background: var(--app-background);
@@ -702,6 +706,85 @@ a:focus-visible,
   /* Out of the way until the pointer or focus is in the sidebar. */
   .sidebar.is-open:not(:hover, :focus-within) .sidebar-close {
     opacity: 0;
+  }
+  /* Settings → Appearance "Edge grip" replaces both buttons with the grip. */
+  .sidebar-edge .sidebar-close,
+  .sidebar-edge .sidebar-toggle {
+    display: none;
+  }
+  /* A strip over the frame's left border: centred on it while the sidebar is
+     open, just inside the window's edge while it is closed. */
+  .edge-grip {
+    position: absolute;
+    top: calc(4px + var(--titlebar-height));
+    bottom: 20px;
+    left: 0;
+    z-index: 32;
+    display: block;
+    width: 14px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .edge-grip.is-open {
+    left: calc(var(--sidebar-width) - 9px);
+    width: 18px;
+  }
+  .edge-grip:focus-visible {
+    outline: 0;
+  }
+  .edge-grip-bar {
+    position: absolute;
+    top: 50%;
+    left: 5px;
+    width: 4px;
+    height: 40px;
+    translate: 0 -50%;
+    border-radius: 2px;
+    background: var(--library-text);
+    opacity: 0.22;
+    transition:
+      opacity 0.18s ease,
+      height 0.18s ease;
+  }
+  .edge-grip.is-open .edge-grip-bar {
+    left: 7px;
+    opacity: 0;
+  }
+  .edge-grip-knob {
+    position: absolute;
+    top: 50%;
+    left: 22px;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    margin-top: -14px;
+    border-radius: 50%;
+    color: var(--library-text);
+    opacity: 0;
+    scale: 0.85;
+    pointer-events: none;
+    transition:
+      opacity 0.18s ease,
+      scale 0.18s ease;
+  }
+  .edge-grip.is-open .edge-grip-knob {
+    left: 25px;
+  }
+  .edge-grip:not(.is-open) .edge-grip-knob svg {
+    rotate: 180deg;
+  }
+  .edge-grip:is(:hover, :focus-visible) .edge-grip-bar {
+    height: 56px;
+    opacity: 0.6;
+  }
+  .edge-grip:is(:hover, :focus-visible) .edge-grip-knob {
+    opacity: 1;
+    scale: 1;
+    pointer-events: auto;
   }
 }
 

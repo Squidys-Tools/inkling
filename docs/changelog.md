@@ -31,7 +31,8 @@ Guardrails:
 - Right-click a card to read, favorite, open its link, copy its link, show it in its folder, or archive it, from a menu in the library's glass (#170)
 - Buttons show a short label on hover or keyboard focus, in the same glass as the controls around them (#170)
 - Settings → General → Open source licenses lists every shipped dependency, vendored component, and bundled model with its license text and source, searchable and filterable by license (#170)
-- Settings → Appearance switches components between alternative looks while we compare them, starting with the grid/list toggle as the current pill or a coss ui segmented control (#170)
+- Settings → Appearance switches components between alternative looks while we compare them, the grid/list toggle as the current pill or a coss ui segmented control, and the sidebar button as buttons in the sidebar header and toolbar or a grip on the library frame's edge (#170)
+- Ctrl+\ (⌘+\ on a Mac) shows or hides the sidebar (#170)
 - First-run welcome flow on first launch of the installed app, replayable from Settings → General
 - PDF cards now show page-one thumbnails generated in the background after capture; existing PDFs are backfilled one at a time when the job queue is idle.
 - Chrome MV3 extension saves a page or right-clicked link through inkling's local capture receiver, with the existing capture link as fallback.

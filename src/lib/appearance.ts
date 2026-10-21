@@ -8,6 +8,10 @@ export const APPEARANCE_OPTIONS = {
     { value: "pill", label: "Pill" },
     { value: "segmented", label: "Segmented" },
   ],
+  sidebarToggle: [
+    { value: "buttons", label: "Buttons" },
+    { value: "edge", label: "Edge grip" },
+  ],
 } as const;
 
 export type Appearance = {
@@ -25,9 +29,11 @@ function loadAppearance(): Appearance {
   }
   const pick = <Key extends keyof Appearance>(key: Key): Appearance[Key] => {
     const options = APPEARANCE_OPTIONS[key];
-    return (options.find((option) => option.value === stored[key]) ?? options[0]).value;
+    const option = options.find((candidate) => candidate.value === stored[key]) ?? options[0];
+    // TypeScript cannot tie a generic key's options to that key's values.
+    return option.value as Appearance[Key];
   };
-  return { viewToggle: pick("viewToggle") };
+  return { viewToggle: pick("viewToggle"), sidebarToggle: pick("sidebarToggle") };
 }
 
 export function useAppearance() {
