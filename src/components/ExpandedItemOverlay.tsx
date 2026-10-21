@@ -795,7 +795,6 @@ export function ExpandedItemOverlay({
 
   // The view replaces the library: it takes the whole frame inside its border,
   // and the inspector keeps clear of the window controls itself (App.css).
-  // sidebar tab themselves (App.css).
   const frameRect = useCallback((): FlightRect => {
     const frame = frameRef.current;
     if (!frame) return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
