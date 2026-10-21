@@ -1,25 +1,30 @@
 import GradualBlur, { type GradualBlurProps } from "./GradualBlur/GradualBlur";
 
 // The grid scrolls almost to the frame's edges; these blur it out there instead
-// of a hard clip. No tint, so the cards soften without darkening. They render in
-// the liquid glass backdrop, so the toolbar glass refracts the blur rather than
-// being blurred itself.
+// of a hard clip. They render in the liquid glass backdrop, so the toolbar glass
+// refracts the blur rather than being blurred itself. Values are the React Bits
+// "Subtle" preset as tuned on reactbits.dev; the tint is #120f17 at its 0.3
+// tint amount.
 const EDGE_BLUR: GradualBlurProps = {
-  strength: 0.8,
-  layers: 5,
-  curve: "bezier",
+  height: "4rem",
+  strength: 1,
+  layers: 8,
+  curve: "ease-in",
   exponential: true,
   opacity: 1,
+  saturation: 1,
+  tint: "rgba(18, 15, 23, 0.3)",
+  hoverIntensity: 1,
+  autoHide: false,
   zIndex: 1,
+  className: "library-edge-blur",
 };
-const TOP_HEIGHT = 112;
-const BOTTOM_HEIGHT = 96;
 
 export function LibraryEdgeFade() {
   return (
     <>
-      <GradualBlur {...EDGE_BLUR} position="top" height={TOP_HEIGHT} />
-      <GradualBlur {...EDGE_BLUR} position="bottom" height={BOTTOM_HEIGHT} />
+      <GradualBlur {...EDGE_BLUR} position="top" />
+      <GradualBlur {...EDGE_BLUR} position="bottom" />
     </>
   );
 }

@@ -5129,7 +5129,10 @@ function App() {
           onToggle={() => setIsSidebarOpen((open) => !open)}
         />
 
-        <main className="main-content" ref={libraryFrameRef}>
+        <main
+          className={`main-content${selectedItem ? " has-open-item" : ""}`}
+          ref={libraryFrameRef}
+        >
           <section className="library-header"></section>
 
           <section className="capture-bar" ref={captureBarRef} aria-label="Capture and search">
