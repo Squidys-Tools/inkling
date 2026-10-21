@@ -1186,7 +1186,7 @@ a:focus-visible,
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--library-accent) 80%, transparent);
   pointer-events: none;
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list)) .library-card {
+.library-grid:not(.list-mode) .library-card {
   aspect-ratio: var(--card-media-ratio, 4 / 3);
 }
 .library-card-media > .card-image-wrap,
@@ -1318,28 +1318,22 @@ a:focus-visible,
 .article-card .card-footer {
   border-top-color: rgba(26, 23, 20, 0.12);
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list)) .article-card {
+.library-grid:not(.list-mode) .article-card {
   aspect-ratio: auto;
   height: 250px;
   display: flex;
   flex-direction: column;
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
-  .article-card
-  .library-card-media {
+.library-grid:not(.list-mode) .article-card .library-card-media {
   position: relative;
   inset: auto;
   flex: none;
   height: 120px;
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
-  .article-card
-  .library-card-media:has(> .card-paper-art) {
+.library-grid:not(.list-mode) .article-card .library-card-media:has(> .card-paper-art) {
   display: none;
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
-  .article-card
-  .card-content {
+.library-grid:not(.list-mode) .article-card .card-content {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
@@ -1347,20 +1341,13 @@ a:focus-visible,
   justify-content: space-between;
   padding: 16px;
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
-  .article-card
-  :is(.card-kicker, .card-content p, .card-processing) {
+.library-grid:not(.list-mode) .article-card :is(.card-kicker, .card-content p, .card-processing) {
   display: none;
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
-  .article-card
-  .card-content
-  h2 {
+.library-grid:not(.list-mode) .article-card .card-content h2 {
   margin: 0;
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
-  .article-card
-  .card-footer {
+.library-grid:not(.list-mode) .article-card .card-footer {
   margin-top: 0;
   padding-top: 0;
   border-top: 0;
@@ -1368,12 +1355,11 @@ a:focus-visible,
 
 /* Note, PDF and file share the typed layout (ItemMedia.tsx TypedArtwork). Grid
    cards are 300px tall. Video is 190px. */
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
-:is(.note-card, .pdf-card, .file-card) {
+.library-grid:not(.list-mode) :is(.note-card, .pdf-card, .file-card) {
   aspect-ratio: auto;
   height: 300px;
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list)) .video-card {
+.library-grid:not(.list-mode) .video-card {
   aspect-ratio: auto;
   height: 190px;
 }
@@ -1487,25 +1473,20 @@ a:focus-visible,
 .quote-card .card-kicker span:first-child {
   color: #b3ad8d;
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list)) .quote-card {
+.library-grid:not(.list-mode) .quote-card {
   aspect-ratio: auto;
   min-height: 250px;
   display: flex;
   flex-direction: column;
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
-  .quote-card
-  .library-card-media {
+.library-grid:not(.list-mode) .quote-card .library-card-media {
   position: relative;
   inset: auto;
   flex: 1 0 auto;
   display: flex;
   flex-direction: column;
 }
-:is(.library-grid:not(.list-mode), .library-transition-overlay:not(.is-list))
-  .quote-card
-  .library-card-media
-  > .quote-art {
+.library-grid:not(.list-mode) .quote-card .library-card-media > .quote-art {
   position: relative;
   inset: auto;
   flex: 1 0 auto;
@@ -2036,55 +2017,9 @@ a:focus-visible,
   width: 0;
   height: 0;
 }
-.library-grid.view-transitioning {
-  visibility: hidden;
-}
-.library-transition-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  overflow: hidden;
-  visibility: hidden;
-  pointer-events: none;
-}
-.library-transition-overlay.is-visible {
-  visibility: visible;
-}
-.library-transition-card {
-  position: absolute !important;
-  box-sizing: border-box;
-  margin: 0 !important;
-  transform-origin: top left;
-  pointer-events: none !important;
-}
-.library-transition-embed-placeholder {
-  position: absolute;
-  inset: 0;
-  background: #fff;
-}
-.library-transition-overlay.is-list .library-transition-card {
-  display: grid;
-  grid-template-columns: 155px 1fr;
-}
-.library-transition-overlay.is-list .card-image-wrap,
-.library-transition-overlay.is-list .card-paper-art,
-.library-transition-overlay.is-list .post-art,
-.library-transition-overlay.is-list .x-post-art {
-  height: 155px;
-  aspect-ratio: auto;
-  position: relative;
-  inset: auto;
-  width: auto;
-}
-.library-transition-overlay.is-list .x-post-art {
-  position: relative;
-}
-.library-transition-overlay.is-list .library-card-media {
-  position: static;
-}
-.library-transition-overlay.is-list .card-content {
-  min-height: 155px;
-  display: block;
+/* Cards outside the view while the others pop in (switchLibraryView). */
+.library-grid[data-entering] .library-card {
+  opacity: 0;
 }
 .overlay-action-secondary:hover:not(:disabled) {
   border-color: #4a4842;

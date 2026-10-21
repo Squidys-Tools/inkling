@@ -740,7 +740,7 @@ try {
   await screenshot("grid");
   await cdp.evaluate("document.querySelector('button[aria-label=\"List view\"]').click()");
   await cdp.evaluate(
-    "window.__gridBench.wait(() => document.querySelector('.library-grid.list-mode:not(.view-transitioning)'), 'list view selected')",
+    "window.__gridBench.wait(() => document.querySelector('.library-grid.list-mode:not([data-entering])'), 'list view selected')",
   );
   await cdp.evaluate("window.__gridBench.settle()");
   await screenshot("list");
