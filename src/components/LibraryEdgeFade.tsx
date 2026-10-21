@@ -5,7 +5,7 @@ import GradualBlur, { type GradualBlurProps } from "./GradualBlur/GradualBlur";
 // the liquid glass backdrop, so the toolbar glass refracts the blur rather than
 // being blurred itself.
 const EDGE_BLUR: GradualBlurProps = {
-  strength: 1.4,
+  strength: 0.8,
   layers: 5,
   curve: "bezier",
   exponential: true,
