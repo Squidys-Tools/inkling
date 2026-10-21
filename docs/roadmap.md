@@ -81,7 +81,6 @@ On-device AI for summaries and deeper understanding.
 Production readiness and first release.
 
 - [x] First-run onboarding (local-first, AI, export)
-- [x] Mascot that wanders the library on its own, drifting around the card grid and looking at things (SQU-58)
 - [x] Keyboard-first operation across all surfaces
 - [ ] Accessibility audit (contrast, focus indicators, screen readers)
 - [x] Windows installer and update mechanism (SQU-16)

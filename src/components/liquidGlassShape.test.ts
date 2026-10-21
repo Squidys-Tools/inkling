@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { glassBand, glassShape } from "./liquidGlassShape";
+import { glassBands, glassShape } from "./liquidGlassShape";
 
 test("a pill keeps its box and caps the radius at half its height", () => {
   expect(
@@ -33,12 +33,12 @@ test("a box outside the canvas has no glass", () => {
 });
 
 test("no glass means no band", () => {
-  expect(glassBand([], 1, 720)).toEqual({ top: 0, height: 0 });
+  expect(glassBands([], 1, 720)).toEqual([]);
 });
 
 test("toolbar glass gets a band from the top, rounded up to a step", () => {
   expect(
-    glassBand(
+    glassBands(
       [
         { y: 45, height: 34 },
         { y: 39, height: 34 },
@@ -46,11 +46,40 @@ test("toolbar glass gets a band from the top, rounded up to a step", () => {
       1,
       720,
     ),
-  ).toEqual({ top: 0, height: 256 });
+  ).toEqual([{ top: 0, height: 256 }]);
+});
+
+test("glass at the top and bottom gets two bands of one height", () => {
+  expect(
+    glassBands(
+      [
+        { y: 45, height: 34 },
+        { y: 1300, height: 34 },
+      ],
+      1,
+      1400,
+    ),
+  ).toEqual([
+    { top: 0, height: 256 },
+    { top: 1144, height: 256 },
+  ]);
+});
+
+test("bands that would cover the canvas become one", () => {
+  expect(
+    glassBands(
+      [
+        { y: 45, height: 34 },
+        { y: 300, height: 34 },
+      ],
+      1,
+      500,
+    ),
+  ).toEqual([{ top: 0, height: 500 }]);
 });
 
 test("a band never runs past the canvas", () => {
-  expect(glassBand([{ y: -1, height: 38 }], 1.5, 54)).toEqual({ top: 0, height: 54 });
-  expect(glassBand([{ y: 500, height: 30 }], 1, 720)).toEqual({ top: 436, height: 256 });
-  expect(glassBand([{ y: 600, height: 30 }], 1, 720)).toEqual({ top: 536, height: 184 });
+  expect(glassBands([{ y: -1, height: 38 }], 1.5, 54)).toEqual([{ top: 0, height: 54 }]);
+  expect(glassBands([{ y: 500, height: 30 }], 1, 720)).toEqual([{ top: 436, height: 256 }]);
+  expect(glassBands([{ y: 600, height: 30 }], 1, 720)).toEqual([{ top: 464, height: 256 }]);
 });

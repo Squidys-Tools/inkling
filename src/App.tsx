@@ -138,9 +138,6 @@ const MascotBoard = lazy(() =>
 const AliveBoard = lazy(() =>
   import("./components/mascot/AliveBoard").then((module) => ({ default: module.AliveBoard })),
 );
-const RoamBoard = lazy(() =>
-  import("./components/mascot/RoamBoard").then((module) => ({ default: module.RoamBoard })),
-);
 type NavSnapshot = {
   view: string;
   spaceId: string | null;
@@ -155,8 +152,6 @@ const ExpandedItemOverlay = lazy(() =>
 );
 import { LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
 import { MascotHomeSlot } from "./components/mascot/MascotHomeSlot";
-import { MascotRoamLayer } from "./components/mascot/MascotRoamLayer";
-import { setRoamBusy, setRoamCaptureFailed } from "./components/mascot/roamStore";
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import {
   isCardTooFarOffscreen,
@@ -1875,6 +1870,7 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const captureBarRef = useRef<HTMLElement>(null);
+  const viewDockRef = useRef<HTMLDivElement>(null);
   const edgeTabRef = useRef<HTMLButtonElement>(null);
   const libraryFrameRef = useRef<HTMLElement>(null);
   const libraryViewAnimationRef = useRef<gsap.core.Animation | null>(null);
@@ -2564,7 +2560,7 @@ function App() {
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
-      failCapture(error instanceof Error ? error.message : String(error));
+      setCaptureError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -2658,7 +2654,7 @@ function App() {
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
-      failCapture(error instanceof Error ? error.message : String(error));
+      setCaptureError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -2670,7 +2666,7 @@ function App() {
     try {
       await persistArticle(sourceUrl, "browser extension", title);
     } catch (error) {
-      failCapture(error instanceof Error ? error.message : String(error));
+      setCaptureError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -2682,7 +2678,7 @@ function App() {
     try {
       await persistText(text, captureSource);
     } catch (error) {
-      failCapture(error instanceof Error ? error.message : String(error));
+      setCaptureError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -2782,7 +2778,7 @@ function App() {
 
   async function captureScreenshot() {
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      failCapture("Screenshot capture is not available in this window.");
+      setCaptureError("Screenshot capture is not available in this window.");
       return;
     }
 
@@ -2808,7 +2804,7 @@ function App() {
       await persistFile(file, "screenshot");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      failCapture(error instanceof Error ? error.message : String(error));
+      setCaptureError(error instanceof Error ? error.message : String(error));
     } finally {
       stream?.getTracks().forEach((track) => {
         track.stop();
@@ -3615,7 +3611,6 @@ function App() {
   // Serendipity is its own walk, and an empty Space has nothing to search or
   // re-lay out, so both drop the browsing controls.
   const isEmptySpace = Boolean(activeSpace) && filteredItems.length === 0 && !query.trim();
-  const showHistoryNav = !isSerendipityView;
   const showBrowseControls = !isSerendipityView && !isEmptySpace;
   const showCaptureError = Boolean(captureError) && !isAdding;
 
@@ -3666,7 +3661,7 @@ function App() {
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
-      failCapture(error instanceof Error ? error.message : String(error));
+      setCaptureError(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -4001,7 +3996,6 @@ function App() {
   const restoringNavKeyRef = useRef<string | null>(null);
   const similarItemCacheRef = useRef(new Map<string, LibraryItem>());
   const pendingHistoryCloseRef = useRef<{ target: NavSnapshot; index: number } | null>(null);
-  const [historyPos, setHistoryPos] = useState({ index: 0, length: 0 });
   const [historyCloseRequest, setHistoryCloseRequest] = useState(0);
   const navSnapshot: NavSnapshot = {
     view: activeView,
@@ -4023,7 +4017,6 @@ function App() {
     const commit = () => {
       history.entries.splice(history.index + 1, history.entries.length, navSnapshot);
       history.index = history.entries.length - 1;
-      setHistoryPos({ index: history.index, length: history.entries.length });
     };
     if (!current || current.query === navSnapshot.query) {
       commit();
@@ -4065,7 +4058,6 @@ function App() {
         return;
       }
       history.index += delta;
-      setHistoryPos({ index: history.index, length: history.entries.length });
       selectionScrollRef.current = false;
       selectionRectsRef.current = null;
       setActiveSpaceId(target.spaceId);
@@ -4154,7 +4146,6 @@ function App() {
         pendingHistoryCloseRef.current = null;
         const history = historyRef.current;
         history.index = pending.index;
-        setHistoryPos({ index: history.index, length: history.entries.length });
         selectionScrollRef.current = false;
         selectionRectsRef.current = null;
         setActiveSpaceId(pending.target.spaceId);
@@ -4211,15 +4202,6 @@ function App() {
     canUseDesktopBackend && activeJobCount !== null
       ? activeJobCount > 0
       : items.some((item) => item.processing?.active);
-  // `captureError` is the shared error channel for the whole app, so it cannot
-  // also mean "a save the user asked for failed" — a retried job, a renamed
-  // Space, and the archive all write to it. Captures get their own count, and the
-  // mascot spends one on a single sad walk home.
-  const [captureFailures, setCaptureFailures] = useState(0);
-  const failCapture = useCallback((message: string) => {
-    setCaptureError(message);
-    setCaptureFailures((count) => count + 1);
-  }, []);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -4252,33 +4234,6 @@ function App() {
     });
   }, [isMascotBusy, captureError, isSearchFocused, query, prefersReducedMotion]);
 
-  // Roaming reads two things from the app, and nothing else. A view that owns
-  // the screen makes the mascot hold still without spending the awake time it
-  // has left, and a capture that failed is the one event that ends an outing.
-  //
-  // Serendipity and an in-flight drag are in that list for the same reason the
-  // reader is: both hand the whole stage to one decision. Serendipity is a
-  // single item with Keep and Forget on it, and dropping a file over the window
-  // is a capture in progress. Neither is a reason to end the walk, only to stop
-  // moving through it. Background indexing is deliberately not here — a mascot
-  // that vanishes every time an item finishes processing reads as broken, and
-  // the point of it is to stay quietly alive while the user works.
-  const isOverlayOpen =
-    isAdding ||
-    isSettingsOpen ||
-    selectedItem !== null ||
-    readingItem !== null ||
-    Boolean(pdfViewerItem?.fileUrl) ||
-    isSerendipityView ||
-    isDragActive ||
-    isCapturing;
-  useEffect(() => {
-    setRoamBusy(isOverlayOpen);
-  }, [isOverlayOpen]);
-  useEffect(() => {
-    if (captureFailures > 0) setRoamCaptureFailed(true);
-  }, [captureFailures]);
-
   const sidebarActionErrorAlert = sidebarActionError ? (
     <div
       className={
@@ -4308,16 +4263,6 @@ function App() {
     return (
       <Suspense fallback={null}>
         <AliveBoard />
-      </Suspense>
-    );
-  }
-  if (
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).has("mascot-roam")
-  ) {
-    return (
-      <Suspense fallback={null}>
-        <RoamBoard />
       </Suspense>
     );
   }
@@ -4609,6 +4554,16 @@ function App() {
           {isSidebarOpen && sidebarActionErrorAlert}
 
           <div className="sidebar-footer">
+            <button
+              type="button"
+              className="add-button"
+              onClick={openCaptureModal}
+              disabled={isCapturing}
+              title="Add something to your library"
+            >
+              <HugeiconsIcon icon={PlusSignIcon} size={16} />
+              <span>{isCapturing ? "Saving…" : "Add"}</span>
+            </button>
             {availableUpdate && (
               <button
                 type="button"
@@ -4672,30 +4627,87 @@ function App() {
               </button>
             )}
             {!isSidebarOpen && sidebarActionErrorAlert}
-            {showHistoryNav && (
-              <div className="history-nav glass">
-                <button
-                  type="button"
-                  className="history-button"
-                  aria-label="Back"
-                  title="Back"
-                  disabled={historyPos.index <= 0}
-                  onClick={() => stepHistory(-1)}
-                >
-                  <HugeiconsIcon icon={ArrowLeft01Icon} size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="history-button"
-                  aria-label="Forward"
-                  title="Forward"
-                  disabled={historyPos.index >= historyPos.length - 1}
-                  onClick={() => stepHistory(1)}
-                >
-                  <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
-                </button>
+            {!isSidebarOpen && (
+              <button
+                type="button"
+                className="add-button is-compact"
+                onClick={openCaptureModal}
+                disabled={isCapturing}
+                aria-label={isCapturing ? "Saving…" : "Add"}
+                title="Add something to your library"
+              >
+                <HugeiconsIcon icon={PlusSignIcon} size={15} />
+              </button>
+            )}
+            {showBrowseControls && (
+              <label
+                className={`search-field glass${isSearchFocused ? " is-mascot" : " is-resting"}`}
+              >
+                <span className="search-rest" aria-hidden="true">
+                  <HugeiconsIcon icon={Search01Icon} size={14} />
+                  {activeSpace?.name ?? activeView}
+                </span>
+                <span className="field-mascot" aria-hidden="true">
+                  <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />
+                </span>
+                <input
+                  ref={searchRef}
+                  value={query}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => setIsSearchFocused(false)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape") return;
+                    setQuery("");
+                    event.currentTarget.blur();
+                  }}
+                  onChange={(event) => {
+                    setActiveSpaceId(null);
+                    setActiveView("Everything");
+                    setQuery(event.target.value);
+                  }}
+                  placeholder="Search your mind"
+                  aria-label="Search your mind"
+                />
+                <kbd>esc to close</kbd>
+              </label>
+            )}
+            {(showFilterRow || showCaptureError) && (
+              <div className="capture-status">
+                {showFilterRow && (
+                  <div className="filter-row">
+                    {query.trim() && (
+                      <div className="query-chip glass">
+                        <span className="query-chip-text">{query.trim()}</span>
+                        <button
+                          type="button"
+                          className="query-chip-clear"
+                          aria-label="Clear search"
+                          title="Clear search"
+                          onClick={() => setQuery("")}
+                        >
+                          <HugeiconsIcon icon={Cancel01Icon} size={13} />
+                        </button>
+                      </div>
+                    )}
+                    <div className="result-context">
+                      <AnimatedCount className="result-count" value={filteredItems.length} />
+                      {` ${filteredItems.length === 1 ? "result" : "results"}`}
+                      {query.trim() ? (
+                        <button type="button" className="quiet-link" onClick={beginSaveSearch}>
+                          <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
+                {showCaptureError && (
+                  <p className="capture-error glass">Couldn’t save this yet: {captureError}</p>
+                )}
               </div>
             )}
+          </section>
+
+          <div className="view-dock" ref={viewDockRef}>
             {showBrowseControls && (
               <fieldset className="view-controls glass">
                 <legend className="visually-hidden">View options</legend>
@@ -4733,83 +4745,7 @@ function App() {
                 </button>
               </fieldset>
             )}
-            {showBrowseControls && (
-              <label
-                className={`search-field glass${isSearchFocused ? " is-mascot" : " is-resting"}`}
-              >
-                <span className="search-rest" aria-hidden="true">
-                  <HugeiconsIcon icon={Search01Icon} size={14} />
-                  {activeSpace?.name ?? activeView}
-                </span>
-                <span className="field-mascot" aria-hidden="true">
-                  <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />
-                </span>
-                <input
-                  ref={searchRef}
-                  value={query}
-                  onFocus={() => setIsSearchFocused(true)}
-                  onBlur={() => setIsSearchFocused(false)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Escape") return;
-                    setQuery("");
-                    event.currentTarget.blur();
-                  }}
-                  onChange={(event) => {
-                    setActiveSpaceId(null);
-                    setActiveView("Everything");
-                    setQuery(event.target.value);
-                  }}
-                  placeholder="Search your mind"
-                  aria-label="Search your mind"
-                />
-                <kbd>esc to close</kbd>
-              </label>
-            )}
-            <button
-              type="button"
-              className="add-button"
-              onClick={openCaptureModal}
-              disabled={isCapturing}
-              title="Add something to your library"
-            >
-              <HugeiconsIcon icon={PlusSignIcon} size={14} />
-              <span>{isCapturing ? "Saving…" : "Add"}</span>
-            </button>
-            {(showFilterRow || showCaptureError) && (
-              <div className="capture-status">
-                {showFilterRow && (
-                  <div className="filter-row">
-                    {query.trim() && (
-                      <div className="query-chip glass">
-                        <span className="query-chip-text">{query.trim()}</span>
-                        <button
-                          type="button"
-                          className="query-chip-clear"
-                          aria-label="Clear search"
-                          title="Clear search"
-                          onClick={() => setQuery("")}
-                        >
-                          <HugeiconsIcon icon={Cancel01Icon} size={13} />
-                        </button>
-                      </div>
-                    )}
-                    <div className="result-context">
-                      <AnimatedCount className="result-count" value={filteredItems.length} />
-                      {` ${filteredItems.length === 1 ? "result" : "results"}`}
-                      {query.trim() ? (
-                        <button type="button" className="quiet-link" onClick={beginSaveSearch}>
-                          <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
-                {showCaptureError && (
-                  <p className="capture-error glass">Couldn’t save this yet: {captureError}</p>
-                )}
-              </div>
-            )}
-          </section>
+          </div>
 
           <AnimatePresence>
             {isAdding && (
@@ -5117,7 +5053,10 @@ function App() {
             )}
           </AnimatePresence>
 
-          <LiquidGlass className="library-stage" targetRoots={[captureBarRef, edgeTabRef]}>
+          <LiquidGlass
+            className="library-stage"
+            targetRoots={[captureBarRef, viewDockRef, edgeTabRef]}
+          >
             <div
               className={`library-scroll${hasPinnedQuery ? " has-pinned-query" : ""}`}
               ref={libraryScrollRef}
@@ -5685,7 +5624,6 @@ function App() {
           )}
         </AnimatePresence>
       </div>
-      <MascotRoamLayer />
       <Toaster
         position="top-right"
         offset={{ top: 48, right: 16 }}
