@@ -1751,7 +1751,7 @@ function App() {
     };
   }, [canUseDesktopBackend]);
   const [settingsTab, setSettingsTab] = useState<"general" | "archive" | "data" | "extension">(
-    "data",
+    "general",
   );
   // Optional facts Settings shows when the desktop backend can supply them.
   const [appVersion, setAppVersion] = useState<string | null>(null);
@@ -3707,7 +3707,7 @@ function App() {
 
   // Settings reopens on Library, its first tab.
   useEffect(() => {
-    if (!isSettingsOpen) setSettingsTab("data");
+    if (!isSettingsOpen) setSettingsTab("general");
   }, [isSettingsOpen]);
 
   useEffect(() => {
