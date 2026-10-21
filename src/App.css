@@ -712,8 +712,9 @@ a:focus-visible,
   .sidebar-edge .sidebar-toggle {
     display: none;
   }
-  /* A strip over the frame's left border: centred on it while the sidebar is
-     open, just inside the window's edge while it is closed. */
+  /* A strip along the frame's left border. The bar sits 5px inside the frame
+     either way: just right of the sidebar while it is open, just inside the
+     window's edge while it is closed. */
   .edge-grip {
     position: absolute;
     top: calc(4px + var(--titlebar-height));
@@ -729,7 +730,7 @@ a:focus-visible,
     transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .edge-grip.is-open {
-    left: calc(var(--sidebar-width) - 9px);
+    left: calc(var(--sidebar-width) - 4px);
     width: 18px;
   }
   .edge-grip:focus-visible {
@@ -750,7 +751,7 @@ a:focus-visible,
       height 0.18s ease;
   }
   .edge-grip.is-open .edge-grip-bar {
-    left: 7px;
+    left: 9px;
     opacity: 0;
   }
   .edge-grip-knob {
@@ -772,7 +773,7 @@ a:focus-visible,
       scale 0.18s ease;
   }
   .edge-grip.is-open .edge-grip-knob {
-    left: 25px;
+    left: 26px;
   }
   .edge-grip:not(.is-open) .edge-grip-knob svg {
     rotate: 180deg;
