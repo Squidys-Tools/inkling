@@ -73,6 +73,7 @@ Guardrails:
 
 ### Fixed
 
+- List view thumbnails fill rows that grow taller than the artwork, instead of leaving a strip at the bottom (#170)
 - URL captures from Add, paste, deep links, and the browser extension now appear immediately and enrich the same item through the retryable local job queue.
 - The app no longer contacts Google Fonts or Twitter/X at startup: reader fonts are bundled with the app and the content security policy no longer allows Google Fonts requests
 - X post embeds load the X widget only when the user clicks to load the post, so cards and saved links no longer contact X or Twitter on open

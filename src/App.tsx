@@ -3648,6 +3648,26 @@ function App() {
     [filteredItems],
   );
 
+  // A new grid opens scrolled past the gap under the toolbar (App.css,
+  // --library-rest-gap), so cards fill to the frame's top edge. Virtuoso
+  // sizes its columns a frame or two after mounting, so the offset is
+  // reapplied until the grid can hold it.
+  const restScrollKey = isSerendipityView ? "" : libraryGridKey;
+  useLayoutEffect(() => {
+    const scroll = libraryScrollRef.current;
+    if (!restScrollKey || !scroll) return;
+    const gap = Number.parseFloat(getComputedStyle(scroll).getPropertyValue("--library-rest-gap"));
+    let frame = 0;
+    let tries = 0;
+    const apply = () => {
+      const grid = scroll.querySelector<HTMLElement>(".library-grid");
+      if (grid) grid.scrollTop = gap;
+      if ((!grid || grid.scrollTop < gap) && ++tries < 10) frame = requestAnimationFrame(apply);
+    };
+    apply();
+    return () => cancelAnimationFrame(frame);
+  }, [restScrollKey]);
+
   async function saveCapture(event: React.FormEvent) {
     event.preventDefault();
     setCaptureError(null);
