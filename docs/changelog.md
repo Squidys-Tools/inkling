@@ -74,7 +74,7 @@ Guardrails:
 
 ### Fixed
 
-- An open item takes over the whole library frame instead of floating inside it, so the sidebar tab, grid/list toggle and the selected card no longer show around its edges, and its actions line up with the bottom of the stage (#170)
+- An open item takes over the whole library frame instead of floating inside it, so the sidebar tab, grid/list toggle and the selected card no longer show around its edges, and its stage fills the frame with an even margin while the closed sidebar's tab steps out of the way (#170)
 - List view thumbnails fill rows that grow taller than the artwork, instead of leaving a strip at the bottom (#170)
 - List view rows size to their text, so a tall photo or a short description no longer leaves a band of empty space above the footer (#170)
 - URL captures from Add, paste, deep links, and the browser extension now appear immediately and enrich the same item through the retryable local job queue.

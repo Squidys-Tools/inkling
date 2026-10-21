@@ -794,7 +794,7 @@ export function ExpandedItemOverlay({
   const shownItem = flight?.kind === "close" ? flight.fromItem : item;
 
   // The view replaces the library: it takes the whole frame inside its border,
-  // and the stage and inspector keep clear of the window controls and the
+  // and the inspector keeps clear of the window controls itself (App.css).
   // sidebar tab themselves (App.css).
   const frameRect = useCallback((): FlightRect => {
     const frame = frameRef.current;

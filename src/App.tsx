@@ -4642,7 +4642,13 @@ function App() {
             </button>
           </div>
         </aside>
-        <SidebarEdgeTab isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen((open) => !open)} />
+        {/* A closed sidebar's tab would sit over an open item's stage. */}
+        {(isSidebarOpen || !selectedItem) && (
+          <SidebarEdgeTab
+            isOpen={isSidebarOpen}
+            onToggle={() => setIsSidebarOpen((open) => !open)}
+          />
+        )}
 
         {/* An open item replaces the library, which stays mounted underneath so
             the item can fly back into its card. */}

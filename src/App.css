@@ -3529,7 +3529,7 @@ a:focus-visible,
   display: none;
 }
 .expanded-overlay.is-editing-note .item-inspector {
-  left: var(--item-inset-left);
+  left: var(--item-inset);
   width: auto;
   padding: 6px 0 0;
 }
@@ -5080,13 +5080,11 @@ a:focus-visible,
 /* Paper's frame has no border of its own. A border here would offset the stage
    and inspector by a pixel, so the viewer and inspector insets would not match. */
 .expanded-overlay {
-  /* The stage sits where the library's cards do: below the window controls
-     band and in from the frame's edge (its padding, less the 1px border). The
-     inspector shares its top and bottom, so its action bar ends on the
-     stage's bottom edge. */
-  --item-inset-top: calc(3px + var(--titlebar-height));
-  --item-inset-left: 13px;
-  --item-inset-bottom: 13px;
+  /* The stage fills the frame less one even gap; the window controls sit over
+     the inspector, so only the inspector drops below their band. Both share a
+     bottom, so the action bar ends on the stage's bottom edge. */
+  --item-inset: 8px;
+  --item-inspector-top: calc(3px + var(--titlebar-height));
   position: absolute;
   left: 0;
   top: 0;
@@ -5097,24 +5095,18 @@ a:focus-visible,
   background: var(--library-frame);
   pointer-events: auto;
 }
-@media (min-width: 781px) {
-  /* With the sidebar closed its tab sits inside the frame's left edge. */
-  .sidebar:not(.is-open) ~ .expanded-overlay-layer .expanded-overlay {
-    --item-inset-left: 43px;
-  }
-}
 .expanded-overlay.is-flying {
   will-change: left, top, width, height, opacity;
 }
 .item-stage {
   position: absolute;
-  inset: var(--item-inset-top) 320px var(--item-inset-bottom) var(--item-inset-left);
+  inset: var(--item-inset) 320px var(--item-inset) var(--item-inset);
   display: grid;
   place-items: center;
-  padding: 72px 40px 72px;
+  padding: 60px 40px;
   overflow: hidden;
   border: 1px solid var(--library-border);
-  border-radius: 20px;
+  border-radius: calc(var(--frame-radius) - 1px - var(--item-inset) + 4px);
   --item-stage-surface:
     radial-gradient(circle, #2a2623 1px, transparent 1.2px) 0 0 / 18px 18px #121110;
   background: var(--item-stage-surface);
@@ -5169,9 +5161,9 @@ a:focus-visible,
 }
 .item-inspector {
   position: absolute;
-  top: var(--item-inset-top);
+  top: var(--item-inspector-top);
   right: 0;
-  bottom: var(--item-inset-bottom);
+  bottom: var(--item-inset);
   width: 320px;
   display: flex;
   flex-direction: column;
