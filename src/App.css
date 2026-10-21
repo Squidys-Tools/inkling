@@ -2036,27 +2036,6 @@ a:focus-visible,
   width: 0;
   height: 0;
 }
-.library-edge-fade {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 120px;
-  z-index: 1;
-  pointer-events: none;
-}
-/* The grid clips at the scroller's edges, and blurred cards stay bright, so a
-   scrim is what dissolves content into the canvas at those clip lines. It sits
-   above the blur: a background under it would be blurred along with the cards.
-   The bottom band reaches the window edge, past the 30px main-content padding
-   that holds the scroller's bottom clip. */
-.library-edge-fade::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: linear-gradient(to top, var(--library-canvas) 30px, transparent);
-}
 .library-grid.view-transitioning {
   visibility: hidden;
 }
@@ -4966,9 +4945,8 @@ a:focus-visible,
 }
 /* Toolbar and search, floating over the grid (Paper artboards 1.1 to 1.3).
    Back/forward and the view toggle sit left, the search pill is centred, Add
-   is right. The grid starts at the toolbar's top edge so cards scroll under
-   the glass, except while a query is pinned: then it starts below the filter
-   row (`.library-scroll.has-pinned-query`). The toolbar passes pointer events
+   is right. Cards scroll under the glass, and under the filter row while a
+   query is pinned (`.library-scroll.has-pinned-query`). The toolbar passes pointer events
    through its empty space. Glass comes from `.glass`. */
 .capture-bar {
   position: relative;
@@ -5005,25 +4983,30 @@ a:focus-visible,
 .library-stage .liquid-glass-content {
   background: var(--stage-background);
 }
+/* The scroller reaches past the toolbar and bottom padding, nearly to the
+   frame's edges, where LibraryEdgeFade blurs the cards out. The grid's padding
+   puts the rows back where they rest. */
 .library-scroll {
+  --scroll-reach-top: 12px;
+  --scroll-reach-bottom: 20px;
   position: absolute;
-  top: var(--library-top);
+  top: calc(var(--library-top) - var(--scroll-reach-top));
   right: var(--main-pad-x);
-  bottom: var(--main-pad-bottom);
+  bottom: calc(var(--main-pad-bottom) - var(--scroll-reach-bottom));
   left: var(--main-pad-x);
   overflow: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-/* Paper 1.3: the 44px filter row and the grid's 4px top padding put the first
-   card 100px below the toolbar's top. */
-.library-scroll.has-pinned-query {
-  top: calc(var(--library-top) + 100px);
+/* At rest the first row sits just below the toolbar, and the last row ends
+   above the bottom blur. Paper 1.3: with a query pinned, the 44px filter row
+   puts the first card 100px below the toolbar's top. */
+.library-scroll .library-grid {
+  padding-top: calc(var(--scroll-reach-top) + 52px);
+  padding-bottom: calc(var(--scroll-reach-bottom) + 36px);
 }
-/* At rest the first row sits just below the toolbar; scrolled cards still pass
-   under the glass. The pinned band already clears the toolbar. */
-.library-scroll:not(.has-pinned-query) .library-grid {
-  padding-top: 52px;
+.library-scroll.has-pinned-query .library-grid {
+  padding-top: calc(var(--scroll-reach-top) + 100px);
 }
 .history-nav,
 .view-controls {
