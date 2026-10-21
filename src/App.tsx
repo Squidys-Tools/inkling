@@ -4820,6 +4820,7 @@ function App() {
         <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup">
             <MascotHomeSlot isSearchFocused={isSearchFocused} />
+            <span className="brand-name">inkling</span>
             <button
               type="button"
               className="sidebar-close"
@@ -6100,10 +6101,6 @@ function App() {
               originRectsRef={selectionRectsRef}
               frameRef={libraryFrameRef}
               historyCloseRequest={historyCloseRequest}
-              canGoBack={historyPos.index > 0}
-              canGoForward={historyPos.index < historyPos.length - 1}
-              onStepBack={() => stepHistory(-1)}
-              onStepForward={() => stepHistory(1)}
             />
           </Suspense>
         )}

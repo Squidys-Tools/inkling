@@ -210,6 +210,17 @@ a:focus-visible,
   margin-bottom: -8px;
   padding: 0 4px 0 6px;
 }
+.brand-name {
+  margin-left: 8px;
+  color: var(--ink);
+  font:
+    400 20px / 1 "Libre Baskerville",
+    Georgia,
+    serif;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+  user-select: none;
+}
 /* The docked mascot is drawn at MASCOT_SIZE, the same body the roam uses, so the
    roam anchor measures this box's centre. */
 .brand-mark {
@@ -5370,42 +5381,6 @@ a:focus-visible,
 .expanded-overlay.is-flying .item-stage-image {
   box-shadow: none;
 }
-/* Back and forward through the app's history, floating at the stage's top-left.
-   Paper's group is 62x34: two 26px buttons in a 3px glass pill. */
-.item-stage-toolbar {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 999px;
-}
-.item-history-button {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  color: var(--library-text-soft);
-  cursor: pointer;
-}
-.item-history-button:hover:not(:disabled) {
-  color: var(--library-text);
-}
-.item-history-button:disabled {
-  color: #5e5850;
-  cursor: default;
-}
-.expanded-overlay.is-flying .item-stage-toolbar {
-  opacity: 0;
-  pointer-events: none;
-}
 .item-stage-art {
   width: min(100%, 720px);
   height: min(100%, 520px);
@@ -5784,20 +5759,77 @@ a:focus-visible,
   font-size: 13px;
   line-height: 20px;
 }
+/* The Space picker opens above the folder button as a short list, one row per
+   Regular Space, with a check on the ones this item is in. */
 .item-space-menu {
   position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 6px);
   left: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  z-index: 2;
+  width: 232px;
   margin: 0;
-  padding: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 6px;
   border: 1px solid var(--library-border);
   border-radius: 12px;
   background: var(--library-surface);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  animation: item-space-menu-in 0.16s cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes item-space-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.item-space-menu-title {
+  float: left;
+  width: 100%;
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--library-muted);
+  font: 500 11px / 14px var(--font-ui);
+  letter-spacing: 0.02em;
+}
+.item-space-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--library-text-soft);
+  cursor: pointer;
+  font: 13px var(--font-ui);
+  text-align: left;
+}
+.item-space-option:hover,
+.item-space-option:focus-visible {
+  background: var(--glass-active);
+  color: var(--library-text);
+}
+.item-space-option[aria-pressed="true"] {
+  color: var(--library-text);
+}
+.item-space-option-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-space-option-check {
+  flex: 0 0 auto;
+  color: var(--library-accent);
+  opacity: 0;
+}
+.item-space-option[aria-pressed="true"] .item-space-option-check {
+  opacity: 1;
 }
 
 /* Pixel zoom on the image stage. The frame fills the stage's content box and

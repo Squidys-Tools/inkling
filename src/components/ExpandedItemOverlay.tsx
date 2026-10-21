@@ -20,6 +20,17 @@ import {
   PlusSignIcon,
   RotateCwIcon,
 } from "@hugeicons/core-free-icons";
+import {
+  BUTTON_ZOOM_FACTOR,
+  clampPan,
+  clampZoom,
+  MAX_ZOOM,
+  type Offset,
+  PIXEL_ZOOM,
+  panAround,
+  type Size,
+  wheelZoomFactor,
+} from "./imageZoom";
 import type { LibraryItem } from "../lib/types";
 import type { ReaderOrigin } from "../ReaderView";
 import {
@@ -92,6 +103,8 @@ type Flight =
       from: FlightRect;
       to: FlightRect | null;
       thenOpen: boolean;
+      /** Archiving: shrink and fade where it is, then archive the item. */
+      archive?: boolean;
     };
 
 // The settled view's corners match the library frame it covers.
@@ -133,27 +146,6 @@ function contentActions(item: LibraryItem, actions: ExpandedOverlayActions): Ove
     });
   }
   return list;
-}
-
-// Screen pixels per image pixel at each zoom step: 100% up to 3200%.
-const ZOOM_STEPS = [1, 2, 4, 8, 16, 32];
-// From this zoom on, an image pixel is large enough to read as a square, so the
-// image renders pixelated and the grid appears. The Paper note leaves the exact
-// threshold open; 800% is the pick.
-const PIXEL_ZOOM = 8;
-
-type Size = { width: number; height: number };
-type Offset = { x: number; y: number };
-
-// Pan moves the image only as far as it overhangs the frame, so the frame stays
-// covered. An image smaller than the frame in one axis stays centred on it.
-function clampPan(pan: Offset, shown: Size, frame: Size): Offset {
-  const maxX = Math.max(0, (shown.width - frame.width) / 2);
-  const maxY = Math.max(0, (shown.height - frame.height) / 2);
-  return {
-    x: Math.min(maxX, Math.max(-maxX, pan.x)),
-    y: Math.min(maxY, Math.max(-maxY, pan.y)),
-  };
 }
 
 // Zoom and pan live here, not in the overlay, so panning re-renders only this
@@ -201,7 +193,7 @@ function ZoomableImage({
     ready && frame.width > 0 && frame.height > 0
       ? Math.min(frame.width / natural.width, frame.height / natural.height)
       : 1;
-  const zoom = Math.max(fit, zoomLevel ?? fit);
+  const zoom = clampZoom(zoomLevel ?? fit, fit);
   const isZoomed = zoom > fit;
   const shown = natural ? { width: natural.width * zoom, height: natural.height * zoom } : null;
   const offset = ready && shown ? clampPan(pan, shown, frame) : { x: 0, y: 0 };
@@ -235,24 +227,51 @@ function ZoomableImage({
     };
   }, [isZoomed, original, originalSrc, src]);
 
-  const nextStep = ZOOM_STEPS.find((step) => step > zoom);
-  const previousStep = [...ZOOM_STEPS].reverse().find((step) => step < zoom);
-  const zoomOutLevel = previousStep !== undefined && previousStep > fit ? previousStep : null;
+  const canZoomIn = zoom < MAX_ZOOM;
 
-  function applyZoom(nextLevel: number | null) {
-    if (ready) {
-      const next = Math.max(fit, nextLevel ?? fit);
-      // Keep the point at the centre of the frame in place as the scale changes.
-      const scaled = { x: (offset.x * next) / zoom, y: (offset.y * next) / zoom };
-      setPan(
-        clampPan(scaled, { width: natural.width * next, height: natural.height * next }, frame),
-      );
-    }
-    setZoomLevel(nextLevel);
+  // Scales by `factor`, keeping the image point under `anchor` (frame-centre
+  // coordinates) still. Back at fit, zoom returns to following the frame.
+  function zoomBy(factor: number, anchor: Offset = { x: 0, y: 0 }) {
+    if (!ready) return;
+    const next = clampZoom(zoom * factor, fit);
+    if (next === zoom) return;
+    const moved = panAround(offset, anchor, zoom, next);
+    setPan(clampPan(moved, { width: natural.width * next, height: natural.height * next }, frame));
+    setZoomLevel(next <= fit * 1.001 ? null : next);
   }
+  const zoomByRef = useRef(zoomBy);
+  zoomByRef.current = zoomBy;
+
+  // Ctrl+wheel zooms at the cursor. React's wheel listener is passive, so this
+  // one is attached by hand to stop the page zooming instead.
+  useEffect(() => {
+    const element = frameRef.current;
+    if (!element) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const rect = element.getBoundingClientRect();
+      zoomByRef.current(wheelZoomFactor(event.deltaY), {
+        x: event.clientX - rect.left - rect.width / 2,
+        y: event.clientY - rect.top - rect.height / 2,
+      });
+    };
+    // Middle-click would otherwise start Chromium's autoscroll instead of a pan.
+    const onMouseDown = (event: MouseEvent) => {
+      if (event.button === 1) event.preventDefault();
+    };
+    element.addEventListener("wheel", onWheel, { passive: false });
+    element.addEventListener("mousedown", onMouseDown);
+    return () => {
+      element.removeEventListener("wheel", onWheel);
+      element.removeEventListener("mousedown", onMouseDown);
+    };
+  }, []);
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (!isZoomed || event.button !== 0) return;
+    // Left or middle button drags the zoomed image.
+    if (!isZoomed || (event.button !== 0 && event.button !== 1)) return;
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = { pointerX: event.clientX, pointerY: event.clientY, origin: offset };
     setIsDragging(true);
@@ -329,7 +348,7 @@ function ZoomableImage({
             aria-label="Zoom out"
             title="Zoom out"
             disabled={!isZoomed}
-            onClick={() => applyZoom(zoomOutLevel)}
+            onClick={() => zoomBy(1 / BUTTON_ZOOM_FACTOR)}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
               <path
@@ -347,10 +366,8 @@ function ZoomableImage({
             className="item-zoom-button"
             aria-label="Zoom in"
             title="Zoom in"
-            disabled={nextStep === undefined}
-            onClick={() => {
-              if (nextStep !== undefined) applyZoom(nextStep);
-            }}
+            disabled={!canZoomIn}
+            onClick={() => zoomBy(BUTTON_ZOOM_FACTOR)}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
               <path
@@ -660,10 +677,6 @@ type ExpandedItemOverlayProps = {
   /** The library frame the item view covers once it settles. */
   frameRef: RefObject<HTMLElement | null>;
   historyCloseRequest: number;
-  canGoBack: boolean;
-  canGoForward: boolean;
-  onStepBack: () => void;
-  onStepForward: () => void;
 };
 
 export function ExpandedItemOverlay({
@@ -673,10 +686,6 @@ export function ExpandedItemOverlay({
   originRectsRef,
   frameRef,
   historyCloseRequest,
-  canGoBack,
-  canGoForward,
-  onStepBack,
-  onStepForward,
 }: ExpandedItemOverlayProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
@@ -697,6 +706,30 @@ export function ExpandedItemOverlay({
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isSpaceMenuOpen, setIsSpaceMenuOpen] = useState(false);
+  const spaceMenuRef = useRef<HTMLFieldSetElement>(null);
+  const spaceMenuButtonRef = useRef<HTMLButtonElement>(null);
+  // A click elsewhere or Esc closes the Space menu. Esc is taken in the capture
+  // phase so it closes only the menu, not the whole item view.
+  useEffect(() => {
+    if (!isSpaceMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (spaceMenuRef.current?.contains(target)) return;
+      if (spaceMenuButtonRef.current?.contains(target)) return;
+      setIsSpaceMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setIsSpaceMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [isSpaceMenuOpen]);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("info");
   // The similar items for one item. Tied to its id so a stale list never shows for another item.
   const [similar, setSimilar] = useState<{ itemId: string; items: LibraryItem[] } | null>(null);
@@ -792,6 +825,35 @@ export function ExpandedItemOverlay({
     beginCloseFlight(itemRef.current, rects.card, false);
   }, [beginCloseFlight]);
 
+  // Archiving leaves like a close, but the view has no card to return to: it
+  // shrinks a little where it is and fades out, and only then is the item
+  // archived, so the grid does not flash back underneath a live view.
+  const archiveFromView = useCallback(() => {
+    const dialog = dialogRef.current;
+    const closingItem = itemRef.current;
+    if (!dialog || flightRef.current || prefersReducedMotion()) {
+      void actionsRef.current.onForget(closingItem);
+      return;
+    }
+    const from = rectFrom(dialog.getBoundingClientRect());
+    const scale = 0.9;
+    flightIdRef.current += 1;
+    setFlight({
+      kind: "close",
+      id: flightIdRef.current,
+      fromItem: closingItem,
+      from,
+      to: {
+        left: from.left + (from.width * (1 - scale)) / 2,
+        top: from.top + (from.height * (1 - scale)) / 2,
+        width: from.width * scale,
+        height: from.height * scale,
+      },
+      thenOpen: false,
+      archive: true,
+    });
+  }, []);
+
   useEffect(() => {
     if (previousHistoryCloseRequestRef.current === historyCloseRequest) return;
     previousHistoryCloseRequestRef.current = historyCloseRequest;
@@ -851,6 +913,37 @@ export function ExpandedItemOverlay({
           0,
         )
         .fromTo(dialog, { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "power1.out" }, 0);
+      return () => {
+        timeline.kill();
+      };
+    }
+
+    if (flight.archive && flight.to) {
+      const timeline = gsap.timeline({
+        onComplete: () => {
+          void Promise.resolve(actionsRef.current.onForget(flight.fromItem)).then(() => {
+            // Still mounted means archiving failed: bring the view back.
+            const current = dialogRef.current;
+            if (!current) return;
+            gsap.set(current, { ...flight.from, opacity: 1, borderRadius: FRAME_RADIUS });
+            setFlight(null);
+          });
+        },
+      });
+      timeline
+        .fromTo(
+          dialog,
+          { ...flight.from },
+          {
+            ...flight.to,
+            borderRadius: cardCorners,
+            duration,
+            ease: OVERLAY_EASE,
+            autoRound: false,
+          },
+          0,
+        )
+        .to(dialog, { opacity: 0, duration: duration * 0.7, ease: "power1.in" }, duration * 0.3);
       return () => {
         timeline.kill();
       };
@@ -1106,52 +1199,6 @@ export function ExpandedItemOverlay({
       >
         <div className="item-stage">
           <OverlayMedia item={shownItem} />
-          <div className="item-stage-toolbar glass">
-            <button
-              type="button"
-              className="item-history-button"
-              aria-label="Back"
-              title="Back"
-              disabled={!canGoBack}
-              onClick={onStepBack}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="item-history-button"
-              aria-label="Forward"
-              title="Forward"
-              disabled={!canGoForward}
-              onClick={onStepForward}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
-          </div>
         </div>
 
         <aside className="item-inspector">
@@ -1371,19 +1418,33 @@ export function ExpandedItemOverlay({
           {!isEditingNoteView && (
             <footer className="item-action-bar">
               {isSpaceMenuOpen && spaces && spaces.length > 0 && (
-                <fieldset className="item-space-menu">
-                  <legend className="visually-hidden">Regular Spaces</legend>
+                <fieldset ref={spaceMenuRef} className="item-space-menu">
+                  <legend className="item-space-menu-title">Keep in a Space</legend>
                   {spaces.map((space) => (
                     <button
                       key={space.id}
                       type="button"
-                      className={`detail-space ${space.member ? "is-member" : ""}`}
+                      className="item-space-option"
                       aria-pressed={space.member}
                       title={space.member ? `Remove from ${space.name}` : `Add to ${space.name}`}
                       onClick={() => void actions.onToggleSpace?.(shownItem, space.id)}
                     >
                       <SpaceBlob color={space.color} />
-                      <span className="detail-space-name">{space.name}</span>
+                      <span className="item-space-option-name">{space.name}</span>
+                      <svg
+                        className="item-space-option-check"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M5 12.5l4.5 4.5L19 7.5" />
+                      </svg>
                     </button>
                   ))}
                 </fieldset>
@@ -1407,6 +1468,7 @@ export function ExpandedItemOverlay({
                 <button
                   type="button"
                   className="item-bar-button"
+                  ref={spaceMenuButtonRef}
                   onClick={() => setIsSpaceMenuOpen((open) => !open)}
                   aria-label="Move to Space"
                   aria-expanded={isSpaceMenuOpen}
@@ -1447,7 +1509,7 @@ export function ExpandedItemOverlay({
               <button
                 type="button"
                 className="item-bar-button"
-                onClick={() => void actions.onForget(shownItem)}
+                onClick={archiveFromView}
                 aria-label="Archive"
                 title="Archive"
               >
