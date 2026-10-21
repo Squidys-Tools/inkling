@@ -179,8 +179,8 @@ a:focus-visible,
   width: var(--sidebar-width);
   height: 100vh;
   min-height: 0;
-  /* 39px clears the Electron titlebar strip; everything else is Paper's spacing. */
-  padding: 39px 10px 6px;
+  /* The mascot row may sit in the Electron titlebar strip: it takes no clicks. */
+  padding: 26px 10px 6px;
   border-right: 1px solid var(--rule);
   display: flex;
   flex-direction: column;
@@ -206,29 +206,21 @@ a:focus-visible,
 .brand-lockup {
   display: flex;
   align-items: center;
-  height: 36px;
-  /* Paper's header inset: the blot sits 16px in, level with the nav icons. */
+  height: 44px;
+  margin-bottom: -8px;
   padding: 0 4px 0 6px;
 }
-/* The mascot is drawn at MASCOT_SIZE in every slot. This box is pulled in 9px a
-   side so the row reserves only the blot's 26px. The centre does not move, and
-   the roam anchor measures that centre. */
+/* The docked mascot is drawn at MASCOT_SIZE, the same body the roam uses, so the
+   roam anchor measures this box's centre. */
 .brand-mark {
   width: 44px;
   height: 44px;
-  margin: -9px;
   flex: 0 0 auto;
   overflow: hidden;
   transition:
     width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 0.3s ease;
   transform-origin: center;
-}
-/* Paper draws the docked blot at 26px. It is built at MASCOT_SIZE so the roam can
-   use the same body; a transform leaves the lane above and the centre the roam
-   anchor measures where they are. */
-.sidebar .brand-mark {
-  transform: scale(0.5909);
 }
 .brand-mark.is-away {
   width: 0;
@@ -1724,7 +1716,7 @@ a:focus-visible,
 .serendipity-stage {
   height: 100%;
   overflow-y: auto;
-  padding: 18px 0 44px;
+  padding: 96px 0 44px;
   scrollbar-width: none;
 }
 .serendipity-stage::-webkit-scrollbar {
@@ -1922,6 +1914,7 @@ a:focus-visible,
   line-height: 1.55;
 }
 .empty-state {
+  margin-top: 96px;
   padding: 80px 20px;
   text-align: center;
   border: 1px dashed var(--rule);
@@ -4963,6 +4956,11 @@ a:focus-visible,
 .library-scroll.has-pinned-query {
   margin-top: 48px;
 }
+/* At rest the first row sits just below the toolbar; scrolled cards still pass
+   under the glass. The pinned band already clears the toolbar. */
+.library-scroll:not(.has-pinned-query) .library-grid {
+  padding-top: 52px;
+}
 .history-nav,
 .view-controls {
   position: relative;
@@ -5339,7 +5337,7 @@ a:focus-visible,
 }
 .item-stage {
   position: absolute;
-  inset: 8px 320px 8px 0;
+  inset: 0 320px 0 0;
   display: grid;
   place-items: center;
   padding: 72px 40px 72px;
@@ -5429,9 +5427,9 @@ a:focus-visible,
 }
 .item-inspector {
   position: absolute;
-  top: 8px;
+  top: 0;
   right: 0;
-  bottom: 8px;
+  bottom: 0;
   width: 320px;
   display: flex;
   flex-direction: column;

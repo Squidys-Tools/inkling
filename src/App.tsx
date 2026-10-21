@@ -2029,9 +2029,14 @@ function App() {
           if (rects) {
             const currentViewport = scrollViewportRect(scrollElement, captureBarRef.current);
             if (isCardTooFarOffscreen(rects.card, currentViewport)) {
+              // At either end of the list the scroll can't move, so take the card
+              // where it is rather than waiting forever (Back would never close).
+              const before = scrollElement.scrollTop;
               scrollElement.scrollTop += rects.card.top - currentViewport.top - 16;
-              requestAnimationFrame(waitForCard);
-              return;
+              if (scrollElement.scrollTop !== before) {
+                requestAnimationFrame(waitForCard);
+                return;
+              }
             }
             resolve(rects);
             return;
@@ -4066,10 +4071,15 @@ function App() {
   const showLibraryEdges = !isSerendipityView && filteredItems.length > 0;
   // Both sit under the toolbar in one column, so a capture error and the pinned
   // query row stack instead of overlapping.
-  const showFilterRow = isSerendipityView || (!isSearchFocused && query.trim() !== "");
+  const showFilterRow = !isSerendipityView && !isSearchFocused && query.trim() !== "";
   // A pinned query has its own band above the grid, so the grid starts below it.
   // Only this boolean reaches the DOM, so typing does not restyle the grid.
-  const hasPinnedQuery = !isSerendipityView && showFilterRow;
+  const hasPinnedQuery = showFilterRow;
+  // Serendipity is its own walk, and an empty Space has nothing to search or
+  // re-lay out, so both drop the browsing controls.
+  const isEmptySpace = Boolean(activeSpace) && filteredItems.length === 0 && !query.trim();
+  const showHistoryNav = !isSerendipityView;
+  const showBrowseControls = !isSerendipityView && !isEmptySpace;
   const showCaptureError = Boolean(captureError) && !isAdding;
 
   // The Regular Spaces an item can be filed into, and whether it already is.
@@ -5117,29 +5127,31 @@ function App() {
               </button>
             )}
             {!isSidebarOpen && sidebarActionErrorAlert}
-            <div className="history-nav glass">
-              <button
-                type="button"
-                className="history-button"
-                aria-label="Back"
-                title="Back"
-                disabled={historyPos.index <= 0}
-                onClick={() => stepHistory(-1)}
-              >
-                <HugeiconsIcon icon={ArrowLeft01Icon} size={14} />
-              </button>
-              <button
-                type="button"
-                className="history-button"
-                aria-label="Forward"
-                title="Forward"
-                disabled={historyPos.index >= historyPos.length - 1}
-                onClick={() => stepHistory(1)}
-              >
-                <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
-              </button>
-            </div>
-            {!isSerendipityView && (
+            {showHistoryNav && (
+              <div className="history-nav glass">
+                <button
+                  type="button"
+                  className="history-button"
+                  aria-label="Back"
+                  title="Back"
+                  disabled={historyPos.index <= 0}
+                  onClick={() => stepHistory(-1)}
+                >
+                  <HugeiconsIcon icon={ArrowLeft01Icon} size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="history-button"
+                  aria-label="Forward"
+                  title="Forward"
+                  disabled={historyPos.index >= historyPos.length - 1}
+                  onClick={() => stepHistory(1)}
+                >
+                  <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
+                </button>
+              </div>
+            )}
+            {showBrowseControls && (
               <fieldset className="view-controls glass">
                 <legend className="visually-hidden">View options</legend>
                 <motion.span
@@ -5176,36 +5188,38 @@ function App() {
                 </button>
               </fieldset>
             )}
-            <label
-              className={`search-field glass${isSearchFocused ? " is-mascot" : " is-resting"}`}
-            >
-              <span className="search-rest" aria-hidden="true">
-                <HugeiconsIcon icon={Search01Icon} size={14} />
-                {activeSpace?.name ?? activeView}
-              </span>
-              <span className="field-mascot" aria-hidden="true">
-                <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />
-              </span>
-              <input
-                ref={searchRef}
-                value={query}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Escape") return;
-                  setQuery("");
-                  event.currentTarget.blur();
-                }}
-                onChange={(event) => {
-                  setActiveSpaceId(null);
-                  setActiveView("Everything");
-                  setQuery(event.target.value);
-                }}
-                placeholder="Search your mind"
-                aria-label="Search your mind"
-              />
-              <kbd>esc to close</kbd>
-            </label>
+            {showBrowseControls && (
+              <label
+                className={`search-field glass${isSearchFocused ? " is-mascot" : " is-resting"}`}
+              >
+                <span className="search-rest" aria-hidden="true">
+                  <HugeiconsIcon icon={Search01Icon} size={14} />
+                  {activeSpace?.name ?? activeView}
+                </span>
+                <span className="field-mascot" aria-hidden="true">
+                  <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />
+                </span>
+                <input
+                  ref={searchRef}
+                  value={query}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => setIsSearchFocused(false)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape") return;
+                    setQuery("");
+                    event.currentTarget.blur();
+                  }}
+                  onChange={(event) => {
+                    setActiveSpaceId(null);
+                    setActiveView("Everything");
+                    setQuery(event.target.value);
+                  }}
+                  placeholder="Search your mind"
+                  aria-label="Search your mind"
+                />
+                <kbd>esc to close</kbd>
+              </label>
+            )}
             <button
               type="button"
               className="add-button"
@@ -5220,7 +5234,7 @@ function App() {
               <div className="capture-status">
                 {showFilterRow && (
                   <div className="filter-row">
-                    {!isSerendipityView && query.trim() && (
+                    {query.trim() && (
                       <div className="query-chip glass">
                         <span className="query-chip-text">{query.trim()}</span>
                         <button
@@ -5236,12 +5250,8 @@ function App() {
                     )}
                     <div className="result-context">
                       <AnimatedCount className="result-count" value={filteredItems.length} />
-                      {isSerendipityView ? (
-                        <> older {filteredItems.length === 1 ? "save" : "saves"} in this walk</>
-                      ) : (
-                        ` ${filteredItems.length === 1 ? "result" : "results"}`
-                      )}
-                      {!isSerendipityView && query.trim() ? (
+                      {` ${filteredItems.length === 1 ? "result" : "results"}`}
+                      {query.trim() ? (
                         <button type="button" className="quiet-link" onClick={beginSaveSearch}>
                           <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
                         </button>
@@ -5764,21 +5774,21 @@ function App() {
                   <div className="settings-sidebar-content">
                     <button
                       type="button"
-                      className={`settings-tab ${settingsTab === "data" ? "active" : ""}`}
-                      aria-current={settingsTab === "data" ? "page" : undefined}
-                      onClick={() => setSettingsTab("data")}
-                    >
-                      <HugeiconsIcon icon={Database02Icon} size={15} />
-                      <span>Library</span>
-                    </button>
-                    <button
-                      type="button"
                       className={`settings-tab ${settingsTab === "general" ? "active" : ""}`}
                       aria-current={settingsTab === "general" ? "page" : undefined}
                       onClick={() => setSettingsTab("general")}
                     >
                       <HugeiconsIcon icon={Settings01Icon} size={15} />
                       <span>General</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`settings-tab ${settingsTab === "data" ? "active" : ""}`}
+                      aria-current={settingsTab === "data" ? "page" : undefined}
+                      onClick={() => setSettingsTab("data")}
+                    >
+                      <HugeiconsIcon icon={Database02Icon} size={15} />
+                      <span>Library</span>
                     </button>
                     <button
                       type="button"
@@ -5801,7 +5811,6 @@ function App() {
                     </button>
                   </div>
                   <div className="settings-sidebar-footer">
-                    <p>Everything stays on this machine.</p>
                     {appVersion && <p className="settings-sidebar-version">inkling {appVersion}</p>}
                   </div>
                 </aside>

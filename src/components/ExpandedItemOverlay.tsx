@@ -20,7 +20,6 @@ import {
   PlusSignIcon,
   RotateCwIcon,
 } from "@hugeicons/core-free-icons";
-import { isElectronRuntime } from "../lib/libraryApi";
 import type { LibraryItem } from "../lib/types";
 import type { ReaderOrigin } from "../ReaderView";
 import {
@@ -723,15 +722,23 @@ export function ExpandedItemOverlay({
   // was showing, while React's item prop already points at the next one.
   const shownItem = flight?.kind === "close" ? flight.fromItem : item;
 
-  // In the desktop app the window controls sit over the band the shell reserves at
-  // the top of the frame (its padding-top), so the view starts below that band.
+  // The view takes the rectangle the grid sits in: inside the frame's padding on
+  // the left, top and bottom, so it clears the window controls band and the
+  // sidebar tab. The inspector still runs to the window's right edge.
   const frameRect = useCallback((): FlightRect => {
     const frame = frameRef.current;
     if (!frame) return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
     const rect = rectFrom(frame.getBoundingClientRect());
-    if (!isElectronRuntime()) return rect;
-    const band = Number.parseFloat(getComputedStyle(frame).paddingTop) || 0;
-    return { ...rect, top: rect.top + band, height: rect.height - band };
+    const style = getComputedStyle(frame);
+    const top = Number.parseFloat(style.paddingTop) || 0;
+    const left = Number.parseFloat(style.paddingLeft) || 0;
+    const bottom = Number.parseFloat(style.paddingBottom) || 0;
+    return {
+      left: rect.left + left,
+      top: rect.top + top,
+      width: rect.width - left,
+      height: rect.height - top - bottom,
+    };
   }, [frameRef]);
 
   // Grows the view from a card-sized rectangle into the library frame.
