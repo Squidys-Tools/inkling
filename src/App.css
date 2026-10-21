@@ -711,13 +711,13 @@ a:focus-visible,
   /* Centred on the brand lockup's 48px midline. */
   .edge-tab {
     position: absolute;
-    top: 25px;
+    top: 26px;
     left: 0;
     z-index: 32;
     display: grid;
     place-items: center;
-    width: 32px;
-    height: 46px;
+    width: 30px;
+    height: 44px;
     color: var(--library-muted);
     cursor: pointer;
     transition:
@@ -730,24 +730,30 @@ a:focus-visible,
   .edge-tab.at-sidebar {
     left: var(--sidebar-width);
   }
-  /* Open: a solid tab hanging off the frame's edge over the sidebar. */
+  /* A solid tab on the frame's edge: hanging over the sidebar while it is
+     open, just inside the frame while it is closed. */
+  .edge-tab.is-open,
+  .edge-tab.is-closed {
+    border: 1px solid var(--library-border);
+    background: var(--library-frame);
+  }
   .edge-tab.is-open {
     --flip: 90deg;
-    margin-left: -31px;
-    border: 1px solid var(--library-border);
+    margin-left: -29px;
     border-right: 0;
-    border-radius: 20px 0 0 20px / 23px 0 0 23px;
-    background: var(--library-frame);
+    border-radius: 14px 0 0 14px;
     box-shadow:
       -6px 0 14px rgba(0, 0, 0, 0.35),
       inset 1px 1px 0 rgba(255, 255, 255, 0.06);
     transform-origin: right center;
   }
-  /* Closed: a glass tab just inside the frame. */
   .edge-tab.is-closed {
     --flip: -90deg;
     border-left: 0;
-    border-radius: 0 20px 20px 0 / 0 23px 23px 0;
+    border-radius: 0 14px 14px 0;
+    box-shadow:
+      6px 0 14px rgba(0, 0, 0, 0.35),
+      inset -1px 1px 0 rgba(255, 255, 255, 0.06);
     transform-origin: left center;
   }
   .edge-tab.flip-out {
@@ -5899,7 +5905,9 @@ a:focus-visible,
 }
 
 /* Dark liquid glass for controls floating over content. Panels stay solid. */
-.glass {
+/* `.css-glass` is the same surface for things liquid glass never draws. */
+.glass,
+.css-glass {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-top-color: rgba(255, 255, 255, 0.16);
   border-bottom-color: rgba(255, 255, 255, 0.04);

@@ -384,7 +384,7 @@ function ZoomableImage({
             type="button"
             className="item-zoom-button"
             aria-label="Zoom out"
-            title="Zoom out"
+            data-tooltip="Zoom out"
             disabled={!isZoomed}
             onClick={() => zoomBy(1 / BUTTON_ZOOM_FACTOR)}
           >
@@ -403,7 +403,7 @@ function ZoomableImage({
             type="button"
             className="item-zoom-button"
             aria-label="Zoom in"
-            title="Zoom in"
+            data-tooltip="Zoom in"
             disabled={!canZoomIn}
             onClick={() => zoomBy(BUTTON_ZOOM_FACTOR)}
           >
@@ -1442,7 +1442,7 @@ export function ExpandedItemOverlay({
                         key={action.key}
                         onClick={action.onClick}
                         disabled={action.disabled}
-                        title={action.title}
+                        data-tooltip={action.title}
                       >
                         {action.icon} {action.label}
                       </button>
@@ -1464,7 +1464,9 @@ export function ExpandedItemOverlay({
                       type="button"
                       className="item-space-option"
                       aria-pressed={space.member}
-                      title={space.member ? `Remove from ${space.name}` : `Add to ${space.name}`}
+                      data-tooltip={
+                        space.member ? `Remove from ${space.name}` : `Add to ${space.name}`
+                      }
                       onClick={() => void actions.onToggleSpace?.(shownItem, space.id)}
                     >
                       <SpaceBlob color={space.color} />
@@ -1493,7 +1495,7 @@ export function ExpandedItemOverlay({
                 onClick={() => void actions.onTogglePin(shownItem)}
                 aria-label={isPinned ? "Unstar" : "Star to Top of mind"}
                 aria-pressed={isPinned}
-                title={isPinned ? "Unstar" : "Star to Top of mind"}
+                data-tooltip={isPinned ? "Unstar" : "Star to Top of mind"}
               >
                 <BarGlyph>
                   <path
@@ -1510,7 +1512,7 @@ export function ExpandedItemOverlay({
                   onClick={() => setIsSpaceMenuOpen((open) => !open)}
                   aria-label="Move to Space"
                   aria-expanded={isSpaceMenuOpen}
-                  title="Move to Space"
+                  data-tooltip="Move to Space"
                 >
                   <BarGlyph>
                     <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -1523,7 +1525,7 @@ export function ExpandedItemOverlay({
                   className="item-bar-button"
                   onClick={() => window.open(shownItem.sourceUrl, "_blank", "noopener,noreferrer")}
                   aria-label={`Open ${sourceHost ?? "original"}`}
-                  title={`Open ${sourceHost ?? "original"}`}
+                  data-tooltip={`Open ${sourceHost ?? "original"}`}
                 >
                   <BarGlyph>
                     <path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
@@ -1536,7 +1538,7 @@ export function ExpandedItemOverlay({
                   className="item-bar-button"
                   onClick={() => actions.onShowInFolder?.(shownItem)}
                   aria-label="Show in folder"
-                  title="Show in folder"
+                  data-tooltip="Show in folder"
                 >
                   <BarGlyph>
                     <path d="M3 18V7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v1" />
@@ -1549,7 +1551,7 @@ export function ExpandedItemOverlay({
                 className="item-bar-button"
                 onClick={archiveFromView}
                 aria-label="Archive"
-                title="Archive"
+                data-tooltip="Archive"
               >
                 <BarGlyph>
                   <rect x="3" y="4" width="18" height="4" rx="1" />
@@ -1562,7 +1564,7 @@ export function ExpandedItemOverlay({
                   className="item-bar-button is-end"
                   onClick={() => actions.onDelete?.(shownItem)}
                   aria-label="Delete permanently"
-                  title="Delete permanently"
+                  data-tooltip="Delete permanently"
                 >
                   <BarGlyph>
                     <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />

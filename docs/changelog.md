@@ -28,8 +28,9 @@ Guardrails:
 
 ### Added
 
-- Right-click a card to open, read, star, open its link, copy its link, show it in its folder, or archive it (#170)
-- Settings → General → Open source licenses lists every shipped dependency, vendored component, and bundled model with its license text and source (#170)
+- Right-click a card to read, favorite, open its link, copy its link, show it in its folder, or archive it (#170)
+- Buttons show a short label on hover or keyboard focus, in the same glass as the controls around them (#170)
+- Settings → General → Open source licenses lists every shipped dependency, vendored component, and bundled model with its license text and source, searchable and filterable by license (#170)
 - Settings → Appearance switches components between alternative looks while we compare them, starting with the grid/list toggle as the current pill or a coss ui segmented control (#170)
 - First-run welcome flow on first launch of the installed app, replayable from Settings → General
 - PDF cards now show page-one thumbnails generated in the background after capture; existing PDFs are backfilled one at a time when the job queue is idle.
@@ -69,7 +70,7 @@ Guardrails:
 - Regular Spaces: manual collections alongside saved searches. The Space create form chooses Smart or Regular, a Regular Space holds only the items you file into it from the expanded item view, and the chips there show current membership and take an item back out. Deleting a Space still leaves its items alone (SQU-4, `src-tauri/src/storage.rs`, `src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
 - Top of Mind: items can be pinned and unpinned from their details view, and the Top of mind view collects them. That view explains itself when nothing is pinned yet, and the main library stays a plain list of everything (SQU-9) (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
 - The item count above the library rolls up when it first appears and replays when hovered, using the React Bits CountUp in compact format (`src/components/CountUp.tsx`, `src/components/AnimatedCount.tsx`)
-- Liquid glass in the desktop app: the library toolbar, search chip, collapsed sidebar tab and image zoom control refract what is behind them through WebGPU and Chromium's HTML-in-Canvas, and fall back to the CSS glass when either is unavailable (#170)
+- Liquid glass in the desktop app: the library toolbar, search chip and image zoom control refract what is behind them through WebGPU and Chromium's HTML-in-Canvas, and fall back to the CSS glass when either is unavailable (#170)
 
 ### Fixed
 

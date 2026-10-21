@@ -106,7 +106,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
         type="button"
         className="reader-close"
         onClick={onRequestClose}
-        title="Close reader"
+        data-tooltip="Close reader"
         aria-label="Close reader (Escape)"
       >
         <span className="reader-close-esc">Esc</span>

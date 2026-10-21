@@ -8,6 +8,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { ThirdPartyLicense } from "../../../scripts/third-party-licenses/collect.mjs";
+import { LicenseFilter } from "./LicenseFilter";
 import "./OpenSourceLicenses.css";
 
 // Written beside index.html at build time by the plugin in vite.config.ts.
@@ -35,6 +36,7 @@ export function OpenSourceLicenses({ onBack, onClose }: Props) {
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [licenseFilter, setLicenseFilter] = useState<ReadonlySet<string>>(new Set());
   const deferredQuery = useDeferredValue(query);
 
   useEffect(() => {
@@ -48,15 +50,25 @@ export function OpenSourceLicenses({ onBack, onClose }: Props) {
     };
   }, []);
 
+  // Most common first, so MIT and friends sit at the top of the filter.
+  const licenseCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const entry of entries ?? [])
+      counts.set(entry.license, (counts.get(entry.license) ?? 0) + 1);
+    return [...counts].sort(([a, x], [b, y]) => y - x || a.localeCompare(b));
+  }, [entries]);
+
   const shown = useMemo(() => {
     const needle = deferredQuery.trim().toLowerCase();
-    if (!entries || !needle) return entries;
-    return entries.filter((entry) =>
-      [entry.name, entry.version, entry.license].some((field) =>
-        field?.toLowerCase().includes(needle),
-      ),
+    if (!entries || (!needle && licenseFilter.size === 0)) return entries;
+    return entries.filter(
+      (entry) =>
+        (licenseFilter.size === 0 || licenseFilter.has(entry.license)) &&
+        [entry.name, entry.version, entry.license].some((field) =>
+          field?.toLowerCase().includes(needle),
+        ),
     );
-  }, [entries, deferredQuery]);
+  }, [entries, deferredQuery, licenseFilter]);
 
   return (
     <section className="settings-panel" aria-labelledby="licenses-panel-title">
@@ -85,8 +97,20 @@ export function OpenSourceLicenses({ onBack, onClose }: Props) {
 
       <div className="licenses-toolbar">
         <span className="licenses-count">
-          {entries ? `${entries.length} notices` : failed ? "" : "Loading…"}
+          {!entries
+            ? failed
+              ? ""
+              : "Loading…"
+            : shown && shown.length !== entries.length
+              ? `${shown.length} of ${entries.length} notices`
+              : `${entries.length} notices`}
         </span>
+        <LicenseFilter
+          counts={licenseCounts}
+          selected={licenseFilter}
+          onChange={setLicenseFilter}
+          disabled={!entries}
+        />
         <label className="licenses-search">
           <HugeiconsIcon icon={Search01Icon} size={14} />
           <input
@@ -106,7 +130,11 @@ export function OpenSourceLicenses({ onBack, onClose }: Props) {
             The license list didn't load. Reopen settings to try again.
           </p>
         )}
-        {shown?.length === 0 && <p className="licenses-empty">Nothing matches “{query}”.</p>}
+        {shown?.length === 0 && (
+          <p className="licenses-empty">
+            {query.trim() ? `Nothing matches “${query}”.` : "No notices under that license."}
+          </p>
+        )}
         {shown && shown.length > 0 && (
           <ul className="licenses-list">
             {shown.map((entry) => {
@@ -137,7 +165,7 @@ export function OpenSourceLicenses({ onBack, onClose }: Props) {
                         target="_blank"
                         rel="noreferrer"
                         aria-label={`${entry.name} source`}
-                        title={entry.sourceUrl}
+                        data-tooltip={entry.sourceUrl}
                       >
                         <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} />
                       </a>

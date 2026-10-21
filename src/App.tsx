@@ -2,7 +2,6 @@
 import {
   lazy,
   memo,
-  type RefObject,
   Suspense,
   useCallback,
   useEffect,
@@ -22,7 +21,6 @@ import {
   BookOpen01Icon,
   Copy01Icon,
   LinkSquare02Icon,
-  ViewIcon,
   ArrowDown01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
@@ -132,6 +130,7 @@ import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
 import { ContextMenu, type ContextMenuEntry } from "./components/ContextMenu/ContextMenu";
+import { TooltipLayer } from "./components/Tooltip/TooltipLayer";
 import { OpenSourceLicenses } from "./components/OpenSourceLicenses/OpenSourceLicenses";
 import { SegmentedControl } from "./components/SegmentedControl/SegmentedControl";
 import { APPEARANCE_OPTIONS, useAppearance } from "./lib/appearance";
@@ -1141,7 +1140,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                 <button
                   type="button"
                   className="archive-tile-restore"
-                  title="Restore to library"
+                  data-tooltip="Restore to library"
                   onClick={(event) => {
                     event.stopPropagation();
                     void context.onRestoreArchivedItem?.(item);
@@ -1160,7 +1159,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                     : `Delete ${item.title}`
                 }
                 aria-pressed={archiveSelectionMode ? isArchivedItemSelected : undefined}
-                title={
+                data-tooltip={
                   archiveSelectionMode
                     ? isArchivedItemSelected
                       ? "Deselect item"
@@ -1275,7 +1274,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                   }
                 }}
                 disabled={!canOpenReader}
-                title={canOpenReader ? "Open reader" : "No saved article text"}
+                data-tooltip={canOpenReader ? "Open reader" : "No saved article text"}
               >
                 Read <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
               </button>
@@ -1604,15 +1603,7 @@ function SpaceMark() {
 // Desktop sidebar toggle attached to the library frame's left edge. When the
 // sidebar opens or closes it flips over that edge: the old side turns edge-on,
 // then the new side turns in. The drawn side lags `isOpen` until the turn ends.
-function SidebarEdgeTab({
-  isOpen,
-  onToggle,
-  ref,
-}: {
-  isOpen: boolean;
-  onToggle: () => void;
-  ref: RefObject<HTMLButtonElement | null>;
-}) {
+function SidebarEdgeTab({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
   const [side, setSide] = useState(isOpen);
   const [phase, setPhase] = useState<"idle" | "out" | "in">("idle");
   useEffect(() => {
@@ -1620,10 +1611,10 @@ function SidebarEdgeTab({
   }, [isOpen, side, phase]);
   return (
     <button
-      ref={ref}
       type="button"
-      className={`edge-tab ${isOpen ? "at-sidebar" : ""} ${side ? "is-open" : "is-closed glass"} ${phase === "idle" ? "" : `flip-${phase}`}`}
+      className={`edge-tab ${isOpen ? "at-sidebar" : ""} ${side ? "is-open" : "is-closed"} ${phase === "idle" ? "" : `flip-${phase}`}`}
       aria-label={isOpen ? "Close navigation" : "Open navigation"}
+      data-tooltip={isOpen ? "Close sidebar" : "Open sidebar"}
       aria-expanded={isOpen}
       aria-controls="library-navigation"
       onClick={onToggle}
@@ -1888,7 +1879,7 @@ function App() {
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const captureBarRef = useRef<HTMLElement>(null);
   const viewDockRef = useRef<HTMLDivElement>(null);
-  const edgeTabRef = useRef<HTMLButtonElement>(null);
+  const tooltipLayerRef = useRef<HTMLDivElement>(null);
   const libraryFrameRef = useRef<HTMLElement>(null);
   const libraryViewAnimationRef = useRef<gsap.core.Animation | null>(null);
   const libraryViewEnteringRef = useRef(false);
@@ -3793,25 +3784,18 @@ function App() {
   }, []);
   const cardMenuEntries = useMemo<ContextMenuEntry[]>(() => {
     if (!cardMenu) return [];
-    const { item, card } = cardMenu;
+    const { item } = cardMenu;
     // Only web links: seeded and file items carry local paths here.
     const sourceUrl = item.sourceUrl?.match(/^https?:\/\//u) ? item.sourceUrl : undefined;
-    const entries: ContextMenuEntry[] = [
-      {
-        label: "Open",
-        icon: ViewIcon,
-        onSelect: () => selectLibraryItem(item, cardRectsFor(card)),
-      },
-    ];
+    const entries: ContextMenuEntry[] = [];
     if (item.articleHtml || item.hasArticleContent) {
       entries.push({ label: "Read", icon: BookOpen01Icon, onSelect: () => void openReader(item) });
     }
     entries.push({
-      label: item.favorite ? "Unstar" : "Star to Top of mind",
+      label: item.favorite ? "Unfavorite" : "Favorite",
       icon: StarIcon,
       onSelect: () => void togglePinItem(item),
     });
-    if (sourceUrl || canUseDesktopBackend) entries.push("separator");
     if (sourceUrl) {
       let host = "original";
       try {
@@ -3841,7 +3825,7 @@ function App() {
         onSelect: () => showItemInFolderFromOverlay(item),
       });
     }
-    entries.push("separator", {
+    entries.push({
       label: "Archive",
       icon: Archive01Icon,
       onSelect: () => void forgetItem(item),
@@ -3852,7 +3836,6 @@ function App() {
     cardMenu,
     forgetItem,
     openReader,
-    selectLibraryItem,
     showItemInFolderFromOverlay,
     togglePinItem,
   ]);
@@ -4484,7 +4467,7 @@ function App() {
                 type="button"
                 className="icon-button small"
                 aria-label="Add a Space"
-                title="Add a Space"
+                data-tooltip="Add a Space"
                 onClick={() => {
                   setIsCreatingSpace((current) => !current);
                   setNewSpaceName("");
@@ -4503,7 +4486,7 @@ function App() {
                   <button
                     type="button"
                     className="space-dot"
-                    title={`Change color (now ${space.color})`}
+                    data-tooltip={`Change color (now ${space.color})`}
                     aria-label={`Change color of ${space.name}`}
                     onClick={() => {
                       void handleCycleSpaceColor(space);
@@ -4553,7 +4536,7 @@ function App() {
                       type="button"
                       className="space-delete space-tool"
                       aria-label={`Move ${space.name} up`}
-                      title="Move Space up"
+                      data-tooltip="Move Space up"
                       onClick={(event) => {
                         event.stopPropagation();
                         void handleMoveSpace(space, -1);
@@ -4565,7 +4548,7 @@ function App() {
                       type="button"
                       className="space-delete space-tool"
                       aria-label={`Move ${space.name} down`}
-                      title="Move Space down"
+                      data-tooltip="Move Space down"
                       onClick={(event) => {
                         event.stopPropagation();
                         void handleMoveSpace(space, 1);
@@ -4577,7 +4560,7 @@ function App() {
                       type="button"
                       className="space-delete space-tool"
                       aria-label={`Rename ${space.name}`}
-                      title="Rename Space"
+                      data-tooltip="Rename Space"
                       onClick={(event) => {
                         event.stopPropagation();
                         setRenamingSpaceId(space.id);
@@ -4590,7 +4573,7 @@ function App() {
                       type="button"
                       className="space-delete"
                       aria-label={`Delete ${space.name}`}
-                      title="Delete Space"
+                      data-tooltip="Delete Space"
                       onClick={(event) => {
                         event.stopPropagation();
                         void handleDeleteSpace(space);
@@ -4683,7 +4666,7 @@ function App() {
               className="add-button"
               onClick={openCaptureModal}
               disabled={isCapturing}
-              title="Add something to your library"
+              data-tooltip="Add something to your library"
             >
               <HugeiconsIcon icon={PlusSignIcon} size={16} />
               <span>{isCapturing ? "Saving…" : "Add"}</span>
@@ -4694,7 +4677,7 @@ function App() {
                 className="nav-item footer-item update-footer-item"
                 aria-live="polite"
                 disabled={isInstallingUpdate}
-                title={`Version ${availableUpdate.version} is ready. Inkling checks for updates when it opens; GitHub sees the app version but no library data. Selecting this downloads and installs the update, then restarts inkling.`}
+                data-tooltip={`Version ${availableUpdate.version} is ready. Inkling checks for updates when it opens; GitHub sees the app version but no library data. Selecting this downloads and installs the update, then restarts inkling.`}
                 onClick={() => void handleInstallUpdate()}
               >
                 <HugeiconsIcon icon={isInstallingUpdate ? Loading01Icon : RotateCwIcon} size={15} />
@@ -4714,7 +4697,7 @@ function App() {
               aria-label="Settings"
               aria-expanded={isSettingsOpen}
               aria-controls="settings-modal"
-              title="Settings"
+              data-tooltip="Settings"
               onClick={() => {
                 setSelectedItem(null);
                 setIsSettingsOpen(true);
@@ -4725,11 +4708,7 @@ function App() {
             </button>
           </div>
         </aside>
-        <SidebarEdgeTab
-          ref={edgeTabRef}
-          isOpen={isSidebarOpen}
-          onToggle={() => setIsSidebarOpen((open) => !open)}
-        />
+        <SidebarEdgeTab isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen((open) => !open)} />
 
         <main
           className={`main-content${selectedItem ? " has-open-item" : ""}`}
@@ -4758,7 +4737,7 @@ function App() {
                 onClick={openCaptureModal}
                 disabled={isCapturing}
                 aria-label={isCapturing ? "Saving…" : "Add"}
-                title="Add something to your library"
+                data-tooltip="Add something to your library"
               >
                 <HugeiconsIcon icon={PlusSignIcon} size={15} />
               </button>
@@ -4806,7 +4785,7 @@ function App() {
                           type="button"
                           className="query-chip-clear"
                           aria-label="Clear search"
-                          title="Clear search"
+                          data-tooltip="Clear search"
                           onClick={() => setQuery("")}
                         >
                           <HugeiconsIcon icon={Cancel01Icon} size={13} />
@@ -4866,7 +4845,7 @@ function App() {
                   onClick={() => switchLibraryView(false)}
                   aria-label="Grid view"
                   aria-pressed={!listMode}
-                  title="Grid view"
+                  data-tooltip="Grid view"
                 >
                   <HugeiconsIcon icon={Grid2X2Icon} size={15} />
                 </button>
@@ -4876,7 +4855,7 @@ function App() {
                   onClick={() => switchLibraryView(true)}
                   aria-label="List view"
                   aria-pressed={listMode}
-                  title="List view"
+                  data-tooltip="List view"
                 >
                   <HugeiconsIcon icon={ListViewIcon} size={15} />
                 </button>
@@ -5192,7 +5171,7 @@ function App() {
 
           <LiquidGlass
             className="library-stage"
-            targetRoots={[captureBarRef, viewDockRef, edgeTabRef]}
+            targetRoots={[captureBarRef, viewDockRef, tooltipLayerRef]}
           >
             <div
               className={`library-scroll${hasPinnedQuery ? " has-pinned-query" : ""}`}
@@ -5830,6 +5809,7 @@ function App() {
           )}
         </AnimatePresence>
       </div>
+      <TooltipLayer ref={tooltipLayerRef} />
       {cardMenu && (
         <ContextMenu
           x={cardMenu.x}

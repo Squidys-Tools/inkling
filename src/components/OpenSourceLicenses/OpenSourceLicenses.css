@@ -22,11 +22,11 @@
 .licenses-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 10px;
   margin-bottom: -16px;
 }
 .licenses-count {
+  margin-right: auto;
   color: var(--library-muted);
   font: 400 12px / 16px var(--font-mono);
 }
@@ -56,6 +56,144 @@
 }
 .licenses-search input::placeholder {
   color: #5e5850;
+}
+.license-filter {
+  position: relative;
+  z-index: 2;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.license-filter-button {
+  max-width: 100%;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px 0 10px;
+  border: 1px dashed #3a3530;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--library-text-soft);
+  cursor: pointer;
+  font: 500 12px / 16px var(--font-ui);
+  white-space: nowrap;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+.license-filter-button svg {
+  flex: 0 0 auto;
+  color: var(--library-muted);
+}
+.license-filter-button:hover:not(:disabled),
+.license-filter-button[aria-expanded="true"] {
+  border-color: #4a443d;
+  background: var(--glass-active);
+  color: var(--library-text);
+}
+.license-filter-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.license-filter-divider {
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: #3a3530;
+}
+.license-filter-badge {
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--glass-active);
+  color: var(--library-text);
+  font: 400 11px / 14px var(--font-mono);
+  text-overflow: ellipsis;
+}
+/* Same surface as the context menu (ContextMenu.css). */
+.license-filter-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 250px;
+  padding: 5px;
+  border: 1px solid var(--library-border);
+  border-radius: 12px;
+  background: var(--library-surface);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  animation: license-filter-in 0.12s cubic-bezier(0.23, 1, 0.32, 1);
+  transform-origin: top right;
+}
+@keyframes license-filter-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+.license-filter-options {
+  max-height: 300px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #4a4842 transparent;
+}
+.license-filter-option,
+.license-filter-clear {
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--library-text-soft);
+  cursor: pointer;
+  font: 13px var(--font-ui);
+  text-align: left;
+}
+.license-filter-option:is(:hover, :focus),
+.license-filter-clear:is(:hover, :focus) {
+  outline: 0;
+  background: var(--glass-active);
+  color: var(--library-text);
+}
+.license-filter-check {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #4a443d;
+  border-radius: 4px;
+  color: var(--library-frame);
+}
+.license-filter-option[aria-checked="true"] .license-filter-check {
+  border-color: var(--library-text);
+  background: var(--library-text);
+}
+.license-filter-label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.license-filter-count {
+  flex: 0 0 auto;
+  color: var(--library-muted);
+  font: 400 11px / 16px var(--font-mono);
+}
+.license-filter-clear {
+  justify-content: center;
+  color: var(--library-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .license-filter-menu {
+    animation: none;
+  }
 }
 .licenses-list {
   margin: 0;

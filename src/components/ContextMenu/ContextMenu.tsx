@@ -3,9 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./ContextMenu.css";
 
-export type ContextMenuEntry =
-  | { label: string; icon: IconSvgElement; onSelect: () => void }
-  | "separator";
+export type ContextMenuEntry = { label: string; icon: IconSvgElement; onSelect: () => void };
 
 type Props = {
   x: number;
@@ -79,27 +77,22 @@ export function ContextMenu({ x, y, label, entries, returnFocus, onClose }: Prop
       onKeyDown={onKeyDown}
       onContextMenu={(event) => event.preventDefault()}
     >
-      {entries.map((entry, index) =>
-        entry === "separator" ? (
-          // biome-ignore lint/suspicious/noArrayIndexKey: separators have no identity and the list is static while open
-          <hr key={`separator-${index}`} className="context-menu-separator" />
-        ) : (
-          <button
-            key={entry.label}
-            type="button"
-            role="menuitem"
-            tabIndex={-1}
-            className="context-menu-item"
-            onClick={() => {
-              onClose();
-              entry.onSelect();
-            }}
-          >
-            <HugeiconsIcon icon={entry.icon} size={15} />
-            {entry.label}
-          </button>
-        ),
-      )}
+      {entries.map((entry) => (
+        <button
+          key={entry.label}
+          type="button"
+          role="menuitem"
+          tabIndex={-1}
+          className="context-menu-item"
+          onClick={() => {
+            onClose();
+            entry.onSelect();
+          }}
+        >
+          <HugeiconsIcon icon={entry.icon} size={15} />
+          {entry.label}
+        </button>
+      ))}
     </div>,
     document.body,
   );

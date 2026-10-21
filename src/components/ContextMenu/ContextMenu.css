@@ -53,9 +53,3 @@
 .context-menu-item:is(:hover, :focus) svg {
   color: var(--library-text);
 }
-.context-menu-separator {
-  border: 0;
-  height: 1px;
-  margin: 5px 6px;
-  background: var(--library-border);
-}
