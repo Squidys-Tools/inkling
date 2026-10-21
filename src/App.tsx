@@ -3597,35 +3597,6 @@ function App() {
     [filteredItems],
   );
 
-  // A new grid opens scrolled past the gap under the toolbar (App.css,
-  // --library-rest-gap), so cards fill to the frame's top edge. Virtuoso lays
-  // its columns out late, and not at all while the window is still hidden at
-  // launch, so the offset is held through every layout change until the user
-  // scrolls, clicks, or types.
-  const restScrollKey = isSerendipityView ? "" : libraryGridKey;
-  useLayoutEffect(() => {
-    const scroll = libraryScrollRef.current;
-    const grid = scroll?.querySelector<HTMLElement>(".library-grid");
-    if (!restScrollKey || !scroll || !grid) return;
-    const gap = Number.parseFloat(getComputedStyle(scroll).getPropertyValue("--library-rest-gap"));
-    const hold = () => {
-      if (grid.scrollTop < gap) grid.scrollTop = gap;
-    };
-    const observer = new ResizeObserver(hold);
-    observer.observe(grid);
-    for (const child of grid.children) observer.observe(child);
-    const release = () => observer.disconnect();
-    const options = { capture: true, passive: true, once: true };
-    for (const type of ["wheel", "pointerdown", "keydown"])
-      window.addEventListener(type, release, options);
-    hold();
-    return () => {
-      observer.disconnect();
-      for (const type of ["wheel", "pointerdown", "keydown"])
-        window.removeEventListener(type, release, true);
-    };
-  }, [restScrollKey]);
-
   // Saves from the Add menu. The card appears at once; the menu closes on
   // success and keeps the draft when the save fails.
   async function saveFromAddMenu(save: () => Promise<unknown>) {

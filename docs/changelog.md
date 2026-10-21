@@ -78,7 +78,7 @@ Guardrails:
 - An open item takes over the whole library frame instead of floating inside it, so the grid/list toggle and the selected card no longer show around its edges, and its stage fills the frame with an even margin (#170)
 - List view thumbnails fill rows that grow taller than the artwork, instead of leaving a strip at the bottom (#170)
 - List view rows size to their text, so a tall photo or a short description no longer leaves a band of empty space above the footer (#170)
-- The library opens with its first row at the top of the frame, under the search chip, including at launch, where liquid glass starting up used to scroll it back down (#170)
+- The library's first row rests at the top of the frame, under the search chip, instead of scrolling down to a gap below the toolbar, and liquid glass starting up no longer resets the library's scroll position (#170)
 - URL captures from Add, paste, deep links, and the browser extension now appear immediately and enrich the same item through the retryable local job queue.
 - The app no longer contacts Google Fonts or Twitter/X at startup: reader fonts are bundled with the app and the content security policy no longer allows Google Fonts requests
 - X post embeds load the X widget only when the user clicks to load the post, so cards and saved links no longer contact X or Twitter on open

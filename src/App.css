@@ -4695,10 +4695,6 @@ a:focus-visible,
    puts the rows back where they rest. */
 .library-scroll {
   --scroll-reach-top: 12px;
-  /* The gap between the toolbar and the first row. Each result set opens
-     scrolled past it, so rows start at the frame's top edge; scrolling up
-     brings them down to rest below the toolbar. */
-  --library-rest-gap: 52px;
   --scroll-reach-bottom: 20px;
   position: absolute;
   top: calc(var(--library-top) - var(--scroll-reach-top));
@@ -4709,16 +4705,13 @@ a:focus-visible,
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-/* At rest the first row sits just below the toolbar, and the last row ends
-   above the bottom blur. Paper 1.3: with a query pinned, the 44px filter row
-   puts the first card 100px below the toolbar's top. */
+/* The first row rests at the toolbar's top, under the floating search chip,
+   and scrolls no higher; the last row ends above the bottom blur. Paper 1.3:
+   with a query pinned, the 44px filter row puts the first card 100px below
+   the toolbar's top. */
 .library-scroll .library-grid {
-  padding-top: calc(var(--scroll-reach-top) + var(--library-rest-gap));
+  padding-top: var(--scroll-reach-top);
   padding-bottom: calc(var(--scroll-reach-bottom) + 36px);
-}
-/* Columns stretch so a short result set can still scroll past the gap. */
-.library-scroll .library-grid > * {
-  min-height: calc(100% + var(--library-rest-gap));
 }
 .library-scroll.has-pinned-query .library-grid {
   padding-top: calc(var(--scroll-reach-top) + 100px);
