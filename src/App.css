@@ -624,6 +624,12 @@ a:focus-visible,
 }
 
 .main-content {
+  --main-pad-top: calc(4px + var(--titlebar-height));
+  --main-pad-x: 14px;
+  --main-pad-bottom: 30px;
+  /* Where the toolbar row starts; the library scroller starts here too. */
+  --library-top: var(--main-pad-top);
+  --stage-background: var(--paper);
   width: auto;
   height: 100vh;
   min-width: 0;
@@ -631,7 +637,7 @@ a:focus-visible,
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  padding: calc(4px + var(--titlebar-height)) 14px 30px;
+  padding: var(--main-pad-top) var(--main-pad-x) var(--main-pad-bottom);
   position: relative;
   overflow: hidden;
   transition: padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -705,6 +711,7 @@ a:focus-visible,
     background: transparent;
   }
   .main-content {
+    --stage-background: var(--library-frame);
     border: 1px solid var(--library-border);
     border-right: 0;
     border-radius: var(--frame-radius) 0 0 var(--frame-radius);
@@ -2149,7 +2156,6 @@ a:focus-visible,
     --sidebar-width: 220px;
   }
   .main-content {
-    padding-inline: 14px;
     width: calc(100vw - var(--sidebar-width));
   }
   .sidebar-toggle {
@@ -2208,8 +2214,12 @@ a:focus-visible,
     color: var(--ink);
   }
   .main-content {
+    --main-pad-top: 12px;
+    --main-pad-x: 18px;
+    --main-pad-bottom: 24px;
+    /* Below the 30px library-header padding. */
+    --library-top: 42px;
     width: 100%;
-    padding: 12px 18px 24px;
     transition: none;
   }
   .library-header {
@@ -4952,20 +4962,39 @@ a:focus-visible,
 .capture-bar > .capture-status {
   pointer-events: none;
 }
-.library-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
+/* The stage covers the frame under the toolbar. It holds the library scroller
+   and, with liquid glass, the canvas that draws it (LiquidGlass.tsx). The
+   scroller is placed absolutely so it lands in the same spot either way. */
+.library-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   overflow: hidden;
-  position: relative;
+}
+/* Sized to the window, not the stage. Resizing a WebGPU canvas stalls the GPU
+   for tens of milliseconds, and the stage resizes every frame of a sidebar
+   slide; the window rarely does. The extra edge is clipped. */
+.library-stage .liquid-glass-canvas {
+  width: 100vw;
+  height: 100vh;
+}
+.library-stage .liquid-glass-content {
+  background: var(--stage-background);
+}
+.library-scroll {
+  position: absolute;
+  top: var(--library-top);
+  right: var(--main-pad-x);
+  bottom: var(--main-pad-bottom);
+  left: var(--main-pad-x);
+  overflow: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  margin-top: -52px;
 }
 /* Paper 1.3: the 44px filter row and the grid's 4px top padding put the first
-   card 100px below the toolbar's top. The -52px pull-up above cancels the
-   52px toolbar, so the pinned offset is 100 - 52. */
+   card 100px below the toolbar's top. */
 .library-scroll.has-pinned-query {
-  margin-top: 48px;
+  top: calc(var(--library-top) + 100px);
 }
 /* At rest the first row sits just below the toolbar; scrolled cards still pass
    under the glass. The pinned band already clears the toolbar. */
@@ -5355,7 +5384,9 @@ a:focus-visible,
   overflow: hidden;
   border: 1px solid var(--library-border);
   border-radius: 20px;
-  background: radial-gradient(circle, #2a2623 1px, transparent 1.2px) 0 0 / 18px 18px #121110;
+  --item-stage-surface:
+    radial-gradient(circle, #2a2623 1px, transparent 1.2px) 0 0 / 18px 18px #121110;
+  background: var(--item-stage-surface);
   transition:
     inset 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
     padding 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
@@ -5873,6 +5904,36 @@ a:focus-visible,
   border-radius: 999px;
   translate: -50% 0;
 }
+/* The zoom pill's liquid glass is its own pill-sized canvas over a copy of the
+   stage (ZoomableImage), so it keeps the CSS drop shadow. */
+.item-zoom-pill.glass[data-liquid] {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.item-zoom-lens {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+/* Until the canvas takes the copy, it would show unblurred inside the CSS glass. */
+.item-zoom-lens > .liquid-glass-content {
+  display: none;
+}
+.item-zoom-lens-stage {
+  position: absolute;
+  border: 1px solid transparent;
+  background: var(--item-stage-surface);
+}
+.item-zoom-lens-image {
+  position: absolute;
+  border-radius: 4px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.item-stage-zoom.is-zoomed + .item-zoom-pill .item-zoom-lens-image {
+  box-shadow: none;
+}
 .item-zoom-button {
   display: inline-flex;
   align-items: center;
@@ -5919,4 +5980,24 @@ a:focus-visible,
     inset 0 -8px 14px rgba(0, 0, 0, 0.3),
     0 8px 24px rgba(0, 0, 0, 0.5);
   backdrop-filter: var(--glass-filter);
+}
+/* Liquid glass draws this surface on the canvas below, so the element itself
+   goes clear. Set once the canvas has drawn a frame (LiquidGlass.tsx). */
+.glass[data-liquid] {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.liquid-glass-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.liquid-glass-content {
+  position: absolute;
+  inset: 0;
 }

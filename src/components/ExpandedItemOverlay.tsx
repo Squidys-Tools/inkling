@@ -32,6 +32,7 @@ import {
   wheelZoomFactor,
 } from "./imageZoom";
 import type { LibraryItem } from "../lib/types";
+import { canvasImageCrossOrigin, LiquidGlass } from "./LiquidGlass";
 import type { ReaderOrigin } from "../ReaderView";
 import {
   KindIcon,
@@ -161,6 +162,10 @@ function ZoomableImage({
   alt: string;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const pillRef = useRef<HTMLDivElement>(null);
+  const lensStageRef = useRef<HTMLDivElement>(null);
+  const lensImageRef = useRef<HTMLImageElement>(null);
   const dragRef = useRef<{ pointerX: number; pointerY: number; origin: Offset } | null>(null);
   const [frame, setFrame] = useState<Size | null>(null);
   // The thumbnail's size. It fixes the layout box, so the original can swap in
@@ -228,6 +233,28 @@ function ZoomableImage({
   }, [isZoomed, original, originalSrc, src]);
 
   const canZoomIn = zoom < MAX_ZOOM;
+
+  // The pill's liquid glass refracts a copy of what sits behind it: the stage's
+  // dots and the thumbnail, placed to match after every zoom, pan or resize. A
+  // pill-sized canvas stays cheap while panning, and the full-size original
+  // never goes under glass.
+  useLayoutEffect(() => {
+    const pill = pillRef.current;
+    const stage = frameRef.current?.parentElement;
+    const image = imageRef.current;
+    const lensStage = lensStageRef.current;
+    const lensImage = lensImageRef.current;
+    if (!pill || !stage || !image || !lensStage || !lensImage) return;
+    const pillRect = pill.getBoundingClientRect();
+    const place = (element: HTMLElement, rect: DOMRect) => {
+      element.style.left = `${rect.left - pillRect.left - pill.clientLeft}px`;
+      element.style.top = `${rect.top - pillRect.top - pill.clientTop}px`;
+      element.style.width = `${rect.width}px`;
+      element.style.height = `${rect.height}px`;
+    };
+    place(lensStage, stage.getBoundingClientRect());
+    place(lensImage, image.getBoundingClientRect());
+  });
 
   // Scales by `factor`, keeping the image point under `anchor` (frame-centre
   // coordinates) still. Back at fit, zoom returns to following the frame.
@@ -308,6 +335,7 @@ function ZoomableImage({
         onPointerCancel={endDrag}
       >
         <img
+          ref={imageRef}
           src={displayedSrc}
           alt={alt}
           className="item-stage-image"
@@ -341,7 +369,17 @@ function ZoomableImage({
         )}
       </div>
       {ready && (
-        <div className="item-zoom-pill glass">
+        <div ref={pillRef} className="item-zoom-pill glass">
+          <LiquidGlass className="item-zoom-lens" targetRoots={[pillRef]} shadow={false}>
+            <div ref={lensStageRef} className="item-zoom-lens-stage" />
+            <img
+              ref={lensImageRef}
+              src={src}
+              crossOrigin={canvasImageCrossOrigin(src)}
+              alt=""
+              className="item-zoom-lens-image"
+            />
+          </LiquidGlass>
           <button
             type="button"
             className="item-zoom-button"

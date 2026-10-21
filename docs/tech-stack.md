@@ -105,6 +105,8 @@ The database and asset store should be exportable together. Backups should inclu
 
 Treat all fetched HTML as untrusted. Sanitize article HTML before rendering, allowlist iframe providers, strip scripts/event handlers/unsafe URLs/untrusted `srcdoc`, keep remote content isolated from Electron's privileged main process, and do not expose arbitrary filesystem or shell commands through the preload bridge.
 
+The app session adds `Access-Control-Allow-Origin: *` to remote image responses so library cards, loaded with `crossorigin`, can be drawn into the liquid glass canvas. That lets the renderer read pixels of images it already displays and nothing more; it changes no request and applies to no other resource type.
+
 ## Update checks
 
 The packaged Windows app checks GitHub Releases once when it opens; it does not poll on a schedule. GitHub receives the request from the device and the app name and installed version in its HTTP user agent, but no library data. An available update appears quietly in the sidebar and is downloaded and installed only after the user selects it; that action checks once more before downloading. Electron updater hashes protect update downloads over HTTPS but do not establish publisher trust. The NSIS installer is not Authenticode-signed, so Windows SmartScreen may warn users when they install it.

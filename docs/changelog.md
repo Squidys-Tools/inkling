@@ -67,6 +67,7 @@ Guardrails:
 - Regular Spaces: manual collections alongside saved searches. The Space create form chooses Smart or Regular, a Regular Space holds only the items you file into it from the expanded item view, and the chips there show current membership and take an item back out. Deleting a Space still leaves its items alone (SQU-4, `src-tauri/src/storage.rs`, `src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
 - Top of Mind: items can be pinned and unpinned from their details view, and the Top of mind view collects them. That view explains itself when nothing is pinned yet, and the main library stays a plain list of everything (SQU-9) (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
 - The item count above the library rolls up when it first appears and replays when hovered, using the React Bits CountUp in compact format (`src/components/CountUp.tsx`, `src/components/AnimatedCount.tsx`)
+- Liquid glass in the desktop app: the library toolbar, search chip, collapsed sidebar tab and image zoom control refract what is behind them through WebGPU and Chromium's HTML-in-Canvas, and fall back to the CSS glass when either is unavailable (#170)
 
 ### Fixed
 
@@ -78,6 +79,7 @@ Guardrails:
 ### Changed
 
 - Library list IPC sends card fields only; reader content is loaded from SQLite when opened.
+- Library cards load remote images in CORS mode and the desktop app adds a CORS header to image responses, so the liquid glass canvas can draw them; no extra requests are made (#170)
 - Electron defers canvas system-font loading until PDF work runs; BMP and ICO thumbnails use canvas without loading system fonts.
 - Library cards form a denser masonry grid with tighter gutters and natural media proportions; note and quote previews stay readable, while list, Archive, and Serendipity views keep their existing geometry.
 - Desktop window opens at 960 × 540 instead of 1000 × 800; the 320 × 360 minimum size is unchanged.

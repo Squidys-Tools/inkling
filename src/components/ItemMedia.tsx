@@ -20,6 +20,7 @@ import { markdownToPlainText } from "../lib/notes";
 import type { XPostMetadata } from "../lib/ingestion/types";
 import type { ItemKind, LibraryItem } from "../lib/types";
 import pdfPointillismOptionB from "../assets/pdf-pointillism-option-b.png";
+import { canvasImageCrossOrigin } from "./LiquidGlass";
 
 export function mediaAspectRatioFor(item: LibraryItem): number {
   if (
@@ -203,7 +204,9 @@ export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }
       <div className="post-author">
         <span className="post-avatar">
           <span>j</span>
-          {post.avatarUrl && <img src={post.avatarUrl} alt="" />}
+          {post.avatarUrl && (
+            <img src={post.avatarUrl} crossOrigin={canvasImageCrossOrigin(post.avatarUrl)} alt="" />
+          )}
         </span>
         <span>
           <strong>{post.displayName}</strong>

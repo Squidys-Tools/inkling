@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, protocol, session, shell } from "electron";
 import electronUpdater from "electron-updater";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
@@ -84,6 +84,25 @@ protocol.registerSchemesAsPrivileged([
     privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false },
   },
 ]);
+
+// Remote card images load with crossorigin so the liquid glass canvas can draw
+// them (Chromium paints opaque cross-origin images blank). Most hosts send no
+// CORS header, so the app's session adds one to image responses. The requests
+// themselves are unchanged.
+function allowCanvasReadableImages() {
+  session.defaultSession.webRequest.onHeadersReceived(
+    { urls: ["https://*/*"] },
+    ({ resourceType, responseHeaders }, callback) => {
+      if (resourceType !== "image") return callback({});
+      const headers = Object.fromEntries(
+        Object.entries(responseHeaders ?? {}).filter(
+          ([name]) => name.toLowerCase() !== "access-control-allow-origin",
+        ),
+      );
+      callback({ responseHeaders: { ...headers, "Access-Control-Allow-Origin": ["*"] } });
+    },
+  );
+}
 
 function sendDeepLinks(contents, links) {
   if (!contents.isDestroyed() && links.length > 0) {
@@ -355,6 +374,9 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      // HTML-in-Canvas, so liquid glass can refract the live grid. Chromium
+      // ships it behind this flag; without it the renderer keeps the CSS glass.
+      enableBlinkFeatures: "CanvasDrawElement",
     },
   });
   mainWindow.setMenu(null);
@@ -429,6 +451,7 @@ if (!hasSingleInstanceLock) {
       );
     }
     await protocol.handle("app", serveAppAsset);
+    allowCanvasReadableImages();
     handleDeepLinkArguments(process.argv);
     createWindow();
 

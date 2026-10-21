@@ -2,6 +2,7 @@
 import {
   lazy,
   memo,
+  type RefObject,
   Suspense,
   useCallback,
   useEffect,
@@ -124,6 +125,7 @@ import { AnimatedCount } from "./components/AnimatedCount";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
+import { canvasImageCrossOrigin, LiquidGlass } from "./components/LiquidGlass";
 import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
 import { videoLinkFromSourceUrl } from "./lib/ingestion/video-links";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
@@ -923,6 +925,7 @@ function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }
       {item.image ? (
         <img
           src={item.image}
+          crossOrigin={canvasImageCrossOrigin(item.image)}
           alt={item.imageAlt ?? item.title}
           className="card-image"
           loading="lazy"
@@ -1080,6 +1083,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
             <div className="card-image-wrap">
               <img
                 src={item.image}
+                crossOrigin={canvasImageCrossOrigin(item.image)}
                 alt={item.imageAlt ?? item.title}
                 className="card-image"
                 loading="lazy"
@@ -1644,7 +1648,15 @@ function SpaceMark() {
 // Desktop sidebar toggle attached to the library frame's left edge. When the
 // sidebar opens or closes it flips over that edge: the old side turns edge-on,
 // then the new side turns in. The drawn side lags `isOpen` until the turn ends.
-function SidebarEdgeTab({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
+function SidebarEdgeTab({
+  isOpen,
+  onToggle,
+  ref,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+  ref: RefObject<HTMLButtonElement | null>;
+}) {
   const [side, setSide] = useState(isOpen);
   const [phase, setPhase] = useState<"idle" | "out" | "in">("idle");
   useEffect(() => {
@@ -1652,6 +1664,7 @@ function SidebarEdgeTab({ isOpen, onToggle }: { isOpen: boolean; onToggle: () =>
   }, [isOpen, side, phase]);
   return (
     <button
+      ref={ref}
       type="button"
       className={`edge-tab ${isOpen ? "at-sidebar" : ""} ${side ? "is-open" : "is-closed glass"} ${phase === "idle" ? "" : `flip-${phase}`}`}
       aria-label={isOpen ? "Close navigation" : "Open navigation"}
@@ -1918,6 +1931,7 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const captureBarRef = useRef<HTMLElement>(null);
+  const edgeTabRef = useRef<HTMLButtonElement>(null);
   const libraryFrameRef = useRef<HTMLElement>(null);
   const libraryTransitionOverlayRef = useRef<HTMLDivElement>(null);
   const pendingLibraryViewPositionsRef = useRef<Map<string, LibraryCardPosition> | null>(null);
@@ -5109,7 +5123,11 @@ function App() {
             </button>
           </div>
         </aside>
-        <SidebarEdgeTab isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen((open) => !open)} />
+        <SidebarEdgeTab
+          ref={edgeTabRef}
+          isOpen={isSidebarOpen}
+          onToggle={() => setIsSidebarOpen((open) => !open)}
+        />
 
         <main className="main-content" ref={libraryFrameRef}>
           <section className="library-header"></section>
@@ -5573,171 +5591,173 @@ function App() {
             )}
           </AnimatePresence>
 
-          <div
-            className={`library-scroll${hasPinnedQuery ? " has-pinned-query" : ""}`}
-            ref={libraryScrollRef}
-          >
-            {isSerendipityView ? (
-              <section
-                className="serendipity-stage"
-                aria-labelledby="serendipity-title"
-                data-testid="serendipity-view"
-              >
-                <div className="serendipity-intro">
-                  <div className="serendipity-intro-copy">
-                    <p className="serendipity-eyebrow">A slower look through your library</p>
-                    <h1 id="serendipity-title">Something worth finding again?</h1>
-                    <p>Keep what still feels useful. Forget what you do not need to carry.</p>
-                  </div>
-                  <p className="serendipity-progress" role="status" aria-live="polite">
-                    {serendipityRemainingCount === 1
-                      ? "1 older item left"
-                      : `${serendipityRemainingCount} older items left`}
-                  </p>
-                </div>
-
-                {serendipityItem ? (
-                  <div className="serendipity-browse">
-                    <div className="serendipity-art" data-testid="serendipity-item">
-                      <AnimatePresence initial={false} mode="wait">
-                        <motion.div
-                          key={String(serendipityItem.id)}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -8 }}
-                          transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
-                        >
-                          <VirtualizedLibraryItem
-                            data={serendipityItem}
-                            index={0}
-                            context={libraryCardContext}
-                          />
-                        </motion.div>
-                      </AnimatePresence>
-                    </div>
-                    <div className="serendipity-copy">
-                      <div className="serendipity-kicker">
-                        <span>
-                          <KindIcon kind={serendipityItem.kind} />
-                          {serendipityItem.kind}
-                        </span>
-                        <span>{serendipityItem.date}</span>
-                      </div>
-                      <h2>{serendipityItem.title}</h2>
-                      {serendipityItem.description && (
-                        <p className="serendipity-description">{serendipityItem.description}</p>
-                      )}
-                      {serendipityItem.tags.length > 0 && (
-                        <ul className="serendipity-tags" aria-label="Tags">
-                          {serendipityItem.tags.slice(0, 5).map((tag) => (
-                            <li key={tag}>#{tag}</li>
-                          ))}
-                        </ul>
-                      )}
-                      <div className="serendipity-actions">
-                        <button
-                          type="button"
-                          className="serendipity-keep"
-                          onClick={() => keepSerendipityItem(serendipityItem)}
-                          data-testid="serendipity-keep"
-                        >
-                          <HugeiconsIcon icon={CircleCheckIcon} size={16} /> Keep
-                        </button>
-                        <button
-                          type="button"
-                          className="serendipity-forget"
-                          onClick={() => void forgetItem(serendipityItem)}
-                          data-testid="serendipity-forget"
-                        >
-                          <HugeiconsIcon icon={Archive01Icon} size={16} /> Forget
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        className="serendipity-details"
-                        onClick={() => selectLibraryItem(serendipityItem)}
-                      >
-                        Open details <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="serendipity-complete" data-testid="serendipity-complete">
-                    <div className="empty-icon">
-                      <HugeiconsIcon icon={Clock01Icon} size={20} />
-                    </div>
-                    <h2>That is the whole walk.</h2>
-                    <p>
-                      You have seen every older item still in your library. Save something new, or
-                      come back later.
-                    </p>
-                    <button type="button" className="text-button" onClick={clearToDefaultView}>
-                      Back to Everything
-                    </button>
-                  </div>
-                )}
-              </section>
-            ) : (
-              <>
-                {filteredItems.length > 0 && (
-                  <VirtuosoMasonry
-                    key={libraryGridKey}
-                    className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
-                    columnCount={listMode ? 1 : gridColumnCount}
-                    data={filteredItems}
-                    context={libraryCardContext}
-                    ItemContent={VirtualizedLibraryItem}
-                    style={{ height: "100%", width: "100%" }}
-                  />
-                )}
-
-                {filteredItems.length === 0 && (
-                  <div className="empty-state">
-                    <div className="empty-icon">
-                      <HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} />
-                    </div>
-                    {activeSpace?.kind === "regular" ? (
-                      <>
-                        <h2>{activeSpace.name} is empty.</h2>
-                        <p>
-                          Open anything in your library and pick {activeSpace.name} to file it in
-                          here.
-                        </p>
-                      </>
-                    ) : pinsViewIsEmpty ? (
-                      <>
-                        <h2>Nothing pinned yet.</h2>
-                        <p>Open anything in your library and pin it to keep it within reach.</p>
-                      </>
-                    ) : (
-                      <>
-                        <h2>Nothing surfaced yet.</h2>
-                        <p>Try another word, or save something new to your mind.</p>
-                      </>
-                    )}
-                    {activeSpace?.kind !== "regular" && !pinsViewIsEmpty && (
-                      <button
-                        type="button"
-                        className="text-button"
-                        onClick={() => {
-                          setQuery("");
-                          clearToDefaultView();
-                        }}
-                      >
-                        Clear search
-                      </button>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-
+          <LiquidGlass className="library-stage" targetRoots={[captureBarRef, edgeTabRef]}>
             <div
-              ref={libraryTransitionOverlayRef}
-              className="library-transition-overlay"
-              aria-hidden="true"
-            />
-          </div>
+              className={`library-scroll${hasPinnedQuery ? " has-pinned-query" : ""}`}
+              ref={libraryScrollRef}
+            >
+              {isSerendipityView ? (
+                <section
+                  className="serendipity-stage"
+                  aria-labelledby="serendipity-title"
+                  data-testid="serendipity-view"
+                >
+                  <div className="serendipity-intro">
+                    <div className="serendipity-intro-copy">
+                      <p className="serendipity-eyebrow">A slower look through your library</p>
+                      <h1 id="serendipity-title">Something worth finding again?</h1>
+                      <p>Keep what still feels useful. Forget what you do not need to carry.</p>
+                    </div>
+                    <p className="serendipity-progress" role="status" aria-live="polite">
+                      {serendipityRemainingCount === 1
+                        ? "1 older item left"
+                        : `${serendipityRemainingCount} older items left`}
+                    </p>
+                  </div>
+
+                  {serendipityItem ? (
+                    <div className="serendipity-browse">
+                      <div className="serendipity-art" data-testid="serendipity-item">
+                        <AnimatePresence initial={false} mode="wait">
+                          <motion.div
+                            key={String(serendipityItem.id)}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+                          >
+                            <VirtualizedLibraryItem
+                              data={serendipityItem}
+                              index={0}
+                              context={libraryCardContext}
+                            />
+                          </motion.div>
+                        </AnimatePresence>
+                      </div>
+                      <div className="serendipity-copy">
+                        <div className="serendipity-kicker">
+                          <span>
+                            <KindIcon kind={serendipityItem.kind} />
+                            {serendipityItem.kind}
+                          </span>
+                          <span>{serendipityItem.date}</span>
+                        </div>
+                        <h2>{serendipityItem.title}</h2>
+                        {serendipityItem.description && (
+                          <p className="serendipity-description">{serendipityItem.description}</p>
+                        )}
+                        {serendipityItem.tags.length > 0 && (
+                          <ul className="serendipity-tags" aria-label="Tags">
+                            {serendipityItem.tags.slice(0, 5).map((tag) => (
+                              <li key={tag}>#{tag}</li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="serendipity-actions">
+                          <button
+                            type="button"
+                            className="serendipity-keep"
+                            onClick={() => keepSerendipityItem(serendipityItem)}
+                            data-testid="serendipity-keep"
+                          >
+                            <HugeiconsIcon icon={CircleCheckIcon} size={16} /> Keep
+                          </button>
+                          <button
+                            type="button"
+                            className="serendipity-forget"
+                            onClick={() => void forgetItem(serendipityItem)}
+                            data-testid="serendipity-forget"
+                          >
+                            <HugeiconsIcon icon={Archive01Icon} size={16} /> Forget
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          className="serendipity-details"
+                          onClick={() => selectLibraryItem(serendipityItem)}
+                        >
+                          Open details <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="serendipity-complete" data-testid="serendipity-complete">
+                      <div className="empty-icon">
+                        <HugeiconsIcon icon={Clock01Icon} size={20} />
+                      </div>
+                      <h2>That is the whole walk.</h2>
+                      <p>
+                        You have seen every older item still in your library. Save something new, or
+                        come back later.
+                      </p>
+                      <button type="button" className="text-button" onClick={clearToDefaultView}>
+                        Back to Everything
+                      </button>
+                    </div>
+                  )}
+                </section>
+              ) : (
+                <>
+                  {filteredItems.length > 0 && (
+                    <VirtuosoMasonry
+                      key={libraryGridKey}
+                      className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
+                      columnCount={listMode ? 1 : gridColumnCount}
+                      data={filteredItems}
+                      context={libraryCardContext}
+                      ItemContent={VirtualizedLibraryItem}
+                      style={{ height: "100%", width: "100%" }}
+                    />
+                  )}
+
+                  {filteredItems.length === 0 && (
+                    <div className="empty-state">
+                      <div className="empty-icon">
+                        <HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} />
+                      </div>
+                      {activeSpace?.kind === "regular" ? (
+                        <>
+                          <h2>{activeSpace.name} is empty.</h2>
+                          <p>
+                            Open anything in your library and pick {activeSpace.name} to file it in
+                            here.
+                          </p>
+                        </>
+                      ) : pinsViewIsEmpty ? (
+                        <>
+                          <h2>Nothing pinned yet.</h2>
+                          <p>Open anything in your library and pin it to keep it within reach.</p>
+                        </>
+                      ) : (
+                        <>
+                          <h2>Nothing surfaced yet.</h2>
+                          <p>Try another word, or save something new to your mind.</p>
+                        </>
+                      )}
+                      {activeSpace?.kind !== "regular" && !pinsViewIsEmpty && (
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => {
+                            setQuery("");
+                            clearToDefaultView();
+                          }}
+                        >
+                          Clear search
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div
+                ref={libraryTransitionOverlayRef}
+                className="library-transition-overlay"
+                aria-hidden="true"
+              />
+            </div>
+          </LiquidGlass>
 
           {showLibraryEdges && <LibraryEdgeFade />}
         </main>
