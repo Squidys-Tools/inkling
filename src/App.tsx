@@ -53,6 +53,7 @@ import {
   FileTextIcon,
   Folder01Icon,
   Upload04Icon,
+  PaintBoardIcon,
 } from "@hugeicons/core-free-icons";
 import {
   assetUrl,
@@ -125,6 +126,8 @@ import { AnimatedCount } from "./components/AnimatedCount";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
+import { SegmentedControl } from "./components/SegmentedControl/SegmentedControl";
+import { APPEARANCE_OPTIONS, useAppearance } from "./lib/appearance";
 import { canvasImageCrossOrigin, LiquidGlass } from "./components/LiquidGlass";
 import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
 import { videoLinkFromSourceUrl } from "./lib/ingestion/video-links";
@@ -1690,9 +1693,10 @@ function App() {
       cancelled = true;
     };
   }, [canUseDesktopBackend]);
-  const [settingsTab, setSettingsTab] = useState<"general" | "archive" | "data" | "extension">(
-    "general",
-  );
+  const [settingsTab, setSettingsTab] = useState<
+    "general" | "appearance" | "archive" | "data" | "extension"
+  >("general");
+  const [appearance, setAppearanceOption] = useAppearance();
   // Optional facts Settings shows when the desktop backend can supply them.
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [librarySizeBytes, setLibrarySizeBytes] = useState<number | null>(null);
@@ -4708,7 +4712,28 @@ function App() {
           </section>
 
           <div className="view-dock" ref={viewDockRef}>
-            {showBrowseControls && (
+            {showBrowseControls && appearance.viewToggle === "segmented" && (
+              <SegmentedControl
+                className="glass"
+                name="library-view"
+                label="View options"
+                value={viewSelectionListMode ? "list" : "grid"}
+                onChange={(view) => switchLibraryView(view === "list")}
+                options={[
+                  {
+                    value: "grid",
+                    label: "Grid",
+                    icon: <HugeiconsIcon icon={Grid2X2Icon} size={15} />,
+                  },
+                  {
+                    value: "list",
+                    label: "List",
+                    icon: <HugeiconsIcon icon={ListViewIcon} size={15} />,
+                  },
+                ]}
+              />
+            )}
+            {showBrowseControls && appearance.viewToggle === "pill" && (
               <fieldset className="view-controls glass">
                 <legend className="visually-hidden">View options</legend>
                 <motion.span
@@ -5262,6 +5287,15 @@ function App() {
                     </button>
                     <button
                       type="button"
+                      className={`settings-tab ${settingsTab === "appearance" ? "active" : ""}`}
+                      aria-current={settingsTab === "appearance" ? "page" : undefined}
+                      onClick={() => setSettingsTab("appearance")}
+                    >
+                      <HugeiconsIcon icon={PaintBoardIcon} size={15} />
+                      <span>Appearance</span>
+                    </button>
+                    <button
+                      type="button"
                       className={`settings-tab ${settingsTab === "data" ? "active" : ""}`}
                       aria-current={settingsTab === "data" ? "page" : undefined}
                       onClick={() => setSettingsTab("data")}
@@ -5335,6 +5369,45 @@ function App() {
                         >
                           Show the welcome again
                         </button>
+                      </div>
+                    </div>
+                  </section>
+                ) : settingsTab === "appearance" ? (
+                  <section className="settings-panel" aria-labelledby="appearance-panel-title">
+                    <header className="settings-panel-header">
+                      <div className="settings-panel-header-content">
+                        <div className="settings-panel-heading">
+                          <h2 id="appearance-panel-title">Appearance</h2>
+                        </div>
+                        <p className="settings-panel-note">Try other looks for parts of the app.</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="icon-button settings-close"
+                        onClick={() => setIsSettingsOpen(false)}
+                        aria-label="Close settings"
+                      >
+                        <HugeiconsIcon icon={Cancel01Icon} size={14} />
+                      </button>
+                    </header>
+
+                    <div className="settings-scroll">
+                      <div className="settings-data-row">
+                        <span className="settings-data-icon" aria-hidden="true">
+                          <HugeiconsIcon icon={Grid2X2Icon} size={17} />
+                        </span>
+                        <div className="settings-data-text">
+                          <h3>Grid and list toggle</h3>
+                          <p>The switch at the bottom of the library.</p>
+                        </div>
+                        <SegmentedControl
+                          className="settings-segmented"
+                          name="appearance-view-toggle"
+                          label="Grid and list toggle style"
+                          value={appearance.viewToggle}
+                          onChange={(value) => setAppearanceOption("viewToggle", value)}
+                          options={APPEARANCE_OPTIONS.viewToggle}
+                        />
                       </div>
                     </div>
                   </section>

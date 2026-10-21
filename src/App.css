@@ -2531,6 +2531,11 @@ a:focus-visible,
   gap: 18px;
   padding: 20px 2px;
 }
+.settings-segmented {
+  flex: 0 0 auto;
+  border: 1px solid #221f1c;
+  background: var(--library-surface);
+}
 .settings-data-row:not(:last-of-type) {
   border-bottom: 1px solid #1e1b19;
 }
