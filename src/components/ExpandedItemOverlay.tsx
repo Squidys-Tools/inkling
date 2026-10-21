@@ -793,22 +793,18 @@ export function ExpandedItemOverlay({
   // was showing, while React's item prop already points at the next one.
   const shownItem = flight?.kind === "close" ? flight.fromItem : item;
 
-  // The view takes the rectangle the grid sits in: inside the frame's padding on
-  // the left, top and bottom, so it clears the window controls band and the
-  // sidebar tab. The inspector still runs to the window's right edge.
+  // The view replaces the library: it takes the whole frame inside its border,
+  // and the stage and inspector keep clear of the window controls and the
+  // sidebar tab themselves (App.css).
   const frameRect = useCallback((): FlightRect => {
     const frame = frameRef.current;
     if (!frame) return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-    const rect = rectFrom(frame.getBoundingClientRect());
-    const style = getComputedStyle(frame);
-    const top = Number.parseFloat(style.paddingTop) || 0;
-    const left = Number.parseFloat(style.paddingLeft) || 0;
-    const bottom = Number.parseFloat(style.paddingBottom) || 0;
+    const rect = frame.getBoundingClientRect();
     return {
-      left: rect.left + left,
-      top: rect.top + top,
-      width: rect.width - left,
-      height: rect.height - top - bottom,
+      left: rect.left + frame.clientLeft,
+      top: rect.top + frame.clientTop,
+      width: frame.clientWidth,
+      height: frame.clientHeight,
     };
   }, [frameRef]);
 
@@ -1229,7 +1225,7 @@ export function ExpandedItemOverlay({
     >
       <section
         ref={dialogRef}
-        className={`expanded-overlay ${destination ? "is-placed" : ""} ${isFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""} ${isFocusModeView ? "is-focus-mode" : ""}`}
+        className={`expanded-overlay ${destination ? "is-placed" : ""} ${isFlying ? "is-flying" : ""} ${flight?.kind === "open" ? "is-opening" : ""} ${isEditingNoteView ? "is-editing-note" : ""} ${isFocusModeView ? "is-focus-mode" : ""}`}
         role="dialog"
         aria-modal={false}
         aria-label={detailTitleFor(shownItem)}

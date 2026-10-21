@@ -3728,9 +3728,7 @@ a:focus-visible,
   display: none;
 }
 .expanded-overlay.is-editing-note .item-inspector {
-  top: 0;
-  bottom: 0;
-  left: 0;
+  left: var(--item-inset-left);
   width: auto;
   padding: 6px 0 0;
 }
@@ -4929,14 +4927,6 @@ a:focus-visible,
 .library-scroll.has-pinned-query .library-grid {
   padding-top: calc(var(--scroll-reach-top) + 100px);
 }
-/* The item view fills the frame inside its padding, so the grid's reach past
-   that padding would show above and below it. */
-.has-open-item .library-scroll {
-  clip-path: inset(var(--scroll-reach-top) 0 var(--scroll-reach-bottom));
-}
-.has-open-item .library-edge-blur {
-  visibility: hidden;
-}
 /* The grid/list toggle floats centred over the bottom blur. */
 .view-dock {
   position: absolute;
@@ -5297,22 +5287,35 @@ a:focus-visible,
 /* Paper's frame has no border of its own. A border here would offset the stage
    and inspector by a pixel, so the viewer and inspector insets would not match. */
 .expanded-overlay {
+  /* The stage sits where the library's cards do: below the window controls
+     band and in from the frame's edge (its padding, less the 1px border). The
+     inspector shares its top and bottom, so its action bar ends on the
+     stage's bottom edge. */
+  --item-inset-top: calc(3px + var(--titlebar-height));
+  --item-inset-left: 13px;
+  --item-inset-bottom: 13px;
   position: absolute;
   left: 0;
   top: 0;
   width: 0;
   height: 0;
   overflow: hidden;
-  border-radius: var(--frame-radius) 0 0 var(--frame-radius);
+  border-radius: calc(var(--frame-radius) - 1px) 0 0 calc(var(--frame-radius) - 1px);
   background: var(--library-frame);
   pointer-events: auto;
+}
+@media (min-width: 781px) {
+  /* With the sidebar closed its tab sits inside the frame's left edge. */
+  .sidebar:not(.is-open) ~ .expanded-overlay-layer .expanded-overlay {
+    --item-inset-left: 43px;
+  }
 }
 .expanded-overlay.is-flying {
   will-change: left, top, width, height, opacity;
 }
 .item-stage {
   position: absolute;
-  inset: 0 320px 0 0;
+  inset: var(--item-inset-top) 320px var(--item-inset-bottom) var(--item-inset-left);
   display: grid;
   place-items: center;
   padding: 72px 40px 72px;
@@ -5332,6 +5335,11 @@ a:focus-visible,
   padding: 0;
   border-color: transparent;
   border-radius: inherit;
+}
+/* The view mounts in its resting layout for a moment before the open flight
+   starts, so the stage must not ease from there into the card. */
+.expanded-overlay.is-opening .item-stage {
+  transition: none;
 }
 .item-stage-image {
   position: absolute;
@@ -5368,13 +5376,13 @@ a:focus-visible,
 }
 .item-inspector {
   position: absolute;
-  top: 0;
+  top: var(--item-inset-top);
   right: 0;
-  bottom: 0;
+  bottom: var(--item-inset-bottom);
   width: 320px;
   display: flex;
   flex-direction: column;
-  padding: 6px 16px 4px 18px;
+  padding: 6px 16px 0 18px;
   font-family: var(--font-body);
   transition:
     opacity 0.25s ease 0.08s,
