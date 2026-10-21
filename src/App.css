@@ -706,9 +706,33 @@ a:focus-visible,
   .app-shell {
     background: var(--app-background);
   }
-  .sidebar {
+  /* The sidebar holds still underneath and the library frame slides over it, so
+     only the frame's left edge moves. */
+  .sidebar,
+  .sidebar:not(.is-open) {
+    position: absolute;
+    left: 0;
+    z-index: auto;
+    width: var(--sidebar-width);
+    padding: 26px 10px 6px;
     border-right-color: transparent;
     background: transparent;
+    opacity: 1;
+    transition: visibility 0s;
+  }
+  /* Hidden once covered, so its controls leave the tab order. */
+  .sidebar:not(.is-open) {
+    visibility: hidden;
+    transition: visibility 0s 0.3s;
+  }
+  .main-content {
+    margin-left: var(--sidebar-width);
+    transition:
+      margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+      padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .sidebar:not(.is-open) ~ .main-content {
+    margin-left: 0;
   }
   .main-content {
     --stage-background: var(--library-frame);
