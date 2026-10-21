@@ -1,15 +1,12 @@
-/* Same surface as the item view's Space menu, so the app's small menus read as
-   one family. */
+/* Card menus open over the library, so they take its glass (`.glass`), liquid
+   where the desktop app can draw it. */
 .context-menu {
   position: fixed;
   z-index: 1000;
   min-width: 200px;
   max-width: 280px;
   padding: 5px;
-  border: 1px solid var(--library-border);
   border-radius: 12px;
-  background: var(--library-surface);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
   animation: context-menu-in 0.12s cubic-bezier(0.23, 1, 0.32, 1);
 }
 @keyframes context-menu-in {

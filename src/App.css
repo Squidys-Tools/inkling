@@ -632,37 +632,32 @@ a:focus-visible,
   transform: translateX(-20px);
   pointer-events: none;
 }
+/* Opens the closed sidebar from the toolbar's left end, in the search chip's
+   glass. */
 .sidebar-toggle {
   position: absolute;
-  top: 0;
-  left: -48px;
-  z-index: 31;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 50px;
+  top: 50%;
+  left: 0;
+  translate: 0 -50%;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
   padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--library-muted);
+  border-radius: 17px;
+  color: var(--library-text-soft);
   cursor: pointer;
   transition:
     color 0.18s ease,
-    transform 0.18s ease;
+    scale 0.18s ease;
 }
 .sidebar-toggle:hover {
-  background: transparent;
-  color: var(--ink);
+  color: var(--library-text);
 }
 .sidebar-toggle:active {
-  transform: translateY(1px);
+  scale: 0.96;
 }
 .sidebar-scrim {
-  display: none;
-}
-.edge-tab {
   display: none;
 }
 @media (min-width: 781px) {
@@ -704,86 +699,9 @@ a:focus-visible,
     border-radius: var(--frame-radius) 0 0 var(--frame-radius);
     background: var(--library-frame);
   }
-  .sidebar-close,
-  .sidebar-toggle {
-    display: none;
-  }
-  /* Centred on the brand lockup's 48px midline. */
-  .edge-tab {
-    position: absolute;
-    top: 26px;
-    left: 0;
-    z-index: 32;
-    display: grid;
-    place-items: center;
-    width: 30px;
-    height: 44px;
-    color: var(--library-muted);
-    cursor: pointer;
-    transition:
-      left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-      color 0.18s ease;
-  }
-  .edge-tab:hover {
-    color: var(--ink);
-  }
-  .edge-tab.at-sidebar {
-    left: var(--sidebar-width);
-  }
-  /* A solid tab on the frame's edge: hanging over the sidebar while it is
-     open, just inside the frame while it is closed. */
-  .edge-tab.is-open,
-  .edge-tab.is-closed {
-    border: 1px solid var(--library-border);
-    background: var(--library-frame);
-  }
-  .edge-tab.is-open {
-    --flip: 90deg;
-    margin-left: -29px;
-    border-right: 0;
-    border-radius: 14px 0 0 14px;
-    box-shadow:
-      -6px 0 14px rgba(0, 0, 0, 0.35),
-      inset 1px 1px 0 rgba(255, 255, 255, 0.06);
-    transform-origin: right center;
-  }
-  .edge-tab.is-closed {
-    --flip: -90deg;
-    border-left: 0;
-    border-radius: 0 14px 14px 0;
-    box-shadow:
-      6px 0 14px rgba(0, 0, 0, 0.35),
-      inset -1px 1px 0 rgba(255, 255, 255, 0.06);
-    transform-origin: left center;
-  }
-  .edge-tab.flip-out {
-    animation: edge-tab-out 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
-  }
-  .edge-tab.flip-in {
-    animation: edge-tab-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-}
-@keyframes edge-tab-out {
-  from {
-    transform: perspective(300px) rotateY(0deg);
-  }
-  to {
-    transform: perspective(300px) rotateY(var(--flip));
-  }
-}
-@keyframes edge-tab-in {
-  from {
-    transform: perspective(300px) rotateY(var(--flip));
-  }
-  to {
-    transform: perspective(300px) rotateY(0deg);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  /* Still fire animationend so the tab settles on its new side. */
-  .edge-tab.flip-out,
-  .edge-tab.flip-in {
-    animation-duration: 1ms;
+  /* Out of the way until the pointer or focus is in the sidebar. */
+  .sidebar.is-open:not(:hover, :focus-within) .sidebar-close {
+    opacity: 0;
   }
 }
 
@@ -1886,9 +1804,6 @@ a:focus-visible,
   .main-content {
     width: calc(100vw - var(--sidebar-width));
   }
-  .sidebar-toggle {
-    left: -30px;
-  }
 }
 @media (max-width: 780px) {
   .sidebar {
@@ -1953,9 +1868,6 @@ a:focus-visible,
   .library-header {
     display: block;
     padding-top: 30px;
-  }
-  .sidebar-toggle {
-    left: -18px;
   }
 }
 

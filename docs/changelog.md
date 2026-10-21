@@ -28,7 +28,7 @@ Guardrails:
 
 ### Added
 
-- Right-click a card to read, favorite, open its link, copy its link, show it in its folder, or archive it (#170)
+- Right-click a card to read, favorite, open its link, copy its link, show it in its folder, or archive it, from a menu in the library's glass (#170)
 - Buttons show a short label on hover or keyboard focus, in the same glass as the controls around them (#170)
 - Settings → General → Open source licenses lists every shipped dependency, vendored component, and bundled model with its license text and source, searchable and filterable by license (#170)
 - Settings → Appearance switches components between alternative looks while we compare them, starting with the grid/list toggle as the current pill or a coss ui segmented control (#170)
@@ -74,9 +74,10 @@ Guardrails:
 
 ### Fixed
 
-- An open item takes over the whole library frame instead of floating inside it, so the sidebar tab, grid/list toggle and the selected card no longer show around its edges, and its stage fills the frame with an even margin while the closed sidebar's tab steps out of the way (#170)
+- An open item takes over the whole library frame instead of floating inside it, so the grid/list toggle and the selected card no longer show around its edges, and its stage fills the frame with an even margin (#170)
 - List view thumbnails fill rows that grow taller than the artwork, instead of leaving a strip at the bottom (#170)
 - List view rows size to their text, so a tall photo or a short description no longer leaves a band of empty space above the footer (#170)
+- The library opens with its first row at the top of the frame, under the search chip, including at launch, where liquid glass starting up used to scroll it back down (#170)
 - URL captures from Add, paste, deep links, and the browser extension now appear immediately and enrich the same item through the retryable local job queue.
 - The app no longer contacts Google Fonts or Twitter/X at startup: reader fonts are bundled with the app and the content security policy no longer allows Google Fonts requests
 - X post embeds load the X widget only when the user clicks to load the post, so cards and saved links no longer contact X or Twitter on open
@@ -85,6 +86,7 @@ Guardrails:
 ### Changed
 
 - Add opens in place into a small menu of Note, Link, Quote, File and Screen, after Viora UI's Create New Disclosure, replacing the capture dialog and the extra Add button in the library toolbar (#170)
+- The sidebar closes from a button beside the inkling wordmark, shown while the pointer is over it, and reopens from a glass button at the left of the library toolbar, replacing the tab on the frame's edge (#170)
 - Library list IPC sends card fields only; reader content is loaded from SQLite when opened.
 - Library cards load remote images in CORS mode and the desktop app adds a CORS header to image responses, so the liquid glass canvas can draw them; no extra requests are made (#170)
 - Switching between grid and list fades the cards out and pops the new view in, list rows top to bottom and grid cards from the top left, instead of morphing each card between layouts (#170)

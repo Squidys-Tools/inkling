@@ -358,6 +358,20 @@ function boxOf(element: HTMLElement, origin: DOMRect): ShapeBox | null {
   };
 }
 
+// Moving the content in or out of the canvas resets every scroller inside it,
+// which would throw the library back to its top, so their offsets carry over.
+function keepingScroll<T>(content: HTMLElement, move: () => T) {
+  const scrolled = [...content.querySelectorAll<HTMLElement>("*")]
+    .filter((element) => element.scrollTop || element.scrollLeft)
+    .map((element) => [element, element.scrollTop, element.scrollLeft] as const);
+  const result = move();
+  for (const [element, top, left] of scrolled) {
+    element.scrollTop = top;
+    element.scrollLeft = left;
+  }
+  return result;
+}
+
 function glassTargets(roots: RefObject<HTMLElement | null>[]) {
   const targets: HTMLElement[] = [];
   for (const { current: root } of roots) {
@@ -423,17 +437,21 @@ export function LiquidGlass({
       content.style.height = `${height}px`;
     };
     sizeContent(wrap.clientWidth, wrap.clientHeight);
-    const surface = new LiquidSurface(
-      gpu,
-      canvas,
+    const surface = keepingScroll(
       content,
-      () => {
-        if (shown) return;
-        shown = true;
-        // The first frame is up, so the CSS glass can step aside.
-        for (const element of marked) element.dataset.liquid = "";
-      },
-      shadow,
+      () =>
+        new LiquidSurface(
+          gpu,
+          canvas,
+          content,
+          () => {
+            if (shown) return;
+            shown = true;
+            // The first frame is up, so the CSS glass can step aside.
+            for (const element of marked) element.dataset.liquid = "";
+          },
+          shadow,
+        ),
     );
 
     const syncShapes = () => {
@@ -532,7 +550,7 @@ export function LiquidGlass({
       // Back to plain DOM in the wrapper.
       content.style.width = "";
       content.style.height = "";
-      wrap.append(content);
+      keepingScroll(content, () => wrap.append(content));
     };
   }, [gpu, content, shadow]);
 

@@ -22,8 +22,6 @@ import {
   Copy01Icon,
   LinkSquare02Icon,
   ArrowDown01Icon,
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
   ArrowUp01Icon,
   ArrowUpRight01Icon,
   Bookmark01Icon,
@@ -1596,38 +1594,6 @@ function SpaceMark() {
   );
 }
 
-// Desktop sidebar toggle attached to the library frame's left edge. When the
-// sidebar opens or closes it flips over that edge: the old side turns edge-on,
-// then the new side turns in. The drawn side lags `isOpen` until the turn ends.
-function SidebarEdgeTab({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
-  const [side, setSide] = useState(isOpen);
-  const [phase, setPhase] = useState<"idle" | "out" | "in">("idle");
-  useEffect(() => {
-    if (isOpen !== side && phase === "idle") setPhase("out");
-  }, [isOpen, side, phase]);
-  return (
-    <button
-      type="button"
-      className={`edge-tab ${isOpen ? "at-sidebar" : ""} ${side ? "is-open" : "is-closed"} ${phase === "idle" ? "" : `flip-${phase}`}`}
-      aria-label={isOpen ? "Close navigation" : "Open navigation"}
-      data-tooltip={isOpen ? "Close sidebar" : "Open sidebar"}
-      aria-expanded={isOpen}
-      aria-controls="library-navigation"
-      onClick={onToggle}
-      onAnimationEnd={() => {
-        if (phase === "out") {
-          setSide(isOpen);
-          setPhase("in");
-        } else {
-          setPhase("idle");
-        }
-      }}
-    >
-      <HugeiconsIcon icon={side ? ArrowLeft01Icon : ArrowRight01Icon} size={14} />
-    </button>
-  );
-}
-
 function App() {
   const canUseDesktopBackend = isDesktopRuntime() && !shouldUseSeedLibrary();
   const canUseLibraryFolderPicker = isDesktopRuntime() && !shouldUseSeedLibrary();
@@ -1661,6 +1627,17 @@ function App() {
   const [renamingSpaceId, setRenamingSpaceId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Each sidebar button goes away when pressed, so focus passes to the other one.
+  const sidebarOpenedRef = useRef(isSidebarOpen);
+  useEffect(() => {
+    if (sidebarOpenedRef.current === isSidebarOpen) return;
+    sidebarOpenedRef.current = isSidebarOpen;
+    const active = document.activeElement;
+    if (active !== document.body && !active?.matches(".sidebar-close, .sidebar-toggle")) return;
+    document
+      .querySelector<HTMLElement>(isSidebarOpen ? ".sidebar-close" : ".sidebar-toggle")
+      ?.focus({ preventScroll: true });
+  }, [isSidebarOpen]);
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
   const [updateInstallFailed, setUpdateInstallFailed] = useState(false);
@@ -1864,6 +1841,7 @@ function App() {
   const captureBarRef = useRef<HTMLElement>(null);
   const viewDockRef = useRef<HTMLDivElement>(null);
   const tooltipLayerRef = useRef<HTMLDivElement>(null);
+  const cardMenuLayerRef = useRef<HTMLDivElement>(null);
   const libraryFrameRef = useRef<HTMLElement>(null);
   const libraryViewAnimationRef = useRef<gsap.core.Animation | null>(null);
   const libraryViewEnteringRef = useRef(false);
@@ -3595,23 +3573,32 @@ function App() {
   );
 
   // A new grid opens scrolled past the gap under the toolbar (App.css,
-  // --library-rest-gap), so cards fill to the frame's top edge. Virtuoso
-  // sizes its columns a frame or two after mounting, so the offset is
-  // reapplied until the grid can hold it.
+  // --library-rest-gap), so cards fill to the frame's top edge. Virtuoso lays
+  // its columns out late, and not at all while the window is still hidden at
+  // launch, so the offset is held through every layout change until the user
+  // scrolls, clicks, or types.
   const restScrollKey = isSerendipityView ? "" : libraryGridKey;
   useLayoutEffect(() => {
     const scroll = libraryScrollRef.current;
-    if (!restScrollKey || !scroll) return;
+    const grid = scroll?.querySelector<HTMLElement>(".library-grid");
+    if (!restScrollKey || !scroll || !grid) return;
     const gap = Number.parseFloat(getComputedStyle(scroll).getPropertyValue("--library-rest-gap"));
-    let frame = 0;
-    let tries = 0;
-    const apply = () => {
-      const grid = scroll.querySelector<HTMLElement>(".library-grid");
-      if (grid) grid.scrollTop = gap;
-      if ((!grid || grid.scrollTop < gap) && ++tries < 10) frame = requestAnimationFrame(apply);
+    const hold = () => {
+      if (grid.scrollTop < gap) grid.scrollTop = gap;
     };
-    apply();
-    return () => cancelAnimationFrame(frame);
+    const observer = new ResizeObserver(hold);
+    observer.observe(grid);
+    for (const child of grid.children) observer.observe(child);
+    const release = () => observer.disconnect();
+    const options = { capture: true, passive: true, once: true };
+    for (const type of ["wheel", "pointerdown", "keydown"])
+      window.addEventListener(type, release, options);
+    hold();
+    return () => {
+      observer.disconnect();
+      for (const type of ["wheel", "pointerdown", "keydown"])
+        window.removeEventListener(type, release, true);
+    };
   }, [restScrollKey]);
 
   // Saves from the Add menu. The card appears at once; the menu closes on
@@ -4338,7 +4325,10 @@ function App() {
             <button
               type="button"
               className="sidebar-close"
-              aria-label="Close panel"
+              aria-label="Close sidebar"
+              aria-expanded={true}
+              aria-controls="library-navigation"
+              data-tooltip="Close sidebar"
               onClick={() => setIsSidebarOpen(false)}
             >
               <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
@@ -4642,13 +4632,6 @@ function App() {
             </button>
           </div>
         </aside>
-        {/* A closed sidebar's tab would sit over an open item's stage. */}
-        {(isSidebarOpen || !selectedItem) && (
-          <SidebarEdgeTab
-            isOpen={isSidebarOpen}
-            onToggle={() => setIsSidebarOpen((open) => !open)}
-          />
-        )}
 
         {/* An open item replaces the library, which stays mounted underneath so
             the item can fly back into its card. */}
@@ -4659,8 +4642,9 @@ function App() {
             {!isSidebarOpen && (
               <button
                 type="button"
-                className="sidebar-toggle"
-                aria-label="Open navigation"
+                className="sidebar-toggle glass"
+                aria-label="Open sidebar"
+                data-tooltip="Open sidebar"
                 aria-expanded={false}
                 aria-controls="library-navigation"
                 onClick={() => setIsSidebarOpen(true)}
@@ -4792,7 +4776,7 @@ function App() {
 
           <LiquidGlass
             className="library-stage"
-            targetRoots={[captureBarRef, viewDockRef, tooltipLayerRef]}
+            targetRoots={[captureBarRef, viewDockRef, tooltipLayerRef, cardMenuLayerRef]}
           >
             <div
               className={`library-scroll${hasPinnedQuery ? " has-pinned-query" : ""}`}
@@ -5510,16 +5494,18 @@ function App() {
         </AnimatePresence>
       </div>
       <TooltipLayer ref={tooltipLayerRef} />
-      {cardMenu && (
-        <ContextMenu
-          x={cardMenu.x}
-          y={cardMenu.y}
-          label={cardMenu.item.title}
-          entries={cardMenuEntries}
-          returnFocus={cardMenu.card}
-          onClose={closeCardMenu}
-        />
-      )}
+      <div ref={cardMenuLayerRef}>
+        {cardMenu && (
+          <ContextMenu
+            x={cardMenu.x}
+            y={cardMenu.y}
+            label={cardMenu.item.title}
+            entries={cardMenuEntries}
+            returnFocus={cardMenu.card}
+            onClose={closeCardMenu}
+          />
+        )}
+      </div>
       <Toaster
         position="top-right"
         offset={{ top: 48, right: 16 }}

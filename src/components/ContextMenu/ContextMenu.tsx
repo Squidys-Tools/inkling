@@ -1,6 +1,5 @@
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import "./ContextMenu.css";
 
 export type ContextMenuEntry = { label: string; icon: IconSvgElement; onSelect: () => void };
@@ -67,10 +66,12 @@ export function ContextMenu({ x, y, label, entries, returnFocus, onClose }: Prop
     event.stopPropagation();
   };
 
-  return createPortal(
+  // Rendered in place so App can hand its layer to liquid glass; it is fixed
+  // to the pointer, so where it sits in the tree does not move it.
+  return (
     <div
       ref={menuRef}
-      className="context-menu"
+      className="context-menu glass"
       role="menu"
       aria-label={label}
       style={position}
@@ -93,7 +94,6 @@ export function ContextMenu({ x, y, label, entries, returnFocus, onClose }: Prop
           {entry.label}
         </button>
       ))}
-    </div>,
-    document.body,
+    </div>
   );
 }
