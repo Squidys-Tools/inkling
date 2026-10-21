@@ -1,0 +1,86 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M5FBA1VA0KGX14RX6VVR94HK",
+  "session_id": "01a15923-6201-7671-b96c-9e0e02d62ee6",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-21T13:44:47.6051655Z",
+  "branch": "feat/glass-surface",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "bun.lock",
+    "electron/ai-jobs.mjs",
+    "electron/ai-jobs.test.ts",
+    "electron/library-size.mjs",
+    "electron/main.mjs",
+    "electron/preload.cjs",
+    "electron/storage.mjs",
+    "electron/storage.test.ts",
+    "electron/thumbnail.mjs",
+    "knip.json",
+    "package.json",
+    "src/App.css",
+    "src/App.tsx",
+    "src/components/ExpandedItemOverlay.tsx",
+    "src/components/ItemMedia.tsx",
+    "src/electron.d.ts",
+    "src/lib/libraryApi.ts",
+    "src/lib/types.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-luna",
+  "turn_id": "ae27a2a769fc",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 122573,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 5601152,
+    "output_tokens": 23171,
+    "api_call_count": 69,
+    "subagent_tokens_complete": true
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-21T13:44:47.5416705Z",
+    "agent_lines": 0,
+    "agent_removed": 412,
+    "human_added": 18332,
+    "human_modified": 2698,
+    "human_removed": 0,
+    "total_committed": 19767,
+    "total_lines_changed": 27475,
+    "agent_percentage": 1.4995450409463147,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 226,
+      "user_lines_removed": 207,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".agents/skills/p3-mode/scripts/worktree-audit.sh": 111,
+        ".agents/skills/show-me-your-work/scripts/log.sh": 42,
+        ".agents/skills/verify-inkling/scripts/cleanup.sh": 19,
+        ".agents/skills/verify-inkling/scripts/doctor.sh": 20,
+        ".agents/skills/verify-inkling/scripts/launch.sh": 12,
+        "bun.lock": 6,
+        "knip.json": 1,
+        "package.json": 2,
+        "src/App.css": 13
+      },
+      "user_removed_per_file": {
+        ".agents/skills/p3-mode/scripts/worktree-audit.sh": 111,
+        ".agents/skills/show-me-your-work/scripts/log.sh": 42,
+        ".agents/skills/verify-inkling/scripts/cleanup.sh": 19,
+        ".agents/skills/verify-inkling/scripts/doctor.sh": 20,
+        ".agents/skills/verify-inkling/scripts/launch.sh": 12,
+        "knip.json": 1,
+        "src/App.css": 2
+      }
+    }
+  ]
+}

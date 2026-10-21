@@ -1,0 +1,18 @@
+Act as the implementation sub-agent for this task.
+
+Repo worktree: C:\Users\chris\.t3\worktrees\inkling\t3-47ff5304 (branch feat/glass-surface). Read AGENTS.md and follow it strictly, especially: no pattern kills, NEVER touch the live library, no hardcoded ports or paths, capture stays instant, heavy work goes in background jobs, ingestion changes ship with focused tests, and targeted checks only.
+
+CONTEXT: five frontend agents are editing src/App.tsx, src/App.css, src/components/* and src/ReaderView.tsx in this SAME checkout right now. You must NOT edit those files. Your scope is the backend and the data layer: electron/*, the preload bridge, src/lib/* (types, ingestion, the bridge client), tests, and package.json if needed. Use targeted edits only. Never git checkout/restore/stash/reset/commit; the orchestrator commits.
+
+The UI redesign needs this data. The frontend renders each piece only when it exists. For each one, add the data and expose it to the renderer through the existing preload bridge pattern, with a sensible web-preview fallback (undefined, or sample values in the demo seed where that's cheap):
+1. App version: for the Settings footer ("inkling 0.1.0").
+2. Library size on disk: total bytes of the DB plus the asset store, computed in main without blocking (async, cached, refreshed on demand).
+3. Reveal the library folder: a "Show folder" call (shell.showItemInFolder or openPath on the library dir). Also a per-item "show in folder" that reveals that item's asset file, for the item view action bar.
+4. Persistent last export: store the last export's date and item count when an export succeeds, and read it back after a restart. Settings shows "last copy Oct 12 · 1,588 items".
+5. Original image on zoom: a way for the renderer to get the original full-resolution asset URL for an image item. Cards and the item view currently use the 512px thumbnail; the item view needs the original only once the user zooms past fit. Don't change thumbnail usage anywhere else.
+6. Colour palette: 5 dominant colours per image item. First check whether colours are already extracted (AGENTS.md lists colours as a search path). If so, expose them as `palette?: string[]` on the item summary. If not, compute them in the existing background job pipeline from the thumbnail (cheap), persist them, and backfill existing items lazily or with a job. Add a focused test.
+7. Video duration: if the existing video-link ingestion already gets a duration (from oEmbed or page metadata), persist it and expose `durationSeconds?`. If getting it would need new network calls beyond the capture fetch the user asked for, DON'T add them. Just report that.
+
+Keep IPC payloads small: summaries only, never full content (performance rule). Add focused bun tests for the job and persistence logic. Run `bun test <your test files>`, `bunx biome check <files you touched>` and `bun run typecheck`; ignore type errors in the frontend files other agents are editing, but report them.
+
+At the end, report the exact renderer API for each item, so the frontend can wire it: the function/field names, their types, and how to call them from src/App.tsx. Also report what you skipped and why, and the test results.
