@@ -28,6 +28,13 @@
     "noticeFile": "src/components/SegmentedControl/LICENSE.md"
   },
   {
+    "name": "Viora UI Create New Disclosure",
+    "license": "MIT",
+    "sourceUrl": "https://www.vioraui.dedyn.io/docs/components/create-new-disclosure",
+    "description": "The Add menu that opens out of the sidebar's Add button.",
+    "noticeFile": "src/components/AddMenu/LICENSE.md"
+  },
+  {
     "name": "nomic-embed-text-v1.5",
     "license": "Apache-2.0",
     "sourceUrl": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5",

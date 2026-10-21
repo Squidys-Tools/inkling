@@ -76,6 +76,7 @@ Guardrails:
 
 - An open item takes over the whole library frame instead of floating inside it, so the sidebar tab, grid/list toggle and the selected card no longer show around its edges, and its actions line up with the bottom of the stage (#170)
 - List view thumbnails fill rows that grow taller than the artwork, instead of leaving a strip at the bottom (#170)
+- List view rows size to their text, so a tall photo or a short description no longer leaves a band of empty space above the footer (#170)
 - URL captures from Add, paste, deep links, and the browser extension now appear immediately and enrich the same item through the retryable local job queue.
 - The app no longer contacts Google Fonts or Twitter/X at startup: reader fonts are bundled with the app and the content security policy no longer allows Google Fonts requests
 - X post embeds load the X widget only when the user clicks to load the post, so cards and saved links no longer contact X or Twitter on open
@@ -83,6 +84,7 @@ Guardrails:
 
 ### Changed
 
+- Add opens in place into a small menu of Note, Link, Quote, File and Screen, after Viora UI's Create New Disclosure, replacing the capture dialog and the extra Add button in the library toolbar (#170)
 - Library list IPC sends card fields only; reader content is loaded from SQLite when opened.
 - Library cards load remote images in CORS mode and the desktop app adds a CORS header to image responses, so the liquid glass canvas can draw them; no extra requests are made (#170)
 - Switching between grid and list fades the cards out and pops the new view in, list rows top to bottom and grid cards from the top left, instead of morphing each card between layouts (#170)

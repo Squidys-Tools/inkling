@@ -27,13 +27,11 @@ import {
   ArrowUp01Icon,
   ArrowUpRight01Icon,
   Bookmark01Icon,
-  Camera01Icon,
   Clock01Icon,
   Database02Icon,
   Download04Icon,
   Grid2X2Icon,
   Edit01Icon,
-  Image01Icon,
   Link01Icon,
   ListViewIcon,
   Loading01Icon,
@@ -52,7 +50,6 @@ import {
   Cancel01Icon,
   CircleCheckIcon,
   CircleIcon,
-  FileTextIcon,
   Folder01Icon,
   Upload04Icon,
   LicenseThirdPartyIcon,
@@ -131,6 +128,7 @@ import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
 import { ContextMenu, type ContextMenuEntry } from "./components/ContextMenu/ContextMenu";
 import { TooltipLayer } from "./components/Tooltip/TooltipLayer";
+import { type AddMode, AddMenu } from "./components/AddMenu/AddMenu";
 import { OpenSourceLicenses } from "./components/OpenSourceLicenses/OpenSourceLicenses";
 import { SegmentedControl } from "./components/SegmentedControl/SegmentedControl";
 import { APPEARANCE_OPTIONS, useAppearance } from "./lib/appearance";
@@ -208,8 +206,6 @@ const personalSeedModules: Record<string, { personalSeedItems?: LibraryItem[] }>
 const localSeedItems: LibraryItem[] =
   Object.values(personalSeedModules)[0]?.personalSeedItems ?? [];
 import "./App.css";
-
-type CaptureMode = "note" | "url" | "file" | "quote";
 
 function displayKind(kind: string): ItemKind {
   switch (kind.toLowerCase()) {
@@ -1715,13 +1711,7 @@ function App() {
   const [lastImport, setLastImport] = useState<LibraryImportReport | null>(null);
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
   const [isAdding, setIsAdding] = useState(false);
-  const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
-  const [newTitle, setNewTitle] = useState("");
-  const [captureUrl, setCaptureUrl] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [newQuoteText, setNewQuoteText] = useState("");
-  const [newQuoteAttribution, setNewQuoteAttribution] = useState("");
-  const [newQuoteSourceUrl, setNewQuoteSourceUrl] = useState("");
+  const [captureMode, setCaptureMode] = useState<AddMode | null>(null);
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
   const [pdfViewerItem, setPdfViewerItem] = useState<LibraryItem | null>(null);
   const [readingItem, setReadingItem] = useState<{
@@ -1864,18 +1854,12 @@ function App() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const captureModalRef = useRef<HTMLElement | null>(null);
-  const captureReturnFocusRef = useRef<HTMLElement | null>(null);
   const shortcutsModalRef = useRef<HTMLElement | null>(null);
   const shortcutsCloseRef = useRef<HTMLButtonElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const settingsDialogRef = useRef<HTMLElement>(null);
   const spaceRenameInputRef = useRef<HTMLInputElement>(null);
   const newSpaceNameInputRef = useRef<HTMLInputElement>(null);
-  const captureNoteInputRef = useRef<HTMLInputElement>(null);
-  const captureUrlInputRef = useRef<HTMLInputElement>(null);
-  const captureQuoteInputRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const captureBarRef = useRef<HTMLElement>(null);
   const viewDockRef = useRef<HTMLDivElement>(null);
@@ -2564,7 +2548,6 @@ function App() {
     setIsCapturing(true);
     try {
       await persistFile(file, captureSource);
-      setSelectedFile(null);
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
@@ -2658,7 +2641,6 @@ function App() {
     setIsCapturing(true);
     try {
       await persistArticle(sourceUrl, captureSource, extensionTitle);
-      setCaptureUrl("");
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
@@ -3113,12 +3095,6 @@ function App() {
   useLayoutEffect(() => {
     if (isCreatingSpace) newSpaceNameInputRef.current?.focus();
   }, [isCreatingSpace]);
-  useLayoutEffect(() => {
-    if (!isAdding) return;
-    if (captureMode === "note") captureNoteInputRef.current?.focus();
-    else if (captureMode === "url") captureUrlInputRef.current?.focus();
-    else if (captureMode === "quote") captureQuoteInputRef.current?.focus();
-  }, [isAdding, captureMode]);
 
   const openCaptureRef = useRef(openCapture);
   const closeCaptureModalRef = useRef(closeCaptureModal);
@@ -3174,27 +3150,6 @@ function App() {
   const captureTextRef = useRef(captureText);
   captureFileRef.current = captureFile;
   captureTextRef.current = captureText;
-  useEffect(() => {
-    if (!isAdding) return;
-    const previouslyFocused = captureReturnFocusRef.current;
-    const dialog = captureModalRef.current;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (dialog) keepTabFocusInside(event, dialog);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [isAdding]);
-
-  useEffect(() => {
-    if (!isAdding) return;
-    const selector =
-      captureMode === "file" ? ".file-picker" : captureMode ? "[autofocus]" : ".capture-option";
-    captureModalRef.current?.querySelector<HTMLElement>(selector)?.focus();
-  }, [captureMode, isAdding]);
-
   useEffect(() => {
     if (!isShortcutsOpen) return;
     const previouslyFocused =
@@ -3659,63 +3614,33 @@ function App() {
     return () => cancelAnimationFrame(frame);
   }, [restScrollKey]);
 
-  async function saveCapture(event: React.FormEvent) {
-    event.preventDefault();
+  // Saves from the Add menu. The card appears at once; the menu closes on
+  // success and keeps the draft when the save fails.
+  async function saveFromAddMenu(save: () => Promise<unknown>) {
     setCaptureError(null);
-
-    if (!captureMode) return;
-
     try {
-      if (captureMode === "note") {
-        if (!newTitle.trim()) return;
-        await persistText(newTitle.trim(), "quick note");
-      } else if (captureMode === "quote") {
-        if (!newQuoteText.trim()) return;
-        await persistQuote(newQuoteText, newQuoteAttribution, newQuoteSourceUrl, "quick quote");
-      } else if (captureMode === "url") {
-        if (!captureUrl.trim()) return;
-        await persistArticle(captureUrl.trim(), "quick link");
-      } else {
-        if (!selectedFile) return;
-        await persistFile(selectedFile, "file picker");
-      }
-
-      setNewTitle("");
-      setNewQuoteText("");
-      setNewQuoteAttribution("");
-      setNewQuoteSourceUrl("");
-      setCaptureUrl("");
-      setSelectedFile(null);
+      await save();
       setIsAdding(false);
       setCaptureMode(null);
+      return true;
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
+      return false;
     }
   }
 
-  function selectCaptureMode(mode: CaptureMode) {
-    setCaptureMode(mode);
+  // Add lives in the sidebar, so opening it brings the sidebar out.
+  function openCapture(mode: AddMode | null = null) {
     setCaptureError(null);
-  }
-
-  function openCapture(mode: CaptureMode | null = null) {
-    captureReturnFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setCaptureError(null);
-    setSelectedFile(null);
     setCaptureMode(mode);
     setIsAdding(true);
-  }
-
-  function openCaptureModal() {
-    openCapture();
+    setIsSidebarOpen(true);
   }
 
   function closeCaptureModal() {
     if (isCapturing) return;
     setIsAdding(false);
     setCaptureMode(null);
-    setSelectedFile(null);
   }
 
   function startScreenshotCapture() {
@@ -4661,16 +4586,25 @@ function App() {
           {isSidebarOpen && sidebarActionErrorAlert}
 
           <div className="sidebar-footer">
-            <button
-              type="button"
-              className="add-button"
-              onClick={openCaptureModal}
-              disabled={isCapturing}
-              data-tooltip="Add something to your library"
-            >
-              <HugeiconsIcon icon={PlusSignIcon} size={16} />
-              <span>{isCapturing ? "Saving…" : "Add"}</span>
-            </button>
+            <AddMenu
+              open={isAdding}
+              mode={captureMode}
+              saving={isCapturing}
+              error={isAdding ? captureError : null}
+              onOpen={() => openCapture()}
+              onClose={closeCaptureModal}
+              onModeChange={(mode) => {
+                setCaptureMode(mode);
+                setCaptureError(null);
+              }}
+              onSaveNote={(text) => saveFromAddMenu(() => persistText(text, "quick note"))}
+              onSaveLink={(url) => saveFromAddMenu(() => persistArticle(url, "quick link"))}
+              onSaveQuote={(text, attribution, sourceUrl) =>
+                saveFromAddMenu(() => persistQuote(text, attribution, sourceUrl, "quick quote"))
+              }
+              onPickFile={(file) => void captureFile(file, "file picker")}
+              onScreenshot={startScreenshotCapture}
+            />
             {availableUpdate && (
               <button
                 type="button"
@@ -4729,18 +4663,6 @@ function App() {
               </button>
             )}
             {!isSidebarOpen && sidebarActionErrorAlert}
-            {!isSidebarOpen && (
-              <button
-                type="button"
-                className="add-button is-compact"
-                onClick={openCaptureModal}
-                disabled={isCapturing}
-                aria-label={isCapturing ? "Saving…" : "Add"}
-                data-tooltip="Add something to your library"
-              >
-                <HugeiconsIcon icon={PlusSignIcon} size={15} />
-              </button>
-            )}
             {showBrowseControls && (
               <label
                 className={`search-field glass${isSearchFocused ? " is-mascot" : " is-resting"}`}
@@ -5028,233 +4950,6 @@ function App() {
             {showLibraryEdges && <LibraryEdgeFade />}
           </LiquidGlass>
         </main>
-
-        <AnimatePresence>
-          {isAdding && (
-            <motion.div
-              key="capture-modal"
-              className="capture-modal-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-              onMouseDown={(event) => event.target === event.currentTarget && closeCaptureModal()}
-            >
-              <motion.section
-                ref={captureModalRef}
-                className="capture-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="capture-modal-title"
-                initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }}
-                exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-              >
-                <header className="capture-modal-header">
-                  <div>
-                    <h2 id="capture-modal-title">Add to your library</h2>
-                    <p>Choose what you want to save.</p>
-                  </div>
-                  <button
-                    className="icon-button small"
-                    type="button"
-                    onClick={closeCaptureModal}
-                    aria-label="Close add menu"
-                  >
-                    <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                  </button>
-                </header>
-
-                <fieldset className="capture-options">
-                  <legend className="visually-hidden">Add options</legend>
-                  <button
-                    type="button"
-                    className={`capture-option ${captureMode === "note" ? "selected" : ""}`}
-                    onClick={() => selectCaptureMode("note")}
-                    aria-pressed={captureMode === "note"}
-                  >
-                    <span className="capture-option-icon">
-                      <HugeiconsIcon icon={FileTextIcon} size={18} />
-                    </span>
-                    <span className="capture-option-copy">
-                      <strong>Note</strong>
-                      <span>Write something to remember.</span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`capture-option ${captureMode === "url" ? "selected" : ""}`}
-                    onClick={() => selectCaptureMode("url")}
-                    aria-pressed={captureMode === "url"}
-                  >
-                    <span className="capture-option-icon">
-                      <HugeiconsIcon icon={Link01Icon} size={18} />
-                    </span>
-                    <span className="capture-option-copy">
-                      <strong>Link</strong>
-                      <span>Save an article, page, or X post.</span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`capture-option ${captureMode === "file" ? "selected" : ""}`}
-                    onClick={() => selectCaptureMode("file")}
-                    aria-pressed={captureMode === "file"}
-                  >
-                    <span className="capture-option-icon">
-                      <HugeiconsIcon icon={Image01Icon} size={18} />
-                    </span>
-                    <span className="capture-option-copy">
-                      <strong>File</strong>
-                      <span>Upload an image, PDF, or video.</span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`capture-option ${captureMode === "quote" ? "selected" : ""}`}
-                    onClick={() => selectCaptureMode("quote")}
-                    aria-pressed={captureMode === "quote"}
-                  >
-                    <span className="capture-option-icon">
-                      <HugeiconsIcon icon={Bookmark01Icon} size={18} />
-                    </span>
-                    <span className="capture-option-copy">
-                      <strong>Quote</strong>
-                      <span>Save a passage with its source.</span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="capture-option"
-                    onClick={startScreenshotCapture}
-                    disabled={isCapturing}
-                  >
-                    <span className="capture-option-icon">
-                      <HugeiconsIcon icon={Camera01Icon} size={18} />
-                    </span>
-                    <span className="capture-option-copy">
-                      <strong>Screenshot</strong>
-                      <span>Capture a window or display.</span>
-                    </span>
-                  </button>
-                </fieldset>
-
-                <AnimatePresence mode="wait">
-                  {captureMode && (
-                    <motion.form
-                      key={captureMode}
-                      className="capture-editor"
-                      initial={{ opacity: 0, transform: "translateY(6px)" }}
-                      animate={{ opacity: 1, transform: "translateY(0px)" }}
-                      exit={{ opacity: 0, transform: "translateY(-4px)" }}
-                      transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-                      onSubmit={saveCapture}
-                    >
-                      <div className="capture-editor-heading">
-                        <strong>
-                          {captureMode === "note"
-                            ? "New note"
-                            : captureMode === "quote"
-                              ? "New quote"
-                              : captureMode === "url"
-                                ? "Save a link"
-                                : "Upload a file"}
-                        </strong>
-                      </div>
-                      {captureMode === "note" && (
-                        <input
-                          ref={captureNoteInputRef}
-                          value={newTitle}
-                          onChange={(event) => setNewTitle(event.target.value)}
-                          placeholder="A thought, a link, a small beginning…"
-                          aria-label="New note"
-                        />
-                      )}
-                      {captureMode === "url" && (
-                        <input
-                          ref={captureUrlInputRef}
-                          type="text"
-                          inputMode="url"
-                          value={captureUrl}
-                          onChange={(event) => setCaptureUrl(event.target.value)}
-                          placeholder="Paste a link to save and read later (example.com works too)…"
-                          aria-label="URL to save"
-                        />
-                      )}
-                      {captureMode === "quote" && (
-                        <div className="quote-capture-fields">
-                          <textarea
-                            ref={captureQuoteInputRef}
-                            value={newQuoteText}
-                            onChange={(event) => setNewQuoteText(event.target.value)}
-                            placeholder="“The mind is a place with weather…”"
-                            aria-label="Quote text"
-                            rows={3}
-                            maxLength={2000}
-                          />
-                          <div className="quote-capture-row">
-                            <input
-                              value={newQuoteAttribution}
-                              onChange={(event) => setNewQuoteAttribution(event.target.value)}
-                              placeholder="Attribution"
-                              aria-label="Quote attribution"
-                              maxLength={240}
-                            />
-                            <input
-                              type="text"
-                              value={newQuoteSourceUrl}
-                              onChange={(event) => setNewQuoteSourceUrl(event.target.value)}
-                              placeholder="Source URL (optional)"
-                              aria-label="Quote source URL"
-                              inputMode="url"
-                            />
-                          </div>
-                        </div>
-                      )}
-                      {captureMode === "file" && (
-                        <>
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            className="visually-hidden"
-                            accept="image/*,application/pdf,video/*"
-                            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-                          />
-                          <button
-                            type="button"
-                            className="file-picker"
-                            onClick={() => fileInputRef.current?.click()}
-                          >
-                            {selectedFile ? selectedFile.name : "Choose an image, PDF, or video"}
-                          </button>
-                        </>
-                      )}
-                      <div className="capture-editor-actions">
-                        <button
-                          className="capture-cancel"
-                          type="button"
-                          onClick={() => setCaptureMode(null)}
-                        >
-                          Back
-                        </button>
-                        <button className="capture-save" type="submit" disabled={isCapturing}>
-                          {isCapturing ? "Saving…" : "Save to library"}
-                        </button>
-                      </div>
-                    </motion.form>
-                  )}
-                </AnimatePresence>
-
-                {captureError && (
-                  <p className="capture-error" role="alert">
-                    Couldn’t save this yet: {captureError}
-                  </p>
-                )}
-              </motion.section>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {isFirstRunOpen ? <FirstRunOverlay onFinish={finishFirstRun} /> : null}
 
