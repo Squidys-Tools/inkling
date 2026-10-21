@@ -5,13 +5,12 @@
 // and Tailwind. The sliding indicator is inkling's own: the one in coss's
 // packages/ui is AGPL.
 
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import "./SegmentedControl.css";
 
 export type SegmentedControlOption<Value extends string> = {
   value: Value;
   label: string;
-  icon?: ReactNode;
 };
 
 export function SegmentedControl<Value extends string>({
@@ -71,7 +70,6 @@ export function SegmentedControl<Value extends string>({
             checked={option.value === value}
             onChange={() => onChange(option.value)}
           />
-          {option.icon}
           <span>{option.label}</span>
         </label>
       ))}

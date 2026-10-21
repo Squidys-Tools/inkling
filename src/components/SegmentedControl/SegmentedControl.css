@@ -16,9 +16,8 @@
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 6px;
   height: 28px;
-  padding: 0 11px 0 9px;
+  padding: 0 12px;
   border-radius: 9px;
   color: var(--library-muted);
   cursor: pointer;
@@ -32,14 +31,6 @@
 }
 .segmented-control-item[data-checked] {
   color: var(--library-text);
-}
-.segmented-control-item svg {
-  display: block;
-  flex: 0 0 auto;
-  opacity: 0.8;
-}
-.segmented-control-item[data-checked] svg {
-  opacity: 1;
 }
 .segmented-control-item:has(input:focus-visible) {
   outline: 2px solid var(--orange);

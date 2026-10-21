@@ -4720,16 +4720,8 @@ function App() {
                 value={viewSelectionListMode ? "list" : "grid"}
                 onChange={(view) => switchLibraryView(view === "list")}
                 options={[
-                  {
-                    value: "grid",
-                    label: "Grid",
-                    icon: <HugeiconsIcon icon={Grid2X2Icon} size={15} />,
-                  },
-                  {
-                    value: "list",
-                    label: "List",
-                    icon: <HugeiconsIcon icon={ListViewIcon} size={15} />,
-                  },
+                  { value: "grid", label: "Grid" },
+                  { value: "list", label: "List" },
                 ]}
               />
             )}
