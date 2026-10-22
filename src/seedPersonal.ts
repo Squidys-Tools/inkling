@@ -20,7 +20,6 @@ export const personalSeedItems: LibraryItem[] = [
     mediaHeight: 6000,
     imageAlt: "Mount Fuji at night above a village glowing with lights",
     featured: true,
-    favorite: true,
   },
   {
     id: "me-spidey-rain",
@@ -35,7 +34,6 @@ export const personalSeedItems: LibraryItem[] = [
     mediaWidth: 1080,
     mediaHeight: 1346,
     imageAlt: "Spider-Man crouching in the rain in a comic-book illustration",
-    favorite: true,
   },
   {
     id: "me-lanterns",
@@ -64,7 +62,6 @@ export const personalSeedItems: LibraryItem[] = [
     mediaWidth: 4000,
     mediaHeight: 6000,
     imageAlt: "Close-up of bright pink cherry blossoms on a branch",
-    favorite: true,
   },
   {
     id: "me-clip",

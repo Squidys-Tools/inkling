@@ -28,7 +28,7 @@ Guardrails:
 
 ### Added
 
-- Right-click a card to read, favorite, open its link, copy its link, show it in its folder, or archive it, from a menu in the library's glass (#170)
+- Right-click a card to read, open its link, copy its link, show it in its folder, or archive it, from a menu in the library's glass (#170)
 - Buttons show a short label on hover or keyboard focus, in the same glass as the controls around them (#170)
 - Settings → General → Open source licenses lists every shipped dependency, vendored component, and bundled model with its license text and source, searchable and filterable by license (#170)
 - Settings → Appearance switches components between alternative looks while we compare them, the grid/list toggle as the current pill or a coss ui segmented control, and the sidebar button as buttons in the sidebar header and toolbar or a grip on the library frame's edge (#170)
@@ -48,7 +48,6 @@ Guardrails:
 - Library restore from Settings (Data tab) imports items, assets, and Spaces without replacing existing items, verifies hashes in new exports, and flags assets in older exports that cannot be verified (SQU-119).
 - Browser extension store prep: Firefox MV3 manifest, local mascot icons, options token field, and store copy draft (`extension/`).
 - Portable Windows PR previews build a self-contained review folder with pinned ONNX Runtime and embedding models, isolated database/assets/models, and a `preview:win` artifact link.
-- Serendipity now walks through older saves one at a time, with Keep and recoverable Forget actions, session-safe batching, and a clear end state (SQU-3).
 - Focus Mode for note writing expands the existing Tiptap Markdown editor into a full-screen, long-form surface with a fixed formatting and save bar; drafts and storage remain in the same note editor (SQU-2).
 - Rich note editing with a lazy-loaded Tiptap Markdown editor inside the note detail overlay, plain-text search projection, body-aware FTS, and background re-embedding (SQU-1)
 - Unit tests for the note card word-count logic, run via `bun test` in CI and the local frontend check (`src/components/ItemMedia.test.ts`)
@@ -69,7 +68,6 @@ Guardrails:
 
 - "Find similar" now works for text items, not just images: notes, quotes, articles, and saved links rank by their text embeddings across kinds, with the button offered in the expanded item view and a dedicated empty state while indexing finishes (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`, `src/lib/libraryApi.ts`, `src-tauri/src/storage.rs`) (#55)
 - Regular Spaces: manual collections alongside saved searches. The Space create form chooses Smart or Regular, a Regular Space holds only the items you file into it from the expanded item view, and the chips there show current membership and take an item back out. Deleting a Space still leaves its items alone (SQU-4, `src-tauri/src/storage.rs`, `src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
-- Top of Mind: items can be pinned and unpinned from their details view, and the Top of mind view collects them. That view explains itself when nothing is pinned yet, and the main library stays a plain list of everything (SQU-9) (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
 - The item count above the library rolls up when it first appears and replays when hovered, using the React Bits CountUp in compact format (`src/components/CountUp.tsx`, `src/components/AnimatedCount.tsx`)
 - Liquid glass in the desktop app: the library toolbar, search chip and image zoom control refract what is behind them through WebGPU and Chromium's HTML-in-Canvas, and fall back to the CSS glass when either is unavailable (#170)
 
@@ -93,7 +91,7 @@ Guardrails:
 - Switching between grid and list fades the cards out and pops the new view in, list rows top to bottom and grid cards from the top left, instead of morphing each card between layouts (#170)
 - Add moves to the foot of the sidebar, with a round + in the toolbar while the sidebar is closed, and the grid/list toggle floats at the bottom centre of the library. The back and forward buttons are gone; the mouse side buttons and Alt+Left/Right still step through history (#170)
 - Electron defers canvas system-font loading until PDF work runs; BMP and ICO thumbnails use canvas without loading system fonts.
-- Library cards form a denser masonry grid with tighter gutters and natural media proportions; note and quote previews stay readable, while list, Archive, and Serendipity views keep their existing geometry.
+- Library cards form a denser masonry grid with tighter gutters and natural media proportions; note and quote previews stay readable, while list and Archive views keep their existing geometry.
 - Desktop window opens at 960 × 540 instead of 1000 × 800; the 320 × 360 minimum size is unchanged.
 - Developer experience: `tsc-rs` is the blocking typecheck gate for the root, benchmark, extension, and ingestion-shared projects, including the build scripts, and real `tsc` runs as a non-blocking CI canary (`typecheck:tsc`).
 - Developer commands share one namespace: `dev:app` runs the desktop app, `build:installer` builds the Windows installer, and `check` runs every gate; the old `electron:*`, `check:frontend`, and `knip:check` names are removed.

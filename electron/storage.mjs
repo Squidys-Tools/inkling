@@ -29,10 +29,10 @@ const maxFileBytes = 50 * 1024 * 1024;
 const semanticMatchFloor = 0.55;
 const itemColumns = `id, kind, title, description, source_url, source_label,
   local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
-  archived, favorite, NULL AS body, 'md' AS body_format`;
+  archived, NULL AS body, 'md' AS body_format`;
 const qualifiedItemColumns = `i.id, i.kind, i.title, i.description, i.source_url, i.source_label,
   i.local_asset_path, i.thumbnail_path, i.ocr_text, i.metadata, i.created_at, i.updated_at,
-  i.archived, i.favorite, NULL AS body, 'md' AS body_format`;
+  i.archived, NULL AS body, 'md' AS body_format`;
 const cardMetadataFields = [
   "tags",
   "social",
@@ -60,8 +60,7 @@ CREATE TABLE IF NOT EXISTS items (
   metadata TEXT NOT NULL DEFAULT '{}',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
-  favorite INTEGER NOT NULL DEFAULT 0 CHECK (favorite IN (0, 1))
+  archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))
 );
 CREATE INDEX IF NOT EXISTS idx_items_active_updated ON items (archived, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_items_kind ON items (kind);
@@ -170,7 +169,6 @@ function itemFromRow(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archived: row.archived !== 0,
-    favorite: row.favorite !== 0,
   };
 }
 
@@ -199,7 +197,6 @@ function cardItem(item) {
     metadata: cardMetadata,
     createdAt: item.createdAt,
     archived: item.archived,
-    favorite: item.favorite,
     hasArticleContent: typeof metadata.html === "string" && Boolean(metadata.html.trim()),
   };
 }
@@ -429,13 +426,10 @@ function validateSmartQuery(query = {}) {
       throw new Error(`invalid storage input: ${field} must be at most ${max} characters`);
     return trimmed || undefined;
   };
-  if (query.favorite != null && typeof query.favorite !== "boolean")
-    throw new Error("invalid storage input: favorite must be a boolean");
   return {
     text: clean(query.text, "text", 512),
     kind: clean(query.kind, "kind", 32),
     tag: clean(query.tag, "tag", 64),
-    favorite: typeof query.favorite === "boolean" ? query.favorite : undefined,
   };
 }
 
@@ -456,7 +450,7 @@ function parseImportedSpaceQuery(serialized) {
   }
   if (!query || typeof query !== "object" || Array.isArray(query))
     throw new Error("invalid storage input: the export contains an invalid Space query");
-  if (Object.keys(query).some((field) => !["text", "kind", "tag", "favorite"].includes(field)))
+  if (Object.keys(query).some((field) => !["text", "kind", "tag"].includes(field)))
     throw new Error("invalid storage input: the export contains an unsupported Space query field");
   return validateSmartQuery(query);
 }
@@ -479,7 +473,7 @@ function readImportStage(databasePath) {
       items: stage.db
         .prepare(`SELECT id, kind, title, description, body, body_format, source_url,
         source_label, local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
-        archived, favorite FROM items ORDER BY created_at, id`)
+        archived FROM items ORDER BY created_at, id`)
         .all(),
       spaces: stage.db
         .prepare("SELECT * FROM spaces ORDER BY position, created_at, id")
@@ -1666,7 +1660,7 @@ class LibraryStorage {
       .prepare(`UPDATE items SET title = COALESCE(?, title), description = COALESCE(?, description),
       body = COALESCE(?, body), body_format = COALESCE(?, body_format), source_url = COALESCE(?, source_url),
       source_label = COALESCE(?, source_label), local_asset_path = COALESCE(?, local_asset_path),
-      thumbnail_path = COALESCE(?, thumbnail_path), metadata = COALESCE(?, metadata), favorite = COALESCE(?, favorite),
+      thumbnail_path = COALESCE(?, thumbnail_path), metadata = COALESCE(?, metadata),
       updated_at = ? WHERE id = ?`)
       .run(
         input.title == null ? null : String(input.title).trim(),
@@ -1678,7 +1672,6 @@ class LibraryStorage {
         input.localAssetPath ?? null,
         input.thumbnailPath ?? null,
         metadata == null ? null : JSON.stringify(metadata),
-        typeof input.favorite === "boolean" ? Number(input.favorite) : null,
         nowMillis(),
         input.id,
       ).changes;
@@ -1886,10 +1879,6 @@ class LibraryStorage {
         OR i.ocr_text COLLATE NOCASE LIKE ? ESCAPE char(92)
         OR i.metadata COLLATE NOCASE LIKE ? ESCAPE char(92))`);
       values.push(pattern, pattern, pattern, pattern, pattern, pattern);
-    }
-    if (query.favorite != null) {
-      clauses.push("i.favorite = ?");
-      values.push(Number(query.favorite));
     }
     if (nonEmpty(query.tag)) {
       clauses.push(
@@ -2307,8 +2296,8 @@ class LibraryStorage {
           }
           this.db
             .prepare(`INSERT INTO items (id, kind, title, description, body, body_format, source_url,
-            source_label, local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at, archived, favorite)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            source_label, local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at, archived)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
             .run(
               item.id,
               item.kind,
@@ -2325,7 +2314,6 @@ class LibraryStorage {
               item.created_at,
               item.updated_at,
               item.archived,
-              item.favorite,
             );
           if (item.kind === "image") this.jobs.enqueue(item.id, "ocr_image", { notify: false });
           if (item.kind === "pdf") this.jobs.enqueue(item.id, "ocr_pdf_page", { notify: false });

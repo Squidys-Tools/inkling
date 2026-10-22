@@ -122,8 +122,8 @@ async function seedLibrary() {
   try {
     const insert = storage.db.prepare(`INSERT INTO items
       (id, kind, title, description, body, source_label, local_asset_path, thumbnail_path,
-       metadata, created_at, updated_at, favorite, ocr_text)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+       metadata, created_at, updated_at, ocr_text)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     storage.db.exec("BEGIN IMMEDIATE");
     for (let index = 0; index < items; index += 1) {
       const variant = pattern[index % pattern.length];
@@ -177,7 +177,6 @@ async function seedLibrary() {
         JSON.stringify(metadata),
         timestamp,
         timestamp,
-        Number(index % 7 === 0),
         ["image", "pdf"].includes(kind) ? `Demo extracted text for ${title}` : "",
       );
       manifest.push({

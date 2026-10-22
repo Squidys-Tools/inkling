@@ -41,7 +41,7 @@ The first viewport of the overlay should contain:
 4. The primary action, usually `Open original`, `Read`, `Play`, or `Open PDF`.
 5. `Find similar` for images, or `Find related` for other item types when supported.
 
-Source, tags, capture details, and secondary actions should follow in a compact metadata area. Archive, delete, edit, Add to Space, Favorite, and Copy link belong in an overflow or utility row. They should not compete with the two triage actions.
+Source, tags, capture details, and secondary actions should follow in a compact metadata area. Archive, delete, edit, Add to Space, and Copy link belong in an overflow or utility row. They should not compete with the two triage actions.
 
 The overlay body has its own scroll container. Related items can appear below the metadata without changing the opening geometry. If there are no related items yet, the section should not reserve a large empty block.
 

@@ -62,7 +62,6 @@ export type ExpandedOverlayActions = {
   onOpenPdf: (item: LibraryItem) => void;
   onOpenReader: (item: LibraryItem, origin: ReaderOrigin) => void;
   onForget: (item: LibraryItem) => void | Promise<void>;
-  onTogglePin: (item: LibraryItem) => void | Promise<void>;
   onRetryJob: (jobId: string) => void | Promise<void>;
   onAddTag?: (item: LibraryItem, tag: string) => void | Promise<void>;
   onUpdateNote: (item: LibraryItem, body: string) => void | Promise<void>;
@@ -1207,7 +1206,6 @@ export function ExpandedItemOverlay({
   const showTabs = !isEditingNoteView;
   const isSimilarTab = showTabs && inspectorTab === "similar";
   const similarItems = similar?.itemId === String(shownItem.id) ? similar.items : null;
-  const isPinned = shownItem.favorite === true;
   const sourceHost = hostnameForUrl(shownItem.sourceUrl);
   const memberSpaces = spaces?.filter((space) => space.member) ?? [];
   const content = contentActions(shownItem, actions);
@@ -1484,21 +1482,6 @@ export function ExpandedItemOverlay({
                   ))}
                 </fieldset>
               )}
-              <button
-                type="button"
-                className="item-bar-button"
-                onClick={() => void actions.onTogglePin(shownItem)}
-                aria-label={isPinned ? "Unstar" : "Star to Top of mind"}
-                aria-pressed={isPinned}
-                data-tooltip={isPinned ? "Unstar" : "Star to Top of mind"}
-              >
-                <BarGlyph>
-                  <path
-                    d="M12 3l2.4 5.6L20 9.3l-4.3 3.9 1.2 5.8L12 16.1 7.1 19l1.2-5.8L4 9.3l5.6-.7z"
-                    fill={isPinned ? "currentColor" : "none"}
-                  />
-                </BarGlyph>
-              </button>
               {spaces && spaces.length > 0 && (
                 <button
                   type="button"

@@ -54,8 +54,6 @@ Content consumption and creation experiences.
 
 Surfacing forgotten material through browsing and curation.
 
-- [x] Serendipity mode (slow visual browsing with keep/forget)
-- [x] Top of Mind (pinned items gathered into their own view)
 - [x] Trash and recoverable archive
 - [x] Space management (create, rename, reorder, recolor, delete)
 - [x] Regular Spaces (manual collections)

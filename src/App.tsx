@@ -26,7 +26,6 @@ import {
   ArrowUp01Icon,
   ArrowUpRight01Icon,
   Bookmark01Icon,
-  Clock01Icon,
   Database02Icon,
   Download04Icon,
   Grid2X2Icon,
@@ -36,14 +35,11 @@ import {
   Loading01Icon,
   PlusSignIcon,
   PlayIcon,
-  PinIcon,
   RotateCwIcon,
   RotateLeft01Icon,
   Search01Icon,
   Settings01Icon,
-  ShuffleIcon,
   SidebarLeftIcon,
-  StarIcon,
   Delete02Icon,
   ViewSidebarLeftIcon,
   Cancel01Icon,
@@ -183,8 +179,6 @@ import type { XPostMetadata } from "./lib/ingestion/types";
 import type { ItemKind, LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import { markdownToPlainText, normalizeNoteBody, NOTE_BODY_FORMAT } from "./lib/notes";
-import { serendipityItems } from "./lib/serendipity";
-import { isEmptyPinsView, matchesPinsView } from "./lib/pinsView";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
 // the repo so the web preview shows a real library out of the box. The eager
 // glob below resolves to an empty map when that file is absent, so clones
@@ -452,7 +446,6 @@ async function storedItemToLibraryItem(
     social,
     post: social ? postFallbackFromMetadata(social) : undefined,
     accent: isQuote ? "paper-yellow" : undefined,
-    favorite: item.favorite,
     archived: item.archived,
     processing,
     hasArticleContent,
@@ -497,7 +490,6 @@ const seedItems: LibraryItem[] = [
     tags: ["essay", "memory"],
     accent: "ink",
     featured: true,
-    favorite: true,
   },
   {
     id: 2,
@@ -513,7 +505,6 @@ const seedItems: LibraryItem[] = [
       "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1000&q=85",
     mediaAspectRatio: 3 / 2,
     imageAlt: "A wooden boat house beside a clear alpine lake with mountains behind it",
-    favorite: true,
   },
   {
     id: 3,
@@ -530,7 +521,6 @@ const seedItems: LibraryItem[] = [
     imageAlt: "A notebook and coffee on a desk, a quiet setting for doing great work",
     date: "Aug 20",
     tags: ["essay", "work"],
-    favorite: true,
   },
   {
     id: 4,
@@ -816,22 +806,12 @@ const seedSpaces: StoredSpace[] = [
     updatedAt: 0,
   },
   {
-    id: "seed-top-picks",
-    name: "Top picks",
-    color: "blue",
-    query: { favorite: true },
-    kind: "smart",
-    position: 3,
-    createdAt: 0,
-    updatedAt: 0,
-  },
-  {
     id: "seed-weekend-reading",
     name: "Weekend reading",
     color: "pink",
     query: {},
     kind: "regular",
-    position: 4,
+    position: 3,
     createdAt: 0,
     updatedAt: 0,
   },
@@ -848,7 +828,6 @@ const seedSpaceItems: Record<string, string[]> = {
 const SPACE_COLORS: SpaceColor[] = ["blue", "orange", "green", "pink", "purple", "yellow"];
 
 const LIBRARY_VIEW_TRANSITION_MS = 440;
-const SERENDIPITY_BATCH_SIZE = 12;
 
 const KIND_ALIASES: Record<string, string> = {
   article: "article",
@@ -872,7 +851,6 @@ function canonicalKind(kind: string) {
 // Mirrors the backend's Smart Space evaluation for browser (seed data) mode.
 // In the desktop app the saved query is evaluated lazily by the Electron backend.
 function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
-  if (spaceQuery.favorite != null && Boolean(item.favorite) !== spaceQuery.favorite) return false;
   if (
     spaceQuery.tag &&
     !item.tags.some((tag) => tag.toLowerCase() === spaceQuery.tag?.toLowerCase())
@@ -1635,7 +1613,6 @@ function App() {
   }, [query]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeView, setActiveView] = useState("Everything");
-  const [serendipityKeptIds, setSerendipityKeptIds] = useState<Set<string>>(() => new Set());
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
@@ -1889,10 +1866,6 @@ function App() {
   // Mirror of `items` for callbacks that must read the newest value without
   // being rebuilt on every load.
   const itemsRef = useRef<LibraryItem[]>([]);
-  // Pins whose write has not been confirmed by the backend yet. A refresh that
-  // was already in flight can resolve with the pre-pin value, so these are
-  // re-applied when it lands.
-  const pinnedOverridesRef = useRef<Map<string, boolean>>(new Map());
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
     typeof window === "undefined" ? 960 : window.innerWidth,
   );
@@ -2092,17 +2065,6 @@ function App() {
     [canUseDesktopBackend, restoreForgottenItem],
   );
 
-  const keepSerendipityItem = useCallback((item: LibraryItem) => {
-    setSerendipityKeptIds((current) => {
-      const id = String(item.id);
-      if (current.has(id)) return current;
-      const next = new Set(current);
-      next.add(id);
-      return next;
-    });
-    setSelectedItem(null);
-  }, []);
-
   const showLibraryFolderFromSettings = useCallback(() => {
     void showLibraryFolder().catch((error: unknown) => {
       toast.error("Could not open the library folder", {
@@ -2281,88 +2243,16 @@ function App() {
         };
       }
 
-      // The saved response carries the row's pin as it was before an in-flight
-      // write landed, so a pin the backend has not confirmed yet wins over it,
-      // the same way a refresh re-applies its overrides.
-      const apply = (current: LibraryItem) => {
-        if (String(current.id) !== String(item.id)) return current;
-        const saved = { ...current, ...nextItem, id: current.id };
-        const pinned = pinnedOverridesRef.current.get(String(item.id));
-        return pinned === undefined ? saved : { ...saved, favorite: pinned };
-      };
+      const apply = (current: LibraryItem) =>
+        String(current.id) === String(item.id)
+          ? { ...current, ...nextItem, id: current.id }
+          : current;
       setItems((current) => current.map(apply));
       setArchivedItems((current) => current.map(apply));
       setSelectedItem((current) => (current ? apply(current) : current));
       rememberNoteBody(noteBodyCacheRef.current, String(item.id), nextBody);
     },
     [canUseDesktopBackend],
-  );
-
-  // Pins are flipped from current state, not from the item the click captured,
-  // so a second click during a slow write reverses the first instead of
-  // repeating it. Writes for one item chain instead of being dropped: the old
-  // guard returned early on an in-flight id, so undoing a pin needed a third
-  // click once the first write landed.
-  const pinWritesRef = useRef<Map<string, Promise<void>>>(new Map());
-  const togglePinItem = useCallback(
-    async (item: LibraryItem) => {
-      const id = String(item.id);
-      // Read the live value so a repeat click reverses the previous one. An
-      // archived item is not in the active list, so fall back to the item the
-      // overlay handed over rather than treating it as unpinned.
-      const live = itemsRef.current.find((candidate) => String(candidate.id) === id);
-      const wasPinned = (live ?? item).favorite === true;
-      const pinned = !wasPinned;
-      const show = (next: boolean) => {
-        const apply = (current: LibraryItem) =>
-          String(current.id) === id ? { ...current, favorite: next } : current;
-        setItems((current) => current.map(apply));
-        setArchivedItems((current) => current.map(apply));
-        setSelectedItem((current) => (current ? apply(current) : current));
-      };
-      // Optimistic, so a repeated click reads the new value. A refresh already
-      // in flight can land older data, so the pin is re-applied until the
-      // backend confirms it.
-      pinnedOverridesRef.current.set(id, pinned);
-      show(pinned);
-
-      // A Space's rows come from its own query rather than a client-side
-      // filter, so a Smart Space that filters on the pin keeps showing the old
-      // contents until it is re-read. Only that case needs the extra load.
-      const openSpace =
-        activeSpaceId !== null ? spaces.find((space) => space.id === activeSpaceId) : undefined;
-      const rereadsPins = openSpace?.kind === "smart" && openSpace.query.favorite != null;
-
-      const write = (pinWritesRef.current.get(id) ?? Promise.resolve())
-        .then(async () => {
-          if (!canUseDesktopBackend) return;
-          const confirmed = await updateItem({ id, favorite: pinned });
-          // The stored value wins once it is known, including if it disagreed
-          // with what was asked for.
-          show(confirmed.favorite === true);
-          if (rereadsPins) loadItemsRef.current();
-        })
-        .catch(() => {
-          // A failed write must not leave the item looking pinned anywhere.
-          show(wasPinned);
-          // A later click already asked for something else and reports its own
-          // outcome, so a superseded failure stays quiet rather than blaming the
-          // user for a state that is no longer the one being written.
-          if (pinWritesRef.current.get(id) === write) {
-            toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
-          }
-        })
-        .finally(() => {
-          // Release the override only if no later click has claimed it in the
-          // meantime, and only clear this item's slot if it is still the tail of
-          // the chain.
-          if (pinnedOverridesRef.current.get(id) === pinned) pinnedOverridesRef.current.delete(id);
-          if (pinWritesRef.current.get(id) === write) pinWritesRef.current.delete(id);
-        });
-      pinWritesRef.current.set(id, write);
-      await write;
-    },
-    [activeSpaceId, canUseDesktopBackend, spaces],
   );
 
   const openReader = useCallback(
@@ -2855,13 +2745,6 @@ function App() {
     setSelectedItem(null);
   }
 
-  function selectSerendipityView() {
-    setActiveSpaceId(null);
-    setActiveView("Serendipity");
-    setQuery("");
-    setSelectedItem(null);
-  }
-
   function clearToDefaultView() {
     setActiveSpaceId(null);
     setActiveView("Everything");
@@ -3345,18 +3228,13 @@ function App() {
         );
         if (!cancelled) {
           if (activeJobs !== null) setActiveJobCount(activeJobs);
-          // A refresh can resolve with data older than two writes this session
-          // already made: a note body still in the cache, and a pin the backend
-          // has not confirmed. Both are re-applied so the grid, the overlay, and
-          // Top of mind cannot disagree with what the user just did.
+          // A refresh can resolve with data older than a note body this
+          // session already saved, so the cached body is re-applied.
           const noteBodies = noteBodyCacheRef.current;
-          const overrides = pinnedOverridesRef.current;
           setItems(
             libraryItems.map((item) => {
               const noteBody = noteBodies.get(String(item.id));
-              const pinned = overrides.get(String(item.id));
-              const withNote = noteBody === undefined ? item : { ...item, noteBody };
-              return pinned === undefined ? withNote : { ...withNote, favorite: pinned };
+              return noteBody === undefined ? item : { ...item, noteBody };
             }),
           );
           setSelectedItem((current) => {
@@ -3505,33 +3383,11 @@ function App() {
     () => spaces.find((space) => space.id === activeSpaceId) ?? null,
     [spaces, activeSpaceId],
   );
-  const isSerendipityView = activeView === "Serendipity" && !activeSpaceId;
-  const isPinsView = activeView === "Top of mind" && !activeSpaceId;
-  const pinsCount = useMemo(() => items.filter((item) => matchesPinsView(item)).length, [items]);
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
 
-  // The pins nav item clears the query, so the view normally reads the whole
-  // library. The flag still guards the empty state against a search that a
-  // restored view can narrow.
-  const pinsViewIsEmpty = isPinsView && isEmptyPinsView({ query });
-  const serendipityCandidates = useMemo(
-    () =>
-      isSerendipityView
-        ? serendipityItems(items, { excludedIds: serendipityKeptIds, limit: items.length })
-        : [],
-    [isSerendipityView, items, serendipityKeptIds],
-  );
-  const serendipityBatch = useMemo(
-    () => serendipityCandidates.slice(0, SERENDIPITY_BATCH_SIZE),
-    [serendipityCandidates],
-  );
-  const serendipityItem = serendipityBatch[0] ?? null;
-  const serendipityRemainingCount = serendipityCandidates.length;
-
   const filteredItems = useMemo(() => {
-    if (isSerendipityView) return serendipityBatch;
     const normalizedQuery = query.trim().toLowerCase();
     return items.filter((item) => {
       const matchesQuery = !normalizedQuery
@@ -3544,7 +3400,6 @@ function App() {
               .includes(normalizedQuery);
       const matchesView =
         activeView === "Everything" ||
-        (activeView === "Top of mind" && matchesPinsView(item)) ||
         (activeSpace
           ? canUseDesktopBackend
             ? true
@@ -3555,29 +3410,20 @@ function App() {
           : false);
       return matchesQuery && matchesView;
     });
-  }, [
-    activeSpace,
-    activeView,
-    canUseDesktopBackend,
-    isSerendipityView,
-    items,
-    localSpaceItems,
-    query,
-    serendipityBatch,
-  ]);
+  }, [activeSpace, activeView, canUseDesktopBackend, items, localSpaceItems, query]);
   const filteredItemsRef = useRef(filteredItems);
   filteredItemsRef.current = filteredItems;
-  const showLibraryEdges = !isSerendipityView && filteredItems.length > 0;
+  const showLibraryEdges = filteredItems.length > 0;
   // Both sit under the toolbar in one column, so a capture error and the pinned
   // query row stack instead of overlapping.
-  const showFilterRow = !isSerendipityView && !isSearchFocused && query.trim() !== "";
+  const showFilterRow = !isSearchFocused && query.trim() !== "";
   // A pinned query has its own band above the grid, so the grid starts below it.
   // Only this boolean reaches the DOM, so typing does not restyle the grid.
   const hasPinnedQuery = showFilterRow;
-  // Serendipity is its own walk, and an empty Space has nothing to search or
-  // re-lay out, so both drop the browsing controls.
+  // An empty Space has nothing to search or re-lay out, so it drops the
+  // browsing controls.
   const isEmptySpace = Boolean(activeSpace) && filteredItems.length === 0 && !query.trim();
-  const showBrowseControls = !isSerendipityView && !isEmptySpace;
+  const showBrowseControls = !isEmptySpace;
   const showCaptureError = Boolean(captureError) && !isAdding;
 
   // The Regular Spaces an item can be filed into, and whether it already is.
@@ -3699,11 +3545,6 @@ function App() {
     if (item.articleHtml || item.hasArticleContent) {
       entries.push({ label: "Read", icon: BookOpen01Icon, onSelect: () => void openReader(item) });
     }
-    entries.push({
-      label: item.favorite ? "Unfavorite" : "Favorite",
-      icon: StarIcon,
-      onSelect: () => void togglePinItem(item),
-    });
     if (sourceUrl) {
       let host = "original";
       try {
@@ -3739,14 +3580,7 @@ function App() {
       onSelect: () => void forgetItem(item),
     });
     return entries;
-  }, [
-    canUseDesktopBackend,
-    cardMenu,
-    forgetItem,
-    openReader,
-    showItemInFolderFromOverlay,
-    togglePinItem,
-  ]);
+  }, [canUseDesktopBackend, cardMenu, forgetItem, openReader, showItemInFolderFromOverlay]);
 
   const libraryCardContext = useMemo<LibraryCardContext>(
     () => ({
@@ -4175,7 +4009,6 @@ function App() {
       onShowInFolder: canUseDesktopBackend ? showItemInFolderFromOverlay : undefined,
       onDelete: deleteArchivedLibraryItem,
       onForget: forgetItem,
-      onTogglePin: togglePinItem,
       onRetryJob: retryJob,
       onAddTag: addTagToItem,
       onUpdateNote: updateNote,
@@ -4192,7 +4025,6 @@ function App() {
       openSimilarItem,
       retryJob,
       showItemInFolderFromOverlay,
-      togglePinItem,
       updateNote,
     ],
   );
@@ -4342,32 +4174,6 @@ function App() {
               </span>
               <span className="nav-label">Everything</span>
               <span className="nav-count">{items.length.toLocaleString()}</span>
-            </button>
-            <button
-              type="button"
-              className={`nav-item ${activeView === "Top of mind" && !activeSpaceId ? "active" : ""}`}
-              onClick={() => {
-                setActiveSpaceId(null);
-                setActiveView("Top of mind");
-                setQuery("");
-                setSelectedItem(null);
-              }}
-            >
-              <span className="nav-icon">
-                <HugeiconsIcon icon={StarIcon} size={15} />
-              </span>
-              <span className="nav-label">Top of mind</span>
-              <span className="nav-count">{pinsCount.toLocaleString()}</span>
-            </button>
-            <button
-              type="button"
-              className={`nav-item ${activeView === "Serendipity" && !activeSpaceId ? "active" : ""}`}
-              onClick={selectSerendipityView}
-            >
-              <span className="nav-icon">
-                <HugeiconsIcon icon={ShuffleIcon} size={15} />
-              </span>
-              <span className="nav-label">Serendipity</span>
             </button>
           </nav>
 
@@ -4785,160 +4591,53 @@ function App() {
               className={`library-scroll${hasPinnedQuery ? " has-pinned-query" : ""}`}
               ref={libraryScrollRef}
             >
-              {isSerendipityView ? (
-                <section
-                  className="serendipity-stage"
-                  aria-labelledby="serendipity-title"
-                  data-testid="serendipity-view"
-                >
-                  <div className="serendipity-intro">
-                    <div className="serendipity-intro-copy">
-                      <p className="serendipity-eyebrow">A slower look through your library</p>
-                      <h1 id="serendipity-title">Something worth finding again?</h1>
-                      <p>Keep what still feels useful. Forget what you do not need to carry.</p>
-                    </div>
-                    <p className="serendipity-progress" role="status" aria-live="polite">
-                      {serendipityRemainingCount === 1
-                        ? "1 older item left"
-                        : `${serendipityRemainingCount} older items left`}
-                    </p>
-                  </div>
+              <>
+                {filteredItems.length > 0 && (
+                  <VirtuosoMasonry
+                    key={libraryGridKey}
+                    className={`library-grid ${listMode ? "list-mode" : ""}`}
+                    columnCount={listMode ? 1 : gridColumnCount}
+                    data={filteredItems}
+                    context={libraryCardContext}
+                    ItemContent={VirtualizedLibraryItem}
+                    style={{ height: "100%", width: "100%" }}
+                  />
+                )}
 
-                  {serendipityItem ? (
-                    <div className="serendipity-browse">
-                      <div className="serendipity-art" data-testid="serendipity-item">
-                        <AnimatePresence initial={false} mode="wait">
-                          <motion.div
-                            key={String(serendipityItem.id)}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -8 }}
-                            transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
-                          >
-                            <VirtualizedLibraryItem
-                              data={serendipityItem}
-                              index={0}
-                              context={libraryCardContext}
-                            />
-                          </motion.div>
-                        </AnimatePresence>
-                      </div>
-                      <div className="serendipity-copy">
-                        <div className="serendipity-kicker">
-                          <span>
-                            <KindIcon kind={serendipityItem.kind} />
-                            {serendipityItem.kind}
-                          </span>
-                          <span>{serendipityItem.date}</span>
-                        </div>
-                        <h2>{serendipityItem.title}</h2>
-                        {serendipityItem.description && (
-                          <p className="serendipity-description">{serendipityItem.description}</p>
-                        )}
-                        {serendipityItem.tags.length > 0 && (
-                          <ul className="serendipity-tags" aria-label="Tags">
-                            {serendipityItem.tags.slice(0, 5).map((tag) => (
-                              <li key={tag}>#{tag}</li>
-                            ))}
-                          </ul>
-                        )}
-                        <div className="serendipity-actions">
-                          <button
-                            type="button"
-                            className="serendipity-keep"
-                            onClick={() => keepSerendipityItem(serendipityItem)}
-                            data-testid="serendipity-keep"
-                          >
-                            <HugeiconsIcon icon={CircleCheckIcon} size={16} /> Keep
-                          </button>
-                          <button
-                            type="button"
-                            className="serendipity-forget"
-                            onClick={() => void forgetItem(serendipityItem)}
-                            data-testid="serendipity-forget"
-                          >
-                            <HugeiconsIcon icon={Archive01Icon} size={16} /> Forget
-                          </button>
-                        </div>
-                        <button
-                          type="button"
-                          className="serendipity-details"
-                          onClick={() => selectLibraryItem(serendipityItem)}
-                        >
-                          Open details <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
-                        </button>
-                      </div>
+                {filteredItems.length === 0 && (
+                  <div className="empty-state">
+                    <div className="empty-icon">
+                      <HugeiconsIcon icon={Search01Icon} size={20} />
                     </div>
-                  ) : (
-                    <div className="serendipity-complete" data-testid="serendipity-complete">
-                      <div className="empty-icon">
-                        <HugeiconsIcon icon={Clock01Icon} size={20} />
-                      </div>
-                      <h2>That is the whole walk.</h2>
-                      <p>
-                        You have seen every older item still in your library. Save something new, or
-                        come back later.
-                      </p>
-                      <button type="button" className="text-button" onClick={clearToDefaultView}>
-                        Back to Everything
+                    {activeSpace?.kind === "regular" ? (
+                      <>
+                        <h2>{activeSpace.name} is empty.</h2>
+                        <p>
+                          Open anything in your library and pick {activeSpace.name} to file it in
+                          here.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <h2>Nothing surfaced yet.</h2>
+                        <p>Try another word, or save something new to your mind.</p>
+                      </>
+                    )}
+                    {activeSpace?.kind !== "regular" && (
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => {
+                          setQuery("");
+                          clearToDefaultView();
+                        }}
+                      >
+                        Clear search
                       </button>
-                    </div>
-                  )}
-                </section>
-              ) : (
-                <>
-                  {filteredItems.length > 0 && (
-                    <VirtuosoMasonry
-                      key={libraryGridKey}
-                      className={`library-grid ${listMode ? "list-mode" : ""}`}
-                      columnCount={listMode ? 1 : gridColumnCount}
-                      data={filteredItems}
-                      context={libraryCardContext}
-                      ItemContent={VirtualizedLibraryItem}
-                      style={{ height: "100%", width: "100%" }}
-                    />
-                  )}
-
-                  {filteredItems.length === 0 && (
-                    <div className="empty-state">
-                      <div className="empty-icon">
-                        <HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} />
-                      </div>
-                      {activeSpace?.kind === "regular" ? (
-                        <>
-                          <h2>{activeSpace.name} is empty.</h2>
-                          <p>
-                            Open anything in your library and pick {activeSpace.name} to file it in
-                            here.
-                          </p>
-                        </>
-                      ) : pinsViewIsEmpty ? (
-                        <>
-                          <h2>Nothing pinned yet.</h2>
-                          <p>Open anything in your library and pin it to keep it within reach.</p>
-                        </>
-                      ) : (
-                        <>
-                          <h2>Nothing surfaced yet.</h2>
-                          <p>Try another word, or save something new to your mind.</p>
-                        </>
-                      )}
-                      {activeSpace?.kind !== "regular" && !pinsViewIsEmpty && (
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() => {
-                            setQuery("");
-                            clearToDefaultView();
-                          }}
-                        >
-                          Clear search
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
+                    )}
+                  </div>
+                )}
+              </>
             </div>
             {showLibraryEdges && <LibraryEdgeFade />}
           </LiquidGlass>
