@@ -28,6 +28,11 @@ Guardrails:
 
 ### Added
 
+- Right-click a card to read, open its link, copy its link, show it in its folder, or archive it, from a menu in the library's glass (#170)
+- Buttons show a short label on hover or keyboard focus, in the same glass as the controls around them (#170)
+- Settings → General → Open source licenses lists every shipped dependency, vendored component, and bundled model with its license text and source, searchable and filterable by license (#170)
+- Settings → Appearance switches components between alternative looks while we compare them, the grid/list toggle as the current pill or a coss ui segmented control, and the sidebar button as buttons in the sidebar header and toolbar or a grip on the library frame's edge (#170)
+- Ctrl+\ (⌘+\ on a Mac) shows or hides the sidebar (#170)
 - First-run welcome flow on first launch of the installed app, replayable from Settings → General
 - PDF cards now show page-one thumbnails generated in the background after capture; existing PDFs are backfilled one at a time when the job queue is idle.
 - Chrome MV3 extension saves a page or right-clicked link through inkling's local capture receiver, with the existing capture link as fallback.
@@ -43,7 +48,6 @@ Guardrails:
 - Library restore from Settings (Data tab) imports items, assets, and Spaces without replacing existing items, verifies hashes in new exports, and flags assets in older exports that cannot be verified (SQU-119).
 - Browser extension store prep: Firefox MV3 manifest, local mascot icons, options token field, and store copy draft (`extension/`).
 - Portable Windows PR previews build a self-contained review folder with pinned ONNX Runtime and embedding models, isolated database/assets/models, and a `preview:win` artifact link.
-- Serendipity now walks through older saves one at a time, with Keep and recoverable Forget actions, session-safe batching, and a clear end state (SQU-3).
 - Focus Mode for note writing expands the existing Tiptap Markdown editor into a full-screen, long-form surface with a fixed formatting and save bar; drafts and storage remain in the same note editor (SQU-2).
 - Rich note editing with a lazy-loaded Tiptap Markdown editor inside the note detail overlay, plain-text search projection, body-aware FTS, and background re-embedding (SQU-1)
 - Unit tests for the note card word-count logic, run via `bun test` in CI and the local frontend check (`src/components/ItemMedia.test.ts`)
@@ -63,14 +67,16 @@ Guardrails:
 - Fixed the README mascot drifting off the page and disappearing mid-turn on some browsers: the turn is now baked into the path keyframes instead of a CSS `rotate()` on an ambiguous `transform-box: view-box` origin, and the loop point repeats the first outline so the seam stays invisible (`src/components/mascot/readmeMascot.ts`, `docs/assets/mascots/inkling-splash-loop.svg`) (#93)
 
 - "Find similar" now works for text items, not just images: notes, quotes, articles, and saved links rank by their text embeddings across kinds, with the button offered in the expanded item view and a dedicated empty state while indexing finishes (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`, `src/lib/libraryApi.ts`, `src-tauri/src/storage.rs`) (#55)
-- The mascot wanders the library on its own: 90 to 180 seconds after startup, and again after a long cooldown, it leaves the sidebar slot and drifts through the app, wearing a random expression at each stop and looking toward cards and recent pointer activity before going back. It never travels between points: it is given a direction and left to get on with it, with a turn rate that makes a change of mind a curve and a very small sway layered on the heading, so the path is unhurried, mostly straight and never the same twice. It never goes over the card grid - that is a wall it slides along rather than a filter on where it may stop - and the rest of the app, the sidebar and the strips of controls included, is somewhere it is allowed to be. It wanders in one part for a few seconds before it will consider blinking somewhere else, and it squashes out and swells up somewhere new and sets off again. It watches what the user does without being cancelled by it, holds still under overlays, dialogs, the expanded item, Serendipity and an in-flight drag, goes home sad when a capture fails, and never leaves home under reduced motion, plus a dev board at `?mascot-roam` (SQU-58) (`src/components/mascot/roam.ts`, `src/components/mascot/drift.ts`, `src/components/mascot/roamSpace.ts`, `src/components/mascot/roamStore.ts`)
 - Regular Spaces: manual collections alongside saved searches. The Space create form chooses Smart or Regular, a Regular Space holds only the items you file into it from the expanded item view, and the chips there show current membership and take an item back out. Deleting a Space still leaves its items alone (SQU-4, `src-tauri/src/storage.rs`, `src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
-- Top of Mind: items can be pinned and unpinned from their details view, and the Top of mind view collects them. That view explains itself when nothing is pinned yet, and the main library stays a plain list of everything (SQU-9) (`src/App.tsx`, `src/components/ExpandedItemOverlay.tsx`)
 - The item count above the library rolls up when it first appears and replays when hovered, using the React Bits CountUp in compact format (`src/components/CountUp.tsx`, `src/components/AnimatedCount.tsx`)
-- Liquid glass in the desktop app: the library toolbar, search chip, collapsed sidebar tab and image zoom control refract what is behind them through WebGPU and Chromium's HTML-in-Canvas, and fall back to the CSS glass when either is unavailable (#170)
+- Liquid glass in the desktop app: the library toolbar, search chip and image zoom control refract what is behind them through WebGPU and Chromium's HTML-in-Canvas, and fall back to the CSS glass when either is unavailable (#170)
 
 ### Fixed
 
+- An open item takes over the whole library frame instead of floating inside it, so the grid/list toggle and the selected card no longer show around its edges, and its stage fills the frame with an even margin (#170)
+- List view thumbnails fill rows that grow taller than the artwork, instead of leaving a strip at the bottom (#170)
+- List view rows size to their text, so a tall photo or a short description no longer leaves a band of empty space above the footer (#170)
+- The library's first row rests at the top of the frame, under the search chip, instead of scrolling down to a gap below the toolbar, and liquid glass starting up no longer resets the library's scroll position (#170)
 - URL captures from Add, paste, deep links, and the browser extension now appear immediately and enrich the same item through the retryable local job queue.
 - Image captures appear immediately: files travel to the backend as binary data instead of a number array, and the thumbnail is made by a background job that survives restarts instead of blocking the save.
 - Local videos get a poster frame from a background job, so video cards no longer load the video file to show a frame, and a video without one shows the typed video card instead of an empty tile.
@@ -87,10 +93,14 @@ Guardrails:
 
 ### Changed
 
+- Add opens in place into a small menu of Note, Link, Quote, File and Screen, after Viora UI's Create New Disclosure, replacing the capture dialog and the extra Add button in the library toolbar (#170)
+- The sidebar closes from a button beside the inkling wordmark, shown while the pointer is over it, and reopens from a glass button at the left of the library toolbar, replacing the tab on the frame's edge (#170)
 - Library list IPC sends card fields only; reader content is loaded from SQLite when opened.
 - Library cards load remote images in CORS mode and the desktop app adds a CORS header to image responses, so the liquid glass canvas can draw them; no extra requests are made (#170)
+- Switching between grid and list fades the cards out and pops the new view in, list rows top to bottom and grid cards from the top left, instead of morphing each card between layouts (#170)
+- Add moves to the foot of the sidebar, with a round + in the toolbar while the sidebar is closed, and the grid/list toggle floats at the bottom centre of the library. The back and forward buttons are gone; the mouse side buttons and Alt+Left/Right still step through history (#170)
 - Electron defers canvas system-font loading until PDF work runs; BMP and ICO thumbnails use canvas without loading system fonts.
-- Library cards form a denser masonry grid with tighter gutters and natural media proportions; note and quote previews stay readable, while list, Archive, and Serendipity views keep their existing geometry.
+- Library cards form a denser masonry grid with tighter gutters and natural media proportions; note and quote previews stay readable, while list and Archive views keep their existing geometry.
 - Desktop window opens at 1280 × 720 instead of 1000 × 800; the 320 × 360 minimum size is unchanged.
 - Developer experience: `tsc-rs` is the blocking typecheck gate for the root, benchmark, extension, and ingestion-shared projects, including the build scripts, and real `tsc` runs as a non-blocking CI canary (`typecheck:tsc`).
 - Developer commands share one namespace: `dev:app` runs the desktop app, `build:installer` builds the Windows installer, and `check` runs every gate; the old `electron:*`, `check:frontend`, and `knip:check` names are removed.

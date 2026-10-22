@@ -10,7 +10,7 @@ Click the plus beside SPACES in the sidebar to add one. Name it in the Space nam
 
 ## Driving it with `scripts/drive.mjs`
 
-Mapped but not yet driven. Start with `button[aria-label='Add a Space']`, then `input[aria-label='Space name']` with `fill`, then `button[title='Delete Space']`. End state: the Space row exists in the sidebar, and its items are still in `items`.
+Mapped but not yet driven. Start with `button[aria-label='Add a Space']`, then `input[aria-label='Space name']` with `fill`, then `button[data-tooltip='Delete Space']`. End state: the Space row exists in the sidebar, and its items are still in `items`.
 
 ## Gotchas
 

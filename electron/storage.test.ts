@@ -91,8 +91,8 @@ function seedFromDemo(library: ReturnType<typeof openLibraryStorage>) {
   const selected = personalSeedItems.filter((item) => parity.sourceIds.includes(item.id));
   const insert =
     library.db.prepare(`INSERT INTO items (id, kind, title, description, body, body_format,
-    source_label, metadata, ocr_text, created_at, updated_at, favorite)
-    VALUES (?, ?, ?, ?, '', 'md', 'Downloads', ?, '', ?, ?, ?)`);
+    source_label, metadata, ocr_text, created_at, updated_at)
+    VALUES (?, ?, ?, ?, '', 'md', 'Downloads', ?, '', ?, ?)`);
   selected.forEach((item, index) => {
     const id = item.id;
     const now = index + 1;
@@ -104,7 +104,6 @@ function seedFromDemo(library: ReturnType<typeof openLibraryStorage>) {
       JSON.stringify({ tags: item.tags }),
       now,
       now,
-      Number(item.favorite ?? false),
     );
   });
   return selected;
@@ -188,9 +187,8 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
     body: "## Evening\n\nWarm light.",
     bodyFormat: "md",
   });
-  const updated = library.updateItem({ id: note.id, addTag: "#Reading", favorite: true });
+  const updated = library.updateItem({ id: note.id, addTag: "#Reading" });
   expect(updated.metadata.tags).toEqual(["reading"]);
-  expect(updated.favorite).toBe(true);
   library.archiveItem(note.id);
   expect(library.listArchivedItems().map((item) => item.id)).toContain(note.id);
   library.archiveItem(note.id, false);
@@ -444,19 +442,19 @@ test("Smart Spaces apply saved filters to hybrid text-search candidates", () => 
 test("Smart Space predicates are applied before the result limit", () => {
   const { library } = temporaryLibrary();
   const insert = library.db.prepare(`INSERT INTO items
-    (id, kind, title, metadata, created_at, updated_at, favorite)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`);
-  insert.run("newer-tag-miss", "article", "Tokyo winter", '{"tags":["other"]}', 30, 30, 1);
-  insert.run("newer-favorite-miss", "url", "Tokyo summer", '{"tags":["japan"]}', 20, 20, 0);
-  insert.run("older-match", "url", "Tokyo shrine", '{"tags":["Japan"]}', 10, 10, 1);
+    (id, kind, title, metadata, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)`);
+  insert.run("newer-tag-miss", "article", "Tokyo winter", '{"tags":["other"]}', 30, 30);
+  insert.run("newer-kind-miss", "note", "Tokyo summer", '{"tags":["japan"]}', 20, 20);
+  insert.run("older-match", "url", "Tokyo shrine", '{"tags":["Japan"]}', 10, 10);
   const space = library.createSpace({
     name: "Tokyo reading",
-    query: { text: "Tokyo", tag: "japan", favorite: true, kind: "article" },
+    query: { text: "Tokyo", tag: "japan", kind: "article" },
   });
 
   expect(library.listSpaceItems(space.id, 1).map((item) => item.id)).toEqual(["older-match"]);
 
-  insert.run("unicode-tag", "note", "Cafe notes", '{"tags":["café"]}', 5, 5, 1);
+  insert.run("unicode-tag", "note", "Cafe notes", '{"tags":["café"]}', 5, 5);
   const unicodeSpace = library.createSpace({ name: "Cafe", query: { tag: "CAFÉ" } });
   expect(library.listSpaceItems(unicodeSpace.id).map((item) => item.id)).toEqual(["unicode-tag"]);
 });

@@ -62,7 +62,6 @@ export type ExpandedOverlayActions = {
   onOpenPdf: (item: LibraryItem) => void;
   onOpenReader: (item: LibraryItem, origin: ReaderOrigin) => void;
   onForget: (item: LibraryItem) => void | Promise<void>;
-  onTogglePin: (item: LibraryItem) => void | Promise<void>;
   onRetryJob: (jobId: string) => void | Promise<void>;
   onAddTag?: (item: LibraryItem, tag: string) => void | Promise<void>;
   onUpdateNote: (item: LibraryItem, body: string) => void | Promise<void>;
@@ -384,7 +383,7 @@ function ZoomableImage({
             type="button"
             className="item-zoom-button"
             aria-label="Zoom out"
-            title="Zoom out"
+            data-tooltip="Zoom out"
             disabled={!isZoomed}
             onClick={() => zoomBy(1 / BUTTON_ZOOM_FACTOR)}
           >
@@ -403,7 +402,7 @@ function ZoomableImage({
             type="button"
             className="item-zoom-button"
             aria-label="Zoom in"
-            title="Zoom in"
+            data-tooltip="Zoom in"
             disabled={!canZoomIn}
             onClick={() => zoomBy(BUTTON_ZOOM_FACTOR)}
           >
@@ -793,22 +792,17 @@ export function ExpandedItemOverlay({
   // was showing, while React's item prop already points at the next one.
   const shownItem = flight?.kind === "close" ? flight.fromItem : item;
 
-  // The view takes the rectangle the grid sits in: inside the frame's padding on
-  // the left, top and bottom, so it clears the window controls band and the
-  // sidebar tab. The inspector still runs to the window's right edge.
+  // The view replaces the library: it takes the whole frame inside its border,
+  // and the inspector keeps clear of the window controls itself (App.css).
   const frameRect = useCallback((): FlightRect => {
     const frame = frameRef.current;
     if (!frame) return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-    const rect = rectFrom(frame.getBoundingClientRect());
-    const style = getComputedStyle(frame);
-    const top = Number.parseFloat(style.paddingTop) || 0;
-    const left = Number.parseFloat(style.paddingLeft) || 0;
-    const bottom = Number.parseFloat(style.paddingBottom) || 0;
+    const rect = frame.getBoundingClientRect();
     return {
-      left: rect.left + left,
-      top: rect.top + top,
-      width: rect.width - left,
-      height: rect.height - top - bottom,
+      left: rect.left + frame.clientLeft,
+      top: rect.top + frame.clientTop,
+      width: frame.clientWidth,
+      height: frame.clientHeight,
     };
   }, [frameRef]);
 
@@ -1212,7 +1206,6 @@ export function ExpandedItemOverlay({
   const showTabs = !isEditingNoteView;
   const isSimilarTab = showTabs && inspectorTab === "similar";
   const similarItems = similar?.itemId === String(shownItem.id) ? similar.items : null;
-  const isPinned = shownItem.favorite === true;
   const sourceHost = hostnameForUrl(shownItem.sourceUrl);
   const memberSpaces = spaces?.filter((space) => space.member) ?? [];
   const content = contentActions(shownItem, actions);
@@ -1229,7 +1222,7 @@ export function ExpandedItemOverlay({
     >
       <section
         ref={dialogRef}
-        className={`expanded-overlay ${destination ? "is-placed" : ""} ${isFlying ? "is-flying" : ""} ${isEditingNoteView ? "is-editing-note" : ""} ${isFocusModeView ? "is-focus-mode" : ""}`}
+        className={`expanded-overlay ${destination ? "is-placed" : ""} ${isFlying ? "is-flying" : ""} ${flight?.kind === "open" ? "is-opening" : ""} ${isEditingNoteView ? "is-editing-note" : ""} ${isFocusModeView ? "is-focus-mode" : ""}`}
         role="dialog"
         aria-modal={false}
         aria-label={detailTitleFor(shownItem)}
@@ -1442,7 +1435,7 @@ export function ExpandedItemOverlay({
                         key={action.key}
                         onClick={action.onClick}
                         disabled={action.disabled}
-                        title={action.title}
+                        data-tooltip={action.title}
                       >
                         {action.icon} {action.label}
                       </button>
@@ -1464,7 +1457,9 @@ export function ExpandedItemOverlay({
                       type="button"
                       className="item-space-option"
                       aria-pressed={space.member}
-                      title={space.member ? `Remove from ${space.name}` : `Add to ${space.name}`}
+                      data-tooltip={
+                        space.member ? `Remove from ${space.name}` : `Add to ${space.name}`
+                      }
                       onClick={() => void actions.onToggleSpace?.(shownItem, space.id)}
                     >
                       <SpaceBlob color={space.color} />
@@ -1487,21 +1482,6 @@ export function ExpandedItemOverlay({
                   ))}
                 </fieldset>
               )}
-              <button
-                type="button"
-                className="item-bar-button"
-                onClick={() => void actions.onTogglePin(shownItem)}
-                aria-label={isPinned ? "Unstar" : "Star to Top of mind"}
-                aria-pressed={isPinned}
-                title={isPinned ? "Unstar" : "Star to Top of mind"}
-              >
-                <BarGlyph>
-                  <path
-                    d="M12 3l2.4 5.6L20 9.3l-4.3 3.9 1.2 5.8L12 16.1 7.1 19l1.2-5.8L4 9.3l5.6-.7z"
-                    fill={isPinned ? "currentColor" : "none"}
-                  />
-                </BarGlyph>
-              </button>
               {spaces && spaces.length > 0 && (
                 <button
                   type="button"
@@ -1510,7 +1490,7 @@ export function ExpandedItemOverlay({
                   onClick={() => setIsSpaceMenuOpen((open) => !open)}
                   aria-label="Move to Space"
                   aria-expanded={isSpaceMenuOpen}
-                  title="Move to Space"
+                  data-tooltip="Move to Space"
                 >
                   <BarGlyph>
                     <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -1523,7 +1503,7 @@ export function ExpandedItemOverlay({
                   className="item-bar-button"
                   onClick={() => window.open(shownItem.sourceUrl, "_blank", "noopener,noreferrer")}
                   aria-label={`Open ${sourceHost ?? "original"}`}
-                  title={`Open ${sourceHost ?? "original"}`}
+                  data-tooltip={`Open ${sourceHost ?? "original"}`}
                 >
                   <BarGlyph>
                     <path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
@@ -1536,7 +1516,7 @@ export function ExpandedItemOverlay({
                   className="item-bar-button"
                   onClick={() => actions.onShowInFolder?.(shownItem)}
                   aria-label="Show in folder"
-                  title="Show in folder"
+                  data-tooltip="Show in folder"
                 >
                   <BarGlyph>
                     <path d="M3 18V7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v1" />
@@ -1549,7 +1529,7 @@ export function ExpandedItemOverlay({
                 className="item-bar-button"
                 onClick={archiveFromView}
                 aria-label="Archive"
-                title="Archive"
+                data-tooltip="Archive"
               >
                 <BarGlyph>
                   <rect x="3" y="4" width="18" height="4" rx="1" />
@@ -1562,7 +1542,7 @@ export function ExpandedItemOverlay({
                   className="item-bar-button is-end"
                   onClick={() => actions.onDelete?.(shownItem)}
                   aria-label="Delete permanently"
-                  title="Delete permanently"
+                  data-tooltip="Delete permanently"
                 >
                   <BarGlyph>
                     <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />

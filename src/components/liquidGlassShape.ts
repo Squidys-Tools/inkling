@@ -45,25 +45,35 @@ const BAND_MARGIN = 64;
 // a step, so a chip sliding in does not reallocate it every frame.
 const BAND_STEP = 128;
 
+export type GlassBand = { top: number; height: number };
+
 /**
- * The device-pixel rows of a canvas that hold glass. liquid-dom runs a dozen
- * full-size passes per frame, so only these rows go through it; the rest of the
- * canvas is a plain copy of the content.
+ * The device-pixel rows of a canvas that hold glass, one band per cluster (the
+ * toolbar, the view dock). liquid-dom runs a dozen full-size passes per frame,
+ * so only these rows go through it; the rest of the canvas is a plain copy of
+ * the content. Every band gets the same height so liquid-dom keeps its render
+ * targets from one band to the next.
  */
-export function glassBand(
+export function glassBands(
   shapes: Iterable<{ y: number; height: number }>,
   dpr: number,
   canvasHeight: number,
-) {
-  let minY = Number.POSITIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-  for (const shape of shapes) {
-    minY = Math.min(minY, shape.y);
-    maxY = Math.max(maxY, shape.y + shape.height);
+): GlassBand[] {
+  const spans = [...shapes]
+    .map((shape) => [
+      Math.max(0, Math.floor((shape.y - BAND_MARGIN) * dpr)),
+      Math.ceil((shape.y + shape.height + BAND_MARGIN) * dpr),
+    ])
+    .sort((a, b) => a[0] - b[0]);
+  const merged: number[][] = [];
+  for (const [top, bottom] of spans) {
+    const last = merged[merged.length - 1];
+    if (last && top <= last[1]) last[1] = Math.max(last[1], bottom);
+    else merged.push([top, bottom]);
   }
-  if (minY > maxY) return { top: 0, height: 0 };
-  const top = Math.max(0, Math.floor((minY - BAND_MARGIN) * dpr));
-  const rows = Math.ceil((maxY + BAND_MARGIN) * dpr) - top;
-  const height = Math.min(canvasHeight - top, Math.ceil(rows / BAND_STEP) * BAND_STEP);
-  return { top, height: Math.max(0, height) };
+  if (merged.length === 0 || canvasHeight <= 0) return [];
+  const rows = Math.max(...merged.map(([top, bottom]) => bottom - top));
+  const height = Math.min(canvasHeight, Math.ceil(rows / BAND_STEP) * BAND_STEP);
+  if (height * merged.length >= canvasHeight) return [{ top: 0, height: canvasHeight }];
+  return merged.map(([top]) => ({ top: Math.min(top, canvasHeight - height), height }));
 }

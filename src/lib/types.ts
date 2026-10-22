@@ -40,7 +40,6 @@ export type LibraryItem = {
   };
   accent?: string;
   featured?: boolean;
-  favorite?: boolean;
   archived?: boolean;
   processing?: ProcessingSummary;
   hasArticleContent?: boolean;

@@ -206,8 +206,8 @@ const clickByText = (selector, text) => {
   return true;
 };
 const clickCaptureOption = (title) => {
-  const option = [...document.querySelectorAll(".capture-option")].find(
-    (node) => node.querySelector("strong")?.textContent === title,
+  const option = [...document.querySelectorAll(".add-menu-tile")].find(
+    (node) => node.textContent?.trim() === title,
   );
   if (!option) return false;
   option.click();
@@ -216,7 +216,8 @@ const clickCaptureOption = (title) => {
 const setInputValue = (selector, value) => {
   const el = document.querySelector(selector);
   if (!el) return false;
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+  // Inputs and textareas each have their own value setter.
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value").set;
   setter.call(el, value);
   el.dispatchEvent(new Event("input", { bubbles: true }));
   return true;
@@ -352,11 +353,11 @@ async function run() {
     });
     const noteText = "ui smoke note";
     await step("note is created and appears in the grid", async () => {
-      await cdp.evaluate(clickSelector, 'button[title="Add something to your library"]');
-      await waitFor("add menu", hasSelector, ".capture-option");
+      await cdp.evaluate(clickSelector, 'button[data-tooltip="Add something to your library"]');
+      await waitFor("add menu", hasSelector, ".add-menu-tile");
       await cdp.evaluate(clickCaptureOption, "Note");
-      await waitFor("note input", hasSelector, 'input[aria-label="New note"]');
-      await cdp.evaluate(setInputValue, 'input[aria-label="New note"]', noteText);
+      await waitFor("note input", hasSelector, 'textarea[aria-label="New note"]');
+      await cdp.evaluate(setInputValue, 'textarea[aria-label="New note"]', noteText);
       await cdp.send("Input.dispatchKeyEvent", {
         type: "keyDown",
         key: "Enter",

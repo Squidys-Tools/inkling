@@ -33,7 +33,6 @@ const commands = new Proxy(
             createdAt: 1,
             updatedAt: 1,
             archived: false,
-            favorite: false,
           };
         if (property === "get_jobs_for_items") return [];
         if (property === "count_active_jobs") return 2;

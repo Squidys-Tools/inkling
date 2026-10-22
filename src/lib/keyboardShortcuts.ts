@@ -1,4 +1,4 @@
-export type AppKeyboardShortcut = "search" | "new-note" | "help";
+export type AppKeyboardShortcut = "search" | "new-note" | "help" | "sidebar";
 
 type ShortcutEvent = Pick<
   KeyboardEvent,
@@ -12,7 +12,9 @@ export function appKeyboardShortcut(
   if (isEditableTarget || event.altKey || event.isComposing) return null;
 
   if (event.ctrlKey || event.metaKey) {
-    return !event.shiftKey && event.key.toLowerCase() === "k" ? "search" : null;
+    if (event.shiftKey) return null;
+    if (event.key.toLowerCase() === "k") return "search";
+    return event.key === "\\" ? "sidebar" : null;
   }
 
   if (event.key === "?" || (event.key === "/" && event.shiftKey)) return "help";

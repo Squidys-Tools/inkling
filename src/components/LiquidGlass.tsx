@@ -1,5 +1,6 @@
 import type {
   Container,
+  Scene,
   Glass,
   Html,
   WebGpuDomContentSource,
@@ -15,7 +16,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { type GlassShape, glassBand, glassShape, type ShapeBox } from "./liquidGlassShape";
+import { type GlassShape, glassBands, glassShape, type ShapeBox } from "./liquidGlassShape";
 
 // Liquid glass (Paper: "Note · Liquid glass experiment"). The backdrop renders
 // inside a `<canvas layoutsubtree>`; Chromium's HTML-in-Canvas API copies it
@@ -140,6 +141,7 @@ const LOOK = {
 const SETTLE_MS = 600;
 
 class LiquidSurface {
+  private readonly scene: Scene;
   private readonly backdrop: Html;
   private readonly container: Container;
   private readonly source: WebGpuDomContentSource;
@@ -171,6 +173,7 @@ class LiquidSurface {
     this.context = context;
 
     const scene = new lib.Scene();
+    this.scene = scene;
     this.backdrop = scene.add(new lib.Html({ element: content, width: 1, height: 1, zIndex: -1 }));
     this.container = scene.add(
       new lib.Container({
@@ -280,28 +283,17 @@ class LiquidSurface {
 
   // Draws only on paint events: when the backdrop DOM changes (scroll, hover,
   // new cards) or after requestPaint. Nothing redraws while the page is idle.
-  // Glass sits in a band of rows (the toolbar), so liquid-dom renders just that
-  // band and the rest of the frame is a copy of the content texture.
+  // Glass sits in bands of rows (the toolbar, the view dock), so liquid-dom
+  // renders just those and the rest of the frame is a copy of the content texture.
   private readonly draw = () => {
     const { width, height } = this.canvas;
-    const band = glassBand(this.glasses.values(), this.dpr, height);
-    const whole = band.top === 0 && band.height === height;
-    this.bandTop = band.top;
-    this.container.y = -band.top / this.dpr;
-    const layers = this.source.sync();
+    const bands = glassBands(this.glasses.values(), this.dpr, height);
+    this.source.sync();
     const output = this.context.getCurrentTexture();
-    if (band.height > 0) {
-      this.core.render({
-        layers,
-        width,
-        height: band.height,
-        dpr: this.dpr,
-        outputTexture: whole ? output : this.bandTarget(width, band.height),
-        contentSource: this.bandSource,
-      });
-    }
     const content = this.source.getSceneHtmlEntry(this.backdrop);
-    if (!whole) {
+    if (bands.length === 1 && bands[0].height === height) {
+      this.renderBand(0, width, height, output);
+    } else {
       const encoder = this.gpu.device.createCommandEncoder();
       if (content?.texture && content.copiedDeviceWidth > 0) {
         encoder.copyTextureToTexture(
@@ -313,17 +305,38 @@ class LiquidSurface {
           },
         );
       }
-      if (band.height > 0 && this.bandTexture) {
-        encoder.copyTextureToTexture(
-          { texture: this.bandTexture },
+      this.gpu.device.queue.submit([encoder.finish()]);
+      // Each band renders and copies before the next reuses the band texture;
+      // the queue keeps them in order.
+      for (const band of bands) {
+        const target = this.bandTarget(width, band.height);
+        this.renderBand(band.top, width, band.height, target);
+        const copy = this.gpu.device.createCommandEncoder();
+        copy.copyTextureToTexture(
+          { texture: target },
           { texture: output, origin: { x: 0, y: band.top } },
           { width, height: band.height },
         );
+        this.gpu.device.queue.submit([copy.finish()]);
       }
-      this.gpu.device.queue.submit([encoder.finish()]);
     }
     if (content?.copiedDeviceWidth) this.onFirstFrame();
   };
+
+  // Layers carry transforms baked when they are listed, so each band hands
+  // liquid-dom the scene and gets the glass shifted by its own offset.
+  private renderBand(top: number, width: number, height: number, outputTexture: GPUTexture) {
+    this.bandTop = top;
+    this.container.y = -top / this.dpr;
+    this.core.render({
+      scene: this.scene,
+      width,
+      height,
+      dpr: this.dpr,
+      outputTexture,
+      contentSource: this.bandSource,
+    });
+  }
 }
 
 function boxOf(element: HTMLElement, origin: DOMRect): ShapeBox | null {
@@ -343,6 +356,20 @@ function boxOf(element: HTMLElement, origin: DOMRect): ShapeBox | null {
       Number.parseFloat(style.borderBottomLeftRadius),
     ],
   };
+}
+
+// Moving the content in or out of the canvas resets every scroller inside it,
+// which would throw the library back to its top, so their offsets carry over.
+function keepingScroll<T>(content: HTMLElement, move: () => T) {
+  const scrolled = [...content.querySelectorAll<HTMLElement>("*")]
+    .filter((element) => element.scrollTop || element.scrollLeft)
+    .map((element) => [element, element.scrollTop, element.scrollLeft] as const);
+  const result = move();
+  for (const [element, top, left] of scrolled) {
+    element.scrollTop = top;
+    element.scrollLeft = left;
+  }
+  return result;
 }
 
 function glassTargets(roots: RefObject<HTMLElement | null>[]) {
@@ -410,17 +437,21 @@ export function LiquidGlass({
       content.style.height = `${height}px`;
     };
     sizeContent(wrap.clientWidth, wrap.clientHeight);
-    const surface = new LiquidSurface(
-      gpu,
-      canvas,
+    const surface = keepingScroll(
       content,
-      () => {
-        if (shown) return;
-        shown = true;
-        // The first frame is up, so the CSS glass can step aside.
-        for (const element of marked) element.dataset.liquid = "";
-      },
-      shadow,
+      () =>
+        new LiquidSurface(
+          gpu,
+          canvas,
+          content,
+          () => {
+            if (shown) return;
+            shown = true;
+            // The first frame is up, so the CSS glass can step aside.
+            for (const element of marked) element.dataset.liquid = "";
+          },
+          shadow,
+        ),
     );
 
     const syncShapes = () => {
@@ -519,7 +550,7 @@ export function LiquidGlass({
       // Back to plain DOM in the wrapper.
       content.style.width = "";
       content.style.height = "";
-      wrap.append(content);
+      keepingScroll(content, () => wrap.append(content));
     };
   }, [gpu, content, shadow]);
 

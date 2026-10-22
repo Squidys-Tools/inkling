@@ -133,16 +133,6 @@ Articles should open in a distraction-free reader with clean typography, cached 
 
 Focus Mode provides a sparse writing environment with headings, bold text, links, and simple interactive todos, using the existing WYSIWYG Markdown editor.
 
-## Rediscovery
-
-### Serendipity
-
-Serendipity presents older items in a slow, visual browsing mode. The user can keep an item or forget it. Forgetting should move the item to a recoverable trash/archive state rather than permanently destroy it immediately.
-
-### Top of Mind
-
-Top of Mind is a small, user-curated set of pinned items, gathered into their own view in the library.
-
 ## Onboarding
 
 First-run onboarding should explain:

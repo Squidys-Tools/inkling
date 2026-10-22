@@ -20,7 +20,6 @@ export type StoredLibraryItem = {
   createdAt: number;
   updatedAt: number;
   archived: boolean;
-  favorite: boolean;
 };
 
 export type StoredLibraryItemDetail = Omit<StoredLibraryItem, "body" | "bodyFormat"> & {
@@ -90,7 +89,6 @@ type UpdateItemInput = {
   thumbnailPath?: string;
   metadata?: StoredLibraryItem["metadata"];
   metadataPatch?: StoredLibraryItem["metadata"];
-  favorite?: boolean;
   addTag?: string;
 };
 
@@ -137,7 +135,6 @@ export type SmartSpaceQuery = {
   text?: string | null;
   kind?: string | null;
   tag?: string | null;
-  favorite?: boolean | null;
 };
 
 /** A "smart" Space re-runs its saved query; a "regular" Space holds the items
