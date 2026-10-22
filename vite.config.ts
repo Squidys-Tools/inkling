@@ -65,9 +65,9 @@ export default defineConfig(async ({ mode }) => {
       ? [react(), tailwindcss(), thirdPartyLicenses()]
       : [react(), tailwindcss(), thirdPartyLicenses(), excludeSeedFromAppBuild()],
 
-    // Read by the seed glob in src/App.tsx. A `define` rather than a runtime
-    // check, so the false branch is dropped and the seed module is never
-    // bundled into a shipped build.
+    // Read by the seed glob in src/features/library/seed.ts. A `define` rather
+    // than a runtime check, so the false branch is dropped and the seed module
+    // is never bundled into a shipped build.
     define: includeSeed ? {} : { "import.meta.env.VITE_INKLING_SEED": JSON.stringify("0") },
 
     build: {
