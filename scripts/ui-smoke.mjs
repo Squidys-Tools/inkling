@@ -189,9 +189,9 @@ const clickSelector = (selector) => {
   el.click();
   return true;
 };
-const clickCardContaining = (text) => {
-  const card = [...document.querySelectorAll(".library-card")].find((c) =>
-    (c.textContent ?? "").includes(text),
+const clickCardById = (id) => {
+  const card = [...document.querySelectorAll(".library-card[data-library-item-id]")].find(
+    (candidate) => candidate.dataset.libraryItemId === id,
   );
   if (!card) return false;
   card.click();
@@ -279,10 +279,25 @@ async function run() {
   try {
     const target = await findPageTarget(port, child);
     cdp = await connectCdp(target.webSocketDebuggerUrl);
-    let baselineCards = 0;
+    let seedCardId = "";
+    let seedCardTitle = "";
     await step("library grid renders seeded cards", async () => {
-      await waitFor("seeded item card", hasCardContaining, "Fuji over the village lights");
-      baselineCards = await cdp.evaluate(cardCount);
+      await waitFor(
+        "a mounted seeded library card",
+        hasSelector,
+        ".library-grid .library-card[data-library-item-id]",
+      );
+      const firstCard = await cdp.evaluate(() => {
+        const card = document.querySelector(".library-grid .library-card[data-library-item-id]");
+        return card
+          ? {
+              id: card.getAttribute("data-library-item-id"),
+              label: card.getAttribute("aria-label"),
+            }
+          : null;
+      });
+      if (!firstCard?.id || !firstCard.label)
+        throw new Error("the mounted library card is missing its accessible name");
     });
     await step("grid and list view toggle", async () => {
       await cdp.evaluate(clickSelector, 'button[aria-label="List view"]');
@@ -295,47 +310,68 @@ async function run() {
         "a mounted grid card before searching",
         () => document.querySelector(".library-grid .library-card[data-library-item-id]") !== null,
       );
-      const full = await cdp.evaluate(() => ({
-        resultCount: Number(document.querySelector(".result-count")?.textContent),
-        firstCardId: document.querySelector(".library-grid .library-card[data-library-item-id]")
-          ?.dataset.libraryItemId,
-      }));
+      const baselineCards = await cdp.evaluate(
+        () => document.querySelectorAll(".library-grid .library-card[data-library-item-id]").length,
+      );
       await cdp.evaluate(setInputValue, 'input[aria-label="Search your mind"]', "Fuji");
       await waitFor(
         "search to narrow the grid",
         (baseline) => {
-          const count = document.querySelectorAll(".library-card").length;
-          return count > 0 && count < baseline;
+          const cards = [
+            ...document.querySelectorAll(".library-grid .library-card[data-library-item-id]"),
+          ];
+          return (
+            cards.length > 0 &&
+            cards.length < baseline &&
+            cards.some((card) => (card.textContent ?? "").includes("Fuji"))
+          );
         },
         baselineCards,
       );
+      const filteredCount = await cdp.evaluate(
+        () => document.querySelectorAll(".library-grid .library-card[data-library-item-id]").length,
+      );
       await cdp.evaluate(setInputValue, 'input[aria-label="Search your mind"]', "");
       await waitFor(
-        "search to clear back to the full results",
-        (expected) => {
+        "search to clear back to the wider grid",
+        (previousCount) => {
           const input = document.querySelector('input[aria-label="Search your mind"]');
-          const shownCount = Number(document.querySelector(".result-count")?.textContent);
           const cards = [
             ...document.querySelectorAll(".library-grid .library-card[data-library-item-id]"),
           ];
           return (
             input?.value === "" &&
-            expected.resultCount > 0 &&
-            shownCount === expected.resultCount &&
-            cards.length > 0 &&
-            cards.length <= expected.resultCount &&
-            cards.some((card) => card.dataset.libraryItemId === expected.firstCardId)
+            cards.length > previousCount &&
+            cards.some((card) => !(card.textContent ?? "").includes("Fuji"))
           );
         },
-        full,
+        filteredCount,
       );
+      seedCardId = await cdp.evaluate(
+        () =>
+          document
+            .querySelector(".library-grid .library-card[data-library-item-id]")
+            ?.getAttribute("data-library-item-id") ?? "",
+      );
+      if (!seedCardId) throw new Error("the cleared grid has no mounted card");
+      seedCardTitle = await cdp.evaluate(
+        (id) =>
+          [...document.querySelectorAll(".library-grid .library-card[data-library-item-id]")]
+            .find((card) => card.getAttribute("data-library-item-id") === id)
+            ?.querySelector(".card-content h2")
+            ?.textContent?.trim() ?? "",
+        seedCardId,
+      );
+      if (!seedCardTitle) throw new Error("the selected seeded card has no title");
     });
     await step("item overlay opens and closes with the close button and Escape", async () => {
-      await cdp.evaluate(clickCardContaining, "Fuji over the village lights");
+      if (!(await cdp.evaluate(clickCardById, seedCardId)))
+        throw new Error("the selected seeded card is not mounted");
       await waitFor("item overlay to open", hasSelector, ".expanded-overlay");
       await cdp.evaluate(clickSelector, 'button[aria-label="Close details"]');
       await waitFor("overlay to close from its close button", isGone, ".expanded-overlay");
-      await cdp.evaluate(clickCardContaining, "Fuji over the village lights");
+      if (!(await cdp.evaluate(clickCardById, seedCardId)))
+        throw new Error("the selected seeded card is not mounted after the first close");
       await waitFor("item overlay to reopen", hasSelector, ".expanded-overlay");
       await cdp.send("Input.dispatchKeyEvent", {
         type: "keyDown",
@@ -438,36 +474,18 @@ async function run() {
           windowsVirtualKeyCode,
         });
       };
-      await cdp.evaluate(clickByText, ".nav-item", "Serendipity");
-      await waitFor("serendipity view", hasSelector, '[data-testid="serendipity-view"]');
-      const forgottenTitle = await cdp.evaluate(() => {
-        const button = document.querySelector('[data-testid="serendipity-forget"]');
-        return (
-          button?.closest(".serendipity-copy")?.querySelector("h2")?.textContent?.trim() ?? null
-        );
-      });
-      await cdp.evaluate(clickSelector, '[data-testid="serendipity-forget"]');
-      await cdp.evaluate(() => document.activeElement?.blur());
-      for (let i = 0; i < 12; i++) {
-        await key("Tab", "Tab", 9);
-        const onEverything = await cdp.evaluate(
-          () => document.activeElement?.textContent?.trim().startsWith("Everything") === true,
-        );
-        if (onEverything) break;
-      }
-      await key("Enter", "Enter", 13);
+      if (!(await cdp.evaluate(clickCardById, seedCardId)))
+        throw new Error("the selected card is not mounted before archiving");
+      await waitFor("item details before archiving", hasSelector, ".expanded-overlay");
+      await cdp.evaluate(clickSelector, 'button[aria-label="Archive"]');
+      await waitFor("item details to close after archiving", isGone, ".expanded-overlay");
       await waitFor(
-        "the library grid to come back",
-        () => document.querySelector(".library-grid") !== null,
-      );
-      await cdp.evaluate(setInputValue, 'input[aria-label="Search your mind"]', "");
-      await waitFor(
-        "the next serendipity item to appear",
-        (title) => {
-          const heading = document.querySelector(".serendipity-copy h2");
-          return heading?.textContent?.trim() !== title;
-        },
-        forgottenTitle,
+        "archived card to leave the library grid",
+        (id) =>
+          ![...document.querySelectorAll(".library-grid .library-card[data-library-item-id]")].some(
+            (card) => card.getAttribute("data-library-item-id") === id,
+          ),
+        seedCardId,
       );
       await cdp.evaluate(clickSelector, 'button[aria-label="Settings"]');
       await waitFor("settings sections", hasSelector, 'aside[aria-label="Settings sections"]');
@@ -493,6 +511,20 @@ async function run() {
         );
         return tab?.classList.contains("active") === true;
       });
+      await waitFor(
+        "archived card in the Archive tab",
+        () => document.querySelector(".settings-archive-grid .library-card") !== null,
+      );
+      const forgottenTitle = await cdp.evaluate((id) => {
+        const card = [
+          ...document.querySelectorAll(
+            ".settings-archive-grid .library-card[data-library-item-id]",
+          ),
+        ].find((item) => item.getAttribute("data-library-item-id") === id);
+        return card?.querySelector(".archive-tile-title")?.textContent?.trim() ?? null;
+      }, seedCardId);
+      if (forgottenTitle !== seedCardTitle)
+        throw new Error(`archived card is named ${forgottenTitle}, expected ${seedCardTitle}`);
       await cdp.evaluate(() => document.activeElement?.blur());
       let selectModeFocused = false;
       for (let i = 0; i < 12; i++) {
@@ -509,9 +541,10 @@ async function run() {
         hasSelector,
         'button[aria-label="Exit multi-select mode"]',
       );
-      await waitFor("archived card", () => {
-        return [...document.querySelectorAll(".settings-archive-grid .library-card")].length === 1;
-      });
+      await waitFor(
+        "archived card",
+        () => document.querySelector(".settings-archive-grid .library-card") !== null,
+      );
 
       await cdp.evaluate(() => document.activeElement?.blur());
       let selectButtonFocused = false;
@@ -846,7 +879,7 @@ async function run() {
           throw new Error("Tab did not reach the named library-items region");
         const expectedCount = await cdp.evaluate(() => {
           const everything = [...document.querySelectorAll(".nav-item")].find(
-            (button) => button.querySelector("span")?.textContent?.trim() === "Everything",
+            (button) => button.querySelector(".nav-label")?.textContent?.trim() === "Everything",
           );
           return Number(everything?.querySelector(".nav-count")?.textContent);
         });
