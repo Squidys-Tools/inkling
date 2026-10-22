@@ -8,7 +8,6 @@ import {
   AlertCircleIcon,
   Archive01Icon,
   ArrowUpRight01Icon,
-  Bookmark01Icon,
   Database02Icon,
   Download04Icon,
   Grid2X2Icon,
@@ -40,12 +39,10 @@ import {
   type CaptureStatus,
   type StoredSpace,
 } from "./lib/libraryApi";
-import { AnimatedCount } from "./components/AnimatedCount";
 import { ArchiveGrid } from "./components/ArchiveGrid";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
 import { ContextMenu } from "./components/ContextMenu/ContextMenu";
-import { AddMenu } from "./components/AddMenu/AddMenu";
 import { OpenSourceLicenses } from "./components/OpenSourceLicenses/OpenSourceLicenses";
 import { SegmentedControl } from "./components/SegmentedControl/SegmentedControl";
 import { canvasImageCrossOrigin, LiquidGlass } from "./components/LiquidGlass";
@@ -65,7 +62,6 @@ const ExpandedItemOverlay = lazy(() =>
     default: module.ExpandedItemOverlay,
   })),
 );
-import { LiveMascotSearchEyes } from "./components/mascot/mascotStore";
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import type { SourceRects } from "./components/overlayMotion";
 import {
@@ -84,6 +80,9 @@ import type { ReaderItem, ReaderOrigin } from "./ReaderView";
 import type { ItemKind, LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import "./App.css";
+import { AddMenu } from "./features/capture/AddMenu/AddMenu";
+import { CaptureBar } from "./features/capture/CaptureBar";
+import { ShortcutsDialog } from "./features/capture/ShortcutsDialog";
 import { useCapture } from "./features/capture/useCapture";
 import { useItemDetails, showItemInFolderFromOverlay } from "./features/item-view/useItemDetails";
 import { useItemSelection } from "./features/item-view/useItemSelection";
@@ -925,22 +924,21 @@ function App() {
     setCaptureError,
     setIsSidebarOpen,
   });
-  const { isShortcutsOpen, setIsShortcutsOpen, shortcutsModalRef, shortcutsCloseRef } =
-    useAppShortcuts({
-      searchRef,
-      readingItem,
-      selectedItem,
-      pdfViewerItem,
-      isSettingsOpen,
-      setIsSettingsOpen,
-      isAdding,
-      isCapturing,
-      captureMode,
-      setCaptureMode,
-      openCapture,
-      closeCaptureModal,
-      setIsSidebarOpen,
-    });
+  const { isShortcutsOpen, setIsShortcutsOpen } = useAppShortcuts({
+    searchRef,
+    readingItem,
+    selectedItem,
+    pdfViewerItem,
+    isSettingsOpen,
+    setIsSettingsOpen,
+    isAdding,
+    isCapturing,
+    captureMode,
+    setCaptureMode,
+    openCapture,
+    closeCaptureModal,
+    setIsSidebarOpen,
+  });
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -1256,81 +1254,36 @@ function App() {
         >
           <section className="library-header"></section>
 
-          <section className="capture-bar" ref={captureBarRef} aria-label="Capture and search">
-            {!isSidebarOpen && (
-              <SidebarOpenButton
-                edgeToggle={appearance.sidebarToggle === "edge"}
-                onOpen={() => setIsSidebarOpen(true)}
-              />
-            )}
-            {!isSidebarOpen && sidebarActionErrorAlert}
-            {showBrowseControls && (
-              <label
-                className={`search-field glass${isSearchFocused ? " is-mascot" : " is-resting"}`}
-              >
-                <span className="search-rest" aria-hidden="true">
-                  <HugeiconsIcon icon={Search01Icon} size={14} />
-                  {activeSpace?.name ?? activeView}
-                </span>
-                <span className="field-mascot" aria-hidden="true">
-                  <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />
-                </span>
-                <input
-                  ref={searchRef}
-                  value={query}
-                  onFocus={() => setIsSearchFocused(true)}
-                  onBlur={() => setIsSearchFocused(false)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Escape") return;
-                    setQuery("");
-                    event.currentTarget.blur();
-                  }}
-                  onChange={(event) => {
-                    setActiveSpaceId(null);
-                    setActiveView("Everything");
-                    setQuery(event.target.value);
-                  }}
-                  placeholder="Search your mind"
-                  aria-label="Search your mind"
-                />
-                <kbd>esc to close</kbd>
-              </label>
-            )}
-            {(showFilterRow || showCaptureError) && (
-              <div className="capture-status">
-                {showFilterRow && (
-                  <div className="filter-row">
-                    {query.trim() && (
-                      <div className="query-chip glass">
-                        <span className="query-chip-text">{query.trim()}</span>
-                        <button
-                          type="button"
-                          className="query-chip-clear"
-                          aria-label="Clear search"
-                          data-tooltip="Clear search"
-                          onClick={() => setQuery("")}
-                        >
-                          <HugeiconsIcon icon={Cancel01Icon} size={13} />
-                        </button>
-                      </div>
-                    )}
-                    <div className="result-context">
-                      <AnimatedCount className="result-count" value={filteredItems.length} />
-                      {` ${filteredItems.length === 1 ? "result" : "results"}`}
-                      {query.trim() ? (
-                        <button type="button" className="quiet-link" onClick={beginSaveSearch}>
-                          <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
-                {showCaptureError && (
-                  <p className="capture-error glass">Couldn’t save this yet: {captureError}</p>
-                )}
-              </div>
-            )}
-          </section>
+          <CaptureBar
+            ref={captureBarRef}
+            leading={
+              !isSidebarOpen && (
+                <>
+                  <SidebarOpenButton
+                    edgeToggle={appearance.sidebarToggle === "edge"}
+                    onOpen={() => setIsSidebarOpen(true)}
+                  />
+                  {sidebarActionErrorAlert}
+                </>
+              )
+            }
+            showSearch={showBrowseControls}
+            searchRef={searchRef}
+            view={activeSpace?.name ?? activeView}
+            query={query}
+            isSearchFocused={isSearchFocused}
+            onSearchFocusChange={setIsSearchFocused}
+            onQueryChange={(value) => {
+              setActiveSpaceId(null);
+              setActiveView("Everything");
+              setQuery(value);
+            }}
+            onClearQuery={() => setQuery("")}
+            showFilterRow={showFilterRow}
+            resultCount={filteredItems.length}
+            onSaveSearch={beginSaveSearch}
+            captureError={showCaptureError ? captureError : null}
+          />
 
           <div className="view-dock" ref={viewDockRef}>
             {showBrowseControls && appearance.viewToggle === "segmented" && (
@@ -1447,88 +1400,7 @@ function App() {
 
         {isFirstRunOpen ? <FirstRunOverlay onFinish={finishFirstRun} /> : null}
 
-        <AnimatePresence>
-          {isShortcutsOpen && (
-            <motion.div
-              key="shortcuts-modal-backdrop"
-              className="shortcuts-modal-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) setIsShortcutsOpen(false);
-              }}
-            >
-              <motion.section
-                ref={shortcutsModalRef}
-                id="shortcuts-modal"
-                className="shortcuts-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="shortcuts-modal-title"
-                initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
-                exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-              >
-                <header className="shortcuts-modal-header">
-                  <div>
-                    <h2 id="shortcuts-modal-title">Keyboard shortcuts</h2>
-                    <p>Use these when you’re not typing in a field.</p>
-                  </div>
-                  <button
-                    ref={shortcutsCloseRef}
-                    type="button"
-                    className="icon-button small"
-                    onClick={() => setIsShortcutsOpen(false)}
-                    aria-label="Close keyboard shortcuts"
-                  >
-                    <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                  </button>
-                </header>
-                <dl className="shortcut-list">
-                  <div>
-                    <dt>
-                      <kbd>/</kbd>
-                    </dt>
-                    <dd>Focus search</dd>
-                  </div>
-                  <div>
-                    <dt>
-                      <kbd>Ctrl</kbd> or <kbd>⌘</kbd> + <kbd>K</kbd>
-                    </dt>
-                    <dd>Focus search</dd>
-                  </div>
-                  <div>
-                    <dt>
-                      <kbd>N</kbd>
-                    </dt>
-                    <dd>Start a new note</dd>
-                  </div>
-                  <div>
-                    <dt>
-                      <kbd>Ctrl</kbd> or <kbd>⌘</kbd> + <kbd>\</kbd>
-                    </dt>
-                    <dd>Show or hide the sidebar</dd>
-                  </div>
-                  <div>
-                    <dt>
-                      <kbd>?</kbd>
-                    </dt>
-                    <dd>Show keyboard shortcuts</dd>
-                  </div>
-                  <div>
-                    <dt>
-                      <kbd>Esc</kbd>
-                    </dt>
-                    <dd>Close a panel or return to capture options</dd>
-                  </div>
-                </dl>
-              </motion.section>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <ShortcutsDialog open={isShortcutsOpen} onOpenChange={setIsShortcutsOpen} />
 
         <AnimatePresence>
           {isSettingsOpen && (
