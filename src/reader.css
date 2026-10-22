@@ -72,14 +72,14 @@
 @import "@fontsource/pt-sans/400-italic.css";
 
 .reader-overlay {
-  --reader-bg: var(--library-canvas);
-  --reader-surface: var(--library-surface);
-  --reader-ink: var(--library-text);
-  --reader-muted: var(--library-muted);
-  --reader-faint: var(--library-muted);
-  --reader-rule: var(--library-border);
-  --reader-accent: var(--library-accent);
-  --reader-code-bg: var(--library-surface-raised);
+  --reader-bg: var(--color-canvas);
+  --reader-surface: var(--color-surface);
+  --reader-ink: var(--color-ink);
+  --reader-muted: var(--color-muted);
+  --reader-faint: var(--color-muted);
+  --reader-rule: var(--color-border);
+  --reader-accent: var(--color-accent);
+  --reader-code-bg: var(--color-surface-raised);
   --reader-quote-bg: transparent;
 
   position: fixed;
@@ -140,8 +140,8 @@
 
 .reader-close {
   position: fixed;
-  top: var(--small-component);
-  right: clamp(var(--small-component), 3vw, 32px);
+  top: var(--spacing-component);
+  right: clamp(var(--spacing-component), 3vw, 32px);
   z-index: 3;
   display: flex;
   align-items: center;
@@ -169,7 +169,7 @@
   padding: 3px 7px;
   border-radius: 5px;
   background: var(--reader-code-bg);
-  font: 500 10px var(--font-ui);
+  font: 500 10px var(--font-body);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -233,7 +233,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px 14px;
-  margin: var(--small-component) 0 0;
+  margin: var(--spacing-component) 0 0;
   color: var(--reader-muted);
   font-family: var(--reader-font-meta);
   font-size: 12px;
@@ -377,7 +377,7 @@
   border: 1px solid var(--reader-rule);
   border-radius: 10px;
   background: var(--reader-code-bg);
-  font-family: var(--font-ui);
+  font-family: var(--font-body);
   font-size: 0.82em;
   line-height: 1.6;
 }
@@ -386,7 +386,7 @@
   padding: 0.1em 0.35em;
   border-radius: 4px;
   background: var(--reader-code-bg);
-  font-family: var(--font-ui);
+  font-family: var(--font-body);
   font-size: 0.85em;
 }
 
@@ -463,7 +463,7 @@
 .reader-font-picker {
   position: fixed;
   left: 18px;
-  bottom: var(--small-component);
+  bottom: var(--spacing-component);
   z-index: 3;
 }
 
@@ -480,7 +480,7 @@
 
 .reader-font-picker span {
   color: var(--reader-faint);
-  font: 10px var(--font-ui);
+  font: 10px var(--font-body);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -490,7 +490,7 @@
   outline: none;
   background: transparent;
   color: var(--reader-ink);
-  font: 12px var(--font-ui);
+  font: 12px var(--font-body);
   cursor: pointer;
 }
 
@@ -499,7 +499,7 @@
   --reader-font-body: "Source Serif 4", Georgia, serif;
   --reader-font-quote: "Newsreader", Georgia, serif;
   --reader-font-list: "Lora", Georgia, serif;
-  --reader-font-meta: var(--font-ui);
+  --reader-font-meta: var(--font-body);
   --reader-heading-weight: 600;
   --reader-heading-tracking: -0.01em;
   --reader-body-size: 19px;

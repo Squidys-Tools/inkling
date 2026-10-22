@@ -34,6 +34,7 @@ import {
 import type { LibraryItem } from "../lib/types";
 import { canvasImageCrossOrigin, LiquidGlass } from "./LiquidGlass";
 import type { ReaderOrigin } from "../ReaderView";
+import { SpaceMark } from "../ui/SpaceMark";
 import {
   KindIcon,
   NoteArtwork,
@@ -509,24 +510,6 @@ function detailTitleFor(item: LibraryItem): string {
   return item.kind === "PDF" ? pdfPreviewTitle(item.title) || item.title : item.title;
 }
 
-// Paper's blob marker. It takes the Space colour through the class on the svg.
-const SPACE_BLOB_PATH =
-  "M-96.539 5.45c-1.2 0-2.475-0.125-4-0.7-1.1-0.375-2.125-1-3.35-1.2-2.225-0.375-4.1-0.15-5.775 0.775-1.55 0.825-2.925 2.275-3.725 3.925-0.975 2.075-0.75 4.375-2.4 6.575-0.9 1.275-1.6 1.675-2.4 2.8-0.85 1.2-1.325 2.4-1.35 4.05-0.075 4.8 4.375 10.35 9.225 12.05 2.025 0.65 3.7 0.55 5.45-0.075 1-0.35 2.175-0.95 3.175-1.325 1.325-0.375 2.375-0.5 3.875-0.35 1.275 0.125 2.375 0.425 3.6 0.375 3.275-0.075 5.65-2.175 5.65-5.95 0-1.4-0.25-2.475-0.15-4.1 0.3-3.05 1.925-4.025 2.75-6.475 0.925-3.1 0.4-6.95-3.1-9.15-1.1-0.65-2.3-1.3-3.875-1.45-0.95-0.025-1.825 0.1-2.775 0.175l-0.825 0.05z";
-
-function SpaceBlob({ color }: { color: string }) {
-  return (
-    <svg
-      className={`detail-space-blob ${color}`}
-      width="13"
-      height="12"
-      viewBox="-121.289 2 37.5 34"
-      aria-hidden="true"
-    >
-      <path fill="currentColor" d={SPACE_BLOB_PATH} />
-    </svg>
-  );
-}
-
 // Action bar glyphs, drawn at Paper's 15px with a 1.8 stroke.
 function BarGlyph({ children }: { children: ReactNode }) {
   return (
@@ -938,7 +921,7 @@ export function ExpandedItemOverlay({
       if (flight.kind === "close") actionsRef.current.onClose();
       return;
     }
-    const cardRadius = `${getComputedStyle(dialog).getPropertyValue("--sidebar-radius").trim() || "14px"}`;
+    const cardRadius = `${getComputedStyle(dialog).getPropertyValue("--radius-sidebar").trim() || "14px"}`;
     const cardCorners = `${cardRadius} ${cardRadius} ${cardRadius} ${cardRadius}`;
     const duration = OVERLAY_FLIGHT_MS / 1000;
 
@@ -1372,7 +1355,7 @@ export function ExpandedItemOverlay({
                 <div className="item-tags">
                   {memberSpaces.map((space) => (
                     <span key={space.id} className="item-space-chip">
-                      <SpaceBlob color={space.color} />
+                      <SpaceMark small color={space.color} className="detail-space-blob" />
                       {space.name}
                     </span>
                   ))}
@@ -1480,7 +1463,7 @@ export function ExpandedItemOverlay({
                       }
                       onClick={() => void actions.onToggleSpace?.(shownItem, space.id)}
                     >
-                      <SpaceBlob color={space.color} />
+                      <SpaceMark small color={space.color} className="detail-space-blob" />
                       <span className="item-space-option-name">{space.name}</span>
                       <svg
                         className="item-space-option-check"

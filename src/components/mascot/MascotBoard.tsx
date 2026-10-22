@@ -20,7 +20,7 @@ export function MascotBoard() {
       }}
     >
       <h1 style={{ fontSize: 20, marginBottom: 4 }}>Inkling mascot board</h1>
-      <p style={{ color: "#6b6b6b", fontSize: 14, marginBottom: "var(--small-component)" }}>
+      <p style={{ color: "#6b6b6b", fontSize: 14, marginBottom: "var(--spacing-component)" }}>
         Vendored bloub engine + inkling skins. Shapes only apply on baseBody states; gaze follow is
         disabled on frozen frames.
       </p>
@@ -28,7 +28,7 @@ export function MascotBoard() {
         style={{
           display: "flex",
           gap: 8,
-          marginBottom: "var(--small-component)",
+          marginBottom: "var(--spacing-component)",
           flexWrap: "wrap",
         }}
       >
@@ -53,7 +53,7 @@ export function MascotBoard() {
         style={{
           display: "flex",
           gap: 8,
-          marginBottom: "var(--small-component)",
+          marginBottom: "var(--spacing-component)",
           flexWrap: "wrap",
         }}
       >
@@ -89,7 +89,7 @@ export function MascotBoard() {
         </button>
       </div>
       <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
-        <div style={{ background: "#fff", borderRadius: "var(--small-component)", padding: 24 }}>
+        <div style={{ background: "#fff", borderRadius: "var(--spacing-component)", padding: 24 }}>
           <InklingMascot
             size={240}
             shape={shape}
@@ -98,10 +98,10 @@ export function MascotBoard() {
             playing={!frozen}
           />
         </div>
-        <div style={{ display: "flex", gap: "var(--small-component)", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "var(--spacing-component)", flexWrap: "wrap" }}>
           {STATES.map((s) => (
             <div key={s} style={{ textAlign: "center" }}>
-              <div style={{ background: "#fff", borderRadius: "var(--toggle-radius)", padding: 8 }}>
+              <div style={{ background: "#fff", borderRadius: "var(--radius-toggle)", padding: 8 }}>
                 <InklingMascot size={96} shape={shape} state={s} frozenAt={1.0} playing={false} />
               </div>
               <div style={{ fontSize: 12, color: "#6b6b6b", marginTop: 4 }}>{s}</div>
