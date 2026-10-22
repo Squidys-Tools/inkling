@@ -30,23 +30,23 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--library-text-soft);
+  color: var(--color-ink-soft);
   cursor: pointer;
-  font: 13px var(--font-ui);
+  font: 13px var(--font-body);
   text-align: left;
   white-space: nowrap;
 }
 .context-menu-item svg {
   flex: 0 0 auto;
-  color: var(--library-muted);
+  color: var(--color-muted);
 }
 .context-menu-item:hover,
 .context-menu-item:focus-visible,
 .context-menu-item:focus {
   outline: 0;
-  background: var(--glass-active);
-  color: var(--library-text);
+  background: var(--color-glass-active);
+  color: var(--color-ink);
 }
 .context-menu-item:is(:hover, :focus) svg {
-  color: var(--library-text);
+  color: var(--color-ink);
 }

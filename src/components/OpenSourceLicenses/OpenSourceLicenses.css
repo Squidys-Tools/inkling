@@ -8,16 +8,16 @@
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: var(--library-muted);
+  color: var(--color-muted);
   cursor: pointer;
-  font: 400 12px / 16px var(--font-ui);
+  font: 400 12px / 16px var(--font-body);
   transition:
     background 0.18s ease,
     color 0.18s ease;
 }
 .licenses-back:hover {
-  background: var(--glass-active);
-  color: var(--library-text);
+  background: var(--color-glass-active);
+  color: var(--color-ink);
 }
 .licenses-toolbar {
   display: flex;
@@ -27,7 +27,7 @@
 }
 .licenses-count {
   margin-right: auto;
-  color: var(--library-muted);
+  color: var(--color-muted);
   font: 400 12px / 16px var(--font-mono);
 }
 .licenses-search {
@@ -39,7 +39,7 @@
   padding: 0 12px;
   border: 1px solid #2e2a26;
   border-radius: 999px;
-  color: var(--library-muted);
+  color: var(--color-muted);
   transition: border-color 0.18s ease;
 }
 .licenses-search:focus-within {
@@ -51,8 +51,8 @@
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--library-text);
-  font: 400 13px / 16px var(--font-ui);
+  color: var(--color-ink);
+  font: 400 13px / 16px var(--font-body);
 }
 .licenses-search input::placeholder {
   color: #5e5850;
@@ -73,9 +73,9 @@
   border: 1px dashed #3a3530;
   border-radius: 999px;
   background: transparent;
-  color: var(--library-text-soft);
+  color: var(--color-ink-soft);
   cursor: pointer;
-  font: 500 12px / 16px var(--font-ui);
+  font: 500 12px / 16px var(--font-body);
   white-space: nowrap;
   transition:
     background 0.18s ease,
@@ -84,13 +84,13 @@
 }
 .license-filter-button svg {
   flex: 0 0 auto;
-  color: var(--library-muted);
+  color: var(--color-muted);
 }
 .license-filter-button:hover:not(:disabled),
 .license-filter-button[aria-expanded="true"] {
   border-color: #4a443d;
-  background: var(--glass-active);
-  color: var(--library-text);
+  background: var(--color-glass-active);
+  color: var(--color-ink);
 }
 .license-filter-button:disabled {
   cursor: default;
@@ -107,8 +107,8 @@
   overflow: hidden;
   padding: 2px 7px;
   border-radius: 6px;
-  background: var(--glass-active);
-  color: var(--library-text);
+  background: var(--color-glass-active);
+  color: var(--color-ink);
   font: 400 11px / 14px var(--font-mono);
   text-overflow: ellipsis;
 }
@@ -119,9 +119,9 @@
   right: 0;
   width: 250px;
   padding: 5px;
-  border: 1px solid var(--library-border);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: var(--library-surface);
+  background: var(--color-surface);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
   animation: license-filter-in 0.12s cubic-bezier(0.23, 1, 0.32, 1);
   transform-origin: top right;
@@ -149,16 +149,16 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--library-text-soft);
+  color: var(--color-ink-soft);
   cursor: pointer;
-  font: 13px var(--font-ui);
+  font: 13px var(--font-body);
   text-align: left;
 }
 .license-filter-option:is(:hover, :focus),
 .license-filter-clear:is(:hover, :focus) {
   outline: 0;
-  background: var(--glass-active);
-  color: var(--library-text);
+  background: var(--color-glass-active);
+  color: var(--color-ink);
 }
 .license-filter-check {
   flex: 0 0 auto;
@@ -168,11 +168,11 @@
   place-items: center;
   border: 1px solid #4a443d;
   border-radius: 4px;
-  color: var(--library-frame);
+  color: var(--color-frame);
 }
 .license-filter-option[aria-checked="true"] .license-filter-check {
-  border-color: var(--library-text);
-  background: var(--library-text);
+  border-color: var(--color-ink);
+  background: var(--color-ink);
 }
 .license-filter-label {
   min-width: 0;
@@ -183,12 +183,12 @@
 }
 .license-filter-count {
   flex: 0 0 auto;
-  color: var(--library-muted);
+  color: var(--color-muted);
   font: 400 11px / 16px var(--font-mono);
 }
 .license-filter-clear {
   justify-content: center;
-  color: var(--library-muted);
+  color: var(--color-muted);
 }
 @media (prefers-reduced-motion: reduce) {
   .license-filter-menu {
@@ -220,14 +220,14 @@
   padding: 13px 2px;
   border: 0;
   background: transparent;
-  color: var(--library-text);
+  color: var(--color-ink);
   cursor: pointer;
   text-align: left;
 }
 .licenses-chevron {
   flex: 0 0 auto;
   align-self: center;
-  color: var(--library-muted);
+  color: var(--color-muted);
   transition: rotate 0.18s ease;
 }
 .licenses-row[data-open] .licenses-chevron {
@@ -236,20 +236,20 @@
 .licenses-name {
   min-width: 0;
   overflow: hidden;
-  font: 500 14px / 18px var(--font-ui);
+  font: 500 14px / 18px var(--font-body);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .licenses-version {
   flex: 0 0 auto;
-  color: var(--library-muted);
+  color: var(--color-muted);
   font: 400 12px / 16px var(--font-mono);
 }
 .licenses-id {
   min-width: 0;
   margin-left: auto;
   overflow: hidden;
-  color: var(--library-text-soft);
+  color: var(--color-ink-soft);
   font: 400 11px / 16px var(--font-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -262,8 +262,8 @@
 }
 .licenses-source:hover {
   border-color: transparent;
-  background: var(--glass-active);
-  color: var(--library-text);
+  background: var(--color-glass-active);
+  color: var(--color-ink);
 }
 .licenses-body {
   display: flex;
@@ -273,8 +273,8 @@
 }
 .licenses-body p {
   margin: 0;
-  color: var(--library-muted);
-  font: 400 13px / 19px var(--font-ui);
+  color: var(--color-muted);
+  font: 400 13px / 19px var(--font-body);
 }
 .licenses-body pre {
   max-height: 320px;
@@ -283,8 +283,8 @@
   overflow: auto;
   border: 1px solid #221f1c;
   border-radius: 10px;
-  background: var(--library-surface);
-  color: var(--library-text-soft);
+  background: var(--color-surface);
+  color: var(--color-ink-soft);
   font: 400 11px / 17px var(--font-mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -294,6 +294,6 @@
 .licenses-empty {
   margin: 0;
   padding: 20px 2px;
-  color: var(--library-muted);
-  font: 400 13px / 19px var(--font-ui);
+  color: var(--color-muted);
+  font: 400 13px / 19px var(--font-body);
 }

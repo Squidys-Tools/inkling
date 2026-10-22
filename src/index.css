@@ -1,0 +1,101 @@
+/* No preflight: App.css still styles most of the app unlayered, and its element
+   resets live in base so they don't outrank utilities on the migrated parts. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source("./");
+
+@theme static {
+  --color-*: initial;
+  --color-white: #fff;
+  --color-black: #000;
+  --color-app: #0a0a09;
+  --color-canvas: #0c0c0b;
+  --color-frame: #0d0c0b;
+  --color-surface: #161412;
+  --color-surface-raised: #1b1917;
+  --color-border: #262221;
+  --color-ink: #e5ddd2;
+  --color-ink-soft: #c9c1b6;
+  --color-ink-active: #f0e9df;
+  --color-muted: #8d867c;
+  --color-accent: #b0714f;
+  --color-accent-soft: #241c16;
+  --color-green: #7fa08d;
+  --color-green-soft: #26332c;
+  --color-blue-soft: #243136;
+  --color-yellow-soft: #3a3524;
+  --color-glass-fill: rgba(12, 11, 10, 0.62);
+  --color-glass-active: rgba(255, 255, 255, 0.08);
+  --color-space-orange: var(--color-accent);
+  --color-space-green: #7f9a8c;
+  --color-space-blue: #8e9bbf;
+  --color-space-pink: #c98b8b;
+  --color-space-purple: #a88ab5;
+  --color-space-yellow: #c9b27a;
+
+  --radius-button: 9px;
+  --radius-row: 9px;
+  --radius-toggle: 12px;
+  --radius-tile: 12px;
+  --radius-sidebar: 14px;
+  --radius-frame: 16px;
+  --radius-card: 20px;
+  --radius-search: 20px;
+  --radius-overlay: 24px;
+
+  --font-sans: "DM Sans Variable", "DM Sans", system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, monospace;
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-quote: "Libre Baskerville", Georgia, serif;
+
+  --spacing-component: 16px;
+  --spacing-sidebar: 232px;
+  --spacing-titlebar: 32px;
+  --spacing-topbar: 56px;
+
+  --breakpoint-wide: 781px;
+}
+
+:root {
+  --glass-filter: blur(18px) saturate(140%) brightness(0.7);
+}
+
+@layer base {
+  :root {
+    interpolate-size: allow-keywords;
+    font-family: var(--font-body);
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    color-scheme: dark;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  button,
+  input {
+    font: inherit;
+  }
+  button {
+    color: inherit;
+    padding: 0;
+  }
+  /* Under the utilities layer, so a caller's border or fill always wins. */
+  .ui-button {
+    border: 0;
+    background: none;
+  }
+}

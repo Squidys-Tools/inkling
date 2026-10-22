@@ -1,6 +1,7 @@
 import { rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { collectThirdPartyLicenses } from "./scripts/third-party-licenses/collect.mjs";
 
@@ -61,8 +62,8 @@ export default defineConfig(async ({ mode }) => {
 
   return {
     plugins: includeSeed
-      ? [react(), thirdPartyLicenses()]
-      : [react(), thirdPartyLicenses(), excludeSeedFromAppBuild()],
+      ? [react(), tailwindcss(), thirdPartyLicenses()]
+      : [react(), tailwindcss(), thirdPartyLicenses(), excludeSeedFromAppBuild()],
 
     // Read by the seed glob in src/App.tsx. A `define` rather than a runtime
     // check, so the false branch is dropped and the seed module is never
