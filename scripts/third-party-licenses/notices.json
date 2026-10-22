@@ -32,7 +32,7 @@
     "license": "MIT",
     "sourceUrl": "https://www.vioraui.dedyn.io/docs/components/create-new-disclosure",
     "description": "The Add menu that opens out of the sidebar's Add button.",
-    "noticeFile": "src/components/AddMenu/LICENSE.md"
+    "noticeFile": "src/features/capture/AddMenu/LICENSE.md"
   },
   {
     "name": "nomic-embed-text-v1.5",
