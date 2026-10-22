@@ -26,7 +26,7 @@ describe("markdownToPlainText", () => {
   });
 
   // These pin the Electron backend's `markdownToPlainText` semantics
-  // (electron/storage.mjs), which also projects the note when the desktop app runs.
+  // (electron/storage/shared.mjs), which also projects the note when the desktop app runs.
   test("keeps words apart across a void inline tag", () => {
     expect(markdownToPlainText("foo<br>bar")).toBe("foo bar");
     expect(markdownToPlainText("one<br/>two")).toBe("one two");
