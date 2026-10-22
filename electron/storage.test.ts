@@ -928,6 +928,29 @@ test("restore rejects unsupported Smart Space query fields", async () => {
   expect(restored.listSpaces()).toEqual([]);
 });
 
+test("restore keeps stored pins and accepts an older pin filter", async () => {
+  const { root, library } = temporaryLibrary();
+  const item = library.createNote({ title: "Pinned before pins went away", body: "Kept." });
+  library.db.prepare("UPDATE items SET favorite = 1 WHERE id = ?").run(item.id);
+  library.createSpace({ name: "Pinned", query: { tag: "japan" } });
+  const destination = join(root, "exports");
+  mkdirSync(destination);
+  const report = await library.exportLibrary(destination, 0);
+  const exportedDatabase = trackDatabase(
+    new DatabaseSync(join(report.directory, "library.sqlite3")),
+  );
+  exportedDatabase.prepare("UPDATE spaces SET query = ?").run('{"favorite":true}');
+  closeDatabase(exportedDatabase);
+
+  const restored = trackedLibrary(join(root, "restored", "library.sqlite3"));
+  await restored.importLibrary(report.directory);
+
+  expect(restored.listSpaces().map((space) => [space.name, space.query])).toEqual([["Pinned", {}]]);
+  expect(restored.db.prepare("SELECT favorite FROM items WHERE id = ?").get(item.id)).toEqual({
+    favorite: 1,
+  });
+});
+
 test("restore removes staged assets when the active library rejects its transaction", async () => {
   const { root, library } = temporaryLibrary();
   const item = await library.saveFile({

@@ -4930,6 +4930,19 @@ a:focus-visible,
   pointer-events: none;
   transition: none;
 }
+/* A narrow window has no room for a 320px column beside the media, so the
+   stage takes the top half and the inspector the bottom. */
+@media (max-width: 780px) {
+  .item-stage {
+    inset: var(--item-inspector-top) var(--item-inset) 50% var(--item-inset);
+    padding: 16px;
+  }
+  .item-inspector {
+    top: 50%;
+    left: 0;
+    width: auto;
+  }
+}
 .item-inspector-header {
   display: flex;
   flex: 0 0 auto;

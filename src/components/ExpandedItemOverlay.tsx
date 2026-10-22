@@ -193,9 +193,11 @@ function ZoomableImage({
   }, []);
 
   const ready = frame !== null && natural !== null;
+  // Never above 1: an image smaller than the frame rests at its own size, so
+  // drawing, panning and the pixel grid all scale from the same base.
   const fit =
     ready && frame.width > 0 && frame.height > 0
-      ? Math.min(frame.width / natural.width, frame.height / natural.height)
+      ? Math.min(1, frame.width / natural.width, frame.height / natural.height)
       : 1;
   const zoom = clampZoom(zoomLevel ?? fit, fit);
   const isZoomed = zoom > fit;
@@ -209,9 +211,7 @@ function ZoomableImage({
   // The layout box is the thumbnail's fitted size, set explicitly so a larger
   // original cannot change it.
   const base =
-    ready && natural
-      ? { width: natural.width * Math.min(1, fit), height: natural.height * Math.min(1, fit) }
-      : null;
+    ready && natural ? { width: natural.width * fit, height: natural.height * fit } : null;
 
   // Past fit, load the original. It is decoded before the swap, so the picture
   // never flashes back to empty.
@@ -786,6 +786,24 @@ export function ExpandedItemOverlay({
     isEditingNoteRef.current = isEditingNote;
     isFocusModeRef.current = isFocusMode;
   }, [isEditingNote, isFocusMode]);
+
+  // The draft lives only in the editor, so while a note is being written a
+  // press outside the item view (a Space, Settings, a card) is absorbed rather
+  // than navigating away and dropping it. Save, Close and Escape are the ways
+  // out. Press, release and click are separate events a control can answer.
+  useEffect(() => {
+    if (!isEditingNote) return;
+    const absorb = (event: Event) => {
+      if (!(event.target instanceof Node) || dialogRef.current?.contains(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    const events = ["pointerdown", "mousedown", "pointerup", "mouseup", "click"];
+    for (const type of events) document.addEventListener(type, absorb, true);
+    return () => {
+      for (const type of events) document.removeEventListener(type, absorb, true);
+    };
+  }, [isEditingNote]);
 
   // The item whose content the view shows. During a closing flight that was
   // triggered by switching items, the view flies back displaying the item it

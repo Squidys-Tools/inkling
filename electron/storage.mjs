@@ -68,7 +68,10 @@ CREATE TABLE IF NOT EXISTS items (
   metadata TEXT NOT NULL DEFAULT '{}',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))
+  archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
+  -- Pins have no UI for now. The column stays, and restore copies it, so pins
+  -- saved before they were removed are still there if they come back.
+  favorite INTEGER NOT NULL DEFAULT 0 CHECK (favorite IN (0, 1))
 );
 CREATE INDEX IF NOT EXISTS idx_items_active_updated ON items (archived, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_items_kind ON items (kind);
@@ -458,7 +461,8 @@ function parseImportedSpaceQuery(serialized) {
   }
   if (!query || typeof query !== "object" || Array.isArray(query))
     throw new Error("invalid storage input: the export contains an invalid Space query");
-  if (Object.keys(query).some((field) => !["text", "kind", "tag"].includes(field)))
+  // Older exports can carry a pin filter; it is accepted and dropped with pins.
+  if (Object.keys(query).some((field) => !["text", "kind", "tag", "favorite"].includes(field)))
     throw new Error("invalid storage input: the export contains an unsupported Space query field");
   return validateSmartQuery(query);
 }
@@ -481,7 +485,7 @@ function readImportStage(databasePath) {
       items: stage.db
         .prepare(`SELECT id, kind, title, description, body, body_format, source_url,
         source_label, local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
-        archived FROM items ORDER BY created_at, id`)
+        archived, favorite FROM items ORDER BY created_at, id`)
         .all(),
       spaces: stage.db
         .prepare("SELECT * FROM spaces ORDER BY position, created_at, id")
@@ -2365,8 +2369,8 @@ class LibraryStorage {
           }
           this.db
             .prepare(`INSERT INTO items (id, kind, title, description, body, body_format, source_url,
-            source_label, local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at, archived)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            source_label, local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at, archived, favorite)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
             .run(
               item.id,
               item.kind,
@@ -2383,6 +2387,7 @@ class LibraryStorage {
               item.created_at,
               item.updated_at,
               item.archived,
+              item.favorite,
             );
           if (item.kind === "image") this.jobs.enqueue(item.id, "ocr_image", { notify: false });
           if (item.kind === "image" && !item.thumbnail_path)

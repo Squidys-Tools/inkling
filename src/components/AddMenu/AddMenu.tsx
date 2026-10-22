@@ -308,8 +308,9 @@ function AddForm(props: FormProps) {
           value={props.note}
           onChange={(event) => props.onNote(event.target.value)}
           onKeyDown={(event) => {
-            // Enter saves; Shift+Enter starts a new line.
-            if (event.key === "Enter" && !event.shiftKey) {
+            // Enter saves; Shift+Enter starts a new line. An Enter that confirms
+            // an IME composition only finishes the word.
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
               event.currentTarget.form?.requestSubmit();
             }

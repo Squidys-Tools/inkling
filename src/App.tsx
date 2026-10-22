@@ -349,6 +349,13 @@ function readImageDimensions(src: string): Promise<{ width: number; height: numb
   });
 }
 
+// A saved link becomes a Post or a Video card when its metadata or URL says so.
+function cardKind(item: StoredLibraryItem | StoredLibraryCard): ItemKind {
+  if (readXPostMetadata(item.metadata.social)) return "Post";
+  const baseKind = displayKind(item.kind);
+  return baseKind === "Article" && videoLinkFromSourceUrl(item.sourceUrl) ? "Video" : baseKind;
+}
+
 async function storedItemToLibraryItem(
   item: StoredLibraryItem | StoredLibraryCard,
   processing?: ProcessingSummary,
@@ -356,7 +363,7 @@ async function storedItemToLibraryItem(
   const social = readXPostMetadata(item.metadata.social);
   const baseKind = displayKind(item.kind);
   const videoLink = baseKind === "Article" ? videoLinkFromSourceUrl(item.sourceUrl) : null;
-  const kind = social ? "Post" : videoLink ? "Video" : baseKind;
+  const kind = cardKind(item);
   const metadataTags = item.metadata.tags;
   const tags = Array.isArray(metadataTags)
     ? metadataTags.filter((tag): tag is string => typeof tag === "string")
@@ -1482,24 +1489,24 @@ const MAKEUP_GROUPS: Array<{ label: string; kinds: ItemKind[]; color: string }> 
 ];
 
 function LibraryMakeup({
-  items,
+  kinds,
   sizeBytes,
   onShowFolder,
 }: {
-  items: LibraryItem[];
+  kinds: ItemKind[];
   sizeBytes: number | null;
   onShowFolder?: () => void;
 }) {
   const groups = MAKEUP_GROUPS.map((group) => ({
     ...group,
-    count: items.filter((item) => group.kinds.includes(item.kind)).length,
+    count: kinds.filter((kind) => group.kinds.includes(kind)).length,
   })).filter((group) => group.count > 0);
   return (
     <div className="settings-makeup">
       <div className="settings-makeup-head">
         <div className="settings-makeup-figures">
           <p className="settings-makeup-total">
-            {items.length.toLocaleString()} {items.length === 1 ? "thing" : "things"}
+            {kinds.length.toLocaleString()} {kinds.length === 1 ? "thing" : "things"}
           </p>
           {sizeBytes !== null && (
             <span className="settings-makeup-size">{formatByteSize(sizeBytes)} on disk</span>
@@ -1663,6 +1670,9 @@ function App() {
   // Optional facts Settings shows when the desktop backend can supply them.
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [librarySizeBytes, setLibrarySizeBytes] = useState<number | null>(null);
+  // In the desktop app an open Space or search narrows `items`, so Settings
+  // counts the whole library on its own. Null means `items` already is it.
+  const [wholeLibraryKinds, setWholeLibraryKinds] = useState<ItemKind[] | null>(null);
   const [lastCopy, setLastCopy] = useState<LastExport | null>(null);
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(
     shouldUseSeedLibrary() ? browserArchivedItems : [],
@@ -3207,12 +3217,12 @@ function App() {
 
     function syncSelectedItem(libraryItems: LibraryItem[]) {
       setSelectedItem((current) => {
-        if (
-          !current?.sourceUrl ||
-          (current.kind !== "Article" && current.kind !== "Video" && current.kind !== "Post")
-        ) {
-          return current;
-        }
+        // Web items refresh as extraction fills them in; an image as its
+        // thumbnail and palette jobs land.
+        const isWebItem =
+          Boolean(current?.sourceUrl) &&
+          (current?.kind === "Article" || current?.kind === "Video" || current?.kind === "Post");
+        if (!current || (!isWebItem && current.kind !== "Image")) return current;
         const refreshed = libraryItems.find((item) => String(item.id) === String(current.id));
         if (!refreshed) return current;
         const changed =
@@ -3223,6 +3233,7 @@ function App() {
           current.sourceUrl !== refreshed.sourceUrl ||
           current.image !== refreshed.image ||
           current.mediaAspectRatio !== refreshed.mediaAspectRatio ||
+          current.palette?.join() !== refreshed.palette?.join() ||
           current.hasArticleContent !== refreshed.hasArticleContent ||
           current.processing?.active !== refreshed.processing?.active ||
           current.processing?.failedJob?.id !== refreshed.processing?.failedJob?.id ||
@@ -3395,6 +3406,24 @@ function App() {
     };
   }, [isSettingsOpen]);
 
+  const isLibraryNarrowed = Boolean(activeSpaceId) || debouncedQuery.trim() !== "";
+  useEffect(() => {
+    if (!isSettingsOpen || !canUseDesktopBackend || !isLibraryNarrowed) {
+      setWholeLibraryKinds(null);
+      return;
+    }
+    let cancelled = false;
+    void listActiveItems().then(
+      (cards) => {
+        if (!cancelled) setWholeLibraryKinds(cards.map(cardKind));
+      },
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseDesktopBackend, isLibraryNarrowed, isSettingsOpen]);
+
   // Only the Archive tab reads the archive. Its cards show no processing state,
   // and an item opened from here fetches its own summary, so none are read here.
   const isArchiveTabOpen = isSettingsOpen && settingsTab === "archive";
@@ -3516,8 +3545,14 @@ function App() {
 
   // Saves from the Add menu. The card appears at once; the menu closes on
   // success and keeps the draft when the save fails.
+  // A second Enter can land before the saving state re-renders, so a ref
+  // keeps one save at a time.
+  const addMenuSavingRef = useRef(false);
   async function saveFromAddMenu(save: () => Promise<unknown>) {
+    if (addMenuSavingRef.current) return false;
+    addMenuSavingRef.current = true;
     setCaptureError(null);
+    setIsCapturing(true);
     try {
       await save();
       setIsAdding(false);
@@ -3526,6 +3561,9 @@ function App() {
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : String(error));
       return false;
+    } finally {
+      addMenuSavingRef.current = false;
+      setIsCapturing(false);
     }
   }
 
@@ -5122,7 +5160,7 @@ function App() {
 
                     <div className="settings-scroll">
                       <LibraryMakeup
-                        items={items}
+                        kinds={wholeLibraryKinds ?? items.map((item) => item.kind)}
                         sizeBytes={librarySizeBytes}
                         onShowFolder={
                           canUseLibraryFolderPicker ? showLibraryFolderFromSettings : undefined
