@@ -32,7 +32,7 @@ The primary experience is a Windows desktop application used during browsing, re
 - Render specialized card types rather than generic bookmarks.
 - Provide exact, OCR, structured, semantic, and visual search over local content.
 - Provide manual and automatically updated Spaces.
-- Provide article reading, Focus Mode, Serendipity, and Top of Mind over time.
+- Provide article reading and Focus Mode over time.
 - Use Tesseract for OCR and Defuddle for article extraction.
 - Prefer local processing on Windows and support CPU-only operation.
 - AI-derived concepts are invisible implementation details; do not expose correction, deletion, confidence, or AI-management workflows.

@@ -1,0 +1,60 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..cbcd4234d02b5c9f00863ea8be1ae80527c787bf 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -3109,10 +3109,8 @@ var DomContentSync = class {
+       try {
+         ;
+         this.device.queue.copyElementImageToTexture(
+-          entry.html.host,
+-          entry.deviceWidth,
+-          entry.deviceHeight,
+-          { texture: entry.texture }
++          { source: entry.html.host },
++          { destination: { texture: entry.texture }, width: entry.deviceWidth, height: entry.deviceHeight }
+         );
+         entry.copiedDeviceWidth = entry.deviceWidth;
+         entry.copiedDeviceHeight = entry.deviceHeight;
+@@ -3189,10 +3187,8 @@ var DomContentSync = class {
+       try {
+         ;
+         this.device.queue.copyElementImageToTexture(
+-          entry.html.host,
+-          entry.deviceWidth,
+-          entry.deviceHeight,
+-          { texture: entry.sourceTexture }
++          { source: entry.html.host },
++          { destination: { texture: entry.sourceTexture }, width: entry.deviceWidth, height: entry.deviceHeight }
+         );
+         entry.copiedDeviceWidth = entry.deviceWidth;
+         entry.copiedDeviceHeight = entry.deviceHeight;
+diff --git a/dist/index.js b/dist/index.js
+index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..fa65479ad2fab8ea45839153418b60dca2279438 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -2168,10 +2168,8 @@ var DomContentSync = class {
+       try {
+         ;
+         this.device.queue.copyElementImageToTexture(
+-          entry.html.host,
+-          entry.deviceWidth,
+-          entry.deviceHeight,
+-          { texture: entry.texture }
++          { source: entry.html.host },
++          { destination: { texture: entry.texture }, width: entry.deviceWidth, height: entry.deviceHeight }
+         );
+         entry.copiedDeviceWidth = entry.deviceWidth;
+         entry.copiedDeviceHeight = entry.deviceHeight;
+@@ -2248,10 +2246,8 @@ var DomContentSync = class {
+       try {
+         ;
+         this.device.queue.copyElementImageToTexture(
+-          entry.html.host,
+-          entry.deviceWidth,
+-          entry.deviceHeight,
+-          { texture: entry.sourceTexture }
++          { source: entry.html.host },
++          { destination: { texture: entry.sourceTexture }, width: entry.deviceWidth, height: entry.deviceHeight }
+         );
+         entry.copiedDeviceWidth = entry.deviceWidth;
+         entry.copiedDeviceHeight = entry.deviceHeight;

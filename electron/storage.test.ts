@@ -1,12 +1,12 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterAll, afterEach, expect, test } from "bun:test";
 import {
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
-  rmSync,
   writeFileSync,
+  rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +15,7 @@ import { DatabaseSync } from "node:sqlite";
 import { personalSeedItems } from "../src/seedPersonal";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
 import {
+  IMAGE_THUMBNAIL_JOB,
   JobQueue,
   JobWorker,
   JOB_LEASE_MILLIS,
@@ -27,6 +28,21 @@ import parity from "./fixtures/storage-parity.json";
 
 const roots: string[] = [];
 const databases = new Set<DatabaseSync>();
+const workers = new Set<JobWorker>();
+
+function createWorker(
+  library: ReturnType<typeof openLibraryStorage>,
+  options: ConstructorParameters<typeof JobWorker>[1],
+) {
+  const worker = new JobWorker(library, options);
+  workers.add(worker);
+  return worker;
+}
+
+async function stopWorker(worker: JobWorker) {
+  workers.delete(worker);
+  await worker.stop();
+}
 
 function trackDatabase(database: DatabaseSync) {
   databases.add(database);
@@ -75,8 +91,8 @@ function seedFromDemo(library: ReturnType<typeof openLibraryStorage>) {
   const selected = personalSeedItems.filter((item) => parity.sourceIds.includes(item.id));
   const insert =
     library.db.prepare(`INSERT INTO items (id, kind, title, description, body, body_format,
-    source_label, metadata, ocr_text, created_at, updated_at, favorite)
-    VALUES (?, ?, ?, ?, '', 'md', 'Downloads', ?, '', ?, ?, ?)`);
+    source_label, metadata, ocr_text, created_at, updated_at)
+    VALUES (?, ?, ?, ?, '', 'md', 'Downloads', ?, '', ?, ?)`);
   selected.forEach((item, index) => {
     const id = item.id;
     const now = index + 1;
@@ -88,7 +104,6 @@ function seedFromDemo(library: ReturnType<typeof openLibraryStorage>) {
       JSON.stringify({ tags: item.tags }),
       now,
       now,
-      Number(item.favorite ?? false),
     );
   });
   return selected;
@@ -102,9 +117,16 @@ function vector(values: number[]) {
   return bytes;
 }
 
-afterEach(() => {
+afterEach(async () => {
+  for (const worker of workers) await stopWorker(worker);
+  workers.clear();
   for (const database of databases) database.close();
   databases.clear();
+  Bun.gc(true);
+});
+
+afterAll(() => {
+  Bun.gc(true);
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -130,6 +152,12 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
   expect(library.listSpaceItems(smart.id).map((item) => item.id)).toEqual(parity.smartSpace);
   library.addSpaceItem(regular.id, "me-fuji-night");
   library.addSpaceItem(regular.id, "me-lanterns");
+  library.updateSpace({ id: regular.id, color: "yellow" });
+  expect(library.listSpaces()).toMatchObject([
+    { id: smart.id, kind: "smart" },
+    { id: regular.id, kind: "regular", color: "yellow", itemCount: 2 },
+  ]);
+  expect(library.listSpaces()[0]).not.toHaveProperty("itemCount");
   expect(library.listSpaceItems(regular.id, 0)).toHaveLength(1);
   library.db
     .prepare(
@@ -159,9 +187,8 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
     body: "## Evening\n\nWarm light.",
     bodyFormat: "md",
   });
-  const updated = library.updateItem({ id: note.id, addTag: "#Reading", favorite: true });
+  const updated = library.updateItem({ id: note.id, addTag: "#Reading" });
   expect(updated.metadata.tags).toEqual(["reading"]);
-  expect(updated.favorite).toBe(true);
   library.archiveItem(note.id);
   expect(library.listArchivedItems().map((item) => item.id)).toContain(note.id);
   library.archiveItem(note.id, false);
@@ -415,19 +442,19 @@ test("Smart Spaces apply saved filters to hybrid text-search candidates", () => 
 test("Smart Space predicates are applied before the result limit", () => {
   const { library } = temporaryLibrary();
   const insert = library.db.prepare(`INSERT INTO items
-    (id, kind, title, metadata, created_at, updated_at, favorite)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`);
-  insert.run("newer-tag-miss", "article", "Tokyo winter", '{"tags":["other"]}', 30, 30, 1);
-  insert.run("newer-favorite-miss", "url", "Tokyo summer", '{"tags":["japan"]}', 20, 20, 0);
-  insert.run("older-match", "url", "Tokyo shrine", '{"tags":["Japan"]}', 10, 10, 1);
+    (id, kind, title, metadata, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)`);
+  insert.run("newer-tag-miss", "article", "Tokyo winter", '{"tags":["other"]}', 30, 30);
+  insert.run("newer-kind-miss", "note", "Tokyo summer", '{"tags":["japan"]}', 20, 20);
+  insert.run("older-match", "url", "Tokyo shrine", '{"tags":["Japan"]}', 10, 10);
   const space = library.createSpace({
     name: "Tokyo reading",
-    query: { text: "Tokyo", tag: "japan", favorite: true, kind: "article" },
+    query: { text: "Tokyo", tag: "japan", kind: "article" },
   });
 
   expect(library.listSpaceItems(space.id, 1).map((item) => item.id)).toEqual(["older-match"]);
 
-  insert.run("unicode-tag", "note", "Cafe notes", '{"tags":["café"]}', 5, 5, 1);
+  insert.run("unicode-tag", "note", "Cafe notes", '{"tags":["café"]}', 5, 5);
   const unicodeSpace = library.createSpace({ name: "Cafe", query: { tag: "CAFÉ" } });
   expect(library.listSpaceItems(unicodeSpace.id).map((item) => item.id)).toEqual(["unicode-tag"]);
 });
@@ -615,7 +642,7 @@ test("file capture persists its item and asset before queued processing becomes 
     fileName: "quick note.txt",
     mimeType: "text/plain",
     kind: "other",
-    bytes: [...Buffer.from("captured immediately")],
+    bytes: new TextEncoder().encode("captured immediately"),
   });
 
   expect(item).toMatchObject({
@@ -631,24 +658,113 @@ test("file capture persists its item and asset before queued processing becomes 
   expect(library.jobs.countActive()).toBe(1);
 });
 
-test("image capture awaits asynchronous thumbnails and persists source dimensions", async () => {
+test("file bytes arrive as a typed array view or an ArrayBuffer, never a number array", async () => {
+  const { root, library } = temporaryLibrary();
+  const text = new TextEncoder().encode("exact bytes");
+  // A view into a larger buffer, as a pooled Buffer is: only its window is the file.
+  const padded = new Uint8Array(text.length + 8);
+  padded.set(text, 4);
+  const saved = (name: string, bytes: unknown) =>
+    library.saveFile({ fileName: name, mimeType: "text/plain", kind: "other", bytes });
+  const read = (id: string, name: string) =>
+    readFileSync(join(root, "assets", "items", id, name), "utf8");
+
+  const view = await saved("view.txt", padded.subarray(4, 4 + text.length));
+  const buffer = await saved("buffer.txt", text.buffer.slice(0));
+  expect(read(view.id, "view.txt")).toBe("exact bytes");
+  expect(read(buffer.id, "buffer.txt")).toBe("exact bytes");
+
+  await expect(saved("array.txt", [...text])).rejects.toThrow(
+    "must be a Uint8Array or ArrayBuffer",
+  );
+  await expect(saved("missing.txt", undefined)).rejects.toThrow("Uint8Array or ArrayBuffer");
+  await expect(saved("empty.txt", new Uint8Array())).rejects.toThrow("cannot be empty");
+});
+
+test("image capture saves the item and header-read size without resizing", async () => {
+  let resized = 0;
   const { root, library } = temporaryLibrary({
-    createThumbnail: async () => ({ bytes: Buffer.from("thumbnail"), width: 1200, height: 800 }),
+    inspectImage: async () => ({ width: 1200, height: 800 }),
+    createThumbnail: async () => {
+      resized += 1;
+      return { bytes: Buffer.from("thumbnail"), width: 1200, height: 800 };
+    },
   });
   const item = await library.saveFile({
     fileName: "photo.png",
     mimeType: "image/png",
-    bytes: [...Buffer.from("source image")],
+    bytes: new TextEncoder().encode("source image"),
   });
 
+  expect(resized).toBe(0);
   expect(item).toMatchObject({
     kind: "image",
-    thumbnailPath: `assets/items/${item.id}/thumbnail.webp`,
+    thumbnailPath: null,
     metadata: { mediaWidth: 1200, mediaHeight: 800 },
+  });
+  const itemDirectory = join(root, "assets", "items", item.id);
+  expect(readdirSync(itemDirectory)).toEqual(["photo.png"]);
+  expect(
+    library.db
+      .prepare("SELECT kind, status FROM jobs WHERE item_id = ? ORDER BY kind")
+      .all(item.id),
+  ).toEqual([
+    { kind: "generate_embedding", status: "pending" },
+    { kind: IMAGE_THUMBNAIL_JOB, status: "pending" },
+    { kind: "ocr_image", status: "pending" },
+  ]);
+  expect(library.jobs.getForItem(item.id).map((job) => job.kind)).not.toContain(
+    IMAGE_THUMBNAIL_JOB,
+  );
+});
+
+test("image capture refuses what inspection rejects before it stores anything", async () => {
+  const { root, library } = temporaryLibrary({
+    inspectImage: async () => {
+      throw new Error("image processing error: image dimensions exceed safe limits");
+    },
+  });
+  await expect(
+    library.saveFile({
+      fileName: "huge.png",
+      kind: "image",
+      bytes: new TextEncoder().encode("not really"),
+    }),
+  ).rejects.toThrow("safe limits");
+
+  expect(library.db.prepare("SELECT COUNT(*) AS count FROM items").get().count).toBe(0);
+  expect(library.db.prepare("SELECT COUNT(*) AS count FROM jobs").get().count).toBe(0);
+  expect(existsSync(join(root, "assets", "items"))).toBe(false);
+});
+
+test("image thumbnails publish once, record the decoded size, and tell the renderer", async () => {
+  const events: string[] = [];
+  const { root, library } = temporaryLibrary({
+    jobQueue: { onUpdated: (id: string) => events.push(id) },
+    inspectImage: async () => null,
+    createThumbnail: async () => ({ bytes: Buffer.from("thumbnail"), width: 640, height: 480 }),
+  });
+  const source = new TextEncoder().encode("source image");
+  const item = await library.saveFile({ fileName: "photo.bmp", kind: "image", bytes: source });
+  const note = library.createNote({ title: "Not an image", body: "text" });
+  events.length = 0;
+
+  expect(item.metadata.mediaWidth).toBeUndefined();
+  expect(await library.storeImageThumbnail(note.id, source)).toBe(false);
+  expect(await library.storeImageThumbnail("missing", source)).toBe(false);
+  expect(await library.storeImageThumbnail(item.id, source)).toBe(true);
+  expect(await library.storeImageThumbnail(item.id, source)).toBe(false);
+
+  expect(events).toEqual([item.id]);
+  expect(library.getItem(item.id)).toMatchObject({
+    thumbnailPath: `assets/items/${item.id}/thumbnail.webp`,
+    metadata: { mediaWidth: 640, mediaHeight: 480, byteLength: source.length },
+    updatedAt: item.updatedAt,
   });
   expect(readFileSync(join(root, "assets", "items", item.id, "thumbnail.webp"), "utf8")).toBe(
     "thumbnail",
   );
+  expect(readdirSync(root).filter((name) => name.startsWith(".inkling-thumbnail-"))).toEqual([]);
 });
 
 test("export snapshots and hashes assets; restore rejects tampering and imports the verified copy", async () => {
@@ -724,6 +840,24 @@ test("export counts and copies assets from the database snapshot", async () => {
   ).toBe(1);
 });
 
+test("successful export details persist across reopening the library", async () => {
+  const { root, library } = temporaryLibrary();
+  library.createNote({ title: "Exported note", body: "A small library copy." });
+  const destination = join(root, "exports");
+  mkdirSync(destination);
+
+  const report = await library.exportLibrary(destination, 0);
+  const lastExport = library.getLastExport();
+  expect(lastExport).toMatchObject({
+    exportedAt: expect.any(Number),
+    items: report.items,
+  });
+  closeDatabase(library.db);
+
+  const reopened = trackedLibrary(join(root, "library.sqlite3"));
+  expect(reopened.getLastExport()).toEqual(lastExport);
+});
+
 test("restore rejects item ids that could escape the managed asset directory", async () => {
   const { root, library } = temporaryLibrary();
   library.createNote({ title: "Safe note", body: "No assets." });
@@ -751,7 +885,7 @@ test("restore preserves Space kinds, ordering, and Regular Space membership", as
     body: "Find quiet places to stay.",
     metadata: { tags: ["japan"] },
   });
-  const regular = library.createSpace({ name: "Read later", kind: "regular" });
+  const regular = library.createSpace({ name: "Read later", kind: "regular", color: "yellow" });
   library.addSpaceItem(regular.id, item.id);
   library.createSpace({ name: "Japan", query: { tag: "japan" } });
   const destination = join(root, "exports");
@@ -765,6 +899,8 @@ test("restore preserves Space kinds, ordering, and Regular Space membership", as
     ["Read later", "regular"],
     ["Japan", "smart"],
   ]);
+  expect(restored.listSpaces()[0].color).toBe("yellow");
+  expect(restored.listSpaces()[0].itemCount).toBe(1);
   expect(restored.listSpaceItems(regular.id).map((restoredItem) => restoredItem.id)).toEqual([
     item.id,
   ]);
@@ -792,13 +928,36 @@ test("restore rejects unsupported Smart Space query fields", async () => {
   expect(restored.listSpaces()).toEqual([]);
 });
 
+test("restore keeps stored pins and accepts an older pin filter", async () => {
+  const { root, library } = temporaryLibrary();
+  const item = library.createNote({ title: "Pinned before pins went away", body: "Kept." });
+  library.db.prepare("UPDATE items SET favorite = 1 WHERE id = ?").run(item.id);
+  library.createSpace({ name: "Pinned", query: { tag: "japan" } });
+  const destination = join(root, "exports");
+  mkdirSync(destination);
+  const report = await library.exportLibrary(destination, 0);
+  const exportedDatabase = trackDatabase(
+    new DatabaseSync(join(report.directory, "library.sqlite3")),
+  );
+  exportedDatabase.prepare("UPDATE spaces SET query = ?").run('{"favorite":true}');
+  closeDatabase(exportedDatabase);
+
+  const restored = trackedLibrary(join(root, "restored", "library.sqlite3"));
+  await restored.importLibrary(report.directory);
+
+  expect(restored.listSpaces().map((space) => [space.name, space.query])).toEqual([["Pinned", {}]]);
+  expect(restored.db.prepare("SELECT favorite FROM items WHERE id = ?").get(item.id)).toEqual({
+    favorite: 1,
+  });
+});
+
 test("restore removes staged assets when the active library rejects its transaction", async () => {
   const { root, library } = temporaryLibrary();
   const item = await library.saveFile({
     fileName: "reference.txt",
     mimeType: "text/plain",
     kind: "other",
-    bytes: [...Buffer.from("verified local file")],
+    bytes: new TextEncoder().encode("verified local file"),
   });
   const destination = join(root, "exports");
   mkdirSync(destination);
@@ -845,7 +1004,7 @@ test("the Electron worker leaves unregistered processors queued instead of block
     )
     .run();
   library.jobs.enqueue("pending-item", "ocr_pdf_page");
-  const worker = new JobWorker(library, { processors: {} });
+  const worker = createWorker(library, { processors: {} });
   await worker.pump();
   expect(library.jobs.getForItem("pending-item")[0]?.status).toBe("pending");
   expect(library.jobs.countActive()).toBe(1);
@@ -866,7 +1025,7 @@ test("stopping the Electron worker waits for its active job and leaves later wor
   const started = new Promise<void>((resolve) => (signalStarted = resolve));
   const blocked = new Promise<void>((resolve) => (releaseJob = resolve));
   let processed = 0;
-  const worker = new JobWorker(library, {
+  const worker = createWorker(library, {
     processors: {
       blocked: async () => {
         processed += 1;
@@ -947,7 +1106,7 @@ test("the worker admits idle work only when nothing processable is pending and d
   library.jobs.enqueue("b", "unregistered");
   const order: string[] = [];
   let idleCalls = 0;
-  const worker = new JobWorker(library, {
+  const worker = createWorker(library, {
     processors: {
       queued: async (job) => void order.push(`queued:${job.itemId}`),
       idle: async (job) => void order.push(`idle:${job.itemId}`),
@@ -958,7 +1117,7 @@ test("the worker admits idle work only when nothing processable is pending and d
     },
   });
   await worker.pump();
-  await worker.stop();
+  await stopWorker(worker);
 
   expect(order).toEqual(["queued:a", "idle:a", "idle:a"]);
   expect(idleCalls).toBe(3);
@@ -976,7 +1135,7 @@ test("PDF thumbnails publish once, touch only thumbnail_path, and survive export
   const pdf = await library.saveFile({
     fileName: "paper.pdf",
     mimeType: "application/pdf",
-    bytes: [...Buffer.from("%PDF-1.4")],
+    bytes: new TextEncoder().encode("%PDF-1.4"),
   });
   const note = library.createNote({ title: "Not a PDF", body: "text" });
   const before = library.getItem(pdf.id);
@@ -1054,4 +1213,37 @@ test("PDF thumbnail candidates walk the kind index by rowid without sorting and 
     plan.some((detail) => detail.includes("USING INDEX idx_items_kind (kind=? AND rowid>?)")),
   ).toBe(true);
   expect(plan.some((detail) => detail.includes("TEMP B-TREE"))).toBe(false);
+});
+
+test("item job lookups return the latest job of each kind, for any number of items", () => {
+  const { library } = temporaryLibrary();
+  library.db
+    .prepare(
+      "INSERT INTO items (id, kind, created_at, updated_at) VALUES ('ocr-item', 'image', 1, 1)",
+    )
+    .run();
+  let now = 1_000;
+  const queue = new JobQueue(library.db, { now: () => now });
+  const first = queue.enqueue("ocr-item", "ocr_image");
+  queue.claimNext("worker");
+  queue.complete(first, "worker");
+  now += 1;
+  const second = queue.enqueue("ocr-item", "ocr_image");
+
+  // More ids than SQLite allows as bound parameters.
+  const ids = ["ocr-item", ...Array.from({ length: 40_000 }, (_, index) => `missing-${index}`)];
+  expect(queue.getForItems(ids).map((job) => job.id)).toEqual([second]);
+});
+
+test("the change count holds still on reads and moves on every write", () => {
+  const { library } = temporaryLibrary();
+  const before = library.changeCount();
+  library.listActiveItems();
+  expect(library.changeCount()).toBe(before);
+  library.db
+    .prepare(
+      "INSERT INTO items (id, kind, created_at, updated_at) VALUES ('counted', 'note', 1, 1)",
+    )
+    .run();
+  expect(library.changeCount()).toBeGreaterThan(before);
 });

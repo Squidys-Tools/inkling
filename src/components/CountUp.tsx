@@ -1,3 +1,6 @@
+// Adapted from React Bits Count Up (https://reactbits.dev/text-animations/count-up).
+// Copyright (c) 2026 David Haz. Licensed MIT + Commons Clause v1.0; the license
+// text is in GradualBlur/LICENSE.md, which comes from the same project.
 import { animate, cubicBezier, useInView } from "motion/react";
 import {
   useCallback,

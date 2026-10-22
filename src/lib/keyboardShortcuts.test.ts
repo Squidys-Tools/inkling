@@ -28,6 +28,13 @@ describe("appKeyboardShortcut", () => {
     expect(appKeyboardShortcut(keyEvent("/", { shiftKey: true }), false)).toBe("help");
   });
 
+  test("toggles the sidebar with the platform backslash chord", () => {
+    expect(appKeyboardShortcut(keyEvent("\\", { ctrlKey: true }), false)).toBe("sidebar");
+    expect(appKeyboardShortcut(keyEvent("\\", { metaKey: true }), false)).toBe("sidebar");
+    expect(appKeyboardShortcut(keyEvent("\\"), false)).toBeNull();
+    expect(appKeyboardShortcut(keyEvent("\\", { ctrlKey: true }), true)).toBeNull();
+  });
+
   test("does not steal keys from editors or modified text input", () => {
     expect(appKeyboardShortcut(keyEvent("/"), true)).toBeNull();
     expect(appKeyboardShortcut(keyEvent("k", { ctrlKey: true }), true)).toBeNull();

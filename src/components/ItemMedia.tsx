@@ -20,6 +20,7 @@ import { markdownToPlainText } from "../lib/notes";
 import type { XPostMetadata } from "../lib/ingestion/types";
 import type { ItemKind, LibraryItem } from "../lib/types";
 import pdfPointillismOptionB from "../assets/pdf-pointillism-option-b.png";
+import { canvasImageCrossOrigin } from "./LiquidGlass";
 
 export function mediaAspectRatioFor(item: LibraryItem): number {
   if (
@@ -82,17 +83,7 @@ export function pdfPreviewTitle(value: string): string {
     .trim();
 }
 
-export function PdfArtwork({ item }: { item: LibraryItem }) {
-  return (
-    <DocumentArtwork
-      label="PDF"
-      title={pdfPreviewTitle(item.title) || "Document"}
-      count={item.pdfPageCount ? `${item.pdfPageCount} PAGES` : "PDF"}
-    />
-  );
-}
-
-/** The shared PDF and note thumbnail; onboarding draws its sample cards with it too. */
+/** The PDF and note card art; onboarding draws its sample cards with it too. */
 export function DocumentArtwork({
   label,
   title,
@@ -102,20 +93,85 @@ export function DocumentArtwork({
   title: string;
   count: string;
 }) {
+  return <TypedArtwork label={label} title={title} footnote={count} />;
+}
+
+// Every typed card (PDF, note, file) shares one layout: a mono label and ring,
+// the title in DM Sans caps, three dots, and a mono footnote. The shader texture
+// is the same for all of them; only the copy changes.
+function TypedArtwork({
+  label,
+  title,
+  footnote,
+}: {
+  label: string;
+  title: string;
+  footnote?: string;
+}) {
   return (
     <div className="pdf-artwork">
       <img src={pdfPointillismOptionB} alt="" className="pdf-shader" />
-      <span className="pdf-label">{label}</span>
-      <span className="pdf-mark" aria-hidden="true" />
+      <div className="pdf-head">
+        <span className="pdf-label">{label}</span>
+        <span className="pdf-mark" aria-hidden="true" />
+      </div>
       <span className="pdf-title">{title}</span>
       <div className="pdf-legend" aria-hidden="true">
         <span />
         <span />
         <span />
       </div>
-      <span className="pdf-page-count">{count}</span>
+      {footnote && <span className="pdf-page-count">{footnote}</span>}
     </div>
   );
+}
+
+export function PdfArtwork({ item }: { item: LibraryItem }) {
+  return (
+    <TypedArtwork
+      label="PDF"
+      title={pdfPreviewTitle(item.title) || "Document"}
+      footnote={item.pdfPageCount ? `${item.pdfPageCount} PAGES` : undefined}
+    />
+  );
+}
+
+// A file card is the file's name and extension. Other kinds that fall through
+// to the typed card (a post or image with no artwork) show their kind instead.
+export function FileArtwork({ item }: { item: LibraryItem }) {
+  const extension = item.kind === "File" ? fileExtensionLabel(item.title) : "";
+  return (
+    <TypedArtwork
+      label={extension || item.kind.toUpperCase()}
+      title={pdfPreviewTitle(item.title) || item.kind}
+      footnote={item.fileSizeBytes ? formatFileSize(item.fileSizeBytes) : undefined}
+    />
+  );
+}
+
+export function fileExtensionLabel(name: string): string {
+  const match = /\.([a-z0-9]{1,5})$/iu.exec(name.trim());
+  return match ? match[1].toUpperCase() : "";
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
+export function formatDuration(totalSeconds: number): string {
+  const seconds = Math.floor(totalSeconds);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = String(seconds % 60).padStart(2, "0");
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${rest}` : `${minutes}:${rest}`;
 }
 
 // `item.description` is already the plain text the backend projected, so it is
@@ -127,19 +183,17 @@ export function noteWordCount(value: string | undefined): number {
   return text.split(" ").length;
 }
 
-// Notes reuse the PDF thumbnail artwork verbatim — same shader texture and
-// label/mark/title/legend geometry — with only the copy swapped to the
-// note's own indexed content: the pipeline title and the description's word
-// count in place of the PDF page count.
+// Notes share the typed layout with PDFs. The copy is the note's own title and
+// the description's word count in place of the PDF page count.
 export function NoteArtwork({ item }: { item: LibraryItem }) {
   const words = noteWordCount(
     item.noteBody === undefined ? item.description : markdownToPlainText(item.noteBody),
   );
   return (
-    <DocumentArtwork
+    <TypedArtwork
       label="NOTE"
       title={item.title?.trim() || "Untitled note"}
-      count={words > 0 ? `${words} WORDS` : "NOTE"}
+      footnote={words > 0 ? `${words} WORDS` : undefined}
     />
   );
 }
@@ -150,7 +204,9 @@ export function PostArtwork({ post }: { post: NonNullable<LibraryItem["post"]> }
       <div className="post-author">
         <span className="post-avatar">
           <span>j</span>
-          {post.avatarUrl && <img src={post.avatarUrl} alt="" />}
+          {post.avatarUrl && (
+            <img src={post.avatarUrl} crossOrigin={canvasImageCrossOrigin(post.avatarUrl)} alt="" />
+          )}
         </span>
         <span>
           <strong>{post.displayName}</strong>
@@ -214,7 +270,13 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
       <div className="detail-video">
         {/* This local upload has no caption metadata in the item model; do not fabricate an empty track. */}
         {/* biome-ignore lint/a11y/useMediaCaption: Captions are unavailable for this user-supplied file. */}
-        <video className="detail-native-video" src={item.fileUrl} controls preload="metadata" />
+        <video
+          className="detail-native-video"
+          src={item.fileUrl}
+          poster={item.image}
+          controls
+          preload="metadata"
+        />
       </div>
     );
   }

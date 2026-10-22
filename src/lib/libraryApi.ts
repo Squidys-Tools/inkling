@@ -14,12 +14,12 @@ export type StoredLibraryItem = {
   sourceLabel: string | null;
   localAssetPath: string | null;
   thumbnailPath: string | null;
+  palette?: string[];
   ocrText: string;
   metadata: Record<string, unknown>;
   createdAt: number;
   updatedAt: number;
   archived: boolean;
-  favorite: boolean;
 };
 
 export type StoredLibraryItemDetail = Omit<StoredLibraryItem, "body" | "bodyFormat"> & {
@@ -41,6 +41,9 @@ export type StoredLibraryCard = Omit<
     mediaHeight?: unknown;
     mediaAspectRatio?: unknown;
     pdfPageCount?: unknown;
+    durationSeconds?: unknown;
+    fileSizeBytes?: unknown;
+    readingMinutes?: unknown;
   };
   hasArticleContent: boolean;
 };
@@ -86,7 +89,6 @@ type UpdateItemInput = {
   thumbnailPath?: string;
   metadata?: StoredLibraryItem["metadata"];
   metadataPatch?: StoredLibraryItem["metadata"];
-  favorite?: boolean;
   addTag?: string;
 };
 
@@ -94,7 +96,9 @@ export type SaveFileInput = {
   fileName: string;
   mimeType: string;
   kind: "image" | "pdf" | "video" | "other";
-  bytes: number[];
+  // Structured clone moves a typed array as one block across IPC; a number
+  // array would be several times larger and slow to copy.
+  bytes: Uint8Array;
 };
 
 type ProcessingJobKind = "ocr_image" | "ocr_pdf_page" | "generate_embedding" | "enrich_url";
@@ -131,27 +135,29 @@ export type SmartSpaceQuery = {
   text?: string | null;
   kind?: string | null;
   tag?: string | null;
-  favorite?: boolean | null;
 };
 
 /** A "smart" Space re-runs its saved query; a "regular" Space holds the items
  *  the user filed into it. Fixed at creation. */
 export type SpaceKind = "smart" | "regular";
+export type SpaceColor = "blue" | "orange" | "green" | "pink" | "purple" | "yellow";
 
 export type StoredSpace = {
   id: string;
   name: string;
-  color: string;
+  color: SpaceColor;
   query: SmartSpaceQuery;
   kind: SpaceKind;
   position: number;
   createdAt: number;
   updatedAt: number;
+  /** How many items the Space holds, when the core reports it. The sidebar shows it when present. */
+  itemCount?: number;
 };
 
 export type CreateSpaceInput = {
   name: string;
-  color?: string;
+  color?: SpaceColor;
   query?: SmartSpaceQuery;
   kind?: SpaceKind;
 };
@@ -159,7 +165,7 @@ export type CreateSpaceInput = {
 export type UpdateSpaceInput = {
   id: string;
   name?: string;
-  color?: string;
+  color?: SpaceColor;
   query?: SmartSpaceQuery;
   position?: number;
 };
@@ -240,6 +246,39 @@ export async function initializeStorage() {
   return storageInitialization;
 }
 
+export async function getAppVersion() {
+  if (!isDesktopRuntime()) return undefined;
+  return invoke<string>("get_app_version");
+}
+
+export type LibrarySize = { bytes: number };
+
+export async function getLibrarySize(refresh = false) {
+  if (!isDesktopRuntime()) return undefined;
+  await initializeStorage();
+  return invoke<LibrarySize>("get_library_size", { refresh });
+}
+
+export type LastExport = { exportedAt: number; items: number };
+
+export async function getLastExport() {
+  if (!isDesktopRuntime()) return undefined;
+  await initializeStorage();
+  return invoke<LastExport | null>("get_last_export");
+}
+
+export async function showLibraryFolder() {
+  if (!isDesktopRuntime()) return false;
+  await initializeStorage();
+  return invoke<boolean>("show_library_folder");
+}
+
+export async function showItemInFolder(id: string) {
+  if (!isDesktopRuntime()) return false;
+  await initializeStorage();
+  return invoke<boolean>("show_item_in_folder", { id });
+}
+
 async function withInitializedStorage<T>(operation: () => Promise<T>) {
   await initializeStorage();
   return operation();
@@ -259,6 +298,14 @@ export async function getItemContent(id: string) {
 
 export async function getItem(id: string) {
   return invoke<StoredLibraryItemDetail | null>("get_item", { id });
+}
+
+export async function getItemCards(ids: string[]) {
+  return invoke<StoredLibraryCard[]>("get_item_cards", { ids });
+}
+
+export async function getChangeCount() {
+  return invoke<number>("get_change_count");
 }
 
 export async function searchItems(query: string) {

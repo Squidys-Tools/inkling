@@ -18,36 +18,37 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   AlertCircleIcon,
   Archive01Icon,
+  BookOpen01Icon,
+  Copy01Icon,
+  LinkSquare02Icon,
   ArrowDown01Icon,
+  ArrowLeft01Icon,
   ArrowUp01Icon,
   ArrowUpRight01Icon,
   Bookmark01Icon,
-  Camera01Icon,
-  Clock01Icon,
   Database02Icon,
+  Download04Icon,
   Grid2X2Icon,
   Edit01Icon,
-  HelpCircleIcon,
-  Image01Icon,
-  Layers01Icon,
   Link01Icon,
   ListViewIcon,
   Loading01Icon,
   PlusSignIcon,
   PlayIcon,
-  PinIcon,
   RotateCwIcon,
+  RotateLeft01Icon,
   Search01Icon,
   Settings01Icon,
   SidebarLeftIcon,
-  SparklesIcon,
   Delete02Icon,
   ViewSidebarLeftIcon,
   Cancel01Icon,
   CircleCheckIcon,
   CircleIcon,
-  CheckListIcon,
-  FileTextIcon,
+  Folder01Icon,
+  Upload04Icon,
+  LicenseThirdPartyIcon,
+  PaintBoardIcon,
 } from "@hugeicons/core-free-icons";
 import {
   assetUrl,
@@ -76,11 +77,19 @@ import {
   getProcessingSummaries,
   enqueueOcrJob,
   getItem,
+  getItemCards,
+  getChangeCount,
   getItemContent,
   retryProcessingJob,
   getCaptureStatus,
+  getAppVersion,
+  getLastExport,
+  getLibrarySize,
+  type LibrarySize,
   getPairingToken,
   regeneratePairingToken,
+  showItemInFolder,
+  showLibraryFolder,
   isDesktopRuntime,
   isElectronRuntime,
   listenForDeepLinks,
@@ -96,9 +105,11 @@ import {
   type CaptureStatus,
   type AvailableUpdate,
   type LibraryExportReport,
+  type LastExport,
   type LibraryImportReport,
   type ProcessingSummary,
   type SmartSpaceQuery,
+  type SpaceColor,
   type SpaceKind,
   type StoredLibraryCard,
   type StoredLibraryItemDetail,
@@ -109,11 +120,19 @@ import { classifyFile } from "./lib/ingestion/file-classification";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "./lib/deepLink";
 import { parseHttpUrl, safePublicImageUrl } from "./lib/ingestion/url";
 import { AnimatedCount } from "./components/AnimatedCount";
+import { ArchiveGrid } from "./components/ArchiveGrid";
 import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
+import { ContextMenu, type ContextMenuEntry } from "./components/ContextMenu/ContextMenu";
+import { TooltipLayer } from "./components/Tooltip/TooltipLayer";
+import { type AddMode, AddMenu } from "./components/AddMenu/AddMenu";
+import { OpenSourceLicenses } from "./components/OpenSourceLicenses/OpenSourceLicenses";
+import { SegmentedControl } from "./components/SegmentedControl/SegmentedControl";
+import { APPEARANCE_OPTIONS, useAppearance } from "./lib/appearance";
+import { canvasImageCrossOrigin, LiquidGlass } from "./components/LiquidGlass";
 import { appKeyboardShortcut } from "./lib/keyboardShortcuts";
-import { providerLabel, videoLinkFromSourceUrl } from "./lib/ingestion/video-links";
+import { videoLinkFromSourceUrl } from "./lib/ingestion/video-links";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
 // local disk on first open (Suspense fallback null: no spinner, no layout
 // shift — the chunk resolves in milliseconds).
@@ -124,9 +143,13 @@ const MascotBoard = lazy(() =>
 const AliveBoard = lazy(() =>
   import("./components/mascot/AliveBoard").then((module) => ({ default: module.AliveBoard })),
 );
-const RoamBoard = lazy(() =>
-  import("./components/mascot/RoamBoard").then((module) => ({ default: module.RoamBoard })),
-);
+type NavSnapshot = {
+  view: string;
+  spaceId: string | null;
+  query: string;
+  itemId: string | null;
+};
+
 const ExpandedItemOverlay = lazy(() =>
   import("./components/ExpandedItemOverlay").then((module) => ({
     default: module.ExpandedItemOverlay,
@@ -134,21 +157,21 @@ const ExpandedItemOverlay = lazy(() =>
 );
 import { LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
 import { MascotHomeSlot } from "./components/mascot/MascotHomeSlot";
-import { MascotRoamLayer } from "./components/mascot/MascotRoamLayer";
-import { setRoamBusy, setRoamCaptureFailed } from "./components/mascot/roamStore";
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import {
   isCardTooFarOffscreen,
   queryCardRects,
-  rectFrom,
   scrollViewport,
+  scrollViewportRect,
   type SourceRects,
 } from "./components/overlayMotion";
 import {
+  FileArtwork,
   KindIcon,
   NoteArtwork,
   PdfArtwork,
   PostArtwork,
+  formatDuration,
   mediaAspectRatioFor,
 } from "./components/ItemMedia";
 const ReaderView = lazy(() =>
@@ -159,8 +182,7 @@ import type { XPostMetadata } from "./lib/ingestion/types";
 import type { ItemKind, LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import { markdownToPlainText, normalizeNoteBody, NOTE_BODY_FORMAT } from "./lib/notes";
-import { serendipityItems } from "./lib/serendipity";
-import { isEmptyPinsView, matchesPinsView } from "./lib/pinsView";
+import { patchItems } from "./lib/patchItems";
 // DEMO seed (committed): src/seedPersonal.ts and public/seed-demo/ ship with
 // the repo so the web preview shows a real library out of the box. The eager
 // glob below resolves to an empty map when that file is absent, so clones
@@ -181,8 +203,6 @@ const personalSeedModules: Record<string, { personalSeedItems?: LibraryItem[] }>
 const localSeedItems: LibraryItem[] =
   Object.values(personalSeedModules)[0]?.personalSeedItems ?? [];
 import "./App.css";
-
-type CaptureMode = "note" | "url" | "file" | "quote";
 
 function displayKind(kind: string): ItemKind {
   switch (kind.toLowerCase()) {
@@ -235,6 +255,14 @@ function formatExportSummary(report: LibraryExportReport) {
   if (report.skippedAssets === 0) return summary;
   const assets = report.skippedAssets === 1 ? "asset" : "assets";
   return `${summary} · ${report.skippedAssets} ${assets} skipped`;
+}
+
+function formatLastCopy(copy: LastExport) {
+  const date = new Date(copy.exportedAt).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  return `last copy ${date} · ${copy.items.toLocaleString()} ${copy.items === 1 ? "item" : "items"}`;
 }
 
 function formatImportSummary(report: LibraryImportReport) {
@@ -321,6 +349,13 @@ function readImageDimensions(src: string): Promise<{ width: number; height: numb
   });
 }
 
+// A saved link becomes a Post or a Video card when its metadata or URL says so.
+function cardKind(item: StoredLibraryItem | StoredLibraryCard): ItemKind {
+  if (readXPostMetadata(item.metadata.social)) return "Post";
+  const baseKind = displayKind(item.kind);
+  return baseKind === "Article" && videoLinkFromSourceUrl(item.sourceUrl) ? "Video" : baseKind;
+}
+
 async function storedItemToLibraryItem(
   item: StoredLibraryItem | StoredLibraryCard,
   processing?: ProcessingSummary,
@@ -328,7 +363,7 @@ async function storedItemToLibraryItem(
   const social = readXPostMetadata(item.metadata.social);
   const baseKind = displayKind(item.kind);
   const videoLink = baseKind === "Article" ? videoLinkFromSourceUrl(item.sourceUrl) : null;
-  const kind = social ? "Post" : videoLink ? "Video" : baseKind;
+  const kind = cardKind(item);
   const metadataTags = item.metadata.tags;
   const tags = Array.isArray(metadataTags)
     ? metadataTags.filter((tag): tag is string => typeof tag === "string")
@@ -366,12 +401,18 @@ async function storedItemToLibraryItem(
   const mediaHeight =
     positiveNumber(item.metadata.mediaHeight) ?? positiveNumber(indexedImageDimensions?.height);
   const storedAspectRatio = positiveNumber(item.metadata.mediaAspectRatio);
+  // A new image's thumbnail is made in the background, so until it lands (or
+  // if it never can be) the card shows the original instead of a placeholder.
   const image =
     (await assetUrl(item.thumbnailPath ?? (kind === "Image" ? item.localAssetPath : null))) ??
     remoteImage ??
     videoLink?.posterUrl;
+  // For an image this is the original file, which the item view swaps in once
+  // the user zooms past fit. It is not a fallback thumbnail.
   const fileUrl =
-    kind === "PDF" || kind === "Video" ? await assetUrl(item.localAssetPath) : undefined;
+    kind === "PDF" || kind === "Video" || kind === "Image"
+      ? await assetUrl(item.localAssetPath)
+      : undefined;
   const source = social
     ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
     : item.sourceLabel || item.sourceUrl || "Quick note";
@@ -409,12 +450,15 @@ async function storedItemToLibraryItem(
     mediaAspectRatio:
       storedAspectRatio ?? (mediaWidth && mediaHeight ? mediaWidth / mediaHeight : undefined),
     pdfPageCount,
+    palette: item.palette?.length ? item.palette : undefined,
+    durationSeconds: positiveNumber(item.metadata.durationSeconds),
+    fileSizeBytes: positiveNumber(item.metadata.fileSizeBytes),
+    readingMinutes: positiveNumber(item.metadata.readingMinutes),
     fileUrl,
     imageAlt: item.title?.trim() || undefined,
     social,
     post: social ? postFallbackFromMetadata(social) : undefined,
     accent: isQuote ? "paper-yellow" : undefined,
-    favorite: item.favorite,
     archived: item.archived,
     processing,
     hasArticleContent,
@@ -459,7 +503,6 @@ const seedItems: LibraryItem[] = [
     tags: ["essay", "memory"],
     accent: "ink",
     featured: true,
-    favorite: true,
   },
   {
     id: 2,
@@ -475,7 +518,6 @@ const seedItems: LibraryItem[] = [
       "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1000&q=85",
     mediaAspectRatio: 3 / 2,
     imageAlt: "A wooden boat house beside a clear alpine lake with mountains behind it",
-    favorite: true,
   },
   {
     id: 3,
@@ -492,7 +534,6 @@ const seedItems: LibraryItem[] = [
     imageAlt: "A notebook and coffee on a desk, a quiet setting for doing great work",
     date: "Aug 20",
     tags: ["essay", "work"],
-    favorite: true,
   },
   {
     id: 4,
@@ -778,22 +819,12 @@ const seedSpaces: StoredSpace[] = [
     updatedAt: 0,
   },
   {
-    id: "seed-top-picks",
-    name: "Top picks",
-    color: "blue",
-    query: { favorite: true },
-    kind: "smart",
-    position: 3,
-    createdAt: 0,
-    updatedAt: 0,
-  },
-  {
     id: "seed-weekend-reading",
     name: "Weekend reading",
     color: "pink",
     query: {},
     kind: "regular",
-    position: 4,
+    position: 3,
     createdAt: 0,
     updatedAt: 0,
   },
@@ -807,11 +838,9 @@ const seedSpaceItems: Record<string, string[]> = {
   "seed-weekend-reading": ["5", "13"],
 };
 
-const SPACE_COLORS = ["blue", "orange", "green", "pink", "purple"];
+const SPACE_COLORS: SpaceColor[] = ["blue", "orange", "green", "pink", "purple", "yellow"];
 
 const LIBRARY_VIEW_TRANSITION_MS = 440;
-const LIBRARY_VIEW_EASE = "circ.inOut";
-const SERENDIPITY_BATCH_SIZE = 12;
 
 const KIND_ALIASES: Record<string, string> = {
   article: "article",
@@ -835,7 +864,6 @@ function canonicalKind(kind: string) {
 // Mirrors the backend's Smart Space evaluation for browser (seed data) mode.
 // In the desktop app the saved query is evaluated lazily by the Electron backend.
 function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
-  if (spaceQuery.favorite != null && Boolean(item.favorite) !== spaceQuery.favorite) return false;
   if (
     spaceQuery.tag &&
     !item.tags.some((tag) => tag.toLowerCase() === spaceQuery.tag?.toLowerCase())
@@ -858,51 +886,33 @@ function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
   return true;
 }
 
-function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }) {
-  if (!item.video && !item.fileUrl && !item.image) {
-    return (
-      <div className="card-paper-art" aria-hidden={!item.sourceUrl}>
-        <span className="video-paper-play">
-          <HugeiconsIcon icon={PlayIcon} size={20} />
-        </span>
-        {item.sourceUrl && <UrlFallbackLabel item={item} />}
-      </div>
-    );
-  }
+// The pill is the only play affordance on a video card. Duration is shown when the
+// backend knows it; otherwise the pill is just the play glyph.
+function VideoPill({ item }: { item: LibraryItem }) {
+  return (
+    <span className="card-video-badge glass" aria-hidden="true">
+      <HugeiconsIcon icon={PlayIcon} size={10} />
+      {item.durationSeconds !== undefined && <span>{formatDuration(item.durationSeconds)}</span>}
+    </span>
+  );
+}
 
-  // Cards are static thumbnails that open the details overlay on click. The
-  // play badge is a purely visual affordance — playback happens in the overlay.
+// Cards are static thumbnails that open the details overlay on click. The
+// pill is a purely visual affordance — playback happens in the overlay, which is
+// the only place a local video file is loaded.
+function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }) {
   return (
     <div className="card-image-wrap">
-      {item.image ? (
-        <img
-          src={item.image}
-          alt={item.imageAlt ?? item.title}
-          className="card-image"
-          loading="lazy"
-          decoding="async"
-          fetchPriority={index < 6 ? "high" : undefined}
-        />
-      ) : item.fileUrl ? (
-        <video
-          className="card-image"
-          src={item.fileUrl}
-          muted
-          playsInline
-          preload="metadata"
-          aria-label={item.title}
-          onLoadedMetadata={(event) => {
-            event.currentTarget.currentTime = 0.01;
-          }}
-        />
-      ) : null}
-      <span className="card-video-scrim" aria-hidden="true" />
-      <span className="card-play" aria-hidden="true">
-        <HugeiconsIcon icon={PlayIcon} size={16} />
-      </span>
-      <span className="card-video-badge">
-        {item.video ? providerLabel(item.video.provider) : "Video"}
-      </span>
+      <img
+        src={item.image}
+        crossOrigin={canvasImageCrossOrigin(item.image)}
+        alt={item.imageAlt ?? item.title}
+        className="card-image"
+        loading="lazy"
+        decoding="async"
+        fetchPriority={index < 6 ? "high" : undefined}
+      />
+      <VideoPill item={item} />
     </div>
   );
 }
@@ -916,9 +926,39 @@ function UrlFallbackLabel({ item }: { item: LibraryItem }) {
   );
 }
 
-function cardPreviewText(value: string | undefined, fallback: string): string {
-  const text = value?.replace(/\s+/gu, " ").trim() || fallback;
-  return text.length > 72 ? `${text.slice(0, 69)}…` : text;
+// Quotes show in full on the card; CSS clamps only very long ones.
+function cardText(value: string | undefined, fallback: string): string {
+  return value?.replace(/\s+/gu, " ").trim() || fallback;
+}
+
+// Each type gets its own card class; App.css keys the typed layouts off these.
+// Posts, images and videos with no artwork fall back to the typed file layout.
+function cardKindClass(item: LibraryItem): string {
+  switch (item.kind) {
+    case "Note":
+      return "note-card";
+    case "Quote":
+      return "quote-card";
+    case "PDF":
+      return "pdf-card";
+    case "Article":
+      return "article-card";
+    case "Video":
+      return item.image ? "video-card" : "file-card";
+    case "File":
+      return "file-card";
+    case "Post":
+    case "Image":
+      return !item.image && !item.post ? "file-card" : "";
+    default:
+      return item.accent ?? "";
+  }
+}
+
+function quoteAttribution(description: string): string {
+  const text = description.trim();
+  if (!text) return "";
+  return text.startsWith("—") ? text : `— ${text}`;
 }
 
 type LibraryCardContext = {
@@ -929,6 +969,8 @@ type LibraryCardContext = {
   archiveSelectionMode?: boolean;
   isArchivedItemSelected?: (item: LibraryItem) => boolean;
   onToggleArchivedItem?: (item: LibraryItem) => void;
+  onRestoreArchivedItem?: (item: LibraryItem) => void | Promise<void>;
+  onOpenMenu?: (item: LibraryItem, event: React.MouseEvent<HTMLElement>) => void;
 };
 
 // Captures the card and its media box before selection state changes, so the
@@ -965,9 +1007,11 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
   index,
   context,
 }: VirtualizedLibraryItemProps) {
+  const isArchiveTile = Boolean(context.onDeleteArchivedItem);
   const archiveSelectionMode = context.archiveSelectionMode === true;
   const isArchivedItemSelected = context.isArchivedItemSelected?.(item) ?? false;
   const canOpenReader = Boolean(item.articleHtml || item.hasArticleContent);
+  const attribution = item.kind === "Quote" ? quoteAttribution(item.description) : "";
   const handleCardSelect = (event: React.MouseEvent<HTMLElement>) => {
     if (archiveSelectionMode) {
       event.preventDefault();
@@ -980,10 +1024,15 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
   return (
     <div className="library-card-slot" data-library-index={index}>
       <article
-        className={`library-card ${item.featured ? "featured-card" : ""} ${item.kind === "Note" ? "note-card" : item.kind === "Quote" ? "quote-card" : (item.accent ?? "")} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? "archive-card-selected" : ""}`}
+        className={`library-card ${item.featured ? "featured-card" : ""} ${cardKindClass(item)} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? "archive-card-selected" : ""}`}
         data-library-item-id={String(item.id)}
         style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
         onClick={handleCardSelect}
+        onContextMenu={
+          context.onOpenMenu && !archiveSelectionMode
+            ? (event) => context.onOpenMenu?.(item, event)
+            : undefined
+        }
         tabIndex={0}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
@@ -996,59 +1045,18 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
           }
         }}
       >
-        {context.onDeleteArchivedItem && (
-          <button
-            type="button"
-            className={`archive-card-delete ${archiveSelectionMode ? "archive-card-select" : ""} ${isArchivedItemSelected ? "is-selected" : ""}`}
-            aria-label={
-              archiveSelectionMode
-                ? `${isArchivedItemSelected ? "Deselect" : "Select"} ${item.title}`
-                : `Delete ${item.title}`
-            }
-            aria-pressed={archiveSelectionMode ? isArchivedItemSelected : undefined}
-            title={
-              archiveSelectionMode
-                ? isArchivedItemSelected
-                  ? "Deselect item"
-                  : "Select item"
-                : "Delete permanently"
-            }
-            onClick={(event) => {
-              event.stopPropagation();
-              if (archiveSelectionMode) {
-                context.onToggleArchivedItem?.(item);
-              } else {
-                void context.onDeleteArchivedItem?.(item);
-              }
-            }}
-          >
-            <HugeiconsIcon
-              icon={
-                archiveSelectionMode
-                  ? isArchivedItemSelected
-                    ? CircleCheckIcon
-                    : CircleIcon
-                  : Delete02Icon
-              }
-              size={archiveSelectionMode ? 24 : 15}
-            />
-          </button>
-        )}
         <div className="library-card-media">
-          {item.social?.provider === "x" ? (
+          {item.social?.provider === "x" && item.post ? (
             <div className="x-post-art">
-              {item.post ? (
-                <PostArtwork post={item.post} />
-              ) : (
-                <div className="post-art">Post preview unavailable.</div>
-              )}
+              <PostArtwork post={item.post} />
             </div>
-          ) : item.kind === "Video" ? (
+          ) : item.kind === "Video" && item.image ? (
             <LibraryVideoMedia item={item} index={index} />
           ) : item.image ? (
             <div className="card-image-wrap">
               <img
                 src={item.image}
+                crossOrigin={canvasImageCrossOrigin(item.image)}
                 alt={item.imageAlt ?? item.title}
                 className="card-image"
                 loading="lazy"
@@ -1076,20 +1084,84 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
               {item.kind === "Quote" && (
                 <>
                   <span className="quote-mark">“</span>
-                  <span className="quote-preview">
-                    {cardPreviewText(item.title, "Saved quote")}
-                  </span>
-                  <span className="quote-line" />
-                  <span className="quote-attribution-preview">
-                    {item.description
-                      ? `${item.description.trim().startsWith("—") ? "" : "— "}${item.description.slice(0, 48)}`
-                      : ""}
-                  </span>
+                  <p className="quote-preview">{cardText(item.title, "Saved quote")}</p>
+                  {attribution && (
+                    <>
+                      <span className="quote-line" />
+                      <span className="quote-attribution-preview">{attribution}</span>
+                    </>
+                  )}
                 </>
               )}
+              {(item.kind === "File" ||
+                item.kind === "Post" ||
+                item.kind === "Image" ||
+                item.kind === "Video") && <FileArtwork item={item} />}
+            </div>
+          )}
+          {isArchiveTile && (
+            <div className="archive-tile-actions">
+              {!archiveSelectionMode && (
+                <button
+                  type="button"
+                  className="archive-tile-restore"
+                  data-tooltip="Restore to library"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void context.onRestoreArchivedItem?.(item);
+                  }}
+                >
+                  <HugeiconsIcon icon={RotateLeft01Icon} size={12} />
+                  Restore
+                </button>
+              )}
+              <button
+                type="button"
+                className={`archive-card-delete ${archiveSelectionMode ? "archive-card-select" : ""} ${isArchivedItemSelected ? "is-selected" : ""}`}
+                aria-label={
+                  archiveSelectionMode
+                    ? `${isArchivedItemSelected ? "Deselect" : "Select"} ${item.title}`
+                    : `Delete ${item.title}`
+                }
+                aria-pressed={archiveSelectionMode ? isArchivedItemSelected : undefined}
+                data-tooltip={
+                  archiveSelectionMode
+                    ? isArchivedItemSelected
+                      ? "Deselect item"
+                      : "Select item"
+                    : "Delete permanently"
+                }
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (archiveSelectionMode) {
+                    context.onToggleArchivedItem?.(item);
+                  } else {
+                    void context.onDeleteArchivedItem?.(item);
+                  }
+                }}
+              >
+                <HugeiconsIcon
+                  icon={
+                    archiveSelectionMode
+                      ? isArchivedItemSelected
+                        ? CircleCheckIcon
+                        : CircleIcon
+                      : Delete02Icon
+                  }
+                  size={archiveSelectionMode ? 18 : 13}
+                />
+              </button>
             </div>
           )}
         </div>
+        {isArchiveTile && (
+          <div className="archive-tile-caption">
+            <span className="archive-tile-title">{item.title}</span>
+            <span className="archive-tile-meta">
+              {item.kind} · {item.date}
+            </span>
+          </div>
+        )}
         <div
           className={`card-content ${item.kind === "Quote" ? "quote-content" : item.kind === "Note" ? "note-content" : ""}`}
         >
@@ -1144,7 +1216,9 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
             </div>
           )}
           <div className="card-footer">
-            <span className="card-source">{item.source}</span>
+            <span className="card-source">
+              {item.readingMinutes ? `${item.source} · ${item.readingMinutes} min` : item.source}
+            </span>
             {item.kind === "Article" && (
               <button
                 type="button"
@@ -1165,7 +1239,7 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
                   }
                 }}
                 disabled={!canOpenReader}
-                title={canOpenReader ? "Open reader" : "No saved article text"}
+                data-tooltip={canOpenReader ? "Open reader" : "No saved article text"}
               >
                 Read <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
               </button>
@@ -1193,8 +1267,10 @@ const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
   );
 });
 
-const GRID_GAP = 8;
-const TARGET_CARD_WIDTH = 170;
+// Mirrors `.library-grid` gap and the Paper column width (artboard 1.1). Virtuoso
+// lays columns out in a flex row, so the CSS gap is the real column gap.
+const GRID_GAP = 12;
+const TARGET_CARD_WIDTH = 286;
 const MAX_GRID_COLUMNS = 12;
 
 function masonryColumnCount(width: number): number {
@@ -1202,66 +1278,12 @@ function masonryColumnCount(width: number): number {
   return Math.min(Math.max(columns, 1), MAX_GRID_COLUMNS);
 }
 
-type LibraryCardPosition = {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-};
-
 // One accepted archive delete: the timer waiting out the undo window, plus the
 // item that timer needs to restore or reconcile if the delete does not land.
 type PendingPermanentDelete = {
   timer: number;
   item: LibraryItem;
 };
-
-const LIBRARY_TRANSITION_TARGET_SELECTOR =
-  ".library-card-media > .card-image-wrap, .library-card-media > .card-paper-art, .library-card-media > .post-art, .library-card-media > .x-post-art, .card-content";
-
-function clearLibraryTransitionTargetStyle(target: HTMLElement) {
-  for (const property of [
-    "position",
-    "box-sizing",
-    "left",
-    "top",
-    "width",
-    "height",
-    "min-width",
-    "min-height",
-    "max-width",
-    "max-height",
-    "aspect-ratio",
-  ]) {
-    target.style.removeProperty(property);
-  }
-}
-
-function setLibraryTransitionTargetStyle(
-  target: HTMLElement,
-  left: number,
-  top: number,
-  width: number,
-  height: number,
-) {
-  target.style.position = "absolute";
-  target.style.boxSizing = "border-box";
-  target.style.left = `${left}px`;
-  target.style.top = `${top}px`;
-  target.style.width = `${width}px`;
-  target.style.height = `${height}px`;
-  target.style.minWidth = "0px";
-  target.style.minHeight = "0px";
-  target.style.maxWidth = "none";
-  target.style.maxHeight = "none";
-  target.style.aspectRatio = "auto";
-}
-
-function clearLibraryTransitionMediaStyle(clone: HTMLElement) {
-  const mediaFrame = clone.querySelector<HTMLElement>(".library-card-media");
-  mediaFrame?.style.removeProperty("height");
-  mediaFrame?.style.removeProperty("min-height");
-}
 
 // Pairing panel inside the existing Settings modal. Shows the per-install
 // pairing token for the browser extension (reveal-on-click, never rendered
@@ -1271,6 +1293,7 @@ function ExtensionPairing() {
   const [token, setToken] = useState<string | null>(null);
   const [isRevealed, setIsRevealed] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isConfirmingRenew, setIsConfirmingRenew] = useState(false);
 
   useEffect(() => {
     if (!isDesktopRuntime()) return;
@@ -1316,7 +1339,7 @@ function ExtensionPairing() {
   };
 
   const renewToken = () => {
-    if (!window.confirm("Renew the pairing token? The extension will need the new token.")) return;
+    setIsConfirmingRenew(false);
     void regeneratePairingToken()
       .then((value) => {
         setToken(value);
@@ -1346,28 +1369,13 @@ function ExtensionPairing() {
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "var(--small-component)",
-        padding: "22px 2px",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: "var(--muted)",
-          fontSize: 12,
-          lineHeight: 1.6,
-          maxWidth: "52ch",
-        }}
-      >
+    <div className="settings-pairing">
+      <p className="settings-panel-note">
         Paste this token into the browser extension once. Saves go straight to this library over a
         local connection; nothing leaves the machine.
       </p>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span className="settings-panel-count" role="status">
+      <div className="settings-pairing-row">
+        <span className="settings-pairing-status" role="status">
           {status
             ? status.running
               ? `Listening on 127.0.0.1:${status.port}`
@@ -1383,26 +1391,11 @@ function ExtensionPairing() {
           {isTesting ? "Testing…" : "Test connection"}
         </button>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div className="settings-pairing-row">
         <span className="visually-hidden">
           {isRevealed ? "Pairing token" : "Pairing token hidden"}
         </span>
-        <code
-          aria-hidden={!isRevealed}
-          style={{
-            flex: "1 1 220px",
-            padding: "9px 12px",
-            border: "1px solid var(--rule)",
-            borderRadius: 10,
-            background: "var(--surface-strong)",
-            color: "var(--ink)",
-            font: "12px var(--font-ui)",
-            letterSpacing: "0.02em",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
+        <code className="settings-token" aria-hidden={!isRevealed}>
           {isRevealed && token ? token : "••••••••••••••••••••••••"}
         </code>
         <button type="button" className="settings-batch-button" onClick={revealToken}>
@@ -1419,11 +1412,32 @@ function ExtensionPairing() {
         <button
           type="button"
           className="settings-batch-button settings-batch-delete"
-          onClick={renewToken}
+          onClick={() => setIsConfirmingRenew(true)}
         >
           Renew
         </button>
       </div>
+      {isConfirmingRenew && (
+        <section className="settings-confirm" aria-label="Renew the pairing token">
+          <p>Renew the pairing token? The extension will need the new token.</p>
+          <div className="settings-confirm-actions">
+            <button
+              type="button"
+              className="settings-batch-button"
+              onClick={() => setIsConfirmingRenew(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="settings-batch-button settings-batch-delete"
+              onClick={renewToken}
+            >
+              Renew
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -1464,6 +1478,116 @@ function keepTabFocusInside(event: KeyboardEvent, dialog: HTMLElement) {
   }
 }
 
+// Library makeup for Settings: how many things are kept, split by kind.
+const MAKEUP_GROUPS: Array<{ label: string; kinds: ItemKind[]; color: string }> = [
+  { label: "Images", kinds: ["Image"], color: "#B0714F" },
+  { label: "Articles", kinds: ["Article"], color: "#C9A57A" },
+  { label: "PDFs", kinds: ["PDF"], color: "#7E9A86" },
+  { label: "Notes & quotes", kinds: ["Note", "Quote"], color: "#8B93B5" },
+  { label: "Videos & posts", kinds: ["Video", "Post"], color: "#A88AAE" },
+  { label: "Files", kinds: ["File"], color: "#4A443E" },
+];
+
+function LibraryMakeup({
+  kinds,
+  sizeBytes,
+  onShowFolder,
+}: {
+  kinds: ItemKind[];
+  sizeBytes: number | null;
+  onShowFolder?: () => void;
+}) {
+  const groups = MAKEUP_GROUPS.map((group) => ({
+    ...group,
+    count: kinds.filter((kind) => group.kinds.includes(kind)).length,
+  })).filter((group) => group.count > 0);
+  return (
+    <div className="settings-makeup">
+      <div className="settings-makeup-head">
+        <div className="settings-makeup-figures">
+          <p className="settings-makeup-total">
+            {kinds.length.toLocaleString()} {kinds.length === 1 ? "thing" : "things"}
+          </p>
+          {sizeBytes !== null && (
+            <span className="settings-makeup-size">{formatByteSize(sizeBytes)} on disk</span>
+          )}
+        </div>
+        {onShowFolder && (
+          <button type="button" className="settings-makeup-folder" onClick={onShowFolder}>
+            <HugeiconsIcon icon={Folder01Icon} size={13} />
+            Show folder
+          </button>
+        )}
+      </div>
+      {groups.length > 0 && (
+        <>
+          <div className="settings-makeup-bar" aria-hidden="true">
+            {groups.map((group) => (
+              <span key={group.label} style={{ flexGrow: group.count, background: group.color }} />
+            ))}
+          </div>
+          <ul className="settings-makeup-legend">
+            {groups.map((group) => (
+              <li key={group.label}>
+                <span style={{ background: group.color }} aria-hidden="true" />
+                {group.label} {group.count.toLocaleString()}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Paper's Everything glyph. Hugeicons has no 3x3 dot grid, so it is drawn here.
+function NavDotGridIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+      {[5, 12, 19].flatMap((cy) =>
+        [5, 12, 19].map((cx) => (
+          <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="2.2" fill="currentColor" />
+        )),
+      )}
+    </svg>
+  );
+}
+
+// Paper's Space mark, one blob for every Space. The colour is the row's colour class.
+const SPACE_MARK_PATH =
+  "M-96.539 5.45c-1.2 0-2.475-0.125-4-0.7-1.1-0.375-2.125-1-3.35-1.2-2.225-0.375-4.1-0.15-5.775 0.775-1.55 0.825-2.925 2.275-3.725 3.925-0.975 2.075-0.75 4.375-2.4 6.575-0.9 1.275-1.6 1.675-2.4 2.8-0.85 1.2-1.325 2.4-1.35 4.05-0.075 4.8 4.375 10.35 9.225 12.05 2.025 0.65 3.7 0.55 5.45-0.075 1-0.35 2.175-0.95 3.175-1.325 1.325-0.375 2.375-0.5 3.875-0.35 1.275 0.125 2.375 0.425 3.6 0.375 3.275-0.075 5.65-2.175 5.65-5.95 0-1.4-0.25-2.475-0.15-4.1 0.3-3.05 1.925-4.025 2.75-6.475 0.925-3.1 0.4-6.95-3.1-9.15-1.1-0.65-2.3-1.3-3.875-1.45-0.95-0.025-1.825 0.1-2.775 0.175l-0.825 0.05z";
+
+function SpaceMark() {
+  return (
+    <svg width="15" height="14" viewBox="-121.289 2 37.5 34" aria-hidden="true">
+      <path d={SPACE_MARK_PATH} fill="currentColor" />
+    </svg>
+  );
+}
+
+// Settings → Appearance "Edge grip": the sidebar opens and closes from the
+// library frame's left edge. Nothing shows at rest while the sidebar is open;
+// hovering or focusing the edge raises a grip and a knob. Closed, a faint grip
+// stays on the window's edge so there is always a way back.
+function SidebarEdgeGrip({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
+  const label = isOpen ? "Close sidebar" : "Open sidebar";
+  return (
+    <button
+      type="button"
+      className={`edge-grip ${isOpen ? "is-open" : ""}`}
+      aria-label={label}
+      aria-expanded={isOpen}
+      aria-controls="library-navigation"
+      onClick={onToggle}
+    >
+      <span className="edge-grip-bar" />
+      <span className="edge-grip-knob css-glass" data-tooltip={`${label} · Ctrl+\\`}>
+        <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
+      </span>
+    </button>
+  );
+}
+
 function App() {
   const canUseDesktopBackend = isDesktopRuntime() && !shouldUseSeedLibrary();
   const canUseLibraryFolderPicker = isDesktopRuntime() && !shouldUseSeedLibrary();
@@ -1481,7 +1605,6 @@ function App() {
   }, [query]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeView, setActiveView] = useState("Everything");
-  const [serendipityKeptIds, setSerendipityKeptIds] = useState<Set<string>>(() => new Set());
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
@@ -1497,6 +1620,17 @@ function App() {
   const [renamingSpaceId, setRenamingSpaceId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Each sidebar button goes away when pressed, so focus passes to the other one.
+  const sidebarOpenedRef = useRef(isSidebarOpen);
+  useEffect(() => {
+    if (sidebarOpenedRef.current === isSidebarOpen) return;
+    sidebarOpenedRef.current = isSidebarOpen;
+    const active = document.activeElement;
+    if (active !== document.body && !active?.matches(".sidebar-close, .sidebar-toggle")) return;
+    document
+      .querySelector<HTMLElement>(isSidebarOpen ? ".sidebar-close" : ".sidebar-toggle")
+      ?.focus({ preventScroll: true });
+  }, [isSidebarOpen]);
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
   const [updateInstallFailed, setUpdateInstallFailed] = useState(false);
@@ -1529,12 +1663,23 @@ function App() {
       cancelled = true;
     };
   }, [canUseDesktopBackend]);
-  const [settingsTab, setSettingsTab] = useState<"general" | "archive" | "data" | "extension">(
-    "general",
-  );
+  const [settingsTab, setSettingsTab] = useState<
+    "general" | "licenses" | "appearance" | "archive" | "data" | "extension"
+  >("general");
+  const [appearance, setAppearanceOption] = useAppearance();
+  // Optional facts Settings shows when the desktop backend can supply them.
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [librarySizeBytes, setLibrarySizeBytes] = useState<number | null>(null);
+  // In the desktop app an open Space or search narrows `items`, so Settings
+  // counts the whole library on its own. Null means `items` already is it.
+  const [wholeLibraryKinds, setWholeLibraryKinds] = useState<ItemKind[] | null>(null);
+  const [lastCopy, setLastCopy] = useState<LastExport | null>(null);
   const [archivedItems, setArchivedItems] = useState<LibraryItem[]>(
     shouldUseSeedLibrary() ? browserArchivedItems : [],
   );
+  // The archive is read only while its tab is open, so until that read lands
+  // the list is unknown and Settings must not show a count or an empty state.
+  const [isArchiveLoaded, setIsArchiveLoaded] = useState(shouldUseSeedLibrary);
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
   const [isExportingLibrary, setIsExportingLibrary] = useState(false);
   const [lastExport, setLastExport] = useState<LibraryExportReport | null>(null);
@@ -1542,13 +1687,7 @@ function App() {
   const [lastImport, setLastImport] = useState<LibraryImportReport | null>(null);
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
   const [isAdding, setIsAdding] = useState(false);
-  const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
-  const [newTitle, setNewTitle] = useState("");
-  const [captureUrl, setCaptureUrl] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [newQuoteText, setNewQuoteText] = useState("");
-  const [newQuoteAttribution, setNewQuoteAttribution] = useState("");
-  const [newQuoteSourceUrl, setNewQuoteSourceUrl] = useState("");
+  const [captureMode, setCaptureMode] = useState<AddMode | null>(null);
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
   const [pdfViewerItem, setPdfViewerItem] = useState<LibraryItem | null>(null);
   const [readingItem, setReadingItem] = useState<{
@@ -1685,38 +1824,26 @@ function App() {
     };
   }, [canUseDesktopBackend, selectedItem?.id, selectedItem?.kind, selectedItem?.noteBody]);
   const [listMode, setListMode] = useState(false);
-  const [isLibraryViewTransitioning, setIsLibraryViewTransitioning] = useState(false);
   const [viewSelectionListMode, setViewSelectionListMode] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [sidebarActionError, setSidebarActionError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
-  const [isFindingSimilar, setIsFindingSimilar] = useState(false);
-  const [similaritySource, setSimilaritySource] = useState<{
-    id: string;
-    title: string;
-    kind: "image" | "text";
-  } | null>(null);
-  const similaritySourceId = similaritySource?.id;
-  const similaritySourceKind = similaritySource?.kind;
   const searchRef = useRef<HTMLInputElement>(null);
-  const captureModalRef = useRef<HTMLElement | null>(null);
-  const captureReturnFocusRef = useRef<HTMLElement | null>(null);
   const shortcutsModalRef = useRef<HTMLElement | null>(null);
   const shortcutsCloseRef = useRef<HTMLButtonElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
-  const settingsCloseRef = useRef<HTMLButtonElement>(null);
+  const settingsDialogRef = useRef<HTMLElement>(null);
   const spaceRenameInputRef = useRef<HTMLInputElement>(null);
   const newSpaceNameInputRef = useRef<HTMLInputElement>(null);
-  const captureNoteInputRef = useRef<HTMLInputElement>(null);
-  const captureUrlInputRef = useRef<HTMLInputElement>(null);
-  const captureQuoteInputRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
-  const libraryTransitionOverlayRef = useRef<HTMLDivElement>(null);
-  const pendingLibraryViewPositionsRef = useRef<Map<string, LibraryCardPosition> | null>(null);
-  const libraryViewAnimationsRef = useRef<Array<ReturnType<typeof gsap.timeline>>>([]);
-  const libraryViewPreparationTimerRef = useRef<number | null>(null);
+  const captureBarRef = useRef<HTMLElement>(null);
+  const viewDockRef = useRef<HTMLDivElement>(null);
+  const tooltipLayerRef = useRef<HTMLDivElement>(null);
+  const cardMenuLayerRef = useRef<HTMLDivElement>(null);
+  const libraryFrameRef = useRef<HTMLElement>(null);
+  const libraryViewAnimationRef = useRef<gsap.core.Animation | null>(null);
+  const libraryViewEnteringRef = useRef(false);
   const pendingPermanentDeletesRef = useRef<Map<string, PendingPermanentDelete>>(new Map());
   // Latest active list, mirrored so a delete that fails ten seconds from now
   // reads the library as it is then, not as it was when the timer was set.
@@ -1737,10 +1864,6 @@ function App() {
   // Mirror of `items` for callbacks that must read the newest value without
   // being rebuilt on every load.
   const itemsRef = useRef<LibraryItem[]>([]);
-  // Pins whose write has not been confirmed by the backend yet. A refresh that
-  // was already in flight can resolve with the pre-pin value, so these are
-  // re-applied when it lands.
-  const pinnedOverridesRef = useRef<Map<string, boolean>>(new Map());
   const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
     typeof window === "undefined" ? 960 : window.innerWidth,
   );
@@ -1753,7 +1876,10 @@ function App() {
     if (
       !sourceRects ||
       !scrollElement ||
-      !isCardTooFarOffscreen(sourceRects.card, rectFrom(scrollElement.getBoundingClientRect()))
+      !isCardTooFarOffscreen(
+        sourceRects.card,
+        scrollViewportRect(scrollElement, captureBarRef.current),
+      )
     ) {
       selectionScrollRef.current = false;
       selectionRectsRef.current = sourceRects;
@@ -1761,7 +1887,7 @@ function App() {
       return;
     }
 
-    const viewportRect = scrollElement.getBoundingClientRect();
+    const viewportRect = scrollViewportRect(scrollElement, captureBarRef.current);
     const nextScrollTop = Math.max(
       0,
       scrollElement.scrollTop + sourceRects.card.top - viewportRect.top - 16,
@@ -1791,6 +1917,57 @@ function App() {
       onComplete: finish,
     });
   }, []);
+
+  const bringHistoryCardIntoView = useCallback(
+    (item: LibraryItem, candidates: LibraryItem[]) =>
+      new Promise<SourceRects | null>((resolve) => {
+        const index = candidates.findIndex((candidate) => candidate.id === item.id);
+        const contentArea = libraryScrollRef.current;
+        const scrollElement = scrollViewport(contentArea);
+        if (index < 0 || !scrollElement) {
+          resolve(null);
+          return;
+        }
+
+        const viewportRect = scrollViewportRect(scrollElement, captureBarRef.current);
+        let rects = queryCardRects(item.id);
+        if (!rects || isCardTooFarOffscreen(rects.card, viewportRect)) {
+          if (rects) {
+            scrollElement.scrollTop += rects.card.top - viewportRect.top - 16;
+          } else {
+            const maxScroll = scrollElement.scrollHeight - scrollElement.clientHeight;
+            scrollElement.scrollTop = maxScroll * (index / Math.max(1, candidates.length - 1));
+          }
+        }
+
+        let frames = 0;
+        const waitForCard = () => {
+          rects = queryCardRects(item.id);
+          if (rects) {
+            const currentViewport = scrollViewportRect(scrollElement, captureBarRef.current);
+            if (isCardTooFarOffscreen(rects.card, currentViewport)) {
+              // At either end of the list the scroll can't move, so take the card
+              // where it is rather than waiting forever (Back would never close).
+              const before = scrollElement.scrollTop;
+              scrollElement.scrollTop += rects.card.top - currentViewport.top - 16;
+              if (scrollElement.scrollTop !== before) {
+                requestAnimationFrame(waitForCard);
+                return;
+              }
+            }
+            resolve(rects);
+            return;
+          }
+          if (++frames >= 8) {
+            resolve(null);
+            return;
+          }
+          requestAnimationFrame(waitForCard);
+        };
+        requestAnimationFrame(waitForCard);
+      }),
+    [],
+  );
 
   const retryJob = useCallback(async (jobId: string) => {
     setCaptureError(null);
@@ -1886,15 +2063,27 @@ function App() {
     [canUseDesktopBackend, restoreForgottenItem],
   );
 
-  const keepSerendipityItem = useCallback((item: LibraryItem) => {
-    setSerendipityKeptIds((current) => {
-      const id = String(item.id);
-      if (current.has(id)) return current;
-      const next = new Set(current);
-      next.add(id);
-      return next;
+  const showLibraryFolderFromSettings = useCallback(() => {
+    void showLibraryFolder().catch((error: unknown) => {
+      toast.error("Could not open the library folder", {
+        description: error instanceof Error ? error.message : String(error),
+        closeButton: true,
+      });
     });
-    setSelectedItem(null);
+  }, []);
+
+  // The backend resolves false when the item has nothing on disk to point at.
+  const showItemInFolderFromOverlay = useCallback((item: LibraryItem) => {
+    void showItemInFolder(String(item.id))
+      .then((shown) => {
+        if (!shown) toast("Nothing is stored on disk for this item", { closeButton: true });
+      })
+      .catch((error: unknown) => {
+        toast.error("Could not show the item in its folder", {
+          description: error instanceof Error ? error.message : String(error),
+          closeButton: true,
+        });
+      });
   }, []);
 
   // Export uses the native folder picker and storage backend for the active desktop shell.
@@ -1919,6 +2108,10 @@ function App() {
     try {
       const report = await exportLibrary(destination);
       setLastExport(report);
+      // The backend stamps the copy; read it back rather than guessing the time here.
+      void getLastExport()
+        .then((copy) => setLastCopy(copy ?? null))
+        .catch(() => undefined);
       toast.success(
         report.skippedAssets > 0 ? "Library exported with skipped assets" : "Library exported",
         {
@@ -1970,12 +2163,10 @@ function App() {
       try {
         setSpaces(await listSpaces());
         const storedItems = await listArchivedItems();
-        const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
         setArchivedItems(
-          await Promise.all(
-            storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
-          ),
+          await Promise.all(storedItems.map((item) => storedItemToLibraryItem(item))),
         );
+        setIsArchiveLoaded(true);
         loadItemsRef.current();
       } catch (error) {
         setCaptureError(error instanceof Error ? error.message : String(error));
@@ -2048,88 +2239,16 @@ function App() {
         };
       }
 
-      // The saved response carries the row's pin as it was before an in-flight
-      // write landed, so a pin the backend has not confirmed yet wins over it,
-      // the same way a refresh re-applies its overrides.
-      const apply = (current: LibraryItem) => {
-        if (String(current.id) !== String(item.id)) return current;
-        const saved = { ...current, ...nextItem, id: current.id };
-        const pinned = pinnedOverridesRef.current.get(String(item.id));
-        return pinned === undefined ? saved : { ...saved, favorite: pinned };
-      };
+      const apply = (current: LibraryItem) =>
+        String(current.id) === String(item.id)
+          ? { ...current, ...nextItem, id: current.id }
+          : current;
       setItems((current) => current.map(apply));
       setArchivedItems((current) => current.map(apply));
       setSelectedItem((current) => (current ? apply(current) : current));
       rememberNoteBody(noteBodyCacheRef.current, String(item.id), nextBody);
     },
     [canUseDesktopBackend],
-  );
-
-  // Pins are flipped from current state, not from the item the click captured,
-  // so a second click during a slow write reverses the first instead of
-  // repeating it. Writes for one item chain instead of being dropped: the old
-  // guard returned early on an in-flight id, so undoing a pin needed a third
-  // click once the first write landed.
-  const pinWritesRef = useRef<Map<string, Promise<void>>>(new Map());
-  const togglePinItem = useCallback(
-    async (item: LibraryItem) => {
-      const id = String(item.id);
-      // Read the live value so a repeat click reverses the previous one. An
-      // archived item is not in the active list, so fall back to the item the
-      // overlay handed over rather than treating it as unpinned.
-      const live = itemsRef.current.find((candidate) => String(candidate.id) === id);
-      const wasPinned = (live ?? item).favorite === true;
-      const pinned = !wasPinned;
-      const show = (next: boolean) => {
-        const apply = (current: LibraryItem) =>
-          String(current.id) === id ? { ...current, favorite: next } : current;
-        setItems((current) => current.map(apply));
-        setArchivedItems((current) => current.map(apply));
-        setSelectedItem((current) => (current ? apply(current) : current));
-      };
-      // Optimistic, so a repeated click reads the new value. A refresh already
-      // in flight can land older data, so the pin is re-applied until the
-      // backend confirms it.
-      pinnedOverridesRef.current.set(id, pinned);
-      show(pinned);
-
-      // A Space's rows come from its own query rather than a client-side
-      // filter, so a Smart Space that filters on the pin keeps showing the old
-      // contents until it is re-read. Only that case needs the extra load.
-      const openSpace =
-        activeSpaceId !== null ? spaces.find((space) => space.id === activeSpaceId) : undefined;
-      const rereadsPins = openSpace?.kind === "smart" && openSpace.query.favorite != null;
-
-      const write = (pinWritesRef.current.get(id) ?? Promise.resolve())
-        .then(async () => {
-          if (!canUseDesktopBackend) return;
-          const confirmed = await updateItem({ id, favorite: pinned });
-          // The stored value wins once it is known, including if it disagreed
-          // with what was asked for.
-          show(confirmed.favorite === true);
-          if (rereadsPins) loadItemsRef.current();
-        })
-        .catch(() => {
-          // A failed write must not leave the item looking pinned anywhere.
-          show(wasPinned);
-          // A later click already asked for something else and reports its own
-          // outcome, so a superseded failure stays quiet rather than blaming the
-          // user for a state that is no longer the one being written.
-          if (pinWritesRef.current.get(id) === write) {
-            toast.error(pinned ? "Unable to pin this item" : "Unable to unpin this item");
-          }
-        })
-        .finally(() => {
-          // Release the override only if no later click has claimed it in the
-          // meantime, and only clear this item's slot if it is still the tail of
-          // the chain.
-          if (pinnedOverridesRef.current.get(id) === pinned) pinnedOverridesRef.current.delete(id);
-          if (pinWritesRef.current.get(id) === write) pinWritesRef.current.delete(id);
-        });
-      pinWritesRef.current.set(id, write);
-      await write;
-    },
-    [activeSpaceId, canUseDesktopBackend, spaces],
   );
 
   const openReader = useCallback(
@@ -2165,202 +2284,93 @@ function App() {
     setReadingItem(null);
   }, []);
 
-  const measureLibraryCards = useCallback(() => {
+  // Switching views fades the cards out, swaps the layout, then pops the new
+  // cards in: list rows top to bottom, grid cards diagonally from the top left.
+  // Only cards in view animate; the rest stay hidden until the entrance ends.
+  const playLibraryEntrance = useCallback((list: boolean) => {
     const root = libraryScrollRef.current;
-    if (!root) return new Map<string, LibraryCardPosition>();
-
-    return new Map(
-      Array.from(
-        root.querySelectorAll<HTMLElement>(".library-grid .library-card[data-library-item-id]"),
-      )
-        .map((card) => {
-          const id = card.dataset.libraryItemId;
-          if (!id) return null;
+    const grid = root?.querySelector<HTMLElement>(".library-grid");
+    if (!root || !grid) return;
+    const run = ++libraryViewTransitionRunRef.current;
+    grid.dataset.entering = "";
+    gsap.set(grid, { clearProps: "opacity" });
+    // Virtuoso mounts and measures the new layout over the next frames.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        if (run !== libraryViewTransitionRunRef.current) return;
+        const view = root.getBoundingClientRect();
+        const cards: HTMLElement[] = [];
+        const delays: number[] = [];
+        for (const card of grid.querySelectorAll<HTMLElement>(".library-card")) {
           const rect = card.getBoundingClientRect();
-          return [
-            id,
-            { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-          ] as const;
-        })
-        .filter((entry): entry is readonly [string, LibraryCardPosition] => entry !== null),
-    );
-  }, []);
-
-  const measureLibraryTransitionCards = useCallback(() => {
-    const overlay = libraryTransitionOverlayRef.current;
-    if (!overlay) return new Map<string, LibraryCardPosition>();
-
-    return new Map(
-      Array.from(
-        overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]"),
-      )
-        .map((card) => {
-          const id = card.dataset.libraryItemId;
-          if (!id) return null;
-          const rect = card.getBoundingClientRect();
-          return [
-            id,
-            { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-          ] as const;
-        })
-        .filter((entry): entry is readonly [string, LibraryCardPosition] => entry !== null),
-    );
-  }, []);
-
-  const clearLibraryTransitionOverlay = useCallback(() => {
-    const overlay = libraryTransitionOverlayRef.current;
-    if (!overlay) return;
-    overlay.replaceChildren();
-    overlay.classList.remove("is-visible", "is-list");
-  }, []);
-
-  const buildLibraryTransitionOverlay = useCallback(
-    (sourcePositions: Map<string, LibraryCardPosition>, sourceListMode: boolean) => {
-      const root = libraryScrollRef.current;
-      const overlay = libraryTransitionOverlayRef.current;
-      if (!root || !overlay || sourcePositions.size === 0) return false;
-
-      const rootRect = root.getBoundingClientRect();
-      overlay.replaceChildren();
-      overlay.classList.toggle("is-list", sourceListMode);
-
-      for (const card of root.querySelectorAll<HTMLElement>(
-        ".library-grid .library-card[data-library-item-id]",
-      )) {
-        const id = card.dataset.libraryItemId;
-        const source = id ? sourcePositions.get(id) : undefined;
-        if (!id || !source) continue;
-        if (source.top >= rootRect.bottom || source.top + source.height <= rootRect.top) continue;
-
-        const clone = card.cloneNode(true) as HTMLElement;
-        clone.classList.add("library-transition-card");
-        clone.dataset.flipId = `library-card-${id}`;
-        clone.removeAttribute("tabindex");
-        clone.inert = true;
-        clone.setAttribute("aria-hidden", "true");
-        clone.querySelectorAll("[id]").forEach((element) => {
-          element.removeAttribute("id");
-        });
-        clone.querySelectorAll("iframe").forEach((iframe) => {
-          const placeholder = document.createElement("div");
-          placeholder.className = "library-transition-embed-placeholder";
-          iframe.replaceWith(placeholder);
-        });
-        clone.style.left = `${source.left - rootRect.left}px`;
-        clone.style.top = `${source.top - rootRect.top}px`;
-        clone.style.width = `${source.width}px`;
-        clone.style.height = `${source.height}px`;
-        clone.style.margin = "0";
-        clone.style.transform = "none";
-        clone.style.translate = "none";
-        clone.style.willChange = "transform, opacity";
-        overlay.appendChild(clone);
-
-        const cloneRect = clone.getBoundingClientRect();
-        const transitionTargets = Array.from(
-          clone.querySelectorAll<HTMLElement>(LIBRARY_TRANSITION_TARGET_SELECTOR),
-        );
-        const mediaTarget = clone.querySelector<HTMLElement>(
-          ".library-card-media > .card-image-wrap, .library-card-media > .card-paper-art, .library-card-media > .post-art, .library-card-media > .x-post-art",
-        );
-        const mediaFrame = mediaTarget?.parentElement;
-        for (const target of transitionTargets) {
-          if (target !== mediaTarget) continue;
-          const rect = target.getBoundingClientRect();
-          setLibraryTransitionTargetStyle(
-            target,
-            rect.left - cloneRect.left,
-            rect.top - cloneRect.top,
-            rect.width,
-            rect.height,
-          );
-          if (mediaFrame) {
-            mediaFrame.style.height = `${rect.height}px`;
-            mediaFrame.style.minHeight = "0px";
-          }
+          if (rect.bottom <= view.top || rect.top >= view.bottom) continue;
+          const down = Math.max(0, rect.top - view.top) / view.height;
+          const across = Math.max(0, rect.left - view.left) / view.width;
+          cards.push(card);
+          delays.push(list ? down * 0.28 : (down + across) * 0.2);
         }
-        for (const target of transitionTargets) {
-          if (target === mediaTarget) continue;
-          const rect = target.getBoundingClientRect();
-          setLibraryTransitionTargetStyle(
-            target,
-            rect.left - cloneRect.left,
-            rect.top - cloneRect.top,
-            rect.width,
-            rect.height,
-          );
-        }
-      }
-
-      return overlay.childElementCount > 0;
-    },
-    [],
-  );
-
-  const normalizeLibraryTransitionOverlay = useCallback(() => {
-    const overlay = libraryTransitionOverlayRef.current;
-    const root = libraryScrollRef.current;
-    if (!overlay || !root || overlay.childElementCount === 0) return;
-
-    const rootRect = root.getBoundingClientRect();
-    for (const card of overlay.querySelectorAll<HTMLElement>(".library-transition-card")) {
-      const rect = card.getBoundingClientRect();
-      card.style.left = `${rect.left - rootRect.left}px`;
-      card.style.top = `${rect.top - rootRect.top}px`;
-      card.style.width = `${rect.width}px`;
-      card.style.height = `${rect.height}px`;
-      card.style.transform = "none";
-      card.style.opacity = "1";
-    }
-  }, []);
-
-  const cancelLibraryViewAnimations = useCallback(() => {
-    for (const animation of libraryViewAnimationsRef.current) animation.kill();
-    libraryViewAnimationsRef.current = [];
+        const finish = () => {
+          delete grid.dataset.entering;
+          gsap.set(cards, { clearProps: "opacity,transform" });
+        };
+        libraryViewAnimationRef.current = gsap.fromTo(
+          cards,
+          list ? { opacity: 0, y: -6 } : { opacity: 0, scale: 0.96 },
+          {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            duration: 0.3,
+            ease: "power2.out",
+            delay: (index: number) => delays[index] ?? 0,
+            onComplete: finish,
+            onInterrupt: finish,
+          },
+        );
+      }),
+    );
   }, []);
 
   const switchLibraryView = useCallback(
     (nextListMode: boolean) => {
-      if (nextListMode === listMode) return;
-
-      if (libraryViewPreparationTimerRef.current !== null) {
-        window.clearTimeout(libraryViewPreparationTimerRef.current);
-        libraryViewPreparationTimerRef.current = null;
-      }
+      if (nextListMode === viewSelectionListMode) return;
+      setViewSelectionListMode(nextListMode);
       libraryViewTransitionRunRef.current += 1;
-
-      const transitionIsActive = (libraryTransitionOverlayRef.current?.childElementCount ?? 0) > 0;
-      const currentPositions = transitionIsActive
-        ? measureLibraryTransitionCards()
-        : measureLibraryCards();
-      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      cancelLibraryViewAnimations();
-      if (transitionIsActive && !prefersReducedMotion) normalizeLibraryTransitionOverlay();
-
-      if (prefersReducedMotion || currentPositions.size === 0) {
-        pendingLibraryViewPositionsRef.current = null;
-        clearLibraryTransitionOverlay();
-        setIsLibraryViewTransitioning(false);
-        setViewSelectionListMode(nextListMode);
+      libraryViewAnimationRef.current?.kill();
+      const grid = libraryScrollRef.current?.querySelector<HTMLElement>(".library-grid");
+      if (!grid || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        if (grid) gsap.set(grid, { clearProps: "opacity" });
         setListMode(nextListMode);
         return;
       }
-
-      if (!transitionIsActive) buildLibraryTransitionOverlay(currentPositions, listMode);
-      pendingLibraryViewPositionsRef.current = currentPositions;
-      setViewSelectionListMode(listMode);
-      setIsLibraryViewTransitioning(true);
-      setListMode(nextListMode);
+      libraryViewAnimationRef.current = gsap.to(grid, {
+        opacity: 0,
+        duration: 0.16,
+        ease: "power1.in",
+        onComplete: () => {
+          // Back to the view already showing: nothing re-renders, so pop it in here.
+          if (nextListMode === listMode) playLibraryEntrance(nextListMode);
+          else {
+            libraryViewEnteringRef.current = true;
+            setListMode(nextListMode);
+          }
+        },
+      });
     },
-    [
-      buildLibraryTransitionOverlay,
-      cancelLibraryViewAnimations,
-      clearLibraryTransitionOverlay,
-      listMode,
-      measureLibraryCards,
-      measureLibraryTransitionCards,
-      normalizeLibraryTransitionOverlay,
-    ],
+    [listMode, playLibraryEntrance, viewSelectionListMode],
+  );
+
+  useLayoutEffect(() => {
+    if (!libraryViewEnteringRef.current) return;
+    libraryViewEnteringRef.current = false;
+    playLibraryEntrance(listMode);
+  }, [listMode, playLibraryEntrance]);
+
+  useEffect(
+    () => () => {
+      libraryViewAnimationRef.current?.kill();
+    },
+    [],
   );
 
   useEffect(() => {
@@ -2386,325 +2396,14 @@ function App() {
 
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);
 
-  useLayoutEffect(() => {
-    const firstPositions = pendingLibraryViewPositionsRef.current;
-    pendingLibraryViewPositionsRef.current = null;
-    if (!firstPositions || firstPositions.size === 0) {
-      setIsLibraryViewTransitioning(false);
-      setViewSelectionListMode(listMode);
-      return;
-    }
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      clearLibraryTransitionOverlay();
-      setIsLibraryViewTransitioning(false);
-      setViewSelectionListMode(listMode);
-      return;
-    }
-
-    const root = libraryScrollRef.current;
-    const overlay = libraryTransitionOverlayRef.current;
-    if (!root || !overlay || overlay.childElementCount === 0) {
-      clearLibraryTransitionOverlay();
-      setIsLibraryViewTransitioning(false);
-      setViewSelectionListMode(listMode);
-      return;
-    }
-
-    overlay.classList.add("is-visible");
-
-    const run = libraryViewTransitionRunRef.current;
-    const startedAt = performance.now();
-    const quietPeriod = 64;
-    const maxPreparationTime = 800;
-    const columnCount = listMode ? 1 : gridColumnCount;
-    const minimumMountedCards = Math.min(firstPositions.size, 5);
-    let stableSignature = "";
-    let stableSince = startedAt;
-    let cancelled = false;
-
-    const positionSignature = (positions: Map<string, LibraryCardPosition>) =>
-      Array.from(positions.entries())
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(
-          ([id, position]) =>
-            `${id}:${Math.round(position.left)}:${Math.round(position.top)}:${Math.round(position.width)}:${Math.round(position.height)}`,
-        )
-        .join("|");
-
-    const finishTransition = (animations: Array<ReturnType<typeof gsap.timeline>>) => {
-      if (
-        libraryViewAnimationsRef.current !== animations ||
-        run !== libraryViewTransitionRunRef.current
-      )
-        return;
-      for (const animation of animations) animation.kill();
-      libraryViewAnimationsRef.current = [];
-      setIsLibraryViewTransitioning(false);
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          if (run === libraryViewTransitionRunRef.current) clearLibraryTransitionOverlay();
-        });
-      });
-    };
-
-    const animateSettledLayout = (lastPositions: Map<string, LibraryCardPosition>) => {
-      if (cancelled || run !== libraryViewTransitionRunRef.current) return;
-
-      const rootRect = root.getBoundingClientRect();
-      const clones = Array.from(
-        overlay.querySelectorAll<HTMLElement>(".library-transition-card[data-library-item-id]"),
-      );
-      const leavingTargets: HTMLElement[] = [];
-      const layoutTargets: Array<{
-        clone: HTMLElement;
-        source: LibraryCardPosition;
-        position?: LibraryCardPosition;
-        sourceBoxes: Array<{
-          target: HTMLElement;
-          left: number;
-          top: number;
-          width: number;
-          height: number;
-        }>;
-      }> = [];
-
-      for (const clone of clones) {
-        const id = clone.dataset.libraryItemId;
-        const first = id ? firstPositions.get(id) : undefined;
-        const last = id ? lastPositions.get(id) : undefined;
-        if (!id || !first) continue;
-
-        clone.style.willChange = "transform, opacity";
-        if (!last && !listMode) {
-          leavingTargets.push(clone);
-          continue;
-        }
-
-        const sourceCardRect = clone.getBoundingClientRect();
-        const sourceTargets = Array.from(
-          clone.querySelectorAll<HTMLElement>(LIBRARY_TRANSITION_TARGET_SELECTOR),
-        );
-        const sourceBoxes = sourceTargets.map((target) => {
-          const rect = target.getBoundingClientRect();
-          return {
-            target,
-            left: rect.left - sourceCardRect.left,
-            top: rect.top - sourceCardRect.top,
-            width: rect.width,
-            height: rect.height,
-          };
-        });
-        layoutTargets.push({ clone, source: first, position: last, sourceBoxes });
-      }
-
-      if (layoutTargets.length === 0 && leavingTargets.length === 0) {
-        const noAnimations: Array<ReturnType<typeof gsap.timeline>> = [];
-        libraryViewAnimationsRef.current = noAnimations;
-        finishTransition(noAnimations);
-        return;
-      }
-
-      for (const { sourceBoxes } of layoutTargets) {
-        for (const { target } of sourceBoxes) clearLibraryTransitionTargetStyle(target);
-      }
-      for (const { clone } of layoutTargets) clearLibraryTransitionMediaStyle(clone);
-      overlay.classList.toggle("is-list", listMode);
-      for (const { clone, position } of layoutTargets) {
-        if (!position) continue;
-        clone.style.left = `${position.left - rootRect.left}px`;
-        clone.style.top = `${position.top - rootRect.top}px`;
-        clone.style.width = `${position.width}px`;
-        clone.style.height = `${position.height}px`;
-      }
-
-      for (let index = 0; index < layoutTargets.length; index += 1) {
-        const entry = layoutTargets[index];
-        if (entry.position) continue;
-        const clone = entry.clone;
-        const listWidth = Math.max(0, overlay.clientWidth);
-        const listGap = 9;
-        let cursor = 0;
-        for (const sibling of layoutTargets) {
-          const siblingId = sibling.clone.dataset.libraryItemId;
-          const mounted = siblingId ? lastPositions.get(siblingId) : undefined;
-          if (mounted) {
-            cursor = Math.max(cursor, mounted.top - rootRect.top + mounted.height + listGap);
-          } else if (sibling.position) {
-            cursor = Math.max(cursor, sibling.position.top + sibling.position.height + listGap);
-          }
-        }
-        clone.style.left = "0px";
-        clone.style.top = `${cursor}px`;
-        clone.style.width = `${listWidth}px`;
-        clone.style.height = "";
-        clone.style.margin = "0";
-        const natural = clone.getBoundingClientRect();
-        if (natural.width <= 0 || Number.isNaN(natural.height)) {
-          leavingTargets.push(clone);
-          layoutTargets.splice(index, 1);
-          index -= 1;
-          continue;
-        }
-        entry.position = {
-          left: natural.left - rootRect.left,
-          top: natural.top - rootRect.top,
-          width: natural.width,
-          height: natural.height,
-        };
-      }
-
-      const layoutAnimation = gsap.timeline({ paused: true });
-      for (const { clone, source, position: settledPosition, sourceBoxes } of layoutTargets) {
-        const position = settledPosition ?? source;
-        const destinationCardRect = clone.getBoundingClientRect();
-
-        for (const sourceBox of sourceBoxes) {
-          const destinationRect = sourceBox.target.getBoundingClientRect();
-          const destinationBox = {
-            left: destinationRect.left - destinationCardRect.left,
-            top: destinationRect.top - destinationCardRect.top,
-            width: destinationRect.width,
-            height: destinationRect.height,
-          };
-          setLibraryTransitionTargetStyle(
-            sourceBox.target,
-            sourceBox.left,
-            sourceBox.top,
-            sourceBox.width,
-            sourceBox.height,
-          );
-          layoutAnimation.fromTo(
-            sourceBox.target,
-            {
-              left: sourceBox.left,
-              top: sourceBox.top,
-              width: sourceBox.width,
-              height: sourceBox.height,
-            },
-            {
-              left: destinationBox.left,
-              top: destinationBox.top,
-              width: destinationBox.width,
-              height: destinationBox.height,
-              duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
-              ease: LIBRARY_VIEW_EASE,
-              autoRound: false,
-            },
-            0,
-          );
-        }
-
-        clone.style.left = `${source.left - rootRect.left}px`;
-        clone.style.top = `${source.top - rootRect.top}px`;
-        clone.style.width = `${source.width}px`;
-        clone.style.height = `${source.height}px`;
-        layoutAnimation.fromTo(
-          clone,
-          {
-            left: source.left - rootRect.left,
-            top: source.top - rootRect.top,
-            width: source.width,
-            height: source.height,
-          },
-          {
-            left: position.left - rootRect.left,
-            top: position.top - rootRect.top,
-            width: position.width,
-            height: position.height,
-            duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
-            ease: LIBRARY_VIEW_EASE,
-            autoRound: false,
-          },
-          0,
-        );
-      }
-
-      const animations: Array<ReturnType<typeof gsap.timeline>> = [layoutAnimation];
-      if (leavingTargets.length > 0) {
-        animations.push(
-          gsap.timeline({ paused: true }).to(leavingTargets, {
-            opacity: 0,
-            duration: 0.22,
-            ease: "power1.out",
-          }),
-        );
-      }
-
-      libraryViewAnimationsRef.current = animations;
-      setViewSelectionListMode(listMode);
-      let completedAnimations = 0;
-      const finishWhenReady = () => {
-        completedAnimations += 1;
-        if (completedAnimations === animations.length) finishTransition(animations);
-      };
-      for (const animation of animations) {
-        animation.eventCallback("onComplete", finishWhenReady);
-        animation.play(0);
-      }
-    };
-
-    const waitForSettledLayout = () => {
-      if (cancelled || run !== libraryViewTransitionRunRef.current) return;
-      const positions = measureLibraryCards();
-      const signature = positionSignature(positions);
-      const now = performance.now();
-
-      const rootWidth = root.clientWidth;
-      const expectedCardWidth =
-        columnCount > 0 ? (rootWidth - GRID_GAP * Math.max(0, columnCount - 1)) / columnCount : 0;
-      const layoutIsReady =
-        positions.size >= minimumMountedCards &&
-        Array.from(positions.values()).every(
-          (position) => rootWidth > 0 && Math.abs(position.width - expectedCardWidth) < 2,
-        );
-      if (!layoutIsReady) {
-        stableSignature = signature;
-        stableSince = now;
-      } else if (signature !== stableSignature) {
-        stableSignature = signature;
-        stableSince = now;
-      }
-      if (
-        (layoutIsReady && now - stableSince >= quietPeriod) ||
-        now - startedAt >= maxPreparationTime
-      ) {
-        animateSettledLayout(positions);
-        return;
-      }
-      libraryViewPreparationTimerRef.current = window.setTimeout(waitForSettledLayout, 16);
-    };
-
-    libraryViewPreparationTimerRef.current = window.setTimeout(waitForSettledLayout, 16);
-    return () => {
-      cancelled = true;
-      if (libraryViewPreparationTimerRef.current !== null) {
-        window.clearTimeout(libraryViewPreparationTimerRef.current);
-        libraryViewPreparationTimerRef.current = null;
-      }
-    };
-  }, [clearLibraryTransitionOverlay, listMode, measureLibraryCards, gridColumnCount]);
-
-  useEffect(
-    () => () => {
-      if (libraryViewPreparationTimerRef.current !== null) {
-        window.clearTimeout(libraryViewPreparationTimerRef.current);
-        libraryViewPreparationTimerRef.current = null;
-      }
-      cancelLibraryViewAnimations();
-      clearLibraryTransitionOverlay();
-    },
-    [cancelLibraryViewAnimations, clearLibraryTransitionOverlay],
-  );
-
   async function persistFile(file: File, captureSource: string) {
     const kind = classifyFile(file);
-    const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
     if (canUseDesktopBackend) {
       const storedItem = await saveFile({
         fileName: file.name,
         mimeType: file.type,
         kind,
-        bytes,
+        bytes: new Uint8Array(await file.arrayBuffer()),
       });
       const libraryItem = await storedItemToLibraryItem(storedItem);
       setItems((current) => [libraryItem, ...current]);
@@ -2736,11 +2435,10 @@ function App() {
     setIsCapturing(true);
     try {
       await persistFile(file, captureSource);
-      setSelectedFile(null);
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
-      failCapture(error instanceof Error ? error.message : String(error));
+      setCaptureError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -2830,11 +2528,10 @@ function App() {
     setIsCapturing(true);
     try {
       await persistArticle(sourceUrl, captureSource, extensionTitle);
-      setCaptureUrl("");
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
-      failCapture(error instanceof Error ? error.message : String(error));
+      setCaptureError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -2846,7 +2543,7 @@ function App() {
     try {
       await persistArticle(sourceUrl, "browser extension", title);
     } catch (error) {
-      failCapture(error instanceof Error ? error.message : String(error));
+      setCaptureError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -2858,7 +2555,7 @@ function App() {
     try {
       await persistText(text, captureSource);
     } catch (error) {
-      failCapture(error instanceof Error ? error.message : String(error));
+      setCaptureError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsCapturing(false);
     }
@@ -2958,7 +2655,7 @@ function App() {
 
   async function captureScreenshot() {
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      failCapture("Screenshot capture is not available in this window.");
+      setCaptureError("Screenshot capture is not available in this window.");
       return;
     }
 
@@ -2984,7 +2681,7 @@ function App() {
       await persistFile(file, "screenshot");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      failCapture(error instanceof Error ? error.message : String(error));
+      setCaptureError(error instanceof Error ? error.message : String(error));
     } finally {
       stream?.getTracks().forEach((track) => {
         track.stop();
@@ -3036,50 +2733,10 @@ function App() {
     }
   }
 
-  async function findSimilarItems(item: LibraryItem) {
-    const kind = item.kind === "Image" ? "image" : "text";
-    if (!canUseDesktopBackend) {
-      setCaptureError("Similarity is available in the Windows app.");
-      return;
-    }
-
-    setCaptureError(null);
-    setIsFindingSimilar(true);
-    try {
-      const storedItems = await searchSimilarItems(String(item.id), kind);
-      const summaries = await getProcessingSummaries(
-        storedItems.map((storedItem) => storedItem.id),
-      );
-      const libraryItems = await Promise.all(
-        storedItems.map((storedItem) =>
-          storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
-        ),
-      );
-      setQuery("");
-      clearToDefaultView();
-      setSimilaritySource({ id: String(item.id), title: item.title, kind });
-      setItems(libraryItems);
-      setSelectedItem(null);
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsFindingSimilar(false);
-    }
-  }
-
   function selectSpace(space: StoredSpace) {
     setActiveSpaceId(space.id);
     setActiveView(space.name);
     setQuery("");
-    setSimilaritySource(null);
-    setSelectedItem(null);
-  }
-
-  function selectSerendipityView() {
-    setActiveSpaceId(null);
-    setActiveView("Serendipity");
-    setQuery("");
-    setSimilaritySource(null);
     setSelectedItem(null);
   }
 
@@ -3318,12 +2975,6 @@ function App() {
   useLayoutEffect(() => {
     if (isCreatingSpace) newSpaceNameInputRef.current?.focus();
   }, [isCreatingSpace]);
-  useLayoutEffect(() => {
-    if (!isAdding) return;
-    if (captureMode === "note") captureNoteInputRef.current?.focus();
-    else if (captureMode === "url") captureUrlInputRef.current?.focus();
-    else if (captureMode === "quote") captureQuoteInputRef.current?.focus();
-  }, [isAdding, captureMode]);
 
   const openCaptureRef = useRef(openCapture);
   const closeCaptureModalRef = useRef(closeCaptureModal);
@@ -3361,6 +3012,7 @@ function App() {
       if (shortcut === "search") searchRef.current?.focus();
       else if (shortcut === "new-note" && !isCapturing) openCaptureRef.current("note");
       else if (shortcut === "help") setIsShortcutsOpen(true);
+      else if (shortcut === "sidebar") setIsSidebarOpen((open) => !open);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -3379,27 +3031,6 @@ function App() {
   const captureTextRef = useRef(captureText);
   captureFileRef.current = captureFile;
   captureTextRef.current = captureText;
-  useEffect(() => {
-    if (!isAdding) return;
-    const previouslyFocused = captureReturnFocusRef.current;
-    const dialog = captureModalRef.current;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (dialog) keepTabFocusInside(event, dialog);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [isAdding]);
-
-  useEffect(() => {
-    if (!isAdding) return;
-    const selector =
-      captureMode === "file" ? ".file-picker" : captureMode ? "[autofocus]" : ".capture-option";
-    captureModalRef.current?.querySelector<HTMLElement>(selector)?.focus();
-  }, [captureMode, isAdding]);
-
   useEffect(() => {
     if (!isShortcutsOpen) return;
     const previouslyFocused =
@@ -3421,7 +3052,8 @@ function App() {
 
     const previouslyFocused =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const focusTimer = window.setTimeout(() => settingsCloseRef.current?.focus(), 0);
+    // Focus the dialog itself, not a control, so the sheet opens without a ring.
+    const focusTimer = window.setTimeout(() => settingsDialogRef.current?.focus(), 0);
 
     const onSettingsKeyDown = (event: KeyboardEvent) => {
       const modal = document.querySelector<HTMLElement>(".settings-modal");
@@ -3436,7 +3068,7 @@ function App() {
     };
   }, [isSettingsOpen]);
 
-  // Settings always reopens on General.
+  // Settings reopens on Library, its first tab.
   useEffect(() => {
     if (!isSettingsOpen) setSettingsTab("general");
   }, [isSettingsOpen]);
@@ -3562,6 +3194,53 @@ function App() {
     let cancelled = false;
     let loading = false;
     let queued = false;
+    // Bumped by every full load, so a patch fetched before one cannot land over
+    // data that load read afterwards.
+    let fullLoadEpoch = 0;
+    // Job events name the item they touched. Only the plain library can patch
+    // in place: a query or Space can gain or lose members when a job lands.
+    const patchesInPlace = !activeSpaceId && !debouncedQuery.trim();
+    const changedIds = new Set<string>();
+    let reloadAll = false;
+    // The backend's write count as of the last full load. The fallback refresh
+    // below only reloads when it has moved, so an idle library is never re-read.
+    let seenChanges: number | null = null;
+    const readChanges = () =>
+      canUseDesktopBackend ? getChangeCount().catch(() => null) : Promise.resolve(null);
+
+    // A refresh can resolve with data older than a note body this session
+    // already saved, so the cached body is re-applied.
+    function withSessionState(item: LibraryItem) {
+      const noteBody = noteBodyCacheRef.current.get(String(item.id));
+      return noteBody === undefined ? item : { ...item, noteBody };
+    }
+
+    function syncSelectedItem(libraryItems: LibraryItem[]) {
+      setSelectedItem((current) => {
+        // Web items refresh as extraction fills them in; an image as its
+        // thumbnail and palette jobs land.
+        const isWebItem =
+          Boolean(current?.sourceUrl) &&
+          (current?.kind === "Article" || current?.kind === "Video" || current?.kind === "Post");
+        if (!current || (!isWebItem && current.kind !== "Image")) return current;
+        const refreshed = libraryItems.find((item) => String(item.id) === String(current.id));
+        if (!refreshed) return current;
+        const changed =
+          current.kind !== refreshed.kind ||
+          current.title !== refreshed.title ||
+          current.description !== refreshed.description ||
+          current.source !== refreshed.source ||
+          current.sourceUrl !== refreshed.sourceUrl ||
+          current.image !== refreshed.image ||
+          current.mediaAspectRatio !== refreshed.mediaAspectRatio ||
+          current.palette?.join() !== refreshed.palette?.join() ||
+          current.hasArticleContent !== refreshed.hasArticleContent ||
+          current.processing?.active !== refreshed.processing?.active ||
+          current.processing?.failedJob?.id !== refreshed.processing?.failedJob?.id ||
+          current.processing?.failedJob?.status !== refreshed.processing?.failedJob?.status;
+        return changed ? { ...current, ...refreshed } : current;
+      });
+    }
 
     async function loadItems() {
       // A refresh requested mid-flight is requeued instead of dropped, so a
@@ -3571,20 +3250,22 @@ function App() {
         return;
       }
       loading = true;
+      fullLoadEpoch += 1;
       try {
         await initializeStorage();
-        const storedItemsPromise =
-          similaritySourceId && similaritySourceKind
-            ? searchSimilarItems(similaritySourceId, similaritySourceKind)
-            : activeSpaceId
-              ? listSpaceItems(activeSpaceId)
-              : debouncedQuery.trim()
-                ? searchItems(debouncedQuery)
-                : listActiveItems();
+        // Asked before the items: the main process answers in order, so a write
+        // landing between the two reads still moves the count past this value.
+        const changesPromise = readChanges();
+        const storedItemsPromise = activeSpaceId
+          ? listSpaceItems(activeSpaceId)
+          : debouncedQuery.trim()
+            ? searchItems(debouncedQuery)
+            : listActiveItems();
         const activeJobsPromise = canUseDesktopBackend
           ? countActiveJobs().catch(() => null)
           : Promise.resolve(null);
-        const [storedItems, activeJobs] = await Promise.all([
+        const [changes, storedItems, activeJobs] = await Promise.all([
+          changesPromise,
           storedItemsPromise,
           activeJobsPromise,
         ]);
@@ -3593,44 +3274,10 @@ function App() {
           storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
         );
         if (!cancelled) {
+          seenChanges = changes;
           if (activeJobs !== null) setActiveJobCount(activeJobs);
-          // A refresh can resolve with data older than two writes this session
-          // already made: a note body still in the cache, and a pin the backend
-          // has not confirmed. Both are re-applied so the grid, the overlay, and
-          // Top of mind cannot disagree with what the user just did.
-          const noteBodies = noteBodyCacheRef.current;
-          const overrides = pinnedOverridesRef.current;
-          setItems(
-            libraryItems.map((item) => {
-              const noteBody = noteBodies.get(String(item.id));
-              const pinned = overrides.get(String(item.id));
-              const withNote = noteBody === undefined ? item : { ...item, noteBody };
-              return pinned === undefined ? withNote : { ...withNote, favorite: pinned };
-            }),
-          );
-          setSelectedItem((current) => {
-            if (
-              !current?.sourceUrl ||
-              (current.kind !== "Article" && current.kind !== "Video" && current.kind !== "Post")
-            ) {
-              return current;
-            }
-            const refreshed = libraryItems.find((item) => String(item.id) === String(current.id));
-            if (!refreshed) return current;
-            const changed =
-              current.kind !== refreshed.kind ||
-              current.title !== refreshed.title ||
-              current.description !== refreshed.description ||
-              current.source !== refreshed.source ||
-              current.sourceUrl !== refreshed.sourceUrl ||
-              current.image !== refreshed.image ||
-              current.mediaAspectRatio !== refreshed.mediaAspectRatio ||
-              current.hasArticleContent !== refreshed.hasArticleContent ||
-              current.processing?.active !== refreshed.processing?.active ||
-              current.processing?.failedJob?.id !== refreshed.processing?.failedJob?.id ||
-              current.processing?.failedJob?.status !== refreshed.processing?.failedJob?.status;
-            return changed ? { ...current, ...refreshed } : current;
-          });
+          setItems(libraryItems.map(withSessionState));
+          syncSelectedItem(libraryItems);
         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -3640,6 +3287,46 @@ function App() {
           queued = false;
           await loadItems();
         }
+      }
+    }
+
+    // Applies just the items a burst of job events named. Anything that cannot
+    // be patched safely falls back to the full load.
+    async function patchChangedItems() {
+      const ids = [...changedIds];
+      changedIds.clear();
+      if (ids.length === 0) return;
+      // A full load in flight may have read before these jobs finished.
+      if (loading) {
+        queued = true;
+        return;
+      }
+      const epoch = fullLoadEpoch;
+      try {
+        const [cards, summaries, activeJobs] = await Promise.all([
+          getItemCards(ids),
+          getProcessingSummaries(ids),
+          countActiveJobs().catch(() => null),
+        ]);
+        // An active item the list has never seen is new, and where it sorts is
+        // the full load's call.
+        const known = new Set(itemsRef.current.map((item) => String(item.id)));
+        if (cards.some((card) => !known.has(card.id))) {
+          void loadItems();
+          return;
+        }
+        const libraryItems = await Promise.all(
+          cards.map((card) => storedItemToLibraryItem(card, summaries.get(card.id))),
+        );
+        if (cancelled || epoch !== fullLoadEpoch) return;
+        if (activeJobs !== null) setActiveJobCount(activeJobs);
+        const patched = new Map(
+          libraryItems.map((item) => [String(item.id), withSessionState(item)]),
+        );
+        setItems((current) => patchItems(current, new Set(ids), patched));
+        syncSelectedItem(libraryItems);
+      } catch {
+        if (!cancelled) void loadItems();
       }
     }
 
@@ -3653,21 +3340,35 @@ function App() {
     loadItemsRef.current = loadItems;
     let coalesceTimer = 0;
     let removeJobListener: (() => void) | null = null;
-    void listenForJobUpdates(() => {
+    void listenForJobUpdates((payload) => {
+      if (patchesInPlace && payload?.itemId) changedIds.add(String(payload.itemId));
+      else reloadAll = true;
       window.clearTimeout(coalesceTimer);
-      coalesceTimer = window.setTimeout(() => loadItemsRef.current(), 400);
+      coalesceTimer = window.setTimeout(() => {
+        if (reloadAll) {
+          reloadAll = false;
+          changedIds.clear();
+          void loadItems();
+        } else {
+          void patchChangedItems();
+        }
+      }, 400);
     })
       .then((removeListener) => {
         if (cancelled) removeListener();
         else removeJobListener = removeListener;
       })
       .catch(() => {});
+    const reloadIfChanged = async () => {
+      const changes = seenChanges === null ? null : await readChanges();
+      if (changes === null || changes !== seenChanges) void loadItems();
+    };
     const refreshTimer = window.setInterval(() => {
       if (document.hidden) return;
-      void loadItems();
+      void reloadIfChanged();
     }, 30000);
     const handleVisibility = () => {
-      if (!document.hidden) void loadItems();
+      if (!document.hidden) void reloadIfChanged();
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
@@ -3677,25 +3378,65 @@ function App() {
       window.clearInterval(refreshTimer);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [
-    debouncedQuery,
-    similaritySourceId,
-    similaritySourceKind,
-    activeSpaceId,
-    canUseDesktopBackend,
-  ]);
+  }, [debouncedQuery, activeSpaceId, canUseDesktopBackend]);
 
+  // Version, size and last copy are optional: each stays hidden when the
+  // desktop backend cannot supply it (preview, or a failed call). The size
+  // walks every asset file, so Settings shows the last measured value at once
+  // and replaces it when a fresh walk finishes, without holding up the rest.
   useEffect(() => {
-    if (!isSettingsOpen || shouldUseSeedLibrary()) return;
+    if (!isSettingsOpen || !isDesktopRuntime()) return;
+    let cancelled = false;
+    void Promise.all([
+      getAppVersion().catch(() => undefined),
+      getLastExport().catch(() => undefined),
+    ]).then(([version, copy]) => {
+      if (cancelled) return;
+      setAppVersion(version ?? null);
+      setLastCopy(copy ?? null);
+    });
+    const showSize = (size: LibrarySize | undefined) => {
+      if (!cancelled && size) setLibrarySizeBytes(size.bytes);
+    };
+    // Fired together so a first open, with nothing cached yet, shares one walk.
+    void getLibrarySize().then(showSize, () => undefined);
+    void getLibrarySize(true).then(showSize, () => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isSettingsOpen]);
+
+  const isLibraryNarrowed = Boolean(activeSpaceId) || debouncedQuery.trim() !== "";
+  useEffect(() => {
+    if (!isSettingsOpen || !canUseDesktopBackend || !isLibraryNarrowed) {
+      setWholeLibraryKinds(null);
+      return;
+    }
+    let cancelled = false;
+    void listActiveItems().then(
+      (cards) => {
+        if (!cancelled) setWholeLibraryKinds(cards.map(cardKind));
+      },
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseDesktopBackend, isLibraryNarrowed, isSettingsOpen]);
+
+  // Only the Archive tab reads the archive. Its cards show no processing state,
+  // and an item opened from here fetches its own summary, so none are read here.
+  const isArchiveTabOpen = isSettingsOpen && settingsTab === "archive";
+  useEffect(() => {
+    if (!isArchiveTabOpen || shouldUseSeedLibrary()) return;
     let cancelled = false;
 
     async function loadArchivedItems() {
       try {
         await initializeStorage();
         const storedItems = await listArchivedItems();
-        const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
         const nextItems = await Promise.all(
-          storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
+          storedItems.map((item) => storedItemToLibraryItem(item)),
         );
         if (!cancelled) {
           setArchivedItems(
@@ -3704,6 +3445,7 @@ function App() {
               return noteBody === undefined ? item : { ...item, noteBody };
             }),
           );
+          setIsArchiveLoaded(true);
         }
       } catch (error) {
         if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
@@ -3714,12 +3456,19 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [isSettingsOpen]);
+  }, [isArchiveTabOpen]);
 
   useEffect(() => {
     if (isSettingsOpen) return;
     setIsArchiveSelectionMode(false);
     setSelectedArchivedIds(new Set());
+  }, [isSettingsOpen]);
+
+  // Each Settings session starts with the archive unread, so a list left from an
+  // earlier session, including one an import read while Settings was closed, is
+  // never shown as current.
+  useEffect(() => {
+    if (isSettingsOpen) setIsArchiveLoaded(shouldUseSeedLibrary());
   }, [isSettingsOpen]);
 
   useEffect(() => {
@@ -3734,37 +3483,16 @@ function App() {
     () => spaces.find((space) => space.id === activeSpaceId) ?? null,
     [spaces, activeSpaceId],
   );
-  const isSerendipityView = activeView === "Serendipity" && !activeSpaceId;
-  const isPinsView = activeView === "Top of mind" && !activeSpaceId;
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
 
-  // The pins nav item clears the query and any similarity source, so the view
-  // normally reads the whole library. The flag still guards the empty state
-  // against a search that a refresh or a restored view can narrow.
-  const pinsViewIsEmpty = isPinsView && isEmptyPinsView({ query, similaritySource });
-  const serendipityCandidates = useMemo(
-    () =>
-      isSerendipityView
-        ? serendipityItems(items, { excludedIds: serendipityKeptIds, limit: items.length })
-        : [],
-    [isSerendipityView, items, serendipityKeptIds],
-  );
-  const serendipityBatch = useMemo(
-    () => serendipityCandidates.slice(0, SERENDIPITY_BATCH_SIZE),
-    [serendipityCandidates],
-  );
-  const serendipityItem = serendipityBatch[0] ?? null;
-  const serendipityRemainingCount = serendipityCandidates.length;
-
   const filteredItems = useMemo(() => {
-    if (isSerendipityView) return serendipityBatch;
     const normalizedQuery = query.trim().toLowerCase();
     return items.filter((item) => {
       const matchesQuery = !normalizedQuery
         ? true
-        : canUseDesktopBackend || similaritySource || activeSpace
+        : canUseDesktopBackend || activeSpace
           ? true
           : [item.title, item.description, item.source, item.kind, ...item.tags]
               .join(" ")
@@ -3772,7 +3500,6 @@ function App() {
               .includes(normalizedQuery);
       const matchesView =
         activeView === "Everything" ||
-        (activeView === "Top of mind" && matchesPinsView(item)) ||
         (activeSpace
           ? canUseDesktopBackend
             ? true
@@ -3783,18 +3510,21 @@ function App() {
           : false);
       return matchesQuery && matchesView;
     });
-  }, [
-    activeSpace,
-    activeView,
-    canUseDesktopBackend,
-    isSerendipityView,
-    items,
-    localSpaceItems,
-    query,
-    serendipityBatch,
-    similaritySource,
-  ]);
-  const showLibraryEdges = !isSerendipityView && filteredItems.length > 0;
+  }, [activeSpace, activeView, canUseDesktopBackend, items, localSpaceItems, query]);
+  const filteredItemsRef = useRef(filteredItems);
+  filteredItemsRef.current = filteredItems;
+  const showLibraryEdges = filteredItems.length > 0;
+  // Both sit under the toolbar in one column, so a capture error and the pinned
+  // query row stack instead of overlapping.
+  const showFilterRow = !isSearchFocused && query.trim() !== "";
+  // A pinned query has its own band above the grid, so the grid starts below it.
+  // Only this boolean reaches the DOM, so typing does not restyle the grid.
+  const hasPinnedQuery = showFilterRow;
+  // An empty Space has nothing to search or re-lay out, so it drops the
+  // browsing controls.
+  const isEmptySpace = Boolean(activeSpace) && filteredItems.length === 0 && !query.trim();
+  const showBrowseControls = !isEmptySpace;
+  const showCaptureError = Boolean(captureError) && !isAdding;
 
   // The Regular Spaces an item can be filed into, and whether it already is.
   // Smart Spaces are excluded: their contents come from the query, so a chip
@@ -3813,63 +3543,42 @@ function App() {
     [filteredItems],
   );
 
-  async function saveCapture(event: React.FormEvent) {
-    event.preventDefault();
+  // Saves from the Add menu. The card appears at once; the menu closes on
+  // success and keeps the draft when the save fails.
+  // A second Enter can land before the saving state re-renders, so a ref
+  // keeps one save at a time.
+  const addMenuSavingRef = useRef(false);
+  async function saveFromAddMenu(save: () => Promise<unknown>) {
+    if (addMenuSavingRef.current) return false;
+    addMenuSavingRef.current = true;
     setCaptureError(null);
-
-    if (!captureMode) return;
-
+    setIsCapturing(true);
     try {
-      if (captureMode === "note") {
-        if (!newTitle.trim()) return;
-        await persistText(newTitle.trim(), "quick note");
-      } else if (captureMode === "quote") {
-        if (!newQuoteText.trim()) return;
-        await persistQuote(newQuoteText, newQuoteAttribution, newQuoteSourceUrl, "quick quote");
-      } else if (captureMode === "url") {
-        if (!captureUrl.trim()) return;
-        await persistArticle(captureUrl.trim(), "quick link");
-      } else {
-        if (!selectedFile) return;
-        await persistFile(selectedFile, "file picker");
-      }
-
-      setNewTitle("");
-      setNewQuoteText("");
-      setNewQuoteAttribution("");
-      setNewQuoteSourceUrl("");
-      setCaptureUrl("");
-      setSelectedFile(null);
+      await save();
       setIsAdding(false);
       setCaptureMode(null);
+      return true;
     } catch (error) {
-      failCapture(error instanceof Error ? error.message : String(error));
+      setCaptureError(error instanceof Error ? error.message : String(error));
+      return false;
+    } finally {
+      addMenuSavingRef.current = false;
+      setIsCapturing(false);
     }
   }
 
-  function selectCaptureMode(mode: CaptureMode) {
-    setCaptureMode(mode);
+  // Add lives in the sidebar, so opening it brings the sidebar out.
+  function openCapture(mode: AddMode | null = null) {
     setCaptureError(null);
-  }
-
-  function openCapture(mode: CaptureMode | null = null) {
-    captureReturnFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setCaptureError(null);
-    setSelectedFile(null);
     setCaptureMode(mode);
     setIsAdding(true);
-  }
-
-  function openCaptureModal() {
-    openCapture();
+    setIsSidebarOpen(true);
   }
 
   function closeCaptureModal() {
     if (isCapturing) return;
     setIsAdding(false);
     setCaptureMode(null);
-    setSelectedFile(null);
   }
 
   function startScreenshotCapture() {
@@ -3916,13 +3625,80 @@ function App() {
     }
   }
 
+  const [cardMenu, setCardMenu] = useState<{
+    item: LibraryItem;
+    card: HTMLElement;
+    x: number;
+    y: number;
+  } | null>(null);
+  const closeCardMenu = useCallback(() => setCardMenu(null), []);
+  const openCardMenu = useCallback((item: LibraryItem, event: React.MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    const card = event.currentTarget;
+    // The keyboard menu key reports no pointer, so anchor to the card instead.
+    const fromKeyboard = event.clientX === 0 && event.clientY === 0;
+    const rect = card.getBoundingClientRect();
+    setCardMenu({
+      item,
+      card,
+      x: fromKeyboard ? rect.left + 16 : event.clientX,
+      y: fromKeyboard ? rect.top + 16 : event.clientY,
+    });
+  }, []);
+  const cardMenuEntries = useMemo<ContextMenuEntry[]>(() => {
+    if (!cardMenu) return [];
+    const { item } = cardMenu;
+    // Only web links: seeded and file items carry local paths here.
+    const sourceUrl = item.sourceUrl?.match(/^https?:\/\//u) ? item.sourceUrl : undefined;
+    const entries: ContextMenuEntry[] = [];
+    if (item.articleHtml || item.hasArticleContent) {
+      entries.push({ label: "Read", icon: BookOpen01Icon, onSelect: () => void openReader(item) });
+    }
+    if (sourceUrl) {
+      let host = "original";
+      try {
+        host = new URL(sourceUrl).hostname.replace(/^www\./u, "");
+      } catch {}
+      entries.push(
+        {
+          label: `Open ${host}`,
+          icon: LinkSquare02Icon,
+          onSelect: () => window.open(sourceUrl, "_blank", "noopener,noreferrer"),
+        },
+        {
+          label: "Copy link",
+          icon: Copy01Icon,
+          onSelect: () =>
+            void navigator.clipboard.writeText(sourceUrl).then(
+              () => toast("Link copied", { className: "library-toast", duration: 2000 }),
+              () => toast.error("Could not copy the link", { closeButton: true }),
+            ),
+        },
+      );
+    }
+    if (canUseDesktopBackend) {
+      entries.push({
+        label: "Show in folder",
+        icon: Folder01Icon,
+        onSelect: () => showItemInFolderFromOverlay(item),
+      });
+    }
+    entries.push({
+      label: "Archive",
+      icon: Archive01Icon,
+      onSelect: () => void forgetItem(item),
+    });
+    return entries;
+  }, [canUseDesktopBackend, cardMenu, forgetItem, openReader, showItemInFolderFromOverlay]);
+
   const libraryCardContext = useMemo<LibraryCardContext>(
     () => ({
       onSelectItem: selectLibraryItem,
       onOpenReader: openReader,
       onRetryJob: retryJob,
+      onOpenMenu: openCardMenu,
     }),
-    [openReader, retryJob, selectLibraryItem],
+    [openCardMenu, openReader, retryJob, selectLibraryItem],
   );
 
   const restoreArchivedItems = useCallback((restoredItems: LibraryItem[]) => {
@@ -4034,75 +3810,87 @@ function App() {
     [selectedArchivedIds],
   );
 
-  const recoverSelectedArchivedItems = useCallback(async () => {
-    const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
-    if (selectedItems.length === 0) return;
-    setCaptureError(null);
-    try {
-      // Restore every item first, then fetch all processing summaries in one
-      // batched call instead of one round trip per restored item.
-      const results = await Promise.allSettled(
-        selectedItems.map(async (item) => {
-          if (!canUseDesktopBackend) return null;
-          // A restore un-archives the row, so cancel any scheduled permanent
-          // delete for it before the timer can fire and destroy its assets.
-          const pending = pendingPermanentDeletesRef.current.get(String(item.id));
-          if (pending !== undefined) cancelPermanentDelete(pending);
-          return archiveItem(String(item.id), false);
-        }),
-      );
-      const restoredStored = results.flatMap((result) =>
-        result.status === "fulfilled" && result.value ? [result.value] : [],
-      );
-      let failures = results.filter((result) => result.status === "rejected").length;
-      // One batched summaries call for the whole restore. If it fails, the
-      // items are still restored; only their processing badges fall back.
-      let summaries = new Map<string, ProcessingSummary>();
+  const restoreArchivedLibraryItems = useCallback(
+    async (itemsToRestore: LibraryItem[]) => {
+      if (itemsToRestore.length === 0) return;
+      setCaptureError(null);
       try {
-        if (canUseDesktopBackend && restoredStored.length > 0) {
-          summaries = await getProcessingSummaries(
-            restoredStored.map((storedItem) => storedItem.id),
-          );
+        // Restore every item first, then fetch all processing summaries in one
+        // batched call instead of one round trip per restored item.
+        const results = await Promise.allSettled(
+          itemsToRestore.map(async (item) => {
+            if (!canUseDesktopBackend) return null;
+            // A restore un-archives the row, so cancel any scheduled permanent
+            // delete for it before the timer can fire and destroy its assets.
+            const pending = pendingPermanentDeletesRef.current.get(String(item.id));
+            if (pending !== undefined) cancelPermanentDelete(pending);
+            return archiveItem(String(item.id), false);
+          }),
+        );
+        const restoredStored = results.flatMap((result) =>
+          result.status === "fulfilled" && result.value ? [result.value] : [],
+        );
+        let failures = results.filter((result) => result.status === "rejected").length;
+        // One batched summaries call for the whole restore. If it fails, the
+        // items are still restored; only their processing badges fall back.
+        let summaries = new Map<string, ProcessingSummary>();
+        try {
+          if (canUseDesktopBackend && restoredStored.length > 0) {
+            summaries = await getProcessingSummaries(
+              restoredStored.map((storedItem) => storedItem.id),
+            );
+          }
+        } catch {
+          summaries = new Map<string, ProcessingSummary>();
         }
-      } catch {
-        summaries = new Map<string, ProcessingSummary>();
+        // Convert per item so one unreadable item cannot sink the whole batch.
+        const settled = await Promise.allSettled(
+          restoredStored.map((storedItem) =>
+            storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
+          ),
+        );
+        failures += settled.filter((result) => result.status === "rejected").length;
+        const converted = settled.flatMap((result) =>
+          result.status === "fulfilled" ? [result.value] : [],
+        );
+        const restoredItems: LibraryItem[] = [
+          ...itemsToRestore.filter(() => !canUseDesktopBackend),
+          ...converted,
+        ];
+        const restoredIds = new Set(restoredItems.map((item) => String(item.id)));
+        setItems((current) => [
+          ...restoredItems.filter(
+            (item) => !current.some((candidate) => String(candidate.id) === String(item.id)),
+          ),
+          ...current,
+        ]);
+        setArchivedItems((current) => current.filter((item) => !restoredIds.has(String(item.id))));
+        if (restoredItems.length > 0)
+          toast.success(
+            `${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} restored`,
+          );
+        if (failures > 0)
+          setCaptureError(
+            `${failures} ${failures === 1 ? "item" : "items"} could not be restored. They are still in the archive.`,
+          );
+      } catch (error) {
+        setCaptureError(error instanceof Error ? error.message : String(error));
       }
-      // Convert per item so one unreadable item cannot sink the whole batch.
-      const settled = await Promise.allSettled(
-        restoredStored.map((storedItem) =>
-          storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
-        ),
-      );
-      failures += settled.filter((result) => result.status === "rejected").length;
-      const converted = settled.flatMap((result) =>
-        result.status === "fulfilled" ? [result.value] : [],
-      );
-      const restoredItems: LibraryItem[] = [
-        ...selectedItems.filter(() => !canUseDesktopBackend),
-        ...converted,
-      ];
-      const restoredIds = new Set(restoredItems.map((item) => String(item.id)));
-      setItems((current) => [
-        ...restoredItems.filter(
-          (item) => !current.some((candidate) => String(candidate.id) === String(item.id)),
-        ),
-        ...current,
-      ]);
-      setArchivedItems((current) => current.filter((item) => !restoredIds.has(String(item.id))));
-      setSelectedArchivedIds(new Set());
-      setIsArchiveSelectionMode(false);
-      if (restoredItems.length > 0)
-        toast.success(
-          `${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} recovered`,
-        );
-      if (failures > 0)
-        setCaptureError(
-          `${failures} ${failures === 1 ? "item" : "items"} could not be recovered. They are still in the archive.`,
-        );
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    }
-  }, [archivedItems, cancelPermanentDelete, selectedArchivedIds, canUseDesktopBackend]);
+    },
+    [cancelPermanentDelete, canUseDesktopBackend],
+  );
+
+  const restoreSelectedArchivedItems = useCallback(async () => {
+    const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
+    await restoreArchivedLibraryItems(selectedItems);
+    setSelectedArchivedIds(new Set());
+    setIsArchiveSelectionMode(false);
+  }, [archivedItems, restoreArchivedLibraryItems, selectedArchivedIds]);
+
+  const restoreArchivedLibraryItem = useCallback(
+    (item: LibraryItem) => restoreArchivedLibraryItems([item]),
+    [restoreArchivedLibraryItems],
+  );
 
   const deleteSelectedArchivedItems = useCallback(() => {
     const selectedItems = archivedItems.filter((item) => selectedArchivedIds.has(String(item.id)));
@@ -4143,6 +3931,7 @@ function App() {
       onOpenReader: openReader,
       onRetryJob: retryJob,
       onDeleteArchivedItem: deleteArchivedLibraryItem,
+      onRestoreArchivedItem: restoreArchivedLibraryItem,
       archiveSelectionMode: isArchiveSelectionMode,
       isArchivedItemSelected: isArchivedLibraryItemSelected,
       onToggleArchivedItem: toggleArchivedLibraryItem,
@@ -4152,36 +3941,199 @@ function App() {
       isArchiveSelectionMode,
       isArchivedLibraryItemSelected,
       openReader,
+      restoreArchivedLibraryItem,
       retryJob,
       selectArchivedLibraryItem,
       toggleArchivedLibraryItem,
     ],
   );
 
-  const findSimilarItemsRef = useRef(findSimilarItems);
-  findSimilarItemsRef.current = findSimilarItems;
+  // In-memory back/forward history over view, search query, and open item.
+  // Query changes commit after a pause so typing does not add an entry per key.
+  const historyRef = useRef<{ entries: NavSnapshot[]; index: number }>({ entries: [], index: 0 });
+  const restoringNavKeyRef = useRef<string | null>(null);
+  const similarItemCacheRef = useRef(new Map<string, LibraryItem>());
+  const pendingHistoryCloseRef = useRef<{ target: NavSnapshot; index: number } | null>(null);
+  const [historyCloseRequest, setHistoryCloseRequest] = useState(0);
+  const navSnapshot: NavSnapshot = {
+    view: activeView,
+    spaceId: activeSpaceId,
+    query,
+    itemId: selectedItemId,
+  };
+  const navKey = JSON.stringify(navSnapshot);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: navKey encodes the snapshot
+  useEffect(() => {
+    const restoringNavKey = restoringNavKeyRef.current;
+    if (restoringNavKey) {
+      if (restoringNavKey === navKey) restoringNavKeyRef.current = null;
+      return;
+    }
+    const history = historyRef.current;
+    const current = history.entries[history.index];
+    if (current && JSON.stringify(current) === navKey) return;
+    const commit = () => {
+      history.entries.splice(history.index + 1, history.entries.length, navSnapshot);
+      history.index = history.entries.length - 1;
+    };
+    if (!current || current.query === navSnapshot.query) {
+      commit();
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      if (restoringNavKeyRef.current || history.entries[history.index] !== current) return;
+      commit();
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [navKey]);
+
+  const stepHistory = useCallback(
+    (delta: -1 | 1) => {
+      const history = historyRef.current;
+      const target = history.entries[history.index + delta];
+      if (!target) return;
+      // Similar items are not always in the grid's list, so a step back to one
+      // falls back to the copy the Similar lookup kept.
+      const item = target.itemId
+        ? ([...items, ...archivedItems].find(
+            (candidate) => String(candidate.id) === target.itemId,
+          ) ?? similarItemCacheRef.current.get(target.itemId))
+        : undefined;
+      // A vanished item restores as a closed overlay; keep the stack in step so it is not re-pushed.
+      if (target.itemId && !item) target.itemId = null;
+      restoringNavKeyRef.current = JSON.stringify(target);
+      if (!target.itemId && selectedItem) {
+        pendingHistoryCloseRef.current = { target, index: history.index + delta };
+        setActiveSpaceId(target.spaceId);
+        setActiveView(target.view);
+        setQuery(target.query);
+        requestAnimationFrame(() => {
+          void bringHistoryCardIntoView(selectedItem, filteredItemsRef.current).then((rects) => {
+            selectionRectsRef.current = rects;
+            setHistoryCloseRequest((request) => request + 1);
+          });
+        });
+        return;
+      }
+      history.index += delta;
+      selectionScrollRef.current = false;
+      selectionRectsRef.current = null;
+      setActiveSpaceId(target.spaceId);
+      setActiveView(target.view);
+      setQuery(target.query);
+      if (item?.archived) selectArchivedLibraryItem(item);
+      else if (item) {
+        requestAnimationFrame(() => {
+          void bringHistoryCardIntoView(item, filteredItemsRef.current).then((rects) => {
+            selectionRectsRef.current = rects;
+            setSelectedItem(item);
+          });
+        });
+      } else setSelectedItem(null);
+    },
+    [archivedItems, bringHistoryCardIntoView, items, selectArchivedLibraryItem, selectedItem],
+  );
+  const stepHistoryRef = useRef(stepHistory);
+  stepHistoryRef.current = stepHistory;
+  useEffect(() => {
+    const onMouseUp = (event: MouseEvent) => {
+      if (event.button !== 3 && event.button !== 4) return;
+      event.preventDefault();
+      stepHistoryRef.current(event.button === 3 ? -1 : 1);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      stepHistoryRef.current(event.key === "ArrowLeft" ? -1 : 1);
+    };
+    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
+  // The item view's Similar tab. It returns the items and leaves the library
+  // grid alone.
+  const loadSimilarLibraryItems = useCallback(
+    async (item: LibraryItem): Promise<LibraryItem[]> => {
+      if (!canUseDesktopBackend) return [];
+      const storedItems = await searchSimilarItems(
+        String(item.id),
+        item.kind === "Image" ? "image" : "text",
+      );
+      const summaries = await getProcessingSummaries(
+        storedItems.map((storedItem) => storedItem.id),
+      );
+      const libraryItems = await Promise.all(
+        storedItems.map((storedItem) =>
+          storedItemToLibraryItem(storedItem, summaries.get(storedItem.id)),
+        ),
+      );
+      for (const libraryItem of libraryItems) {
+        similarItemCacheRef.current.set(String(libraryItem.id), libraryItem);
+      }
+      return libraryItems;
+    },
+    [canUseDesktopBackend],
+  );
+
+  // Opening a similar item is a history step like any other, so it goes through
+  // the same card-into-view path history uses.
+  const openSimilarItem = useCallback(
+    (item: LibraryItem) => {
+      void bringHistoryCardIntoView(item, filteredItemsRef.current).then((rects) => {
+        selectionScrollRef.current = false;
+        selectionRectsRef.current = rects;
+        setSelectedItem(item);
+      });
+    },
+    [bringHistoryCardIntoView],
+  );
+
   const expandedOverlayActions = useMemo<ExpandedOverlayActions>(
     () => ({
-      onClose: () => setSelectedItem(null),
+      onClose: () => {
+        const pending = pendingHistoryCloseRef.current;
+        if (!pending) {
+          setSelectedItem(null);
+          return;
+        }
+        pendingHistoryCloseRef.current = null;
+        const history = historyRef.current;
+        history.index = pending.index;
+        selectionScrollRef.current = false;
+        selectionRectsRef.current = null;
+        setActiveSpaceId(pending.target.spaceId);
+        setActiveView(pending.target.view);
+        setQuery(pending.target.query);
+        setSelectedItem(null);
+      },
       onOpenPdf: setPdfViewerItem,
       onOpenReader: openReader,
-      onFindSimilar: (item) => void findSimilarItemsRef.current(item),
+      onLoadSimilar: loadSimilarLibraryItems,
+      onOpenItem: openSimilarItem,
+      onShowInFolder: canUseDesktopBackend ? showItemInFolderFromOverlay : undefined,
+      onDelete: deleteArchivedLibraryItem,
       onForget: forgetItem,
-      onTogglePin: togglePinItem,
       onRetryJob: retryJob,
       onAddTag: addTagToItem,
       onUpdateNote: updateNote,
       onToggleSpace: (item, spaceId) => void handleToggleItemInSpace(item, spaceId),
-      isFindingSimilar,
     }),
     [
       addTagToItem,
+      canUseDesktopBackend,
+      deleteArchivedLibraryItem,
       forgetItem,
       handleToggleItemInSpace,
-      isFindingSimilar,
+      loadSimilarLibraryItems,
       openReader,
+      openSimilarItem,
       retryJob,
-      togglePinItem,
+      showItemInFolderFromOverlay,
       updateNote,
     ],
   );
@@ -4206,16 +4158,6 @@ function App() {
     canUseDesktopBackend && activeJobCount !== null
       ? activeJobCount > 0
       : items.some((item) => item.processing?.active);
-  // `captureError` is the shared error channel for the whole app, so it cannot
-  // also mean "a save the user asked for failed" — a retried job, a renamed
-  // Space, and the archive all write to it, and "Find similar" in the web
-  // preview writes to it on purpose. Captures get their own count, and the
-  // mascot spends one on a single sad walk home.
-  const [captureFailures, setCaptureFailures] = useState(0);
-  const failCapture = useCallback((message: string) => {
-    setCaptureError(message);
-    setCaptureFailures((count) => count + 1);
-  }, []);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -4247,33 +4189,6 @@ function App() {
           : "neutre",
     });
   }, [isMascotBusy, captureError, isSearchFocused, query, prefersReducedMotion]);
-
-  // Roaming reads two things from the app, and nothing else. A view that owns
-  // the screen makes the mascot hold still without spending the awake time it
-  // has left, and a capture that failed is the one event that ends an outing.
-  //
-  // Serendipity and an in-flight drag are in that list for the same reason the
-  // reader is: both hand the whole stage to one decision. Serendipity is a
-  // single item with Keep and Forget on it, and dropping a file over the window
-  // is a capture in progress. Neither is a reason to end the walk, only to stop
-  // moving through it. Background indexing is deliberately not here — a mascot
-  // that vanishes every time an item finishes processing reads as broken, and
-  // the point of it is to stay quietly alive while the user works.
-  const isOverlayOpen =
-    isAdding ||
-    isSettingsOpen ||
-    selectedItem !== null ||
-    readingItem !== null ||
-    Boolean(pdfViewerItem?.fileUrl) ||
-    isSerendipityView ||
-    isDragActive ||
-    isCapturing;
-  useEffect(() => {
-    setRoamBusy(isOverlayOpen);
-  }, [isOverlayOpen]);
-  useEffect(() => {
-    if (captureFailures > 0) setRoamCaptureFailed(true);
-  }, [captureFailures]);
 
   const sidebarActionErrorAlert = sidebarActionError ? (
     <div
@@ -4307,16 +4222,6 @@ function App() {
       </Suspense>
     );
   }
-  if (
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).has("mascot-roam")
-  ) {
-    return (
-      <Suspense fallback={null}>
-        <RoamBoard />
-      </Suspense>
-    );
-  }
   if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mascot")) {
     return (
       <Suspense fallback={null}>
@@ -4329,7 +4234,7 @@ function App() {
     <MotionConfig reducedMotion="user">
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Drag and drop is an optional capture path; Add, paste, and extension capture remain keyboard-accessible. */}
       <div
-        className={`app-shell ${isElectronRuntime() ? "electron-shell" : ""} ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`}
+        className={`app-shell ${isElectronRuntime() ? "electron-shell" : ""} ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""} ${appearance.sidebarToggle === "edge" ? "sidebar-edge" : ""}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -4353,13 +4258,14 @@ function App() {
         <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
           <div className="brand-lockup">
             <MascotHomeSlot isSearchFocused={isSearchFocused} />
-            <div>
-              <strong>inkling</strong>
-            </div>
+            <span className="brand-name">inkling</span>
             <button
               type="button"
               className="sidebar-close"
-              aria-label="Close panel"
+              aria-label="Close sidebar"
+              aria-expanded={true}
+              aria-controls="library-navigation"
+              data-tooltip="Close sidebar"
               onClick={() => setIsSidebarOpen(false)}
             >
               <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
@@ -4372,31 +4278,11 @@ function App() {
               className={`nav-item ${activeView === "Everything" && !activeSpaceId ? "active" : ""}`}
               onClick={clearToDefaultView}
             >
-              <HugeiconsIcon icon={Layers01Icon} size={17} />
-              <span>Everything</span>
-              <span className="nav-count">{items.length}</span>
-            </button>
-            <button
-              type="button"
-              className={`nav-item ${activeView === "Top of mind" && !activeSpaceId ? "active" : ""}`}
-              onClick={() => {
-                setActiveSpaceId(null);
-                setActiveView("Top of mind");
-                setQuery("");
-                setSimilaritySource(null);
-                setSelectedItem(null);
-              }}
-            >
-              <HugeiconsIcon icon={SparklesIcon} size={17} />
-              <span>Top of mind</span>
-            </button>
-            <button
-              type="button"
-              className={`nav-item ${activeView === "Serendipity" && !activeSpaceId ? "active" : ""}`}
-              onClick={selectSerendipityView}
-            >
-              <HugeiconsIcon icon={Clock01Icon} size={17} />
-              <span>Serendipity</span>
+              <span className="nav-icon">
+                <NavDotGridIcon />
+              </span>
+              <span className="nav-label">Everything</span>
+              <span className="nav-count">{items.length.toLocaleString()}</span>
             </button>
           </nav>
 
@@ -4407,14 +4293,14 @@ function App() {
                 type="button"
                 className="icon-button small"
                 aria-label="Add a Space"
-                title="Add a Space"
+                data-tooltip="Add a Space"
                 onClick={() => {
                   setIsCreatingSpace((current) => !current);
                   setNewSpaceName("");
                   setNewSpaceKind("smart");
                 }}
               >
-                <HugeiconsIcon icon={PlusSignIcon} size={16} />
+                <HugeiconsIcon icon={PlusSignIcon} size={14} />
               </button>
             </div>
             <div className="space-list">
@@ -4426,13 +4312,15 @@ function App() {
                   <button
                     type="button"
                     className="space-dot"
-                    title={`Change color (now ${space.color})`}
+                    data-tooltip={`Change color (now ${space.color})`}
                     aria-label={`Change color of ${space.name}`}
                     onClick={() => {
                       void handleCycleSpaceColor(space);
                     }}
                   >
-                    <span className={`space-dot-mark ${space.color}`} aria-hidden="true" />
+                    <span className={`space-dot-mark ${space.color}`} aria-hidden="true">
+                      <SpaceMark />
+                    </span>
                   </button>
                   {renamingSpaceId === space.id ? (
                     <input
@@ -4462,7 +4350,10 @@ function App() {
                     >
                       <span className="space-name">{space.name}</span>
                       <span className="space-count">
-                        {activeSpaceId === space.id ? filteredItems.length : ""}
+                        {(
+                          space.itemCount ??
+                          (activeSpaceId === space.id ? filteredItems.length : undefined)
+                        )?.toLocaleString()}
                       </span>
                     </button>
                   )}
@@ -4471,7 +4362,7 @@ function App() {
                       type="button"
                       className="space-delete space-tool"
                       aria-label={`Move ${space.name} up`}
-                      title="Move Space up"
+                      data-tooltip="Move Space up"
                       onClick={(event) => {
                         event.stopPropagation();
                         void handleMoveSpace(space, -1);
@@ -4483,7 +4374,7 @@ function App() {
                       type="button"
                       className="space-delete space-tool"
                       aria-label={`Move ${space.name} down`}
-                      title="Move Space down"
+                      data-tooltip="Move Space down"
                       onClick={(event) => {
                         event.stopPropagation();
                         void handleMoveSpace(space, 1);
@@ -4495,7 +4386,7 @@ function App() {
                       type="button"
                       className="space-delete space-tool"
                       aria-label={`Rename ${space.name}`}
-                      title="Rename Space"
+                      data-tooltip="Rename Space"
                       onClick={(event) => {
                         event.stopPropagation();
                         setRenamingSpaceId(space.id);
@@ -4508,7 +4399,7 @@ function App() {
                       type="button"
                       className="space-delete"
                       aria-label={`Delete ${space.name}`}
-                      title="Delete Space"
+                      data-tooltip="Delete Space"
                       onClick={(event) => {
                         event.stopPropagation();
                         void handleDeleteSpace(space);
@@ -4596,30 +4487,36 @@ function App() {
           {isSidebarOpen && sidebarActionErrorAlert}
 
           <div className="sidebar-footer">
-            <button
-              ref={settingsButtonRef}
-              type="button"
-              className={`nav-item footer-item ${isSettingsOpen ? "active" : ""}`}
-              aria-label="Settings"
-              aria-expanded={isSettingsOpen}
-              aria-controls="settings-modal"
-              title="Settings"
-              onClick={() => setIsSettingsOpen(true)}
-            >
-              <HugeiconsIcon icon={Settings01Icon} size={17} />
-              <span>Settings</span>
-            </button>
+            <AddMenu
+              open={isAdding}
+              mode={captureMode}
+              saving={isCapturing}
+              error={isAdding ? captureError : null}
+              onOpen={() => openCapture()}
+              onClose={closeCaptureModal}
+              onModeChange={(mode) => {
+                setCaptureMode(mode);
+                setCaptureError(null);
+              }}
+              onSaveNote={(text) => saveFromAddMenu(() => persistText(text, "quick note"))}
+              onSaveLink={(url) => saveFromAddMenu(() => persistArticle(url, "quick link"))}
+              onSaveQuote={(text, attribution, sourceUrl) =>
+                saveFromAddMenu(() => persistQuote(text, attribution, sourceUrl, "quick quote"))
+              }
+              onPickFile={(file) => void captureFile(file, "file picker")}
+              onScreenshot={startScreenshotCapture}
+            />
             {availableUpdate && (
               <button
                 type="button"
                 className="nav-item footer-item update-footer-item"
                 aria-live="polite"
                 disabled={isInstallingUpdate}
-                title={`Version ${availableUpdate.version} is ready. Inkling checks for updates when it opens; GitHub sees the app version but no library data. Selecting this downloads and installs the update, then restarts inkling.`}
+                data-tooltip={`Version ${availableUpdate.version} is ready. Inkling checks for updates when it opens; GitHub sees the app version but no library data. Selecting this downloads and installs the update, then restarts inkling.`}
                 onClick={() => void handleInstallUpdate()}
               >
-                <HugeiconsIcon icon={isInstallingUpdate ? Loading01Icon : RotateCwIcon} size={17} />
-                <span>
+                <HugeiconsIcon icon={isInstallingUpdate ? Loading01Icon : RotateCwIcon} size={15} />
+                <span className="nav-label">
                   {isInstallingUpdate
                     ? "Installing update..."
                     : updateInstallFailed
@@ -4629,29 +4526,43 @@ function App() {
               </button>
             )}
             <button
+              ref={settingsButtonRef}
               type="button"
-              className="nav-item footer-item"
-              aria-label="Help & shortcuts"
-              aria-haspopup="dialog"
-              aria-controls="shortcuts-modal"
-              title="Help & shortcuts"
-              onClick={() => setIsShortcutsOpen(true)}
+              className={`nav-item footer-item ${isSettingsOpen ? "active" : ""}`}
+              aria-label="Settings"
+              aria-expanded={isSettingsOpen}
+              aria-controls="settings-modal"
+              data-tooltip="Settings"
+              onClick={() => {
+                setSelectedItem(null);
+                setIsSettingsOpen(true);
+              }}
             >
-              <HugeiconsIcon icon={HelpCircleIcon} size={17} />
-              <span>Help & shortcuts</span>
+              <HugeiconsIcon icon={Settings01Icon} size={15} />
+              <span className="nav-label">Settings</span>
             </button>
           </div>
         </aside>
+        {/* A closed sidebar's grip would sit over an open item's stage. */}
+        {appearance.sidebarToggle === "edge" && (isSidebarOpen || !selectedItem) && (
+          <SidebarEdgeGrip
+            isOpen={isSidebarOpen}
+            onToggle={() => setIsSidebarOpen((open) => !open)}
+          />
+        )}
 
-        <main className="main-content">
+        {/* An open item replaces the library, which stays mounted underneath so
+            the item can fly back into its card. */}
+        <main className="main-content" ref={libraryFrameRef} inert={selectedItem != null}>
           <section className="library-header"></section>
 
-          <section className="capture-bar" aria-label="Capture and search">
+          <section className="capture-bar" ref={captureBarRef} aria-label="Capture and search">
             {!isSidebarOpen && (
               <button
                 type="button"
-                className="sidebar-toggle"
-                aria-label="Open navigation"
+                className="sidebar-toggle glass"
+                aria-label="Open sidebar"
+                data-tooltip="Open sidebar"
                 aria-expanded={false}
                 aria-controls="library-navigation"
                 onClick={() => setIsSidebarOpen(true)}
@@ -4660,527 +4571,140 @@ function App() {
               </button>
             )}
             {!isSidebarOpen && sidebarActionErrorAlert}
-            <label className={`search-field${isSearchFocused ? " is-mascot" : ""}`}>
-              <span className="field-mascot" aria-hidden="true">
-                <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />
-              </span>
-              <input
-                ref={searchRef}
-                value={query}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
-                onChange={(event) => {
-                  setSimilaritySource(null);
-                  setActiveSpaceId(null);
-                  setActiveView("Everything");
-                  setQuery(event.target.value);
-                }}
-                placeholder="Search your mind"
-                aria-label="Search your mind"
-              />
-              <kbd>
-                <span>/</span> to search
-              </kbd>
-            </label>
-            <button
-              type="button"
-              className="add-button"
-              onClick={openCaptureModal}
-              disabled={isCapturing}
-              title="Add something to your library"
-            >
-              <HugeiconsIcon icon={PlusSignIcon} size={18} />
-              <span>{isCapturing ? "Saving…" : "Add"}</span>
-            </button>
-            {showLibraryEdges && <LibraryEdgeFade edge="top" />}
+            {showBrowseControls && (
+              <label
+                className={`search-field glass${isSearchFocused ? " is-mascot" : " is-resting"}`}
+              >
+                <span className="search-rest" aria-hidden="true">
+                  <HugeiconsIcon icon={Search01Icon} size={14} />
+                  {activeSpace?.name ?? activeView}
+                </span>
+                <span className="field-mascot" aria-hidden="true">
+                  <LiveMascotSearchEyes size={22} className={query ? "is-typing" : undefined} />
+                </span>
+                <input
+                  ref={searchRef}
+                  value={query}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => setIsSearchFocused(false)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape") return;
+                    setQuery("");
+                    event.currentTarget.blur();
+                  }}
+                  onChange={(event) => {
+                    setActiveSpaceId(null);
+                    setActiveView("Everything");
+                    setQuery(event.target.value);
+                  }}
+                  placeholder="Search your mind"
+                  aria-label="Search your mind"
+                />
+                <kbd>esc to close</kbd>
+              </label>
+            )}
+            {(showFilterRow || showCaptureError) && (
+              <div className="capture-status">
+                {showFilterRow && (
+                  <div className="filter-row">
+                    {query.trim() && (
+                      <div className="query-chip glass">
+                        <span className="query-chip-text">{query.trim()}</span>
+                        <button
+                          type="button"
+                          className="query-chip-clear"
+                          aria-label="Clear search"
+                          data-tooltip="Clear search"
+                          onClick={() => setQuery("")}
+                        >
+                          <HugeiconsIcon icon={Cancel01Icon} size={13} />
+                        </button>
+                      </div>
+                    )}
+                    <div className="result-context">
+                      <AnimatedCount className="result-count" value={filteredItems.length} />
+                      {` ${filteredItems.length === 1 ? "result" : "results"}`}
+                      {query.trim() ? (
+                        <button type="button" className="quiet-link" onClick={beginSaveSearch}>
+                          <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
+                {showCaptureError && (
+                  <p className="capture-error glass">Couldn’t save this yet: {captureError}</p>
+                )}
+              </div>
+            )}
           </section>
 
-          <AnimatePresence>
-            {isAdding && (
-              <motion.div
-                key="capture-modal"
-                className="capture-modal-backdrop"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-                onMouseDown={(event) => event.target === event.currentTarget && closeCaptureModal()}
-              >
-                <motion.section
-                  ref={captureModalRef}
-                  className="capture-modal"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="capture-modal-title"
-                  initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                  animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }}
-                  exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-                >
-                  <header className="capture-modal-header">
-                    <div>
-                      <h2 id="capture-modal-title">Add to your library</h2>
-                      <p>Choose what you want to save.</p>
-                    </div>
-                    <button
-                      className="icon-button small"
-                      type="button"
-                      onClick={closeCaptureModal}
-                      aria-label="Close add menu"
-                    >
-                      <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                    </button>
-                  </header>
-
-                  <fieldset className="capture-options">
-                    <legend className="visually-hidden">Add options</legend>
-                    <button
-                      type="button"
-                      className={`capture-option ${captureMode === "note" ? "selected" : ""}`}
-                      onClick={() => selectCaptureMode("note")}
-                      aria-pressed={captureMode === "note"}
-                    >
-                      <span className="capture-option-icon">
-                        <HugeiconsIcon icon={FileTextIcon} size={18} />
-                      </span>
-                      <span className="capture-option-copy">
-                        <strong>Note</strong>
-                        <span>Write something to remember.</span>
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`capture-option ${captureMode === "url" ? "selected" : ""}`}
-                      onClick={() => selectCaptureMode("url")}
-                      aria-pressed={captureMode === "url"}
-                    >
-                      <span className="capture-option-icon">
-                        <HugeiconsIcon icon={Link01Icon} size={18} />
-                      </span>
-                      <span className="capture-option-copy">
-                        <strong>Link</strong>
-                        <span>Save an article, page, or X post.</span>
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`capture-option ${captureMode === "file" ? "selected" : ""}`}
-                      onClick={() => selectCaptureMode("file")}
-                      aria-pressed={captureMode === "file"}
-                    >
-                      <span className="capture-option-icon">
-                        <HugeiconsIcon icon={Image01Icon} size={18} />
-                      </span>
-                      <span className="capture-option-copy">
-                        <strong>File</strong>
-                        <span>Upload an image, PDF, or video.</span>
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`capture-option ${captureMode === "quote" ? "selected" : ""}`}
-                      onClick={() => selectCaptureMode("quote")}
-                      aria-pressed={captureMode === "quote"}
-                    >
-                      <span className="capture-option-icon">
-                        <HugeiconsIcon icon={Bookmark01Icon} size={18} />
-                      </span>
-                      <span className="capture-option-copy">
-                        <strong>Quote</strong>
-                        <span>Save a passage with its source.</span>
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className="capture-option"
-                      onClick={startScreenshotCapture}
-                      disabled={isCapturing}
-                    >
-                      <span className="capture-option-icon">
-                        <HugeiconsIcon icon={Camera01Icon} size={18} />
-                      </span>
-                      <span className="capture-option-copy">
-                        <strong>Screenshot</strong>
-                        <span>Capture a window or display.</span>
-                      </span>
-                    </button>
-                  </fieldset>
-
-                  <AnimatePresence mode="wait">
-                    {captureMode && (
-                      <motion.form
-                        key={captureMode}
-                        className="capture-editor"
-                        initial={{ opacity: 0, transform: "translateY(6px)" }}
-                        animate={{ opacity: 1, transform: "translateY(0px)" }}
-                        exit={{ opacity: 0, transform: "translateY(-4px)" }}
-                        transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-                        onSubmit={saveCapture}
-                      >
-                        <div className="capture-editor-heading">
-                          <strong>
-                            {captureMode === "note"
-                              ? "New note"
-                              : captureMode === "quote"
-                                ? "New quote"
-                                : captureMode === "url"
-                                  ? "Save a link"
-                                  : "Upload a file"}
-                          </strong>
-                        </div>
-                        {captureMode === "note" && (
-                          <input
-                            ref={captureNoteInputRef}
-                            value={newTitle}
-                            onChange={(event) => setNewTitle(event.target.value)}
-                            placeholder="A thought, a link, a small beginning…"
-                            aria-label="New note"
-                          />
-                        )}
-                        {captureMode === "url" && (
-                          <input
-                            ref={captureUrlInputRef}
-                            type="text"
-                            inputMode="url"
-                            value={captureUrl}
-                            onChange={(event) => setCaptureUrl(event.target.value)}
-                            placeholder="Paste a link to save and read later (example.com works too)…"
-                            aria-label="URL to save"
-                          />
-                        )}
-                        {captureMode === "quote" && (
-                          <div className="quote-capture-fields">
-                            <textarea
-                              ref={captureQuoteInputRef}
-                              value={newQuoteText}
-                              onChange={(event) => setNewQuoteText(event.target.value)}
-                              placeholder="“The mind is a place with weather…”"
-                              aria-label="Quote text"
-                              rows={3}
-                              maxLength={2000}
-                            />
-                            <div className="quote-capture-row">
-                              <input
-                                value={newQuoteAttribution}
-                                onChange={(event) => setNewQuoteAttribution(event.target.value)}
-                                placeholder="Attribution"
-                                aria-label="Quote attribution"
-                                maxLength={240}
-                              />
-                              <input
-                                type="text"
-                                value={newQuoteSourceUrl}
-                                onChange={(event) => setNewQuoteSourceUrl(event.target.value)}
-                                placeholder="Source URL (optional)"
-                                aria-label="Quote source URL"
-                                inputMode="url"
-                              />
-                            </div>
-                          </div>
-                        )}
-                        {captureMode === "file" && (
-                          <>
-                            <input
-                              ref={fileInputRef}
-                              type="file"
-                              className="visually-hidden"
-                              accept="image/*,application/pdf,video/*"
-                              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-                            />
-                            <button
-                              type="button"
-                              className="file-picker"
-                              onClick={() => fileInputRef.current?.click()}
-                            >
-                              {selectedFile ? selectedFile.name : "Choose an image, PDF, or video"}
-                            </button>
-                          </>
-                        )}
-                        <div className="capture-editor-actions">
-                          <button
-                            className="capture-cancel"
-                            type="button"
-                            onClick={() => setCaptureMode(null)}
-                          >
-                            Back
-                          </button>
-                          <button className="capture-save" type="submit" disabled={isCapturing}>
-                            {isCapturing ? "Saving…" : "Save to library"}
-                          </button>
-                        </div>
-                      </motion.form>
-                    )}
-                  </AnimatePresence>
-
-                  {captureError && (
-                    <p className="capture-error" role="alert">
-                      Couldn’t save this yet: {captureError}
-                    </p>
-                  )}
-                </motion.section>
-              </motion.div>
+          <div className="view-dock" ref={viewDockRef}>
+            {showBrowseControls && appearance.viewToggle === "segmented" && (
+              <SegmentedControl
+                className="glass"
+                name="library-view"
+                label="View options"
+                value={viewSelectionListMode ? "list" : "grid"}
+                onChange={(view) => switchLibraryView(view === "list")}
+                options={[
+                  { value: "grid", label: "Grid" },
+                  { value: "list", label: "List" },
+                ]}
+              />
             )}
-          </AnimatePresence>
-
-          {isFirstRunOpen ? <FirstRunOverlay onFinish={finishFirstRun} /> : null}
-
-          <AnimatePresence>
-            {isShortcutsOpen && (
-              <motion.div
-                key="shortcuts-modal-backdrop"
-                className="shortcuts-modal-backdrop"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-                onMouseDown={(event) => {
-                  if (event.target === event.currentTarget) setIsShortcutsOpen(false);
-                }}
-              >
-                <motion.section
-                  ref={shortcutsModalRef}
-                  id="shortcuts-modal"
-                  className="shortcuts-modal"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="shortcuts-modal-title"
-                  initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                  animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
-                  exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+            {showBrowseControls && appearance.viewToggle === "pill" && (
+              <fieldset className="view-controls glass">
+                <legend className="visually-hidden">View options</legend>
+                <motion.span
+                  className="view-selection"
+                  aria-hidden="true"
+                  initial={false}
+                  animate={{
+                    transform: viewSelectionListMode ? "translateX(28px)" : "translateX(0px)",
+                  }}
+                  transition={{
+                    duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
+                    ease: [0.77, 0, 0.175, 1],
+                  }}
+                />
+                <button
+                  type="button"
+                  className={`view-button ${!listMode ? "selected" : ""}`}
+                  onClick={() => switchLibraryView(false)}
+                  aria-label="Grid view"
+                  aria-pressed={!listMode}
+                  data-tooltip="Grid view"
                 >
-                  <header className="shortcuts-modal-header">
-                    <div>
-                      <h2 id="shortcuts-modal-title">Keyboard shortcuts</h2>
-                      <p>Use these when you’re not typing in a field.</p>
-                    </div>
-                    <button
-                      ref={shortcutsCloseRef}
-                      type="button"
-                      className="icon-button small"
-                      onClick={() => setIsShortcutsOpen(false)}
-                      aria-label="Close keyboard shortcuts"
-                    >
-                      <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                    </button>
-                  </header>
-                  <dl className="shortcut-list">
-                    <div>
-                      <dt>
-                        <kbd>/</kbd>
-                      </dt>
-                      <dd>Focus search</dd>
-                    </div>
-                    <div>
-                      <dt>
-                        <kbd>Ctrl</kbd> or <kbd>⌘</kbd> + <kbd>K</kbd>
-                      </dt>
-                      <dd>Focus search</dd>
-                    </div>
-                    <div>
-                      <dt>
-                        <kbd>N</kbd>
-                      </dt>
-                      <dd>Start a new note</dd>
-                    </div>
-                    <div>
-                      <dt>
-                        <kbd>?</kbd>
-                      </dt>
-                      <dd>Show keyboard shortcuts</dd>
-                    </div>
-                    <div>
-                      <dt>
-                        <kbd>Esc</kbd>
-                      </dt>
-                      <dd>Close a panel or return to capture options</dd>
-                    </div>
-                  </dl>
-                </motion.section>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {captureError && !isAdding && (
-            <p className="capture-error">Couldn’t save this yet: {captureError}</p>
-          )}
-
-          <div className="library-toolbar">
-            <div className="result-context">
-              {isSerendipityView ? (
-                <>
-                  <AnimatedCount className="result-count" value={filteredItems.length} /> older{" "}
-                  {filteredItems.length === 1 ? "save" : "saves"} in this walk
-                </>
-              ) : (
-                <>
-                  <AnimatedCount className="result-count" value={filteredItems.length} /> items in
-                  library
-                  {similaritySource ? (
-                    <span className="search-context">similar to “{similaritySource.title}”</span>
-                  ) : query.trim() ? (
-                    <>
-                      <span className="search-context">for “{query}”</span>
-                      <button
-                        type="button"
-                        className="quiet-link save-space-link"
-                        onClick={beginSaveSearch}
-                      >
-                        <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
-                      </button>
-                    </>
-                  ) : null}
-                </>
-              )}
-            </div>
-            {!isSerendipityView && (
-              <div className="toolbar-actions">
-                <fieldset className="view-controls">
-                  <legend className="visually-hidden">View options</legend>
-                  <motion.span
-                    className="view-selection"
-                    aria-hidden="true"
-                    initial={false}
-                    animate={{
-                      transform: viewSelectionListMode ? "translateX(30px)" : "translateX(0px)",
-                    }}
-                    transition={{
-                      duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
-                      ease: [0.77, 0, 0.175, 1],
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className={`view-button ${!listMode ? "selected" : ""}`}
-                    onClick={() => switchLibraryView(false)}
-                    aria-label="Grid view"
-                    aria-pressed={!listMode}
-                    title="Grid view"
-                  >
-                    <HugeiconsIcon icon={Grid2X2Icon} size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    className={`view-button ${listMode ? "selected" : ""}`}
-                    onClick={() => switchLibraryView(true)}
-                    aria-label="List view"
-                    aria-pressed={listMode}
-                    title="List view"
-                  >
-                    <HugeiconsIcon icon={ListViewIcon} size={16} />
-                  </button>
-                </fieldset>
-              </div>
+                  <HugeiconsIcon icon={Grid2X2Icon} size={15} />
+                </button>
+                <button
+                  type="button"
+                  className={`view-button ${listMode ? "selected" : ""}`}
+                  onClick={() => switchLibraryView(true)}
+                  aria-label="List view"
+                  aria-pressed={listMode}
+                  data-tooltip="List view"
+                >
+                  <HugeiconsIcon icon={ListViewIcon} size={15} />
+                </button>
+              </fieldset>
             )}
           </div>
 
-          <div className="library-scroll" ref={libraryScrollRef}>
-            {isSerendipityView ? (
-              <section
-                className="serendipity-stage"
-                aria-labelledby="serendipity-title"
-                data-testid="serendipity-view"
-              >
-                <div className="serendipity-intro">
-                  <div className="serendipity-intro-copy">
-                    <p className="serendipity-eyebrow">A slower look through your library</p>
-                    <h1 id="serendipity-title">Something worth finding again?</h1>
-                    <p>Keep what still feels useful. Forget what you do not need to carry.</p>
-                  </div>
-                  <p className="serendipity-progress" role="status" aria-live="polite">
-                    {serendipityRemainingCount === 1
-                      ? "1 older item left"
-                      : `${serendipityRemainingCount} older items left`}
-                  </p>
-                </div>
-
-                {serendipityItem ? (
-                  <div className="serendipity-browse">
-                    <div className="serendipity-art" data-testid="serendipity-item">
-                      <AnimatePresence initial={false} mode="wait">
-                        <motion.div
-                          key={String(serendipityItem.id)}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -8 }}
-                          transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
-                        >
-                          <VirtualizedLibraryItem
-                            data={serendipityItem}
-                            index={0}
-                            context={libraryCardContext}
-                          />
-                        </motion.div>
-                      </AnimatePresence>
-                    </div>
-                    <div className="serendipity-copy">
-                      <div className="serendipity-kicker">
-                        <span>
-                          <KindIcon kind={serendipityItem.kind} />
-                          {serendipityItem.kind}
-                        </span>
-                        <span>{serendipityItem.date}</span>
-                      </div>
-                      <h2>{serendipityItem.title}</h2>
-                      {serendipityItem.description && (
-                        <p className="serendipity-description">{serendipityItem.description}</p>
-                      )}
-                      {serendipityItem.tags.length > 0 && (
-                        <ul className="serendipity-tags" aria-label="Tags">
-                          {serendipityItem.tags.slice(0, 5).map((tag) => (
-                            <li key={tag}>#{tag}</li>
-                          ))}
-                        </ul>
-                      )}
-                      <div className="serendipity-actions">
-                        <button
-                          type="button"
-                          className="serendipity-keep"
-                          onClick={() => keepSerendipityItem(serendipityItem)}
-                          data-testid="serendipity-keep"
-                        >
-                          <HugeiconsIcon icon={CircleCheckIcon} size={16} /> Keep
-                        </button>
-                        <button
-                          type="button"
-                          className="serendipity-forget"
-                          onClick={() => void forgetItem(serendipityItem)}
-                          data-testid="serendipity-forget"
-                        >
-                          <HugeiconsIcon icon={Archive01Icon} size={16} /> Forget
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        className="serendipity-details"
-                        onClick={() => selectLibraryItem(serendipityItem)}
-                      >
-                        Open details <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="serendipity-complete" data-testid="serendipity-complete">
-                    <div className="empty-icon">
-                      <HugeiconsIcon icon={Clock01Icon} size={20} />
-                    </div>
-                    <h2>That is the whole walk.</h2>
-                    <p>
-                      You have seen every older item still in your library. Save something new, or
-                      come back later.
-                    </p>
-                    <button type="button" className="text-button" onClick={clearToDefaultView}>
-                      Back to Everything
-                    </button>
-                  </div>
-                )}
-              </section>
-            ) : (
+          <LiquidGlass
+            className="library-stage"
+            targetRoots={[captureBarRef, viewDockRef, tooltipLayerRef, cardMenuLayerRef]}
+          >
+            <div
+              className={`library-scroll${hasPinnedQuery ? " has-pinned-query" : ""}`}
+              ref={libraryScrollRef}
+            >
               <>
                 {filteredItems.length > 0 && (
                   <VirtuosoMasonry
                     key={libraryGridKey}
-                    className={`library-grid ${listMode ? "list-mode" : ""} ${isLibraryViewTransitioning ? "view-transitioning" : ""}`}
+                    className={`library-grid ${listMode ? "list-mode" : ""}`}
                     columnCount={listMode ? 1 : gridColumnCount}
                     data={filteredItems}
                     context={libraryCardContext}
@@ -5192,7 +4716,7 @@ function App() {
                 {filteredItems.length === 0 && (
                   <div className="empty-state">
                     <div className="empty-icon">
-                      <HugeiconsIcon icon={pinsViewIsEmpty ? PinIcon : Search01Icon} size={20} />
+                      <HugeiconsIcon icon={Search01Icon} size={20} />
                     </div>
                     {activeSpace?.kind === "regular" ? (
                       <>
@@ -5202,32 +4726,18 @@ function App() {
                           here.
                         </p>
                       </>
-                    ) : similaritySource ? (
-                      <>
-                        <h2>Nothing similar yet.</h2>
-                        <p>
-                          This item is still being indexed, or nothing in the library is close to it
-                          yet.
-                        </p>
-                      </>
-                    ) : pinsViewIsEmpty ? (
-                      <>
-                        <h2>Nothing pinned yet.</h2>
-                        <p>Open anything in your library and pin it to keep it within reach.</p>
-                      </>
                     ) : (
                       <>
                         <h2>Nothing surfaced yet.</h2>
                         <p>Try another word, or save something new to your mind.</p>
                       </>
                     )}
-                    {activeSpace?.kind !== "regular" && !pinsViewIsEmpty && (
+                    {activeSpace?.kind !== "regular" && (
                       <button
                         type="button"
                         className="text-button"
                         onClick={() => {
                           setQuery("");
-                          setSimilaritySource(null);
                           clearToDefaultView();
                         }}
                       >
@@ -5237,17 +4747,95 @@ function App() {
                   </div>
                 )}
               </>
-            )}
-
-            <div
-              ref={libraryTransitionOverlayRef}
-              className="library-transition-overlay"
-              aria-hidden="true"
-            />
-          </div>
-
-          {showLibraryEdges && <LibraryEdgeFade edge="bottom" />}
+            </div>
+            {showLibraryEdges && <LibraryEdgeFade />}
+          </LiquidGlass>
         </main>
+
+        {isFirstRunOpen ? <FirstRunOverlay onFinish={finishFirstRun} /> : null}
+
+        <AnimatePresence>
+          {isShortcutsOpen && (
+            <motion.div
+              key="shortcuts-modal-backdrop"
+              className="shortcuts-modal-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setIsShortcutsOpen(false);
+              }}
+            >
+              <motion.section
+                ref={shortcutsModalRef}
+                id="shortcuts-modal"
+                className="shortcuts-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="shortcuts-modal-title"
+                initial={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
+                animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
+                exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+              >
+                <header className="shortcuts-modal-header">
+                  <div>
+                    <h2 id="shortcuts-modal-title">Keyboard shortcuts</h2>
+                    <p>Use these when you’re not typing in a field.</p>
+                  </div>
+                  <button
+                    ref={shortcutsCloseRef}
+                    type="button"
+                    className="icon-button small"
+                    onClick={() => setIsShortcutsOpen(false)}
+                    aria-label="Close keyboard shortcuts"
+                  >
+                    <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                  </button>
+                </header>
+                <dl className="shortcut-list">
+                  <div>
+                    <dt>
+                      <kbd>/</kbd>
+                    </dt>
+                    <dd>Focus search</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      <kbd>Ctrl</kbd> or <kbd>⌘</kbd> + <kbd>K</kbd>
+                    </dt>
+                    <dd>Focus search</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      <kbd>N</kbd>
+                    </dt>
+                    <dd>Start a new note</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      <kbd>Ctrl</kbd> or <kbd>⌘</kbd> + <kbd>\</kbd>
+                    </dt>
+                    <dd>Show or hide the sidebar</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      <kbd>?</kbd>
+                    </dt>
+                    <dd>Show keyboard shortcuts</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      <kbd>Esc</kbd>
+                    </dt>
+                    <dd>Close a panel or return to capture options</dd>
+                  </div>
+                </dl>
+              </motion.section>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {isSettingsOpen && (
@@ -5263,11 +4851,13 @@ function App() {
               }}
             >
               <motion.section
+                ref={settingsDialogRef}
                 id="settings-modal"
                 className="settings-modal"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="settings-modal-title"
+                tabIndex={-1}
                 initial={{ opacity: 0, transform: "translateY(10px) scale(0.98)" }}
                 animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
                 exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
@@ -5280,22 +4870,21 @@ function App() {
                   <div className="settings-sidebar-content">
                     <button
                       type="button"
-                      className={`settings-tab ${settingsTab === "general" ? "active" : ""}`}
+                      className={`settings-tab ${settingsTab === "general" || settingsTab === "licenses" ? "active" : ""}`}
                       aria-current={settingsTab === "general" ? "page" : undefined}
                       onClick={() => setSettingsTab("general")}
                     >
-                      <HugeiconsIcon icon={Settings01Icon} size={16} />
+                      <HugeiconsIcon icon={Settings01Icon} size={15} />
                       <span>General</span>
                     </button>
                     <button
                       type="button"
-                      className={`settings-tab ${settingsTab === "archive" ? "active" : ""}`}
-                      aria-current={settingsTab === "archive" ? "page" : undefined}
-                      onClick={() => setSettingsTab("archive")}
+                      className={`settings-tab ${settingsTab === "appearance" ? "active" : ""}`}
+                      aria-current={settingsTab === "appearance" ? "page" : undefined}
+                      onClick={() => setSettingsTab("appearance")}
                     >
-                      <HugeiconsIcon icon={Archive01Icon} size={16} />
-                      <span>Archive</span>
-                      <span className="settings-tab-count">{archivedItems.length}</span>
+                      <HugeiconsIcon icon={PaintBoardIcon} size={15} />
+                      <span>Appearance</span>
                     </button>
                     <button
                       type="button"
@@ -5303,8 +4892,20 @@ function App() {
                       aria-current={settingsTab === "data" ? "page" : undefined}
                       onClick={() => setSettingsTab("data")}
                     >
-                      <HugeiconsIcon icon={Database02Icon} size={16} />
-                      <span>Data</span>
+                      <HugeiconsIcon icon={Database02Icon} size={15} />
+                      <span>Library</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`settings-tab ${settingsTab === "archive" ? "active" : ""}`}
+                      aria-current={settingsTab === "archive" ? "page" : undefined}
+                      onClick={() => setSettingsTab("archive")}
+                    >
+                      <HugeiconsIcon icon={Archive01Icon} size={15} />
+                      <span>Archive</span>
+                      {isArchiveLoaded && (
+                        <span className="settings-tab-count">{archivedItems.length}</span>
+                      )}
                     </button>
                     <button
                       type="button"
@@ -5312,9 +4913,12 @@ function App() {
                       aria-current={settingsTab === "extension" ? "page" : undefined}
                       onClick={() => setSettingsTab("extension")}
                     >
-                      <HugeiconsIcon icon={Link01Icon} size={16} />
-                      <span>Extension</span>
+                      <HugeiconsIcon icon={Link01Icon} size={15} />
+                      <span>Browser extension</span>
                     </button>
+                  </div>
+                  <div className="settings-sidebar-footer">
+                    {appVersion && <p className="settings-sidebar-version">inkling {appVersion}</p>}
                   </div>
                 </aside>
 
@@ -5328,26 +4932,27 @@ function App() {
                         <p className="settings-panel-note">How inkling behaves across the app.</p>
                       </div>
                       <button
-                        ref={settingsCloseRef}
                         type="button"
-                        className="icon-button small settings-close"
+                        className="icon-button settings-close"
                         onClick={() => setIsSettingsOpen(false)}
                         aria-label="Close settings"
                       >
-                        <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                        <HugeiconsIcon icon={Cancel01Icon} size={14} />
                       </button>
                     </header>
 
-                    <div className="settings-data-scroll">
-                      <div className="settings-data-card">
-                        <div className="settings-data-heading">
-                          <HugeiconsIcon icon={SparklesIcon} size={17} />
+                    <div className="settings-scroll">
+                      <div className="settings-data-row">
+                        <span className="settings-data-icon" aria-hidden="true">
+                          <HugeiconsIcon icon={PlayIcon} size={17} />
+                        </span>
+                        <div className="settings-data-text">
                           <h3>Welcome tour</h3>
+                          <p>
+                            Replay the screens from your first launch: saving things, finding them
+                            again, and keeping your library on this computer.
+                          </p>
                         </div>
-                        <p>
-                          Replay the screens from your first launch: saving things, finding them
-                          again, and keeping your library on this computer.
-                        </p>
                         <button
                           type="button"
                           className="settings-data-button"
@@ -5356,9 +4961,85 @@ function App() {
                             setIsFirstRunOpen(true);
                           }}
                         >
-                          <HugeiconsIcon icon={PlayIcon} size={15} />
-                          <span>Show the welcome again</span>
+                          Show the welcome again
                         </button>
+                      </div>
+                      <div className="settings-data-row">
+                        <span className="settings-data-icon" aria-hidden="true">
+                          <HugeiconsIcon icon={LicenseThirdPartyIcon} size={17} />
+                        </span>
+                        <div className="settings-data-text">
+                          <h3>Open source licenses</h3>
+                          <p>The projects inkling is built on, and the terms they come with.</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="settings-data-button"
+                          onClick={() => setSettingsTab("licenses")}
+                        >
+                          View licenses
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                ) : settingsTab === "licenses" ? (
+                  <OpenSourceLicenses
+                    onBack={() => setSettingsTab("general")}
+                    onClose={() => setIsSettingsOpen(false)}
+                  />
+                ) : settingsTab === "appearance" ? (
+                  <section className="settings-panel" aria-labelledby="appearance-panel-title">
+                    <header className="settings-panel-header">
+                      <div className="settings-panel-header-content">
+                        <div className="settings-panel-heading">
+                          <h2 id="appearance-panel-title">Appearance</h2>
+                        </div>
+                        <p className="settings-panel-note">Try other looks for parts of the app.</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="icon-button settings-close"
+                        onClick={() => setIsSettingsOpen(false)}
+                        aria-label="Close settings"
+                      >
+                        <HugeiconsIcon icon={Cancel01Icon} size={14} />
+                      </button>
+                    </header>
+
+                    <div className="settings-scroll">
+                      <div className="settings-data-row">
+                        <span className="settings-data-icon" aria-hidden="true">
+                          <HugeiconsIcon icon={Grid2X2Icon} size={17} />
+                        </span>
+                        <div className="settings-data-text">
+                          <h3>Grid and list toggle</h3>
+                          <p>The switch at the bottom of the library.</p>
+                        </div>
+                        <SegmentedControl
+                          className="settings-segmented"
+                          name="appearance-view-toggle"
+                          label="Grid and list toggle style"
+                          value={appearance.viewToggle}
+                          onChange={(value) => setAppearanceOption("viewToggle", value)}
+                          options={APPEARANCE_OPTIONS.viewToggle}
+                        />
+                      </div>
+                      <div className="settings-data-row">
+                        <span className="settings-data-icon" aria-hidden="true">
+                          <HugeiconsIcon icon={SidebarLeftIcon} size={17} />
+                        </span>
+                        <div className="settings-data-text">
+                          <h3>Sidebar button</h3>
+                          <p>How the sidebar opens and closes.</p>
+                        </div>
+                        <SegmentedControl
+                          className="settings-segmented"
+                          name="appearance-sidebar-toggle"
+                          label="Sidebar button style"
+                          value={appearance.sidebarToggle}
+                          onChange={(value) => setAppearanceOption("sidebarToggle", value)}
+                          options={APPEARANCE_OPTIONS.sidebarToggle}
+                        />
                       </div>
                     </div>
                   </section>
@@ -5367,92 +5048,93 @@ function App() {
                     <header className="settings-panel-header">
                       <div className="settings-panel-header-content">
                         <div className="settings-panel-heading">
-                          <h2 id="archive-panel-title">Archived items</h2>
+                          <h2 id="archive-panel-title">Archive</h2>
                         </div>
-                        <div className="settings-panel-count-row">
-                          <span className="settings-panel-count">
-                            {archivedItems.length} {archivedItems.length === 1 ? "item" : "items"}{" "}
-                            in archive
-                          </span>
-                          <fieldset className="settings-archive-actions">
-                            <legend className="visually-hidden">Archive actions</legend>
-                            {isArchiveSelectionMode && (
-                              <>
-                                <span
-                                  className="settings-selected-count"
-                                  role="status"
-                                  aria-live="polite"
-                                >
-                                  {selectedArchivedIds.size} selected
-                                </span>
-                                <button
-                                  type="button"
-                                  className="settings-batch-button settings-batch-recover"
-                                  disabled={selectedArchivedIds.size === 0}
-                                  onClick={() => void recoverSelectedArchivedItems()}
-                                >
-                                  Recover
-                                </button>
-                                <button
-                                  type="button"
-                                  className="settings-batch-button settings-batch-delete"
-                                  disabled={selectedArchivedIds.size === 0}
-                                  onClick={() => void deleteSelectedArchivedItems()}
-                                >
-                                  Delete
-                                </button>
-                              </>
-                            )}
-                            <button
-                              type="button"
-                              className={`settings-select-button ${isArchiveSelectionMode ? "is-active" : ""}`}
-                              aria-pressed={isArchiveSelectionMode}
-                              aria-label={
-                                isArchiveSelectionMode
-                                  ? "Exit multi-select mode"
-                                  : "Select archived items"
-                              }
-                              onClick={toggleArchiveSelectionMode}
-                            >
-                              <HugeiconsIcon icon={CheckListIcon} size={15} />
-                              <span>Select</span>
-                            </button>
-                          </fieldset>
-                        </div>
+                        {isArchiveLoaded && (
+                          <p className="settings-panel-note">
+                            {archivedItems.length === 1
+                              ? "1 thing you put away. It waits here,"
+                              : `${archivedItems.length} things you put away. They wait here,`}{" "}
+                            out of your library, until you bring{" "}
+                            {archivedItems.length === 1 ? "it" : "them"} back or let{" "}
+                            {archivedItems.length === 1 ? "it" : "them"} go.
+                          </p>
+                        )}
                       </div>
-                      <button
-                        ref={settingsCloseRef}
-                        type="button"
-                        className="icon-button small settings-close"
-                        onClick={() => setIsSettingsOpen(false)}
-                        aria-label="Close settings"
-                      >
-                        <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                      </button>
+                      <div className="settings-panel-tools">
+                        <fieldset className="settings-archive-actions">
+                          <legend className="visually-hidden">Archive actions</legend>
+                          {isArchiveSelectionMode && (
+                            <>
+                              <span
+                                className="settings-selected-count"
+                                role="status"
+                                aria-live="polite"
+                              >
+                                {selectedArchivedIds.size} selected
+                              </span>
+                              <button
+                                type="button"
+                                className="settings-batch-button settings-batch-restore"
+                                disabled={selectedArchivedIds.size === 0}
+                                onClick={() => void restoreSelectedArchivedItems()}
+                              >
+                                Restore
+                              </button>
+                              <button
+                                type="button"
+                                className="settings-batch-button settings-batch-delete"
+                                disabled={selectedArchivedIds.size === 0}
+                                onClick={() => void deleteSelectedArchivedItems()}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            className={`settings-select-button ${isArchiveSelectionMode ? "is-active" : ""}`}
+                            aria-pressed={isArchiveSelectionMode}
+                            aria-label={
+                              isArchiveSelectionMode
+                                ? "Exit multi-select mode"
+                                : "Select archived items"
+                            }
+                            onClick={toggleArchiveSelectionMode}
+                          >
+                            <span>{isArchiveSelectionMode ? "Done" : "Select"}</span>
+                          </button>
+                        </fieldset>
+                        <button
+                          type="button"
+                          className="icon-button settings-close"
+                          onClick={() => setIsSettingsOpen(false)}
+                          aria-label="Close settings"
+                        >
+                          <HugeiconsIcon icon={Cancel01Icon} size={14} />
+                        </button>
+                      </div>
                     </header>
 
-                    <div className="settings-archive-scroll">
-                      {archivedItems.length > 0 ? (
-                        <div className="settings-archive-grid">
-                          {archivedItems.map((item, index) => (
-                            <VirtualizedLibraryItem
-                              key={String(item.id)}
-                              data={item}
-                              index={index}
-                              context={archivedCardContext}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="settings-empty-state">
-                          <div className="settings-empty-icon">
-                            <HugeiconsIcon icon={Archive01Icon} size={19} />
+                    {isArchiveLoaded && archivedItems.length > 0 ? (
+                      <ArchiveGrid
+                        data={archivedItems}
+                        context={archivedCardContext}
+                        ItemContent={VirtualizedLibraryItem}
+                      />
+                    ) : (
+                      <div className="settings-scroll">
+                        {isArchiveLoaded && (
+                          <div className="settings-empty-state">
+                            <div className="settings-empty-icon">
+                              <HugeiconsIcon icon={Archive01Icon} size={19} />
+                            </div>
+                            <h4>Your archive is empty.</h4>
+                            <p>Items you forget from the library will appear here.</p>
                           </div>
-                          <h4>Your archive is empty.</h4>
-                          <p>Items you forget from the library will appear here.</p>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </section>
                 ) : settingsTab === "data" ? (
                   <section className="settings-panel" aria-labelledby="data-panel-title">
@@ -5462,69 +5144,91 @@ function App() {
                           <h2 id="data-panel-title">Your library</h2>
                         </div>
                         <p className="settings-panel-note">
-                          Your library stays on this machine. Restoring adds saved items without
-                          replacing anything already here.
+                          It lives in one folder on this computer. Back it up by exporting a copy,
+                          or bring an old copy back in.
                         </p>
                       </div>
                       <button
-                        ref={settingsCloseRef}
                         type="button"
-                        className="icon-button small settings-close"
+                        className="icon-button settings-close"
                         onClick={() => setIsSettingsOpen(false)}
                         aria-label="Close settings"
                       >
-                        <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                        <HugeiconsIcon icon={Cancel01Icon} size={14} />
                       </button>
                     </header>
 
-                    <div className="settings-data-scroll">
-                      <div className="settings-data-card">
-                        <div className="settings-data-heading">
-                          <HugeiconsIcon icon={Database02Icon} size={17} />
+                    <div className="settings-scroll">
+                      <LibraryMakeup
+                        kinds={wholeLibraryKinds ?? items.map((item) => item.kind)}
+                        sizeBytes={librarySizeBytes}
+                        onShowFolder={
+                          canUseLibraryFolderPicker ? showLibraryFolderFromSettings : undefined
+                        }
+                      />
+                      <div className="settings-data-row">
+                        <span className="settings-data-icon" aria-hidden="true">
+                          <HugeiconsIcon
+                            icon={isExportingLibrary ? Loading01Icon : Download04Icon}
+                            size={17}
+                          />
+                        </span>
+                        <div className="settings-data-text">
                           <h3>Export a copy</h3>
+                          <p>
+                            A dated folder with the database, every file, and a manifest. Keep it on
+                            another drive.
+                          </p>
+                          {lastCopy ? (
+                            <p className="settings-data-copy">{formatLastCopy(lastCopy)}</p>
+                          ) : null}
+                          {!canUseLibraryFolderPicker ? (
+                            <p className="settings-data-hint">Export runs in the desktop app.</p>
+                          ) : null}
+                          {lastExport ? (
+                            <div className="settings-data-result" role="status" aria-live="polite">
+                              <span className="settings-data-summary">
+                                {formatExportSummary(lastExport)}
+                              </span>
+                              <span className="settings-data-path">{lastExport.directory}</span>
+                            </div>
+                          ) : null}
                         </div>
-                        <p>
-                          Writes a dated folder holding a snapshot of the database, the files your
-                          items point at, and a manifest describing both. Keep it on another drive
-                          to back the library up.
-                        </p>
                         <button
                           type="button"
-                          className={`settings-data-button ${isExportingLibrary ? "is-busy" : ""}`}
+                          className={`settings-data-button is-primary ${isExportingLibrary ? "is-busy" : ""}`}
                           disabled={
                             !canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary
                           }
                           onClick={() => void exportLibraryToFolder()}
                         >
-                          <HugeiconsIcon
-                            icon={isExportingLibrary ? Loading01Icon : ArrowDown01Icon}
-                            size={15}
-                          />
-                          <span>
-                            {isExportingLibrary ? "Exporting…" : "Choose folder and export"}
-                          </span>
+                          {isExportingLibrary ? "Exporting…" : "Export…"}
                         </button>
-                        {!canUseLibraryFolderPicker ? (
-                          <p className="settings-data-hint">Export runs in the desktop app.</p>
-                        ) : null}
-                        {lastExport ? (
-                          <div className="settings-data-result" role="status" aria-live="polite">
-                            <span className="settings-data-summary">
-                              {formatExportSummary(lastExport)}
-                            </span>
-                            <span className="settings-data-path">{lastExport.directory}</span>
-                          </div>
-                        ) : null}
                       </div>
-                      <div className="settings-data-card">
-                        <div className="settings-data-heading">
-                          <HugeiconsIcon icon={Database02Icon} size={17} />
+                      <div className="settings-data-row">
+                        <span className="settings-data-icon" aria-hidden="true">
+                          <HugeiconsIcon
+                            icon={isImportingLibrary ? Loading01Icon : Upload04Icon}
+                            size={17}
+                          />
+                        </span>
+                        <div className="settings-data-text">
                           <h3>Restore from an export</h3>
+                          <p>
+                            Adds its items, files and Spaces here. Nothing already in your library
+                            gets replaced.
+                          </p>
+                          {!canUseLibraryFolderPicker ? (
+                            <p className="settings-data-hint">Restore runs in the desktop app.</p>
+                          ) : null}
+                          {lastImport ? (
+                            <div className="settings-data-result" role="status" aria-live="polite">
+                              <span className="settings-data-summary">
+                                {formatImportSummary(lastImport)}
+                              </span>
+                            </div>
+                          ) : null}
                         </div>
-                        <p>
-                          Choose a complete Inkling export folder to add its items, files, and
-                          Spaces to this library. Existing items are left unchanged.
-                        </p>
                         <button
                           type="button"
                           className={`settings-data-button ${isImportingLibrary ? "is-busy" : ""}`}
@@ -5533,24 +5237,8 @@ function App() {
                           }
                           onClick={() => void importLibraryFromFolder()}
                         >
-                          <HugeiconsIcon
-                            icon={isImportingLibrary ? Loading01Icon : ArrowUp01Icon}
-                            size={15}
-                          />
-                          <span>
-                            {isImportingLibrary ? "Restoring…" : "Choose export and restore"}
-                          </span>
+                          {isImportingLibrary ? "Restoring…" : "Restore…"}
                         </button>
-                        {!canUseLibraryFolderPicker ? (
-                          <p className="settings-data-hint">Restore runs in the desktop app.</p>
-                        ) : null}
-                        {lastImport ? (
-                          <div className="settings-data-result" role="status" aria-live="polite">
-                            <span className="settings-data-summary">
-                              {formatImportSummary(lastImport)}
-                            </span>
-                          </div>
-                        ) : null}
                       </div>
                     </div>
                   </section>
@@ -5561,24 +5249,21 @@ function App() {
                         <div className="settings-panel-heading">
                           <h2 id="extension-panel-title">Browser extension</h2>
                         </div>
-                        <div className="settings-panel-count-row">
-                          <span className="settings-panel-count">
-                            Save pages without leaving the browser
-                          </span>
-                        </div>
+                        <p className="settings-panel-note">
+                          Save pages without leaving the browser
+                        </p>
                       </div>
                       <button
-                        ref={settingsCloseRef}
                         type="button"
-                        className="icon-button small settings-close"
+                        className="icon-button settings-close"
                         onClick={() => setIsSettingsOpen(false)}
                         aria-label="Close settings"
                       >
-                        <HugeiconsIcon icon={Cancel01Icon} size={16} />
+                        <HugeiconsIcon icon={Cancel01Icon} size={14} />
                       </button>
                     </header>
 
-                    <div className="settings-archive-scroll">
+                    <div className="settings-scroll">
                       <ExtensionPairing />
                     </div>
                   </section>
@@ -5596,8 +5281,8 @@ function App() {
               actions={expandedOverlayActions}
               spaces={selectedItemSpaces}
               originRectsRef={selectionRectsRef}
-              contentAreaRef={libraryScrollRef}
-              selectionScrollRef={selectionScrollRef}
+              frameRef={libraryFrameRef}
+              historyCloseRequest={historyCloseRequest}
             />
           </Suspense>
         )}
@@ -5643,7 +5328,19 @@ function App() {
           )}
         </AnimatePresence>
       </div>
-      <MascotRoamLayer />
+      <TooltipLayer ref={tooltipLayerRef} />
+      <div ref={cardMenuLayerRef}>
+        {cardMenu && (
+          <ContextMenu
+            x={cardMenu.x}
+            y={cardMenu.y}
+            label={cardMenu.item.title}
+            entries={cardMenuEntries}
+            returnFocus={cardMenu.card}
+            onClose={closeCardMenu}
+          />
+        )}
+      </div>
       <Toaster
         position="top-right"
         offset={{ top: 48, right: 16 }}

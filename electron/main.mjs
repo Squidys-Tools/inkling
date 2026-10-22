@@ -1,12 +1,14 @@
-import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, protocol, session, shell } from "electron";
 import electronUpdater from "electron-updater";
-import { readFile, realpath, stat } from "node:fs/promises";
-import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
+import { serveAssetFile } from "./asset-response.mjs";
 import { startCaptureServer } from "./capture-server.mjs";
 import { createAiJobProcessors, enqueueStaleImageEmbeddings } from "./ai-jobs.mjs";
 import { createSingleFlightDirectoryPicker } from "./native-dialog.mjs";
+import { createLibrarySizeCache } from "./library-size.mjs";
 import { createUpdateController } from "./updater.mjs";
 import { JobWorker, openLibraryStorage, resolveLibraryDataDirectory } from "./storage.mjs";
 import { snapshotDatabase } from "./sqlite-snapshot.mjs";
@@ -23,7 +25,8 @@ const libraryDirectory = resolveLibraryDataDirectory({
 });
 const updateController = createUpdateController({
   autoUpdater,
-  isPackaged: app.isPackaged,
+  // Unpacked `build:dir` output ships without app-update.yml, so it has no feed to check.
+  isPackaged: app.isPackaged && existsSync(join(process.resourcesPath, "app-update.yml")),
   platform: process.platform,
 });
 app.setPath("userData", libraryDirectory);
@@ -32,8 +35,13 @@ const pendingDeepLinks = [];
 let mainWindow;
 let libraryStorage;
 let jobWorker;
+let thumbnailWorker;
 let captureServer;
 let aiJobProcessors;
+const librarySizeCache = createLibrarySizeCache(
+  join(libraryDirectory, "library.sqlite3"),
+  join(libraryDirectory, "assets"),
+);
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -76,9 +84,35 @@ const mimeTypes = {
 protocol.registerSchemesAsPrivileged([
   {
     scheme: "app",
-    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false },
+    // stream lets <video> and <audio> issue Range requests against the asset handler.
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: false,
+      stream: true,
+    },
   },
 ]);
+
+// Remote card images load with crossorigin so the liquid glass canvas can draw
+// them (Chromium paints opaque cross-origin images blank). Most hosts send no
+// CORS header, so the app's session adds one to image responses. The requests
+// themselves are unchanged.
+function allowCanvasReadableImages() {
+  session.defaultSession.webRequest.onHeadersReceived(
+    { urls: ["https://*/*"] },
+    ({ resourceType, responseHeaders }, callback) => {
+      if (resourceType !== "image") return callback({});
+      const headers = Object.fromEntries(
+        Object.entries(responseHeaders ?? {}).filter(
+          ([name]) => name.toLowerCase() !== "access-control-allow-origin",
+        ),
+      );
+      callback({ responseHeaders: { ...headers, "Access-Control-Allow-Origin": ["*"] } });
+    },
+  );
+}
 
 function sendDeepLinks(contents, links) {
   if (!contents.isDestroyed() && links.length > 0) {
@@ -118,6 +152,8 @@ function initializeLibraryStorage() {
     createSnapshot: snapshotDatabase,
     createThumbnail: (bytes) =>
       import("./thumbnail.mjs").then(({ createImageThumbnail }) => createImageThumbnail(bytes)),
+    inspectImage: (bytes) =>
+      import("./thumbnail.mjs").then(({ inspectImage }) => inspectImage(bytes)),
   });
   aiJobProcessors = createAiJobProcessors({
     modelCacheDirectory: join(libraryDirectory, "models"),
@@ -128,6 +164,9 @@ function initializeLibraryStorage() {
   jobWorker = new JobWorker(libraryStorage, {
     processors: aiJobProcessors.processors,
     onIdle: aiJobProcessors.onIdle,
+  }).start();
+  thumbnailWorker = new JobWorker(libraryStorage, {
+    processors: aiJobProcessors.thumbnailProcessors,
   }).start();
   return libraryStorage.status();
 }
@@ -154,9 +193,29 @@ const chooseLibraryDirectory = createSingleFlightDirectoryPicker({
 function registerLibraryCommands() {
   const storageCommands = {
     initialize_storage: () => initializeLibraryStorage(),
+    get_app_version: () => app.getVersion(),
+    get_library_size: async ({ refresh = false }) => {
+      initializeLibraryStorage();
+      return librarySizeCache.get({ refresh: Boolean(refresh) });
+    },
+    get_last_export: () => requireLibraryStorage().getLastExport(),
+    show_library_folder: async () => {
+      const error = await shell.openPath(libraryDirectory);
+      if (error) throw new Error(error);
+      return true;
+    },
+    show_item_in_folder: async ({ id }) => {
+      const item = requireLibraryStorage().getItem(id);
+      if (!item?.localAssetPath) return false;
+      const assetPath = await requireLibraryStorage().resolveAssetPath(item.localAssetPath);
+      shell.showItemInFolder(assetPath);
+      return true;
+    },
     list_active_items: () => requireLibraryStorage().listActiveItems(),
     list_archived_items: () => requireLibraryStorage().listArchivedItems(),
     get_item: ({ id }) => requireLibraryStorage().getItem(id),
+    get_item_cards: ({ ids }) => requireLibraryStorage().getItemCards(ids),
+    get_change_count: () => requireLibraryStorage().changeCount(),
     get_item_content: ({ id }) => requireLibraryStorage().getItemContent(id),
     search_items: async ({ query, limit }) => {
       const text = String(query ?? "").trim();
@@ -187,7 +246,12 @@ function registerLibraryCommands() {
     create_note: ({ input }) => requireLibraryStorage().createNote(input),
     create_quote: ({ input }) => requireLibraryStorage().createQuote(input),
     capture_url: ({ input }) => requireLibraryStorage().captureUrl(input),
-    save_file: ({ input }) => requireLibraryStorage().saveFile(input),
+    save_file: async ({ input }) => {
+      const item = await requireLibraryStorage().saveFile(input);
+      // The worker only polls every few seconds; the card is waiting on this one.
+      void thumbnailWorker?.pump();
+      return item;
+    },
     resolve_asset_path: ({ path }) => requireLibraryStorage().resolveAssetPath(path),
     update_item: ({ input }) => requireLibraryStorage().updateItem(input),
     archive_item: ({ id, archived = true }) => requireLibraryStorage().archiveItem(id, archived),
@@ -257,10 +321,6 @@ function registerLibraryCommands() {
 }
 
 async function serveAppAsset(request) {
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
-  }
-
   const url = new URL(request.url);
   if (url.hostname !== "local") return new Response(null, { status: 404 });
 
@@ -282,48 +342,25 @@ async function serveAppAsset(request) {
   const relativeRequestPath = isLibraryAsset
     ? `/${requestPath.slice(libraryAssetPrefix.length)}`
     : requestPath;
-  const filePath = resolve(assetDirectory, `.${relativeRequestPath}`);
-  const pathFromRoot = relative(assetDirectory, filePath);
-  if (pathFromRoot.startsWith("..") || isAbsolute(pathFromRoot)) {
-    return new Response(null, { status: 403 });
-  }
-
-  try {
-    const [realRoot, realFile, fileStat] = await Promise.all([
-      realpath(assetDirectory),
-      realpath(filePath),
-      stat(filePath),
-    ]);
-    const realRelativePath = relative(realRoot, realFile);
-    if (!fileStat.isFile() || realRelativePath.startsWith("..") || isAbsolute(realRelativePath)) {
-      return new Response(null, { status: 403 });
-    }
-
-    const body = request.method === "HEAD" ? null : await readFile(realFile);
-    return new Response(body, {
-      headers: {
-        "Content-Security-Policy": contentSecurityPolicy,
-        "Content-Type": mimeTypes[extname(realFile).toLowerCase()] ?? "application/octet-stream",
-        "X-Content-Type-Options": "nosniff",
-      },
-    });
-  } catch {
-    return new Response(null, { status: 404 });
-  }
+  return serveAssetFile(request, {
+    root: assetDirectory,
+    path: relativeRequestPath,
+    contentTypes: mimeTypes,
+    headers: { "Content-Security-Policy": contentSecurityPolicy },
+  });
 }
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     title: "inkling",
-    // Unpackaged dev runs open larger; the packaged 960x540 size is the onboarding baseline.
-    width: app.isPackaged ? 960 : 1280,
-    height: app.isPackaged ? 540 : 800,
+    width: 1280,
+    height: 720,
     // 320px matches the body min-width in src/App.css. At 240px high the library grid shrinks to 65px; 360px keeps it near 185px.
     minWidth: 320,
     minHeight: 360,
     frame: false,
     titleBarStyle: "hidden",
-    titleBarOverlay: { color: "#0c0c0b", symbolColor: "#e5ddd2", height: 32 },
+    titleBarOverlay: { color: "#00000000", symbolColor: "#e5ddd2", height: 32 },
     autoHideMenuBar: true,
     backgroundColor: "#0c0c0b",
     show: false,
@@ -333,6 +370,9 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      // HTML-in-Canvas, so liquid glass can refract the live grid. Chromium
+      // ships it behind this flag; without it the renderer keeps the CSS glass.
+      enableBlinkFeatures: "CanvasDrawElement",
     },
   });
   mainWindow.setMenu(null);
@@ -407,6 +447,7 @@ if (!hasSingleInstanceLock) {
       );
     }
     await protocol.handle("app", serveAppAsset);
+    allowCanvasReadableImages();
     handleDeepLinkArguments(process.argv);
     createWindow();
 
@@ -424,6 +465,7 @@ if (!hasSingleInstanceLock) {
       if (quitDrainStarted) return;
       quitDrainStarted = true;
       jobWorker?.stop();
+      thumbnailWorker?.stop();
       void (async () => {
         try {
           await captureServer?.close();

@@ -1,0 +1,149 @@
+/* Holds the Add button's place in the sidebar footer while the menu, anchored
+   to its bottom edge, grows up over the Spaces list. */
+.add-menu {
+  position: relative;
+  height: 40px;
+  margin-bottom: 8px;
+}
+.add-menu .add-button {
+  width: 100%;
+}
+.add-menu-panel {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  padding: 4px;
+  border: 1px solid var(--library-border);
+  background: var(--library-surface-raised);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+}
+.add-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 8px 0 12px;
+}
+.add-menu-header:has(.add-menu-round + .add-menu-title) {
+  padding-left: 8px;
+}
+.add-menu-title {
+  flex: 1 1 auto;
+  color: var(--library-text-soft);
+  font: 600 14px / 18px var(--font-ui);
+}
+.add-menu-round {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #34302c;
+  color: var(--library-text);
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+.add-menu-round:hover {
+  background: #45403a;
+}
+.add-menu-body {
+  padding: 6px;
+  border: 1px solid var(--library-border);
+  border-radius: 14px;
+  background: var(--library-frame);
+}
+.add-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+}
+.add-menu-tile {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 2px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--library-muted);
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
+}
+.add-menu-tile span {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--library-text-soft);
+  font: 500 12px / 15px var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.add-menu-tile:hover:not(:disabled),
+.add-menu-tile:focus-visible {
+  outline: 0;
+  background: var(--glass-active);
+  color: var(--library-text);
+}
+.add-menu-tile:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+.add-menu-form {
+  display: grid;
+  gap: 6px;
+}
+.add-menu-form input,
+.add-menu-form textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--library-border);
+  border-radius: 9px;
+  outline: 0;
+  background: var(--library-surface);
+  color: var(--library-text);
+  font: 13px / 18px var(--font-ui);
+  transition: border-color 0.18s ease;
+}
+.add-menu-form textarea {
+  min-height: 72px;
+  max-height: 160px;
+  resize: vertical;
+}
+.add-menu-form :is(input, textarea):focus {
+  border-color: #4a443d;
+}
+.add-menu-form :is(input, textarea)::placeholder {
+  color: #5e5850;
+}
+.add-menu-save {
+  height: 34px;
+  margin-top: 2px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--library-text);
+  color: var(--library-canvas);
+  cursor: pointer;
+  font: 600 13px / 16px var(--font-ui);
+  transition: background 0.18s ease;
+}
+.add-menu-save:hover:not(:disabled) {
+  background: #f2ece1;
+}
+.add-menu-save:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.add-menu-error {
+  margin: 6px 4px 2px;
+  color: #e08a6a;
+  font: 12px / 16px var(--font-ui);
+}
