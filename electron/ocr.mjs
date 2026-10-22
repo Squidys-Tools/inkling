@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { createWorker } from "tesseract.js";
+import { sharpImageInput } from "./thumbnail.mjs";
 
 const tesseractEntry = fileURLToPath(import.meta.resolve("tesseract.js"));
 const tesseractDirectory = dirname(tesseractEntry);
@@ -33,7 +34,12 @@ export function createTesseractOcr({ cacheDirectory, workerFactory = createWorke
     return workerPromise;
   }
 
-  async function recognize(image) {
+  async function recognize(input) {
+    // Decoded here first: tesseract.js throws a corrupt image from its worker
+    // as an uncaught main-process exception, while sharp rejects it cleanly.
+    const image = await sharp(await sharpImageInput(input))
+      .png()
+      .toBuffer();
     const current = await worker();
     let bestText = "";
     let bestQuality = -1;

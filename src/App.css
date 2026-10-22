@@ -1119,7 +1119,8 @@ a:focus-visible,
 }
 
 /* Note, PDF and file share the typed layout (ItemMedia.tsx TypedArtwork). Grid
-   cards are 300px tall. Video is 190px. */
+   cards are 300px tall. A video with a poster is 190px; without one it takes
+   the file card's typed layout. */
 .library-grid:not(.list-mode) :is(.note-card, .pdf-card, .file-card) {
   aspect-ratio: auto;
   height: 300px;
@@ -1322,12 +1323,6 @@ a:focus-visible,
   color: var(--library-text);
   font: 400 11px / 14px var(--font-mono);
   pointer-events: none;
-}
-.video-art .url-fallback-label {
-  top: 16px;
-  right: 16px;
-  bottom: auto;
-  left: 16px;
 }
 
 /* Card text. Grid cards only show it for articles; the list view shows it for all. */
@@ -2262,9 +2257,9 @@ a:focus-visible,
   color: var(--library-muted);
   font: 400 13px / 19px var(--font-ui);
 }
+/* Columns are set inline by ArchiveGrid.tsx, which needs the count for windowing. */
 .settings-archive-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 179px);
   justify-content: start;
   gap: 22px 14px;
 }

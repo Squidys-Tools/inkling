@@ -96,7 +96,9 @@ export type SaveFileInput = {
   fileName: string;
   mimeType: string;
   kind: "image" | "pdf" | "video" | "other";
-  bytes: number[];
+  // Structured clone moves a typed array as one block across IPC; a number
+  // array would be several times larger and slow to copy.
+  bytes: Uint8Array;
 };
 
 type ProcessingJobKind = "ocr_image" | "ocr_pdf_page" | "generate_embedding" | "enrich_url";
@@ -296,6 +298,14 @@ export async function getItemContent(id: string) {
 
 export async function getItem(id: string) {
   return invoke<StoredLibraryItemDetail | null>("get_item", { id });
+}
+
+export async function getItemCards(ids: string[]) {
+  return invoke<StoredLibraryCard[]>("get_item_cards", { ids });
+}
+
+export async function getChangeCount() {
+  return invoke<number>("get_change_count");
 }
 
 export async function searchItems(query: string) {

@@ -64,3 +64,17 @@ test("Tesseract prefers non-empty text and deskews rotated blocks", async () => 
     await ocr.close();
   }
 });
+
+test("a corrupt image fails the OCR call before it reaches the worker", async () => {
+  let workerStarted = false;
+  const ocr = createTesseractOcr({
+    cacheDirectory: join(tmpdir(), "inkling-tesseract-unused"),
+    workerFactory: async () => {
+      workerStarted = true;
+      throw new Error("worker should not start");
+    },
+  });
+  const truncatedJpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+  await expect(ocr.recognize(truncatedJpeg)).rejects.toThrow();
+  expect(workerStarted).toBe(false);
+});
