@@ -6,10 +6,9 @@ import {
   useRef,
   useState,
 } from "react";
-import type { AddMode } from "../../components/AddMenu/AddMenu";
+import type { AddMode } from "../capture/AddMenu/AddMenu";
 import { appKeyboardShortcut } from "../../lib/keyboardShortcuts";
 import type { LibraryItem } from "../../lib/types";
-import { keepTabFocusInside } from "../../ui/keepTabFocusInside";
 import type { ReadingItem } from "../item-view/useItemDetails";
 
 type AppShortcutsOptions = {
@@ -44,19 +43,13 @@ export function useAppShortcuts({
   setIsSidebarOpen,
 }: AppShortcutsOptions) {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
-  const shortcutsModalRef = useRef<HTMLElement | null>(null);
-  const shortcutsCloseRef = useRef<HTMLButtonElement>(null);
   const openCaptureRef = useRef(openCapture);
   const closeCaptureModalRef = useRef(closeCaptureModal);
   openCaptureRef.current = openCapture;
   closeCaptureModalRef.current = closeCaptureModal;
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && isShortcutsOpen) {
-        event.preventDefault();
-        setIsShortcutsOpen(false);
-        return;
-      }
+      if (isShortcutsOpen) return;
       if (readingItem || selectedItem || pdfViewerItem) return;
       if (event.key === "Escape") {
         if (isSettingsOpen) {
@@ -71,7 +64,7 @@ export function useAppShortcuts({
         }
         return;
       }
-      if (isShortcutsOpen || isSettingsOpen || isAdding) return;
+      if (isSettingsOpen || isAdding) return;
       const target = event.target;
       const isEditableTarget =
         target instanceof HTMLElement &&
@@ -101,21 +94,5 @@ export function useAppShortcuts({
     searchRef,
   ]);
 
-  useEffect(() => {
-    if (!isShortcutsOpen) return;
-    const previouslyFocused =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const dialog = shortcutsModalRef.current;
-    shortcutsCloseRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (dialog) keepTabFocusInside(event, dialog);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [isShortcutsOpen]);
-
-  return { isShortcutsOpen, setIsShortcutsOpen, shortcutsModalRef, shortcutsCloseRef };
+  return { isShortcutsOpen, setIsShortcutsOpen };
 }
