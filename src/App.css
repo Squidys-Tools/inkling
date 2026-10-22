@@ -2698,6 +2698,10 @@ a:focus-visible,
   padding: 10px 14px;
   border-bottom: 1px solid var(--rule);
   background: #fbfbfa;
+  color: #3f3a33;
+  --ink: #3f3a33;
+  --muted: #68625d;
+  --orange: #985a3d;
 }
 .pdf-viewer-title {
   flex: 1;
