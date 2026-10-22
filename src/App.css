@@ -4931,13 +4931,14 @@ a:focus-visible,
   transition: none;
 }
 /* A narrow window has no room for a 320px column beside the media, so the
-   stage takes the top half and the inspector the bottom. */
+   stage takes the top half and the inspector the bottom. Editing a note hides
+   the stage, so the editor keeps the full height. */
 @media (max-width: 780px) {
   .item-stage {
     inset: var(--item-inspector-top) var(--item-inset) 50% var(--item-inset);
     padding: 16px;
   }
-  .item-inspector {
+  .expanded-overlay:not(.is-editing-note) .item-inspector {
     top: 50%;
     left: 0;
     width: auto;
