@@ -1,5 +1,5 @@
 import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from "react";
-import type { AddMode } from "../../components/AddMenu/AddMenu";
+import type { AddMode } from "./AddMenu/AddMenu";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "../../lib/deepLink";
 import { classifyFile } from "../../lib/ingestion/file-classification";
 import { parseHttpUrl } from "../../lib/ingestion/url";
