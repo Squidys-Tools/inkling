@@ -64,7 +64,7 @@ Each step may set `label`, and `timeoutMs` (default 8000). A failed step writes 
 bun .claude/skills/verify-inkling/scripts/drive.mjs 9333 <steps.json> .artifacts/verify-inkling/<run-name>
 ```
 
-Selectors come from `src/App.tsx` and `src/components/ExpandedItemOverlay.tsx`. Prefer the aria-label, title, and class names listed in each feature file over coordinates. Only `features/capture-note.md` has a proven step list; the other feature files are mapped but not yet driven.
+Selectors come from `src/App.tsx` and `src/features/item-view/`. Prefer the aria-label, title, and class names listed in each feature file over coordinates. Only `features/capture-note.md` has a proven step list; the other feature files are mapped but not yet driven.
 
 ## Evidence
 

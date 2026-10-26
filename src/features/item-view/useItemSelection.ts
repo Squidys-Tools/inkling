@@ -13,7 +13,7 @@ import {
   scrollViewport,
   scrollViewportRect,
   type SourceRects,
-} from "../../components/overlayMotion";
+} from "./overlayMotion";
 import type { LibraryItem } from "../../lib/types";
 
 type ItemSelectionOptions = {

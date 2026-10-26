@@ -69,7 +69,7 @@ export function useItemDetails({
   // Same chunk the lazy viewer resolves; this only moves the fetch earlier.
   useEffect(() => {
     if (selectedItem?.kind === "PDF" && selectedItem.fileUrl) {
-      void import("../../components/PdfViewer");
+      void import("./PdfViewer");
     }
   }, [selectedItem]);
   const noteContentRequestsRef = useRef(new Set<string>());

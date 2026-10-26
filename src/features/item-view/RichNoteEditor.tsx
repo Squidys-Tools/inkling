@@ -13,8 +13,8 @@ import {
   RefreshCcwIcon,
   RefreshCwIcon,
 } from "@hugeicons/core-free-icons";
-import { noteEditorExtensions } from "../lib/noteMarkdown";
-import { isSafeNoteLink, noteBodyForEditor, noteBodyForStorage } from "../lib/notes";
+import { noteEditorExtensions } from "../../lib/noteMarkdown";
+import { isSafeNoteLink, noteBodyForEditor, noteBodyForStorage } from "../../lib/notes";
 
 type RichNoteEditorProps = {
   body?: string;

@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { SourceRects } from "../../components/overlayMotion";
+import type { SourceRects } from "../item-view/overlayMotion";
 import type { LibraryItem } from "../../lib/types";
 
 type NavSnapshot = {

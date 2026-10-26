@@ -19,7 +19,7 @@ import { ContextMenu } from "./components/ContextMenu/ContextMenu";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
 // local disk on first open (Suspense fallback null: no spinner, no layout
 // shift — the chunk resolves in milliseconds).
-const PdfViewer = lazy(() => import("./components/PdfViewer"));
+const PdfViewer = lazy(() => import("./features/item-view/PdfViewer"));
 const MascotBoard = lazy(() =>
   import("./components/mascot/MascotBoard").then((module) => ({ default: module.MascotBoard })),
 );
@@ -27,12 +27,12 @@ const AliveBoard = lazy(() =>
   import("./components/mascot/AliveBoard").then((module) => ({ default: module.AliveBoard })),
 );
 
-const ExpandedItemOverlay = lazy(() =>
-  import("./components/ExpandedItemOverlay").then((module) => ({
-    default: module.ExpandedItemOverlay,
+const ItemView = lazy(() =>
+  import("./features/item-view/ItemView").then((module) => ({
+    default: module.ItemView,
   })),
 );
-import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
+import type { ItemViewActions } from "./features/item-view/ItemView";
 const ReaderView = lazy(() =>
   import("./ReaderView").then((module) => ({ default: module.ReaderView })),
 );
@@ -394,7 +394,7 @@ function App() {
     setSelectedItem,
   });
 
-  const expandedOverlayActions = useMemo<ExpandedOverlayActions>(
+  const expandedOverlayActions = useMemo<ItemViewActions>(
     () => ({
       onClose: closeItem,
       onOpenPdf: setPdfViewerItem,
@@ -704,8 +704,8 @@ function App() {
 
         {selectedItem && (
           <Suspense fallback={null}>
-            <ExpandedItemOverlay
-              key="expanded-item-overlay"
+            <ItemView
+              key="item-view"
               item={selectedItem}
               actions={expandedOverlayActions}
               spaces={selectedItemSpaces}
