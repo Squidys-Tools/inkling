@@ -23,9 +23,10 @@ import {
   PostArtwork,
   QuoteArtwork,
 } from "../../components/ItemMedia";
-import type { SourceRects } from "../../components/overlayMotion";
+import type { SourceRects } from "../item-view/overlayMotion";
 import type { ReaderOrigin } from "../../ReaderView";
 import type { LibraryItem } from "../../lib/types";
+import { RETRY_BUTTON } from "../../ui/Button";
 import { cx } from "../../ui/cx";
 
 type CardLayout = "grid" | "list" | "archive";
@@ -556,7 +557,7 @@ export const LibraryCard = memo(function LibraryCard({
               <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
               <button
                 type="button"
-                className="retry-button"
+                className={RETRY_BUTTON}
                 onClick={(event) => {
                   event.stopPropagation();
                   void context.onRetryJob(item.processing?.failedJob?.id ?? "");

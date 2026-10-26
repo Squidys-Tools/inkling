@@ -231,7 +231,7 @@ export function NoteArtwork({ item, compact }: { item: LibraryItem; compact?: bo
 }
 
 // `className` sizes and places the art; the default is its natural height.
-// `post-art` stays for the item stage, which still sizes it from App.css.
+// `post-art` is the item stage's hook for sizing it inside the X embed fallback.
 export function PostArtwork({
   post,
   className = "min-h-[185px]",
@@ -332,6 +332,9 @@ export function QuoteArtwork({
 const VIDEO_IFRAME_ALLOW =
   "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
 
+const DETAIL_VIDEO =
+  "relative h-full overflow-hidden bg-[#101010] [&_iframe]:block [&_iframe]:size-full [&_iframe]:border-0";
+
 export function DetailVideoMedia({ item }: { item: LibraryItem }) {
   const [isPlaying, setIsPlaying] = useState(false);
   // Item identity is a reset trigger; the effect intentionally reads no item data.
@@ -341,7 +344,7 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
   if (item.video) {
     const poster = item.image ?? item.video.posterUrl;
     return (
-      <div className="detail-video">
+      <div className={DETAIL_VIDEO}>
         {isPlaying ? (
           <iframe
             src={autoplayEmbedUrl(item.video.embedUrl)}
@@ -352,15 +355,28 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
         ) : (
           <button
             type="button"
-            className="video-poster"
+            className="group relative block size-full cursor-pointer border-0 bg-[#101010] p-0"
             onClick={() => setIsPlaying(true)}
             aria-label={`Play video: ${item.title}`}
           >
-            {poster && <img src={poster} alt="" loading="lazy" decoding="async" />}
-            <span className="video-poster-play" aria-hidden="true">
+            {poster && (
+              <img
+                src={poster}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="size-full object-cover opacity-88 transition-opacity duration-200 ease-[ease] group-hover:opacity-100"
+              />
+            )}
+            <span
+              className="absolute inset-0 m-auto grid size-[54px] place-items-center rounded-full bg-[rgba(18,18,16,0.8)] text-[#f2ede2] shadow-[0_10px_28px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.22)] transition-[scale] duration-200 ease-[ease] group-hover:scale-108"
+              aria-hidden="true"
+            >
               <HugeiconsIcon icon={PlayIcon} size={21} />
             </span>
-            <span className="video-provider">{providerLabel(item.video.provider)}</span>
+            <span className="pointer-events-none absolute bottom-[11px] left-3 font-body text-[9px] tracking-[0.13em] text-[#b3ad8d] uppercase [text-shadow:0_1px_6px_rgba(0,0,0,0.7)]">
+              {providerLabel(item.video.provider)}
+            </span>
           </button>
         )}
       </div>
@@ -369,11 +385,11 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
 
   if (item.fileUrl) {
     return (
-      <div className="detail-video">
+      <div className={DETAIL_VIDEO}>
         {/* This local upload has no caption metadata in the item model; do not fabricate an empty track. */}
         {/* biome-ignore lint/a11y/useMediaCaption: Captions are unavailable for this user-supplied file. */}
         <video
-          className="detail-native-video"
+          className="block size-full bg-black object-contain"
           src={item.fileUrl}
           poster={item.image}
           controls
@@ -384,7 +400,7 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
   }
 
   return (
-    <div className={`detail-art ${item.accent ?? "ink"}`}>
+    <div className={item.accent}>
       <KindIcon kind={item.kind} />
       <span>{item.kind}</span>
     </div>
@@ -586,19 +602,22 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
   }, [embedHtml, shouldLoad]);
 
   return (
-    <div className="x-post-embed" data-x-status={status}>
+    <div className="relative size-full p-0" data-x-status={status}>
       <div
-        className={`x-post-native ${status === "ready" ? "is-ready" : ""}`}
+        className={cx(
+          "absolute inset-0 size-full [&_iframe]:h-full! [&_iframe]:w-full!",
+          status === "ready" ? "visible" : "invisible",
+        )}
         ref={nativeRef}
         aria-hidden={status !== "ready"}
       />
       {status !== "ready" && (
-        <div className="x-post-fallback">
+        <div className="absolute inset-0 size-full">
           {fallback}
           {!shouldLoad && (
             <button
               type="button"
-              className="overlay-action-secondary x-post-load"
+              className="flex cursor-pointer items-center justify-center gap-2 rounded-[8px] border border-border bg-transparent px-4 py-3 text-[12px] text-ink [transition:scale_0.16s_cubic-bezier(0.23,1,0.32,1),background-color_0.18s_ease,border-color_0.18s_ease] enabled:hover:border-[#4a4842] enabled:hover:bg-surface-raised enabled:active:scale-96 disabled:cursor-default disabled:opacity-50"
               onClick={() => setShouldLoad(true)}
             >
               Load post from X
