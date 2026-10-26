@@ -1,0 +1,24 @@
+{
+  "name": "@inkling/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The IPC contract between inkling's Electron main process and its renderer.",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./commands": {
+      "types": "./src/commands.ts",
+      "default": "./src/commands.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc-rs --noEmit -p tsconfig.json",
+    "typecheck:tsc": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "effect": "4.0.6"
+  }
+}

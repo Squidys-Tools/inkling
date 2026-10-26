@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
+import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.ts";
 import {
   createEmbeddingEngine,
   floatVectorBytes,
@@ -10,7 +10,7 @@ import {
   layerNormalize,
   l2Normalize,
   textTokens,
-} from "./embeddings.mjs";
+} from "./embeddings.ts";
 
 test("Nomic document normalization produces a unit vector and little-endian storage bytes", () => {
   const vector = Float32Array.from([1, 2, 3]);
@@ -54,7 +54,7 @@ test("text-query embeddings do not download model assets during search", async (
   globalThis.fetch = (async () => {
     fetchCalls += 1;
     throw new Error("unexpected model download");
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
 
   try {
     await expect(createEmbeddingEngine(cache).embedQuery("quiet telescope")).rejects.toThrow(

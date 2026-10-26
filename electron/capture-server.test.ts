@@ -2,12 +2,12 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openLibraryStorage } from "./storage.mjs";
-import { captureServerInternals, MAX_JSON_BYTES, startCaptureServer } from "./capture-server.mjs";
+import { captureServerInternals, MAX_JSON_BYTES, startCaptureServer } from "./capture-server.ts";
+import { openTestLibrary, type TestLibrary } from "./storage/test-library.ts";
 
 const roots: string[] = [];
 const servers: Array<Awaited<ReturnType<typeof startCaptureServer>>> = [];
-const libraries: ReturnType<typeof openLibraryStorage>[] = [];
+const libraries: TestLibrary[] = [];
 
 function temporaryDirectory() {
   const directory = mkdtempSync(join(tmpdir(), "inkling-electron-capture-"));
@@ -17,7 +17,7 @@ function temporaryDirectory() {
 
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => server.close()));
-  for (const library of libraries.splice(0)) library.db.close();
+  for (const library of libraries.splice(0)) await library.close();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -207,7 +207,7 @@ describe("capture server parity", () => {
 
 test("loopback capture uses a persisted bearer token and creates a pending storage item", async () => {
   const directory = temporaryDirectory();
-  const library = openLibraryStorage(join(directory, "library.sqlite3"));
+  const library = await openTestLibrary(join(directory, "library.sqlite3"));
   libraries.push(library);
   let server = await startCaptureServer({
     libraryDirectory: directory,
@@ -217,6 +217,7 @@ test("loopback capture uses a persisted bearer token and creates a pending stora
 
   const status = server.status();
   expect(status.running).toBe(true);
+  if (!status.healthUrl) throw new Error("capture server is not listening");
   expect(new URL(status.healthUrl).hostname).toBe("127.0.0.1");
   const originalToken = server.getPairingToken();
   expect(originalToken).toMatch(/^[0-9a-f]{64}$/u);
@@ -282,7 +283,7 @@ test("loopback capture uses a persisted bearer token and creates a pending stora
   });
   expect(response.status).toBe(201);
   const { id } = await response.json();
-  expect(library.getItem(id)).toMatchObject({
+  expect(await library.getItem(id)).toMatchObject({
     sourceUrl: "https://example.com/article",
     title: "Captured page",
     metadata: {
@@ -296,7 +297,7 @@ test("loopback capture uses a persisted bearer token and creates a pending stora
     kind: "enrich_url",
     status: "pending",
   });
-  expect(library.getItemContent(id)).toEqual({ id, body: "", bodyFormat: "" });
+  expect(await library.getItemContent(id)).toEqual({ id, body: "", bodyFormat: "" });
 
   const nextToken = await server.regeneratePairingToken();
   expect(nextToken).not.toBe(originalToken);
@@ -311,7 +312,7 @@ test("loopback capture uses a persisted bearer token and creates a pending stora
   });
   servers.push(server);
   expect(server.getPairingToken()).toBe(nextToken);
-  const regeneratedHealth = await fetch(server.status().healthUrl, {
+  const regeneratedHealth = await fetch(String(server.status().healthUrl), {
     headers: { Authorization: `Bearer ${nextToken}` },
   });
   expect(regeneratedHealth.status).toBe(200);

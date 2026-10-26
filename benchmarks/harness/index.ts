@@ -6,7 +6,7 @@ import { loadManifest, corpusPath, benchmarksRoot } from "./manifest";
 import { startCorpusServer } from "./server";
 import { extractFixture } from "./extract";
 import { extractPdf } from "./pdf";
-import { extractPdfTextByPages } from "../../electron/pdf.mjs";
+import { extractPdfTextByPages } from "../../electron/pdf.ts";
 import { availableOcrEngines, WindowsOcrEngine, TesseractJsEngine, type OcrEngine } from "./ocr";
 import { average, bannedTermHits, stringScore, termMatches, tokenStats, tokenize } from "./score";
 import type { ManifestItem, ExpectedSearch } from "./manifest";

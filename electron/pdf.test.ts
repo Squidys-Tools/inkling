@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
-import { extractPdfTextByPages, renderPdfFirstPage } from "./pdf.mjs";
+import { extractPdfTextByPages, renderPdfFirstPage } from "./pdf.ts";
 
 function rectanglePdf(rectangles: string[], rotate = 0) {
   const objects = [

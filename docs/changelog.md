@@ -90,6 +90,9 @@ Guardrails:
 - The app no longer contacts Google Fonts or Twitter/X at startup: reader fonts are bundled with the app and the content security policy no longer allows Google Fonts requests
 - X post embeds load the X widget only when the user clicks to load the post, so cards and saved links no longer contact X or Twitter on open
 - The library bottom fade no longer shows a hard edge where the blur band starts or where it meets the padding below the grid: one blur layer feathers out through an eased mask, and a canvas-colored scrim dissolves content into the background at the grid's clip line (#149)
+- A background job that hangs now fails after its type's time limit instead of stalling every job behind it
+- Quitting while a job runs hands the job back without spending one of its retries, and a job that already finished is never redone
+- Saving a URL retries rate limits and brief server errors, waiting at least as long as the site's Retry-After header asks, within the same 15-second budget
 
 ### Changed
 
@@ -130,6 +133,8 @@ Guardrails:
 - `bun run check` installs dependencies with the lockfile frozen first, so lockfile drift fails locally the way it fails in the CI frontend job
 - Library grid and list views soften into a progressive blur at the top edge, under the search bar, and the bottom edge, down to the window's last pixel; both stay in place while scrolling (`src/components/LibraryEdgeFade.tsx`, `src/components/GradualBlur/`, `src/App.css`, `src/App.tsx`)
 - The desktop storage layer is split into one module per domain (items, jobs, Spaces, search, enrichment, import and export) with no change to the library file or its schema (SQU-125)
+- The desktop backend is TypeScript built on Effect: storage runs on Effect's SQLite client, background jobs on Effect workers, URL downloads on Effect's HTTP client, and every IPC command is checked against one shared schema before it reaches storage
+- Restarting the app hands back every job the previous run left in progress, instead of waiting out its five-minute lease
 
 ### Removed
 

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "main": "electron/main.mjs",
+  "main": "dist/electron/main.mjs",
   "packageManager": "bun@1.4.2",
   "workspaces": [
     "extension",
@@ -11,18 +11,19 @@
   ],
   "scripts": {
     "dev": "vite",
-    "dev:app": "vite build --mode electron-preview && electron . --preview",
+    "dev:app": "vite build --mode electron-preview && bun run build:electron && electron . --preview",
     "ui:smoke": "bun scripts/ui-smoke.mjs",
     "build": "tsc-rs -p benchmarks/harness/tsconfig.json && tsc-rs && vite build",
-    "build:app": "tsc-rs -p benchmarks/harness/tsconfig.json && tsc-rs && vite build --mode app && bun build --target=node --format=esm --outfile=dist/electron/url-ingestion.mjs src/lib/ingestion/url-ingestion.ts && bun scripts/assert-no-demo-seed.ts",
+    "build:app": "tsc-rs -p benchmarks/harness/tsconfig.json && tsc-rs && vite build --mode app && bun run build:electron && bun scripts/assert-no-demo-seed.ts",
+    "build:electron": "bun scripts/build-electron.ts",
     "build:dir": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --dir",
     "build:installer": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --win nsis",
     "preview": "vite preview",
-    "check": "bun run check:bun-version && bun install --frozen-lockfile --ignore-scripts && bun run typecheck && bun run --cwd extension typecheck && bun run --cwd packages/ingestion-shared typecheck && bun run check:refs && bun test && bun run knip && bun run lint && bun run build && bun run build:app && bun run ingest:smoke && bun run --cwd extension build",
+    "check": "bun run check:bun-version && bun install --frozen-lockfile --ignore-scripts && bun run typecheck && bun run --cwd extension typecheck && bun run --cwd packages/ingestion-shared typecheck && bun run --cwd packages/contracts typecheck && bun run check:refs && bun test && bun run knip && bun run lint && bun run build && bun run build:app && bun run ingest:smoke && bun run --cwd extension build",
     "check:bun-version": "bun -e \"const pkg = await Bun.file('package.json').json(); const fileVersion = (await Bun.file('.bun-version').text()).trim(); const expected = pkg.packageManager.replace('bun@', ''); if (fileVersion !== expected || Bun.version !== expected) { console.error('Expected Bun ' + expected + ', found ' + Bun.version); process.exit(1); }\"",
     "check:refs": "bun scripts/assert-command-refs.ts",
-    "typecheck": "tsc-rs --noEmit && tsc-rs -p benchmarks/harness/tsconfig.json --noEmit",
-    "typecheck:tsc": "tsc --noEmit && tsc -p benchmarks/harness/tsconfig.json --noEmit",
+    "typecheck": "tsc-rs --noEmit && tsc-rs -p benchmarks/harness/tsconfig.json --noEmit && tsc-rs -p electron/tsconfig.json --noEmit",
+    "typecheck:tsc": "tsc --noEmit && tsc -p benchmarks/harness/tsconfig.json --noEmit && tsc -p electron/tsconfig.json --noEmit",
     "test": "bun test",
     "test:pdf": "bun benchmarks/harness/pdf.smoke.ts",
     "knip": "knip --no-progress",
@@ -33,6 +34,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "@effect/sql-sqlite-node": "4.0.6",
     "@fontsource-variable/dm-sans": "^5.3.0",
     "@fontsource/arimo": "^5.3.0",
     "@fontsource/bitter": "^5.3.0",
@@ -75,6 +77,7 @@
     "@tiptap/starter-kit": "3.31.4",
     "@virtuoso.dev/masonry": "^1.4.3",
     "defuddle": "^0.19.5",
+    "effect": "4.0.6",
     "electron-updater": "6.8.9",
     "gsap": "^3.15.0",
     "linkedom": "^0.18.13",
@@ -89,6 +92,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
+    "@inkling/contracts": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@types/bun": "1.4.3",
     "@types/react": "^19.3.0",
@@ -121,8 +125,6 @@
     ],
     "files": [
       "dist/**/*",
-      "electron/**/*",
-      "src/lib/deepLinkCore.mjs",
       "package.json"
     ],
     "asarUnpack": [

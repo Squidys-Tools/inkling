@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { serveAssetFile } from "./asset-response.mjs";
+import { serveAssetFile } from "./asset-response.ts";
 
 const contentTypes = { ".mp4": "video/mp4", ".webp": "image/webp" };
 const bytes = Buffer.from(Array.from({ length: 1000 }, (_, index) => index % 251));

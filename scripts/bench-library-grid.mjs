@@ -57,7 +57,9 @@ async function seedLibrary() {
   const { personalSeedItems } = await import(
     pathToFileURL(join(harnessRoot, "src/seedPersonal.ts"))
   );
-  const { openLibraryStorage } = await import(pathToFileURL(join(appRoot, "electron/storage.mjs")));
+  const { openTestLibrary } = await import(
+    pathToFileURL(join(appRoot, "electron/storage/test-library.ts"))
+  );
   const require = createRequire(join(harnessRoot, "package.json"));
   const sharp = require("sharp");
   const images = [];
@@ -116,7 +118,7 @@ async function seedLibrary() {
     "note",
     "image",
   ];
-  const storage = openLibraryStorage(database);
+  const storage = await openTestLibrary(database);
   const manifest = [];
   let listPayload;
   try {
@@ -190,13 +192,13 @@ async function seedLibrary() {
     }
     storage.db.exec("COMMIT");
     storage.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-    const listItems = storage.listActiveItems();
+    const listItems = await storage.listActiveItems();
     listPayload = {
       itemCount: listItems.length,
       jsonBytes: Buffer.byteLength(JSON.stringify(listItems)),
     };
   } finally {
-    storage.db.close();
+    await storage.close();
   }
   return {
     sha256: hash(JSON.stringify(manifest)),

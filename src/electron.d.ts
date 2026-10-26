@@ -1,56 +1,8 @@
+import type { CommandArgs, CommandName, CommandResults } from "@inkling/contracts";
 import type { DeepLinkCapture } from "./lib/deepLink";
 
-type ElectronCommand =
-  | "check_for_updates"
-  | "install_update"
-  | "initialize_storage"
-  | "get_app_version"
-  | "get_library_size"
-  | "get_last_export"
-  | "show_library_folder"
-  | "show_item_in_folder"
-  | "list_active_items"
-  | "list_archived_items"
-  | "get_item"
-  | "get_item_cards"
-  | "get_change_count"
-  | "get_item_content"
-  | "search_items"
-  | "search_similar_images"
-  | "search_similar_text"
-  | "list_spaces"
-  | "create_space"
-  | "delete_space"
-  | "update_space"
-  | "swap_space_positions"
-  | "list_space_items"
-  | "add_space_item"
-  | "remove_space_item"
-  | "list_item_spaces"
-  | "create_note"
-  | "create_quote"
-  | "capture_url"
-  | "save_file"
-  | "resolve_asset_path"
-  | "update_item"
-  | "archive_item"
-  | "delete_item"
-  | "export_library"
-  | "import_library"
-  | "get_jobs_for_items"
-  | "count_active_jobs"
-  | "get_onboarding_state"
-  | "complete_onboarding"
-  | "enqueue_ocr_job"
-  | "retry_processing_job"
-  | "get_capture_status"
-  | "get_pairing_token"
-  | "regenerate_pairing_token"
-  | "select_library_directory"
-  | "plugin:deep-link|get_current";
-
 type ElectronBridge = {
-  commands: Record<ElectronCommand, (args?: Record<string, unknown>) => Promise<unknown>>;
+  commands: { [C in CommandName]: (args?: CommandArgs<C>) => Promise<CommandResults[C]> };
   onDeepLink: (listener: (captures: DeepLinkCapture[]) => void) => Promise<() => void>;
   onJobUpdated: (listener: (payload: { itemId: string }) => void) => () => void;
   windowControls: {

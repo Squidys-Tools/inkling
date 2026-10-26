@@ -3,22 +3,22 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
-import { createAiJobProcessors } from "./ai-jobs.mjs";
-import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.mjs";
-import { JobWorker, openLibraryStorage, VIDEO_POSTER_JOB } from "./storage.mjs";
-import { createImageThumbnail } from "./thumbnail.mjs";
-import { createVideoPoster } from "./video-poster.mjs";
+import { createAiJobProcessors } from "./ai-jobs.ts";
+import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.ts";
+import { VIDEO_POSTER_JOB } from "./storage/library.ts";
+import { openTestLibrary, type TestLibrary } from "./storage/test-library.ts";
+import { createImageThumbnail } from "./thumbnail.ts";
+import { createVideoPoster } from "./video-poster.ts";
 
 type ShellImage = { isEmpty(): boolean; toPNG(): Buffer };
-type Library = ReturnType<typeof openLibraryStorage>;
 
 const roots: string[] = [];
-const libraries: Library[] = [];
+const libraries: TestLibrary[] = [];
 const processors: ReturnType<typeof createAiJobProcessors>[] = [];
 
 afterEach(async () => {
   for (const ai of processors.splice(0)) await ai.close();
-  for (const library of libraries.splice(0)) library.db.close();
+  for (const library of libraries.splice(0)) await library.close();
   Bun.gc(true);
 });
 
@@ -62,12 +62,12 @@ function stubShell(thumbnail: () => Promise<ShellImage>) {
   };
 }
 
-function setup(nativeImage: object) {
+async function setup(nativeImage: object) {
   const root = mkdtempSync(join(tmpdir(), "inkling-video-poster-"));
   roots.push(root);
   const events: string[] = [];
-  const library = openLibraryStorage(join(root, "library.sqlite3"), {
-    createThumbnail: createImageThumbnail,
+  const library = await openTestLibrary(join(root, "library.sqlite3"), {
+    media: { createThumbnail: createImageThumbnail },
     jobQueue: { onUpdated: (id: string) => events.push(id) },
   });
   libraries.push(library);
@@ -77,41 +77,44 @@ function setup(nativeImage: object) {
     nativeImage,
   });
   processors.push(ai);
-  // Only the poster kind is claimed, so a pump never waits on model jobs.
-  const worker = new JobWorker(library, {
+  // Only the poster kind is claimed, so a drain never waits on model jobs.
+  const worker = await library.worker({
     processors: { [VIDEO_POSTER_JOB]: ai.thumbnailProcessors[VIDEO_POSTER_JOB] },
     onIdle: ai.onIdle,
   });
   return { root, events, library, worker, ai };
 }
 
-const saveVideo = (library: Library, fileName: string) =>
-  library.saveFile({
+async function saveVideo(library: TestLibrary, fileName: string) {
+  const item = await library.saveFile({
     fileName,
     mimeType: "video/mp4",
     kind: "video",
     bytes: Uint8Array.from([0, 0, 0, 24, 102, 116, 121, 112]),
   });
+  if (!item) throw new Error("video was not saved");
+  return item;
+}
 
-const posterJobs = (library: Library) =>
+const posterJobs = (library: TestLibrary) =>
   library.db
     .prepare("SELECT item_id, status, retry_count FROM jobs WHERE kind = ?")
     .all(VIDEO_POSTER_JOB);
 
 test("a captured video gets its poster from a background job, not from capture", async () => {
   const shell = stubShell(shellFrame);
-  const { root, events, library, worker } = setup(shell.nativeImage);
+  const { root, events, library, worker } = await setup(shell.nativeImage);
 
   const video = await saveVideo(library, "clip.mp4");
   expect(shell.requested).toEqual([]);
-  expect(library.getItem(video.id)?.thumbnailPath).toBeNull();
+  expect((await library.getItem(video.id))?.thumbnailPath).toBeNull();
   expect(posterJobs(library)).toEqual([{ item_id: video.id, status: "pending", retry_count: 0 }]);
   events.length = 0;
 
-  await worker.pump();
+  await worker.drain();
 
   const posterPath = `assets/items/${video.id}/thumbnail.webp`;
-  expect(library.getItem(video.id)?.thumbnailPath).toBe(posterPath);
+  expect((await library.getItem(video.id))?.thumbnailPath).toBe(posterPath);
   expect(shell.requested).toHaveLength(1);
   expect(shell.requested[0].path).toBe(
     realpathSync(join(root, "assets", "items", video.id, "clip.mp4")),
@@ -146,12 +149,12 @@ const failures = [
 for (const [name, makeShell, attempts] of failures) {
   test(`a video keeps its item and stops retrying when ${name}`, async () => {
     const shell = makeShell();
-    const { root, events, library, worker, ai } = setup(shell.nativeImage);
+    const { root, events, library, worker, ai } = await setup(shell.nativeImage);
     const video = await saveVideo(library, "clip.mp4");
 
-    await worker.pump();
+    await worker.drain();
 
-    expect(library.getItem(video.id)).toMatchObject({
+    expect(await library.getItem(video.id)).toMatchObject({
       id: video.id,
       kind: "video",
       thumbnailPath: null,
@@ -162,9 +165,9 @@ for (const [name, makeShell, attempts] of failures) {
     expect(shell.requested).toHaveLength(attempts);
 
     events.length = 0;
-    await worker.pump();
-    ai.onIdle(library);
-    await worker.pump();
+    await worker.drain();
+    await library.run(ai.onIdle());
+    await worker.drain();
     expect(shell.requested).toHaveLength(attempts);
     expect(posterJobs(library)).toEqual([{ item_id: video.id, status: "failed", retry_count: 3 }]);
     expect(events).toEqual([]);
@@ -173,7 +176,7 @@ for (const [name, makeShell, attempts] of failures) {
 
 test("backfill posters only local videos that have none and have not already failed", async () => {
   const shell = stubShell(shellFrame);
-  const { root, library, worker } = setup(shell.nativeImage);
+  const { root, library, worker } = await setup(shell.nativeImage);
 
   const legacy = await saveVideo(library, "legacy.mp4");
   const posted = await saveVideo(library, "posted.mp4");
@@ -184,6 +187,7 @@ test("backfill posters only local videos that have none and have not already fai
     kind: "file",
     bytes: Uint8Array.from([104, 105]),
   });
+  if (!notes) throw new Error("file was not saved");
   library.db.prepare("DELETE FROM jobs").run();
   library.db
     .prepare("UPDATE items SET thumbnail_path = ? WHERE id = ?")
@@ -197,23 +201,23 @@ test("backfill posters only local videos that have none and have not already fai
       VALUES ('earlier-failure', ?, ?, 'failed', 3, 1)`)
     .run(broken.id, VIDEO_POSTER_JOB);
 
-  await worker.pump();
+  await worker.drain();
 
   expect(shell.requested.map((request) => request.path)).toEqual([
     realpathSync(join(root, "assets", "items", legacy.id, "legacy.mp4")),
   ]);
-  expect(library.getItem(legacy.id)?.thumbnailPath).toBe(
+  expect((await library.getItem(legacy.id))?.thumbnailPath).toBe(
     `assets/items/${legacy.id}/thumbnail.webp`,
   );
-  expect(library.getItem(broken.id)?.thumbnailPath).toBeNull();
-  expect(library.getItem(notes.id)?.thumbnailPath).toBeNull();
-  expect(library.getItem("link-only")?.thumbnailPath).toBeNull();
+  expect((await library.getItem(broken.id))?.thumbnailPath).toBeNull();
+  expect((await library.getItem(notes.id))?.thumbnailPath).toBeNull();
+  expect((await library.getItem("link-only"))?.thumbnailPath).toBeNull();
   expect(Object.fromEntries(posterJobs(library).map((job) => [job.item_id, job.status]))).toEqual({
     [legacy.id]: "completed",
     [broken.id]: "failed",
   });
 
-  await worker.pump();
+  await worker.drain();
   expect(shell.requested).toHaveLength(1);
 });
 

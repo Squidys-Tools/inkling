@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
-import { createUpdateController } from "./updater.mjs";
+import { createUpdateController } from "./updater.ts";
 
 const updateInfo = JSON.parse(
   await readFile(new URL("./fixtures/latest.json", import.meta.url), "utf8"),

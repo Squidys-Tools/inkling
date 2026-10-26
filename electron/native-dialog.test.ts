@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createSingleFlightDirectoryPicker } from "./native-dialog.mjs";
+import { createSingleFlightDirectoryPicker } from "./native-dialog.ts";
 
 test("directory picker is parented, single-flight, and restores focus after cancellation", async () => {
   const deferred = {
@@ -74,7 +74,15 @@ test("directory picker restores focus and clears its lock when opening fails", a
 });
 
 test("directory picker does not open without a live parent window", async () => {
-  for (const parent of [null, { isDestroyed: () => true }]) {
+  const destroyed = {
+    isDestroyed: () => true,
+    isMinimized: () => false,
+    restore() {},
+    isVisible: () => true,
+    show() {},
+    focus() {},
+  };
+  for (const parent of [null, destroyed]) {
     const chooseDirectory = createSingleFlightDirectoryPicker({
       getParent: () => parent,
       showOpenDialog: () => {
