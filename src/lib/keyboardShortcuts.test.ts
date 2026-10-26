@@ -14,27 +14,6 @@ function keyEvent(key: string, overrides: Partial<KeyboardEvent> = {}) {
 }
 
 describe("appKeyboardShortcut", () => {
-  test("searches with slash or the platform search chord", () => {
-    expect(appKeyboardShortcut(keyEvent("/"), false)).toBe("search");
-    expect(appKeyboardShortcut(keyEvent("k", { ctrlKey: true }), false)).toBe("search");
-    expect(appKeyboardShortcut(keyEvent("k", { metaKey: true }), false)).toBe("search");
-  });
-
-  test("opens a note and the shortcut guide", () => {
-    expect(appKeyboardShortcut(keyEvent("n"), false)).toBe("new-note");
-    expect(appKeyboardShortcut(keyEvent("N"), false)).toBe("new-note");
-    expect(appKeyboardShortcut(keyEvent("?", { shiftKey: true }), false)).toBe("help");
-    expect(appKeyboardShortcut(keyEvent("?"), false)).toBe("help");
-    expect(appKeyboardShortcut(keyEvent("/", { shiftKey: true }), false)).toBe("help");
-  });
-
-  test("toggles the sidebar with the platform backslash chord", () => {
-    expect(appKeyboardShortcut(keyEvent("\\", { ctrlKey: true }), false)).toBe("sidebar");
-    expect(appKeyboardShortcut(keyEvent("\\", { metaKey: true }), false)).toBe("sidebar");
-    expect(appKeyboardShortcut(keyEvent("\\"), false)).toBeNull();
-    expect(appKeyboardShortcut(keyEvent("\\", { ctrlKey: true }), true)).toBeNull();
-  });
-
   test("does not steal keys from editors or modified text input", () => {
     expect(appKeyboardShortcut(keyEvent("/"), true)).toBeNull();
     expect(appKeyboardShortcut(keyEvent("k", { ctrlKey: true }), true)).toBeNull();

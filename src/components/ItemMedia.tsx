@@ -180,12 +180,12 @@ export function FileArtwork({ item, compact }: { item: LibraryItem; compact?: bo
   );
 }
 
-export function fileExtensionLabel(name: string): string {
+function fileExtensionLabel(name: string): string {
   const match = /\.([a-z0-9]{1,5})$/iu.exec(name.trim());
   return match ? match[1].toUpperCase() : "";
 }
 
-export function formatFileSize(bytes: number): string {
+function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];
   let value = bytes / 1024;
@@ -208,7 +208,7 @@ export function formatDuration(totalSeconds: number): string {
 // `item.description` is already the plain text the backend projected, so it is
 // counted as it came. Only a raw note body, which is still Markdown, needs the
 // projection first.
-export function noteWordCount(value: string | undefined): number {
+function noteWordCount(value: string | undefined): number {
   const text = value?.replace(/\s+/gu, " ").trim() ?? "";
   if (!text) return 0;
   return text.split(" ").length;

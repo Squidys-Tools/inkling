@@ -3,6 +3,12 @@ import { cx } from "./cx";
 
 const sizes = { xs: "size-5", sm: "size-[26px]", md: "size-[34px]" };
 
+export const iconButtonClass = (size: keyof typeof sizes = "md") =>
+  cx(
+    "inline-grid place-items-center rounded-lg border border-transparent bg-transparent text-muted cursor-pointer transition-[background-color,color,border-color] duration-180 ease-[ease] hover:border-border hover:bg-surface hover:text-ink [&_svg]:block",
+    sizes[size],
+  );
+
 export function IconButton({
   label,
   size = "md",
@@ -17,11 +23,7 @@ export function IconButton({
     <BaseButton
       aria-label={label}
       data-tooltip={label}
-      className={cx(
-        "inline-grid place-items-center rounded-lg border border-transparent bg-transparent text-muted cursor-pointer transition-[background-color,color,border-color] duration-180 ease-[ease] hover:border-border hover:bg-surface hover:text-ink [&_svg]:block",
-        sizes[size],
-        className,
-      )}
+      className={cx(iconButtonClass(size), className)}
       {...props}
     />
   );

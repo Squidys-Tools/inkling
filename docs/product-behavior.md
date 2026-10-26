@@ -127,6 +127,15 @@ Archiving an item hides it from a Regular Space without removing it, so restorin
 
 Users should be able to create, rename, reorder, recolor, and delete Spaces. Deleting a Space must not delete its items.
 
+## Item view
+
+Opening a card grows it into the library frame, and the item view replaces the library until it closes. The library stays where it was underneath, so closing flies the item back into its card.
+
+- The item's media sits on a dotted stage. Images zoom and pan, and show their pixels when zoomed far in.
+- An inspector on the right holds the title, note, Spaces, tags, and details, with a Similar tab beside Info.
+- An action bar moves the item to a Space, opens the original, shows a file in its folder, and archives it. An archived item can also be deleted for good.
+- The view closes only from Close or Escape. Mouse side buttons and Alt+Left/Right step back and forward through opened items.
+
 ## Reading and writing
 
 Articles should open in a distraction-free reader with clean typography, cached images, headings and links, code blocks, footnotes where available, safe supported video embeds, and an original source link at the bottom.

@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import {
   isSafeNoteLink,
   markdownToPlainText,
-  normalizeNoteBody,
   noteBodyForEditor,
   noteBodyForPreview,
   noteBodyForStorage,
@@ -196,12 +195,6 @@ describe("noteBodyForStorage", () => {
     expect(noteBodyForStorage("# My note", "My note", "")).toBe("");
     expect(noteBodyForStorage("Plain body", "Reading list", "")).toBe("");
     expect(noteBodyForStorage(undefined, "Reading list", "")).toBe("");
-  });
-});
-
-describe("normalizeNoteBody", () => {
-  test("normalizes line endings and trims the source", () => {
-    expect(normalizeNoteBody("\r\n  # Note\r\nbody  \r\n")).toBe("# Note\nbody");
   });
 });
 

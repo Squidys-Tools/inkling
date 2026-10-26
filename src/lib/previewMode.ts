@@ -11,7 +11,7 @@
 // Plain browsers (no native bridge) always use seeds — there is no backend to call.
 import { isDesktopRuntime } from "./libraryApi";
 
-export function hasPreviewQuery(search: string): boolean {
+function hasPreviewQuery(search: string): boolean {
   try {
     return new URLSearchParams(search).get("preview") === "1";
   } catch {
@@ -19,12 +19,12 @@ export function hasPreviewQuery(search: string): boolean {
   }
 }
 
-export function isPreviewBuildFlag(env: unknown): boolean {
+function isPreviewBuildFlag(env: unknown): boolean {
   if (!env || typeof env !== "object") return false;
   return (env as Record<string, unknown>).VITE_INKLING_PREVIEW === "1";
 }
 
-export function isDevFlag(env: unknown): boolean {
+function isDevFlag(env: unknown): boolean {
   if (!env || typeof env !== "object") return false;
   return (env as Record<string, unknown>).DEV === true;
 }

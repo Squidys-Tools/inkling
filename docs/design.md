@@ -11,22 +11,21 @@ A thoughtful canvas companion: a clean, modern workspace where the bloub mascot 
 - Our mascot lives in the upper-right corner as a constant but unobtrusive presence.
 - The library grid is the center of attention: notes, quotes, images, articles, documents, videos, etc. have disctint card treatments.
 - The header is compact; the mascot provides personality without needing hero statements or dashboard metrics.
-- The detail inspector appears only when an item is selected, with the mascot moving to the inspector's upper-right corner.
+- An open item replaces the library frame: its media sits on a dotted stage, with an inspector on the right.
 
 ## Materials and tokens
 
-- Canvas ground: `#faf9f6` (warm off-white)
-- Ink primary: `#1a1a1a` (near-black for main content)
-- Ink secondary: `#6b6b6b` (muted gray for supporting text)
-- Rule/subtle: `#e8e6e1` (soft dividers and borders)
-- Mascot body: `#1a1a1a` (same as ink primary for seamless integration)
-- Mascot eyes: `#ffffff` (pure white for contrast)
-- Mascot accent: `#ff7e5f` (soft coral for eye highlights/active states)
-- Content-type accents: blue `#4a90e2`, orange `#f5a623`, green `#7ed321`, purple `#bd10e0`, red `#e74c3c`
-- Card surface: `#ffffff` (pure white cards on canvas ground)
-- Typography: System UI font stack (Inter/SF Pro/Segoe UI) at 15px body, 18px headlines, 13px secondary
-- Radii: 14px for content surfaces (matching mascot's organic curves), 8px for controls
-- Elevation: Single soft shadow `0 2px 8px rgba(0,0,0,0.06)` on floating surfaces
+Tokens live in the `@theme` block of `src/index.css`. Use their Tailwind names (`bg-surface`, `text-muted`, `rounded-card`) rather than raw values.
+
+- Ground: dark and warm. App `#0a0a09`, canvas `#0c0c0b`, library frame `#0d0c0b`.
+- Surfaces: `#161412`, raised `#1b1917`, borders `#262221`.
+- Ink: `#e5ddd2`, soft `#c9c1b6`, muted `#8d867c`.
+- Accent: copper `#b0714f` (soft `#241c16`) for focus rings, selection and the primary action. Green `#7fa08d` marks processing that is going well.
+- Paper tints for notes and quotes: blue `#243136`, green `#26332c`, yellow `#3a3524`.
+- Space colors: orange (the accent), green `#7f9a8c`, blue `#8e9bbf`, pink `#c98b8b`, purple `#a88ab5`, yellow `#c9b27a`.
+- Type: the system UI stack for body text, DM Sans for display, DM Mono for sizes and counts, Libre Baskerville for quotes and note headings.
+- Radii: 9px buttons and rows, 12px toggles and tiles, 14px sidebar, 16px library frame, 20px cards and search, 24px overlays.
+- Glass: floating controls over the library are glass. In the desktop app it is liquid glass refracting the library through WebGPU. The web preview and machines without WebGPU get a blurred CSS glass. Card surfaces never get glass.
 
 ## mascot behavior
 

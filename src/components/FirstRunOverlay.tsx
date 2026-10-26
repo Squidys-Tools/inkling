@@ -13,6 +13,7 @@ import { OnboardingMascot } from "./onboarding/OnboardingMascot";
 import { preloadOnboardingPhotos } from "./onboarding/onboardingMedia";
 import { ReadsPictures } from "./onboarding/ReadsPictures";
 import { SplitText } from "./onboarding/SplitText";
+import "./onboarding/onboarding.css";
 
 /**
  * Every screen is drawn on a 960x540 stage that keeps a fixed share of the
@@ -35,7 +36,7 @@ const WELCOME_LOOK = { yaw: -15, pitch: 24 };
 const FAREWELL_LOOK = { yaw: 26, pitch: 12 };
 /** The big mascots run at this rate (1.8x slower), so they stay calm beside the text. */
 const MASCOT_SPEED = 0.55;
-/** How long a screen takes to leave before the next one comes in; matches fr-stage-out in App.css. */
+/** How long a screen takes to leave before the next one comes in; matches fr-stage-out in onboarding.css. */
 const LEAVE_MS = 320;
 /**
  * When each screen's headline starts, in seconds. Screens whose demo opens

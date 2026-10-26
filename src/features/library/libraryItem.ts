@@ -213,7 +213,7 @@ export async function storedItemToLibraryItem(
     imageAlt: item.title?.trim() || undefined,
     social,
     post: social ? postFallbackFromMetadata(social) : undefined,
-    accent: isQuote ? "paper-yellow" : undefined,
+    accent: isQuote ? "bg-yellow-soft" : undefined,
     archived: item.archived,
     processing,
     hasArticleContent,

@@ -48,7 +48,7 @@ export function SegmentedControl<Value extends string>({
 
   return (
     <fieldset ref={rootRef} className={`segmented-control${className ? ` ${className}` : ""}`}>
-      <legend className="visually-hidden">{label}</legend>
+      <legend className="sr-only">{label}</legend>
       <span
         className="segmented-control-indicator"
         aria-hidden="true"
@@ -64,7 +64,7 @@ export function SegmentedControl<Value extends string>({
         >
           <input
             type="radio"
-            className="visually-hidden"
+            className="sr-only"
             name={name}
             value={option.value}
             checked={option.value === value}

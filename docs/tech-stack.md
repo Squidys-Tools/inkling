@@ -14,14 +14,19 @@ Build a local-first Windows desktop application with Electron, React, TypeScript
 |---|---|---|
 | Desktop shell | Electron 44 | Windows desktop packaging with a reusable web frontend and a narrow preload bridge |
 | UI | React + TypeScript + Vite | Mature component ecosystem and future web portability |
-| Styling | Tailwind CSS plus accessible headless primitives | Fast iteration without locking the product to a heavy component theme |
-| Client state | Zustand | Small, explicit state layer for UI state |
-| Server-style data state | TanStack Query | Caching and invalidation for asynchronous repository calls |
+| Styling | Tailwind CSS v4 utilities, Base UI headless primitives, and a WebGPU liquid glass layer | Fast iteration without locking the product to a heavy component theme |
+| UI state | React hooks per feature, composed in `App` | The renderer's state is small and local; library rows are patched by item id instead of cached and invalidated |
 | Application core | Electron main process and Node.js | File, job queue, database, and model-process orchestration |
 | Database | SQLite through `node:sqlite` | Direct control over migrations, transactions, and FTS5 |
 | Exact search | SQLite FTS5 | Local full-text search across content, notes, OCR, and summaries |
 | Asset storage | Content-addressed local files | Avoid duplicate assets and make backup/restore predictable |
 | Background work | Node.js job queue persisted in SQLite | Retryable processing without blocking the UI |
+
+## Styling
+
+Components style themselves with Tailwind utilities against the tokens in `src/index.css`. Base UI supplies behavior and accessibility for dialogs, tabs, menus and buttons, with no theme of its own. Plain CSS files are kept only where utilities can't reach: `reader.css` and the note editor style HTML they don't render themselves, onboarding runs on keyframes, and Sonner's toasts are styled through its data attributes. Those files sit next to the component that owns them.
+
+Floating controls over the library are glass. In the desktop app, `LiquidGlass` renders the library inside a `<canvas layoutsubtree>`, Chromium's HTML-in-Canvas copies it into a WebGPU texture, and refracting glass is drawn under every `.glass` element. `.glass` and `.css-glass` both start as a blurred CSS glass. `LiquidGlass` marks a `.glass` element with `data-liquid` once its canvas draws it, which clears the CSS glass. `.css-glass` is for surfaces outside a canvas, and always stays CSS. The web preview, machines without WebGPU, and a lost GPU device keep the CSS glass. Each liquid surface costs GPU time, so glass stays on a few floating controls and never on card surfaces.
 
 ## Article extraction
 

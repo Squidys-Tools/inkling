@@ -238,7 +238,7 @@ export function useCapture({
       source: captureSource,
       date: "Just now",
       tags: [],
-      accent: "paper-blue",
+      accent: "bg-blue-soft",
     };
     setItems((current) => [item, ...current]);
   }
@@ -292,7 +292,7 @@ export function useCapture({
       source: sourceLabel,
       date: "Just now",
       tags: [],
-      accent: "paper-yellow",
+      accent: "bg-yellow-soft",
       sourceUrl: trimmedSource || undefined,
     };
     setItems((current) => [item, ...current]);

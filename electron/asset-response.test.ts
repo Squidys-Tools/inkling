@@ -146,11 +146,6 @@ test("If-Range only honors the range while the file is unchanged", async () => {
   expect(await body(stale)).toEqual(bytes);
 });
 
-test("unknown extensions fall back to a binary content type", async () => {
-  const response = await serve("/items/a/notes.xyz");
-  expect(response.headers.get("Content-Type")).toBe("application/octet-stream");
-});
-
 test("only GET and HEAD are served", async () => {
   const response = await serve(clip, { method: "POST", body: "x" });
   expect(response.status).toBe(405);

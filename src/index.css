@@ -1,5 +1,5 @@
-/* No preflight: App.css still styles most of the app unlayered, and its element
-   resets live in base so they don't outrank utilities on the migrated parts. */
+/* No preflight: components were ported against browser defaults, and the few
+   element resets they rely on live in base so utilities still win. */
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities) source("./");
@@ -108,5 +108,36 @@
   .ui-button {
     border: 0;
     background: none;
+  }
+}
+
+@media (max-width: 1120px) {
+  :root {
+    --spacing-sidebar: 220px;
+  }
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
