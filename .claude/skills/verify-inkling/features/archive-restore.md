@@ -10,7 +10,7 @@ Archive from an item's actions. Archived items leave the library and appear in t
 
 ## Driving it with `scripts/drive.mjs`
 
-Mapped but not yet driven. Settings opens the archive panel; the batch restore button is `.settings-batch-recover`. End state: the row's `archived` flips between 1 and 0 and the card leaves and returns to Everything.
+Mapped but not yet driven. Settings opens the archive panel from the `[role="tab"]` named Archive; a tile's Restore button restores one item, and Select (`aria-label="Select archived items"`) then Restore restores a batch. End state: the row's `archived` flips between 1 and 0 and the card leaves and returns to Everything.
 
 ## Gotchas
 

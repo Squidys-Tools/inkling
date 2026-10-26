@@ -13,6 +13,8 @@ import { keepTabFocusInside } from "../../ui/keepTabFocusInside";
 import { cardKind } from "../library/libraryItem";
 import { useAppearance } from "./appearance";
 
+export type SettingsTab = "general" | "licenses" | "appearance" | "archive" | "data" | "extension";
+
 type SettingsOptions = {
   canUseDesktopBackend: boolean;
   activeSpaceId: string | null;
@@ -25,9 +27,7 @@ export function useSettings({
   debouncedQuery,
 }: SettingsOptions) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<
-    "general" | "licenses" | "appearance" | "archive" | "data" | "extension"
-  >("general");
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const [appearance, setAppearanceOption] = useAppearance();
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [librarySizeBytes, setLibrarySizeBytes] = useState<number | null>(null);
@@ -46,7 +46,7 @@ export function useSettings({
     const focusTimer = window.setTimeout(() => settingsDialogRef.current?.focus(), 0);
 
     const onSettingsKeyDown = (event: KeyboardEvent) => {
-      const modal = document.querySelector<HTMLElement>(".settings-modal");
+      const modal = settingsDialogRef.current;
       if (modal) keepTabFocusInside(event, modal);
     };
 

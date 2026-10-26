@@ -1,10 +1,11 @@
 export function keepTabFocusInside(event: KeyboardEvent, dialog: HTMLElement) {
   if (event.key !== "Tab") return;
+  // Roving tabindex (Tabs) leaves one control of a group as the only Tab stop.
   const focusable = Array.from(
     dialog.querySelectorAll<HTMLElement>(
       'button:not([disabled]), a[href], input:not([disabled]):not([type="file"]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
     ),
-  ).filter((element) => element.getClientRects().length > 0);
+  ).filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
   if (focusable.length === 0) {
     event.preventDefault();
     dialog.focus();

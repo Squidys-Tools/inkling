@@ -1,39 +1,21 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { Toaster, toast } from "sonner";
+import { Toaster } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Archive01Icon,
-  Database02Icon,
-  Download04Icon,
-  Grid2X2Icon,
-  Link01Icon,
   Loading01Icon,
-  PlayIcon,
   RotateCwIcon,
   Settings01Icon,
-  SidebarLeftIcon,
   Cancel01Icon,
-  Folder01Icon,
-  Upload04Icon,
-  LicenseThirdPartyIcon,
-  PaintBoardIcon,
 } from "@hugeicons/core-free-icons";
 import {
   retryProcessingJob,
-  getCaptureStatus,
-  getPairingToken,
-  regeneratePairingToken,
   isDesktopRuntime,
   isElectronRuntime,
-  type CaptureStatus,
   type StoredSpace,
 } from "./lib/libraryApi";
-import { ArchiveGrid } from "./components/ArchiveGrid";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { ContextMenu } from "./components/ContextMenu/ContextMenu";
-import { OpenSourceLicenses } from "./components/OpenSourceLicenses/OpenSourceLicenses";
-import { SegmentedControl } from "./components/SegmentedControl/SegmentedControl";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
 // local disk on first open (Suspense fallback null: no spinner, no layout
 // shift — the chunk resolves in milliseconds).
@@ -55,7 +37,7 @@ const ReaderView = lazy(() =>
   import("./ReaderView").then((module) => ({ default: module.ReaderView })),
 );
 import type { ReaderItem } from "./ReaderView";
-import type { ItemKind, LibraryItem } from "./lib/types";
+import type { LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import "./App.css";
 import { AddMenu } from "./features/capture/AddMenu/AddMenu";
@@ -64,24 +46,18 @@ import { ShortcutsDialog } from "./features/capture/ShortcutsDialog";
 import { useCapture } from "./features/capture/useCapture";
 import { useItemDetails, showItemInFolderFromOverlay } from "./features/item-view/useItemDetails";
 import { useItemSelection } from "./features/item-view/useItemSelection";
-import { LibraryCard, type LibraryCardContext } from "./features/library/LibraryCard";
+import type { LibraryCardContext } from "./features/library/LibraryCard";
 import { LibraryStage } from "./features/library/LibraryStage";
 import { useCardMenu } from "./features/library/useCardMenu";
 import { useLibraryData } from "./features/library/useLibraryData";
 import { useLibraryView } from "./features/library/useLibraryView";
 import { ViewDock } from "./features/library/ViewDock";
-import { APPEARANCE_OPTIONS } from "./features/settings/appearance";
-import {
-  formatByteSize,
-  formatExportSummary,
-  formatImportSummary,
-  formatLastCopy,
-} from "./features/settings/format";
 import { useArchive } from "./features/settings/useArchive";
 import {
   showLibraryFolderFromSettings,
   useLibraryTransfer,
 } from "./features/settings/useLibraryTransfer";
+import { SettingsSheet } from "./features/settings/SettingsSheet";
 import { useSettings } from "./features/settings/useSettings";
 import { NavRow, navLabelClass, Sidebar, SidebarError } from "./features/shell/Sidebar";
 import { SidebarEdgeGrip, SidebarOpenButton } from "./features/shell/SidebarToggles";
@@ -96,225 +72,6 @@ import { useSidebarOpen } from "./features/shell/useSidebarOpen";
 import { itemMatchesSmartQuery } from "./features/spaces/smartQuery";
 import { useSpaces } from "./features/spaces/useSpaces";
 import { TooltipLayer } from "./ui/Tooltip";
-
-// Pairing panel inside the existing Settings modal. Shows the per-install
-// pairing token for the browser extension (reveal-on-click, never rendered
-// by default) with copy, renew, and a live check against /v1/health.
-function ExtensionPairing() {
-  const [status, setStatus] = useState<CaptureStatus | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isRevealed, setIsRevealed] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
-  const [isConfirmingRenew, setIsConfirmingRenew] = useState(false);
-
-  useEffect(() => {
-    if (!isDesktopRuntime()) return;
-    void getCaptureStatus()
-      .then(setStatus)
-      .catch(() => setStatus(null));
-  }, []);
-
-  if (!isDesktopRuntime()) {
-    return (
-      <div className="settings-empty-state">
-        <div className="settings-empty-icon">
-          <HugeiconsIcon icon={Link01Icon} size={19} />
-        </div>
-        <h4>Pairing needs the desktop app.</h4>
-        <p>Open Settings in the installed app to pair the browser extension.</p>
-      </div>
-    );
-  }
-
-  const revealToken = () => {
-    if (isRevealed) {
-      setIsRevealed(false);
-      setToken(null);
-      return;
-    }
-    void getPairingToken()
-      .then((value) => {
-        setToken(value);
-        setIsRevealed(true);
-      })
-      .catch(() => toast.error("Could not load the pairing token.", { duration: 5000 }));
-  };
-
-  const copyToken = () => {
-    if (!token) return;
-    void navigator.clipboard
-      .writeText(token)
-      .then(() => toast.success("Pairing token copied. Paste it into the extension."))
-      .catch(() =>
-        toast.error("Copy failed. Reveal the token and copy it by hand.", { duration: 5000 }),
-      );
-  };
-
-  const renewToken = () => {
-    setIsConfirmingRenew(false);
-    void regeneratePairingToken()
-      .then((value) => {
-        setToken(value);
-        setIsRevealed(true);
-        toast.success("New pairing token issued. Update the extension.");
-      })
-      .catch(() => toast.error("Could not renew the pairing token.", { duration: 5000 }));
-  };
-
-  const testConnection = () => {
-    const healthUrl = status?.healthUrl;
-    if (!healthUrl || isTesting) return;
-    setIsTesting(true);
-    const check = async () => {
-      const bearer = token ?? (await getPairingToken());
-      const response = await fetch(healthUrl, {
-        headers: { Authorization: `Bearer ${bearer}` },
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    };
-    void check()
-      .then(() => toast.success("Extension receiver is reachable."))
-      .catch(() =>
-        toast.error("No answer from the receiver. Is the app running?", { duration: 5000 }),
-      )
-      .finally(() => setIsTesting(false));
-  };
-
-  return (
-    <div className="settings-pairing">
-      <p className="settings-panel-note">
-        Paste this token into the browser extension once. Saves go straight to this library over a
-        local connection; nothing leaves the machine.
-      </p>
-      <div className="settings-pairing-row">
-        <span className="settings-pairing-status" role="status">
-          {status
-            ? status.running
-              ? `Listening on 127.0.0.1:${status.port}`
-              : "Receiver not running"
-            : "Checking receiver…"}
-        </span>
-        <button
-          type="button"
-          className="settings-batch-button"
-          disabled={!status?.healthUrl || isTesting}
-          onClick={testConnection}
-        >
-          {isTesting ? "Testing…" : "Test connection"}
-        </button>
-      </div>
-      <div className="settings-pairing-row">
-        <span className="visually-hidden">
-          {isRevealed ? "Pairing token" : "Pairing token hidden"}
-        </span>
-        <code className="settings-token" aria-hidden={!isRevealed}>
-          {isRevealed && token ? token : "••••••••••••••••••••••••"}
-        </code>
-        <button type="button" className="settings-batch-button" onClick={revealToken}>
-          {isRevealed ? "Hide" : "Reveal"}
-        </button>
-        <button
-          type="button"
-          className="settings-batch-button"
-          disabled={!isRevealed || !token}
-          onClick={copyToken}
-        >
-          Copy
-        </button>
-        <button
-          type="button"
-          className="settings-batch-button settings-batch-delete"
-          onClick={() => setIsConfirmingRenew(true)}
-        >
-          Renew
-        </button>
-      </div>
-      {isConfirmingRenew && (
-        <section className="settings-confirm" aria-label="Renew the pairing token">
-          <p>Renew the pairing token? The extension will need the new token.</p>
-          <div className="settings-confirm-actions">
-            <button
-              type="button"
-              className="settings-batch-button"
-              onClick={() => setIsConfirmingRenew(false)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="settings-batch-button settings-batch-delete"
-              onClick={renewToken}
-            >
-              Renew
-            </button>
-          </div>
-        </section>
-      )}
-    </div>
-  );
-}
-
-// Library makeup for Settings: how many things are kept, split by kind.
-const MAKEUP_GROUPS: Array<{ label: string; kinds: ItemKind[]; color: string }> = [
-  { label: "Images", kinds: ["Image"], color: "#B0714F" },
-  { label: "Articles", kinds: ["Article"], color: "#C9A57A" },
-  { label: "PDFs", kinds: ["PDF"], color: "#7E9A86" },
-  { label: "Notes & quotes", kinds: ["Note", "Quote"], color: "#8B93B5" },
-  { label: "Videos & posts", kinds: ["Video", "Post"], color: "#A88AAE" },
-  { label: "Files", kinds: ["File"], color: "#4A443E" },
-];
-
-function LibraryMakeup({
-  kinds,
-  sizeBytes,
-  onShowFolder,
-}: {
-  kinds: ItemKind[];
-  sizeBytes: number | null;
-  onShowFolder?: () => void;
-}) {
-  const groups = MAKEUP_GROUPS.map((group) => ({
-    ...group,
-    count: kinds.filter((kind) => group.kinds.includes(kind)).length,
-  })).filter((group) => group.count > 0);
-  return (
-    <div className="settings-makeup">
-      <div className="settings-makeup-head">
-        <div className="settings-makeup-figures">
-          <p className="settings-makeup-total">
-            {kinds.length.toLocaleString()} {kinds.length === 1 ? "thing" : "things"}
-          </p>
-          {sizeBytes !== null && (
-            <span className="settings-makeup-size">{formatByteSize(sizeBytes)} on disk</span>
-          )}
-        </div>
-        {onShowFolder && (
-          <button type="button" className="settings-makeup-folder" onClick={onShowFolder}>
-            <HugeiconsIcon icon={Folder01Icon} size={13} />
-            Show folder
-          </button>
-        )}
-      </div>
-      {groups.length > 0 && (
-        <>
-          <div className="settings-makeup-bar" aria-hidden="true">
-            {groups.map((group) => (
-              <span key={group.label} style={{ flexGrow: group.count, background: group.color }} />
-            ))}
-          </div>
-          <ul className="settings-makeup-legend">
-            {groups.map((group) => (
-              <li key={group.label}>
-                <span style={{ background: group.color }} aria-hidden="true" />
-                {group.label} {group.count.toLocaleString()}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-    </div>
-  );
-}
 
 function App() {
   const canUseDesktopBackend = isDesktopRuntime() && !shouldUseSeedLibrary();
@@ -907,441 +664,43 @@ function App() {
 
         <ShortcutsDialog open={isShortcutsOpen} onOpenChange={setIsShortcutsOpen} />
 
-        <AnimatePresence>
-          {isSettingsOpen && (
-            <motion.div
-              key="settings-modal-backdrop"
-              className="settings-modal-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) setIsSettingsOpen(false);
-              }}
-            >
-              <motion.section
-                ref={settingsDialogRef}
-                id="settings-modal"
-                className="settings-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="settings-modal-title"
-                tabIndex={-1}
-                initial={{ opacity: 0, transform: "translateY(10px) scale(0.98)" }}
-                animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
-                exit={{ opacity: 0, transform: "translateY(8px) scale(0.98)" }}
-                transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
-              >
-                <aside className="settings-modal-sidebar" aria-label="Settings sections">
-                  <header className="settings-sidebar-header">
-                    <h2>Settings</h2>
-                  </header>
-                  <div className="settings-sidebar-content">
-                    <button
-                      type="button"
-                      className={`settings-tab ${settingsTab === "general" || settingsTab === "licenses" ? "active" : ""}`}
-                      aria-current={settingsTab === "general" ? "page" : undefined}
-                      onClick={() => setSettingsTab("general")}
-                    >
-                      <HugeiconsIcon icon={Settings01Icon} size={15} />
-                      <span>General</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`settings-tab ${settingsTab === "appearance" ? "active" : ""}`}
-                      aria-current={settingsTab === "appearance" ? "page" : undefined}
-                      onClick={() => setSettingsTab("appearance")}
-                    >
-                      <HugeiconsIcon icon={PaintBoardIcon} size={15} />
-                      <span>Appearance</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`settings-tab ${settingsTab === "data" ? "active" : ""}`}
-                      aria-current={settingsTab === "data" ? "page" : undefined}
-                      onClick={() => setSettingsTab("data")}
-                    >
-                      <HugeiconsIcon icon={Database02Icon} size={15} />
-                      <span>Library</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`settings-tab ${settingsTab === "archive" ? "active" : ""}`}
-                      aria-current={settingsTab === "archive" ? "page" : undefined}
-                      onClick={() => setSettingsTab("archive")}
-                    >
-                      <HugeiconsIcon icon={Archive01Icon} size={15} />
-                      <span>Archive</span>
-                      {isArchiveLoaded && (
-                        <span className="settings-tab-count">{archivedItems.length}</span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className={`settings-tab ${settingsTab === "extension" ? "active" : ""}`}
-                      aria-current={settingsTab === "extension" ? "page" : undefined}
-                      onClick={() => setSettingsTab("extension")}
-                    >
-                      <HugeiconsIcon icon={Link01Icon} size={15} />
-                      <span>Browser extension</span>
-                    </button>
-                  </div>
-                  <div className="settings-sidebar-footer">
-                    {appVersion && <p className="settings-sidebar-version">inkling {appVersion}</p>}
-                  </div>
-                </aside>
-
-                {settingsTab === "general" ? (
-                  <section className="settings-panel" aria-labelledby="general-panel-title">
-                    <header className="settings-panel-header">
-                      <div className="settings-panel-header-content">
-                        <div className="settings-panel-heading">
-                          <h2 id="general-panel-title">General</h2>
-                        </div>
-                        <p className="settings-panel-note">How inkling behaves across the app.</p>
-                      </div>
-                      <button
-                        type="button"
-                        className="icon-button settings-close"
-                        onClick={() => setIsSettingsOpen(false)}
-                        aria-label="Close settings"
-                      >
-                        <HugeiconsIcon icon={Cancel01Icon} size={14} />
-                      </button>
-                    </header>
-
-                    <div className="settings-scroll">
-                      <div className="settings-data-row">
-                        <span className="settings-data-icon" aria-hidden="true">
-                          <HugeiconsIcon icon={PlayIcon} size={17} />
-                        </span>
-                        <div className="settings-data-text">
-                          <h3>Welcome tour</h3>
-                          <p>
-                            Replay the screens from your first launch: saving things, finding them
-                            again, and keeping your library on this computer.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          className="settings-data-button"
-                          onClick={() => {
-                            setIsSettingsOpen(false);
-                            setIsFirstRunOpen(true);
-                          }}
-                        >
-                          Show the welcome again
-                        </button>
-                      </div>
-                      <div className="settings-data-row">
-                        <span className="settings-data-icon" aria-hidden="true">
-                          <HugeiconsIcon icon={LicenseThirdPartyIcon} size={17} />
-                        </span>
-                        <div className="settings-data-text">
-                          <h3>Open source licenses</h3>
-                          <p>The projects inkling is built on, and the terms they come with.</p>
-                        </div>
-                        <button
-                          type="button"
-                          className="settings-data-button"
-                          onClick={() => setSettingsTab("licenses")}
-                        >
-                          View licenses
-                        </button>
-                      </div>
-                    </div>
-                  </section>
-                ) : settingsTab === "licenses" ? (
-                  <OpenSourceLicenses
-                    onBack={() => setSettingsTab("general")}
-                    onClose={() => setIsSettingsOpen(false)}
-                  />
-                ) : settingsTab === "appearance" ? (
-                  <section className="settings-panel" aria-labelledby="appearance-panel-title">
-                    <header className="settings-panel-header">
-                      <div className="settings-panel-header-content">
-                        <div className="settings-panel-heading">
-                          <h2 id="appearance-panel-title">Appearance</h2>
-                        </div>
-                        <p className="settings-panel-note">Try other looks for parts of the app.</p>
-                      </div>
-                      <button
-                        type="button"
-                        className="icon-button settings-close"
-                        onClick={() => setIsSettingsOpen(false)}
-                        aria-label="Close settings"
-                      >
-                        <HugeiconsIcon icon={Cancel01Icon} size={14} />
-                      </button>
-                    </header>
-
-                    <div className="settings-scroll">
-                      <div className="settings-data-row">
-                        <span className="settings-data-icon" aria-hidden="true">
-                          <HugeiconsIcon icon={Grid2X2Icon} size={17} />
-                        </span>
-                        <div className="settings-data-text">
-                          <h3>Grid and list toggle</h3>
-                          <p>The switch at the bottom of the library.</p>
-                        </div>
-                        <SegmentedControl
-                          className="settings-segmented"
-                          name="appearance-view-toggle"
-                          label="Grid and list toggle style"
-                          value={appearance.viewToggle}
-                          onChange={(value) => setAppearanceOption("viewToggle", value)}
-                          options={APPEARANCE_OPTIONS.viewToggle}
-                        />
-                      </div>
-                      <div className="settings-data-row">
-                        <span className="settings-data-icon" aria-hidden="true">
-                          <HugeiconsIcon icon={SidebarLeftIcon} size={17} />
-                        </span>
-                        <div className="settings-data-text">
-                          <h3>Sidebar button</h3>
-                          <p>How the sidebar opens and closes.</p>
-                        </div>
-                        <SegmentedControl
-                          className="settings-segmented"
-                          name="appearance-sidebar-toggle"
-                          label="Sidebar button style"
-                          value={appearance.sidebarToggle}
-                          onChange={(value) => setAppearanceOption("sidebarToggle", value)}
-                          options={APPEARANCE_OPTIONS.sidebarToggle}
-                        />
-                      </div>
-                    </div>
-                  </section>
-                ) : settingsTab === "archive" ? (
-                  <section className="settings-panel" aria-labelledby="archive-panel-title">
-                    <header className="settings-panel-header">
-                      <div className="settings-panel-header-content">
-                        <div className="settings-panel-heading">
-                          <h2 id="archive-panel-title">Archive</h2>
-                        </div>
-                        {isArchiveLoaded && (
-                          <p className="settings-panel-note">
-                            {archivedItems.length === 1
-                              ? "1 thing you put away. It waits here,"
-                              : `${archivedItems.length} things you put away. They wait here,`}{" "}
-                            out of your library, until you bring{" "}
-                            {archivedItems.length === 1 ? "it" : "them"} back or let{" "}
-                            {archivedItems.length === 1 ? "it" : "them"} go.
-                          </p>
-                        )}
-                      </div>
-                      <div className="settings-panel-tools">
-                        <fieldset className="settings-archive-actions">
-                          <legend className="visually-hidden">Archive actions</legend>
-                          {isArchiveSelectionMode && (
-                            <>
-                              <span
-                                className="settings-selected-count"
-                                role="status"
-                                aria-live="polite"
-                              >
-                                {selectedArchivedIds.size} selected
-                              </span>
-                              <button
-                                type="button"
-                                className="settings-batch-button settings-batch-restore"
-                                disabled={selectedArchivedIds.size === 0}
-                                onClick={() => void restoreSelectedArchivedItems()}
-                              >
-                                Restore
-                              </button>
-                              <button
-                                type="button"
-                                className="settings-batch-button settings-batch-delete"
-                                disabled={selectedArchivedIds.size === 0}
-                                onClick={() => void deleteSelectedArchivedItems()}
-                              >
-                                Delete
-                              </button>
-                            </>
-                          )}
-                          <button
-                            type="button"
-                            className={`settings-select-button ${isArchiveSelectionMode ? "is-active" : ""}`}
-                            aria-pressed={isArchiveSelectionMode}
-                            aria-label={
-                              isArchiveSelectionMode
-                                ? "Exit multi-select mode"
-                                : "Select archived items"
-                            }
-                            onClick={toggleArchiveSelectionMode}
-                          >
-                            <span>{isArchiveSelectionMode ? "Done" : "Select"}</span>
-                          </button>
-                        </fieldset>
-                        <button
-                          type="button"
-                          className="icon-button settings-close"
-                          onClick={() => setIsSettingsOpen(false)}
-                          aria-label="Close settings"
-                        >
-                          <HugeiconsIcon icon={Cancel01Icon} size={14} />
-                        </button>
-                      </div>
-                    </header>
-
-                    {isArchiveLoaded && archivedItems.length > 0 ? (
-                      <ArchiveGrid
-                        data={archivedItems}
-                        context={archivedCardContext}
-                        ItemContent={LibraryCard}
-                      />
-                    ) : (
-                      <div className="settings-scroll">
-                        {isArchiveLoaded && (
-                          <div className="settings-empty-state">
-                            <div className="settings-empty-icon">
-                              <HugeiconsIcon icon={Archive01Icon} size={19} />
-                            </div>
-                            <h4>Your archive is empty.</h4>
-                            <p>Items you forget from the library will appear here.</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </section>
-                ) : settingsTab === "data" ? (
-                  <section className="settings-panel" aria-labelledby="data-panel-title">
-                    <header className="settings-panel-header">
-                      <div className="settings-panel-header-content">
-                        <div className="settings-panel-heading">
-                          <h2 id="data-panel-title">Your library</h2>
-                        </div>
-                        <p className="settings-panel-note">
-                          It lives in one folder on this computer. Back it up by exporting a copy,
-                          or bring an old copy back in.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        className="icon-button settings-close"
-                        onClick={() => setIsSettingsOpen(false)}
-                        aria-label="Close settings"
-                      >
-                        <HugeiconsIcon icon={Cancel01Icon} size={14} />
-                      </button>
-                    </header>
-
-                    <div className="settings-scroll">
-                      <LibraryMakeup
-                        kinds={wholeLibraryKinds ?? items.map((item) => item.kind)}
-                        sizeBytes={librarySizeBytes}
-                        onShowFolder={
-                          canUseLibraryFolderPicker ? showLibraryFolderFromSettings : undefined
-                        }
-                      />
-                      <div className="settings-data-row">
-                        <span className="settings-data-icon" aria-hidden="true">
-                          <HugeiconsIcon
-                            icon={isExportingLibrary ? Loading01Icon : Download04Icon}
-                            size={17}
-                          />
-                        </span>
-                        <div className="settings-data-text">
-                          <h3>Export a copy</h3>
-                          <p>
-                            A dated folder with the database, every file, and a manifest. Keep it on
-                            another drive.
-                          </p>
-                          {lastCopy ? (
-                            <p className="settings-data-copy">{formatLastCopy(lastCopy)}</p>
-                          ) : null}
-                          {!canUseLibraryFolderPicker ? (
-                            <p className="settings-data-hint">Export runs in the desktop app.</p>
-                          ) : null}
-                          {lastExport ? (
-                            <div className="settings-data-result" role="status" aria-live="polite">
-                              <span className="settings-data-summary">
-                                {formatExportSummary(lastExport)}
-                              </span>
-                              <span className="settings-data-path">{lastExport.directory}</span>
-                            </div>
-                          ) : null}
-                        </div>
-                        <button
-                          type="button"
-                          className={`settings-data-button is-primary ${isExportingLibrary ? "is-busy" : ""}`}
-                          disabled={
-                            !canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary
-                          }
-                          onClick={() => void exportLibraryToFolder()}
-                        >
-                          {isExportingLibrary ? "Exporting…" : "Export…"}
-                        </button>
-                      </div>
-                      <div className="settings-data-row">
-                        <span className="settings-data-icon" aria-hidden="true">
-                          <HugeiconsIcon
-                            icon={isImportingLibrary ? Loading01Icon : Upload04Icon}
-                            size={17}
-                          />
-                        </span>
-                        <div className="settings-data-text">
-                          <h3>Restore from an export</h3>
-                          <p>
-                            Adds its items, files and Spaces here. Nothing already in your library
-                            gets replaced.
-                          </p>
-                          {!canUseLibraryFolderPicker ? (
-                            <p className="settings-data-hint">Restore runs in the desktop app.</p>
-                          ) : null}
-                          {lastImport ? (
-                            <div className="settings-data-result" role="status" aria-live="polite">
-                              <span className="settings-data-summary">
-                                {formatImportSummary(lastImport)}
-                              </span>
-                            </div>
-                          ) : null}
-                        </div>
-                        <button
-                          type="button"
-                          className={`settings-data-button ${isImportingLibrary ? "is-busy" : ""}`}
-                          disabled={
-                            !canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary
-                          }
-                          onClick={() => void importLibraryFromFolder()}
-                        >
-                          {isImportingLibrary ? "Restoring…" : "Restore…"}
-                        </button>
-                      </div>
-                    </div>
-                  </section>
-                ) : (
-                  <section className="settings-panel" aria-labelledby="extension-panel-title">
-                    <header className="settings-panel-header">
-                      <div className="settings-panel-header-content">
-                        <div className="settings-panel-heading">
-                          <h2 id="extension-panel-title">Browser extension</h2>
-                        </div>
-                        <p className="settings-panel-note">
-                          Save pages without leaving the browser
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        className="icon-button settings-close"
-                        onClick={() => setIsSettingsOpen(false)}
-                        aria-label="Close settings"
-                      >
-                        <HugeiconsIcon icon={Cancel01Icon} size={14} />
-                      </button>
-                    </header>
-
-                    <div className="settings-scroll">
-                      <ExtensionPairing />
-                    </div>
-                  </section>
-                )}
-              </motion.section>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <SettingsSheet
+          open={isSettingsOpen}
+          dialogRef={settingsDialogRef}
+          tab={settingsTab}
+          onTabChange={setSettingsTab}
+          onClose={() => setIsSettingsOpen(false)}
+          appVersion={appVersion}
+          appearance={appearance}
+          onAppearanceChange={setAppearanceOption}
+          onShowWelcome={() => {
+            setIsSettingsOpen(false);
+            setIsFirstRunOpen(true);
+          }}
+          archive={{
+            items: archivedItems,
+            isLoaded: isArchiveLoaded,
+            selectionMode: isArchiveSelectionMode,
+            selectedCount: selectedArchivedIds.size,
+            context: archivedCardContext,
+            onToggleSelectionMode: toggleArchiveSelectionMode,
+            onRestoreSelected: () => void restoreSelectedArchivedItems(),
+            onDeleteSelected: () => void deleteSelectedArchivedItems(),
+          }}
+          library={{
+            kinds: wholeLibraryKinds ?? items.map((item) => item.kind),
+            sizeBytes: librarySizeBytes,
+            canUseFolderPicker: canUseLibraryFolderPicker,
+            onShowFolder: showLibraryFolderFromSettings,
+            lastCopy,
+            lastExport,
+            lastImport,
+            isExporting: isExportingLibrary,
+            isImporting: isImportingLibrary,
+            onExport: () => void exportLibraryToFolder(),
+            onImport: () => void importLibraryFromFolder(),
+          }}
+        />
 
         {selectedItem && (
           <Suspense fallback={null}>
