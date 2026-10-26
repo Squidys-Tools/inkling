@@ -129,6 +129,37 @@
         "label": "Skill: verify-inkling",
         "default_collapsed": true
       }
+    },
+    {
+      "id": "claude-skill-toolu_01C9syPXTUQ3JZeeSNsuMpwL",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "sol-loop"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "6d7181b6624c",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 3394,
+        "end": 3395,
+        "entry_ids": [
+          "c5f94815-0a60-43d6-b2d1-ce3ca0799eb5"
+        ],
+        "tool_use_id": "toolu_01C9syPXTUQ3JZeeSNsuMpwL"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01C9syPXTUQ3JZeeSNsuMpwL"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: sol-loop",
+        "default_collapsed": true
+      }
     }
   ],
   "session_metrics": {
