@@ -1,4 +1,4 @@
-import GradualBlur, { type GradualBlurProps } from "./GradualBlur/GradualBlur";
+import GradualBlur, { type GradualBlurProps } from "../../components/GradualBlur/GradualBlur";
 
 // The grid scrolls almost to the frame's edges; these blur it out there instead
 // of a hard clip. They render in the liquid glass backdrop, so the toolbar glass
