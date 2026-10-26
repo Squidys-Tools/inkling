@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PlayIcon } from "@hugeicons/core-free-icons";
-import { DocumentArtwork } from "../ItemMedia";
+import { DocumentArtwork, QuoteArtwork } from "../ItemMedia";
 import { prefersReducedMotion } from "../mascot/mascotStore";
 import { onboardingPhotos } from "./onboardingMedia";
 
@@ -149,12 +149,11 @@ function CardBody({ content }: { content: Content }): ReactNode {
       return <DocumentArtwork label="PDF" title={content.title} count={content.pages} />;
     case "quote":
       return (
-        <div className="card-paper-art quote-art kept-quote">
-          <span className="quote-mark">“</span>
-          <span className="quote-preview">{content.text}</span>
-          <span className="quote-line" />
-          <span className="quote-attribution-preview">— {content.by}</span>
-        </div>
+        <QuoteArtwork
+          text={content.text}
+          attribution={`— ${content.by}`}
+          className="absolute inset-0"
+        />
       );
   }
 }

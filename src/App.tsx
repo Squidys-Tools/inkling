@@ -1,29 +1,19 @@
-// biome-ignore-all lint/a11y/noNoninteractiveTabindex: Library cards contain nested controls and media, so the article cannot become a button; Enter and Space select the focused card.
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
 import { Toaster, toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  AlertCircleIcon,
   Archive01Icon,
-  ArrowUpRight01Icon,
   Database02Icon,
   Download04Icon,
   Grid2X2Icon,
   Link01Icon,
-  ListViewIcon,
   Loading01Icon,
   PlayIcon,
   RotateCwIcon,
-  RotateLeft01Icon,
-  Search01Icon,
   Settings01Icon,
   SidebarLeftIcon,
-  Delete02Icon,
   Cancel01Icon,
-  CircleCheckIcon,
-  CircleIcon,
   Folder01Icon,
   Upload04Icon,
   LicenseThirdPartyIcon,
@@ -41,11 +31,9 @@ import {
 } from "./lib/libraryApi";
 import { ArchiveGrid } from "./components/ArchiveGrid";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
-import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
 import { ContextMenu } from "./components/ContextMenu/ContextMenu";
 import { OpenSourceLicenses } from "./components/OpenSourceLicenses/OpenSourceLicenses";
 import { SegmentedControl } from "./components/SegmentedControl/SegmentedControl";
-import { canvasImageCrossOrigin, LiquidGlass } from "./components/LiquidGlass";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
 // local disk on first open (Suspense fallback null: no spinner, no layout
 // shift — the chunk resolves in milliseconds).
@@ -63,20 +51,10 @@ const ExpandedItemOverlay = lazy(() =>
   })),
 );
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
-import type { SourceRects } from "./components/overlayMotion";
-import {
-  FileArtwork,
-  KindIcon,
-  NoteArtwork,
-  PdfArtwork,
-  PostArtwork,
-  formatDuration,
-  mediaAspectRatioFor,
-} from "./components/ItemMedia";
 const ReaderView = lazy(() =>
   import("./ReaderView").then((module) => ({ default: module.ReaderView })),
 );
-import type { ReaderItem, ReaderOrigin } from "./ReaderView";
+import type { ReaderItem } from "./ReaderView";
 import type { ItemKind, LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import "./App.css";
@@ -86,9 +64,12 @@ import { ShortcutsDialog } from "./features/capture/ShortcutsDialog";
 import { useCapture } from "./features/capture/useCapture";
 import { useItemDetails, showItemInFolderFromOverlay } from "./features/item-view/useItemDetails";
 import { useItemSelection } from "./features/item-view/useItemSelection";
+import { LibraryCard, type LibraryCardContext } from "./features/library/LibraryCard";
+import { LibraryStage } from "./features/library/LibraryStage";
 import { useCardMenu } from "./features/library/useCardMenu";
 import { useLibraryData } from "./features/library/useLibraryData";
-import { LIBRARY_VIEW_TRANSITION_MS, useLibraryView } from "./features/library/useLibraryView";
+import { useLibraryView } from "./features/library/useLibraryView";
+import { ViewDock } from "./features/library/ViewDock";
 import { APPEARANCE_OPTIONS } from "./features/settings/appearance";
 import {
   formatByteSize,
@@ -115,387 +96,6 @@ import { useSidebarOpen } from "./features/shell/useSidebarOpen";
 import { itemMatchesSmartQuery } from "./features/spaces/smartQuery";
 import { useSpaces } from "./features/spaces/useSpaces";
 import { TooltipLayer } from "./ui/Tooltip";
-
-// The pill is the only play affordance on a video card. Duration is shown when the
-// backend knows it; otherwise the pill is just the play glyph.
-function VideoPill({ item }: { item: LibraryItem }) {
-  return (
-    <span className="card-video-badge glass" aria-hidden="true">
-      <HugeiconsIcon icon={PlayIcon} size={10} />
-      {item.durationSeconds !== undefined && <span>{formatDuration(item.durationSeconds)}</span>}
-    </span>
-  );
-}
-
-// Cards are static thumbnails that open the details overlay on click. The
-// pill is a purely visual affordance — playback happens in the overlay, which is
-// the only place a local video file is loaded.
-function LibraryVideoMedia({ item, index }: { item: LibraryItem; index: number }) {
-  return (
-    <div className="card-image-wrap">
-      <img
-        src={item.image}
-        crossOrigin={canvasImageCrossOrigin(item.image)}
-        alt={item.imageAlt ?? item.title}
-        className="card-image"
-        loading="lazy"
-        decoding="async"
-        fetchPriority={index < 6 ? "high" : undefined}
-      />
-      <VideoPill item={item} />
-    </div>
-  );
-}
-
-function UrlFallbackLabel({ item }: { item: LibraryItem }) {
-  return (
-    <span className="url-fallback-label">
-      <span className="url-fallback-title">{item.title}</span>
-      <span className="url-fallback-domain">{item.source}</span>
-    </span>
-  );
-}
-
-// Quotes show in full on the card; CSS clamps only very long ones.
-function cardText(value: string | undefined, fallback: string): string {
-  return value?.replace(/\s+/gu, " ").trim() || fallback;
-}
-
-// Each type gets its own card class; App.css keys the typed layouts off these.
-// Posts, images and videos with no artwork fall back to the typed file layout.
-function cardKindClass(item: LibraryItem): string {
-  switch (item.kind) {
-    case "Note":
-      return "note-card";
-    case "Quote":
-      return "quote-card";
-    case "PDF":
-      return "pdf-card";
-    case "Article":
-      return "article-card";
-    case "Video":
-      return item.image ? "video-card" : "file-card";
-    case "File":
-      return "file-card";
-    case "Post":
-    case "Image":
-      return !item.image && !item.post ? "file-card" : "";
-    default:
-      return item.accent ?? "";
-  }
-}
-
-function quoteAttribution(description: string): string {
-  const text = description.trim();
-  if (!text) return "";
-  return text.startsWith("—") ? text : `— ${text}`;
-}
-
-type LibraryCardContext = {
-  onSelectItem: (item: LibraryItem, rects?: SourceRects) => void;
-  onOpenReader: (item: LibraryItem, origin?: ReaderOrigin) => void;
-  onRetryJob: (jobId: string) => void | Promise<void>;
-  onDeleteArchivedItem?: (item: LibraryItem) => void | Promise<void>;
-  archiveSelectionMode?: boolean;
-  isArchivedItemSelected?: (item: LibraryItem) => boolean;
-  onToggleArchivedItem?: (item: LibraryItem) => void;
-  onRestoreArchivedItem?: (item: LibraryItem) => void | Promise<void>;
-  onOpenMenu?: (item: LibraryItem, event: React.MouseEvent<HTMLElement>) => void;
-};
-
-// Captures the card and its media box before selection state changes, so the
-// overlay's opening flight starts from the card's exact position.
-function cardRectsFor(card: HTMLElement): SourceRects {
-  const cardRect = card.getBoundingClientRect();
-  const mediaRect = card.querySelector<HTMLElement>(".library-card-media")?.getBoundingClientRect();
-  return {
-    card: {
-      left: cardRect.left,
-      top: cardRect.top,
-      width: cardRect.width,
-      height: cardRect.height,
-    },
-    media: mediaRect
-      ? {
-          left: mediaRect.left,
-          top: mediaRect.top,
-          width: mediaRect.width,
-          height: mediaRect.height,
-        }
-      : { left: cardRect.left, top: cardRect.top, width: cardRect.width, height: 0 },
-  };
-}
-
-type VirtualizedLibraryItemProps = {
-  data: LibraryItem;
-  index: number;
-  context: LibraryCardContext;
-};
-
-const VirtualizedLibraryItem = memo(function VirtualizedLibraryItem({
-  data: item,
-  index,
-  context,
-}: VirtualizedLibraryItemProps) {
-  const isArchiveTile = Boolean(context.onDeleteArchivedItem);
-  const archiveSelectionMode = context.archiveSelectionMode === true;
-  const isArchivedItemSelected = context.isArchivedItemSelected?.(item) ?? false;
-  const canOpenReader = Boolean(item.articleHtml || item.hasArticleContent);
-  const attribution = item.kind === "Quote" ? quoteAttribution(item.description) : "";
-  const handleCardSelect = (event: React.MouseEvent<HTMLElement>) => {
-    if (archiveSelectionMode) {
-      event.preventDefault();
-      context.onToggleArchivedItem?.(item);
-      return;
-    }
-    context.onSelectItem(item, cardRectsFor(event.currentTarget));
-  };
-
-  return (
-    <div className="library-card-slot" data-library-index={index}>
-      <article
-        className={`library-card ${item.featured ? "featured-card" : ""} ${cardKindClass(item)} ${archiveSelectionMode ? "archive-selection-mode" : ""} ${isArchivedItemSelected ? "archive-card-selected" : ""}`}
-        data-library-item-id={String(item.id)}
-        style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
-        onClick={handleCardSelect}
-        onContextMenu={
-          context.onOpenMenu && !archiveSelectionMode
-            ? (event) => context.onOpenMenu?.(item, event)
-            : undefined
-        }
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.target !== event.currentTarget) return;
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          if (archiveSelectionMode) {
-            context.onToggleArchivedItem?.(item);
-          } else {
-            context.onSelectItem(item, cardRectsFor(event.currentTarget));
-          }
-        }}
-      >
-        <div className="library-card-media">
-          {item.social?.provider === "x" && item.post ? (
-            <div className="x-post-art">
-              <PostArtwork post={item.post} />
-            </div>
-          ) : item.kind === "Video" && item.image ? (
-            <LibraryVideoMedia item={item} index={index} />
-          ) : item.image ? (
-            <div className="card-image-wrap">
-              <img
-                src={item.image}
-                crossOrigin={canvasImageCrossOrigin(item.image)}
-                alt={item.imageAlt ?? item.title}
-                className="card-image"
-                loading="lazy"
-                decoding="async"
-                fetchPriority={index < 6 ? "high" : undefined}
-              />
-            </div>
-          ) : item.kind === "Post" && item.post ? (
-            <PostArtwork post={item.post} />
-          ) : (
-            <div
-              className={`card-paper-art ${item.kind === "Quote" ? "quote-art" : (item.accent ?? "")}`}
-              aria-hidden={item.kind !== "Article" || !item.sourceUrl}
-            >
-              {item.kind === "Article" && (
-                <>
-                  <span className="paper-line line-one" />
-                  <span className="paper-line line-two" />
-                  <span className="paper-seal">m</span>
-                  {item.sourceUrl && <UrlFallbackLabel item={item} />}
-                </>
-              )}
-              {item.kind === "Note" && <NoteArtwork item={item} />}
-              {item.kind === "PDF" && <PdfArtwork item={item} />}
-              {item.kind === "Quote" && (
-                <>
-                  <span className="quote-mark">“</span>
-                  <p className="quote-preview">{cardText(item.title, "Saved quote")}</p>
-                  {attribution && (
-                    <>
-                      <span className="quote-line" />
-                      <span className="quote-attribution-preview">{attribution}</span>
-                    </>
-                  )}
-                </>
-              )}
-              {(item.kind === "File" ||
-                item.kind === "Post" ||
-                item.kind === "Image" ||
-                item.kind === "Video") && <FileArtwork item={item} />}
-            </div>
-          )}
-          {isArchiveTile && (
-            <div className="archive-tile-actions">
-              {!archiveSelectionMode && (
-                <button
-                  type="button"
-                  className="archive-tile-restore"
-                  data-tooltip="Restore to library"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void context.onRestoreArchivedItem?.(item);
-                  }}
-                >
-                  <HugeiconsIcon icon={RotateLeft01Icon} size={12} />
-                  Restore
-                </button>
-              )}
-              <button
-                type="button"
-                className={`archive-card-delete ${archiveSelectionMode ? "archive-card-select" : ""} ${isArchivedItemSelected ? "is-selected" : ""}`}
-                aria-label={
-                  archiveSelectionMode
-                    ? `${isArchivedItemSelected ? "Deselect" : "Select"} ${item.title}`
-                    : `Delete ${item.title}`
-                }
-                aria-pressed={archiveSelectionMode ? isArchivedItemSelected : undefined}
-                data-tooltip={
-                  archiveSelectionMode
-                    ? isArchivedItemSelected
-                      ? "Deselect item"
-                      : "Select item"
-                    : "Delete permanently"
-                }
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (archiveSelectionMode) {
-                    context.onToggleArchivedItem?.(item);
-                  } else {
-                    void context.onDeleteArchivedItem?.(item);
-                  }
-                }}
-              >
-                <HugeiconsIcon
-                  icon={
-                    archiveSelectionMode
-                      ? isArchivedItemSelected
-                        ? CircleCheckIcon
-                        : CircleIcon
-                      : Delete02Icon
-                  }
-                  size={archiveSelectionMode ? 18 : 13}
-                />
-              </button>
-            </div>
-          )}
-        </div>
-        {isArchiveTile && (
-          <div className="archive-tile-caption">
-            <span className="archive-tile-title">{item.title}</span>
-            <span className="archive-tile-meta">
-              {item.kind} · {item.date}
-            </span>
-          </div>
-        )}
-        <div
-          className={`card-content ${item.kind === "Quote" ? "quote-content" : item.kind === "Note" ? "note-content" : ""}`}
-        >
-          <div className="card-kicker">
-            <span>
-              <KindIcon kind={item.kind} />
-              {item.kind}
-            </span>
-            <span>{item.date}</span>
-          </div>
-          <h2 className={item.kind === "Quote" ? "quote-title" : ""}>
-            {item.kind === "Quote"
-              ? /^["“]/u.test(item.title.trim())
-                ? item.title
-                : `“${item.title}”`
-              : item.title}
-          </h2>
-          <p className={item.kind === "Quote" ? "quote-attribution" : ""}>
-            {item.description
-              ? item.kind === "Quote" && !item.description.trim().startsWith("—")
-                ? `— ${item.description}`
-                : item.description
-              : item.kind === "Quote"
-                ? ""
-                : item.description}
-          </p>
-          {item.processing?.active && (
-            <div className="card-processing" role="status">
-              <HugeiconsIcon icon={Loading01Icon} size={13} />
-              <span>{item.processing.message ?? "Processing"}</span>
-              {item.processing.progressTotal != null && (
-                <span>
-                  {item.processing.progressCurrent}/{item.processing.progressTotal}
-                </span>
-              )}
-            </div>
-          )}
-          {item.processing?.failedJob && (
-            <div className="card-processing failed" role="alert">
-              <HugeiconsIcon icon={AlertCircleIcon} size={13} />
-              <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
-              <button
-                type="button"
-                className="retry-button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void context.onRetryJob(item.processing?.failedJob?.id ?? "");
-                }}
-              >
-                <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
-              </button>
-            </div>
-          )}
-          <div className="card-footer">
-            <span className="card-source">
-              {item.readingMinutes ? `${item.source} · ${item.readingMinutes} min` : item.source}
-            </span>
-            {item.kind === "Article" && (
-              <button
-                type="button"
-                className="card-read"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  const rect = event.currentTarget.getBoundingClientRect();
-                  context.onOpenReader(item, {
-                    x: rect.left + rect.width / 2,
-                    y: rect.top + rect.height / 2,
-                  });
-                }}
-                onKeyDown={(event) => {
-                  event.stopPropagation();
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    context.onOpenReader(item);
-                  }
-                }}
-                disabled={!canOpenReader}
-                data-tooltip={canOpenReader ? "Open reader" : "No saved article text"}
-              >
-                Read <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
-              </button>
-            )}
-            {item.kind === "Video" && item.video && (
-              <button
-                type="button"
-                className="card-read"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  const card = event.currentTarget.closest<HTMLElement>(".library-card");
-                  context.onSelectItem(item, card ? cardRectsFor(card) : undefined);
-                }}
-              >
-                Watch <HugeiconsIcon icon={PlayIcon} size={11} />
-              </button>
-            )}
-            {!(item.kind === "Article" || (item.kind === "Video" && item.video)) && (
-              <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />
-            )}
-          </div>
-        </div>
-      </article>
-    </div>
-  );
-});
 
 // Pairing panel inside the existing Settings modal. Shows the per-install
 // pairing token for the browser extension (reveal-on-click, never rendered
@@ -965,7 +565,6 @@ function App() {
     });
   }, [activeSpace, activeView, canUseDesktopBackend, items, localSpaceItems, query]);
   filteredItemsRef.current = filteredItems;
-  const showLibraryEdges = filteredItems.length > 0;
   // Both sit under the toolbar in one column, so a capture error and the pinned
   // query row stack instead of overlapping.
   const showFilterRow = !isSearchFocused && query.trim() !== "";
@@ -978,14 +577,6 @@ function App() {
   const showBrowseControls = !isEmptySpace;
   const showCaptureError = Boolean(captureError) && !isAdding;
 
-  // VirtuosoMasonry keys rows by position, so a new result set must remount
-  // the grid. Otherwise card state (video playback, embeds) sticks to the
-  // wrong item after a filter change.
-  const libraryGridKey = useMemo(
-    () => filteredItems.map((item) => String(item.id)).join("|"),
-    [filteredItems],
-  );
-
   const { cardMenu, closeCardMenu, openCardMenu, cardMenuEntries } = useCardMenu({
     canUseDesktopBackend,
     openReader,
@@ -994,16 +585,18 @@ function App() {
 
   const libraryCardContext = useMemo<LibraryCardContext>(
     () => ({
+      layout: listMode ? "list" : "grid",
       onSelectItem: selectLibraryItem,
       onOpenReader: openReader,
       onRetryJob: retryJob,
       onOpenMenu: openCardMenu,
     }),
-    [openCardMenu, openReader, retryJob, selectLibraryItem],
+    [listMode, openCardMenu, openReader, retryJob, selectLibraryItem],
   );
 
   const archivedCardContext = useMemo<LibraryCardContext>(
     () => ({
+      layout: "archive",
       onSelectItem: selectArchivedLibraryItem,
       onOpenReader: openReader,
       onRetryJob: retryJob,
@@ -1285,117 +878,29 @@ function App() {
             captureError={showCaptureError ? captureError : null}
           />
 
-          <div className="view-dock" ref={viewDockRef}>
-            {showBrowseControls && appearance.viewToggle === "segmented" && (
-              <SegmentedControl
-                className="glass"
-                name="library-view"
-                label="View options"
-                value={viewSelectionListMode ? "list" : "grid"}
-                onChange={(view) => switchLibraryView(view === "list")}
-                options={[
-                  { value: "grid", label: "Grid" },
-                  { value: "list", label: "List" },
-                ]}
-              />
-            )}
-            {showBrowseControls && appearance.viewToggle === "pill" && (
-              <fieldset className="view-controls glass">
-                <legend className="visually-hidden">View options</legend>
-                <motion.span
-                  className="view-selection"
-                  aria-hidden="true"
-                  initial={false}
-                  animate={{
-                    transform: viewSelectionListMode ? "translateX(28px)" : "translateX(0px)",
-                  }}
-                  transition={{
-                    duration: LIBRARY_VIEW_TRANSITION_MS / 1000,
-                    ease: [0.77, 0, 0.175, 1],
-                  }}
-                />
-                <button
-                  type="button"
-                  className={`view-button ${!listMode ? "selected" : ""}`}
-                  onClick={() => switchLibraryView(false)}
-                  aria-label="Grid view"
-                  aria-pressed={!listMode}
-                  data-tooltip="Grid view"
-                >
-                  <HugeiconsIcon icon={Grid2X2Icon} size={15} />
-                </button>
-                <button
-                  type="button"
-                  className={`view-button ${listMode ? "selected" : ""}`}
-                  onClick={() => switchLibraryView(true)}
-                  aria-label="List view"
-                  aria-pressed={listMode}
-                  data-tooltip="List view"
-                >
-                  <HugeiconsIcon icon={ListViewIcon} size={15} />
-                </button>
-              </fieldset>
-            )}
-          </div>
+          <ViewDock
+            ref={viewDockRef}
+            look={appearance.viewToggle}
+            show={showBrowseControls}
+            listMode={listMode}
+            selectionListMode={viewSelectionListMode}
+            onSwitch={switchLibraryView}
+          />
 
-          <LiquidGlass
-            className="library-stage"
-            targetRoots={[captureBarRef, viewDockRef, tooltipLayerRef, cardMenuLayerRef]}
-          >
-            <div
-              className={`library-scroll${hasPinnedQuery ? " has-pinned-query" : ""}`}
-              ref={libraryScrollRef}
-            >
-              <>
-                {filteredItems.length > 0 && (
-                  <VirtuosoMasonry
-                    key={libraryGridKey}
-                    className={`library-grid ${listMode ? "list-mode" : ""}`}
-                    columnCount={listMode ? 1 : gridColumnCount}
-                    data={filteredItems}
-                    context={libraryCardContext}
-                    ItemContent={VirtualizedLibraryItem}
-                    style={{ height: "100%", width: "100%" }}
-                  />
-                )}
-
-                {filteredItems.length === 0 && (
-                  <div className="empty-state">
-                    <div className="empty-icon">
-                      <HugeiconsIcon icon={Search01Icon} size={20} />
-                    </div>
-                    {activeSpace?.kind === "regular" ? (
-                      <>
-                        <h2>{activeSpace.name} is empty.</h2>
-                        <p>
-                          Open anything in your library and pick {activeSpace.name} to file it in
-                          here.
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <h2>Nothing surfaced yet.</h2>
-                        <p>Try another word, or save something new to your mind.</p>
-                      </>
-                    )}
-                    {activeSpace?.kind !== "regular" && (
-                      <button
-                        type="button"
-                        className="text-button"
-                        onClick={() => {
-                          setQuery("");
-                          clearToDefaultView();
-                        }}
-                      >
-                        Clear search
-                      </button>
-                    )}
-                  </div>
-                )}
-              </>
-            </div>
-            {showLibraryEdges && <LibraryEdgeFade />}
-          </LiquidGlass>
+          <LibraryStage
+            scrollRef={libraryScrollRef}
+            glassTargets={[captureBarRef, viewDockRef, tooltipLayerRef, cardMenuLayerRef]}
+            items={filteredItems}
+            listMode={listMode}
+            columnCount={gridColumnCount}
+            context={libraryCardContext}
+            hasPinnedQuery={hasPinnedQuery}
+            emptySpaceName={activeSpace?.kind === "regular" ? activeSpace.name : undefined}
+            onClearSearch={() => {
+              setQuery("");
+              clearToDefaultView();
+            }}
+          />
         </main>
 
         {isFirstRunOpen ? <FirstRunOverlay onFinish={finishFirstRun} /> : null}
@@ -1685,7 +1190,7 @@ function App() {
                       <ArchiveGrid
                         data={archivedItems}
                         context={archivedCardContext}
-                        ItemContent={VirtualizedLibraryItem}
+                        ItemContent={LibraryCard}
                       />
                     ) : (
                       <div className="settings-scroll">
@@ -1897,11 +1402,13 @@ function App() {
       <div ref={cardMenuLayerRef}>
         {cardMenu && (
           <ContextMenu
+            key={`${cardMenu.item.id}:${cardMenu.x},${cardMenu.y}`}
             x={cardMenu.x}
             y={cardMenu.y}
             label={cardMenu.item.title}
             entries={cardMenuEntries}
             returnFocus={cardMenu.card}
+            container={cardMenuLayerRef}
             onClose={closeCardMenu}
           />
         )}
