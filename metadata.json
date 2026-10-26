@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M5V5AE1HDJX14T5EP0RZSVYJ",
+  "strategy": "manual-commit",
+  "branch": "squidlee/squ-130-stack-57-settings-sheet-and-archive",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/components/ContextMenu/ContextMenu.tsx",
+    "src/features/library/LibraryCard.tsx",
+    "src/features/settings/ArchivePanel.tsx",
+    "src/features/settings/ExtensionPairing.tsx",
+    "src/features/settings/LibraryPanel.tsx",
+    "src/features/settings/LicenseFilter.tsx",
+    "src/features/settings/SettingsPanel.tsx",
+    "src/features/settings/SettingsSheet.tsx",
+    "src/ui/Menu.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2008,
+    "cache_creation_tokens": 2821455,
+    "cache_read_tokens": 155004819,
+    "output_tokens": 697710,
+    "api_call_count": 1002
+  }
+}
