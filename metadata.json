@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M5X9NE00XDMAPK16AW97ERY3",
+  "strategy": "manual-commit",
+  "branch": "feat/effect-backend",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "electron/ai-jobs.test.ts",
+    "electron/ai-jobs.ts",
+    "electron/capture-server.ts",
+    "electron/main.ts",
+    "electron/native-dialog.ts",
+    "electron/storage.test.ts",
+    "electron/storage/context.ts",
+    "electron/storage/enrichment.ts",
+    "electron/storage/errors.ts",
+    "electron/storage/export-library.ts",
+    "electron/storage/import-library.ts",
+    "electron/storage/items.ts",
+    "electron/storage/jobs.ts",
+    "electron/storage/library.ts",
+    "electron/storage/search.ts",
+    "electron/storage/shared.ts",
+    "electron/storage/spaces.ts",
+    "electron/storage/test-library.ts",
+    "electron/storage/worker.ts",
+    "electron/tsconfig.json",
+    "packages/contracts/src/commands.ts",
+    "packages/contracts/src/index.ts",
+    "scripts/build-electron.ts",
+    "src/lib/ingestion/http.test.ts",
+    "src/lib/ingestion/http.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 728,
+    "cache_creation_tokens": 1176803,
+    "cache_read_tokens": 55811288,
+    "output_tokens": 330042,
+    "api_call_count": 363
+  }
+}
