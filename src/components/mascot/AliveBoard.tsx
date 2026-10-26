@@ -19,7 +19,7 @@ function Tile({
     <div
       style={{
         background: "#fff",
-        borderRadius: "var(--small-component)",
+        borderRadius: "var(--spacing-component)",
         padding: 20,
         width: 280,
       }}
@@ -28,7 +28,7 @@ function Tile({
         style={{
           display: "flex",
           justifyContent: "center",
-          padding: "8px 0 var(--small-component)",
+          padding: "8px 0 var(--spacing-component)",
         }}
       >
         {children}
@@ -138,14 +138,14 @@ export function AliveBoard() {
         style={{
           color: "#6b6b6b",
           fontSize: 14,
-          marginBottom: "var(--small-component)",
+          marginBottom: "var(--spacing-component)",
           maxWidth: 640,
         }}
       >
         Five ways to make the sidebar body live. Sway and jelly are new looping engine states; the
         rest reuse measured states and pointer tracking. Move your cursor over the watcher.
       </p>
-      <div style={{ display: "flex", gap: "var(--small-component)", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "var(--spacing-component)", flexWrap: "wrap" }}>
         <Tile
           title="1 · Slow sway"
           body="New inkling-sway state: the blot rotates ±6° over 6s with a faint vertical breath. Always on, never distracting."

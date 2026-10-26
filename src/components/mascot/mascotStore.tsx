@@ -135,7 +135,7 @@ function useMascotFrame(): BotFrame {
 /** Live figure permanently bound to the shared store. Ink/paper default to the dark app theme. */
 export function LiveMascotFigure({
   size,
-  ink = "var(--library-text)",
+  ink = "var(--color-ink)",
   paper = "transparent",
   className,
 }: {
@@ -153,7 +153,7 @@ export function LiveMascotFigure({
 /** Search-bar fit. Tight crop around the drift gaze so it sits centered in 50px. */
 export function LiveMascotSearchEyes({
   size,
-  ink = "var(--library-text)",
+  ink = "var(--color-ink)",
   className,
 }: {
   size: number;

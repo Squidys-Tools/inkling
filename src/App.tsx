@@ -21,19 +21,14 @@ import {
   BookOpen01Icon,
   Copy01Icon,
   LinkSquare02Icon,
-  ArrowDown01Icon,
-  ArrowLeft01Icon,
-  ArrowUp01Icon,
   ArrowUpRight01Icon,
   Bookmark01Icon,
   Database02Icon,
   Download04Icon,
   Grid2X2Icon,
-  Edit01Icon,
   Link01Icon,
   ListViewIcon,
   Loading01Icon,
-  PlusSignIcon,
   PlayIcon,
   RotateCwIcon,
   RotateLeft01Icon,
@@ -41,7 +36,6 @@ import {
   Settings01Icon,
   SidebarLeftIcon,
   Delete02Icon,
-  ViewSidebarLeftIcon,
   Cancel01Icon,
   CircleCheckIcon,
   CircleIcon,
@@ -121,11 +115,9 @@ import { parseDeepLinkCapture, validateDeepLinkCapture } from "./lib/deepLink";
 import { parseHttpUrl, safePublicImageUrl } from "./lib/ingestion/url";
 import { AnimatedCount } from "./components/AnimatedCount";
 import { ArchiveGrid } from "./components/ArchiveGrid";
-import { ElectronWindowControls } from "./components/ElectronWindowControls";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { LibraryEdgeFade } from "./components/LibraryEdgeFade";
 import { ContextMenu, type ContextMenuEntry } from "./components/ContextMenu/ContextMenu";
-import { TooltipLayer } from "./components/Tooltip/TooltipLayer";
 import { type AddMode, AddMenu } from "./components/AddMenu/AddMenu";
 import { OpenSourceLicenses } from "./components/OpenSourceLicenses/OpenSourceLicenses";
 import { SegmentedControl } from "./components/SegmentedControl/SegmentedControl";
@@ -156,7 +148,6 @@ const ExpandedItemOverlay = lazy(() =>
   })),
 );
 import { LiveMascotSearchEyes, pushMascotParams } from "./components/mascot/mascotStore";
-import { MascotHomeSlot } from "./components/mascot/MascotHomeSlot";
 import type { ExpandedOverlayActions } from "./components/ExpandedItemOverlay";
 import {
   isCardTooFarOffscreen,
@@ -203,6 +194,11 @@ const personalSeedModules: Record<string, { personalSeedItems?: LibraryItem[] }>
 const localSeedItems: LibraryItem[] =
   Object.values(personalSeedModules)[0]?.personalSeedItems ?? [];
 import "./App.css";
+import { NavRow, navLabelClass, Sidebar, SidebarError } from "./features/shell/Sidebar";
+import { SidebarEdgeGrip, SidebarOpenButton } from "./features/shell/SidebarToggles";
+import { SpacesSection } from "./features/shell/SpacesSection";
+import { TitleBar } from "./features/shell/TitleBar";
+import { TooltipLayer } from "./ui/Tooltip";
 
 function displayKind(kind: string): ItemKind {
   switch (kind.toLowerCase()) {
@@ -1537,54 +1533,6 @@ function LibraryMakeup({
         </>
       )}
     </div>
-  );
-}
-
-// Paper's Everything glyph. Hugeicons has no 3x3 dot grid, so it is drawn here.
-function NavDotGridIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
-      {[5, 12, 19].flatMap((cy) =>
-        [5, 12, 19].map((cx) => (
-          <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="2.2" fill="currentColor" />
-        )),
-      )}
-    </svg>
-  );
-}
-
-// Paper's Space mark, one blob for every Space. The colour is the row's colour class.
-const SPACE_MARK_PATH =
-  "M-96.539 5.45c-1.2 0-2.475-0.125-4-0.7-1.1-0.375-2.125-1-3.35-1.2-2.225-0.375-4.1-0.15-5.775 0.775-1.55 0.825-2.925 2.275-3.725 3.925-0.975 2.075-0.75 4.375-2.4 6.575-0.9 1.275-1.6 1.675-2.4 2.8-0.85 1.2-1.325 2.4-1.35 4.05-0.075 4.8 4.375 10.35 9.225 12.05 2.025 0.65 3.7 0.55 5.45-0.075 1-0.35 2.175-0.95 3.175-1.325 1.325-0.375 2.375-0.5 3.875-0.35 1.275 0.125 2.375 0.425 3.6 0.375 3.275-0.075 5.65-2.175 5.65-5.95 0-1.4-0.25-2.475-0.15-4.1 0.3-3.05 1.925-4.025 2.75-6.475 0.925-3.1 0.4-6.95-3.1-9.15-1.1-0.65-2.3-1.3-3.875-1.45-0.95-0.025-1.825 0.1-2.775 0.175l-0.825 0.05z";
-
-function SpaceMark() {
-  return (
-    <svg width="15" height="14" viewBox="-121.289 2 37.5 34" aria-hidden="true">
-      <path d={SPACE_MARK_PATH} fill="currentColor" />
-    </svg>
-  );
-}
-
-// Settings → Appearance "Edge grip": the sidebar opens and closes from the
-// library frame's left edge. Nothing shows at rest while the sidebar is open;
-// hovering or focusing the edge raises a grip and a knob. Closed, a faint grip
-// stays on the window's edge so there is always a way back.
-function SidebarEdgeGrip({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
-  const label = isOpen ? "Close sidebar" : "Open sidebar";
-  return (
-    <button
-      type="button"
-      className={`edge-grip ${isOpen ? "is-open" : ""}`}
-      aria-label={label}
-      aria-expanded={isOpen}
-      aria-controls="library-navigation"
-      onClick={onToggle}
-    >
-      <span className="edge-grip-bar" />
-      <span className="edge-grip-knob css-glass" data-tooltip={`${label} · Ctrl+\\`}>
-        <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
-      </span>
-    </button>
   );
 }
 
@@ -4191,23 +4139,11 @@ function App() {
   }, [isMascotBusy, captureError, isSearchFocused, query, prefersReducedMotion]);
 
   const sidebarActionErrorAlert = sidebarActionError ? (
-    <div
-      className={
-        isSidebarOpen
-          ? "sidebar-action-error"
-          : "sidebar-action-error sidebar-action-error-collapsed"
-      }
-    >
-      <p role="alert">{sidebarActionError}</p>
-      <button
-        type="button"
-        className="sidebar-action-error-dismiss"
-        aria-label="Dismiss Space error"
-        onClick={() => setSidebarActionError(null)}
-      >
-        <HugeiconsIcon icon={Cancel01Icon} size={14} />
-      </button>
-    </div>
+    <SidebarError
+      message={sidebarActionError}
+      collapsed={!isSidebarOpen}
+      onDismiss={() => setSidebarActionError(null)}
+    />
   ) : null;
 
   // Dev-only mascot board (vendored bloub engine + inkling skins). Not linked
@@ -4234,315 +4170,127 @@ function App() {
     <MotionConfig reducedMotion="user">
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Drag and drop is an optional capture path; Add, paste, and extension capture remain keyboard-accessible. */}
       <div
-        className={`app-shell ${isElectronRuntime() ? "electron-shell" : ""} ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""} ${appearance.sidebarToggle === "edge" ? "sidebar-edge" : ""}`}
+        className={`app-shell relative flex h-full min-h-screen overflow-hidden bg-canvas wide:bg-app ${isElectronRuntime() ? "electron-shell" : ""} ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <ElectronWindowControls />
-        <AnimatePresence>
-          {isSidebarOpen && (
-            <motion.button
-              key="sidebar-scrim"
-              type="button"
-              className="sidebar-scrim"
-              aria-label="Close navigation"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
-              onClick={() => setIsSidebarOpen(false)}
-            />
-          )}
-        </AnimatePresence>
-        <aside id="library-navigation" className={`sidebar ${isSidebarOpen ? "is-open" : ""}`}>
-          <div className="brand-lockup">
-            <MascotHomeSlot isSearchFocused={isSearchFocused} />
-            <span className="brand-name">inkling</span>
-            <button
-              type="button"
-              className="sidebar-close"
-              aria-label="Close sidebar"
-              aria-expanded={true}
-              aria-controls="library-navigation"
-              data-tooltip="Close sidebar"
-              onClick={() => setIsSidebarOpen(false)}
-            >
-              <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
-            </button>
-          </div>
-
-          <nav className="primary-nav" aria-label="Main navigation">
-            <button
-              type="button"
-              className={`nav-item ${activeView === "Everything" && !activeSpaceId ? "active" : ""}`}
-              onClick={clearToDefaultView}
-            >
-              <span className="nav-icon">
-                <NavDotGridIcon />
-              </span>
-              <span className="nav-label">Everything</span>
-              <span className="nav-count">{items.length.toLocaleString()}</span>
-            </button>
-          </nav>
-
-          <div className="sidebar-section">
-            <div className="sidebar-heading">
-              <span>Spaces</span>
-              <button
-                type="button"
-                className="icon-button small"
-                aria-label="Add a Space"
-                data-tooltip="Add a Space"
+        <TitleBar />
+        <Sidebar
+          isOpen={isSidebarOpen}
+          edgeToggle={appearance.sidebarToggle === "edge"}
+          isSearchFocused={isSearchFocused}
+          everything={{
+            active: activeView === "Everything" && !activeSpaceId,
+            count: items.length,
+            onSelect: clearToDefaultView,
+          }}
+          onClose={() => setIsSidebarOpen(false)}
+          footer={
+            <>
+              <AddMenu
+                open={isAdding}
+                mode={captureMode}
+                saving={isCapturing}
+                error={isAdding ? captureError : null}
+                onOpen={() => openCapture()}
+                onClose={closeCaptureModal}
+                onModeChange={(mode) => {
+                  setCaptureMode(mode);
+                  setCaptureError(null);
+                }}
+                onSaveNote={(text) => saveFromAddMenu(() => persistText(text, "quick note"))}
+                onSaveLink={(url) => saveFromAddMenu(() => persistArticle(url, "quick link"))}
+                onSaveQuote={(text, attribution, sourceUrl) =>
+                  saveFromAddMenu(() => persistQuote(text, attribution, sourceUrl, "quick quote"))
+                }
+                onPickFile={(file) => void captureFile(file, "file picker")}
+                onScreenshot={startScreenshotCapture}
+              />
+              {availableUpdate && (
+                <NavRow
+                  tone="update"
+                  aria-live="polite"
+                  disabled={isInstallingUpdate}
+                  data-tooltip={`Version ${availableUpdate.version} is ready. Inkling checks for updates when it opens; GitHub sees the app version but no library data. Selecting this downloads and installs the update, then restarts inkling.`}
+                  onClick={() => void handleInstallUpdate()}
+                >
+                  <HugeiconsIcon
+                    icon={isInstallingUpdate ? Loading01Icon : RotateCwIcon}
+                    size={15}
+                  />
+                  <span className={navLabelClass}>
+                    {isInstallingUpdate
+                      ? "Installing update..."
+                      : updateInstallFailed
+                        ? "Update failed · retry"
+                        : "Update available"}
+                  </span>
+                </NavRow>
+              )}
+              <NavRow
+                ref={settingsButtonRef}
+                tone="footer"
+                active={isSettingsOpen}
+                aria-label="Settings"
+                aria-expanded={isSettingsOpen}
+                aria-controls="settings-modal"
+                data-tooltip="Settings"
                 onClick={() => {
-                  setIsCreatingSpace((current) => !current);
-                  setNewSpaceName("");
-                  setNewSpaceKind("smart");
+                  setSelectedItem(null);
+                  setIsSettingsOpen(true);
                 }}
               >
-                <HugeiconsIcon icon={PlusSignIcon} size={14} />
-              </button>
-            </div>
-            <div className="space-list">
-              {spaces.map((space) => (
-                <div
-                  className={`space-item ${activeSpaceId === space.id ? "selected" : ""}`}
-                  key={space.id}
-                >
-                  <button
-                    type="button"
-                    className="space-dot"
-                    data-tooltip={`Change color (now ${space.color})`}
-                    aria-label={`Change color of ${space.name}`}
-                    onClick={() => {
-                      void handleCycleSpaceColor(space);
-                    }}
-                  >
-                    <span className={`space-dot-mark ${space.color}`} aria-hidden="true">
-                      <SpaceMark />
-                    </span>
-                  </button>
-                  {renamingSpaceId === space.id ? (
-                    <input
-                      ref={spaceRenameInputRef}
-                      className="space-rename-input"
-                      value={renameDraft}
-                      aria-label={`Rename ${space.name}`}
-                      maxLength={80}
-                      onChange={(event) => setRenameDraft(event.target.value)}
-                      onClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => {
-                        event.stopPropagation();
-                        if (event.key === "Enter") void handleRenameSpace(space, renameDraft);
-                        else if (event.key === "Escape") setRenamingSpaceId(null);
-                      }}
-                      // Blur commits, matching Finder/Explorer/VS Code rename fields:
-                      // silently discarding typed text loses work, while an
-                      // accidental save is one rename away from fixed.
-                      onBlur={() => void handleRenameSpace(space, renameDraft)}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="space-select"
-                      onClick={() => selectSpace(space)}
-                      aria-pressed={activeSpaceId === space.id}
-                    >
-                      <span className="space-name">{space.name}</span>
-                      <span className="space-count">
-                        {(
-                          space.itemCount ??
-                          (activeSpaceId === space.id ? filteredItems.length : undefined)
-                        )?.toLocaleString()}
-                      </span>
-                    </button>
-                  )}
-                  <span className="space-actions">
-                    <button
-                      type="button"
-                      className="space-delete space-tool"
-                      aria-label={`Move ${space.name} up`}
-                      data-tooltip="Move Space up"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void handleMoveSpace(space, -1);
-                      }}
-                    >
-                      <HugeiconsIcon icon={ArrowUp01Icon} size={12} />
-                    </button>
-                    <button
-                      type="button"
-                      className="space-delete space-tool"
-                      aria-label={`Move ${space.name} down`}
-                      data-tooltip="Move Space down"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void handleMoveSpace(space, 1);
-                      }}
-                    >
-                      <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
-                    </button>
-                    <button
-                      type="button"
-                      className="space-delete space-tool"
-                      aria-label={`Rename ${space.name}`}
-                      data-tooltip="Rename Space"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setRenamingSpaceId(space.id);
-                        setRenameDraft(space.name);
-                      }}
-                    >
-                      <HugeiconsIcon icon={Edit01Icon} size={12} />
-                    </button>
-                    <button
-                      type="button"
-                      className="space-delete"
-                      aria-label={`Delete ${space.name}`}
-                      data-tooltip="Delete Space"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void handleDeleteSpace(space);
-                      }}
-                    >
-                      <HugeiconsIcon icon={Cancel01Icon} size={12} />
-                    </button>
-                  </span>
-                </div>
-              ))}
-            </div>
-            <AnimatePresence mode="wait">
-              {isCreatingSpace && (
-                <motion.form
-                  key="space-form"
-                  className="space-form"
-                  initial={{ opacity: 0, transform: "translateY(-6px)" }}
-                  animate={{ opacity: 1, transform: "translateY(0)" }}
-                  exit={{ opacity: 0, transform: "translateY(-4px)" }}
-                  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-                  onSubmit={handleCreateSpace}
-                >
-                  <input
-                    ref={newSpaceNameInputRef}
-                    value={newSpaceName}
-                    onChange={(event) => setNewSpaceName(event.target.value)}
-                    placeholder={
-                      newSpaceKind === "smart" && query.trim()
-                        ? `Save “${query.trim()}” as…`
-                        : "Name this space"
-                    }
-                    aria-label="Space name"
-                    maxLength={80}
-                  />
-                  {/* Native radios rather than role="radio" buttons: the group gets
-                  arrow-key selection, one tab stop and group semantics from the
-                  platform instead of from ARIA we would then have to maintain. */}
-                  <fieldset className="space-kind">
-                    <legend className="visually-hidden">How this Space fills</legend>
-                    {(["smart", "regular"] as const).map((kind) => (
-                      <label
-                        key={kind}
-                        className={`space-kind-option ${newSpaceKind === kind ? "is-active" : ""}`}
-                      >
-                        <input
-                          type="radio"
-                          name="space-kind"
-                          className="visually-hidden"
-                          value={kind}
-                          checked={newSpaceKind === kind}
-                          aria-describedby="space-kind-hint"
-                          onChange={() => setNewSpaceKind(kind)}
-                        />
-                        {kind === "smart" ? "Smart" : "Regular"}
-                      </label>
-                    ))}
-                  </fieldset>
-                  <p className="space-form-hint" id="space-kind-hint">
-                    {newSpaceKind === "regular"
-                      ? "Holds only the items you file into it. Open an item and pick a Space to add it."
-                      : query.trim()
-                        ? "A Smart Space that updates automatically as items match this search."
-                        : "An empty Smart Space matches everything you have saved."}
-                  </p>
-                  <div className="space-form-actions">
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => {
-                        setIsCreatingSpace(false);
-                        setNewSpaceName("");
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="capture-save">
-                      Create Space
-                    </button>
-                  </div>
-                </motion.form>
-              )}
-            </AnimatePresence>
-          </div>
-
+                <HugeiconsIcon icon={Settings01Icon} size={15} />
+                <span className={navLabelClass}>Settings</span>
+              </NavRow>
+            </>
+          }
+        >
+          <SpacesSection
+            spaces={spaces}
+            activeSpaceId={activeSpaceId}
+            activeCount={filteredItems.length}
+            renaming={{
+              id: renamingSpaceId,
+              draft: renameDraft,
+              setDraft: setRenameDraft,
+              inputRef: spaceRenameInputRef,
+            }}
+            actions={{
+              select: selectSpace,
+              cycleColor: (space) => void handleCycleSpaceColor(space),
+              move: (space, direction) => void handleMoveSpace(space, direction),
+              startRename: (space) => {
+                setRenamingSpaceId(space.id);
+                setRenameDraft(space.name);
+              },
+              rename: (space, name) => void handleRenameSpace(space, name),
+              cancelRename: () => setRenamingSpaceId(null),
+              remove: (space) => void handleDeleteSpace(space),
+            }}
+            draft={{
+              isOpen: isCreatingSpace,
+              name: newSpaceName,
+              kind: newSpaceKind,
+              query,
+              nameInputRef: newSpaceNameInputRef,
+              toggle: () => {
+                setIsCreatingSpace((current) => !current);
+                setNewSpaceName("");
+                setNewSpaceKind("smart");
+              },
+              setName: setNewSpaceName,
+              setKind: setNewSpaceKind,
+              cancel: () => {
+                setIsCreatingSpace(false);
+                setNewSpaceName("");
+              },
+              submit: handleCreateSpace,
+            }}
+          />
           {isSidebarOpen && sidebarActionErrorAlert}
-
-          <div className="sidebar-footer">
-            <AddMenu
-              open={isAdding}
-              mode={captureMode}
-              saving={isCapturing}
-              error={isAdding ? captureError : null}
-              onOpen={() => openCapture()}
-              onClose={closeCaptureModal}
-              onModeChange={(mode) => {
-                setCaptureMode(mode);
-                setCaptureError(null);
-              }}
-              onSaveNote={(text) => saveFromAddMenu(() => persistText(text, "quick note"))}
-              onSaveLink={(url) => saveFromAddMenu(() => persistArticle(url, "quick link"))}
-              onSaveQuote={(text, attribution, sourceUrl) =>
-                saveFromAddMenu(() => persistQuote(text, attribution, sourceUrl, "quick quote"))
-              }
-              onPickFile={(file) => void captureFile(file, "file picker")}
-              onScreenshot={startScreenshotCapture}
-            />
-            {availableUpdate && (
-              <button
-                type="button"
-                className="nav-item footer-item update-footer-item"
-                aria-live="polite"
-                disabled={isInstallingUpdate}
-                data-tooltip={`Version ${availableUpdate.version} is ready. Inkling checks for updates when it opens; GitHub sees the app version but no library data. Selecting this downloads and installs the update, then restarts inkling.`}
-                onClick={() => void handleInstallUpdate()}
-              >
-                <HugeiconsIcon icon={isInstallingUpdate ? Loading01Icon : RotateCwIcon} size={15} />
-                <span className="nav-label">
-                  {isInstallingUpdate
-                    ? "Installing update..."
-                    : updateInstallFailed
-                      ? "Update failed · retry"
-                      : "Update available"}
-                </span>
-              </button>
-            )}
-            <button
-              ref={settingsButtonRef}
-              type="button"
-              className={`nav-item footer-item ${isSettingsOpen ? "active" : ""}`}
-              aria-label="Settings"
-              aria-expanded={isSettingsOpen}
-              aria-controls="settings-modal"
-              data-tooltip="Settings"
-              onClick={() => {
-                setSelectedItem(null);
-                setIsSettingsOpen(true);
-              }}
-            >
-              <HugeiconsIcon icon={Settings01Icon} size={15} />
-              <span className="nav-label">Settings</span>
-            </button>
-          </div>
-        </aside>
+        </Sidebar>
         {/* A closed sidebar's grip would sit over an open item's stage. */}
         {appearance.sidebarToggle === "edge" && (isSidebarOpen || !selectedItem) && (
           <SidebarEdgeGrip
@@ -4553,22 +4301,19 @@ function App() {
 
         {/* An open item replaces the library, which stays mounted underneath so
             the item can fly back into its card. */}
-        <main className="main-content" ref={libraryFrameRef} inert={selectedItem != null}>
+        <main
+          className={`main-content ${isSidebarOpen ? "" : "is-sidebar-closed"}`}
+          ref={libraryFrameRef}
+          inert={selectedItem != null}
+        >
           <section className="library-header"></section>
 
           <section className="capture-bar" ref={captureBarRef} aria-label="Capture and search">
             {!isSidebarOpen && (
-              <button
-                type="button"
-                className="sidebar-toggle glass"
-                aria-label="Open sidebar"
-                data-tooltip="Open sidebar"
-                aria-expanded={false}
-                aria-controls="library-navigation"
-                onClick={() => setIsSidebarOpen(true)}
-              >
-                <HugeiconsIcon icon={ViewSidebarLeftIcon} size={17} />
-              </button>
+              <SidebarOpenButton
+                edgeToggle={appearance.sidebarToggle === "edge"}
+                onOpen={() => setIsSidebarOpen(true)}
+              />
             )}
             {!isSidebarOpen && sidebarActionErrorAlert}
             {showBrowseControls && (

@@ -1,5 +1,6 @@
-import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
-import "./Tooltip.css";
+import { Tooltip } from "@base-ui/react/tooltip";
+import { type RefObject, useEffect, useState } from "react";
+import { glassClass } from "./Surface";
 
 // One tooltip for the whole app. Controls opt in with `data-tooltip="…"` (in
 // place of `title`, whose native tooltip is slow and ignores the theme), and
@@ -7,10 +8,7 @@ import "./Tooltip.css";
 // Moving straight from one control to the next skips the wait.
 
 const SHOW_DELAY_MS = 500;
-// Within this long of one tooltip closing, the next opens without the delay.
 const SKIP_DELAY_MS = 400;
-const GAP = 8;
-const EDGE = 6;
 // Anchors in this chrome sit over the library stage, where liquid glass can
 // draw the tooltip (LiquidGlass.tsx). Anywhere else the stage is not behind
 // it, so it keeps the CSS glass.
@@ -20,8 +18,6 @@ type Tip = { anchor: HTMLElement; text: string };
 
 export function TooltipLayer({ ref }: { ref: RefObject<HTMLDivElement | null> }) {
   const [tip, setTip] = useState<Tip | null>(null);
-  const tipRef = useRef<HTMLDivElement>(null);
-  const [placement, setPlacement] = useState<{ left: number; top: number } | null>(null);
 
   useEffect(() => {
     let timer = 0;
@@ -99,36 +95,27 @@ export function TooltipLayer({ ref }: { ref: RefObject<HTMLDivElement | null> })
     return () => observer.disconnect();
   }, [tip]);
 
-  // Below the control, or above it when there is no room (the view dock).
-  useLayoutEffect(() => {
-    const element = tipRef.current;
-    if (!tip || !element) {
-      setPlacement(null);
-      return;
-    }
-    const anchor = tip.anchor.getBoundingClientRect();
-    const { width, height } = element.getBoundingClientRect();
-    const below = anchor.bottom + GAP;
-    const top = below + height > window.innerHeight - EDGE ? anchor.top - GAP - height : below;
-    const left = Math.min(
-      Math.max(EDGE, anchor.left + anchor.width / 2 - width / 2),
-      window.innerWidth - EDGE - width,
-    );
-    setPlacement({ left, top });
-  }, [tip]);
-
   const liquid = tip?.anchor.closest(LIQUID_ANCHORS) != null;
   return (
-    <div ref={ref} className="tooltip-layer" aria-hidden="true">
-      {tip && (
-        <div
-          ref={tipRef}
-          className={`tooltip ${liquid ? "glass" : "css-glass"}`}
-          style={placement ?? { visibility: "hidden" }}
-        >
-          {tip.text}
-        </div>
-      )}
+    <div ref={ref} className="pointer-events-none fixed inset-0 z-2000" aria-hidden="true">
+      <Tooltip.Root open={tip != null} onOpenChange={(open) => open || setTip(null)}>
+        <Tooltip.Portal container={ref}>
+          <Tooltip.Positioner
+            anchor={tip?.anchor}
+            side="bottom"
+            sideOffset={8}
+            collisionPadding={6}
+            collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
+            positionMethod="fixed"
+          >
+            <Tooltip.Popup
+              className={`${glassClass(liquid)} max-w-[280px] rounded-[9px] px-2.5 py-1.5 font-body text-[12px] leading-4 font-medium text-ink transition-opacity duration-120 ease-out data-starting-style:opacity-0 motion-reduce:transition-none`}
+            >
+              {tip?.text}
+            </Tooltip.Popup>
+          </Tooltip.Positioner>
+        </Tooltip.Portal>
+      </Tooltip.Root>
     </div>
   );
 }
