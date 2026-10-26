@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M5V2DGEMK0Z1833H5Z57HYVC",
+  "strategy": "manual-commit",
+  "branch": "squidlee/squ-129-stack-47-library-grid-cards-list-view-filters",
+  "checkpoints_count": 69,
+  "files_touched": [
+    "bun.lock",
+    "docs/changelog.md",
+    "docs/tech-stack.md",
+    "electron/ai-jobs.test.ts",
+    "electron/main.mjs",
+    "electron/storage.mjs",
+    "electron/storage.test.ts",
+    "package.json",
+    "patches/@liquid-dom%2Fcore@0.1.1.patch",
+    "src/App.css",
+    "src/App.tsx",
+    "src/components/ExpandedItemOverlay.tsx",
+    "src/components/ItemMedia.tsx",
+    "src/components/LibraryEdgeFade.tsx",
+    "src/components/LiquidGlass.tsx",
+    "src/components/liquidGlassShape.test.ts",
+    "src/components/liquidGlassShape.ts",
+    "src/components/mascot/RoamBoard.tsx",
+    "src/lib/libraryApi.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4358,
+    "cache_creation_tokens": 5076657,
+    "cache_read_tokens": 334169515,
+    "output_tokens": 1384474,
+    "api_call_count": 2160,
+    "subagent_tokens": {
+      "input_tokens": 3106,
+      "cache_creation_tokens": 6518120,
+      "cache_read_tokens": 202073458,
+      "output_tokens": 2223667,
+      "api_call_count": 1559
+    }
+  }
+}
