@@ -72,12 +72,11 @@ function normalizeHeadingText(value: string | null | undefined): string {
 // which readers drop. Ones with a heading plus a list are article content, so
 // promote them to <section> before extraction.
 function promoteInfoAsides(document: Document): void {
-  for (const aside of [...document.querySelectorAll("aside")]) {
+  for (const aside of document.querySelectorAll("aside")) {
     if (!aside.querySelector("h2, h3, h4") || !aside.querySelector("ul, ol")) continue;
     const section = document.createElement("section");
     while (aside.firstChild) section.appendChild(aside.firstChild);
-    for (const attribute of [...aside.attributes])
-      section.setAttribute(attribute.name, attribute.value);
+    for (const attribute of aside.attributes) section.setAttribute(attribute.name, attribute.value);
     aside.replaceWith(section);
   }
 }

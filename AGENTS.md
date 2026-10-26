@@ -105,7 +105,7 @@ An empty library is a bad test. Seed your run with a copy of real data instead o
 - Ingestion and background changes ship with focused tests for that behavior. A behavior change with no test is unfinished.
 - Background work is async. Await the real signal: a job drain, a lease state, an event. No fixed sleeps, per-test timeouts, retries, `Date.now()` or `performance.now()` deltas, polling loops, or skips without a reason.
 - UI changes need one real pass in the running app before you call them done. Preview for layout, full app for anything native. Take a screenshot through the harness so the user can see it. The primary agent does this once after integrating. Subagents do not launch their own dev servers. Clean up what you launched when you are done.
-- Electron and frontend changes get focused tests, typecheck, and changed-file Biome. There are no local hooks — CI runs the frontend checks and Electron package smoke tests.
+- Electron and frontend changes get focused tests, typecheck, and changed-file `oxlint` and `oxfmt --check`. There are no local hooks — CI runs the frontend checks and Electron package smoke tests.
 
 ## Pull requests
 
@@ -170,7 +170,7 @@ Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behav
 
 - Complexity belongs at the adapter boundary. Ingestion stays explicit, UI stays dumb.
 - Inferred types over annotations. `any` is the enemy.
-- Default to no comment. Keep one only where a reader would likely break something without it: a race or ordering guarantee, a security or sanitizing check, a Chromium, Electron, WebGPU or OS quirk, or an invariant another file relies on. One line where you can, four at most. Don't restate names, narrate steps, label sections, record history, or leave a TODO without an issue. Lint directives, knip tags and license headers stay.
+- Default to no comment. Keep one only where a reader would likely break something without it: a race or ordering guarantee, a security or sanitizing check, a Chromium, Electron, WebGPU or OS quirk, or an invariant another file relies on. One line where you can, four at most. Don't restate names, narrate steps, label sections, record history, explain the fix you just made (the PR carries that), or leave a TODO without an issue. Lint directives, knip tags and license headers stay. `inkling/no-low-value-comments` in `oxlint-plugin-inkling/` enforces the length cap and the mechanical cases, and every `oxlint-disable` needs a `-- reason`.
 - Our users should never notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations(with a slight execption for the mascot); they peg the GPU on high-refresh displays.
 - Capture paths stay fast and forgiving. Keep partial results when extraction fails. A URL with a title and domain beats an error card.
 - If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.

@@ -2,8 +2,8 @@
   "name": "@inkling/contracts",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "description": "The IPC contract between inkling's Electron main process and its renderer.",
+  "type": "module",
   "exports": {
     ".": {
       "types": "./src/index.ts",

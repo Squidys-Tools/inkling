@@ -120,7 +120,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
             {bylineParts.length > 0 && (
               <p className="reader-byline">
                 {bylineParts.map((part, index) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: bylineParts is a stable split of one string; it never reorders.
+                  // oxlint-disable-next-line react/no-array-index-key -- bylineParts is a stable split of one string; it never reorders.
                   <span key={index}>{part}</span>
                 ))}
               </p>

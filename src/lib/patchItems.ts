@@ -1,11 +1,8 @@
 type WithId = { id: string | number };
 
 /**
- * Applies a few changed items to a loaded list without disturbing the rest.
- * Untouched items keep their identity so memoized cards skip re-rendering, and
- * a patched item that came back identical keeps its old object too. An item
- * missing from `patched` is gone (archived or deleted) and is dropped. Returns
- * the same array when nothing changed.
+ * Untouched and unchanged items keep their object identity so memoized cards skip
+ * re-rendering. An item missing from `patched` was archived or deleted and is dropped.
  */
 export function patchItems<T extends WithId>(
   current: T[],

@@ -8,9 +8,9 @@ const packageJson = (await Bun.file("package.json").json()) as {
 };
 const external = [
   "electron",
-  ...Object.keys(packageJson.dependencies)
-    .filter((name) => !name.startsWith("@inkling/"))
-    .flatMap((name) => [name, `${name}/*`]),
+  ...Object.keys(packageJson.dependencies).flatMap((name) =>
+    name.startsWith("@inkling/") ? [] : [name, `${name}/*`],
+  ),
 ];
 const outdir = "dist/electron";
 

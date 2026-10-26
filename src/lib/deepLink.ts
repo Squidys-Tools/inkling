@@ -57,12 +57,9 @@ export function validateDeepLinkCapture(value: unknown): DeepLinkCapture | null 
   return null;
 }
 
-// Parses an extension fallback link: inkling://capture?url=&title=&selection=
-// (quote), or inkling://capture?url=&image=&alt= (image). URLSearchParams.get
-// already URL-decodes every value. The target URL is validated http(s)-only
-// through parseHttpUrl. The selection is never rewritten: outer whitespace is
-// trimmed and overlong selections are truncated, nothing else. `via` is a
-// provenance marker from the extension and carries no semantics here.
+// Parses inkling://capture?url=&title=&selection= (quote) or ?url=&image=&alt=
+// (image). The URL must be http(s). The selection is only trimmed and truncated,
+// never rewritten. `via` is extension provenance and carries no meaning here.
 export function parseDeepLinkCapture(value: string): DeepLinkCapture | null {
   return validateDeepLinkCapture(parseDeepLinkCaptureCore(value));
 }

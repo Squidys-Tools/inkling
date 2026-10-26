@@ -1,14 +1,13 @@
 {
   "name": "inkling",
-  "private": true,
   "version": "0.1.0",
-  "type": "module",
-  "main": "dist/electron/main.mjs",
-  "packageManager": "bun@1.4.2",
+  "private": true,
   "workspaces": [
     "extension",
     "packages/*"
   ],
+  "type": "module",
+  "main": "dist/electron/main.mjs",
   "scripts": {
     "dev": "vite",
     "dev:app": "vite build --mode electron-preview && bun run build:electron && electron . --preview",
@@ -27,8 +26,8 @@
     "test": "bun test",
     "test:pdf": "bun benchmarks/harness/pdf.smoke.ts",
     "knip": "knip --no-progress",
-    "lint": "biome check --colors=off",
-    "lint:fix": "biome check --write",
+    "lint": "oxlint && oxfmt --check",
+    "lint:fix": "oxlint --fix && oxfmt",
     "ingest:smoke": "bun src/lib/ingestion/ingestion.smoke.ts",
     "bench": "bun benchmarks/harness/index.ts"
   },
@@ -91,8 +90,8 @@
     "tesseract.js": "7.0.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.15",
     "@inkling/contracts": "workspace:*",
+    "@oxlint/plugins": "^1.89.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/bun": "1.4.3",
     "@types/react": "^19.3.0",
@@ -102,11 +101,14 @@
     "electron": "44.7.2",
     "electron-builder": "^26.15.3",
     "knip": "^6.41.0",
+    "oxfmt": "^0.74.0",
+    "oxlint": "^1.89.0",
     "tailwindcss": "^4.3.3",
     "tsc-rs": "0.7.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.4"
   },
+  "packageManager": "bun@1.4.2",
   "build": {
     "appId": "com.inkling.library",
     "productName": "inkling",

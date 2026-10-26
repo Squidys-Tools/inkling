@@ -1,4 +1,4 @@
-// biome-ignore-all lint/suspicious/noArrayIndexKey: every mapped array here is fixed geometry derived from a profile, and never reorders.
+/* oxlint-disable react/no-array-index-key -- every mapped array here is fixed geometry derived from a profile, and never reorders. */
 import { useId } from "react";
 import { DEMI_VIEWBOX, RAYON } from "./bot/repere";
 import { mixHex } from "./bot/skins";
@@ -161,12 +161,8 @@ export function MascotFigure({
 }
 
 /**
- * Eyes only, custom fit for the search field.
- * The generic MascotEyes uses a tall crop (-60 -80 150 135) that reserves
- * room for the full motion range across all states. In a 50px search bar
- * that empty space reads as a vertical offset, eyes pinned high with dead
- * space below. This uses a tight crop around the drift + attentif/curieux
- * eye centroid (about 25, -50) so the gaze sits optically centered.
+ * Tight crop for the search field. MascotEyes' tall crop reserves room for every
+ * state's motion, which in a 50px bar pins the eyes high.
  */
 const SEARCH_EYES_VIEWBOX = "-14 -88 78 80";
 

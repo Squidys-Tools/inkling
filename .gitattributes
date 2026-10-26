@@ -1,7 +1,7 @@
 # Preserve PDF bytes exactly; line endings inside xref tables are significant to some parsers.
 benchmarks/corpus/pdfs/*.pdf binary
 
-# Keep Biome-formatted files identical across Windows and Linux checkouts.
+# Keep formatted files identical across Windows and Linux checkouts.
 *.cjs text eol=lf
 *.css text eol=lf
 *.html text eol=lf
@@ -10,5 +10,6 @@ benchmarks/corpus/pdfs/*.pdf binary
 *.jsonc text eol=lf
 *.jsx text eol=lf
 *.mjs text eol=lf
+*.mts text eol=lf
 *.ts text eol=lf
 *.tsx text eol=lf

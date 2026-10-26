@@ -7,11 +7,8 @@ import { capsulePath, toPoints, type Point } from "./bot/shape";
 import { STATE_BY_ID } from "./bot/states";
 import { buildReadmeMascot, readmeMascotFrame, readmeMascotSvg } from "./readmeMascot";
 
-// The README mascot is a file nobody lints and everybody sees, so what these
-// cover is the things that break silently in a browser: a loop that jumps on
-// the seam, an outline that never actually changes, a face that never actually
-// changes, an eye that walks off the body mid-turn, and motion that ignores a
-// reader who asked for none.
+// Covers what breaks silently in a browser: a seam that jumps, an outline or face
+// that never changes, an eye leaving the body mid-turn, and ignored reduced motion.
 
 const svg = buildReadmeMascot();
 
@@ -50,11 +47,8 @@ const TRACKS = [
  *  the first — the eye would sit on its t=0 matrix for the whole loop. */
 const CLASSES = ["inkling-flicker", "inkling-blink", "inkling-eye-0", "inkling-eye-1"] as const;
 
-/** Area centroid of a closed polygon given its on-curve points. The blob is a
- *  closed path of cubic segments, and the on-curve points trace it, so this is
- *  where the ink actually sits. A bounding box cannot answer that: the mascot's
- *  lobes are not symmetric left to right, so the box's centre wanders while the
- *  mascot stands perfectly still. */
+/** Area centroid of the on-curve points. A bounding box won't do: the lobes are
+ *  asymmetric, so the box's centre wanders while the mascot stands still. */
 function centroid(points: Array<[number, number]>): [number, number] {
   let twiceArea = 0;
   let x = 0;
@@ -134,11 +128,8 @@ describe("readme mascot svg", () => {
   });
 
   test("one rule per element, so no track silently overwrites another", () => {
-    // `animation` is a shorthand: a second declaration on the same element
-    // resets every longhand it does not name. The eyes each run a shape track
-    // and a look track, and when those were separate rules the look lost, which
-    // froze the eye on its t=0 matrix while the shape carried on. The symptom is
-    // invisible in the markup and obvious on screen, so it is worth a test.
+    // Separate `animation` rules reset each other's longhands, freezing the eye on
+    // its t=0 matrix. Invisible in markup, obvious on screen.
     const { document } = parseHTML(svg);
     // Only the rules outside the reduced-motion block, which repeats the
     // selectors on purpose to switch them all off at once.
@@ -184,11 +175,8 @@ describe("readme mascot svg", () => {
   });
 
   test("stays in frame for the whole loop, which is the bug this file had once", () => {
-    // Every baked outline has to sit around the middle of the viewBox. A mascot
-    // that swings off the page still has a perfectly plausible ink area, so an
-    // area check sails straight past it; only its position gives it away. This
-    // is the check that was missing when a `rotate()` on the wrong pivot shipped
-    // the mascot out of frame.
+    // A mascot swung off the page still has a plausible ink area, so only the
+    // outline's position catches it.
     for (const [, decl] of blocks().get("inkling-flicker") ?? []) {
       const points = outlinePoints(decl.match(/path\("([^"]*)"\)/)?.[1] ?? "");
       const [cx, cy] = centroid(points);
@@ -243,18 +231,8 @@ describe("readme mascot svg", () => {
   });
 
   test("the eye is open again almost immediately after each blink", () => {
-    // The lid keyframes carry three instants per blink: open, shut, open. What
-    // separates a blink from a slow squint is the THIRD one, and checking that
-    // the trough exists is no proof of it. This once shipped with the reopen
-    // missing: a scale had been written into the slot that wants a time, sorted
-    // out of order and dropped, so the eye stayed shut until the next blink
-    // seconds later. Every other assertion here still passed, because a slow
-    // reopen is a valid linear ramp between two real keyframes.
-    //
-    // So this asserts on the gaps rather than on the values: the eye is fully
-    // open for most of the loop, and never shut for more than a blink's worth.
-    // Offsets in the stylesheet are percentages of the loop, so they have to be
-    // scaled back to seconds before any of the thresholds below mean anything.
+    // Asserts on gaps, not values: a missing reopen still forms a valid linear ramp
+    // to the next blink. Offsets are percentages, so scale them to seconds first.
     const track = (blocks().get("inkling-blink") ?? []).map(([at, decl]) => ({
       t: (Number(at) / 100) * LOOP_SECONDS,
       shut: decl === "transform:scaleY(0.06)",
@@ -301,11 +279,8 @@ describe("readme mascot svg", () => {
   });
 
   test("no blink lands inside an expression change, where it would hide it", () => {
-    // A blink closes the eye to a line. One arriving halfway through a morph
-    // covers the change while it is still half-done, so the face appears to
-    // snap rather than turn. This is the reason the beats in the script are
-    // placed where they are, and it is worth a test because the calendar and the
-    // score are two independent tables that can drift apart.
+    // A blink mid-morph hides the change half-done. The blink calendar and the
+    // score are independent tables that can drift apart.
     const lid = (t: number) => blinkScale(liveliness(t, { wander: 0 }).lid);
     const ids = [...EXPRESSION_BY_ID.keys()];
     expect(ids.length).toBeGreaterThan(0);
@@ -313,12 +288,8 @@ describe("readme mascot svg", () => {
     // keyframes with one `d`, and a change is where it differs.
     const shapes = (blocks().get("inkling-shape-0") ?? []).map(([, decl]) => decl);
     expect(shapes.length).toBeGreaterThan(0);
-    // The shape only moves between two keyframes that disagree, and that
-    // interval IS a morph. The lid has to be open across all of it: a blink
-    // arriving halfway covers the change while it is still half-done, so the
-    // face appears to snap rather than turn. This is why the beats in the script
-    // sit where they do, and it is worth a test because the blink calendar and
-    // the score are two independent tables that can drift apart.
+    // The shape moves only between keyframes that disagree, so those intervals are
+    // the morphs, and the lid must stay open across all of them.
     const moving = shapes.filter((d, i) => i > 0 && d !== shapes[i - 1]).length;
     expect(moving).toBeGreaterThanOrEqual(3);
     const times = (blocks().get("inkling-shape-0") ?? []).map(([at]) => (Number(at) / 100) * 24);
@@ -351,16 +322,8 @@ describe("readme mascot svg", () => {
   });
 
   test("the eyes stay on the body for the whole loop, which is what fixes the placement", () => {
-    // The body turns under a face that is standing still, so a lobe sweeps past
-    // the eyes twice a turn. At the app's own gaze the wide-eyed expressions put
-    // an eye corner outside the blob entirely; the pinned placement is what
-    // keeps the score inside it. Six units at the README's 160px is under three
-    // pixels of daylight, which is the margin this leaves.
-    //
-    // BOTH eyes, because the far one is the one that gets close: it sits lower
-    // and outboard of the near one, and on a body rotating under a pinned face
-    // that is the corner a lobe reaches first. Checking only `inkling-look-0`
-    // reported a margin three times better than the truth.
+    // A lobe sweeps past the steady face twice a turn. Both eyes are checked: the
+    // far eye sits lower and outboard, so a lobe reaches it first.
     const state = STATE_BY_ID.get("inkling-drift-faced")!;
     let worst = Infinity;
     let worstAt = 0;
@@ -406,19 +369,8 @@ describe("readme mascot svg", () => {
   });
 
   test("the body is the sidebar's own drift, shared rather than copied", () => {
-    // This is the whole point of the file, so it is asserted on identity rather
-    // than on resemblance: the README mascot and the sidebar mascot must move
-    // because they are the same function of time, not because two hand-tuned
-    // copies were kept in step.
-    //
-    // It was two copies once. `inkling-drift-loop` was `inkling-drift` with every
-    // period snapped to a divisor of 24 so the state would close on itself — and
-    // the loop never needed it, because an SVG `d` track interpolates its last
-    // keyframe to the one at 100% anyway. So the README paid for a self-closing
-    // state it did not use with a silhouette that recurred every 12s while the
-    // body took twice as long to come round, which read as a different mascot.
-    //
-    // A numeric comparison would pass the next lookalike re-timing. This cannot.
+    // Asserted on identity, not resemblance: the README and sidebar mascots must be
+    // the same function of time, so a lookalike re-timing can't pass.
     const sidebar = STATE_BY_ID.get("inkling-drift");
     const readme = STATE_BY_ID.get("inkling-drift-faced");
     expect(sidebar).toBeDefined();
@@ -431,12 +383,8 @@ describe("readme mascot svg", () => {
   });
 
   test("the seam stays one keyframe long, which is what pays for the loop", () => {
-    // Since the state does not close on itself, the loop closes on the straight
-    // line from the last outline to the one at t=0. That line has to stay about
-    // as long as one keyframe interval, because one interval IS one second of the
-    // body's turn and the seam is then invisible. Coarsen the grid and it stops
-    // being a second of drift and becomes a visible settle — the same bug in new
-    // clothes, and the one this file's chord note explains why not to chase.
+    // The seam is the straight line from the last outline back to t=0, and it must
+    // stay about one keyframe interval long or it reads as a visible settle.
     const flicker = blocks().get("inkling-flicker") ?? [];
     const last = Number(flicker[flicker.length - 2]![0]);
     const seconds = ((100 - last) / 100) * LOOP_SECONDS;

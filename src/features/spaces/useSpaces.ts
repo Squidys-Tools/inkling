@@ -111,15 +111,9 @@ export function useSpaces({
     }
   }
 
-  // The chips toggle from live membership, so this has to stay a stable
-  // callback: the overlay actions memo closes over it, and a plain function
-  // would leave that memo holding a pre-toggle membership read and turn
-  // "Remove from" into a second add.
-  //
-  // The direction is applied before the write rather than after it, because a
-  // second click while the first write is in flight has to reverse the first
-  // instead of repeating it. Two writes for one Space are chained so the
-  // reversal cannot land before the write it reverses.
+  // Must stay a stable callback: the overlay actions memo closes over it, and a
+  // stale membership read would turn "Remove from" into a second add. Writes per
+  // Space are chained so a second click reverses the first instead of racing it.
   const spaceWritesRef = useRef<Map<string, Promise<void>>>(new Map());
   // Bumped by every chip toggle. A membership read already in flight carries the
   // value it saw here and drops its result if a toggle has landed since, so an
@@ -333,11 +327,8 @@ export function useSpaces({
     }
     let cancelled = false;
     const issuedAt = spaceMembershipEpochRef.current;
-    // One guard for both outcomes. A read a chip toggle has superseded has
-    // nothing to report either way: the toggle's own write is now the
-    // authoritative answer and reports its own failure. Checking the epoch on
-    // the success path only would leave a stale rejection raising an error for
-    // a read whose result nobody can use any more.
+    // A read superseded by a chip toggle reports nothing, success or failure: the
+    // toggle's own write is authoritative and reports its own errors.
     const superseded = () => cancelled || issuedAt !== spaceMembershipEpochRef.current;
     listItemSpaces(itemId)
       .then((ids) => {

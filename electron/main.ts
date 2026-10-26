@@ -360,6 +360,7 @@ function registerLibraryCommands() {
       } catch (error) {
         throw new Error(
           `invalid storage input: ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error },
         );
       }
       return handler(decoded);

@@ -1,4 +1,3 @@
-// biome-ignore-all lint/suspicious/noAssignInExpressions: the exec loop owns regex.lastIndex while scanning PDF streams.
 import { readFileSync } from "node:fs";
 
 export interface PdfExtraction {

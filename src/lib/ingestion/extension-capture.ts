@@ -10,11 +10,9 @@ import {
   type ExtensionVideoPayload,
 } from "@inkling/ingestion-shared";
 
-// App-side receipt for Phase 3 browser-extension captures. Pure mapping only:
-// no fetch, no desktop IPC, no DOM writes. Callers wire the results into the
-// existing capture paths — create_quote, save_file (the app downloads
-// downloadUrl through the asset pipeline), and the video-links.ts path — so
-// extension items get instant provisional cards exactly like other entries.
+// Pure mapping for browser-extension captures: no fetch, IPC, or DOM writes.
+// Callers route results into the existing capture paths so extension items get
+// instant provisional cards like every other entry point.
 
 export type SelectionReceipt = {
   /** Ready for create_quote. */

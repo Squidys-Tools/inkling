@@ -48,11 +48,9 @@ const BAND_STEP = 128;
 export type GlassBand = { top: number; height: number };
 
 /**
- * The device-pixel rows of a canvas that hold glass, one band per cluster (the
- * toolbar, the view dock). liquid-dom runs a dozen full-size passes per frame,
- * so only these rows go through it; the rest of the canvas is a plain copy of
- * the content. Every band gets the same height so liquid-dom keeps its render
- * targets from one band to the next.
+ * Device-pixel rows that hold glass, one band per cluster. liquid-dom runs a dozen
+ * full-size passes per frame, so only these rows go through it. Bands share one
+ * height so liquid-dom keeps its render targets between them.
  */
 export function glassBands(
   shapes: Iterable<{ y: number; height: number }>,

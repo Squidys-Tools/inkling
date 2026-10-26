@@ -18,13 +18,10 @@ import {
 import { createPortal } from "react-dom";
 import { type GlassShape, glassBands, glassShape, type ShapeBox } from "./liquidGlassShape";
 
-// Liquid glass (Paper: "Note · Liquid glass experiment"). The backdrop renders
-// inside a `<canvas layoutsubtree>`; Chromium's HTML-in-Canvas API copies it
-// into a WebGPU texture, and liquid-dom draws refracting glass under every
-// `.glass` element in `targetRoots`. Those elements stay ordinary DOM above the
-// canvas and drop their CSS glass while the liquid one shows. Without WebGPU or
-// the API (the web preview, an old GPU, a lost device) the backdrop stays plain
-// DOM and the CSS glass remains.
+// The backdrop renders inside a `<canvas layoutsubtree>`, and liquid-dom draws
+// refracting glass under each `.glass` element in `targetRoots`. Without WebGPU or
+// Chromium's HTML-in-Canvas API (web preview, old GPU, lost device), the backdrop
+// stays plain DOM and the CSS glass remains.
 
 declare global {
   interface HTMLCanvasElement {

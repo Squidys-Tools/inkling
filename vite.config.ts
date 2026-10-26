@@ -43,17 +43,9 @@ function excludeSeedFromAppBuild() {
   };
 }
 
-// The committed demo seed (public/seed-demo/ + src/seedPersonal.ts) is the
-// default for preview and UI work, and is excluded from the shipped app build.
-// Both halves have to go at build time: a runtime `if` is too late, because
-// Vite has already copied public/ and bundled the seed module by the time any
-// gate runs.
-//
-// Gated on `--mode app` rather than an environment variable, because a
-// `VAR=x` prefix in a package script is not cross-platform on Windows `cmd`.
-// `bun run build:app` is the only thing that passes this mode.
-//
-// https://vite.dev/config/
+// The demo seed must be dropped at build time: by the time a runtime `if` runs,
+// Vite has already copied public/ and bundled src/seedPersonal.ts. Gated on
+// `--mode app` because a `VAR=x` script prefix fails in Windows `cmd`.
 export default defineConfig(async ({ mode }) => {
   // `app` is the shipped Electron build. Every other mode — dev, and the default
   // production build used by `vite preview` and the web preview deploy — keeps

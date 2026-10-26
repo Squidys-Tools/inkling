@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    "public/seed-demo",
+    "benchmarks/corpus",
+    ".entire",
+    ".opencode",
+    ".codex",
+    "docs/assets",
+    "extension/icons",
+    "src/components/GradualBlur",
+    "bun.lock",
+    "**/*.md",
+    "**/*.yml",
+    "**/*.yaml"
+  ]
+}

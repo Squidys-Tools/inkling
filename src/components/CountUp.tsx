@@ -491,7 +491,7 @@ export default function CountUp({
               if ("char" in slot) {
                 return (
                   <span
-                    // biome-ignore lint/suspicious/noArrayIndexKey: slots are positional and index-addressed via slotRefs
+                    // oxlint-disable-next-line react/no-array-index-key -- slots are positional and index-addressed via slotRefs
                     key={index}
                     ref={(node) => {
                       slotRefs.current[index] = node;
@@ -504,7 +504,7 @@ export default function CountUp({
               }
               return (
                 <span
-                  // biome-ignore lint/suspicious/noArrayIndexKey: slots are positional and index-addressed via slotRefs
+                  // oxlint-disable-next-line react/no-array-index-key -- slots are positional and index-addressed via slotRefs
                   key={index}
                   ref={(node) => {
                     slotRefs.current[index] = node;
