@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M5TRHVD1ED3BZTWZTAX3QKZ2",
+  "session_id": "01a17574-2909-76f1-8a6a-a2511b90e209",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-26T00:07:55.3588969Z",
+  "branch": "squidlee/squ-129-stack-47-library-grid-cards-list-view-filters",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/App.css",
+    "src/App.tsx",
+    "src/components/ContextMenu/ContextMenu.css",
+    "src/components/ContextMenu/ContextMenu.tsx",
+    "src/components/ItemMedia.tsx",
+    "src/components/LibraryEdgeFade.tsx",
+    "src/components/onboarding/KeptFloating.tsx",
+    "src/features/library/LibraryCard.tsx",
+    "src/features/library/LibraryEdgeFade.tsx",
+    "src/features/library/LibraryStage.tsx",
+    "src/features/library/ViewDock.tsx"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-luna",
+  "turn_id": "48e83d072186",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 202480,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 7908480,
+    "output_tokens": 46215,
+    "api_call_count": 62,
+    "subagent_tokens_complete": true
+  },
+  "session_metrics": {
+    "turn_count": 1
+  }
+}
