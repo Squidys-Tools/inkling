@@ -1,0 +1,9 @@
+we recently did a gigantic refactor and pr merge like a few minutes ago but I want to use the guidelines that t3 code uses for limiting code comments. just check we have that implemented like they do
+
+---
+
+should we switch to oxlint then?
+
+---
+
+I think I want to take the t3 code road so just do that and go do it. full stop
