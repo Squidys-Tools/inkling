@@ -136,6 +136,68 @@
         "label": "Skill: sol-loop",
         "default_collapsed": true
       }
+    },
+    {
+      "id": "claude-skill-toolu_0186F5a9oimKQAXqN63NRHi1",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "file-pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "e15e43ebd6bd",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 833,
+        "end": 834,
+        "entry_ids": [
+          "08c7d8e9-6412-45c4-ad7f-0a5a592d2bb0"
+        ],
+        "tool_use_id": "toolu_0186F5a9oimKQAXqN63NRHi1"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_0186F5a9oimKQAXqN63NRHi1"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: file-pr",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01FDKgbSQyKDSXLjHWwG7bab",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "babysit-pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "e15e43ebd6bd",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 896,
+        "end": 897,
+        "entry_ids": [
+          "fdbcfb5e-b57c-4b79-97e0-c889f5101e54"
+        ],
+        "tool_use_id": "toolu_01FDKgbSQyKDSXLjHWwG7bab"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01FDKgbSQyKDSXLjHWwG7bab"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: babysit-pr",
+        "default_collapsed": true
+      }
     }
   ],
   "session_metrics": {
