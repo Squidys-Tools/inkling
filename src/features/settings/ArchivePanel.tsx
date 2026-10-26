@@ -51,7 +51,7 @@ export function ArchivePanel({
         }
         tools={
           <fieldset className="m-0 flex min-w-0 items-center gap-2 border-0 p-0">
-            <legend className="visually-hidden">Archive actions</legend>
+            <legend className="sr-only">Archive actions</legend>
             {selectionMode && (
               <>
                 <span className={`${MONO_NOTE} whitespace-nowrap`} role="status" aria-live="polite">

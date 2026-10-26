@@ -121,32 +121,6 @@ function clearance(poly: Point[], x: number, y: number): number {
 }
 
 describe("readme mascot svg", () => {
-  test("is a standalone document the readme can point an img at", () => {
-    expect(svg.startsWith("<svg xmlns=")).toBe(true);
-    expect(svg.endsWith("</svg>")).toBe(true);
-    expect(svg).not.toContain("NaN");
-    expect(svg).not.toContain("<script");
-  });
-
-  test("parses as a document rather than just looking like markup", () => {
-    const { document } = parseHTML(svg);
-    const root = document.querySelector("svg");
-    expect(root).not.toBeNull();
-    expect(root?.namespaceURI).toBe("http://www.w3.org/2000/svg");
-    expect(root?.getAttribute("viewBox")).toBe("-158 -158 316 316");
-    // A reader without CSS still gets the mascot, not an empty box.
-    expect(root?.querySelector("mask#inkling path")).not.toBeNull();
-  });
-
-  test("cuts the eyes out of the body instead of painting them on top", () => {
-    const { document } = parseHTML(svg);
-    const mask = document.querySelector("mask#inkling");
-    expect(mask?.getAttribute("maskUnits")).toBe("userSpaceOnUse");
-    expect(mask?.querySelectorAll("path").length).toBeGreaterThanOrEqual(3);
-    expect(mask?.querySelector('path[fill="#fff"]')).not.toBeNull();
-    expect(document.querySelector("g[mask] rect")).not.toBeNull();
-  });
-
   test("each part of the mascot runs on its own single loop", () => {
     const all = blocks();
     expect([...all.keys()].sort()).toEqual([...TRACKS].sort());

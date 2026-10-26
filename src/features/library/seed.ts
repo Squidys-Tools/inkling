@@ -186,7 +186,7 @@ const seedItems: LibraryItem[] = [
     imageAlt: "The transformer architecture diagram from Attention Is All You Need",
     date: "Jul 29",
     tags: ["research", "ml"],
-    accent: "paper-green",
+    accent: "bg-green-soft",
   },
   {
     id: 11,
@@ -215,7 +215,7 @@ const seedItems: LibraryItem[] = [
     source: "Quick note",
     date: "Jul 19",
     tags: ["books", "life"],
-    accent: "paper-yellow",
+    accent: "bg-yellow-soft",
   },
   {
     id: 13,
@@ -225,7 +225,7 @@ const seedItems: LibraryItem[] = [
     source: "On the Shortness of Life",
     date: "Jul 11",
     tags: ["writing", "time"],
-    accent: "paper-yellow",
+    accent: "bg-yellow-soft",
     sourceUrl: "https://en.wikisource.org/wiki/Of_The_Shortness_of_Life/Chapter_1",
   },
   {

@@ -1,4 +1,4 @@
-/* Unlayered like App.css, so the glass still beats the remaining legacy rules. */
+/* Unlayered, so it beats utilities on the same element; override with `!`. */
 .glass,
 .css-glass {
   border: 1px solid rgba(255, 255, 255, 0.08);

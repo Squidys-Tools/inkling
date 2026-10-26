@@ -114,7 +114,7 @@ export function AddMenu({
       <input
         ref={fileRef}
         type="file"
-        className="visually-hidden"
+        className="sr-only"
         tabIndex={-1}
         accept="image/*,application/pdf,video/*"
         onChange={(event) => {

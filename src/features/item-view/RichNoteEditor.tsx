@@ -15,6 +15,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { noteEditorExtensions } from "../../lib/noteMarkdown";
 import { isSafeNoteLink, noteBodyForEditor, noteBodyForStorage } from "../../lib/notes";
+import "./RichNoteEditor.css";
 
 type RichNoteEditorProps = {
   body?: string;

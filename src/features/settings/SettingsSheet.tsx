@@ -116,7 +116,7 @@ export function SettingsSheet({
                 transition={{ duration: 0.24, ease: EASE }}
               />
             }
-            // The dialog takes focus on open; App.css's unlayered focus ring
+            // The dialog takes focus on open; index.css's unlayered focus ring
             // outranks a plain utility.
             className="flex h-[min(640px,100%)] min-h-0 w-[min(1080px,100%)] overflow-hidden rounded-overlay border border-border bg-app text-ink shadow-[0_30px_80px_rgba(0,0,0,0.55)] focus:outline-none! max-[700px]:h-[min(720px,100%)] max-[700px]:flex-col max-[700px]:rounded-[18px]"
           >

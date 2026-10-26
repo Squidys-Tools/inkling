@@ -355,7 +355,7 @@ function createWindow() {
     title: "inkling",
     width: 1280,
     height: 720,
-    // 320px matches the body min-width in src/App.css. At 240px high the library grid shrinks to 65px; 360px keeps it near 185px.
+    // 320px matches the body min-width in src/index.css. At 240px high the library grid shrinks to 65px; 360px keeps it near 185px.
     minWidth: 320,
     minHeight: 360,
     frame: false,

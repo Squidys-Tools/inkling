@@ -1,13 +1,7 @@
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { Toaster } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Loading01Icon,
-  RotateCwIcon,
-  Settings01Icon,
-  Cancel01Icon,
-} from "@hugeicons/core-free-icons";
+import { Loading01Icon, RotateCwIcon, Settings01Icon } from "@hugeicons/core-free-icons";
 import {
   retryProcessingJob,
   isDesktopRuntime,
@@ -39,7 +33,6 @@ const ReaderView = lazy(() =>
 import type { ReaderItem } from "./ReaderView";
 import type { LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
-import "./App.css";
 import { AddMenu } from "./features/capture/AddMenu/AddMenu";
 import { CaptureBar } from "./features/capture/CaptureBar";
 import { ShortcutsDialog } from "./features/capture/ShortcutsDialog";
@@ -71,6 +64,8 @@ import { useMascotMood } from "./features/shell/useMascotMood";
 import { useSidebarOpen } from "./features/shell/useSidebarOpen";
 import { itemMatchesSmartQuery } from "./features/spaces/smartQuery";
 import { useSpaces } from "./features/spaces/useSpaces";
+import { cx } from "./ui/cx";
+import { Toaster } from "./ui/Toaster";
 import { TooltipLayer } from "./ui/Tooltip";
 
 function App() {
@@ -598,11 +593,16 @@ function App() {
         {/* An open item replaces the library, which stays mounted underneath so
             the item can fly back into its card. */}
         <main
-          className={`main-content ${isSidebarOpen ? "" : "is-sidebar-closed"}`}
+          className={cx(
+            "relative flex h-screen min-h-0 w-auto min-w-0 flex-auto flex-col overflow-hidden pt-(--main-pad-top) pr-(--main-pad-x) pb-(--main-pad-bottom) pl-(--main-pad-x) transition-[padding] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] [--library-top:var(--main-pad-top)] [--main-pad-bottom:30px] [--main-pad-top:calc(4px_+_var(--spacing-titlebar))] [--main-pad-x:14px] [--stage-background:var(--color-canvas)]",
+            "wide:rounded-l-frame wide:border wide:border-r-0 wide:border-border wide:bg-frame wide:transition-[margin-left,padding] wide:[--stage-background:var(--color-frame)]",
+            isSidebarOpen ? "wide:ml-(--spacing-sidebar)" : "wide:ml-0",
+            "max-[1120px]:w-[calc(100vw_-_var(--spacing-sidebar))] max-[780px]:w-full max-[780px]:transition-none max-[780px]:[--library-top:42px] max-[780px]:[--main-pad-bottom:24px] max-[780px]:[--main-pad-top:12px] max-[780px]:[--main-pad-x:18px]",
+          )}
           ref={libraryFrameRef}
           inert={selectedItem != null}
         >
-          <section className="library-header"></section>
+          <section className="flex-none max-[780px]:pt-[30px]"></section>
 
           <CaptureBar
             ref={captureBarRef}
@@ -772,21 +772,7 @@ function App() {
           />
         )}
       </div>
-      <Toaster
-        position="top-right"
-        offset={{ top: 48, right: 16 }}
-        mobileOffset={{ top: 16, right: 12 }}
-        theme="dark"
-        richColors={false}
-        closeButton
-        duration={5000}
-        icons={{
-          success: <></>,
-          error: <></>,
-          close: <HugeiconsIcon icon={Cancel01Icon} size={12} color="currentColor" />,
-        }}
-        containerAriaLabel="Notifications"
-      />
+      <Toaster />
     </MotionConfig>
   );
 }

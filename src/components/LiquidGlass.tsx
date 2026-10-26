@@ -404,7 +404,7 @@ export function LiquidGlass({
   // into the canvas, so switching modes never remounts the children.
   const [content] = useState(() => {
     const element = document.createElement("div");
-    element.className = "liquid-glass-content";
+    element.className = "liquid-glass-content absolute inset-0";
     return element;
   });
   const [gpu, setGpu] = useState<LiquidGpu | null>(null);
@@ -431,7 +431,7 @@ export function LiquidGlass({
     let shown = false;
     const marked = new Set<HTMLElement>();
     // The content lays out at the wrapper's size. The canvas can be larger (see
-    // .library-stage in App.css), so the content no longer fills its parent.
+    // LibraryStage), so the content no longer fills its parent.
     const sizeContent = (width: number, height: number) => {
       content.style.width = `${width}px`;
       content.style.height = `${height}px`;
@@ -556,7 +556,12 @@ export function LiquidGlass({
 
   return (
     <div ref={wrapRef} className={className}>
-      {gpu && <canvas ref={canvasRef} className="liquid-glass-canvas" />}
+      {gpu && (
+        <canvas
+          ref={canvasRef}
+          className="liquid-glass-canvas absolute top-0 left-0 block size-full"
+        />
+      )}
       {createPortal(children, content)}
     </div>
   );

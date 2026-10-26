@@ -2,6 +2,7 @@ import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { type ReactNode, useRef } from "react";
 import { Dialog, DialogClose, DialogDescription, DialogTitle } from "../../ui/Dialog";
+import { iconButtonClass } from "../../ui/IconButton";
 
 const SHORTCUTS: { id: string; keys: ReactNode; action: string }[] = [
   { id: "slash", keys: <kbd>/</kbd>, action: "Focus search" },
@@ -55,7 +56,7 @@ export function ShortcutsDialog({
         </div>
         <DialogClose
           ref={closeRef}
-          className="icon-button small"
+          className={iconButtonClass("sm")}
           aria-label="Close keyboard shortcuts"
         >
           <HugeiconsIcon icon={Cancel01Icon} size={16} />

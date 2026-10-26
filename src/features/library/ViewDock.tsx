@@ -40,7 +40,7 @@ export function ViewDock({
       )}
       {show && look === "pill" && (
         <fieldset className="glass relative m-0 flex h-[34px] min-w-0 flex-none items-center gap-0.5 rounded-full p-[3px]">
-          <legend className="visually-hidden">View options</legend>
+          <legend className="sr-only">View options</legend>
           <motion.span
             className="pointer-events-none absolute top-[3px] left-[3px] z-0 size-[26px] rounded-full bg-glass-active"
             aria-hidden="true"

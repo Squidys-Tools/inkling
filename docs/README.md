@@ -6,7 +6,7 @@ Index of project documentation. Product docs describe what inkling is; operation
 
 - [product.md](product.md) — who it's for and why it exists.
 - [product-behavior.md](product-behavior.md) — how each feature should behave.
-- [design.md](design.md), [expanded-item-overlay.md](expanded-item-overlay.md) — visual system and overlay spec.
+- [design.md](design.md) — visual system.
 - [models.md](models.md) — local model choices.
 
 ## Architecture

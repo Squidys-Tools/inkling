@@ -112,9 +112,7 @@ export function ExtensionPairing() {
         </button>
       </div>
       <div className={row}>
-        <span className="visually-hidden">
-          {isRevealed ? "Pairing token" : "Pairing token hidden"}
-        </span>
+        <span className="sr-only">{isRevealed ? "Pairing token" : "Pairing token hidden"}</span>
         <code
           className="min-w-0 flex-[1_1_220px] overflow-hidden rounded-[10px] border border-[#221f1c] bg-surface px-3 py-[9px] font-mono text-[12px]/4 font-normal tracking-[0.02em] text-ellipsis whitespace-nowrap text-ink-soft"
           aria-hidden={!isRevealed}

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { clampPan, clampZoom, MAX_ZOOM, panAround, wheelZoomFactor } from "./imageZoom";
+import { clampPan, clampZoom, MAX_ZOOM, panAround } from "./imageZoom";
 
 test("zoom stays between the fitted size and the maximum", () => {
   expect(clampZoom(0.05, 0.14)).toBe(0.14);
@@ -22,12 +22,6 @@ test("zooming around a point keeps that point under the cursor", () => {
 
 test("zooming around the centre scales the pan", () => {
   expect(panAround({ x: 10, y: -4 }, { x: 0, y: 0 }, 1, 2)).toEqual({ x: 20, y: -8 });
-});
-
-test("wheel down zooms out and wheel up zooms in", () => {
-  expect(wheelZoomFactor(100)).toBeLessThan(1);
-  expect(wheelZoomFactor(-100)).toBeGreaterThan(1);
-  expect(wheelZoomFactor(100) * wheelZoomFactor(-100)).toBeCloseTo(1);
 });
 
 test("pan stops where the image edge meets the frame", () => {

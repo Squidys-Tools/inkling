@@ -55,7 +55,7 @@ function NavDotGridIcon() {
 }
 
 // Narrow windows slide the sidebar in over a scrim. Wide ones keep it still
-// underneath while the library frame slides over it (see .main-content).
+// underneath while the library frame (App's <main>) slides over it.
 export function Sidebar({
   isOpen,
   edgeToggle,

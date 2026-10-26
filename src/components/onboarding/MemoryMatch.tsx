@@ -14,7 +14,7 @@ const DOT_STEP_MS = 85;
 const DOT_MS = 420;
 /** The photo is handed over as the last dot lands. */
 const SEARCH_MS = (TRAIL_DOTS - 1) * DOT_STEP_MS + DOT_MS;
-/** Matches --memory-card-w / --memory-card-h in App.css. */
+/** Matches --memory-card-w / --memory-card-h in onboarding.css. */
 const CARD_ASPECT = 264 / 308;
 
 type Phase = "typing" | "searching" | "found";

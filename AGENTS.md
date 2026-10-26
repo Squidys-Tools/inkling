@@ -100,9 +100,10 @@ An empty library is a bad test. Seed your run with a copy of real data instead o
 
 - Smallest proof that the change works. `bun test <files>` for the tests you touched, targeted lint and typecheck for the scope you changed. The full check is `bun run check`, which mirrors the CI frontend job. Do not run it unless you changed something broad or the user asked.
 - **Do not run repo-wide checks.** No full `bun test` sweep or full `tsc` unless asked. CI owns the full suite.
-- Test meaningful logic or observable behavior. Do not render components to static markup just to assert props, and do not add tests that mirror the implementation or assert wiring with no behavior.
-- Ingestion and background changes ship with focused tests for that behavior. Extraction, OCR scoring, queue leases, recovery. A behavior change with no test is unfinished.
-- Background work is async. Wait on real completion, job drains and lease states, never on fixed sleeps. A test that needs a timeout to pass is wrong.
+- A test earns its place by guarding something that breaks quietly: extraction and sanitizing, embed allowlists, OCR scoring, queue leases and recovery, migrations and persistence, asset path containment and range requests, deep link and external-format parsing, ordering and race guarantees, and `liquidGlassShape`. A test added with a bug fix stays; mark it `// regression: #NNN` if its name doesn't say so.
+- Don't write tests the types already prove, trivial logic, basic DOM behavior, static-markup renders, mock-call mirrors, smoke tests, duplicate table rows, or wall-clock and perf asserts.
+- Ingestion and background changes ship with focused tests for that behavior. A behavior change with no test is unfinished.
+- Background work is async. Await the real signal: a job drain, a lease state, an event. No fixed sleeps, per-test timeouts, retries, `Date.now()` or `performance.now()` deltas, polling loops, or skips without a reason.
 - UI changes need one real pass in the running app before you call them done. Preview for layout, full app for anything native. Take a screenshot through the harness so the user can see it. The primary agent does this once after integrating. Subagents do not launch their own dev servers. Clean up what you launched when you are done.
 - Electron and frontend changes get focused tests, typecheck, and changed-file Biome. There are no local hooks — CI runs the frontend checks and Electron package smoke tests.
 
@@ -169,7 +170,7 @@ Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behav
 
 - Complexity belongs at the adapter boundary. Ingestion stays explicit, UI stays dumb.
 - Inferred types over annotations. `any` is the enemy.
-- Comments say why: a constraint, an external quirk, or an invariant the code can't show. Don't restate names or signatures, narrate steps, or record history.
+- Default to no comment. Keep one only where a reader would likely break something without it: a race or ordering guarantee, a security or sanitizing check, a Chromium, Electron, WebGPU or OS quirk, or an invariant another file relies on. One line where you can, four at most. Don't restate names, narrate steps, label sections, record history, or leave a TODO without an issue. Lint directives, knip tags and license headers stay.
 - Our users should never notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations(with a slight execption for the mascot); they peg the GPU on high-refresh displays.
 - Capture paths stay fast and forgiving. Keep partial results when extraction fails. A URL with a title and domain beats an error card.
 - If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.

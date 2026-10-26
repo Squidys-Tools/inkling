@@ -252,7 +252,7 @@ function CardMedia({
           ? "bg-transparent"
           : item.featured
             ? "bg-accent-soft"
-            : cx("bg-surface", item.accent),
+            : (item.accent ?? "bg-surface"),
       )}
       aria-hidden={item.kind !== "Article" || !item.sourceUrl}
     >
@@ -350,7 +350,7 @@ export const LibraryCard = memo(function LibraryCard({
           cardShape(layout, kind),
           kind === "article" ? "text-[#1a1714]" : undefined,
           isArchiveTile
-            ? // App.css's unlayered focus ring outranks a plain utility; the
+            ? // index.css's unlayered focus ring outranks a plain utility; the
               // tile rings its media instead.
               "group/tile overflow-visible bg-transparent focus-visible:outline-none!"
             : cx(

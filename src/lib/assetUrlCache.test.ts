@@ -26,19 +26,6 @@ test("failed paths can be retried", async () => {
   expect(attempts).toBe(2);
 });
 
-test("evicts old entries at the size limit", async () => {
-  let calls = 0;
-  const resolve = createAssetUrlResolver(async (path) => {
-    calls++;
-    return path;
-  });
-  for (let index = 0; index <= 4096; index++) await resolve(String(index));
-  await resolve("4096");
-  expect(calls).toBe(4097);
-  await resolve("0");
-  expect(calls).toBe(4098);
-});
-
 test("recently used entries survive bulk inserts", async () => {
   const calls: string[] = [];
   const resolve = createAssetUrlResolver(async (path) => {

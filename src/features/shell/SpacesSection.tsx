@@ -207,7 +207,7 @@ export function SpacesSection({
             arrow-key selection, one tab stop and group semantics from the
             platform instead of from ARIA we would then have to maintain. */}
             <fieldset className="m-0 grid min-w-0 grid-cols-2 gap-[3px] rounded-button border border-border bg-surface p-[3px]">
-              <legend className="visually-hidden">How this Space fills</legend>
+              <legend className="sr-only">How this Space fills</legend>
               {(["smart", "regular"] as const).map((kind) => (
                 <label
                   key={kind}
@@ -222,7 +222,7 @@ export function SpacesSection({
                   <input
                     type="radio"
                     name="space-kind"
-                    className="visually-hidden"
+                    className="sr-only"
                     value={kind}
                     checked={draft.kind === kind}
                     aria-describedby="space-kind-hint"

@@ -38,8 +38,11 @@ export function LibraryStage({
   const gridKey = useMemo(() => items.map((item) => String(item.id)).join("|"), [items]);
 
   return (
+    // The canvas is sized to the window, not the stage: resizing a WebGPU canvas
+    // stalls the GPU for tens of milliseconds, and the stage resizes every frame
+    // of a sidebar slide. The extra edge is clipped.
     <LiquidGlass
-      className="library-stage absolute inset-0 z-0 overflow-hidden"
+      className="absolute inset-0 z-0 overflow-hidden [&_.liquid-glass-canvas]:h-screen [&_.liquid-glass-canvas]:w-screen [&_.liquid-glass-content]:bg-(--stage-background)"
       targetRoots={glassTargets}
     >
       {/* Reaches past the toolbar and bottom padding, nearly to the frame's
@@ -82,7 +85,11 @@ export function LibraryStage({
                 : "Try another word, or save something new to your mind."}
             </p>
             {!emptySpaceName && (
-              <button type="button" className="text-button" onClick={onClearSearch}>
+              <button
+                type="button"
+                className="cursor-pointer border-0 bg-transparent text-[13px] text-accent underline underline-offset-3"
+                onClick={onClearSearch}
+              >
                 Clear search
               </button>
             )}
