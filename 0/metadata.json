@@ -1,0 +1,175 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M5WPDADZTB9FHKMVHVVQ6QG8",
+  "session_id": "265a3c6f-0864-47bc-8e81-b70ac3f84422",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-26T18:08:57.0394821Z",
+  "branch": "chore/oxlint-oxfmt",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".gitattributes",
+    ".github/workflows/ci.yml",
+    ".oxfmtrc.json",
+    ".oxlintrc.json",
+    ".vscode/extensions.json",
+    "AGENTS.md",
+    "benchmarks/harness/pdf.ts",
+    "biome.jsonc",
+    "bun.lock",
+    "docs/changelog.md",
+    "docs/operations/development.md",
+    "electron/storage.test.ts",
+    "extension/options.html",
+    "extension/package.json",
+    "oxlint-plugin-inkling/index.ts",
+    "oxlint-plugin-inkling/rules/no-low-value-comments.ts",
+    "oxlint-plugin-inkling/rules/require-suppression-reason.ts",
+    "package.json",
+    "packages/ingestion-shared/package.json",
+    "packages/ingestion-shared/src/defuddle-config.ts",
+    "packages/ingestion-shared/src/payload.ts",
+    "scripts/assert-command-refs.ts",
+    "scripts/assert-no-demo-seed.ts",
+    "scripts/third-party-licenses/collect.mjs",
+    "src/App.tsx",
+    "src/ReaderView.tsx",
+    "src/components/CountUp.tsx",
+    "src/components/ItemMedia.tsx",
+    "src/components/LiquidGlass.tsx",
+    "src/components/liquidGlassShape.ts",
+    "src/components/mascot/MascotFigure.tsx",
+    "src/components/mascot/mascotStore.tsx",
+    "src/components/mascot/readmeMascot.test.ts",
+    "src/components/mascot/readmeMascot.ts",
+    "src/components/onboarding/KeptFloating.tsx",
+    "src/components/onboarding/SplitText.tsx",
+    "src/features/item-view/ItemView.tsx",
+    "src/features/item-view/SimilarPanel.tsx",
+    "src/features/library/LibraryCard.tsx",
+    "src/features/library/LibraryEdgeFade.tsx",
+    "src/features/settings/useArchive.ts",
+    "src/features/shell/useHistory.ts",
+    "src/features/spaces/useSpaces.ts",
+    "src/lib/deepLink.ts",
+    "src/lib/ingestion/extension-capture.ts",
+    "src/lib/ingestion/html-safety.ts",
+    "src/lib/ingestion/url-ingestion.ts",
+    "src/lib/notes.ts",
+    "src/lib/patchItems.ts",
+    "src/lib/previewMode.ts",
+    "src/seedPersonal.ts",
+    "vite.config.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "e15e43ebd6bd",
+  "checkpoint_transcript_start": 785,
+  "transcript_lines_at_start": 785,
+  "compact_transcript_start": 89,
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 9561,
+    "cache_read_tokens": 1528717,
+    "output_tokens": 2738,
+    "api_call_count": 9
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_0142i8fATADD4wPJjeKSTdnk",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "full-stop"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "ba2f932f6aad",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 133,
+        "end": 134,
+        "entry_ids": [
+          "64204aa9-7181-4150-bea9-6fbfe5947577"
+        ],
+        "tool_use_id": "toolu_0142i8fATADD4wPJjeKSTdnk"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_0142i8fATADD4wPJjeKSTdnk"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: full-stop",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_015T4NmuNoCiaAsfndRiuW5h",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "sol-loop"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "e15e43ebd6bd",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 772,
+        "end": 773,
+        "entry_ids": [
+          "afb21b15-0d1d-4aa6-8989-637a62a119d6"
+        ],
+        "tool_use_id": "toolu_015T4NmuNoCiaAsfndRiuW5h"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_015T4NmuNoCiaAsfndRiuW5h"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: sol-loop",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_0186F5a9oimKQAXqN63NRHi1",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "file-pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "e15e43ebd6bd",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 833,
+        "end": 834,
+        "entry_ids": [
+          "08c7d8e9-6412-45c4-ad7f-0a5a592d2bb0"
+        ],
+        "tool_use_id": "toolu_0186F5a9oimKQAXqN63NRHi1"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_0186F5a9oimKQAXqN63NRHi1"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: file-pr",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 2
+  }
+}
