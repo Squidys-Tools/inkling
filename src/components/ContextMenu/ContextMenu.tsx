@@ -1,6 +1,8 @@
 import { Menu } from "@base-ui/react/menu";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { type RefObject, useEffect, useMemo, useRef } from "react";
+import { cx } from "../../ui/cx";
+import { focusFirstMenuItem, MENU_ITEM, MENU_POPUP_MOTION } from "../../ui/Menu";
 
 export type ContextMenuEntry = { label: string; icon: IconSvgElement; onSelect: () => void };
 
@@ -21,7 +23,6 @@ type Props = {
 export function ContextMenu({ x, y, label, entries, returnFocus, container, onClose }: Props) {
   const popupRef = useRef<HTMLDivElement>(null);
   const keyboardCloseRef = useRef(false);
-  const openedRef = useRef(false);
   const anchor = useMemo(
     () => ({ getBoundingClientRect: () => DOMRect.fromRect({ x, y, width: 0, height: 0 }) }),
     [x, y],
@@ -66,16 +67,11 @@ export function ContextMenu({ x, y, label, entries, returnFocus, container, onCl
             ref={popupRef}
             aria-label={label}
             finalFocus={() => (keyboardCloseRef.current ? (returnFocus ?? false) : false)}
-            onFocus={(event) => {
-              // A pointer open lands Base UI's focus on the popup after mount; the
-              // first item takes it instead, so it opens highlighted.
-              if (openedRef.current || event.target !== event.currentTarget) return;
-              openedRef.current = true;
-              event.currentTarget
-                .querySelector<HTMLElement>("[role=menuitem]")
-                ?.focus({ preventScroll: true });
-            }}
-            className="glass min-w-[200px] max-w-[280px] rounded-[12px] p-[5px] outline-none transition-[opacity,transform] duration-120 ease-[cubic-bezier(0.23,1,0.32,1)] data-starting-style:opacity-0 data-starting-style:[transform:scale(0.97)] motion-reduce:transition-none"
+            onFocus={focusFirstMenuItem}
+            className={cx(
+              "glass min-w-[200px] max-w-[280px] rounded-[12px] p-[5px]",
+              MENU_POPUP_MOTION,
+            )}
             onKeyDown={(event) => {
               if (event.key !== "Tab") return;
               event.preventDefault();
@@ -87,7 +83,10 @@ export function ContextMenu({ x, y, label, entries, returnFocus, container, onCl
             {entries.map((entry) => (
               <Menu.Item
                 key={entry.label}
-                className="flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-[8px] py-0 pr-2.5 pl-2 text-left font-body text-[13px] leading-[normal] whitespace-nowrap text-ink-soft outline-none data-highlighted:bg-glass-active data-highlighted:text-ink [&_svg]:flex-none [&_svg]:text-muted data-highlighted:[&_svg]:text-ink"
+                className={cx(
+                  MENU_ITEM,
+                  "whitespace-nowrap text-ink-soft [&_svg]:flex-none [&_svg]:text-muted data-highlighted:[&_svg]:text-ink",
+                )}
                 onClick={entry.onSelect}
               >
                 <HugeiconsIcon icon={entry.icon} size={15} />

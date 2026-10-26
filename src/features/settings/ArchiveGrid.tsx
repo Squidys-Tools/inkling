@@ -1,10 +1,11 @@
 import { useLayoutEffect, useRef, useState, type ComponentType, type UIEvent } from "react";
 import { archiveColumnCount, archiveGridWindow } from "./archiveGridWindow";
+import { SETTINGS_SCROLL } from "./SettingsPanel";
 
-// Mirrors `.settings-archive-grid` and `.archive-tile-caption` in App.css. A tile
-// is a 132px media box plus a 42px caption (174px), with 12px of slot padding
-// under it, so each row is 186px and rows are 22px apart. A change there needs
-// the same change here, or the spacers drift from the rendered rows.
+// Mirrors the archive tile in LibraryCard.tsx: a 132px media box plus a 42px
+// caption (174px), with 12px of slot padding under it, so each row is 186px and
+// rows are 22px apart. A change there needs the same change here, or the
+// spacers drift from the rendered rows.
 const TILE_WIDTH = 179;
 const COLUMN_GAP = 14;
 const ROW_HEIGHT = 186;
@@ -58,12 +59,12 @@ export function ArchiveGrid<Data extends { id: string | number }, Context>({
 
   return (
     <div
-      className="settings-scroll"
+      className={SETTINGS_SCROLL}
       ref={scrollRef}
       onScroll={(event: UIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop)}
     >
       <div
-        className="settings-archive-grid"
+        className="grid justify-start gap-x-3.5 gap-y-[22px]"
         ref={gridRef}
         style={{
           gridTemplateColumns: `repeat(${columns}, ${TILE_WIDTH}px)`,

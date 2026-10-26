@@ -394,12 +394,8 @@ async function run() {
     await step("settings opens on the Archive tab", async () => {
       await cdp.evaluate(clickSelector, 'button[aria-label="Settings"]');
       await waitFor("settings sections", hasSelector, 'aside[aria-label="Settings sections"]');
-      await cdp.evaluate(clickByText, ".settings-tab", "Archive");
-      await waitFor(
-        "archive tab to be selected",
-        hasSelector,
-        '.settings-tab.active[aria-current="page"]',
-      );
+      await cdp.evaluate(clickByText, '[role="tab"]', "Archive");
+      await waitFor("archive tab to be selected", hasSelector, "#archive-panel-title");
       await cdp.send("Input.dispatchKeyEvent", {
         type: "keyDown",
         key: "Escape",

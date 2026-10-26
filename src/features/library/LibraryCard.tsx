@@ -28,8 +28,6 @@ import type { ReaderOrigin } from "../../ReaderView";
 import type { LibraryItem } from "../../lib/types";
 import { cx } from "../../ui/cx";
 
-// Archive tiles reuse this markup; App.css still resets them to bare tiles
-// through the `library-card` hooks until Settings moves (SQU-130).
 type CardLayout = "grid" | "list" | "archive";
 
 export type LibraryCardContext = {
@@ -89,7 +87,7 @@ const MEDIA_ROW = "pointer-events-none relative inset-auto h-full w-auto aspect-
 
 function cardShape(layout: CardLayout, kind: CardKind): string {
   if (layout === "list") return "grid grid-cols-[155px_1fr] aspect-auto";
-  if (layout === "archive") return "aspect-[4/5]";
+  if (layout === "archive") return "aspect-auto";
   switch (kind) {
     case "article":
       return "flex h-[250px] flex-col aspect-auto";
@@ -112,6 +110,8 @@ function mediaBox(layout: CardLayout, kind: CardKind, media: MediaKind): string 
     return media === "paper" ? "hidden" : "relative inset-auto h-[120px] min-w-0 flex-none";
   if (layout === "grid" && kind === "quote")
     return "relative inset-auto flex min-w-0 flex-[1_0_auto] flex-col";
+  if (layout === "archive")
+    return "relative inset-0 h-[132px] min-w-0 overflow-hidden rounded-[10px]";
   return "absolute inset-0 min-w-0";
 }
 
@@ -342,15 +342,20 @@ export const LibraryCard = memo(function LibraryCard({
     >
       <article
         className={cx(
-          "library-card relative w-full min-w-0 origin-top-left cursor-pointer overflow-hidden rounded-card contain-[layout_paint]",
-          "transition-[translate,box-shadow] duration-200 ease-[ease] hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,0,0,0.4)] focus-visible:-translate-y-0.5",
+          "library-card relative w-full min-w-0 origin-top-left cursor-pointer",
+          "transition-[translate,box-shadow] duration-200 ease-[ease]",
           "in-data-entering:opacity-0",
           SELECTED_RING,
           cardShape(layout, kind),
           kind === "article" ? "text-[#1a1714]" : undefined,
-          kind === "article" && !(list && item.featured) ? "bg-[#ece6dc]" : "bg-surface",
-          archiveSelectionMode && "archive-selection-mode",
-          isArchivedItemSelected && "archive-card-selected",
+          isArchiveTile
+            ? // App.css's unlayered focus ring outranks a plain utility; the
+              // tile rings its media instead.
+              "group/tile overflow-visible bg-transparent focus-visible:outline-none!"
+            : cx(
+                "overflow-hidden rounded-card contain-[layout_paint] hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,0,0,0.4)] focus-visible:-translate-y-0.5",
+                kind === "article" && !(list && item.featured) ? "bg-[#ece6dc]" : "bg-surface",
+              ),
         )}
         data-library-item-id={String(item.id)}
         style={{ "--card-media-ratio": String(mediaAspectRatioFor(item)) } as React.CSSProperties}
@@ -372,14 +377,30 @@ export const LibraryCard = memo(function LibraryCard({
           }
         }}
       >
-        <div className={cx("library-card-media", mediaBox(layout, kind, media))}>
+        <div
+          className={cx(
+            "library-card-media",
+            mediaBox(layout, kind, media),
+            isArchiveTile &&
+              (isArchivedItemSelected
+                ? "outline-2 outline-offset-2 outline-accent"
+                : "group-hover/tile:outline-2 group-hover/tile:outline-offset-2 group-hover/tile:outline-ink group-focus-visible/tile:outline-2 group-focus-visible/tile:outline-offset-2 group-focus-visible/tile:outline-ink"),
+          )}
+        >
           <CardMedia item={item} index={index} layout={layout} kind={kind} media={media} />
           {isArchiveTile && (
-            <div className="archive-tile-actions">
+            <div
+              className={cx(
+                "absolute right-2 bottom-2 z-2 flex items-center gap-1.5 transition-opacity duration-180 ease-[ease] motion-reduce:transition-none",
+                archiveSelectionMode
+                  ? "opacity-100"
+                  : "opacity-0 group-focus-within/tile:opacity-100 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100",
+              )}
+            >
               {!archiveSelectionMode && (
                 <button
                   type="button"
-                  className="archive-tile-restore"
+                  className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border-0 bg-ink px-3 py-0 font-body text-[12px]/4 font-semibold whitespace-nowrap text-surface transition-[scale] duration-160 ease-[ease] active:scale-96 motion-reduce:transition-none"
                   data-tooltip="Restore to library"
                   onClick={(event) => {
                     event.stopPropagation();
@@ -392,7 +413,15 @@ export const LibraryCard = memo(function LibraryCard({
               )}
               <button
                 type="button"
-                className={`archive-card-delete ${archiveSelectionMode ? "archive-card-select" : ""} ${isArchivedItemSelected ? "is-selected" : ""}`}
+                className={cx(
+                  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-[rgba(12,12,11,0.72)] p-0 backdrop-blur-[8px] transition-[background-color,color,scale] duration-180 ease-[ease] active:scale-96 motion-reduce:transition-none",
+                  !archiveSelectionMode
+                    ? "text-ink hover:bg-[#3a251d] hover:text-[#f0b095]"
+                    : cx(
+                        "hover:bg-[rgba(12,12,11,0.9)]",
+                        isArchivedItemSelected ? "text-accent" : "text-ink",
+                      ),
+                )}
                 aria-label={
                   archiveSelectionMode
                     ? `${isArchivedItemSelected ? "Deselect" : "Select"} ${item.title}`
@@ -430,9 +459,11 @@ export const LibraryCard = memo(function LibraryCard({
           )}
         </div>
         {isArchiveTile && (
-          <div className="archive-tile-caption">
-            <span className="archive-tile-title">{item.title}</span>
-            <span className="archive-tile-meta">
+          <div className="mt-[9px] flex min-w-0 flex-col gap-0.5">
+            <span className="overflow-hidden font-body text-[13px]/[17px] font-normal text-ellipsis whitespace-nowrap text-ink">
+              {item.title}
+            </span>
+            <span className="overflow-hidden font-mono text-[11px]/[14px] font-normal text-ellipsis whitespace-nowrap text-[#6f685f]">
               {item.kind} · {item.date}
             </span>
           </div>
