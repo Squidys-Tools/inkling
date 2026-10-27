@@ -96,6 +96,7 @@ Guardrails:
 
 ### Changed
 
+- Linting and formatting moved from Biome to oxlint and oxfmt, with a lint rule that rejects over-long comments, section dividers, and suppressions without a reason.
 - The interface is rebuilt on Tailwind CSS and Base UI primitives, split into feature folders with no visible change; tabs and menus now take one Tab stop and move with the arrow keys, and Escape in a menu closes only that menu (SQU-124)
 - Add opens in place into a small menu of Note, Link, Quote, File and Screen, after Viora UI's Create New Disclosure, replacing the capture dialog and the extra Add button in the library toolbar (#170)
 - The sidebar closes from a button beside the inkling wordmark, shown while the pointer is over it, and reopens from a glass button at the left of the library toolbar, replacing the tab on the frame's edge (#170)

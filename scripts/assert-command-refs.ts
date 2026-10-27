@@ -1,8 +1,6 @@
-// Fails when AGENTS.md, README.md, CONTRIBUTING.md, t3.json, or docs/ tell someone
-// to run a `bun run <script>` that package.json no longer defines. docs/changelog.md
-// is exempt because its entries record commands as they were when they shipped.
-// `bun run --cwd <workspace> <script>` is skipped: that script lives in the
-// workspace's own package.json.
+// Fails when the docs, t3.json, or contributor files name a `bun run <script>`
+// that package.json no longer defines. docs/changelog.md is exempt, and
+// `bun run --cwd` scripts belong to their workspace.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";

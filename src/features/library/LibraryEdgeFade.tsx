@@ -1,10 +1,8 @@
 import GradualBlur, { type GradualBlurProps } from "../../components/GradualBlur/GradualBlur";
 
-// The grid scrolls almost to the frame's edges; these blur it out there instead
-// of a hard clip. They render in the liquid glass backdrop, so the toolbar glass
-// refracts the blur rather than being blurred itself. Values are the React Bits
-// "Peek" preset as tuned on reactbits.dev; the tint is #120f17 at its 0.15 tint
-// amount. The bands stay put; they do not clear on hover or near the ends.
+// Blurs the grid out at the frame edges instead of hard-clipping it. Rendered in
+// the liquid glass backdrop so the toolbar glass refracts the blur. Values are
+// React Bits' "Peek" preset; tint #120f17 at 0.15.
 const EDGE_BLUR: GradualBlurProps = {
   height: "6rem",
   strength: 1,

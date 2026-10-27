@@ -266,7 +266,6 @@ export function ItemView({
 
   // The origin rectangle is a one-time snapshot supplied through a mutable ref.
   // Reading it again after opening would retarget the flight to a stale card.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: This effect consumes the source-rectangle snapshot once on mount.
   useLayoutEffect(() => {
     const originRects = originRectsRef.current;
     if (!originRects || prefersReducedMotion()) {
@@ -279,6 +278,7 @@ export function ItemView({
       return;
     }
     beginOpenFlight(originRects.card);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- This effect consumes the source-rectangle snapshot once on mount.
   }, [beginOpenFlight]);
 
   // Runs every flight. GSAP owns only the view's outer rectangle. While it
@@ -400,11 +400,9 @@ export function ItemView({
     return () => observer.disconnect();
   }, [frameRef, frameRect]);
 
-  // Switching items while the view is open runs sequentially: the open view
-  // first flies back into the card it was showing, and only after it lands
-  // does the newly selected item open from its own card. Rapid selections
-  // during the closing leg are absorbed — the flight completes once and then
-  // opens the most recently selected item.
+  // Switching items runs sequentially: the view flies back into its card, then the
+  // new item opens from its own. Rapid selections during the close collapse into
+  // opening the most recent one.
   useLayoutEffect(() => {
     const previous = previousItemRef.current;
     if (previous.id === item.id) return;
@@ -513,14 +511,12 @@ export function ItemView({
 
   // Selection changes reset the tab even though the selected ID is only a
   // trigger. The tag draft and Space menu reset by their own keys.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: The shown item ID intentionally triggers a reset.
   useEffect(() => {
     setInspectorTab("info");
   }, [shownItem.id]);
 
   // Looks up similar items when the Similar tab is open. Reloads only when the
   // shown item changes, not on every edit to its record.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Keyed on the item ID; the lookup reads the item it was started for.
   useEffect(() => {
     if (inspectorTab !== "similar") return;
     const itemId = String(shownItem.id);
@@ -540,6 +536,7 @@ export function ItemView({
     return () => {
       cancelled = true;
     };
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Keyed on the item ID; the lookup reads the item it was started for.
   }, [inspectorTab, shownItem.id]);
 
   const isFlying = flight !== null;

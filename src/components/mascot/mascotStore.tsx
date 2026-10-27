@@ -12,13 +12,9 @@ export interface MascotParams {
 }
 
 /**
- * One shared engine for the live app slots (sidebar mark, search field), so the
- * mascot can move between slots without resetting its clock — and so the 60fps
- * frame state never re-renders App, only the subscribed figures.
- *
- * The loop pauses when the tab is hidden or when motion is reduced (params
- * still apply as a single sampled frame). Without requestAnimationFrame
- * (tests) every push samples immediately.
+ * One engine shared by the live slots, so the mascot moves between them without
+ * resetting its clock and 60fps frames re-render only subscribed figures. The loop
+ * pauses when hidden or under reduced motion; without rAF (tests) pushes sample now.
  */
 const engine = new BotEngine(
   RAYON,
@@ -79,11 +75,8 @@ if (typeof document !== "undefined") {
   });
 }
 
-// The OS reduced-motion setting can flip while the app is open. Without this
-// the loop would keep running after opting into reduced motion, and never
-// restart after opting out (subscribers stay mounted, so ensureLoop would not
-// run again on its own). App.tsx already swaps the drift/sway state on the
-// same change; this restarts or freezes the clock to match.
+// Reduced motion can flip while the app is open, and subscribers stay mounted, so
+// nothing else would restart or freeze the loop to match.
 if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
   window.matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", (event) => {
     if (event.matches) {

@@ -338,7 +338,6 @@ const DETAIL_VIDEO =
 export function DetailVideoMedia({ item }: { item: LibraryItem }) {
   const [isPlaying, setIsPlaying] = useState(false);
   // Item identity is a reset trigger; the effect intentionally reads no item data.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Changing items must stop the previous video's playback.
   useEffect(() => setIsPlaying(false), [item.id]);
 
   if (item.video) {
@@ -346,6 +345,7 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
     return (
       <div className={DETAIL_VIDEO}>
         {isPlaying ? (
+          // oxlint-disable-next-line react/iframe-missing-sandbox -- allowlisted players need scripts and same-origin, which would void a sandbox.
           <iframe
             src={autoplayEmbedUrl(item.video.embedUrl)}
             title={item.title}
@@ -387,7 +387,7 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
     return (
       <div className={DETAIL_VIDEO}>
         {/* This local upload has no caption metadata in the item model; do not fabricate an empty track. */}
-        {/* biome-ignore lint/a11y/useMediaCaption: Captions are unavailable for this user-supplied file. */}
+        {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- Captions are unavailable for this user-supplied file. */}
         <video
           className="block size-full bg-black object-contain"
           src={item.fileUrl}
@@ -489,14 +489,9 @@ function waitForXWidget(root: HTMLElement, timeoutMs = 8000): Promise<boolean> {
       const iframe = root.querySelector<HTMLIFrameElement>("iframe");
       if (!iframe) return;
 
-      // X replaces the blockquote with its official cross-origin iframe. The
-      // iframe load event is not a reliable readiness signal here: cached
-      // frames can finish before a listener is attached, and some browsers do
-      // not surface a second load event for an already-created frame. Seeing
-      // the official iframe is the stable signal that widgets.js transformed
-      // this embed. Do not wait for requestAnimationFrame here: the preview
-      // can be backgrounded, and browsers throttle animation frames in that
-      // state even though the cross-origin iframe has already loaded.
+      // The official iframe appearing is the readiness signal: its load event can
+      // fire before a listener attaches. Don't wait for requestAnimationFrame
+      // either, since a backgrounded preview throttles frames.
       finish(true);
     };
 

@@ -1,12 +1,9 @@
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-// Everything inkling ships that came from someone else, for Settings → General →
-// Open source licenses. Packages are the installed production dependency closure
-// of the app, its workspace packages included, read from node_modules at build
-// time. notices.json adds what has no package: vendored code and the bundled
-// models. The Vite plugin in vite.config.ts writes the result beside index.html,
-// and Settings fetches it only when the page opens.
+// Everything inkling ships from someone else, for Settings → Open source licenses:
+// the installed production dependency closure plus notices.json for vendored code
+// and bundled models. Settings fetches the result only when that page opens.
 
 // Electron is a dev dependency to the package manager but ships as the runtime.
 const SHIPPED_DEV_DEPENDENCIES = ["electron"];

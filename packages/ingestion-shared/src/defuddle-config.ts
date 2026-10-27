@@ -10,13 +10,8 @@ export const DEFUDDLE_VERSION_PIN = "0.19.3" as const;
 type InklingDefuddleOptions = Pick<DefuddleOptions, "removeImages" | "standardize" | "useAsync">;
 
 /**
- * Single Defuddle configuration shared by the app and the extension.
- *
- * Mirrors the options in src/lib/ingestion/defuddle-adapter.ts (kept in sync
- * by hand for now — scope rule: Phase 1 adds new directories only, so the app
- * still owns its copy; a follow-up may import this instead). `useAsync` stays
- * off: the extension cannot rely on third-party fetches from a content script,
- * and the app pipeline treats oEmbed-style enrichment as optional anyway.
+ * Mirrors src/lib/ingestion/defuddle-adapter.ts by hand; change both together.
+ * `useAsync` stays off: content scripts can't rely on third-party fetches.
  */
 export const INKLING_DEFUDDLE_OPTIONS: InklingDefuddleOptions = {
   removeImages: false,

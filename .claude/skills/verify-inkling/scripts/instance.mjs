@@ -1,11 +1,8 @@
 #!/usr/bin/env bun
-// Lifecycle for one scratch inkling instance driven over CDP. Works on Windows and Linux.
 // Usage: bun scripts/instance.mjs launch | doctor | cleanup
-// Env: INKLING_VERIFY_NAME (default "default"), INKLING_VERIFY_PORT (default 9333),
-//      INKLING_VERIFY_DIR (default <os tmpdir>/verify-inkling-run).
-// launch spawns Electron detached against a scratch --user-data-dir and returns once the app
-// page is listed over CDP. doctor is read-only. cleanup stops only the pid launch recorded,
-// after confirming its command line, then deletes the scratch library. Nothing matches by name.
+// Env: INKLING_VERIFY_NAME, INKLING_VERIFY_PORT (9333), INKLING_VERIFY_DIR (<tmpdir>/verify-inkling-run).
+// cleanup stops only the pid launch recorded, after confirming its command line,
+// then deletes the scratch library. Nothing matches by name.
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -1,12 +1,6 @@
-// Versioned capture payload shared by the browser extension (producer) and the
-// inkling app (consumer).
-//
-// Trust contract: extraction runs in the extension against the live DOM, so
-// `defuddledHtml` is untrusted page content. The app MUST re-sanitize it with
-// its own pipeline (src/lib/ingestion/html-safety.ts `sanitizeHtml`) on receipt
-// before storing or rendering — the same rule that applies to fetched HTML in
-// docs/tech-stack.md ("treat all fetched HTML as untrusted"). The extension
-// never sanitizes on behalf of the app; sanitizers drift, the app's copy wins.
+// Capture payload from the browser extension to the app. `defuddledHtml` is
+// untrusted page content: the app must re-sanitize it with its own `sanitizeHtml`
+// before storing or rendering. The extension never sanitizes for the app.
 
 export const INGESTION_PAYLOAD_VERSION = 1 as const;
 

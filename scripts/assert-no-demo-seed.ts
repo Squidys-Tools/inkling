@@ -1,13 +1,5 @@
-// Build guard for the demo seed. vite.config.ts drops public/seed-demo/ and
-// the src/seedPersonal.ts bundle from `--mode app` builds, and this asserts the
-// result, so a refactor that quietly reintroduces the seed fails the build
-// instead of shipping ~10 MB of content no user asked for.
-//
-// Checks the built output rather than the config, so it stays honest even if
-// the exclusion mechanism is rewritten. Run by `bun run build:app`.
-//
-// Detection logic is exported separately from the filesystem walk so it can be
-// covered by tests without a real build.
+// Fails `bun run build:app` if the demo seed reaches the app bundle. Checks the
+// built output, not the config, so it holds if the exclusion is rewritten.
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";

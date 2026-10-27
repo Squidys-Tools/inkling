@@ -4,54 +4,15 @@ import { REST_GAZE, blinkScale, liveliness } from "./bot/face";
 import { DEMI_VIEWBOX, RAYON } from "./bot/repere";
 
 /**
- * The mascot as a looping standalone SVG, for the README.
- *
- * GitHub renders an SVG referenced from an `<img>` as a document with CSS and
- * no script, so keyframes inside it run and nothing else has to change.
- *
- * There is no clock here. The whole 24 seconds is sampled out of the engine once,
- * at build time, and written down as CSS: the body outline as `d` keyframes, the
- * eyes as their own shape and transform tracks, the blinks as a lid track. What
- * the browser plays is a recording, not the engine.
- *
- * The whole turn AND the lobe drift are baked into `d` keyframes, off the
- * engine's own body path, and nothing is rotated with a CSS transform.
- *
- * That is not the obvious way to do it. A rigid turn looks like exactly the
- * kind of thing `rotate()` is for, and an earlier version of this file used it
- * and shipped the mascot flying off the page. `transform-box: view-box` with
- * `transform-origin: 50% 50%` is the way to say "about the middle of the
- * viewBox", but the spec is ambiguous about where the viewBox's reference box
- * actually starts, engines do not agree, and getting it wrong puts the pivot
- * at (158, 158) instead of (0, 0). The mascot is then 223 units from its own
- * pivot and swings clean out of frame. A baked path has no pivot to get wrong.
- *
- * What baking does cost is the chord: two outlines a step apart interpolate
- * along a straight line, so the shape sits on the chord rather than the arc and
- * shrinks by `1 - cos(step/2)` at each midpoint. One outline per second is a
- * 15 degree step, and measured against the continuous body the whole track
- * strays by 1.74% of the radius at worst, 0.56% on average — 0.88px and 0.28px
- * at the 160px the README draws it at. Denser keyframes buy that back and cost
- * bytes nobody can see, so one per second stands.
- *
- * The loop closes HERE, in the last keyframe, and not in the state. Every track
- * pastes its value at t=0 at 100%, so the browser interpolates its final
- * keyframe to the opening one across the last second. That is a straight line
- * covering that second's 15 degree turn — which is what a normal second of this
- * body is anyway, the outline travelling 13px at the README's size. So the
- * motion does not have to close on itself, and `inkling-drift-faced` does not
- * try: it is the sidebar's `inkling-drift`, periods and all. An earlier version
- * snapped every one of those periods to a divisor of 24 to make the state
- * self-closing, and paid for it with a silhouette that recurred every 12s while
- * the body took twice as long to come round — which read, correctly, as a
- * different mascot. Closing the loop here instead costs 2.3px of lobe drift
- * folded into a seam that was already a full second long.
+ * The mascot as a looping SVG for the README, sampled from the engine at build time
+ * into CSS keyframes. The turn is baked into `d` keyframes, not `rotate()`: engines
+ * disagree on the view-box transform origin, so a pivot can land far off the page.
  */
 
 /** One full turn, matching `inkling-drift`'s 24 s rotation period. */
 const LOOP_SECONDS = 24;
 
-/** One baked outline per second. See the chord note above for why not coarser. */
+/** Outlines interpolate along the chord, not the arc; coarser than 1 s visibly shrinks the body. */
 const FLICKER_STEP_SECONDS = 1;
 
 /** The sidebar's own drift, with `baseFace` on so the score below can wear it. */
@@ -69,31 +30,9 @@ const path1 = (d: string) =>
   d.replace(/-?\d+\.?\d*/g, (m) => String(Math.round(Number(m) * 2) / 2));
 
 /**
- * Where the face sits on the body, and the one thing the script never varies.
- *
- * `neutre` asks for the round placement the blob wears in the app: gaze 28.5
- * degrees, split 15.5. On a body that rotates under a steady face that is too
- * far out, and the eyes get eaten by a lobe twice per turn. The state carries a
- * tightened placement for exactly this reason and the script pins the same one
- * here, so an expression contributes its SHAPE — the squint, the tilt, the size
- * — and never its direction.
- *
- * 10.5 is the split, 15 and 24 the yaw and pitch. Measured over the whole loop
- * with the full expression score running, the tightest an eye corner ever comes
- * to the outline is 9.0 units, or 4.6px at the size the README draws this, and it
- * is the FAR eye a quarter of the way round the turn that gets there — the near
- * one never drops below 25. That figure is what decides where the face may sit:
- * run the same score at the app's own placement and an eye ends up about 4 units
- * OUTSIDE the blob. Individual expressions are not the discriminator — held all
- * loop, `surpris` and `excite` both fit at this placement with under 3 units to
- * spare, and `neutre` is the one that walks out at the app's. It is the score as
- * it actually plays, on a body turning under it, that needs the tightened one.
- *
- * The pitch is the one that costs the most. The state this replaces sat at
- * `REST_GAZE`'s 28.6, which put the eyes higher and was fine while the face
- * never changed; every degree up from here is a degree of clearance given up,
- * and 28 leaves under 3px, which is close enough to the edge to read as a nick
- * rather than as a margin.
+ * A tightened face placement pinned for the whole loop: at the app's own placement
+ * a lobe of the turning body sweeps over an eye. Expressions contribute shape, never
+ * direction. `readmeMascot.test.ts` guards the clearance; raising the pitch eats it.
  */
 const PLACEMENT = { yaw: 15, pitch: 24, roll: REST_GAZE.roll, split: 10.5 };
 
@@ -108,20 +47,8 @@ function expression(id: string): BotExpression {
 }
 
 /**
- * The 24 seconds, as the beats it changes face on.
- *
- * Not a mood ring and not a demo reel. The mascot rests, notices something,
- * brightens, settles, dozes, looks up, and is back where it started before the
- * loop comes round — the shape of a small thing that is comfortable and
- * happens to be awake. Held expressions are the point; the beats exist so the
- * rest has something to be a rest FROM.
- *
- * Every beat sits clear of a blink, and that is not a coincidence: a blink
- * closes the eye to a line, so one landing inside a morph hides the change
- * half-done. `readmeMascot.test.ts` fails the build if that ever stops holding.
- *
- * The last beat settles 1.35 s before the loop point, which puts the seam
- * inside a held `neutre` where the face and the outline are both stationary.
+ * The beats the face changes on. Every beat sits clear of a blink, since a blink
+ * landing in a morph hides it half-done; `readmeMascot.test.ts` enforces that.
  */
 const PERFORMANCE: ReadonlyArray<readonly [number, string]> = [
   [0, "neutre"],
@@ -167,17 +94,8 @@ function blendTo(from: BotExpression, to: BotExpression, t: number): BotExpressi
 }
 
 /**
- * The face at `t`: the scored expression, pinned where `PLACEMENT` says, then
- * wandered by the engine's own `liveliness`.
- *
- * Reading the drift straight off `liveliness` rather than off a second hand-rolled
- * copy is what keeps the README's gaze the sidebar's. It used to be copied here
- * with every period snapped to a divisor of 24, on the grounds that the loop
- * needed it — but the loop never needed it: the transform track pastes its value
- * at t=0 at 100%, so the seam is already a straight line across the last second,
- * gaze drift or not. The roll is left out, as the engine's own `Look` note
- * explains, and the wander reaches the engine through `setLook` with `mix: 1`,
- * because that is the only undated input `sample` has.
+ * The scored expression, pinned at `PLACEMENT`, wandered by the engine's own
+ * `liveliness` so the README's gaze matches the sidebar's.
  */
 function face(t: number): BotExpression {
   const e = scored(t);
@@ -194,12 +112,8 @@ function face(t: number): BotExpression {
 }
 
 /**
- * The engine at `t`: every beat up to now replayed into one instance, the gaze
- * steered, then sampled.
- *
- * Replaying rather than sampling fresh is what makes a held expression morph.
- * A new engine per sample would find `exprPrev` null and snap to whatever it
- * was handed, and a face that changes by cutting is a slideshow.
+ * Replays every beat up to `t` into one engine: a fresh engine per sample has no
+ * `exprPrev` and would snap between faces instead of morphing.
  */
 function frameAt(t: number): BotFrame {
   const engine = new BotEngine(RAYON, STATE, null, null);
@@ -219,19 +133,8 @@ function outlineAt(t: number): string {
 }
 
 /**
- * Every blink in the loop, as the three instants that matter: when it starts,
- * when the lid is at its lowest, and when it is back up.
- * The lid curve is a triangle in the engine, so a browser interpolating
- * linearly between those three reproduces it exactly, where a sample grid
- * spread over the same event rounds the trough off and leaves the eye never
- * quite shut.
- *
- * The two times and the one scale are named apart on purpose. A single field
- * for both used to be called `closed`, and the keyframe builder then wrote that
- * SCALE into the slot that wants a TIME: the reopen landed at 0.06 s, sorted
- * out of order, and was dropped. Every blink then left the eye shut until the
- * next one 3.7 s later, which reads as a slow, drowsy blink — the exact
- * complaint this file was changed to answer.
+ * Each blink's start, trough, and reopen. The engine's lid curve is a triangle, so
+ * linear interpolation between these three reproduces it exactly.
  */
 interface Blink {
   /** when the lid starts falling, in seconds */
@@ -250,16 +153,8 @@ function blinks(): Blink[] {
   const out: Blink[] = [];
 
   /**
-   * The exact bottom of the trough.
-   *
-   * The lid falls in a straight line and rises in a straight line, so the bottom
-   * is a CORNER. Interpolating a straight line across a corner cuts the chord,
-   * which on a V is above the vertex: the sampled trough lands about 0.002
-   * high and the eye never quite shuts. It read as exact before only because
-   * the engine's first blink happened to put its corner on the sampling grid.
-   *
-   * Ternary search on a bracket, not an interpolation: the trough is the unique
-   * minimum of the window, and a search converges on it whatever the grid does.
+   * The lid curve's trough is a corner, which sampling cuts above the vertex so the
+   * eye never quite shuts. Ternary search finds the exact minimum.
    */
   const trough = (from: number, to: number) => {
     let lo = from;
@@ -284,16 +179,8 @@ function blinks(): Blink[] {
   return out;
 }
 
-/** `@keyframes` for the body: the loop point included, holding the same
- *  outline the first frame holds, so the repeat is continuous.
- *
- *  The loop point is the *first* outline pasted back in, not a sample at t=24.
- *  The state has length 24s, so `sample(24)` has already crossed into the next
- *  state and is a different pose; a keyframe taken there would put a visible jump
- *  at exactly the moment the animation is supposed to be invisible. Nothing here
- *  needs the state to agree with itself at 24 — the browser draws a straight
- *  line from the t=23 outline to the t=0 one, which is that second's turn either
- *  way. See the note at the top of the file on why the loop closes here. */
+/** `@keyframes` for the body. The loop point repeats the first outline, not
+ *  `sample(24)`, which has already crossed into the next state's pose. */
 function flickerKeyframes(): string {
   const steps = Math.round(LOOP_SECONDS / FLICKER_STEP_SECONDS);
   const frames: string[] = [];
@@ -306,13 +193,8 @@ function flickerKeyframes(): string {
   return frames.join("");
 }
 
-/** The instants the eye TRANSFORM track has to be exact: the whole-second grid
- *  the body runs on, plus both ends of every morph, plus all three instants of
- *  every blink.
- *
- *  The body's own grid is far too coarse for a 0.45 s morph or a 0.18 s blink,
- *  and a 1 s keyframe spacing turns both into slow linear ramps. The transform
- *  is cheap to sample, so it gets its own, denser grid. */
+/** Instants the eye transform must hit: the body's 1 s grid, both ends of every
+ *  morph, and all three instants of every blink. A 1 s grid alone smears those. */
 function eyeTimes(): number[] {
   const steps = Math.round(LOOP_SECONDS / FLICKER_STEP_SECONDS);
   const times = new Set<number>();
@@ -327,21 +209,9 @@ function eyeTimes(): number[] {
 }
 
 /**
- * The instants the eye SHAPE track has to be exact, which is a much shorter
- * list: the capsule only changes inside a morph, and stands still between two
- * of them.
- *
- * The `0` at the head of each morph is the one that is easy to leave out and
- * the one that matters most. Without a keyframe where the morph STARTS, the
- * browser has nothing to interpolate from but the previous hold, and ramps the
- * whole change across it — a five-second slide instead of a 0.45s turn, which
- * is the sluggishness this file is meant to have removed. A keyframe whose
- * value repeats the last one is not wasted bytes; it is what tells the browser
- * where the hold ended.
- *
- * Three points per morph then keep the engine's ease-out from reading as a
- * straight ramp: the browser interpolates linearly, and the quintic has moved
- * 92% of the way by 40% of the morph.
+ * Instants the eye shape must hit: the start of each morph, or the browser ramps
+ * across the whole previous hold, plus points at 40% and 100% so the ease-out
+ * doesn't read as a linear ramp.
  */
 function shapeTimes(): number[] {
   const times = new Set<number>();
@@ -364,13 +234,8 @@ function dedupe(times: Iterable<number>, gap: number): number[] {
 const EYE_TIMES = eyeTimes();
 const SHAPE_TIMES = shapeTimes();
 
-/** Percentage for an instant, and the same instant as a fraction of the loop.
- *  Every track closes on the value the FIRST frame holds, for the same reason
- *  `flickerKeyframes` does: `liveliness` floats the whole figure on a drift
- *  whose periods (7.9, 5.3, 3.4) divide nothing, so a real sample at t=24 is
- *  not the sample at t=0. It is off by a third of a unit in y, which is a
- *  seventh of a pixel here, and it is exactly the sort of thing that reads as
- *  "the loop twitches once a cycle" and nothing else. */
+/** Every track closes on the first frame's value: `liveliness` periods don't
+ *  divide 24, so a real sample at t=24 differs from t=0 and twitches the seam. */
 const share = (t: number) => r4((100 * t) / LOOP_SECONDS);
 
 /** A track over `times`, whose final entry repeats the one at t=0. */
@@ -416,17 +281,9 @@ function blinkKeyframes(): string {
 }
 
 /**
- * The eyes are cut in the mask rather than painted on top, so the mascot reads
- * the same on a light README as on a dark one. They blink about their own
- * middle: a fill-box origin is the one reference box with no ambiguity about
- * where it starts, and these are the only transforms left in the file.
- *
- * Each eye's shape and its look are ONE `animation` declaration, not two. Both
- * are the same property on the same element, and the `animation` shorthand
- * resets every longhand it does not mention: a rule per track means whichever
- * comes last silently erases the other, and the eye freezes on its t=0 matrix
- * while the `d` underneath it carries on. A comma-separated list is the way to
- * run two animations off one shorthand.
+ * Eyes are cut in the mask so they read on light and dark READMEs. Each eye's shape
+ * and look share one `animation` shorthand: separate rules reset each other's
+ * longhands and freeze the eye.
  */
 function style(): string {
   const track = (name: string) => `${name} ${LOOP_SECONDS}s linear infinite`;

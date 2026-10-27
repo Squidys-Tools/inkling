@@ -76,8 +76,8 @@ async function enrichUrl(library: TestLibrary, itemId: string, article: object) 
 
 function seedFromDemo(library: TestLibrary) {
   const selected = personalSeedItems.filter((item) => parity.sourceIds.includes(String(item.id)));
-  const insert =
-    library.db.prepare(`INSERT INTO items (id, kind, title, description, body, body_format,
+  const insert = library.db
+    .prepare(`INSERT INTO items (id, kind, title, description, body, body_format,
     source_label, metadata, ocr_text, created_at, updated_at)
     VALUES (?, ?, ?, ?, '', 'md', 'Downloads', ?, '', ?, ?)`);
   selected.forEach((item, index) => {

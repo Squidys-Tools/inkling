@@ -141,7 +141,7 @@ export function SimilarPanel({
         <div className="flex items-start gap-2">
           {[left, right].map((column, index) => (
             <div
-              // biome-ignore lint/suspicious/noArrayIndexKey: The two columns are fixed positions.
+              // oxlint-disable-next-line react/no-array-index-key -- The two columns are fixed positions.
               key={index}
               className="flex min-w-0 flex-[0_0_139px] flex-col gap-2"
             >

@@ -255,11 +255,8 @@ function decodeHtmlEntities(value: string): string {
   });
 }
 
-// Intraword `_` is literal in CommonMark: `foo_bar_baz` is one word, and so is
-// `é_foo_é`, so the guard has to recognise a word character in any script
-// instead of leaving non-ASCII letters on the wrong side of it. Underscore
-// emphasis only counts when neither delimiter sits inside a word. Star emphasis
-// keeps no guard so intraword `*` stays literal.
+// Intraword `_` is literal in CommonMark in any script (`é_foo_é` is one word),
+// so the guard must recognize non-ASCII letters. Star emphasis has no guard.
 function stripUnderscoreEmphasis(value: string, marker: string): string {
   return value.replace(
     new RegExp(`(${marker})(.*?)\\1`, "gu"),
@@ -271,20 +268,9 @@ function stripUnderscoreEmphasis(value: string, marker: string): string {
   );
 }
 
-// Projects note Markdown to plain text. The Electron backend has a second
-// implementation in `electron/storage/shared.ts`; read the two together when either moves.
-// It is deliberately not byte-identical to that function:
-//   - Known divergence from `markdownToPlainText`
-//     handles `Event::InlineHtml` but not `Event::Html`, and it only treats a
-//     void tag as a boundary, so raw block-level HTML there contributes nothing
-//     and joins the words on either side of it. A block tag counts as a boundary
-//     here instead, so the two disagree for any note carrying one — until the
-//     backend learns the same rule, a block-level HTML tag in a note means the
-//     description it stored and the description this projection produces are
-//     not the same string.
-//   - Fenced and inline code are lifted out before any tag scanning and put
-//     back verbatim, so markup written inside a code span survives instead of
-//     being read as markup. `markdownToPlainText` has no such pass.
+// `electron/storage/shared.ts` has a second copy; change both together. They
+// differ on purpose: block-level HTML tags count as word boundaries here but not
+// there, and code spans are protected here so markup inside them stays text.
 export function markdownToPlainText(markdown: string): string {
   const code: string[] = [];
   const protect = (value: string) => {
@@ -317,7 +303,6 @@ export function markdownToPlainText(markdown: string): string {
     .replace(/\s+/gu, " ")
     .trim()
     .replace(/ ([.,;!?])/gu, "$1");
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: the note code table is delimited by NUL on purpose, so the wire format matches itself.
   return source.replace(/\x00(\d+)\x00/gu, (_, index: string) => code[Number(index)] ?? "");
 }
 

@@ -1,10 +1,7 @@
 import type { LibraryItem } from "./lib/types";
 
-// Personal demo seed — committed to the repo alongside public/seed-demo/.
-// Images in public/seed-demo/ are compressed by hand to keep the folder
-// small; keep filenames stable and match mediaWidth/mediaHeight to the files.
-// Served from public/seed-demo/. To restore the original demo library, flip
-// `demoSeedItems` back to `seedItems` in App.tsx and delete this file.
+// Demo seed served from public/seed-demo/. Images there are compressed by hand;
+// keep filenames stable and mediaWidth/mediaHeight matching the files.
 export const personalSeedItems: LibraryItem[] = [
   {
     id: "me-fuji-night",

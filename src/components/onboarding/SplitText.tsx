@@ -24,7 +24,6 @@ export function SplitText({
 }) {
   const ref = useRef<HTMLHeadingElement>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: new words need a fresh split.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || prefersReducedMotion()) return;

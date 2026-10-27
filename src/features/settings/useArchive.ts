@@ -255,11 +255,9 @@ export function useArchive({
 
   useEffect(
     () => () => {
-      // A pending delete is finalized by its own timer, and unmounting must not
-      // run it: a remount (StrictMode, HMR) would flush real deletes, and closing
-      // the window tears the webview down without unmounting anyway. Dropping the
-      // timers leaves those items archived and recoverable, which is the state
-      // the delete never left.
+      // Unmount must not flush pending deletes: a StrictMode or HMR remount would
+      // run real deletes. Dropping the timers leaves those items archived and
+      // recoverable, and window close never unmounts anyway.
       for (const pending of pendingPermanentDeletesRef.current.values()) {
         window.clearTimeout(pending.timer);
       }

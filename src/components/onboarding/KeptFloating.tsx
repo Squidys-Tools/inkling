@@ -159,15 +159,8 @@ function CardBody({ content }: { content: Content }): ReactNode {
 }
 
 /**
- * Screen two's backdrop: mini cards of every kind floating at three depths
- * around the copy, slowly circling it counter-clockwise together. Fancy
- * Components' Parallax Floating drives it: the pointer pulls near cards
- * further than far ones, and each card drifts a little on its own slow path,
- * Drift Wall style.
- *
- * One rAF loop writes transforms straight to the photos, so React renders this
- * once. The loop only lives while the screen is mounted; reduced motion gets
- * the lap's starting layout.
+ * One rAF loop writes transforms straight to the cards, so React renders this
+ * once. The loop lives only while mounted; reduced motion gets the starting layout.
  */
 export function KeptFloating() {
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -215,7 +208,7 @@ export function KeptFloating() {
     <div className="kept-floating" aria-hidden="true">
       {CARDS.map((card, index) => (
         <div
-          // biome-ignore lint/suspicious/noArrayIndexKey: static list
+          // oxlint-disable-next-line react/no-array-index-key -- static list
           key={index}
           ref={(el) => {
             cardRefs.current[index] = el;

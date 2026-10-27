@@ -1,4 +1,4 @@
-// biome-ignore-all lint/a11y/noNoninteractiveTabindex: Library cards contain nested controls and media, so the article cannot become a button; Enter and Space select the focused card.
+/* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-noninteractive-element-interactions -- Library cards contain nested controls and media, so the article cannot become a button; Enter and Space select the focused card. */
 import {
   AlertCircleIcon,
   ArrowUpRight01Icon,

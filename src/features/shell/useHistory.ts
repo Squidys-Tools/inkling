@@ -71,7 +71,6 @@ export function useHistory({
     itemId: selectedItemId,
   };
   const navKey = JSON.stringify(navSnapshot);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: navKey encodes the snapshot
   useEffect(() => {
     const restoringNavKey = restoringNavKeyRef.current;
     if (restoringNavKey) {
@@ -94,6 +93,7 @@ export function useHistory({
       commit();
     }, 600);
     return () => window.clearTimeout(timer);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- navKey encodes the snapshot
   }, [navKey]);
 
   const stepHistory = useCallback(

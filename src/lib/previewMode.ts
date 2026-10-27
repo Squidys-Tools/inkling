@@ -1,14 +1,6 @@
-// Web preview seed mode — preview/dev-only, never active in the desktop app.
-//
-// The Vite frontend already renders seed data in a plain browser (no desktop
-// bridge). This module pins that behavior behind one explicit helper so a
-// statically hosted `dist/` (Cloudflare Pages, Vercel, `vite preview`) shows a
-// deterministic library without ever invoking native commands.
-//
-// Production safety: inside the desktop app this returns false unless the build
-// was made with VITE_INKLING_PREVIEW=1 AND the URL carries ?preview=1,
-// and dev (?preview=1 with import.meta.env.DEV) is the only other opt-in.
-// Plain browsers (no native bridge) always use seeds — there is no backend to call.
+// Seed data without a native bridge, so a static `dist/` shows a fixed library.
+// In the desktop app this stays false unless built with VITE_INKLING_PREVIEW=1
+// and the URL has ?preview=1, or in dev with ?preview=1.
 import { isDesktopRuntime } from "./libraryApi";
 
 function hasPreviewQuery(search: string): boolean {

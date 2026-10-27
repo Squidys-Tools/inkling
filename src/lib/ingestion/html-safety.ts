@@ -267,7 +267,7 @@ function sanitizeElement(element: Element, pageUrl: string): void {
 
 export function sanitizeHtml(html: string, pageUrl: string): string {
   const { document } = parseHTML(`<html><head></head><body>${html}</body></html>`);
-  for (const element of [...document.querySelectorAll("noscript")]) {
+  for (const element of document.querySelectorAll("noscript")) {
     const parent = element.parentElement;
     if (!parent) continue;
     while (element.firstChild) parent.insertBefore(element.firstChild, element);
