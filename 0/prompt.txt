@@ -1,0 +1,222 @@
+/goal Own the inkling UI refactor end to end: SQU-124 (tracker) and SQU-125 to SQU-132. Work until all are done; don't pause between layers.
+
+
+Read AGENTS.md (binding). Before starting any issue, read its description and every comment on it. The comments are newer and win wherever they differ from the description. SQU-124's "Brief" comment holds the rules for every layer (gate, mechanics, comments, tests, verify, stop, done); re-read it at each layer.
+
+Gate: #131 and #171 merged into main, and a clean worktree. Otherwise report and stop.
+
+Order: SQU-125 branches off main, any time. Then 126 → 132, each branched from and PR'd against the previous; 126 targets main. You have standing approval to open these PRs as drafts; mark each ready once it's verified and `bun run check` is green.
+
+Never: change visible behavior without sign-off, fork the glass Surface, put glass or Base UI in grid cards, regress #174's data path or App()'s ordering guarantees, or wait on sleeps.
+
+Report briefly at each PR. Finish with a summary comment on SQU-124.
+
+---
+
+/goal resume
+
+---
+
+<task-notification>
+<task-id>bog5qup2k</task-id>
+<tool-use-id>toolu_01KD7G3cAq8ohJoNGTdT1q8N</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\bog5qup2k.output</output-file>
+<status>completed</status>
+<summary>Background command "Create baseline main worktree and build it" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Continue where you left off.
+
+---
+
+<task-notification>
+<task-id>b8c7sbdvz</task-id>
+<tool-use-id>toolu_01Jpn5i35N5s7tok3weHMtrS</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\b8c7sbdvz.output</output-file>
+<status>completed</status>
+<summary>Background command "git add -A &amp;&amp; git status --short | head -40 &amp;&amp; git commit -q -F - &lt;&lt;'EOF'
+refactor(shell): tailwind v4 tokens, base ui primitives, app shell
+
+Add Tailwind v4 (no preflight) with one semantic @theme built from the
+App.css :root variables, and Base UI. src/ui gains Button, IconButton,
+Surface (owns .glass/.css-glass) and the app-wide Tooltip on Base UI.
+The titlebar, window controls, sidebar, Spaces list and sidebar toggles
+move to src/features/shell and their App.css blocks are deleted.
+Parity port: the shell looks and behaves as before.
+
+Refs SQU-126
+
+Co-Authored-By: Claude Opus 5.5 &lt;noreply@anthropic.com&gt;
+EOF
+git log --oneline -1 &amp;&amp; git push -u origin HEAD 2&gt;&amp;1 | tail -2" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bdw3im78l</task-id>
+<tool-use-id>toolu_01RKmsyx1yaZ4CgqxH1VtqLs</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\bdw3im78l.output</output-file>
+<status>completed</status>
+<summary>Background command "Run full repo check" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b57t8u3uh</task-id>
+<tool-use-id>toolu_011iVy9jmV27GuSEa2ArsLXF</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\b57t8u3uh.output</output-file>
+<status>completed</status>
+<summary>Background command "Commit SQU-127 in background" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Continue where you left off.
+
+---
+
+<task-notification>
+<task-id>bxhs34vp5</task-id>
+<tool-use-id>toolu_01GjtfrZZrxjGQbbqaNmBg32</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\bxhs34vp5.output</output-file>
+<status>completed</status>
+<summary>Background command "Commit using a message file" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Continue where you left off.
+
+---
+
+Continue where you left off.
+
+---
+
+<task-notification>
+<task-id>bz56ojkvk</task-id>
+<tool-use-id>toolu_01Tpnzfea6urd8W1KYbhoQh6</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\bz56ojkvk.output</output-file>
+<status>completed</status>
+<summary>Background command "Launch full app on scratch library and run doctor" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bqv1s9dlx</task-id>
+<tool-use-id>toolu_01VRAtmuthznfVFQu2FA1uFi</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\bqv1s9dlx.output</output-file>
+<status>completed</status>
+<summary>Background command "(for s in typecheck "--cwd extension typecheck" "--cwd packages/ingestion-shared typecheck" check:refs lint build build:app ingest:smoke "--cwd extension build"; do echo "=== $s"; bun run $s &gt; /tmp/squ130-$(echo $s | tr ' /' '__').log 2&gt;&amp;1; echo "exit $?"; done; echo "=== test"; bun test &gt; /tmp/squ130-test.log 2&gt;&amp;1; echo "exit $?") 2&gt;&amp;1" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bm2ngrev8</task-id>
+<tool-use-id>toolu_01WxwdritHFNvcpw2bEdEsad</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\bm2ngrev8.output</output-file>
+<status>completed</status>
+<summary>Background command "cd "$TEMP/squ126/base" &amp;&amp; INKLING_VERIFY_NAME=squ130base INKLING_VERIFY_PORT=9334 bun .claude/skills/verify-inkling/scripts/instance.mjs launch &lt; /dev/null &gt; "$TEMP/squ130/base-launch.log" 2&gt;&amp;1" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bne8vsv73</task-id>
+<tool-use-id>toolu_01LJ8vC3BCnjzm5p24F995Et</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\bne8vsv73.output</output-file>
+<status>completed</status>
+<summary>Background command "INKLING_VERIFY_NAME=squ130 bun .claude/skills/verify-inkling/scripts/instance.mjs launch &lt; /dev/null 2&gt;&amp;1 | tail -5; INKLING_VERIFY_NAME=squ130 bun .claude/skills/verify-inkling/scripts/instance.mjs doctor &lt; /dev/null 2&gt;&amp;1 | tail -10" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bdu861fhp</task-id>
+<tool-use-id>toolu_018Ld4wJYoHyqbM4oB2rVNU1</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\bdu861fhp.output</output-file>
+<status>completed</status>
+<summary>Background command "INKLING_VERIFY_NAME=squ130 bun .claude/skills/verify-inkling/scripts/instance.mjs launch &lt; /dev/null &gt; "$TEMP/squ130/branch-launch.log" 2&gt;&amp;1" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b05h3p1vt</task-id>
+<tool-use-id>toolu_01R5fD9PM3du3HQGe6J4wTvi</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\b05h3p1vt.output</output-file>
+<status>completed</status>
+<summary>Background command "bun run ui:smoke &gt; "$TEMP/squ130/ui-smoke.log" 2&gt;&amp;1; echo "exit $?" &gt;&gt; "$TEMP/squ130/ui-smoke.log"" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bctmfztdz</task-id>
+<tool-use-id>toolu_018fsZyrGx84yYtZcm4iBkey</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\bctmfztdz.output</output-file>
+<status>completed</status>
+<summary>Background command "echo "ERAN=${ELECTRON_RUN_AS_NODE:-unset}"; (env -u ELECTRON_RUN_AS_NODE bun run ui:smoke &gt; "$TEMP/squ130/ui-smoke.log" 2&gt;&amp;1; echo "exit $?" &gt;&gt; "$TEMP/squ130/ui-smoke.log")" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bi431eh8d</task-id>
+<tool-use-id>toolu_01LVMYC9tUpTmgjq97bmUraV</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\bi431eh8d.output</output-file>
+<status>completed</status>
+<summary>Background command "git push -u origin squidlee/squ-130-stack-57-settings-sheet-and-archive 2&gt;&amp;1 | tail -3; wc -l src/App.tsx src/App.css src/features/settings/*.tsx src/ui/Menu.tsx" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Continue where you left off.
+
+---
+
+<task-notification>
+<task-id>bfypynzbc</task-id>
+<tool-use-id>toolu_01MNv8Dtp8Xu5icQ6r7tvoVc</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\bfypynzbc.output</output-file>
+<status>completed</status>
+<summary>Background command "Launch branch and base verify instances" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>blfquap19</task-id>
+<tool-use-id>toolu_013oVyTa6YQGkJGdiUgkj5WD</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\blfquap19.output</output-file>
+<status>completed</status>
+<summary>Background command "Relaunch both verify instances" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b09wyyn0j</task-id>
+<tool-use-id>toolu_01R81jGmVjFH68ugGpohJiC2</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-a1f541e8\bf5ac5c7-e575-44db-b623-8a1386058030\tasks\b09wyyn0j.output</output-file>
+<status>completed</status>
+<summary>Background command "Stage and commit the SQU-132 changes" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+so all linear issues for the stack are addressed?
+
+---
+
+Continue where you left off.
+
+---
+
+just do a quick review of all the prs and then merge then in the required stack, deal with them and rebase or fix conflicts as needed, get them all merged

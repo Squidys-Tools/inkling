@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M5ZSCACAWBSSTFPKQJTHQFJ2",
+  "strategy": "manual-commit",
+  "branch": "t3/audit-claude-codex-skills",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "biome.jsonc",
+    "src/features/capture/CaptureBar.tsx",
+    "src/features/shell/SidebarToggles.tsx",
+    "src/ui/Dialog.tsx",
+    "src/ui/SearchField.tsx",
+    "src/ui/Tooltip.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 112,
+    "cache_creation_tokens": 450312,
+    "cache_read_tokens": 5050184,
+    "output_tokens": 25092,
+    "api_call_count": 55
+  }
+}
