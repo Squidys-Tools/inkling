@@ -98,7 +98,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "bun-types": "1.4.3",
-    "electron": "44.7.2",
+    "electron": "45.0.0",
     "electron-builder": "^26.15.3",
     "knip": "^6.41.0",
     "oxfmt": "^0.74.0",
