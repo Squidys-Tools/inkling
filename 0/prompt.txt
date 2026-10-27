@@ -1,0 +1,15 @@
+Update on pull request #189 (https://github.com/Squidys-Tools/inkling/pull/189), which T3 Code is watching for you:
+- All 11 checks passed on d6e8401.
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #186 (https://github.com/Squidys-Tools/inkling/pull/186), which T3 Code is watching for you:
+- All 11 checks passed on 1a64add.
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+if both are safe to merge then go ahead and merge
