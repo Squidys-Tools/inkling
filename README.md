@@ -132,7 +132,7 @@ Save a page URL from Chrome's toolbar or its **Save to inkling** context menu. T
 
 This part is for people who want to build, tinker, or contribute. Everyone else can stop here. 🙂
 
-**Stack:** Electron 44 + React + TypeScript + Vite on the front, Node.js + SQLite (FTS5) in the back. Article extraction with Defuddle, OCR with Tesseract, local Nomic text/vision embeddings through ONNX Runtime. Full reasoning in the [tech stack](docs/tech-stack.md).
+**Stack:** Electron 45 + React + TypeScript + Vite on the front, Node.js + SQLite (FTS5) in the back. Article extraction with Defuddle, OCR with Tesseract, local Nomic text/vision embeddings through ONNX Runtime. Full reasoning in the [tech stack](docs/tech-stack.md).
 
 **Start here:**
 

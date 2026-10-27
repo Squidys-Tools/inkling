@@ -12,7 +12,7 @@ Build a local-first Windows desktop application with Electron, React, TypeScript
 
 | Area | Decision | Reason |
 |---|---|---|
-| Desktop shell | Electron 44 | Windows desktop packaging with a reusable web frontend and a narrow preload bridge |
+| Desktop shell | Electron 45 | Windows desktop packaging with a reusable web frontend and a narrow preload bridge |
 | UI | React + TypeScript + Vite | Mature component ecosystem and future web portability |
 | Styling | Tailwind CSS v4 utilities, Base UI headless primitives, and a WebGPU liquid glass layer | Fast iteration without locking the product to a heavy component theme |
 | UI state | React hooks per feature, composed in `App` | The renderer's state is small and local; library rows are patched by item id instead of cached and invalidated |
