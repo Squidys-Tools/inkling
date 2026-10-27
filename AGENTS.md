@@ -78,7 +78,7 @@ The common defect here is a change that works on the path tested and is missing 
 
 ## Dev servers
 
-- `bun install` installs. If module resolution looks broken, check the Bun version first. It must match `.bun-version` (1.4.2). `bun run check:bun-version` says so in one line.
+- `bun install` installs. If module resolution looks broken, check the Bun version first. It must match `packageManager` in `package.json` (1.4.4).
 - `bun run dev` is the quick web look at the UI. It uses sample data and has no desktop storage or processing backend.
 - `bun run dev:app` opens the Electron shell in preview mode. The renderer shows the sample library and does not call the desktop backend, so capture, OCR, embeddings, and local file access are not exercised there. Test the full backend with the packaged output of `bun run build:dir`.
 - `t3.json` lists the T3 Code run scripts. Keep it up to date: whenever a package.json script is renamed or removed, or a command it runs changes, update `t3.json` in the same change.

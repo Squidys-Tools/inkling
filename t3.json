@@ -92,12 +92,6 @@
       "runOnWorktreeCreate": false
     },
     {
-      "name": "Check Bun version",
-      "command": "bun run check:bun-version",
-      "icon": "debug",
-      "runOnWorktreeCreate": false
-    },
-    {
       "name": "Clean project JS dependencies",
       "command": "bun -e \"import { rmSync } from 'node:fs'; for (const path of ['node_modules', 'extension/node_modules']) rmSync(path, { recursive: true, force: true })\"",
       "icon": "debug",

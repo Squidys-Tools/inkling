@@ -2,7 +2,7 @@
 
 ## Developer setup
 
-See the "For developers" section in README.md for install steps and commands. You need Bun 1.4.2 (see .bun-version).
+See the "For developers" section in README.md for install steps and commands. You need Bun 1.4.4 (see `packageManager` in package.json).
 
 The usual commands are:
 

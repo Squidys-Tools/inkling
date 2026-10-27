@@ -75,7 +75,6 @@ jobs:
               - 'index.html'
               - 'package.json'
               - 'bun.lock'
-              - '.bun-version'
               - 'vite.config.ts'
               - 'knip.json'
               - 'biome.jsonc'
@@ -96,12 +95,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version-file: .bun-version
-
-      # Guards against the three Bun pins drifting apart: .bun-version,
-      # packageManager, and the Bun that setup-bun actually installed.
-      - name: Verify Bun version pin
-        run: bun run check:bun-version
+          bun-version-file: package.json
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

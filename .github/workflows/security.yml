@@ -76,7 +76,6 @@ jobs:
               - 'index.html'
               - 'package.json'
               - 'bun.lock'
-              - '.bun-version'
               - 'vite.config.ts'
               - 'tsconfig.json'
               - 'tsconfig.node.json'
