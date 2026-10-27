@@ -5,10 +5,10 @@
       "entry": [
         "src/**/*.test.ts",
         "benchmarks/**/*.smoke.ts",
-        "electron/model-manifest.json",
-        "electron/**/*.d.mts",
-        "electron/**/*.test.ts",
-        "electron/preload.cjs"
+        "electron/main.ts",
+        "electron/preload.ts",
+        "electron/sqlite-snapshot-worker.ts",
+        "electron/**/*.test.ts"
       ],
       "project": ["src/**/*", "benchmarks/harness/**/*", "electron/**/*"],
       "ignore": ["src/bun-test.d.ts", "src/components/GradualBlur/**"]

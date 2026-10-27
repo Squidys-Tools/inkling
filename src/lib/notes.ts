@@ -4,7 +4,7 @@ export function normalizeNoteBody(value: string): string {
   return value.replace(/\r\n?/gu, "\n").trim();
 }
 
-// Mirrors `is_void_tag` in `markdownToPlainText` (electron/storage/shared.mjs).
+// Mirrors `is_void_tag` in `markdownToPlainText` (electron/storage/shared.ts).
 const VOID_HTML_TAGS = new Set(["br", "hr", "img", "input"]);
 
 // A void tag ends a line, so `foo<br>bar` must not come back as `foobar`. An
@@ -272,7 +272,7 @@ function stripUnderscoreEmphasis(value: string, marker: string): string {
 }
 
 // Projects note Markdown to plain text. The Electron backend has a second
-// implementation in `electron/storage/shared.mjs`; read the two together when either moves.
+// implementation in `electron/storage/shared.ts`; read the two together when either moves.
 // It is deliberately not byte-identical to that function:
 //   - Known divergence from `markdownToPlainText`
 //     handles `Event::InlineHtml` but not `Event::Html`, and it only treats a

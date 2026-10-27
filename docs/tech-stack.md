@@ -16,11 +16,20 @@ Build a local-first Windows desktop application with Electron, React, TypeScript
 | UI | React + TypeScript + Vite | Mature component ecosystem and future web portability |
 | Styling | Tailwind CSS v4 utilities, Base UI headless primitives, and a WebGPU liquid glass layer | Fast iteration without locking the product to a heavy component theme |
 | UI state | React hooks per feature, composed in `App` | The renderer's state is small and local; library rows are patched by item id instead of cached and invalidated |
-| Application core | Electron main process and Node.js | File, job queue, database, and model-process orchestration |
-| Database | SQLite through `node:sqlite` | Direct control over migrations, transactions, and FTS5 |
+| Application core | Electron main process and Node.js, in TypeScript on Effect | File, job queue, database, and model-process orchestration |
+| IPC contract | `@inkling/contracts` command list and Effect Schemas | Preload, main process, and renderer share one command list; arguments are decoded before storage sees them |
+| Database | SQLite through `@effect/sql-sqlite-node`, with migrations on `node:sqlite` | Typed queries and transactions over one serialized connection; migrations and FTS5 stay plain SQL |
 | Exact search | SQLite FTS5 | Local full-text search across content, notes, OCR, and summaries |
 | Asset storage | Content-addressed local files | Avoid duplicate assets and make backup/restore predictable |
-| Background work | Node.js job queue persisted in SQLite | Retryable processing without blocking the UI |
+| Background work | Effect workers over a job queue persisted in SQLite | Retryable processing without blocking the UI |
+
+## Effect in the main process
+
+The main process is built on [Effect](https://effect.website) so leases, timeouts, retries, and shutdown come from one tested runtime instead of hand-rolled timers and flags. `electron/main.ts` builds a single `ManagedRuntime` holding the library, the job queue, and two workers; quitting disposes it, which interrupts running jobs and hands them back as pending. Each job kind has a timeout in `electron/ai-jobs.ts`, so a hung model or decoder fails its job instead of stalling the queue. Effect stops at the IPC edge: handlers call storage through a Promise facade, and the renderer never imports Effect at runtime.
+
+URL ingestion downloads through Effect's HTTP client, which retries rate limits, gateway errors, and dropped connections, waits at least as long as a `Retry-After` header asks, and stays inside the 15-second capture budget. Redirects stay manual so each hop passes the private-network check before it is followed.
+
+The main process, preload, and snapshot worker are bundled by `scripts/build-electron.ts`; `bun run build:app` and `bun run dev:app` run it through `bun run build:electron`.
 
 ## Styling
 

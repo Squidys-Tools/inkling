@@ -2,6 +2,7 @@ import { parseHTML } from "linkedom";
 import { DefaultDefuddleAdapter } from "./defuddle-adapter";
 import { UrlIngestionError } from "./errors";
 import { extractFallback } from "./fallback";
+import { downloadPage, fetchJson, runHttp } from "./http";
 import {
   collectImageUrls,
   collectSafeEmbeds,
@@ -29,66 +30,6 @@ import type {
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_USER_AGENT = "inkling/0.1 (+local article capture)";
-const MAX_REDIRECTS = 5;
-
-function isRedirectStatus(status: number): boolean {
-  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
-}
-
-async function readResponseText(
-  response: Response,
-  maxBytes: number,
-  url: string,
-): Promise<string> {
-  if (!response.body) {
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > maxBytes) {
-      throw new UrlIngestionError(
-        "content-too-large",
-        "The downloaded page is larger than the ingestion limit.",
-        {
-          url,
-        },
-      );
-    }
-    return text;
-  }
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel();
-        throw new UrlIngestionError(
-          "content-too-large",
-          "The downloaded page is larger than the ingestion limit.",
-          {
-            url,
-          },
-        );
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(bytes);
-}
-
 function mergeExtraction(
   primary: RawArticleExtraction,
   fallback: RawArticleExtraction,
@@ -194,44 +135,20 @@ async function ingestVideoLink(
   let author = "";
   let poster = videoLink.posterUrl;
 
-  if (fetchImpl) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), Math.min(timeoutMs, 4_000));
-    try {
-      const host = videoLink.provider === "youtube" ? "www.youtube.com" : "vimeo.com";
-      const response = await fetchImpl(
-        `https://${host}/oembed.json?url=${encodeURIComponent(videoLink.sourceUrl)}`,
-        {
-          headers: { Accept: "application/json", "User-Agent": userAgent },
-          redirect: "follow",
-          signal: controller.signal,
-        },
-      );
-      if (response.ok) {
-        const body = await readResponseText(
-          response,
-          Math.min(maxResponseBytes, 512 * 1024),
-          sourceUrl,
-        );
-        const metadata = JSON.parse(body) as {
-          title?: unknown;
-          author_name?: unknown;
-          thumbnail_url?: unknown;
-        };
-        if (typeof metadata.title === "string" && metadata.title.trim())
-          title = metadata.title.trim();
-        if (typeof metadata.author_name === "string" && metadata.author_name.trim())
-          author = metadata.author_name.trim();
-        if (typeof metadata.thumbnail_url === "string") {
-          poster = normalizeHttpUrl(metadata.thumbnail_url, sourceUrl) ?? poster;
-        }
-      }
-    } catch {
-      // oEmbed is enrichment only. The validated URL remains indexable when
-      // a provider blocks or rate-limits metadata requests.
-    } finally {
-      clearTimeout(timeout);
-    }
+  const host = videoLink.provider === "youtube" ? "www.youtube.com" : "vimeo.com";
+  const metadata = (await runHttp(
+    fetchJson(`https://${host}/oembed.json?url=${encodeURIComponent(videoLink.sourceUrl)}`, {
+      userAgent,
+      timeoutMs: Math.min(timeoutMs, 4_000),
+      maxBytes: maxResponseBytes,
+    }),
+    fetchImpl,
+  )) as { title?: unknown; author_name?: unknown; thumbnail_url?: unknown } | null;
+  if (typeof metadata?.title === "string" && metadata.title.trim()) title = metadata.title.trim();
+  if (typeof metadata?.author_name === "string" && metadata.author_name.trim())
+    author = metadata.author_name.trim();
+  if (typeof metadata?.thumbnail_url === "string") {
+    poster = normalizeHttpUrl(metadata.thumbnail_url, sourceUrl) ?? poster;
   }
 
   return {
@@ -270,7 +187,7 @@ export async function ingestUrl(
   }).toString();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
-  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const fetchImpl = options.fetch;
 
   const videoLink = videoLinkFromSourceUrl(sourceUrl);
   if (videoLink) {
@@ -284,52 +201,23 @@ export async function ingestUrl(
     );
   }
 
-  if (!fetchImpl) {
-    throw new UrlIngestionError("network-error", "No fetch implementation is available.", {
-      url: sourceUrl,
-    });
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  let response: Response;
-  let fetchedUrl = sourceUrl;
-
+  const userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
   let xPost: XPostMetadata | null = null;
   if (parseXPostUrl(sourceUrl)) {
+    // X can block or rate-limit the oEmbed request. Without it, the normal page
+    // pipeline still has a chance to succeed.
+    const oEmbed = await runHttp(
+      fetchJson(xPostOEmbedUrl(sourceUrl), { userAgent, timeoutMs, maxBytes: maxResponseBytes }),
+      fetchImpl,
+    );
     try {
-      const oEmbedResponse = await fetchImpl(xPostOEmbedUrl(sourceUrl), {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": options.userAgent ?? DEFAULT_USER_AGENT,
-        },
-        redirect: "follow",
-        signal: controller.signal,
-      });
-
-      if (oEmbedResponse.ok) {
-        const oEmbedBody = await readResponseText(
-          oEmbedResponse,
-          Math.min(maxResponseBytes, 512 * 1024),
-          sourceUrl,
-        );
-        try {
-          xPost = normalizeXPostOEmbed(
-            sourceUrl,
-            JSON.parse(oEmbedBody) as Record<string, unknown>,
-          );
-        } catch {
-          xPost = null;
-        }
-      }
+      xPost = oEmbed ? normalizeXPostOEmbed(sourceUrl, oEmbed as Record<string, unknown>) : null;
     } catch {
-      // X can block or rate-limit the oEmbed request. Fall through to the
-      // normal page pipeline so capture still has a chance to succeed.
+      xPost = null;
     }
   }
 
   if (xPost) {
-    clearTimeout(timeout);
     const text = xPost.text || `${xPost.authorName ?? "X"} post`;
     return {
       sourceUrl,
@@ -349,97 +237,15 @@ export async function ingestUrl(
     };
   }
 
-  try {
-    for (let redirectCount = 0; ; redirectCount++) {
-      // codeql[js/request-forgery,javascript/ssrf]: This local-first desktop pipeline intentionally fetches user-selected public URLs. parseHttpUrl rejects non-HTTP(S), credentialed, and private-network destinations before this boundary, and redirect targets are validated before the next request.
-      response = await fetchImpl(fetchedUrl, {
-        headers: {
-          Accept: "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.5",
-          "User-Agent": options.userAgent ?? DEFAULT_USER_AGENT,
-        },
-        redirect: "manual",
-        signal: controller.signal,
-      });
-
-      if (!isRedirectStatus(response.status)) break;
-      if (redirectCount >= MAX_REDIRECTS) {
-        throw new UrlIngestionError("redirect-error", "The page redirected too many times.", {
-          url: fetchedUrl,
-        });
-      }
-
-      const location = response.headers.get("location");
-      const redirectUrl = location ? normalizeHttpUrl(location, fetchedUrl) : null;
-      if (!redirectUrl) {
-        throw new UrlIngestionError(
-          "redirect-error",
-          "The page returned an invalid redirect destination.",
-          {
-            url: fetchedUrl,
-          },
-        );
-      }
-
-      fetchedUrl = parseHttpUrl(redirectUrl, {
-        allowPrivateNetwork: options.allowPrivateNetwork,
-      }).toString();
-    }
-  } catch (cause) {
-    clearTimeout(timeout);
-    if (cause instanceof UrlIngestionError) throw cause;
-    if (controller.signal.aborted) {
-      throw new UrlIngestionError("timeout", "The page took too long to download.", {
-        cause,
-        url: sourceUrl,
-      });
-    }
-    throw new UrlIngestionError("network-error", "The page could not be downloaded.", {
-      cause,
-      url: sourceUrl,
-    });
-  }
-
-  let rawHtml: string;
-  try {
-    if (!response.ok) {
-      throw new UrlIngestionError("http-error", `The page returned HTTP ${response.status}.`, {
-        status: response.status,
-        url: sourceUrl,
-      });
-    }
-
-    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-    if (
-      contentType &&
-      !contentType.includes("text/html") &&
-      !contentType.includes("application/xhtml+xml") &&
-      !contentType.startsWith("text/plain")
-    ) {
-      throw new UrlIngestionError(
-        "unsupported-content-type",
-        "The URL did not return an HTML document.",
-        {
-          url: fetchedUrl,
-        },
-      );
-    }
-
-    rawHtml = await readResponseText(response, maxResponseBytes, fetchedUrl);
-  } catch (error) {
-    if (error instanceof UrlIngestionError) throw error;
-    if (controller.signal.aborted) {
-      throw new UrlIngestionError("timeout", "The page took too long to download.", {
-        cause: error,
-        url: fetchedUrl,
-      });
-    }
-    throw new UrlIngestionError("network-error", "The page could not be read.", {
-      cause: error,
-      url: fetchedUrl,
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
+  const { fetchedUrl, html: rawHtml } = await runHttp(
+    downloadPage(sourceUrl, {
+      userAgent,
+      timeoutMs,
+      maxBytes: maxResponseBytes,
+      allowPrivateNetwork: options.allowPrivateNetwork,
+    }),
+    fetchImpl,
+  );
 
   const sourceDocument = parseDocument(rawHtml);
   const extractionDocument = parseDocument(rawHtml);

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import sharp from "sharp";
-import { createImageThumbnail, inspectImage, validateImageDimensions } from "./thumbnail.mjs";
+import { createImageThumbnail, inspectImage, validateImageDimensions } from "./thumbnail.ts";
 
 test("image thumbnails resize asynchronously and preserve source dimensions", async () => {
   const source = await sharp({

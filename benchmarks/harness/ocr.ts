@@ -1,7 +1,8 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { createTesseractOcr } from "../../electron/ocr.mjs";
+import { readFile } from "node:fs/promises";
+import { createTesseractOcr } from "../../electron/ocr.ts";
 
 export interface OcrEngine {
   name: string;
@@ -92,8 +93,10 @@ export class TesseractJsEngine implements OcrEngine {
     }
   }
 
-  run(imagePath: string | Uint8Array) {
-    return this.engine.recognize(imagePath);
+  async run(imagePath: string | Uint8Array) {
+    return this.engine.recognize(
+      typeof imagePath === "string" ? await readFile(imagePath) : Buffer.from(imagePath),
+    );
   }
 
   close() {

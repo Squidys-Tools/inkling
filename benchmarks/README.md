@@ -142,7 +142,7 @@ What it does:
 2. For `article` / `recipe` / `video` items, runs the production extraction
    pipeline (`ingestUrl` → Defuddle → sanitize) via `harness/extract.ts`.
 3. For PDFs, runs page-by-page extraction and scanned-page OCR through the
-   production PDF.js pipeline in `electron/pdf.mjs`. The corpus-only stream
+   production PDF.js pipeline in `electron/pdf.ts`. The corpus-only stream
    parser in `harness/pdf.ts` counts embedded images and remains covered by a
    smoke test.
 4. For image and screenshot OCR, tries **every available engine** in

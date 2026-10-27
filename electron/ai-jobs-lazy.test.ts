@@ -7,8 +7,9 @@ import { pathToFileURL } from "node:url";
 
 test("the system-font scan waits for PDF jobs, including after BMP thumbnailing", () => {
   const root = process.cwd();
-  const aiJobsUrl = pathToFileURL(resolve(root, "electron/ai-jobs.mjs")).href;
-  const thumbnailUrl = pathToFileURL(resolve(root, "electron/thumbnail.mjs")).href;
+  const aiJobsUrl = pathToFileURL(resolve(root, "electron/ai-jobs.ts")).href;
+  const libraryUrl = pathToFileURL(resolve(root, "electron/storage/library.ts")).href;
+  const thumbnailUrl = pathToFileURL(resolve(root, "electron/thumbnail.ts")).href;
   const pdfPath = resolve(root, "benchmarks/corpus/pdfs/pdf-native-text-01.pdf");
   const tempDirectory = mkdtempSync(join(tmpdir(), "inkling-lazy-imports-"));
   const loadLogPath = join(tempDirectory, "module-loads.log");
@@ -20,7 +21,7 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
       'import { appendFile } from "node:fs/promises";',
       "const loadLogPath = process.env.INKLING_MODULE_LOAD_LOG;",
       "export async function load(url, context, nextLoad) {",
-      '  if (url.endsWith("/electron/pdf.mjs") || url.endsWith("/@napi-rs/canvas/index.js")) {',
+      '  if (url.endsWith("/electron/pdf.ts") || url.endsWith("/@napi-rs/canvas/index.js")) {',
       '    await appendFile(loadLogPath, url + "\\n");',
       "  }",
       "  return nextLoad(url, context);",
@@ -29,10 +30,12 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
   );
   const probe = [
     'import { readFileSync } from "node:fs";',
+    'const { Effect } = await import("effect");',
+    `const { JobQueue, Library } = await import(${JSON.stringify(libraryUrl)});`,
     `const { createAiJobProcessors } = await import(${JSON.stringify(aiJobsUrl)});`,
     'const loadedModules = () => readFileSync(process.env.INKLING_MODULE_LOAD_LOG, "utf8").trim().split("\\n").filter(Boolean);',
     "const countLoaded = (part) => loadedModules().filter((url) => url.includes(part)).length;",
-    'const pdfUrl = "/electron/pdf.mjs";',
+    'const pdfUrl = "/electron/pdf.ts";',
     'const canvasEntryUrl = "/@napi-rs/canvas/index.js";',
     'if (countLoaded(pdfUrl) || countLoaded(canvasEntryUrl)) throw new Error("PDF dependencies loaded before a job");',
     `const { createImageThumbnail } = await import(${JSON.stringify(thumbnailUrl)});`,
@@ -50,11 +53,11 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
     'if (!bmpThumbnail.bytes.length || countLoaded(canvasEntryUrl)) throw new Error("BMP thumbnail triggered the system-font scan");',
     'const item = { id: "pdf-probe", localAssetPath: "fixture.pdf" };',
     "let thumbnailBytes = 0;",
-    "const storage = { getItem: () => item, resolveAssetPath: async () => " +
-      `${JSON.stringify(pdfPath)}, storePdfThumbnail: async (_id, bytes) => { thumbnailBytes = bytes.length; } };`,
+    "const library = { getItem: () => Effect.succeed(item), resolveAssetPath: () => " +
+      `Effect.succeed(${JSON.stringify(pdfPath)}), storePdfThumbnail: (_id, bytes) => Effect.sync(() => { thumbnailBytes = bytes.length; }) };`,
     "const ai = createAiJobProcessors({ modelCacheDirectory: process.env.INKLING_MODEL_CACHE_DIRECTORY });",
     'if (countLoaded(pdfUrl) || countLoaded(canvasEntryUrl)) throw new Error("Factory construction loaded PDF dependencies");',
-    "await ai.processors.pdf_thumbnail({ itemId: item.id }, storage);",
+    'await Effect.runPromise(ai.processors.pdf_thumbnail({ itemId: item.id }, "probe").pipe(Effect.provideService(Library, library), Effect.provideService(JobQueue, {})));',
     "const pdfModuleLoads = countLoaded(pdfUrl);",
     "const canvasEntryLoads = countLoaded(canvasEntryUrl);",
     'if (pdfModuleLoads !== 1 || canvasEntryLoads !== 1 || !thumbnailBytes) throw new Error("PDF job did not load and use its dependencies once");',
@@ -82,6 +85,7 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
       },
     );
 
+    expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
       pdfModuleLoads: 1,

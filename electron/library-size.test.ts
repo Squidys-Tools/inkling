@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createLibrarySizeCache } from "./library-size.mjs";
+import { createLibrarySizeCache } from "./library-size.ts";
 
 const roots: string[] = [];
 
