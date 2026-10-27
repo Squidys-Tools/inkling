@@ -1,0 +1,91 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M5Z7QA5E1VXRGTE9KGW3BBQ9",
+  "session_id": "22e2d7b3-cdd6-4c31-b5d4-78e750311761",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-27T17:49:59.3944273Z",
+  "branch": "takeover-186",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "README.md",
+    "docs/tech-stack.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "5a3924b20f1c",
+  "checkpoint_transcript_start": 196,
+  "transcript_lines_at_start": 196,
+  "compact_transcript_start": 34,
+  "token_usage": {
+    "input_tokens": 96,
+    "cache_creation_tokens": 37319,
+    "cache_read_tokens": 5407222,
+    "output_tokens": 19211,
+    "api_call_count": 47
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01Ac54qT2okHvYKspEcSwWCz",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "takeover"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "065a78a8743b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 28,
+        "end": 29,
+        "entry_ids": [
+          "cb3649f5-2c94-4ac7-9ddb-efc36b30c29e"
+        ],
+        "tool_use_id": "toolu_01Ac54qT2okHvYKspEcSwWCz"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Ac54qT2okHvYKspEcSwWCz"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: takeover",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_019bdvPfG5yG9joc85Ytn1wC",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "full-stop"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "065a78a8743b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 32,
+        "end": 33,
+        "entry_ids": [
+          "6dafe2fa-7a09-46af-b1b4-434b51410175"
+        ],
+        "tool_use_id": "toolu_019bdvPfG5yG9joc85Ytn1wC"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_019bdvPfG5yG9joc85Ytn1wC"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: full-stop",
+        "default_collapsed": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M5Z7QA5E1VXRGTE9KGW3BBQ9",
+  "strategy": "manual-commit",
+  "branch": "takeover-186",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "README.md",
+    "docs/tech-stack.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 96,
+    "cache_creation_tokens": 37319,
+    "cache_read_tokens": 5407222,
+    "output_tokens": 19211,
+    "api_call_count": 47
+  }
+}
