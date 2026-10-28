@@ -18,7 +18,7 @@ import {
   type WebContents,
 } from "electron";
 import electronUpdater from "electron-updater";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -42,7 +42,8 @@ import {
   resolveLibraryDataDirectory,
 } from "./storage/library.ts";
 import { makeWorker } from "./storage/worker.ts";
-import { createUpdateController } from "./updater.ts";
+import { createUpdateController, createUpdatePreferences } from "./updater.ts";
+import { installDebianUpdate, updateDisabledReason } from "./update-install.ts";
 
 const mainDirectory = dirname(fileURLToPath(import.meta.url));
 const { autoUpdater } = electronUpdater;
@@ -54,11 +55,43 @@ const libraryDirectory = resolveLibraryDataDirectory({
   portable: app.isPackaged && process.env.INKLING_PORTABLE === "1",
   overrideDirectory: commandLineDataDirectory || undefined,
 });
+const packageTypePath = join(process.resourcesPath, "package-type");
+const packageType = existsSync(packageTypePath)
+  ? readFileSync(packageTypePath, "utf8").trim()
+  : undefined;
 const updateController = createUpdateController({
   autoUpdater,
-  // Unpacked `build:dir` output ships without app-update.yml, so it has no feed to check.
-  isPackaged: app.isPackaged && existsSync(join(process.resourcesPath, "app-update.yml")),
-  platform: process.platform,
+  currentVersion: app.getVersion(),
+  disabledReason: updateDisabledReason({
+    isPackaged: app.isPackaged,
+    isPreview,
+    hasFeed: existsSync(join(process.resourcesPath, "app-update.yml")),
+    platform: process.platform,
+    appImage: process.env.APPIMAGE,
+    packageType,
+  }),
+  preferences: createUpdatePreferences(join(libraryDirectory, "updates.json")),
+  install: async (file, version) => {
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error("No active app window.");
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: "question",
+      title: "Install inkling update",
+      message: `Install inkling ${version}?`,
+      detail:
+        "inkling will restart after installation. Debian may ask for system authorization. Your library stays on this computer.",
+      buttons: ["Cancel", "Install and restart"],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    if (response !== 1) throw new Error("Update installation canceled.");
+    if (process.platform === "linux" && packageType === "deb") {
+      await installDebianUpdate(file, version);
+      app.relaunch();
+      app.quit();
+    } else {
+      autoUpdater.quitAndInstall(false, true);
+    }
+  },
 });
 app.setPath("userData", libraryDirectory);
 const deepLinkSubscribers = new Set<WebContents>();
@@ -346,6 +379,10 @@ function registerLibraryCommands() {
       return captureServer.regeneratePairingToken();
     },
     select_library_directory: ({ title }) => chooseLibraryDirectory(title),
+    get_update_state: () => updateController.getState(),
+    set_update_channel: ({ channel }) => updateController.setChannel(channel),
+    download_update: ({ expectedVersion }) => updateController.downloadUpdate(expectedVersion),
+    cancel_update_download: () => updateController.cancelDownload(),
     check_for_updates: () => updateController.checkForUpdates(),
     install_update: ({ expectedVersion }) => updateController.installUpdate(expectedVersion),
     "plugin:deep-link|get_current": () => pendingDeepLinks.splice(0),

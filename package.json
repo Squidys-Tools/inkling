@@ -82,6 +82,7 @@
     "@tiptap/react": "3.32.0",
     "@tiptap/starter-kit": "3.32.0",
     "@virtuoso.dev/masonry": "^1.4.3",
+    "builder-util-runtime": "9.7.0",
     "defuddle": "^0.19.5",
     "effect": "4.0.6",
     "electron-updater": "6.8.11",
@@ -92,6 +93,7 @@
     "pdfjs-dist": "^6.4.299",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "semver": "7.7.3",
     "sharp": "0.35.5",
     "sonner": "^2.0.8",
     "tesseract.js": "7.0.0"
@@ -103,6 +105,7 @@
     "@types/bun": "1.4.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/semver": "7.7.1",
     "@vitejs/plugin-react": "^6.1.2",
     "bun-types": "1.4.4",
     "electron": "45.0.0",
@@ -118,6 +121,7 @@
   "build": {
     "appId": "com.inkling.library",
     "productName": "inkling",
+    "afterPack": "scripts/normalize-linux-modes.cjs",
     "directories": {
       "buildResources": "build",
       "output": ".artifacts/electron"
@@ -177,8 +181,10 @@
     },
     "publish": [
       {
-        "provider": "generic",
-        "url": "https://github.com/squidys-tools/inkling/releases/latest/download/"
+        "provider": "github",
+        "owner": "Squidys-Tools",
+        "repo": "inkling",
+        "releaseType": "release"
       }
     ],
     "protocols": [

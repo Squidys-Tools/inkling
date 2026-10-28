@@ -28,6 +28,7 @@ Guardrails:
 
 ### Added
 
+- Stable / Beta and Nightly update channels, with separate verified download, cancellation and explicit installation on Windows and supported Linux packages.
 - Linux `.deb` and AppImage builds with desktop/protocol integration, consent-based screen capture, and packaged native OCR/PDF/model checks.
 
 - Right-click a card to read, open its link, copy its link, show it in its folder, or archive it, from a menu in the library's glass (#170)

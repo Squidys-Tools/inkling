@@ -53,6 +53,27 @@ export type StoredLibraryCard = Omit<
 export type StoredItemContent = { id: string; body: string; bodyFormat: string };
 
 export type AvailableUpdate = { version: string };
+export type UpdateChannel = "latest" | "nightly";
+export type UpdateState = {
+  channel: UpdateChannel;
+  currentVersion: string;
+  status:
+    | "disabled"
+    | "idle"
+    | "checking"
+    | "up-to-date"
+    | "available"
+    | "downloading"
+    | "downloaded"
+    | "installing"
+    | "cancelled"
+    | "error";
+  availableVersion: string | null;
+  downloadedVersion: string | null;
+  progress: number | null;
+  message: string | null;
+  errorContext: "check" | "download" | "install" | null;
+};
 
 export type ProcessingJobKind = "ocr_image" | "ocr_pdf_page" | "generate_embedding" | "enrich_url";
 export type ProcessingJobStatus = "pending" | "processing" | "completed" | "failed";
@@ -204,6 +225,10 @@ export type UpdateSpaceInput = typeof UpdateSpaceInput.Type;
 export const commandArgs = {
   check_for_updates: None,
   install_update: Schema.Struct({ expectedVersion: Text }),
+  get_update_state: None,
+  set_update_channel: Schema.Struct({ channel: Schema.Literals(["latest", "nightly"]) }),
+  download_update: Schema.Struct({ expectedVersion: Text }),
+  cancel_update_download: None,
   initialize_storage: None,
   get_app_version: None,
   get_library_size: Schema.Struct({ refresh: Schema.optional(Schema.Boolean) }),
@@ -258,7 +283,11 @@ export type CommandArgs<C extends CommandName> = (typeof commandArgs)[C]["Type"]
 
 export type CommandResults = {
   check_for_updates: AvailableUpdate | null;
-  install_update: AvailableUpdate | null;
+  install_update: UpdateState;
+  get_update_state: UpdateState;
+  set_update_channel: UpdateState;
+  download_update: UpdateState;
+  cancel_update_download: UpdateState;
   initialize_storage: StorageStatus;
   get_app_version: string;
   get_library_size: LibrarySize;

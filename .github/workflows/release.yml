@@ -2,73 +2,122 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v[0-9]*"]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release train (Stable/Beta uses latest)
+        type: choice
+        options: [stable, nightly]
+        default: nightly
+      version:
+        description: Regular semantic version for Stable/Beta
+        type: string
+  schedule:
+    - cron: "23 6 * * *"
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: inkling-release-${{ github.event_name == 'push' && github.ref || inputs.channel || 'nightly' }}
+  cancel-in-progress: false
 
 jobs:
-  windows:
-    name: Build Windows release
-    runs-on: windows-2025
-
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
-
-      - name: Install frontend dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Create draft release
-        shell: pwsh
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - id: version
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          $notes = @"
-          Download the unsigned Windows Electron installer from the release assets below. Windows SmartScreen may warn that the publisher is unknown because the installer does not use a paid code-signing certificate. Only run an installer downloaded from this official release.
+          RELEASE_CHANNEL: ${{ github.event_name == 'push' && 'stable' || inputs.channel || 'nightly' }}
+          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+        run: bun scripts/prepare-release.mjs
 
-          The app checks GitHub for updates once when it opens. No library data is sent, and updates install only after you choose Update available in the sidebar.
-          "@
-          & gh release create $env:RELEASE_TAG --verify-tag --draft --title "inkling $env:RELEASE_TAG" --generate-notes --notes $notes
-          if ($LASTEXITCODE -ne 0) {
-            throw "Could not create the draft Electron release."
-          }
-
-      - name: Cache pinned Electron models
-        uses: actions/cache@v6
+  build:
+    needs: metadata
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            command: build:installer
+            name: windows
+          - os: ubuntu-latest
+            command: build:linux
+            name: linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - uses: actions/cache@v6
         with:
           path: .artifacts/electron-model-cache/models
-          key: inkling-electron-release-models-${{ hashFiles('electron/model-manifest.json') }}
-
-      - name: Build Electron NSIS installer
-        run: bun run build:installer
-
-      - name: Upload Electron updater assets to draft release
-        shell: pwsh
+          key: inkling-models-${{ hashFiles('electron/model-manifest.json') }}
+      - name: Stage exact release metadata
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_CHANNEL: stable
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+          NIGHTLY_BUILD: ${{ needs.metadata.outputs.prerelease }}
+        shell: bash
         run: |
-          $assets = @(Get-ChildItem .artifacts/electron -File |
-            Where-Object { $_.Name -eq "latest.yml" -or $_.Extension -in @(".exe", ".blockmap") } |
-            ForEach-Object { $_.FullName })
-          if (-not ($assets | Where-Object { [IO.Path]::GetFileName($_) -eq "latest.yml" })) {
-            throw "electron-builder did not create latest.yml."
-          }
-          if (-not ($assets | Where-Object { [IO.Path]::GetExtension($_) -eq ".exe" })) {
-            throw "electron-builder did not create a Windows installer."
-          }
-          $arguments = @("release", "upload", $env:RELEASE_TAG) + $assets + @("--clobber")
-          & gh @arguments
-          if ($LASTEXITCODE -ne 0) {
-            throw "Could not upload Electron updater assets to the draft release."
-          }
+          node --input-type=module -e 'import fs from "node:fs";const p=JSON.parse(fs.readFileSync("package.json"));p.version=process.env.RELEASE_VERSION;p.build.publish[0].releaseType=process.env.NIGHTLY_BUILD==="true"?"prerelease":"release";p.build.generateUpdatesFilesForAllChannels=false;fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
+      - name: Build reviewed platform artifacts (never publish from builder)
+        env:
+          BUILD_COMMAND: ${{ matrix.command }}
+        shell: bash
+        run: |
+          umask 022
+          bun run "$BUILD_COMMAND"
+      - name: Exercise actual packaged Linux processing and local update feeds
+        if: runner.os == 'Linux'
+        run: |
+          bun scripts/linux-backend-smoke.mjs
+          bun scripts/update-feed-smoke.mjs .artifacts/electron/linux-unpacked
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.name }}
+          path: |
+            .artifacts/electron/*.exe
+            .artifacts/electron/*.deb
+            .artifacts/electron/*.AppImage
+            .artifacts/electron/*.blockmap
+            .artifacts/electron/latest*.yml
+            .artifacts/electron/nightly*.yml
+          if-no-files-found: error
+
+  draft:
+    needs: [metadata, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-assets
+      - name: Create draft only; a maintainer must verify and publish it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+          RELEASE_COMMIT: ${{ github.sha }}
+          PRERELEASE: ${{ needs.metadata.outputs.prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--draft --target "$RELEASE_COMMIT" --title "inkling $RELEASE_TAG" --generate-notes)
+          if [ "$PRERELEASE" = true ]; then args+=(--prerelease --latest=false); fi
+          gh release create "$RELEASE_TAG" "${args[@]}" release-assets/*

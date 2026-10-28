@@ -1,59 +1,266 @@
-// The generic feed is the latest GitHub Release download directory; release publishing must place
-// electron-builder's latest.yml and the NSIS installer there. Without Authenticode, updater hashes
-// protect downloads over HTTPS but cannot establish publisher trust, and Windows may show SmartScreen.
-type AvailableUpdate = { version: string };
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { gt, prerelease, valid } from "semver";
+import { CancellationToken } from "builder-util-runtime";
+import type { UpdateChannel, UpdateState } from "@inkling/contracts";
 
-type UpdaterLike = {
+type UpdateInfo = { version: string };
+export type UpdaterLike = {
   autoDownload: boolean;
   autoInstallOnAppQuit: boolean;
-  checkForUpdates(): Promise<{
-    isUpdateAvailable?: boolean;
-    updateInfo?: { version?: string };
-  } | null>;
-  downloadUpdate(): Promise<unknown>;
-  quitAndInstall(): void;
+  allowDowngrade: boolean;
+  allowPrerelease: boolean;
+  channel: string | null;
+  checkForUpdates(): Promise<{ isUpdateAvailable?: boolean; updateInfo: UpdateInfo } | null>;
+  downloadUpdate(token?: CancellationToken): Promise<string[]>;
+  on(event: "download-progress", listener: (progress: { percent: number }) => void): unknown;
+  on(event: "error", listener: (error: Error) => void): unknown;
 };
+
+async function updateFileHash(path: string) {
+  const hash = createHash("sha512");
+  for await (const chunk of createReadStream(path)) hash.update(chunk);
+  return hash.digest("base64");
+}
+
+export function createUpdatePreferences(path: string) {
+  return {
+    async read(): Promise<{ channel?: UpdateChannel; install?: { from: string; target: string } }> {
+      try {
+        const value = JSON.parse(await readFile(path, "utf8"));
+        return {
+          channel:
+            value.channel === "latest" || value.channel === "nightly" ? value.channel : undefined,
+          install:
+            typeof value.install?.from === "string" && typeof value.install?.target === "string"
+              ? { from: value.install.from, target: value.install.target }
+              : undefined,
+        };
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT" || error instanceof SyntaxError)
+          return {};
+        throw error;
+      }
+    },
+    async write(value: object) {
+      await mkdir(dirname(path), { recursive: true });
+      const temporary = `${path}.${process.pid}.tmp`;
+      try {
+        await writeFile(temporary, JSON.stringify(value) + "\n", { mode: 0o600 });
+        await rename(temporary, path);
+      } finally {
+        await rm(temporary, { force: true });
+      }
+    },
+  };
+}
 
 export function createUpdateController({
   autoUpdater,
-  isPackaged,
-  platform,
+  currentVersion,
+  disabledReason = null,
+  preferences,
+  install,
 }: {
   autoUpdater: UpdaterLike;
-  isPackaged: boolean;
-  platform: NodeJS.Platform;
+  currentVersion: string;
+  disabledReason?: string | null;
+  preferences: ReturnType<typeof createUpdatePreferences>;
+  install: (file: string, version: string) => Promise<void>;
 }) {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
-
-  let availableUpdate: AvailableUpdate | null = null;
-
-  async function checkForUpdates(): Promise<AvailableUpdate | null> {
-    if (!isPackaged || platform !== "win32") return null;
-
-    const result = await autoUpdater.checkForUpdates();
-    if (!result?.isUpdateAvailable || !result.updateInfo?.version) {
-      availableUpdate = null;
+  let state: UpdateState = {
+    channel: prerelease(currentVersion)?.[0] === "nightly" ? "nightly" : "latest",
+    currentVersion,
+    status: disabledReason ? "disabled" : "idle",
+    availableVersion: null,
+    downloadedVersion: null,
+    progress: null,
+    message: disabledReason,
+    errorContext: null,
+  };
+  let active = false;
+  let cancellation: CancellationToken | undefined;
+  let download: { file: string; hash: string; version: string } | undefined;
+  let installRecord: { from: string; target: string } | undefined;
+  const applyChannel = () => {
+    autoUpdater.channel = state.channel;
+    autoUpdater.allowPrerelease = state.channel === "nightly";
+    // electron-updater's channel setter implicitly enables downgrades.
+    autoUpdater.allowDowngrade = false;
+  };
+  const ready = preferences.read().then((saved) => {
+    state.channel = saved.channel ?? state.channel;
+    installRecord = saved.install;
+    if (installRecord && installRecord.target !== currentVersion) {
+      state.message = "The previous update did not apply. Check for updates to try again.";
+      state.errorContext = "install";
+    }
+    applyChannel();
+  });
+  const snapshot = () => ({ ...state });
+  const fail = (context: NonNullable<UpdateState["errorContext"]>, message: string) => {
+    state = { ...state, status: "error", message, errorContext: context, progress: null };
+  };
+  autoUpdater.on("download-progress", ({ percent }) => {
+    if (state.status === "downloading" && Number.isFinite(percent))
+      state.progress = Math.max(0, Math.min(100, percent));
+  });
+  autoUpdater.on("error", () => {
+    // Operation rejections below own errors; no provider URLs or credentials reach the renderer.
+    if (state.status === "installing")
+      fail(
+        "install",
+        "The installer could not finish. Your library is unchanged; try again or install the release manually.",
+      );
+  });
+  async function run<T>(operation: () => Promise<T>) {
+    await ready;
+    if (active || state.status === "installing") throw new Error("An update action is already running.");
+    if (disabledReason) throw new Error(disabledReason);
+    active = true;
+    try {
+      return await operation();
+    } finally {
+      active = false;
+    }
+  }
+  function acceptable(version: string) {
+    if (!valid(version) || !gt(version, currentVersion)) return false;
+    const pre = prerelease(version);
+    return state.channel === "nightly" ? /^\d+\.\d+\.\d+-nightly\.\d{8}\.\d+$/.test(version) : pre === null;
+  }
+  async function check() {
+    applyChannel();
+    state = { ...state, status: "checking", message: null, errorContext: null };
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      const version = result?.updateInfo.version;
+      const available = Boolean(result?.isUpdateAvailable && version && acceptable(version));
+      state = {
+        ...state,
+        status: available
+          ? download?.version === version
+            ? "downloaded"
+            : "available"
+          : "up-to-date",
+        availableVersion: available ? version! : null,
+        downloadedVersion: download?.version ?? null,
+        progress: null,
+      };
+      return available ? { version: version! } : null;
+    } catch {
+      fail(
+        "check",
+        "Could not check this release channel. Check your connection or try again later; the publisher may not have released this channel yet.",
+      );
       return null;
     }
-
-    availableUpdate = { version: result.updateInfo.version };
-    return availableUpdate;
   }
-
-  async function installUpdate(expectedVersion: unknown) {
-    if (!isPackaged || platform !== "win32") return null;
-    if (typeof expectedVersion !== "string" || availableUpdate?.version !== expectedVersion) {
-      throw new Error("No matching update is available.");
-    }
-
-    const refreshedUpdate = await checkForUpdates();
-    if (refreshedUpdate?.version !== expectedVersion) return refreshedUpdate;
-
-    await autoUpdater.downloadUpdate();
-    autoUpdater.quitAndInstall();
-    return refreshedUpdate;
-  }
-
-  return { checkForUpdates, installUpdate };
+  return {
+    getState: async () => {
+      await ready;
+      return snapshot();
+    },
+    checkForUpdates: () => run(check),
+    setChannel: (channel: UpdateChannel) =>
+      run(async () => {
+        if (channel !== "latest" && channel !== "nightly")
+          throw new Error("Unsupported update channel.");
+        await preferences.write({ channel, install: installRecord });
+        download = undefined;
+        state = {
+          ...state,
+          channel,
+          status: "idle",
+          availableVersion: null,
+          downloadedVersion: null,
+          progress: null,
+          message: null,
+          errorContext: null,
+        };
+        applyChannel();
+        return snapshot();
+      }),
+    downloadUpdate: (expectedVersion: string) =>
+      run(async () => {
+        if (state.availableVersion !== expectedVersion || !acceptable(expectedVersion))
+          throw new Error("Check for this update before downloading it.");
+        const fresh = await check();
+        if (fresh?.version !== expectedVersion) return snapshot();
+        cancellation = new CancellationToken();
+        const token = cancellation;
+        download = undefined;
+        state = {
+          ...state,
+          status: "downloading",
+          downloadedVersion: null,
+          progress: 0,
+          message: null,
+          errorContext: null,
+        };
+        try {
+          const files = await autoUpdater.downloadUpdate(token);
+          if (token.cancelled) throw new Error("cancelled");
+          if (!files[0]) throw new Error("No update file downloaded");
+          const hash = await updateFileHash(files[0]);
+          if (token.cancelled) throw new Error("cancelled");
+          download = { file: files[0], version: expectedVersion, hash };
+          state = {
+            ...state,
+            status: "downloaded",
+            downloadedVersion: expectedVersion,
+            progress: 100,
+          };
+        } catch {
+          if (token.cancelled)
+            state = {
+              ...state,
+              status: "cancelled",
+              progress: null,
+              message: "Download canceled. Nothing was installed.",
+            };
+          else
+            fail(
+              "download",
+              "The update could not be downloaded or verified. Nothing was installed; try again.",
+            );
+        } finally {
+          cancellation = undefined;
+        }
+        return snapshot();
+      }),
+    cancelDownload: async () => {
+      await ready;
+      cancellation?.cancel();
+      return snapshot();
+    },
+    installUpdate: (expectedVersion: string) =>
+      run(async () => {
+        if (
+          !download ||
+          download.version !== expectedVersion ||
+          state.downloadedVersion !== expectedVersion ||
+          !acceptable(expectedVersion)
+        )
+          throw new Error("Download this update before installing it.");
+        try {
+          if ((await updateFileHash(download.file)) !== download.hash)
+            throw new Error("Downloaded update changed");
+          installRecord = { from: currentVersion, target: expectedVersion };
+          await preferences.write({ channel: state.channel, install: installRecord });
+          state = { ...state, status: "installing", message: null, errorContext: null };
+          await install(download.file, expectedVersion);
+        } catch {
+          fail(
+            "install",
+            "Installation was canceled or failed. Nothing is reported as installed; retry or use the release installer.",
+          );
+        }
+        return snapshot();
+      }),
+  };
 }

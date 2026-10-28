@@ -53,7 +53,28 @@ bundled PDF.js fonts, character maps and WASM decoders instead.
 On Wayland, Screen uses the system screen-sharing portal; if capture is denied
 or unavailable, use the system screenshot tool and paste or import the image.
 Linux currently retains typed artwork for local videos without a shell poster
-provider, and the Windows-only updater does not install Linux releases.
+provider.
+
+Settings → General → Updates selects Stable / Beta (`latest`) or experimental
+Nightly (`nightly`). Stable / Beta is the regular beta product, not a third
+prerelease feed. Nightlies require strictly newer dated `-nightly.YYYYMMDD.N`
+versions; switching back never silently downgrades a library. Check, download,
+cancel and install are separate actions. Installation requires explicit native
+confirmation; Debian uses PolicyKit and `dpkg --install` for the verified inkling
+package, with no silent dependency repair or authentication bypass. A canceled
+prompt or dependency failure remains retryable; a successful new process checks
+the version before treating the update as applied.
+
+The release workflow stages Windows and Linux assets into a **draft** GitHub
+release. A maintainer must review and publish it; unconfigured/unpublished
+channels show a check error, not a fictitious update. GitHub-hosted runners and
+Releases need no new service, but remain subject to account limits. Unsigned
+Windows installers have no Authenticode publisher trust. Never add signing
+secrets or auto-publish as part of local verification. `bun scripts/update-feed-smoke.mjs`
+uses real updater downloads and SHA512 verification from loopback feeds, with
+scratch-only AppImage replacement and Debian metadata checks, never a root
+installation. Pass `.artifacts/electron/linux-unpacked` to use the packaged
+Electron Node runtime instead of source.
 
 `ui:smoke` builds the preview bundle, launches the Electron app with the demo seed
 against a throwaway user-data directory, and drives the core library flows over

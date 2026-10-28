@@ -27,6 +27,7 @@ import {
   SettingsRow,
 } from "./SettingsPanel";
 import type { SettingsTab } from "./useSettings";
+import { UpdateSettings } from "./UpdateSettings";
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -71,6 +72,7 @@ export function SettingsSheet({
   onShowWelcome,
   archive,
   library,
+  update,
 }: {
   open: boolean;
   dialogRef: RefObject<HTMLElement | null>;
@@ -83,6 +85,7 @@ export function SettingsSheet({
   onShowWelcome: () => void;
   archive: Omit<ComponentProps<typeof ArchivePanel>, "onClose">;
   library: Omit<ComponentProps<typeof LibraryPanel>, "onClose">;
+  update: ComponentProps<typeof UpdateSettings>["update"];
 }) {
   return (
     <AnimatePresence>
@@ -170,6 +173,7 @@ export function SettingsSheet({
                   onClose={onClose}
                 />
                 <div className={SETTINGS_SCROLL}>
+                  <UpdateSettings update={update} />
                   <SettingsRow
                     icon={PlayIcon}
                     title="Welcome tour"
