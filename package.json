@@ -2,6 +2,10 @@
   "name": "inkling",
   "version": "0.1.0",
   "private": true,
+  "description": "A private local library for everything worth keeping",
+  "homepage": "https://github.com/Squidys-Tools/inkling",
+  "license": "MIT",
+  "author": "exodus712",
   "workspaces": [
     "extension",
     "packages/*"
@@ -17,6 +21,7 @@
     "build:electron": "bun scripts/build-electron.ts",
     "build:dir": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --dir",
     "build:installer": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --win nsis",
+    "build:linux": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --linux deb AppImage",
     "preview": "vite preview",
     "check": "bun run check:bun-version && bun install --frozen-lockfile --ignore-scripts && bun run typecheck && bun run --cwd extension typecheck && bun run --cwd packages/ingestion-shared typecheck && bun run --cwd packages/contracts typecheck && bun run check:refs && bun run test && bun run knip && bun run lint && bun run build && bun run build:app && bun run ingest:smoke && bun run --cwd extension build",
     "check:bun-version": "bun -e \"const expected = (await Bun.file('.bun-version').text()).trim(); if (Bun.version !== expected) { console.error('Expected Bun ' + expected + ', found ' + Bun.version); process.exit(1); }\"",
@@ -65,6 +70,7 @@
     "@hugeicons/core-free-icons": "^4.3.5",
     "@hugeicons/react": "^1.1.10",
     "@huggingface/tokenizers": "0.2.0",
+    "@img/sharp-wasm32": "0.35.5",
     "@inkling/ingestion-shared": "workspace:*",
     "@liquid-dom/core": "0.1.1",
     "@napi-rs/canvas": "1.0.13",
@@ -86,7 +92,7 @@
     "pdfjs-dist": "^6.4.299",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "sharp": "^0.35.5",
+    "sharp": "0.35.5",
     "sonner": "^2.0.8",
     "tesseract.js": "7.0.0"
   },
@@ -150,6 +156,25 @@
         "nsis"
       ]
     },
+    "linux": {
+      "icon": "build/icon.png",
+      "syncDesktopName": true,
+      "category": "Utility",
+      "target": [
+        "deb",
+        "AppImage"
+      ],
+      "artifactName": "${name}-${version}-linux-${arch}.${ext}",
+      "desktop": {
+        "entry": {
+          "StartupWMClass": "inkling",
+          "MimeType": "x-scheme-handler/inkling;"
+        }
+      }
+    },
+    "deb": {
+      "maintainer": "inkling contributors"
+    },
     "publish": [
       {
         "provider": "generic",
@@ -165,7 +190,9 @@
       }
     ]
   },
+  "desktopName": "inkling.desktop",
   "patchedDependencies": {
-    "@liquid-dom/core@0.1.1": "patches/@liquid-dom%2Fcore@0.1.1.patch"
+    "@liquid-dom/core@0.1.1": "patches/@liquid-dom%2Fcore@0.1.1.patch",
+    "sharp@0.35.5": "patches/sharp@0.35.5.patch"
   }
 }

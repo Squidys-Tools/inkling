@@ -11,7 +11,8 @@
         "electron/**/*.test.ts"
       ],
       "project": ["src/**/*", "benchmarks/harness/**/*", "electron/**/*"],
-      "ignore": ["src/bun-test.d.ts", "src/components/GradualBlur/**"]
+      "ignore": ["src/bun-test.d.ts", "src/components/GradualBlur/**"],
+      "ignoreDependencies": ["@img/sharp-wasm32"]
     },
     "extension": {
       "entry": ["src/options.ts", "src/background.ts", "src/**/*.test.ts"]

@@ -9,6 +9,7 @@ import { Effect, Layer, ManagedRuntime, Schema } from "effect";
 import {
   app,
   BrowserWindow,
+  desktopCapturer,
   dialog,
   ipcMain,
   protocol,
@@ -30,6 +31,7 @@ import { serveAssetFile } from "./asset-response.ts";
 import { startCaptureServer } from "./capture-server.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
 import { createSingleFlightDirectoryPicker } from "./native-dialog.ts";
+import { createDisplayCaptureHandler } from "./display-capture.ts";
 import { snapshotDatabase } from "./sqlite-snapshot.ts";
 import {
   JobQueue,
@@ -508,6 +510,36 @@ if (!hasSingleInstanceLock) {
       ]);
     }
     registerLibraryCommands();
+    if (process.platform === "linux") {
+      session.defaultSession.setDisplayMediaRequestHandler(
+        createDisplayCaptureHandler({
+          isMainFrame: (frame) =>
+            Boolean(
+              mainWindow && !mainWindow.isDestroyed() && frame === mainWindow.webContents.mainFrame,
+            ),
+          getSources: () =>
+            desktopCapturer.getSources({
+              types: ["screen"],
+              thumbnailSize: { width: 0, height: 0 },
+            }),
+          usesPortal: Boolean(
+            process.env.WAYLAND_DISPLAY || process.env.XDG_SESSION_TYPE === "wayland",
+          ),
+          chooseSource: async (names) => {
+            if (!names.length || !mainWindow || mainWindow.isDestroyed()) return -1;
+            const { response } = await dialog.showMessageBox(mainWindow, {
+              type: "question",
+              title: "Capture a screenshot",
+              message: "Choose a screen to save to your library",
+              buttons: ["Cancel", ...names],
+              defaultId: 0,
+              cancelId: 0,
+            });
+            return response - 1;
+          },
+        }),
+      );
+    }
     try {
       captureServer = await startCaptureServer({
         libraryDirectory,

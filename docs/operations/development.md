@@ -18,6 +18,7 @@ How to set up, run, check, and troubleshoot inkling. Contribution scope and PR e
 | Shipped app build (drops demo seed) | `bun run build:app` |
 | Electron directory build (unpacked) | `bun run build:dir` |
 | Windows NSIS installer | `bun run build:installer` |
+| Linux Debian package and AppImage | `bun run build:linux` |
 | Ingestion smoke | `bun run ingest:smoke` |
 | UI smoke (Electron, scratch profile) | `bun run ui:smoke` |
 | PDF smoke | `bun run test:pdf` |
@@ -33,6 +34,26 @@ changing that mode, not `build`.
 The Electron release package includes the pinned embedding models under its
 resources directory. In development, missing model files are downloaded and
 SHA-256 verified when an embedding job first needs them.
+
+On Debian/Ubuntu, `bun run build:linux` writes a `.deb` and AppImage to
+`.artifacts/electron/`. Install the `.deb` with `sudo apt install ./<package>.deb`,
+then open inkling from the app launcher. The standard electron-builder install
+scripts configure Chromium's sandbox and Ubuntu AppArmor integration. Do not
+work around a sandbox startup error with `--no-sandbox`; install the package
+normally. AppImages require a host that permits Chromium's sandbox to start.
+
+`bun scripts/linux-backend-smoke.mjs` checks the unpacked package's real PDF
+module, OCR worker and CPU model using Electron's Node runtime without a GUI or
+a user library. It is not a substitute for installed-app feature checks.
+The pinned sharp patch selects its supported WASM backend only in Linux
+Electron, avoiding the native libvips/GLib collision. Keep `@img/sharp-wasm32`
+(the Knip runtime exception) and the patch in sync when upgrading sharp.
+PDF rendering avoids Linux Electron's crashing system-font scan and uses the
+bundled PDF.js fonts, character maps and WASM decoders instead.
+On Wayland, Screen uses the system screen-sharing portal; if capture is denied
+or unavailable, use the system screenshot tool and paste or import the image.
+Linux currently retains typed artwork for local videos without a shell poster
+provider, and the Windows-only updater does not install Linux releases.
 
 `ui:smoke` builds the preview bundle, launches the Electron app with the demo seed
 against a throwaway user-data directory, and drives the core library flows over

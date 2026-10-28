@@ -26,6 +26,12 @@
       "runOnWorktreeCreate": false
     },
     {
+      "name": "Build Linux packages (.deb and AppImage)",
+      "command": "bun run build:linux",
+      "icon": "configure",
+      "runOnWorktreeCreate": false
+    },
+    {
       "name": "Build Windows installer",
       "command": "bun run build:installer",
       "icon": "configure",
