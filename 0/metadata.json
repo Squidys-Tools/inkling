@@ -19,5 +19,39 @@
     "cache_read_tokens": 1387908,
     "output_tokens": 8079,
     "api_call_count": 25
-  }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01ST6SZjm7Rgks525bsEfy66",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "file-pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "612257ed4e60",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 173,
+        "end": 174,
+        "entry_ids": [
+          "1436d3ac-59b1-47b1-81ce-86d16460ed35"
+        ],
+        "tool_use_id": "toolu_01ST6SZjm7Rgks525bsEfy66"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01ST6SZjm7Rgks525bsEfy66"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: file-pr",
+        "default_collapsed": true
+      }
+    }
+  ]
 }
