@@ -86,9 +86,14 @@ export function RichNoteEditor({
       contentType: "markdown",
       emitUpdate: false,
     });
+  }, [body, editor, title]);
+
+  const [syncedNote, setSyncedNote] = useState({ body, title });
+  if (syncedNote.body !== body || syncedNote.title !== title) {
+    setSyncedNote({ body, title });
     setError(null);
     setLinkDraft(null);
-  }, [body, editor, title]);
+  }
 
   useEffect(() => {
     if (!embedded || !editor) return;

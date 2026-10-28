@@ -62,7 +62,16 @@ export function useSpaces({
   );
   // Which Regular Spaces hold the item open in the overlay, so its chips can
   // render in the right state. Cleared whenever the overlay closes.
-  const [itemSpaceIds, setItemSpaceIds] = useState<string[]>([]);
+  const [fetchedItemSpaceIds, setItemSpaceIds] = useState<string[]>([]);
+  const itemSpaceIds = useMemo(
+    () =>
+      selectedItemId && shouldUseSeedLibrary()
+        ? [...localSpaceItems]
+            .filter(([, members]) => members.has(selectedItemId))
+            .map(([spaceId]) => spaceId)
+        : fetchedItemSpaceIds,
+    [fetchedItemSpaceIds, localSpaceItems, selectedItemId],
+  );
   const [renamingSpaceId, setRenamingSpaceId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [sidebarActionError, setSidebarActionError] = useState<string | null>(null);
@@ -131,8 +140,8 @@ export function useSpaces({
         });
       };
       if (!canUseDesktopBackend) {
-        // Preview keeps membership in local state and an effect mirrors that into
-        // itemSpaceIds, so there is no write to make and none to chain.
+        // Preview keeps membership in local state and itemSpaceIds is derived from
+        // it, so there is no write to make and none to chain.
         setLocalSpaceItems((current) => {
           const next = new Map(current);
           const members = new Set(next.get(spaceId) ?? []);
@@ -309,22 +318,17 @@ export function useSpaces({
     };
   }, [setCaptureError]);
 
+  const [membershipItemId, setMembershipItemId] = useState(selectedItemId);
+  if (membershipItemId !== selectedItemId) {
+    setMembershipItemId(selectedItemId);
+    if (!selectedItemId) setItemSpaceIds([]);
+  }
+
   // Manual membership for the open overlay, read only while an item is open so
   // the grid load stays a single query.
   useEffect(() => {
     const itemId = selectedItemId;
-    if (!itemId) {
-      setItemSpaceIds([]);
-      return;
-    }
-    if (shouldUseSeedLibrary()) {
-      setItemSpaceIds(
-        [...localSpaceItems]
-          .filter(([, members]) => members.has(itemId))
-          .map(([spaceId]) => spaceId),
-      );
-      return;
-    }
+    if (!itemId || shouldUseSeedLibrary()) return;
     let cancelled = false;
     const issuedAt = spaceMembershipEpochRef.current;
     // A read superseded by a chip toggle reports nothing, success or failure: the
@@ -342,7 +346,7 @@ export function useSpaces({
     return () => {
       cancelled = true;
     };
-  }, [localSpaceItems, selectedItemId, setCaptureError]);
+  }, [selectedItemId, setCaptureError]);
 
   const activeSpace = useMemo(
     () => spaces.find((space) => space.id === activeSpaceId) ?? null,

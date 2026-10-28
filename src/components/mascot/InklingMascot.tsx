@@ -82,6 +82,7 @@ export function InklingMascot({
   useEffect(() => {
     engine.setShape(shapeRadii, clockRef.current);
     engine.setExpression(expr, clockRef.current);
+    // oxlint-disable-next-line react/set-state-in-effect -- re-samples the mutable BotEngine after setShape/setExpression change it.
     if (frozenAt !== undefined) setFrame(engine.sample(frozenAt));
   }, [engine, shapeRadii, expr, frozenAt]);
 
@@ -94,6 +95,7 @@ export function InklingMascot({
 
   useEffect(() => {
     if (engine.state !== state) engine.setState(state, clockRef.current);
+    // oxlint-disable-next-line react/set-state-in-effect -- re-samples the mutable BotEngine after setState changes it.
     if (frozenAt !== undefined) setFrame(engine.sample(frozenAt));
   }, [engine, state, frozenAt]);
 

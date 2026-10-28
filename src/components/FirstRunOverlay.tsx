@@ -83,7 +83,9 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
     leaveTimer.current = window.setTimeout(land, LEAVE_MS);
   };
   const goRef = useRef(go);
-  goRef.current = go;
+  useEffect(() => {
+    goRef.current = go;
+  });
 
   useEffect(() => {
     const update = () => setScale(stageScale());

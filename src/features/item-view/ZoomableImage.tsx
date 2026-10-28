@@ -136,7 +136,9 @@ export function ZoomableImage({
     setZoomLevel(next <= fit * 1.001 ? null : next);
   }
   const zoomByRef = useRef(zoomBy);
-  zoomByRef.current = zoomBy;
+  useLayoutEffect(() => {
+    zoomByRef.current = zoomBy;
+  });
 
   // Ctrl+wheel zooms at the cursor. React's wheel listener is passive, so this
   // one is attached by hand to stop the page zooming instead.

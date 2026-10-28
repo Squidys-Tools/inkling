@@ -33,7 +33,6 @@ export type SpaceDraft = {
   name: string;
   kind: SpaceKind;
   query: string;
-  nameInputRef: RefObject<HTMLInputElement | null>;
   toggle: () => void;
   setName: (name: string) => void;
   setKind: (kind: SpaceKind) => void;
@@ -48,6 +47,7 @@ export function SpacesSection({
   renaming,
   actions,
   draft,
+  draftNameInputRef,
 }: {
   spaces: StoredSpace[];
   activeSpaceId: string | null;
@@ -60,6 +60,7 @@ export function SpacesSection({
   };
   actions: SpaceRowActions;
   draft: SpaceDraft;
+  draftNameInputRef: RefObject<HTMLInputElement | null>;
 }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -191,7 +192,7 @@ export function SpacesSection({
             onSubmit={draft.submit}
           >
             <input
-              ref={draft.nameInputRef}
+              ref={draftNameInputRef}
               className="min-h-[33px] w-full rounded-lg border border-border bg-surface px-2.5 py-0 text-[13px] text-ink outline-none! focus:border-accent"
               value={draft.name}
               onChange={(event) => draft.setName(event.target.value)}

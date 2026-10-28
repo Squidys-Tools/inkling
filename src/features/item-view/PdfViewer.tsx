@@ -157,9 +157,7 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
   const pageCount = state.phase === "ready" ? state.pageCount : 0;
   const atLastPage = pageNumber >= pageCount;
 
-  useEffect(() => {
-    if (pageCount > 0 && pageNumber > pageCount) setPageNumber(pageCount);
-  }, [pageCount, pageNumber]);
+  if (pageCount > 0 && pageNumber > pageCount) setPageNumber(pageCount);
 
   const zoomLabel =
     zoom === null ? `Fit · ${Math.round(renderedScale * 100)}%` : `${Math.round(zoom * 100)}%`;

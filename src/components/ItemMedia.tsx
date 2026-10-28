@@ -337,8 +337,6 @@ const DETAIL_VIDEO =
 
 export function DetailVideoMedia({ item }: { item: LibraryItem }) {
   const [isPlaying, setIsPlaying] = useState(false);
-  // Item identity is a reset trigger; the effect intentionally reads no item data.
-  useEffect(() => setIsPlaying(false), [item.id]);
 
   if (item.video) {
     const poster = item.image ?? item.video.posterUrl;
@@ -508,22 +506,17 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
   const [embedHtml, setEmbedHtml] = useState<string | undefined>(social.embedHtml);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
 
-  useEffect(() => {
+  const [syncedEmbedHtml, setSyncedEmbedHtml] = useState(social.embedHtml);
+  if (syncedEmbedHtml !== social.embedHtml) {
+    setSyncedEmbedHtml(social.embedHtml);
     setEmbedHtml(social.embedHtml);
-    setStatus("idle");
-  }, [social.embedHtml]);
+    setStatus(shouldLoad ? "loading" : "idle");
+  }
 
   useEffect(() => {
     if (!shouldLoad) return;
+    if (social.embedHtml) return;
     let cancelled = false;
-    setStatus("loading");
-
-    if (social.embedHtml) {
-      setEmbedHtml(social.embedHtml);
-      return () => {
-        cancelled = true;
-      };
-    }
 
     fetch(xPostOEmbedUrl(social.postUrl), { headers: { Accept: "application/json" } })
       .then((response) => {
@@ -613,7 +606,10 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
             <button
               type="button"
               className="flex cursor-pointer items-center justify-center gap-2 rounded-[8px] border border-border bg-transparent px-4 py-3 text-[12px] text-ink [transition:scale_0.16s_cubic-bezier(0.23,1,0.32,1),background-color_0.18s_ease,border-color_0.18s_ease] enabled:hover:border-[#4a4842] enabled:hover:bg-surface-raised enabled:active:scale-96 disabled:cursor-default disabled:opacity-50"
-              onClick={() => setShouldLoad(true)}
+              onClick={() => {
+                setShouldLoad(true);
+                setStatus("loading");
+              }}
             >
               Load post from X
             </button>

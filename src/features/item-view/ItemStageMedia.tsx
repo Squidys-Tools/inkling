@@ -45,7 +45,7 @@ export function ItemStageMedia({ item }: { item: LibraryItem }) {
   if (item.kind === "Video") {
     return (
       <ArtBox>
-        <DetailVideoMedia item={item} />
+        <DetailVideoMedia key={item.id} item={item} />
       </ArtBox>
     );
   }
