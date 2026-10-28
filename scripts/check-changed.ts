@@ -27,16 +27,19 @@ const [diff, untracked] = await Promise.all([
   git("diff", "--name-only", "--no-renames", mergeBase.out),
   git("ls-files", "--others", "--exclude-standard"),
 ]);
-const changed = [...new Set([...lines(diff.out), ...lines(untracked.out)])]
-  .map((file) => file.replaceAll("\\", "/"))
-  .filter((file) => existsSync(file));
+const touched = [...new Set([...lines(diff.out), ...lines(untracked.out)])].map((file) =>
+  file.replaceAll("\\", "/"),
+);
+const changed = touched.filter((file) => existsSync(file));
 
-if (changed.length === 0) {
+if (touched.length === 0) {
   console.log("No changes to check.");
   process.exit(0);
 }
 
 const code = changed.filter((file) => CODE.test(file));
+// A deleted module can break its importers, so deletions still trigger knip and typecheck.
+const codeTouched = touched.some((file) => CODE.test(file));
 const tests = new Set<string>();
 for (const file of code) {
   if (/\.test\.[jt]sx?$/.test(file)) tests.add(file);
@@ -48,16 +51,21 @@ for (const file of code) {
   }
 }
 const touches = (...names: string[]) =>
-  changed.some((file) => names.includes(file) || TSCONFIG.test(file));
+  touched.some((file) => names.includes(file) || TSCONFIG.test(file));
+const LINT_CONFIG = [".oxlintrc.json", ".oxfmtrc.json"];
+const WORKSPACES = ["extension", "packages/contracts", "packages/ingestion-shared"];
 
 const steps: { name: string; cmd: string[] }[] = [];
-if (code.length)
+const lintAll = touched.some((file) => LINT_CONFIG.includes(file));
+if (lintAll) steps.push({ name: "lint", cmd: ["bun", "run", "lint"] });
+else if (code.length) {
   steps.push({
     name: "oxlint",
     cmd: ["bun", "x", "oxlint", "--no-error-on-unmatched-pattern", ...code],
   });
+}
 const formattable = changed.filter((file) => FORMATTABLE.test(file));
-if (formattable.length) {
+if (!lintAll && formattable.length) {
   steps.push({
     name: "oxfmt",
     cmd: ["bun", "x", "oxfmt", "--check", "--no-error-on-unmatched-pattern", ...formattable],
@@ -65,11 +73,22 @@ if (formattable.length) {
 }
 if (tests.size)
   steps.push({ name: "test", cmd: ["bun", "test", ...[...tests].map((t) => `./${t}`)] });
-if (code.length || touches("package.json", "knip.json")) {
+if (codeTouched || touches("package.json", "knip.json")) {
   steps.push({ name: "knip", cmd: ["bun", "run", "knip"] });
 }
-if (code.length || touches("package.json")) {
+if (codeTouched || touches("package.json")) {
   steps.push({ name: "typecheck", cmd: ["bun", "run", "typecheck"] });
+}
+for (const dir of WORKSPACES) {
+  if (
+    touched.some(
+      (file) =>
+        file.startsWith(`${dir}/`) &&
+        (CODE.test(file) || TSCONFIG.test(file) || file.endsWith("/package.json")),
+    )
+  ) {
+    steps.push({ name: `typecheck ${dir}`, cmd: ["bun", "run", "--cwd", dir, "typecheck"] });
+  }
 }
 
 // Ignore patterns can leave a tool with no targets; that must not fail the run.
