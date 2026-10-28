@@ -1,0 +1,165 @@
+do we really need that bun version pin at all with the like check bun versions script, also you can get rid of the changelog specific rule I put there. kinda useless. you can remove the screenshot note I put in there too. besides all that what can we tale from t3 code to improve our agents file and what can we do to improve it generally
+
+---
+
+why do we repeat the bun version so many times at all. no I meant to get rid of thr never say and agent wrote this line for the change log.  those t3 code improvements seem sound so work on those. but also I do have a mirror on git cafe if that matters. for the general and more risky t3 code improvements, get opus 5.5 on medium to decide on the best decision to take and then go implement the ones it says are good, full stop
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A8bfd1edd-537f-48c8-a67e-c1e3c8f2d862%3Adelegate-task%3A5065937b-d41d-47a4-8d19-0df81cc70907 (Decide AGENTS.md changes) [completed]:
+## A. Effect conventions: ADOPT-MODIFIED
+
+inkling does the opposite of t3code here. `electron/` and `packages/` contain 63 `Effect.fnUntraced` calls and no `Effect.fn` at all. There is no tracer or OTel layer, `Effect.gen` is only used inline or to build layers, and services are `Context.Service` plus `Layer` (`electron/storage/library.ts:98`, `jobs.ts:292`). An agent that copies t3code's guidance or follows the Effect docs will reach for `Effect.fn`. The other rule an agent could break is "Effect stops at the IPC edge" (`main.ts:221` and `:355`). That rule is in `docs/tech-stack.md:28`, which AGENTS.md doesn't point to for Effect. Skip t3code's thin-transport and services material: inkling has one generic command handler, so there is nothing to get wrong there.
+
+Insert this after `- Inferred types over annotations. \`any\` is the enemy.` in **Taste**:
+
+```
+- Effect stays in the main process and stops at the IPC edge; the renderer never imports it at runtime. Reusable Effect functions use `Effect.fnUntraced`, not `Effect.fn` (nothing collects spans). Keep `Effect.gen` for inline programs and layers.
+```
+
+## B. Check changed files: ADOPT-MODIFIED (docs only, no script)
+
+A script isn't worth it. `typecheck` uses tsc-rs and is already fast across the whole repo. `lint` is just `oxlint && oxfmt --check`, and both tools accept file arguments. CI has no changed-files mode to mirror. A new script would also mean another entry in `t3.json`. What's actually missing is the command names. `check:refs` (`scripts/assert-command-refs.ts`) already checks every `bun run <x>` mentioned in AGENTS.md, so naming the commands won't rot quietly.
+
+Replace this bullet in **Verifying**:
+`- Smallest proof that the change works. \`bun test <files>\` for the tests you touched, targeted lint and typecheck for the scope you changed. The full check is ...`
+
+with:
+
+```
+- Smallest proof that the change works: `bun test <files>` for the tests you touched, `bunx oxlint <files>` and `bunx oxfmt --check <files>` for what you changed, and `bun run typecheck` (fast enough to run whole). The full check is `bun run check`, which mirrors the CI frontend job. Do not run it unless you changed something broad or the user asked.
+```
+
+Then shorten the last Verifying bullet (`- Electron and frontend changes get focused tests, typecheck, and changed-file \`oxlint\` and \`oxfmt --check\`. There are no local hooks — ...`) to:
+
+```
+- There are no local hooks. CI runs the frontend checks and Electron package smoke tests.
+```
+
+Small fix in a different file, if you want it: `docs/operations/development.md:48` says typecheck covers "App + benchmark harness", but it also checks `electron/tsconfig.json`.
+
+## C. Lint enforcement of test rules: ADOPT-MODIFIED (one small rule, the rest stays prose)
+
+None of the 41 test files currently breaks any of these rules. My grep for `setTimeout`, `Bun.sleep`, `.skip`/`.todo`, `Date.now()`, `performance.now()` and timeout arguments only matched `retry` in job-queue domain code, which is legitimate. So the value of a rule is guarding against agents that bring t3code habits, nothing more. The plugin has two hand-written rules, 62 and 136 lines, and no rule tests. Build only the cases that can be matched purely on syntax:
+
+- **Build `inkling/no-test-timeout-or-unreasoned-skip`**, roughly 50 to 70 lines in the style of `require-suppression-reason.ts`, scoped to `*.test.ts(x)`. It would flag:
+  - a numeric or options third argument to `test`/`it`/`describe`
+  - `.skip` or `.todo` without a `-- reason` comment on the line
+  - `setTimeout` or `Bun.sleep` wrapped in a Promise inside test bodies
+- **Keep as prose:**
+  - `Date.now`/`performance.now` deltas: fixtures use timestamps legitimately, so this needs a heuristic to tell them apart.
+  - Polling loops: they can't be detected reliably.
+  - Retries: the word collides with the job-queue `retry` API.
+
+If you want to stay strictly within yagni, skip even the one rule and revisit when a violation actually lands. I lean slightly toward building it, because it's cheap and agents will import these habits.
+
+## D. git.cafe mirror: SKIP for now
+
+Nothing in this repo points to cafe: `origin` is GitHub, and `docs/`, `.github/` and AGENTS.md never mention it. t3code's rule depends on a `development.md` section with real URLs and a CLI install line. Guessing those would produce instructions that send PRs to the wrong place. Add nothing until the maintainer confirms:
+
+1. The mirror URL (for example `https://git.cafe/Squidys-Tools/inkling.git`) and whether it syncs both ways, with matching PR and issue numbers.
+2. Whether agents should set `origin` to the cafe URL, or keep GitHub as `origin` and add a `cafe` remote. t3code's rule hinges on "if origin is git.cafe".
+3. The `cafe` CLI version and auth setup they use, and whether `gh` stays the tool for merging (t3code's `--match-head-commit` reason).
+4. Whether CI checks show up on cafe, and whether the bare `#n` link rewriting affects how `Fixes` references are written here.
+
+Once those are answered, port t3code's one bullet into Pull requests plus a short "GitCafe mirror" section in `docs/operations/development.md`.
+
+## E. Tracker contradictions: ADOPT-MODIFIED (Linear wins)
+
+Here is how each source is actually used:
+
+- **Linear:** it's the real tracker. `roadmap.md` and `changelog.md` both cite `SQU-*` IDs (`changelog.md` has 22).
+- **GitHub issues:** they hold only automated Link Checker reports.
+- **`roadmap.md`:** its own header calls it a milestone checklist of shipped work. Its job is "standing", per the Documentation section.
+- **`changelog.md`:** the history.
+
+So "tick roadmap.md" and "no second checklist" don't actually conflict: roadmap shows milestone standing, not per-task tracking. The wording just makes them look like they conflict.
+
+Replace `- Track active maintainer work in the GitHub issue or project item that owns it. External proposals follow \`CONTRIBUTING.md\`.` with:
+
+```
+- Track active maintainer work in its Linear issue (see [Linear issues](#linear-issues)). External proposals follow `CONTRIBUTING.md`.
+```
+
+Replace `- A merged PR is the implementation record. Close or update its tracking item when the work lands; do not preserve a second checklist in the repository.` with:
+
+```
+- A merged PR is the implementation record. Do not keep a task checklist in the repository; `docs/roadmap.md` records milestone standing only.
+```
+
+In **Linear issues**, replace `- One Linear issue owns one task (e.g. \`SQU-6\`). That issue is the tracker — not \`roadmap.md\`, not a plan file.` with:
+
+```
+- One Linear issue owns one task (e.g. `SQU-6`). That issue is the tracker, not a plan file.
+```
+
+Also in **Linear issues**, replace `- If merged: move the issue to Done. A merged PR is the implementation record, don't keep a second checklist.` with:
+
+```
+- If merged: move the issue to Done.
+```
+
+Keep the "tick the roadmap box, add a changelog line" bullet as it is; it's now consistent. `docs/bugs.md`, which the roadmap header calls the list of open defects, is another possible second tracker. I'd flag that to the maintainer rather than change it here.
+
+## F. Rot-prone specifics: ADOPT-MODIFIED
+
+48 is still correct (`benchmarks/manifest.json` lists 48 IDs), but the number adds nothing and will go stale. The `docs/` line is already wrong: `docs/` also holds `bugs.md`, `design.md`, `models.md`, `README.md` and `operations/`, so "No other docs home exists yet" is false. The Documentation section already covers what that line says.
+
+In **Where code lives**, replace `- \`benchmarks/\` holds the 48 item corpus, the harness, expected outputs, and results. Of the results, only \`results-latest.json\` and \`summary.md\` are tracked.` with:
+
+```
+- `benchmarks/` holds the corpus, the harness, expected outputs, and results. Of the results, only `results-latest.json` and `summary.md` are tracked.
+```
+
+Delete the line `- \`docs/\` holds product, behavior, stack, roadmap, and changelog. No other docs home exists yet.` entirely.
+
+## G. Duplicate "If a rule here fights..." sentence: ADOPT
+
+Keep the one at the end of **A note on taste**, which sits next to "good defaults… preferences should be able to override anything here". Delete the last bullet of **Taste**: `- If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.`
+
+## H. Scoping note for "Hit every surface": ADOPT-MODIFIED
+
+It's worth one clause. The intro already limits the list to "ingestion or display work", but "walk this list and say which entries applied" still pushes the agent to recite all of it. Replace `Before calling ingestion or display work done, walk this list and say which entries applied.` with:
+
+```
+Before calling ingestion or display work done, walk this list and name the entries that applied; skip the rest silently.
+```
+
+| Item | Verdict | Summary |
+|---|---|---|
+| A | ADOPT-MODIFIED | One Taste bullet: Effect stays in main and stops at IPC; use `Effect.fnUntraced` (63 uses, 0 `Effect.fn`), not t3code's `Effect.fn` |
+| B | ADOPT-MODIFIED | No new script; name `bunx oxlint/oxfmt --check <files>` and `bun run typecheck` in Verifying, which `check:refs` keeps honest |
+| C | ADOPT-MODIFIED | Optionally build one ~60-line rule for timeout args, reasonless skips and sleeps in tests; wall-clock, polling and retry stay prose |
+| D | SKIP | Nothing in the repo mentions cafe; add nothing until the maintainer confirms URL, remote layout, CLI and sync details |
+| E | ADOPT-MODIFIED | Linear is the tracker; roadmap records milestone standing only; drop the GitHub-issue wording and duplicate "second checklist" lines |
+| F | ADOPT-MODIFIED | Drop "48" (true but rot-prone); delete the `docs/` catalog line (already false) |
+| G | ADOPT | Keep the copy in "A note on taste"; delete the Taste bullet |
+| H | ADOPT-MODIFIED | One clause: name the entries that applied, skip the rest silently |
+
+---
+
+Wait I have a babysittting skill right? We can maybe just get rid of the line in the agents file because of it since i always use the skill anyway. Ehh I'll think about git cafe later. Is it not just better to get rid of pinning the bun version in docs since its pinned in package lock. what about that tsconfig?
+
+---
+
+[Assistant quote](t3-citation://v1/8164cce9-439b-4404-a9e9-e2c2bccb629b/7dd9eb6c-93b8-42d4-99b7-8e9283e53326/message%3Aprovider%3AclaudeAgent%3Anative-item%3A71dd001d-864a-46dd-85f5-de18119062b5?text=They+now+say+%22see+.bun-version&start=433&end=463&prefix=ONTRIBUTING+and+development.md.+&suffix=%22.+One+correction%3A+the+lockfile+&comment=any+reason+we%27re+still+using+a+.bun-version)
+
+---
+
+[Assistant quote](t3-citation://v1/8164cce9-439b-4404-a9e9-e2c2bccb629b/7dd9eb6c-93b8-42d4-99b7-8e9283e53326/message%3Aprovider%3AclaudeAgent%3Anative-item%3A058d4166-54fd-4758-87a0-b2036523e8b9?text=Cut+check%3Abun-version+down+to+%22running+Bun+equals+packageManager%22.+It+would+still+catch+a+wrong+local+install.&start=674&end=784&prefix=curity.yml+path+filters+can+go.+&suffix=+Update+the+prose+that+mentions+&comment=why+do+we+need+to+do+this+at+all%2C+why+do+we+have+it)
+
+---
+
+what about we cleanup everything but the one file. would help with everything and still gaurd against a wrong contributors local install right?
+
+---
+
+No no no. I meant shouldnt keeping the bun version file gaurd against a wrong local install
+
+---
+
+merge, ,also the bun version should be 1.4.4 now
+
+---
+
+file a pr, babysit then merge

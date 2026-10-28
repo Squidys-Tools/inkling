@@ -3,9 +3,15 @@
   "checkpoint_id": "01M61JWEYZZ733DW7JQ77340RG",
   "strategy": "manual-commit",
   "branch": "t3/compare-agents-md-with-t3code",
-  "checkpoints_count": 1,
+  "checkpoints_count": 10,
   "files_touched": [
-    "AGENTS.md"
+    ".bun-version",
+    ".github/workflows/ci.yml",
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "README.md",
+    "docs/operations/development.md",
+    "package.json"
   ],
   "sessions": [
     {
@@ -14,13 +20,20 @@
       "compact_transcript": "/0/transcript.jsonl",
       "content_hash": "/0/content_hash.txt",
       "prompt": "/0/prompt.txt"
+    },
+    {
+      "metadata": "/1/metadata.json",
+      "transcript": "/1/full.jsonl",
+      "compact_transcript": "/1/transcript.jsonl",
+      "content_hash": "/1/content_hash.txt",
+      "prompt": "/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 22,
-    "cache_creation_tokens": 52310,
-    "cache_read_tokens": 611755,
-    "output_tokens": 9180,
-    "api_call_count": 11
+    "input_tokens": 112,
+    "cache_creation_tokens": 460708,
+    "cache_read_tokens": 5009840,
+    "output_tokens": 52104,
+    "api_call_count": 53
   }
 }

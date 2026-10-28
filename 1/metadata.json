@@ -1,0 +1,100 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M61JWEYZZ733DW7JQ77340RG",
+  "session_id": "f54607ea-92dc-4b3a-8ea9-8c61cf9502bf",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-28T15:43:30.853499Z",
+  "branch": "t3/compare-agents-md-with-t3code",
+  "checkpoints_count": 9,
+  "save_step_count": 8,
+  "files_touched": [
+    ".bun-version",
+    ".github/workflows/ci.yml",
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "README.md",
+    "docs/operations/development.md",
+    "package.json"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "dfd7eff318d6",
+  "checkpoint_transcript_start": 54,
+  "transcript_lines_at_start": 54,
+  "compact_transcript_start": 4,
+  "token_usage": {
+    "input_tokens": 90,
+    "cache_creation_tokens": 408398,
+    "cache_read_tokens": 4398085,
+    "output_tokens": 42924,
+    "api_call_count": 42
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01WeePa7864R6AnUyRMSTBoJ",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "merge"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "dfd7eff318d6",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 446,
+        "end": 447,
+        "entry_ids": [
+          "8be829d2-5200-474b-911c-acec7b51a22e"
+        ],
+        "tool_use_id": "toolu_01WeePa7864R6AnUyRMSTBoJ"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01WeePa7864R6AnUyRMSTBoJ"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: merge",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01MLba4vhvcxvBXdGvsqq25j",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "file-pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "dfd7eff318d6",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 464,
+        "end": 465,
+        "entry_ids": [
+          "56b10270-cebc-4d54-8734-1f061e0c7a16"
+        ],
+        "tool_use_id": "toolu_01MLba4vhvcxvBXdGvsqq25j"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01MLba4vhvcxvBXdGvsqq25j"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: file-pr",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 9
+  }
+}
