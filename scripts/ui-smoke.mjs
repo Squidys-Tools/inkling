@@ -353,7 +353,7 @@ async function run() {
     });
     const noteText = "ui smoke note";
     await step("note is created and appears in the grid", async () => {
-      await cdp.evaluate(clickSelector, 'button[data-tooltip="Add something to your library"]');
+      await cdp.evaluate(clickSelector, "button.add-button");
       await waitFor("add menu", hasSelector, ".add-menu-tile");
       await cdp.evaluate(clickCaptureOption, "Note");
       await waitFor("note input", hasSelector, 'textarea[aria-label="New note"]');
