@@ -85,6 +85,7 @@ jobs:
         run: |
           bun scripts/linux-backend-smoke.mjs
           bun scripts/update-feed-smoke.mjs .artifacts/electron/linux-unpacked
+          python3 -I -B scripts/update-helper.test.py
       - uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.name }}

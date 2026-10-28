@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { basename, dirname } from "node:path";
 import { gt, prerelease, valid } from "semver";
 import { CancellationToken } from "builder-util-runtime";
 import type { UpdateChannel, UpdateState } from "@inkling/contracts";
 
-type UpdateInfo = { version: string };
+type UpdateInfo = { version: string; files?: ReadonlyArray<{ url: string; sha512: string }> };
 export type UpdaterLike = {
   autoDownload: boolean;
   autoInstallOnAppQuit: boolean;
@@ -68,7 +68,7 @@ export function createUpdateController({
   currentVersion: string;
   disabledReason?: string | null;
   preferences: ReturnType<typeof createUpdatePreferences>;
-  install: (file: string, version: string) => Promise<void>;
+  install: (file: string, version: string, sha512: string) => Promise<void>;
 }) {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
@@ -86,6 +86,7 @@ export function createUpdateController({
   let cancellation: CancellationToken | undefined;
   let download: { file: string; hash: string; version: string } | undefined;
   let installRecord: { from: string; target: string } | undefined;
+  let feedFiles: NonNullable<UpdateInfo["files"]> = [];
   const applyChannel = () => {
     autoUpdater.channel = state.channel;
     autoUpdater.allowPrerelease = state.channel === "nightly";
@@ -150,6 +151,7 @@ export function createUpdateController({
       const result = await autoUpdater.checkForUpdates();
       const version = result?.updateInfo.version;
       const available = Boolean(result?.isUpdateAvailable && version && acceptable(version));
+      feedFiles = available ? (result?.updateInfo.files ?? []) : [];
       state = {
         ...state,
         status: available
@@ -199,26 +201,35 @@ export function createUpdateController({
       run(async () => {
         if (state.availableVersion !== expectedVersion || !acceptable(expectedVersion))
           throw new Error("Check for this update before downloading it.");
-        const fresh = await check();
-        if (fresh?.version !== expectedVersion) return snapshot();
         cancellation = new CancellationToken();
         const token = cancellation;
         download = undefined;
-        state = {
-          ...state,
-          status: "downloading",
-          downloadedVersion: null,
-          progress: 0,
-          message: null,
-          errorContext: null,
-        };
         try {
+          const fresh = await check();
+          if (token.cancelled) throw new Error("cancelled");
+          if (fresh?.version !== expectedVersion) return snapshot();
+          state = {
+            ...state,
+            status: "downloading",
+            downloadedVersion: null,
+            progress: 0,
+            message: null,
+            errorContext: null,
+          };
           const files = await autoUpdater.downloadUpdate(token);
           if (token.cancelled) throw new Error("cancelled");
           if (!files[0]) throw new Error("No update file downloaded");
-          const hash = await updateFileHash(files[0]);
+          const expectedHash = feedFiles.find(
+            (file) =>
+              basename(decodeURIComponent(new URL(file.url, "https://invalid.local/").pathname)) ===
+              basename(files[0]),
+          )?.sha512;
+          if (!expectedHash || !/^[A-Za-z0-9+/]{86}==$/.test(expectedHash))
+            throw new Error("The update feed has no matching SHA512 digest.");
+          if ((await updateFileHash(files[0])) !== expectedHash)
+            throw new Error("Downloaded bytes do not match the update feed.");
           if (token.cancelled) throw new Error("cancelled");
-          download = { file: files[0], version: expectedVersion, hash };
+          download = { file: files[0], version: expectedVersion, hash: expectedHash };
           state = {
             ...state,
             status: "downloaded",
@@ -263,7 +274,7 @@ export function createUpdateController({
           installRecord = { from: currentVersion, target: expectedVersion };
           await preferences.write({ channel: state.channel, install: installRecord });
           state = { ...state, status: "installing", message: null, errorContext: null };
-          await install(download.file, expectedVersion);
+          await install(download.file, expectedVersion, download.hash);
         } catch {
           fail(
             "install",

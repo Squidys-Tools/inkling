@@ -60,8 +60,12 @@ Nightly (`nightly`). Stable / Beta is the regular beta product, not a third
 prerelease feed. Nightlies require strictly newer dated `-nightly.YYYYMMDD.N`
 versions; switching back never silently downgrades a library. Check, download,
 cancel and install are separate actions. Installation requires explicit native
-confirmation; Debian uses PolicyKit and `dpkg --install` for the verified inkling
-package, with no silent dependency repair or authentication bypass. A canceled
+confirmation; Debian uses PolicyKit to run its fixed root-owned Python helper.
+After authorization the helper copies the cache archive into private root-owned
+staging, verifies the feed-pinned SHA512 and package/version/architecture there,
+then runs `dpkg --install` only on that copy. Cache rewrites during consent or
+authentication cannot substitute installed bytes. No silent dependency repair
+or authentication bypass is used. A canceled
 prompt or dependency failure remains retryable; a successful new process checks
 the version before treating the update as applied.
 

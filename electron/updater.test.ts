@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { EventEmitter } from "node:events";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,7 +22,18 @@ async function fixture() {
     channel: null as string | null,
     checkForUpdates: async () => {
       checks++;
-      return { isUpdateAvailable: true, updateInfo: { version } };
+      return {
+        isUpdateAvailable: true,
+        updateInfo: {
+          version,
+          files: [
+            {
+              url: "update.deb",
+              sha512: createHash("sha512").update("verified test payload").digest("base64"),
+            },
+          ],
+        },
+      };
     },
     downloadUpdate: async () => [file],
   });
@@ -93,6 +105,10 @@ test("rejects lower/equal versions, wrong prerelease trains and a stale or modif
       "install",
     );
     expect(f.counts().installs).toBe(0);
+    expect((await f.controller.downloadUpdate("0.2.0-nightly.20261028.2")).errorContext).toBe(
+      "download",
+    );
+    expect((await f.controller.getState()).downloadedVersion).toBeNull();
     await f.controller.setChannel("latest");
     await expect(f.controller.installUpdate("0.2.0-nightly.20261028.2")).rejects.toThrow(
       "Download",
@@ -123,7 +139,32 @@ test("single-flight excludes channel changes and duplicate clicks; cancellation 
     await f.controller.cancelDownload();
     finish([f.file]);
     expect((await pending).status).toBe("cancelled");
-    f.updater.downloadUpdate = async () => [f.file];
+    let refreshEntered!: () => void;
+    let releaseRefresh!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      refreshEntered = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    let downloads = 0;
+    const normalCheck = f.updater.checkForUpdates;
+    f.updater.checkForUpdates = async () => {
+      refreshEntered();
+      await gate;
+      return normalCheck();
+    };
+    f.updater.downloadUpdate = async () => {
+      downloads++;
+      return [f.file];
+    };
+    const refreshing = f.controller.downloadUpdate("0.1.1");
+    await entered;
+    await f.controller.cancelDownload();
+    releaseRefresh();
+    expect((await refreshing).status).toBe("cancelled");
+    expect(downloads).toBe(0);
+    f.updater.checkForUpdates = normalCheck;
     const failed = createUpdateController({
       ...f.options,
       install: async () => {

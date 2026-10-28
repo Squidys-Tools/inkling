@@ -128,6 +128,10 @@
     },
     "extraResources": [
       {
+        "from": "electron/update-helper.py",
+        "to": "update-helper.py"
+      },
+      {
         "from": ".artifacts/electron-resources/models",
         "to": "models",
         "filter": [
@@ -178,7 +182,12 @@
     },
     "deb": {
       "maintainer": "inkling contributors",
-      "fpm": ["--depends", "pkexec | policykit-1"]
+      "fpm": [
+        "--depends",
+        "pkexec | policykit-1",
+        "--depends",
+        "python3"
+      ]
     },
     "publish": [
       {

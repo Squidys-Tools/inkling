@@ -71,7 +71,7 @@ const updateController = createUpdateController({
     packageType,
   }),
   preferences: createUpdatePreferences(join(libraryDirectory, "updates.json")),
-  install: async (file, version) => {
+  install: async (file, version, sha512) => {
     if (!mainWindow || mainWindow.isDestroyed()) throw new Error("No active app window.");
     const { response } = await dialog.showMessageBox(mainWindow, {
       type: "question",
@@ -85,7 +85,7 @@ const updateController = createUpdateController({
     });
     if (response !== 1) throw new Error("Update installation canceled.");
     if (process.platform === "linux" && packageType === "deb") {
-      await installDebianUpdate(file, version);
+      await installDebianUpdate(file, version, sha512);
       app.relaunch();
       app.quit();
     } else {
