@@ -53,6 +53,37 @@
         "label": "Skill: full-send",
         "default_collapsed": true
       }
+    },
+    {
+      "id": "claude-skill-toolu_011Qjxw8S5SJnEcVXGbJsVzx",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "file-pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "78ee0cdaedee",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 314,
+        "end": 315,
+        "entry_ids": [
+          "9ee9a858-0bdd-4ca8-adfe-8f317ac0ce42"
+        ],
+        "tool_use_id": "toolu_011Qjxw8S5SJnEcVXGbJsVzx"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_011Qjxw8S5SJnEcVXGbJsVzx"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: file-pr",
+        "default_collapsed": true
+      }
     }
   ]
 }
