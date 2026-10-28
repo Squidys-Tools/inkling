@@ -1,0 +1,88 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M61CYS7SBJ56MWTWSM2V84MF",
+  "session_id": "8638b0ca-d9b5-4650-8393-a9f1961040bf",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-28T13:59:56.2093723Z",
+  "branch": "t3/auto-label-pr-size",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/pr-size.yml"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-haiku-5-5",
+  "turn_id": "7eaa8f94ce57",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 83403,
+    "cache_read_tokens": 1114237,
+    "output_tokens": 31219,
+    "api_call_count": 16
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01K5hi1sZ2HFHJWuWXgjko8N",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "full-stop"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "7eaa8f94ce57",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 72,
+        "end": 73,
+        "entry_ids": [
+          "de2d73cf-4a15-4618-943b-ac8e8e4529cc"
+        ],
+        "tool_use_id": "toolu_01K5hi1sZ2HFHJWuWXgjko8N"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01K5hi1sZ2HFHJWuWXgjko8N"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: full-stop",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01Y47pHU5qLRt4NBzcj4Xwmd",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "file-pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "7eaa8f94ce57",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 94,
+        "end": 95,
+        "entry_ids": [
+          "a4863aef-d8bc-4d91-8ad1-bb422344de3b"
+        ],
+        "tool_use_id": "toolu_01Y47pHU5qLRt4NBzcj4Xwmd"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Y47pHU5qLRt4NBzcj4Xwmd"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: file-pr",
+        "default_collapsed": true
+      }
+    }
+  ]
+}
