@@ -92,6 +92,37 @@
         "label": "Skill: file-pr",
         "default_collapsed": true
       }
+    },
+    {
+      "id": "claude-skill-toolu_01KtfLgwsNasNB4VukNwLDi7",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "babysit-pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "dfd7eff318d6",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 537,
+        "end": 538,
+        "entry_ids": [
+          "057d71d7-c7b1-4c39-aac5-e06406937942"
+        ],
+        "tool_use_id": "toolu_01KtfLgwsNasNB4VukNwLDi7"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01KtfLgwsNasNB4VukNwLDi7"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: babysit-pr",
+        "default_collapsed": true
+      }
     }
   ],
   "session_metrics": {
