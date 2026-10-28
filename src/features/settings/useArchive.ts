@@ -178,26 +178,29 @@ export function useArchive({
     };
   }, [isArchiveTabOpen, noteBodyCacheRef, setCaptureError]);
 
-  useEffect(() => {
-    if (isSettingsOpen) return;
-    setIsArchiveSelectionMode(false);
-    setSelectedArchivedIds(new Set());
-  }, [isSettingsOpen]);
-
   // Each Settings session starts with the archive unread, so a list left from an
   // earlier session, including one an import read while Settings was closed, is
   // never shown as current.
-  useEffect(() => {
-    if (isSettingsOpen) setIsArchiveLoaded(shouldUseSeedLibrary());
-  }, [isSettingsOpen]);
+  const [wasSettingsOpen, setWasSettingsOpen] = useState(isSettingsOpen);
+  if (wasSettingsOpen !== isSettingsOpen) {
+    setWasSettingsOpen(isSettingsOpen);
+    if (isSettingsOpen) {
+      setIsArchiveLoaded(shouldUseSeedLibrary());
+    } else {
+      setIsArchiveSelectionMode(false);
+      setSelectedArchivedIds(new Set());
+    }
+  }
 
-  useEffect(() => {
+  const [prunedForItems, setPrunedForItems] = useState(archivedItems);
+  if (prunedForItems !== archivedItems) {
+    setPrunedForItems(archivedItems);
     const archivedIds = new Set(archivedItems.map((item) => String(item.id)));
     setSelectedArchivedIds((current) => {
       const next = new Set(Array.from(current).filter((id) => archivedIds.has(id)));
       return next.size === current.size ? current : next;
     });
-  }, [archivedItems]);
+  }
 
   const restoreArchivedItems = useCallback((restoredItems: LibraryItem[]) => {
     if (restoredItems.length === 0) return;

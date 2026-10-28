@@ -58,9 +58,11 @@ export function useSettings({
     };
   }, [isSettingsOpen]);
 
-  useEffect(() => {
+  const [wasSettingsOpen, setWasSettingsOpen] = useState(false);
+  if (wasSettingsOpen !== isSettingsOpen) {
+    setWasSettingsOpen(isSettingsOpen);
     if (!isSettingsOpen) setSettingsTab("general");
-  }, [isSettingsOpen]);
+  }
 
   // Version, size and last copy are optional: each stays hidden when the
   // desktop backend cannot supply it (preview, or a failed call). The size
@@ -90,10 +92,7 @@ export function useSettings({
 
   const isLibraryNarrowed = Boolean(activeSpaceId) || debouncedQuery.trim() !== "";
   useEffect(() => {
-    if (!isSettingsOpen || !canUseDesktopBackend || !isLibraryNarrowed) {
-      setWholeLibraryKinds(null);
-      return;
-    }
+    if (!isSettingsOpen || !canUseDesktopBackend || !isLibraryNarrowed) return;
     let cancelled = false;
     void listActiveItems().then(
       (cards) => {
@@ -103,6 +102,7 @@ export function useSettings({
     );
     return () => {
       cancelled = true;
+      setWholeLibraryKinds(null);
     };
   }, [canUseDesktopBackend, isLibraryNarrowed, isSettingsOpen]);
 

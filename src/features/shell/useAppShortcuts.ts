@@ -45,8 +45,10 @@ export function useAppShortcuts({
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const openCaptureRef = useRef(openCapture);
   const closeCaptureModalRef = useRef(closeCaptureModal);
-  openCaptureRef.current = openCapture;
-  closeCaptureModalRef.current = closeCaptureModal;
+  useEffect(() => {
+    openCaptureRef.current = openCapture;
+    closeCaptureModalRef.current = closeCaptureModal;
+  });
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isShortcutsOpen) return;

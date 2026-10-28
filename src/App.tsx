@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Loading01Icon, RotateCwIcon, Settings01Icon } from "@hugeicons/core-free-icons";
@@ -316,7 +316,9 @@ function App() {
       return matchesQuery && matchesView;
     });
   }, [activeSpace, activeView, canUseDesktopBackend, items, localSpaceItems, query]);
-  filteredItemsRef.current = filteredItems;
+  useLayoutEffect(() => {
+    filteredItemsRef.current = filteredItems;
+  }, [filteredItems]);
   // Both sit under the toolbar in one column, so a capture error and the pinned
   // query row stack instead of overlapping.
   const showFilterRow = !isSearchFocused && query.trim() !== "";
@@ -559,12 +561,12 @@ function App() {
               cancelRename: () => setRenamingSpaceId(null),
               remove: (space) => void handleDeleteSpace(space),
             }}
+            draftNameInputRef={newSpaceNameInputRef}
             draft={{
               isOpen: isCreatingSpace,
               name: newSpaceName,
               kind: newSpaceKind,
               query,
-              nameInputRef: newSpaceNameInputRef,
               toggle: () => {
                 setIsCreatingSpace((current) => !current);
                 setNewSpaceName("");

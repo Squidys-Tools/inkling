@@ -406,7 +406,9 @@ export function LiquidGlass({
   });
   const [gpu, setGpu] = useState<LiquidGpu | null>(null);
   const rootsRef = useRef(targetRoots);
-  rootsRef.current = targetRoots;
+  useLayoutEffect(() => {
+    rootsRef.current = targetRoots;
+  });
 
   useLayoutEffect(() => {
     wrapRef.current?.append(content);
@@ -430,6 +432,7 @@ export function LiquidGlass({
     // The content lays out at the wrapper's size. The canvas can be larger (see
     // LibraryStage), so the content no longer fills its parent.
     const sizeContent = (width: number, height: number) => {
+      // oxlint-disable-next-line react/immutability -- content is a DOM element held in state to portal into; it is sized imperatively.
       content.style.width = `${width}px`;
       content.style.height = `${height}px`;
     };

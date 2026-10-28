@@ -59,7 +59,7 @@ export function SplitText({
       split?.revert();
       el.style.visibility = "";
     };
-  }, [text, delay]);
+  }, [delay]);
 
   return (
     <h1 ref={ref} className={className} style={style}>
