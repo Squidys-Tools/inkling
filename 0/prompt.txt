@@ -1,0 +1,21 @@
+Act as the implementation sub-agent for this task.
+
+Repo: inkling (Electron + React + TS, Bun, Windows-only desktop app). Read AGENTS.md at the repo root and follow it. Do the work yourself; no subagents. This machine is Windows, which is the same OS CI will use, so reproduce locally instead of burning CI runs.
+
+## Goal
+The `frontend` job in `.github/workflows/ci.yml` runs on `ubuntu-24.04`, so `bun test` (including asset path containment in `electron/storage/shared.ts` `isInside`, which depends on `node:path` separators) only proves POSIX behavior while the app ships on Windows. Move the `frontend` job to `windows-latest` so the full suite runs on the real target OS. (t3code has a Windows test lane in `.github/workflows/windows-tests.yml`; ours runs by default instead of on manual dispatch because our app is Windows-only.)
+
+## Requirements
+- Keep the `changes` (path filter) job on ubuntu. Move only `frontend` to `windows-latest`. Keep the job name `Frontend checks` and job id `frontend` unchanged (branch protection may require that name). Do not touch the Linux Xvfb smoke job in `electron-preview.yml` or release workflows.
+- Windows runner shell gotcha: the default shell is pwsh, and in a multi-line `run: |` block a failing native command in the middle does NOT fail the step; only the last command's exit code counts. Steps with several commands (the typecheck workspaces step, the canary step) must either use `shell: bash` (GitHub's bash step uses `set -e` semantics) or be split into one command per step. Pick the smallest approach and apply it to every multi-command step.
+- Line endings: Windows runners may check out with CRLF, which can make `oxfmt --check` or tests fail. Check `.gitattributes` and the checkout config; make the checkout produce LF the way the repo expects (e.g. a `.gitattributes` eol rule or `git config --global core.autocrlf false` before checkout) if needed. Keep this minimal and only if the evidence shows it is needed.
+- Fix any test that fails on Windows. Locally run the full CI frontend sequence once on this machine (this task explicitly authorizes a full `bun test`, `bun run typecheck`, `bun run knip`, `bun run lint`, `bun run build`, `bun run build:app`, `bun run ingest:smoke`; skip steps that are clearly the same on every OS if slow, but do run `bun test`). Also run the typecheck/canary commands as CI does. Fix real failures with the smallest change; if a failure is a genuine Windows-only product bug rather than a test assumption, report it instead of papering over it.
+- Update docs that describe CI: `docs/operations/development.md` (CI behavior section) and CONTRIBUTING.md if they say CI runs on Linux. Rewrite the affected sentence; do not append.
+- `ci.yml` is not covered by CI's paths-ignore, so CI will run on your PR with the real result. That run is your final proof.
+
+## Delivery (full-send, but YOU do not merge or watch; the parent agent will)
+- Branch from latest origin/main (`git fetch origin; git switch -c ci/frontend-on-windows origin/main`). Note #194 recently changed ci.yml, so start from fresh main.
+- Conventional commit, e.g. `ci(github): run the frontend checks on windows-latest`. End with your own `Co-Authored-By: <your model name> <noreply@anthropic.com>`.
+- Push and open a PR with `gh` (use the `file-pr` skill if you have it). Body: problem in a sentence or two, what changed, one line on proof (local Windows run results + note CI result), end with your model name and harness `(T3 Code)`, then `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+- Do not merge, enable auto-merge, or call watch_pull_request. No sleeping or polling; look at check state once after pushing and report it.
+- Last line of your final message exactly: `PR <full URL>, head <SHA>, checks and reviews <state>`. Above it, 3-8 lines: what you changed, what failed on Windows and how you fixed it, local run timings if useful, doubts.

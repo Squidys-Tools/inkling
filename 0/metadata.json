@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M61NPB8ACZ2ZS0J27FNEF51F",
+  "session_id": "e20db88a-4723-4e36-a101-50bd938b8da9",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-28T16:32:37.9011549Z",
+  "branch": "ci/frontend-on-windows",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    "docs/operations/development.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "1f491eac418f",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 58,
+    "cache_creation_tokens": 48158,
+    "cache_read_tokens": 1624848,
+    "output_tokens": 9114,
+    "api_call_count": 29
+  }
+}
