@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Duration, Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -1041,20 +1041,20 @@ test("data directory keeps portable precedence and the product app-data identity
       appDataDirectory: "/users/test/AppData/Roaming",
       portable: true,
     }),
-  ).toBe("/apps/inkling/data");
+  ).toBe(join("/apps/inkling", "data"));
   expect(
     resolveLibraryDataDirectory({
       executablePath: "/apps/inkling/inkling.exe",
       appDataDirectory: "/users/test/AppData/Roaming",
     }),
-  ).toBe("/users/test/AppData/Roaming/com.inkling.library");
+  ).toBe(join("/users/test/AppData/Roaming", "com.inkling.library"));
   expect(
     resolveLibraryDataDirectory({
       executablePath: "/apps/inkling/inkling.exe",
       appDataDirectory: "/users/test/AppData/Roaming",
       overrideDirectory: "/scratch/library",
     }),
-  ).toBe("/scratch/library");
+  ).toBe(resolve("/scratch/library"));
 });
 
 test("the worker leaves unregistered kinds queued instead of blocking capture", async () => {

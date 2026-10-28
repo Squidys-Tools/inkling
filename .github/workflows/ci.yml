@@ -89,7 +89,12 @@ jobs:
     name: Frontend checks
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-24.04
+    # inkling ships on Windows only, so the suite runs on the real target OS.
+    runs-on: windows-latest
+    defaults:
+      run:
+        # pwsh only fails a multi-line step on its last command; bash stops at the first failure.
+        shell: bash
 
     steps:
       - name: Check out repository
@@ -125,7 +130,7 @@ jobs:
         run: bun run check:refs
 
       - name: Run unit tests
-        run: bun test
+        run: bun run test
 
       - name: Check for unused code
         run: bun run knip

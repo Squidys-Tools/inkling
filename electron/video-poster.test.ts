@@ -116,8 +116,8 @@ test("a captured video gets its poster from a background job, not from capture",
   const posterPath = `assets/items/${video.id}/thumbnail.webp`;
   expect((await library.getItem(video.id))?.thumbnailPath).toBe(posterPath);
   expect(shell.requested).toHaveLength(1);
-  expect(shell.requested[0].path).toBe(
-    realpathSync(join(root, "assets", "items", video.id, "clip.mp4")),
+  expect(realpathSync.native(shell.requested[0].path)).toBe(
+    realpathSync.native(join(root, "assets", "items", video.id, "clip.mp4")),
   );
   expect(shell.requested[0].size.width).toBe(512);
   // Read as bytes: sharp keeps a path-based input open, which blocks cleanup on Windows.
@@ -203,8 +203,8 @@ test("backfill posters only local videos that have none and have not already fai
 
   await worker.drain();
 
-  expect(shell.requested.map((request) => request.path)).toEqual([
-    realpathSync(join(root, "assets", "items", legacy.id, "legacy.mp4")),
+  expect(shell.requested.map((request) => realpathSync.native(request.path))).toEqual([
+    realpathSync.native(join(root, "assets", "items", legacy.id, "legacy.mp4")),
   ]);
   expect((await library.getItem(legacy.id))?.thumbnailPath).toBe(
     `assets/items/${legacy.id}/thumbnail.webp`,
