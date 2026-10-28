@@ -20,6 +20,7 @@
     "preview": "vite preview",
     "check": "bun run check:bun-version && bun install --frozen-lockfile --ignore-scripts && bun run typecheck && bun run --cwd extension typecheck && bun run --cwd packages/ingestion-shared typecheck && bun run --cwd packages/contracts typecheck && bun run check:refs && bun test && bun run knip && bun run lint && bun run build && bun run build:app && bun run ingest:smoke && bun run --cwd extension build",
     "check:bun-version": "bun -e \"const expected = (await Bun.file('.bun-version').text()).trim(); if (Bun.version !== expected) { console.error('Expected Bun ' + expected + ', found ' + Bun.version); process.exit(1); }\"",
+    "check:changed": "bun scripts/check-changed.ts",
     "check:refs": "bun scripts/assert-command-refs.ts",
     "typecheck": "tsc-rs --noEmit && tsc-rs -p benchmarks/harness/tsconfig.json --noEmit && tsc-rs -p electron/tsconfig.json --noEmit",
     "typecheck:tsc": "tsc --noEmit && tsc -p benchmarks/harness/tsconfig.json --noEmit && tsc -p electron/tsconfig.json --noEmit",

@@ -45,6 +45,7 @@ It needs a display; on Linux without one it runs under `xvfb-run`.
 | Goal | Command | Notes |
 |---|---|---|
 | Everything | `bun run check` | Bun pin, frozen install (`--ignore-scripts`), typecheck of every workspace, tests, Knip, lint, both builds, ingestion smoke, extension build. CI runs the same steps as separate jobs |
+| Changed files | `bun run check:changed [ref]` | Pre-push subset for what the branch changed since `origin/main` (or `ref`): oxlint, oxfmt, related tests, Knip, typecheck. Not a CI substitute |
 | Typecheck | `bun run typecheck` | App, benchmark harness, and `electron/` |
 | Tests | `bun test` | |
 | Unused code | `bun run knip` | Hard gate in CI; `knip.json` owns entry/project patterns. To clean up locally, run `bunx knip --fix` then `bun install` (re-syncs the lockfile if deps were pruned), fix any `noUnusedLocals` fallout, and re-run `bun run check` |

@@ -44,6 +44,12 @@
       "runOnWorktreeCreate": false
     },
     {
+      "name": "Check changed files",
+      "command": "bun run check:changed",
+      "icon": "test",
+      "runOnWorktreeCreate": false
+    },
+    {
       "name": "Typecheck",
       "command": "bun run typecheck",
       "icon": "test",
