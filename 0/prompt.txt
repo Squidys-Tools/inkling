@@ -1,0 +1,25 @@
+Act as the implementation sub-agent for this task.
+
+You are working in the inkling repo (Electron + React + TypeScript + SQLite, Windows app). Read AGENTS.md at the repo root first and follow it (docs rules, PR rules, the "three ways to hurt yourself", no repo-wide checks). Do the work yourself; do not start subagents.
+
+## Goal
+The "Where code lives" section of AGENTS.md is stale and sends agents to the wrong files. Fix it with the smallest accurate edit. Docs-only change.
+
+## Known problems (verify each against the code before writing; do not trust this list blindly)
+1. The `src/components/` bullet says "The library grid, cards, and Spaces UI live in `src/App.tsx`, and the reader is `src/ReaderView.tsx`." In reality the app is organised by feature under `src/features/` (capture, item-view, library, settings, shell, spaces). The library grid/cards are in `src/features/library/` (e.g. LibraryStage.tsx, LibraryCard.tsx), the expanded item overlay and PDF viewer are in `src/features/item-view/`, Spaces logic is in `src/features/spaces/` plus `src/features/shell/SpacesSection.tsx`. `src/App.tsx` is only the top-level wiring of those features. `src/components/` holds shared pieces (ItemMedia.tsx, LiquidGlass, mascot, onboarding, etc.). `src/ReaderView.tsx` still exists; confirm.
+2. The section omits places an agent needs to know about: `packages/contracts` (the IPC command list and Effect Schemas shared by preload, main and renderer; see docs/tech-stack.md), `packages/ingestion-shared`, `extension/` (the browser extension, itself a capture entry point), `scripts/`, and `electron/storage/` (SQLite storage and job queue; confirm the layout). Check `src/lib/`, `src/ui/` too and mention only what is useful.
+3. Check every other path named in the "Where code lives" section still exists and is described accurately (`src/lib/ingestion/`, `benchmarks/`, `public/seed-demo/`, `src/seedPersonal.ts`, `docs/`, `oxlint-plugin-inkling/` if mentioned). Fix anything else that is wrong.
+
+## Constraints
+- Edit only the "Where code lives" section of AGENTS.md unless you find another factually wrong path reference elsewhere in the file; then fix that too and say so in the PR.
+- Keep it short: one line per location, no file catalogs, no enumerating every file. The AGENTS.md documentation rules apply: add only what a maintainer/agent would get wrong without it. Match the existing voice and formatting.
+- Do not touch docs/changelog.md (trivial doc fix; AGENTS.md says trivial edits skip the changelog). Never mention an agent did the work in docs.
+- Do not start dev servers or the Electron app. No full test/typecheck runs. Verify by reading the repo (ls, grep) that every path you wrote exists. `bun run check:refs` (scripts/assert-command-refs.ts) validates command references in docs; run it if it is cheap and relevant.
+- Create a branch from the current HEAD named `docs/agents-code-map` (you are in your own worktree).
+
+## Delivery (full-stop: PR ready for the user to merge, but you NEVER merge)
+- Commit with a conventional title, e.g. `docs(agents): correct the code map in AGENTS.md`. End the commit message with the line: `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`.
+- Fetch origin, rebase onto the latest origin/main, push the branch, and open a PR with `gh` (use the `file-pr` skill if you have it). PR body: the problem in a sentence or two (stale paths in the code map), then what you changed, one short line saying how you verified (every path checked on disk). End the body with: `Claude Haiku 5.5 (T3 Code)` and then `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+- Never merge, enable auto-merge, enter a merge queue, push to main, or bypass protections. Do not call watch_pull_request. If checks run (CI skips docs-only pushes by design), look once at their state and report it; do not poll or sleep.
+- If a bot or CI finding appears while you are still active, fix real ones and push; otherwise just report state.
+- Your final message's last line must be exactly: `PR <full URL>, head <SHA>, checks and reviews <state>`. Before it, list in 3-6 lines what you changed and anything you were unsure about.
