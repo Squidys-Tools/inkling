@@ -152,7 +152,7 @@ Capture creates the item immediately, then background jobs do the slow parts. No
 
 Search combines exact FTS over content, notes, and OCR text with semantic similarity over local embeddings. Smart Spaces are saved searches whose query runs each time their items load, so they need no background job.
 
-The Electron main process owns files, the job queue, the database, and model execution. The renderer gets a narrow preload bridge, not raw filesystem or shell access. Fetched HTML is untrusted. It gets sanitized, embeds pass an allowlist, scripts and event handlers are stripped.
+The Electron main process owns files, the job queue, the database, and model execution. It is written with Effect 4, whose API differs a lot from the Effect 3 most models remember. Before writing or changing Effect code, read `node_modules/effect/AGENTS.md`, `node_modules/effect/ai-docs/`, and the package source instead of relying on memory (run `bun install` if `node_modules` is missing). The renderer gets a narrow preload bridge, not raw filesystem or shell access. Fetched HTML is untrusted. It gets sanitized, embeds pass an allowlist, scripts and event handlers are stripped.
 
 Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behavior.md`.
 
