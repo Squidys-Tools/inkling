@@ -53,6 +53,19 @@ test("a full GET streams the file with its headers", async () => {
   expect(await body(response)).toEqual(bytes);
 });
 
+test("rewritten thumbnails always revalidate and return current bytes", async () => {
+  const path = "/items/a/thumbnail.webp";
+  await writeFile(join(root, "items", "a", "thumbnail.webp"), "before");
+  const before = await serve(path);
+  expect(before.headers.get("Cache-Control")).toBe("no-cache");
+  expect((await body(before)).toString()).toBe("before");
+  await writeFile(join(root, "items", "a", "thumbnail.webp"), "after!");
+  const after = await serve(path, { headers: { "If-None-Match": before.headers.get("ETag")! } });
+  expect(after.status).toBe(200);
+  expect(after.headers.get("Cache-Control")).toBe("no-cache");
+  expect((await body(after)).toString()).toBe("after!");
+});
+
 test("a large file arrives in chunks instead of one read", async () => {
   const large = Buffer.alloc(8 * 1024 * 1024, 7);
   await writeFile(join(root, "items", "a", "large.mp4"), large);

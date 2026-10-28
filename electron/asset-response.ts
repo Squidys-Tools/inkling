@@ -92,6 +92,7 @@ export async function serveAssetFile(
       "Content-Type": contentTypes[extname(realFile).toLowerCase()] ?? "application/octet-stream",
       ETag: etag,
       "Last-Modified": lastModified,
+      ...(realFile.endsWith("thumbnail.webp") ? { "Cache-Control": "no-cache" } : {}),
       "X-Content-Type-Options": "nosniff",
       ...(range ? { "Content-Range": `bytes ${start}-${end}/${size}` } : {}),
     };

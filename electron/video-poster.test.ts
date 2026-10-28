@@ -75,6 +75,7 @@ async function setup(nativeImage: object) {
     modelCacheDirectory: join(root, "models"),
     ...models,
     nativeImage,
+    videoDecoderPath: null,
   });
   processors.push(ai);
   // Only the poster kind is claimed, so a drain never waits on model jobs.
@@ -233,14 +234,16 @@ test("the poster is the shell thumbnail at card size, or nothing", async () => {
 
   expect(
     await createVideoPoster("clip.mp4", {
+      decoderPath: null,
       nativeImage: thumbnailer({ isEmpty: () => false, toPNG: () => png }),
     }),
   ).toBe(png);
   expect(asked).toEqual([["clip.mp4", { width: 512, height: 512 }]]);
   expect(
     await createVideoPoster("clip.mp4", {
+      decoderPath: null,
       nativeImage: thumbnailer({ isEmpty: () => true, toPNG: () => png }),
     }),
   ).toBeNull();
-  expect(await createVideoPoster("clip.mp4", { nativeImage: {} })).toBeNull();
+  expect(await createVideoPoster("clip.mp4", { nativeImage: {}, decoderPath: null })).toBeNull();
 });

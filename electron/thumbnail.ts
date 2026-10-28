@@ -130,7 +130,7 @@ export async function createImageThumbnail(bytes: Buffer) {
       fit: "inside",
       withoutEnlargement: true,
     })
-    .webp()
+    .webp({ quality: 78, effort: 2, alphaQuality: 100 })
     .toBuffer();
   return { bytes: thumbnail, ...orientedSize(metadata) };
 }

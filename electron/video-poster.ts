@@ -1,8 +1,10 @@
-const posterEdge = 512;
+import { execFile } from "node:child_process";
+import { stat } from "node:fs/promises";
+import { isAbsolute } from "node:path";
+import { promisify } from "node:util";
 
-// The OS shell decodes the frame, so inkling ships no codec or ffmpeg. The shell
-// thumbnailer only exists on Windows and macOS; elsewhere, and for any file the
-// shell cannot read, there is no poster and the card keeps the typed video artwork.
+const posterEdge = 512;
+const execute = promisify(execFile);
 type Thumbnailer = {
   createThumbnailFromPath?: (
     path: string,
@@ -12,14 +14,78 @@ type Thumbnailer = {
 
 export async function createVideoPoster(
   filePath: string,
-  { nativeImage }: { nativeImage?: Thumbnailer } = {},
+  { nativeImage, decoderPath }: { nativeImage?: Thumbnailer; decoderPath?: string | null } = {},
 ) {
   const thumbnailer: Thumbnailer | undefined =
-    nativeImage ?? (await import("electron")).nativeImage;
-  if (typeof thumbnailer?.createThumbnailFromPath !== "function") return null;
-  const image = await thumbnailer.createThumbnailFromPath(filePath, {
-    width: posterEdge,
-    height: posterEdge,
-  });
-  return image.isEmpty() ? null : image.toPNG();
+    nativeImage ?? (process.versions.electron ? (await import("electron")).nativeImage : undefined);
+  // Preserve Windows/macOS shell decoding; Linux has no shell thumbnail provider.
+  if (typeof thumbnailer?.createThumbnailFromPath === "function") {
+    try {
+      const image = await thumbnailer.createThumbnailFromPath(filePath, {
+        width: posterEdge,
+        height: posterEdge,
+      });
+      if (!image.isEmpty()) return image.toPNG();
+    } catch {
+      // A local decoder can still support a format the shell does not.
+    }
+  }
+  const decoder =
+    decoderPath === undefined
+      ? process.platform === "linux"
+        ? "/usr/bin/ffmpeg"
+        : null
+      : decoderPath;
+  if (!decoder) return null;
+  if (!isAbsolute(decoder) || !isAbsolute(filePath) || filePath.includes("\0"))
+    throw new Error("Video poster requires absolute local paths.");
+  const source = await stat(filePath);
+  if (!source.isFile() || source.size > 50 * 1024 * 1024)
+    throw new Error("Video exceeds poster processing limits.");
+  try {
+    const { stdout } = await execute(
+      decoder,
+      [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-nostdin",
+        "-threads",
+        "1",
+        "-max_alloc",
+        "67108864",
+        "-protocol_whitelist",
+        "file,pipe",
+        "-format_whitelist",
+        "mov,matroska,webm,avi,mpeg,mpegvideo,asf,ogg",
+        "-i",
+        filePath,
+        "-map",
+        "0:v:0",
+        "-an",
+        "-sn",
+        "-dn",
+        "-frames:v",
+        "1",
+        "-vf",
+        `scale=${posterEdge}:${posterEdge}:force_original_aspect_ratio=decrease`,
+        "-threads",
+        "1",
+        "-f",
+        "image2pipe",
+        "-vcodec",
+        "png",
+        "pipe:1",
+      ],
+      { encoding: "buffer", timeout: 15_000, maxBuffer: 4 * 1024 * 1024, windowsHide: true },
+    );
+    if (!stdout.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
+      throw new Error("Video decoder returned no image.");
+    return stdout;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw new Error("A poster could not be decoded; the original video is unchanged.", {
+      cause: error,
+    });
+  }
 }

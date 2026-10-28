@@ -18,7 +18,13 @@ await rm(outdir, { recursive: true, force: true });
 
 const builds = [
   Bun.build({
-    entrypoints: ["electron/main.ts", "electron/sqlite-snapshot-worker.ts", "electron/updater.ts"],
+    entrypoints: [
+      "electron/main.ts",
+      "electron/sqlite-snapshot-worker.ts",
+      "electron/updater.ts",
+      "electron/thumbnail.ts",
+      "electron/video-poster.ts",
+    ],
     outdir,
     target: "node",
     format: "esm",

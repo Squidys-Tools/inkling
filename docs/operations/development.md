@@ -52,8 +52,15 @@ PDF rendering avoids Linux Electron's crashing system-font scan and uses the
 bundled PDF.js fonts, character maps and WASM decoders instead.
 On Wayland, Screen uses the system screen-sharing portal; if capture is denied
 or unavailable, use the system screenshot tool and paste or import the image.
-Linux currently retains typed artwork for local videos without a shell poster
-provider.
+Image/poster compression runs in the existing background thumbnail worker with
+packaged sharp, not an end-user Bun runtime. The Debian package declares FFmpeg
+as an OS dependency for local-video posters; Windows/macOS retain their shell
+thumbnailers. AppImage users without `/usr/bin/ffmpeg` keep typed video artwork.
+The decoder accepts local files only, with bounded time/output and no remote
+playlist protocols; originals remain unchanged. Rewritten thumbnails revalidate
+instead of being cached as immutable. `bun scripts/media-smoke.mjs source <output>`
+records before/after bytes, warm median timings and pixel-error measurements;
+pass the unpacked app directory instead of `source` for packaged-runtime checks.
 
 Settings → General → Updates selects Stable / Beta (`latest`) or experimental
 Nightly (`nightly`). Stable / Beta is the regular beta product, not a third
