@@ -1,0 +1,20 @@
+Act as the implementation sub-agent for this task.
+
+Repo: inkling (Electron + React + TS). Read AGENTS.md at the repo root and follow it (especially its documentation rules: add only what a maintainer would get wrong without it). Do the work yourself; no subagents. Docs-only change.
+
+## Goal
+The Electron main process is built on Effect (package `effect` 4.0.6, `@effect/sql-sqlite-node`; see docs/tech-stack.md "Effect in the main process"). AGENTS.md never tells agents that. Effect 4 differs a lot from Effect 3, which is what most model training data shows, so agents hallucinate old APIs. The installed package ships its own agent docs: `node_modules/effect/AGENTS.md` and `node_modules/effect/ai-docs/`, plus the full `src/`. Add a short pointer so agents read those instead of memory or the web.
+
+## What to write
+- Add one or two sentences to AGENTS.md in the paragraph under "How it works" that starts "The Electron main process owns files, the job queue, the database, and model execution." Say: main-process code is Effect 4 (not 3), and before writing or changing Effect code read `node_modules/effect/AGENTS.md` and `node_modules/effect/ai-docs/` and the package source rather than relying on memory. If node_modules is missing, `bun install` first.
+- Do NOT edit the "Where code lives" section (another open PR rewrites it and would conflict). Do not edit anything else in AGENTS.md.
+- Do not add a convention list (Effect.fn vs Effect.gen etc.); the package docs cover it and the existing code does not follow one.
+- Verify before writing: that the two paths exist after `bun install` (check package.json version pin, `ls node_modules/effect`), and confirm via `electron/` that the main process really uses `effect`. Use the exact paths you saw.
+- docs/changelog.md: skip (trivial docs edit). `bun run check:refs` must pass.
+
+## Delivery (full-send, but YOU do not merge or watch; the parent agent will)
+- Branch from latest origin/main (`git fetch origin; git switch -c docs/effect-docs-pointer origin/main`).
+- Conventional commit, e.g. `docs(agents): point agents at the bundled Effect 4 docs`. End with your own `Co-Authored-By: <your model name> <noreply@anthropic.com>`.
+- Push and open a PR with `gh` (use `file-pr` skill if you have it). Body: problem in a sentence or two, what you changed, one line on verification, end with your model name and harness `(T3 Code)`, then `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+- Do not merge, enable auto-merge, or call watch_pull_request. No sleeping or polling; check state once.
+- Last line of your final message exactly: `PR <full URL>, head <SHA>, checks and reviews <state>`. Above it, 2-4 lines on what you did.
