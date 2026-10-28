@@ -158,12 +158,17 @@ Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behav
 
 ## Where code lives
 
-- `src/` is the React and TypeScript frontend. Entry at `src/main.tsx`.
-- `src/lib/ingestion/` is the capture and extraction pipeline. Defuddle, metadata fallback, sanitizing, video link handling.
-- `src/components/` holds shared pieces such as the card media (`ItemMedia.tsx`), the expanded item overlay, and the PDF viewer. The library grid, cards, and Spaces UI live in `src/App.tsx`, and the reader is `src/ReaderView.tsx`.
-- `electron/` holds the desktop main process, preload bridge, SQLite storage, job queue, PDF/OCR, embeddings, and packaging inputs.
-- `benchmarks/` holds the corpus, the harness, expected outputs, and results. Of the results, only `results-latest.json` and `summary.md` are tracked.
+- `src/` is the React and TypeScript frontend. Entry at `src/main.tsx`. Feature code lives in `src/features/` by area (library, item-view, spaces, capture, shell, settings). `src/App.tsx` composes the features, and the reader is `src/ReaderView.tsx`.
+- `src/lib/ingestion/` is the capture and extraction pipeline. Defuddle, metadata fallback, sanitizing, video link handling. URL ingestion also runs in Electron's main process (`electron/ai-jobs.ts` imports it).
+- `src/components/` holds shared pieces such as the card media (`ItemMedia.tsx`), the liquid glass surfaces, the mascot, and onboarding. `src/ui/` holds shared UI primitives.
+- `packages/contracts/` is the IPC contract: the command list and Effect Schemas that preload, main, and renderer share. The renderer calls them through `src/lib/libraryApi.ts`.
+- `packages/ingestion-shared/` is the capture payload format and validation shared by the extension and the app.
+- `electron/` holds the desktop main process (`main.ts`), preload bridge, PDF/OCR, embeddings, the loopback capture receiver (`capture-server.ts`), and packaging inputs. SQLite schema, storage, and the job queue are in `electron/storage/`.
+- `extension/` is the Chrome extension, a capture entry point. It posts to the loopback receiver, or hands the URL to the app through the `inkling://capture` link.
+- `scripts/` holds build and check scripts, such as `build-electron.ts` and `assert-command-refs.ts`.
+- `benchmarks/` holds the corpus, the harness, expected outputs, and results. Of `benchmarks/results/`, only `results-latest.json` and `summary.md` are tracked.
 - `public/seed-demo/` plus `src/seedPersonal.ts` is the committed demo library for UI work.
+- `docs/` holds product, behavior, design, models, stack, roadmap, bugs, and changelog. Maintainer procedures live in `docs/operations/`, and `docs/README.md` indexes them.
 
 ## Taste
 
