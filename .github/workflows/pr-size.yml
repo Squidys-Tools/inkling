@@ -90,7 +90,7 @@ jobs:
             const changed = sourceLines || testLines;
             const next = sizes.find((size) => changed < size.below).label;
             const hugeLabel = "what the hell";
-            const wanted = totalLines > 5000 ? [next, hugeLabel] : [next];
+            const wanted = changed > 5000 ? [hugeLabel] : [next];
             const managed = [...sizes.map((size) => size.label), hugeLabel];
 
             const { data: current } = await github.rest.issues.listLabelsOnIssue({
