@@ -89,6 +89,9 @@ jobs:
             // Test-only PRs are sized by their test lines.
             const changed = sourceLines || testLines;
             const next = sizes.find((size) => changed < size.below).label;
+            const hugeLabel = "what the hell";
+            const wanted = totalLines > 5000 ? [next, hugeLabel] : [next];
+            const managed = [...sizes.map((size) => size.label), hugeLabel];
 
             const { data: current } = await github.rest.issues.listLabelsOnIssue({
               owner: context.repo.owner,
@@ -96,10 +99,9 @@ jobs:
               issue_number: pr.number,
               per_page: 100,
             });
-            const sizeNames = sizes.map((size) => size.label);
 
             for (const { name } of current) {
-              if (!sizeNames.includes(name) || name === next) {
+              if (!managed.includes(name) || wanted.includes(name)) {
                 continue;
               }
 
@@ -111,15 +113,16 @@ jobs:
               });
             }
 
-            if (!current.some(({ name }) => name === next)) {
+            const missing = wanted.filter((name) => !current.some((label) => label.name === name));
+            if (missing.length > 0) {
               await github.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: pr.number,
-                labels: [next],
+                labels: missing,
               });
             }
 
             core.info(
-              `PR #${pr.number}: ${sourceLines} source lines, ${testLines} test lines -> ${next}`,
+              `PR #${pr.number}: ${sourceLines} source lines, ${testLines} test lines -> ${wanted.join(", ")}`,
             );
