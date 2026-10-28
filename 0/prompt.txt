@@ -1,0 +1,30 @@
+I have no clue why we have such a big, horrible looking double outline/highlight to this, get rid of that [Image: image.png; ref=image_19833ba4-0062-4931-bdb4-cad51e91d141] , full stop
+
+<t3_context version="1">
+<context kind="image" id="image_19833ba4-0062-4931-bdb4-cad51e91d141">
+name: image.png
+mimeType: image/png
+sizeBytes: 851626
+attachmentId: 65a46404-9af5-44b4-818a-fa254030abe6-46697996-ac09-48e1-acad-d65d4ec378a9
+</context>
+</t3_context>
+
+[Attached image "image.png" is saved at: C:\Users\chris\.t3\userdata\attachments\65a46404-9af5-44b4-818a-fa254030abe6-46697996-ac09-48e1-acad-d65d4ec378a9.png]
+
+---
+
+run the app and verify the fix
+
+---
+
+<task-notification>
+<task-id>bb0ne78fq</task-id>
+<tool-use-id>toolu_013xvyKfy43aVsAb7f6FtXxc</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-4e0c6ba2\458ee44e-e713-454e-b749-12e4b8f97e9d\tasks\bb0ne78fq.output</output-file>
+<status>completed</status>
+<summary>Background command "Launch the scratch instance and run doctor checks" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+file a pr

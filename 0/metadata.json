@@ -1,0 +1,92 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M62E01CHRZAY3J27DJ5YRNGQ",
+  "session_id": "458ee44e-e713-454e-b749-12e4b8f97e9d",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-28T23:37:47.6393404Z",
+  "branch": "t3/remove-double-outline-highlight",
+  "checkpoints_count": 2,
+  "save_step_count": 2,
+  "files_touched": [
+    "src/features/shell/SpacesSection.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-haiku-5-5",
+  "turn_id": "bdeb46c62579",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 84,
+    "cache_creation_tokens": 73585,
+    "cache_read_tokens": 3008958,
+    "output_tokens": 23364,
+    "api_call_count": 42
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01TX4cRPeQnHQ6ht9NBbjLuE",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "verify-inkling"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "bdeb46c62579",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 122,
+        "end": 123,
+        "entry_ids": [
+          "5068b617-7462-4f63-b2eb-5716aa4d0285"
+        ],
+        "tool_use_id": "toolu_01TX4cRPeQnHQ6ht9NBbjLuE"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01TX4cRPeQnHQ6ht9NBbjLuE"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: verify-inkling",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_015ahuvrkqaWuTXLLeCD1syn",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "file-pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "bdeb46c62579",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 331,
+        "end": 332,
+        "entry_ids": [
+          "e5bc09cd-e611-4842-8819-e3c0f07b664f"
+        ],
+        "tool_use_id": "toolu_015ahuvrkqaWuTXLLeCD1syn"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_015ahuvrkqaWuTXLLeCD1syn"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: file-pr",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 2
+  }
+}

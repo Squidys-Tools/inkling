@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M62E01CHRZAY3J27DJ5YRNGQ",
+  "strategy": "manual-commit",
+  "branch": "t3/remove-double-outline-highlight",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "src/features/shell/SpacesSection.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 84,
+    "cache_creation_tokens": 73585,
+    "cache_read_tokens": 3008958,
+    "output_tokens": 23364,
+    "api_call_count": 42
+  }
+}
