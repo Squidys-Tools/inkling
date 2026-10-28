@@ -27,6 +27,11 @@ declare global {
   interface HTMLCanvasElement {
     /** HTML-in-Canvas: fires a `paint` event in the next rendering update. */
     requestPaint(): void;
+    /** Chromium 156+: canvas children take pointer events only once this is set. */
+    updateElementGeometry?(
+      element: Element,
+      options?: { canvasTransform?: DOMMatrixInit; canvasClip?: DOMRectInit },
+    ): void;
   }
 }
 
@@ -223,6 +228,14 @@ class LiquidSurface {
     this.canvas.height = Math.max(1, deviceHeight);
     this.backdrop.width = Math.max(1, width);
     this.backdrop.height = Math.max(1, height);
+    // Without this the canvas swallows every click and right-click on the cards.
+    const host = this.canvas.firstElementChild;
+    if (host) {
+      this.canvas.updateElementGeometry?.(host, {
+        canvasTransform: new DOMMatrix(),
+        canvasClip: new DOMRect(0, 0, width, height),
+      });
+    }
     this.canvas.requestPaint();
   }
 

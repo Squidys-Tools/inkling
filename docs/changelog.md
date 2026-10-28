@@ -73,6 +73,7 @@ Guardrails:
 
 ### Fixed
 
+- Right-click menu and card clicks work again in the desktop app: Chromium 156 (Electron 45) stopped passing pointer events to the library inside the liquid glass canvas until its geometry is set
 - An open item takes over the whole library frame instead of floating inside it, so the grid/list toggle and the selected card no longer show around its edges, and its stage fills the frame with an even margin (#170)
 - List view thumbnails fill rows that grow taller than the artwork, instead of leaving a strip at the bottom (#170)
 - List view rows size to their text, so a tall photo or a short description no longer leaves a band of empty space above the footer (#170)
