@@ -76,7 +76,16 @@ async function launch() {
     process.exit(1);
   }
   if (!existsSync(electronBin)) {
-    console.error(`electron missing at ${electronBin}: run bun install`);
+    console.error(
+      `electron missing at ${electronBin}: run bun install, then node node_modules/electron/install.js (bun skips Electron's download script)`,
+    );
+    process.exit(1);
+  }
+  const busy = portOwner();
+  if (busy > 0) {
+    console.error(
+      `CDP port ${port} is already owned by pid ${busy}, not ours: set INKLING_VERIFY_PORT to a free port`,
+    );
     process.exit(1);
   }
   if (ownsScratchLibrary(recordedPid())) {
@@ -84,7 +93,16 @@ async function launch() {
     process.exit(1);
   }
   mkdirSync(run, { recursive: true });
-  const args = [".", `--remote-debugging-port=${port}`, `--user-data-dir=${library}`];
+  // An occluded window reports visibilityState "hidden" and stops firing animation frames, which
+  // strands every motion-gated step (closing the item overlay) until the window is uncovered.
+  const args = [
+    ".",
+    `--remote-debugging-port=${port}`,
+    `--user-data-dir=${library}`,
+    "--disable-renderer-backgrounding",
+    "--disable-backgrounding-occluded-windows",
+    "--disable-features=CalculateNativeWinOcclusion",
+  ];
   const log = openSync(logFile, "w");
   // Electron-based harnesses (T3 Code, Claude Desktop) export ELECTRON_RUN_AS_NODE, which would
   // make this Electron start as plain Node and crash on `import "electron"`.

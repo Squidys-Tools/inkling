@@ -24,6 +24,8 @@ bun install
 bun run build:app      # produces dist/; prints "No demo seed in N built files"
 ```
 
+Bun skips Electron's download script, so a fresh install has no `node_modules/electron/dist`. Run `node node_modules/electron/install.js` once from the repo root before the first launch.
+
 ## Launch
 
 Same commands on Windows and Linux. Launch starts Electron detached and returns once the app page is listed:
@@ -32,7 +34,7 @@ Same commands on Windows and Linux. Launch starts Electron detached and returns 
 bun .claude/skills/verify-inkling/scripts/instance.mjs launch
 ```
 
-It runs `node_modules/electron/dist/electron .` with `--remote-debugging-port=9333 --user-data-dir=<tmpdir>/verify-inkling-run/default/library`, writing `electron.pid` and `electron.log` beside the library. On Linux with no `DISPLAY` it wraps Electron in `xvfb-run -a` and adds `--no-sandbox`. Ready means `app://local/index.html` is listed at `http://127.0.0.1:9333/json/list`, which takes about 10 seconds. The first launch against an empty dir shows "0 items in library".
+It runs `node_modules/electron/dist/electron .` with `--remote-debugging-port=9333 --user-data-dir=<tmpdir>/verify-inkling-run/default/library`, writing `electron.pid` and `electron.log` beside the library. On Linux with no `DISPLAY` it wraps Electron in `xvfb-run -a` and adds `--no-sandbox`. It also passes `--disable-renderer-backgrounding`, `--disable-backgrounding-occluded-windows` and `--disable-features=CalculateNativeWinOcclusion`: an occluded window reports `visibilityState` "hidden" and stops firing animation frames, which strands the item overlay mid-close and hangs motion-gated steps. Ready means `app://local/index.html` is listed at `http://127.0.0.1:9333/json/list`, which takes about 10 seconds. Launch refuses when the port already has an owner. Other dev servers on the machine often hold 9333, so set `INKLING_VERIFY_PORT` to a free port and pass it to doctor, drive, and cleanup as well. The first launch against an empty dir shows "0 items in library".
 
 Two instances side by side: give each its own name and port, `INKLING_VERIFY_NAME=b INKLING_VERIFY_PORT=9334 bun .claude/skills/verify-inkling/scripts/instance.mjs launch`, then pass the same two variables to doctor, drive, and cleanup.
 
@@ -44,7 +46,7 @@ Read-only. Run it first whenever anything looks off:
 bun .claude/skills/verify-inkling/scripts/instance.mjs doctor
 ```
 
-Every line must read PASS and the exit code must be 0: pidfile present, pid alive, pid runs our scratch dir, CDP port owned by that pid, app page loaded, library database exists, renderer build present.
+Every line must read PASS and the exit code must be 0: pidfile present, pid alive, pid runs our scratch dir, CDP port owned by that pid, app page loaded, library database exists, renderer build present. Doctor cannot see a hidden window. If a step stalls on an animation, check `document.visibilityState`; anything but "visible" means relaunch.
 
 ## Drive
 
@@ -52,19 +54,19 @@ Every line must read PASS and the exit code must be 0: pidfile present, pid aliv
 
 - `click`: CSS selector, clicks the first match.
 - `clickText`: `{selector, text}`, clicks the first match whose text contains `text`.
-- `fill`: CSS selector plus `text`, focuses and inserts text.
+- `fill`: CSS selector plus `text`, focuses, selects the field's text (inputs and textareas only), and inserts text. For a contenteditable, first run an `expect` that calls `getSelection().selectAllChildren(el)`, or `fill` inserts at the caret.
 - `key`: `Enter`, `Escape`, or a single character.
 - `wait`: selector that must appear.
 - `expect`: JavaScript expression that must become true.
 - `shot`: PNG filename written into the evidence dir.
 
-Each step may set `label`, and `timeoutMs` (default 8000). A failed step writes `failure.png` and stops the run.
+Each step may set `label`, and `timeoutMs` (default 8000). `clickText` does not wait; it fails at once if nothing matches yet. A failed step writes `failure.png` and stops the run, and a page that stops answering for 20 seconds fails the step instead of hanging the run.
 
 ```sh
 bun .claude/skills/verify-inkling/scripts/drive.mjs 9333 <steps.json> .artifacts/verify-inkling/<run-name>
 ```
 
-Selectors come from `src/App.tsx` and `src/features/item-view/`. Prefer the aria-label, title, and class names listed in each feature file over coordinates. Only `features/capture-note.md` has a proven step list; the other feature files are mapped but not yet driven.
+Selectors come from `src/App.tsx` and `src/features/item-view/`. Prefer the aria-label, title, and class names listed in each feature file over coordinates. Every feature file carries a step list that was driven end to end on Windows. Compose them in order when a feature needs state: capture-note creates the cards the others use.
 
 ## Evidence
 
