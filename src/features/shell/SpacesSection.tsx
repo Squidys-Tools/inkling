@@ -95,7 +95,7 @@ export function SpacesSection({
               {renaming.id === space.id ? (
                 <input
                   ref={renaming.inputRef}
-                  className="min-h-[26px] w-full min-w-0 flex-1 rounded-lg border border-accent bg-surface px-2 py-0 text-[13px] text-ink"
+                  className="min-h-[26px] w-full min-w-0 flex-1 rounded-lg border border-accent bg-surface px-2 py-0 text-[13px] text-ink outline-none!"
                   value={renaming.draft}
                   aria-label={`Rename ${space.name}`}
                   maxLength={80}
