@@ -1,0 +1,92 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M62EXNRWZEMX5ZJ2453XDRT1",
+  "session_id": "4e5e5488-40a9-41a3-97ac-7652243c6293",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-28T23:53:32.2339526Z",
+  "branch": "t3/fix-sidebar-closed-left-gaps",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "src/App.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-haiku-5-5",
+  "turn_id": "efc69c807957",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 104,
+    "cache_creation_tokens": 91723,
+    "cache_read_tokens": 4215670,
+    "output_tokens": 37223,
+    "api_call_count": 52
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01XmYAE1RsrvgNM9v5D1mD7M",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "verify-inkling"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "efc69c807957",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 139,
+        "end": 140,
+        "entry_ids": [
+          "e7a0b329-c526-48ac-a5a1-ea6fa73a9122"
+        ],
+        "tool_use_id": "toolu_01XmYAE1RsrvgNM9v5D1mD7M"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01XmYAE1RsrvgNM9v5D1mD7M"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: verify-inkling",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_019Lj2EHR8T9XZfjZqVv1VWh",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "file-pr"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "efc69c807957",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 140,
+        "end": 141,
+        "entry_ids": [
+          "2ab165a8-5cbc-4256-990f-7ddd8657bb7c"
+        ],
+        "tool_use_id": "toolu_019Lj2EHR8T9XZfjZqVv1VWh"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_019Lj2EHR8T9XZfjZqVv1VWh"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: file-pr",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 1
+  }
+}
