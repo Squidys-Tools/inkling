@@ -4,7 +4,7 @@ How to set up, run, check, and troubleshoot inkling. Contribution scope and PR e
 
 ## First-time setup
 
-1. Install Bun 1.4.2 (pinned in `.bun-version` and `package.json#packageManager`).
+1. Install Bun (pinned in `.bun-version`).
 2. `bun install` — plain install, no hooks and no lifecycle scripts.
 
 ## Running
@@ -45,11 +45,11 @@ It needs a display; on Linux without one it runs under `xvfb-run`.
 | Goal | Command | Notes |
 |---|---|---|
 | Everything | `bun run check` | Bun pin, frozen install (`--ignore-scripts`), typecheck of every workspace, tests, Knip, lint, both builds, ingestion smoke, extension build. CI runs the same steps as separate jobs |
-| Typecheck | `bun run typecheck` | App + benchmark harness |
+| Typecheck | `bun run typecheck` | App, benchmark harness, and `electron/` |
 | Tests | `bun test` | |
 | Unused code | `bun run knip` | Hard gate in CI; `knip.json` owns entry/project patterns. To clean up locally, run `bunx knip --fix` then `bun install` (re-syncs the lockfile if deps were pruned), fix any `noUnusedLocals` fallout, and re-run `bun run check` |
 | Lint and format | `bun run lint` (`bun run lint:fix` to apply) | oxlint, with inkling rules in `oxlint-plugin-inkling/`, then oxfmt |
-| Bun pin | `bun run check:bun-version` | `.bun-version` vs `packageManager` vs running Bun must agree |
+| Bun pin | `bun run check:bun-version` | running Bun must match `.bun-version` |
 | Extension build | `bun run --cwd extension build` | Builds the Chrome MV3 extension and its service worker |
 
 For early signal, run `bun run check`. `noUnusedLocals` / `noUnusedParameters` are on — the compiler catches dead locals; Knip catches dead exports and dependencies.
@@ -69,5 +69,5 @@ None — there are no local hooks by policy. Formatting, linting, and all other 
 
 ## Troubleshooting
 
-- `Expected Bun X, found Y`: install the pinned Bun from `.bun-version`; don't edit the check to match your install.
+- `Expected Bun X, found Y`: install the Bun in `.bun-version`; don't edit the check to match your install.
 - `knip --fix` PR is noisy: tune `knip.json` entry/project patterns instead of disabling the workflow.

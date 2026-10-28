@@ -2,7 +2,7 @@
 
 inkling is a home for everything worth keeping. Articles, images, screenshots, PDFs, notes, quotes, video links. An Electron desktop app for Windows, with React, TypeScript, and Vite in the frontend and Node.js and SQLite in the backend. Everything stays on the machine.
 
-Think of it as a private visual library with semantic search as the only organizer. No folders to maintain. Save abitrary media in seconds, find it later by describing it.
+Think of it as a private visual library with semantic search as the only organizer. No folders to maintain. Save arbitrary media in seconds, find it later by describing it.
 
 ## What makes inkling special
 
@@ -66,7 +66,7 @@ We need to be on the same page with terminology. When communicating, use this la
 
 ## Hit every surface
 
-The common defect here is a change that works on the path tested and is missing everywhere else. Before calling ingestion or display work done, walk this list and say which entries applied.
+The common defect here is a change that works on the path tested and is missing everywhere else. Before calling ingestion or display work done, walk this list and name the entries that applied; skip the rest silently.
 
 - **Entry points.** A behavior reachable from the Add button is usually also reachable from paste, drag and drop, clipboard, screenshot capture, and the deep link. Fixing one is not fixing the feature.
 - **Capture paths.** URL, article extraction, image file, screenshot, PDF, note, quote, video link, X post, misc file. An extractor change needs a decision per path, even if the decision is not supported here.
@@ -78,7 +78,7 @@ The common defect here is a change that works on the path tested and is missing 
 
 ## Dev servers
 
-- `bun install` installs. If module resolution looks broken, check the Bun version first. It must match `.bun-version` (1.4.2). `bun run check:bun-version` says so in one line.
+- `bun install` installs. If module resolution looks broken, run `bun run check:bun-version`.
 - `bun run dev` is the quick web look at the UI. It uses sample data and has no desktop storage or processing backend.
 - `bun run dev:app` opens the Electron shell in preview mode. The renderer shows the sample library and does not call the desktop backend, so capture, OCR, embeddings, and local file access are not exercised there. Test the full backend with the packaged output of `bun run build:dir`.
 - `t3.json` lists the T3 Code run scripts. Keep it up to date: whenever a package.json script is renamed or removed, or a command it runs changes, update `t3.json` in the same change.
@@ -98,14 +98,16 @@ An empty library is a bad test. Seed your run with a copy of real data instead o
 
 ## Verifying
 
-- Smallest proof that the change works. `bun test <files>` for the tests you touched, targeted lint and typecheck for the scope you changed. The full check is `bun run check`, which mirrors the CI frontend job. Do not run it unless you changed something broad or the user asked.
+- Smallest proof that the change works: `bun test <files>` for the tests you touched, `bunx oxlint <files>` and `bunx oxfmt --check <files>` for what you changed, and `bun run typecheck` (fast enough to run whole). The full check is `bun run check`, which mirrors the CI frontend job. Do not run it unless you changed something broad or the user asked.
 - **Do not run repo-wide checks.** No full `bun test` sweep or full `tsc` unless asked. CI owns the full suite.
 - A test earns its place by guarding something that breaks quietly: extraction and sanitizing, embed allowlists, OCR scoring, queue leases and recovery, migrations and persistence, asset path containment and range requests, deep link and external-format parsing, ordering and race guarantees, and `liquidGlassShape`. A test added with a bug fix stays; mark it `// regression: #NNN` if its name doesn't say so.
 - Don't write tests the types already prove, trivial logic, basic DOM behavior, static-markup renders, mock-call mirrors, smoke tests, duplicate table rows, or wall-clock and perf asserts.
 - Ingestion and background changes ship with focused tests for that behavior. A behavior change with no test is unfinished.
+- Proof for a bug fix depends on the bug. Logic, data, state, and protocol bugs get a failing test first (the fewest that fail on `main` for that reason), then the fix. Purely visual bugs (spacing, colour, alignment, a layout shift) get before/after captures and no test.
+- Extend before you add. When an existing test or table covers the behavior, add a row or an assertion there. Write a new `it` only when no case fits. Test at the lowest layer that fails on `main`, not again in a wrapper or at each call site.
 - Background work is async. Await the real signal: a job drain, a lease state, an event. No fixed sleeps, per-test timeouts, retries, `Date.now()` or `performance.now()` deltas, polling loops, or skips without a reason.
-- UI changes need one real pass in the running app before you call them done. Preview for layout, full app for anything native. Take a screenshot through the harness so the user can see it. The primary agent does this once after integrating. Subagents do not launch their own dev servers. Clean up what you launched when you are done.
-- Electron and frontend changes get focused tests, typecheck, and changed-file `oxlint` and `oxfmt --check`. There are no local hooks — CI runs the frontend checks and Electron package smoke tests.
+- UI changes need one real pass in the running app before you call them done (the `verify-inkling` skill drives it). Preview for layout, full app for anything native. Take a screenshot through the harness so the user can see it. The primary agent does this once after integrating. Subagents do not launch their own dev servers. Clean up what you launched when you are done.
+- There are no local hooks. CI runs the frontend checks and Electron package smoke tests.
 
 ## Pull requests
 
@@ -115,16 +117,15 @@ An empty library is a bad test. Seed your run with a copy of real data instead o
 - UI changes need before/after images. Motion or timing needs a short video.
 - Upload PR evidence to GitHub. Never commit PR-only screenshots or assets such as `.github/pr-assets/`.
 - One request is one PR. Split it only when the maintainer asks.
-- When babysitting: poll checks and comments newer than the last push, verify each bot finding against the source, fix real ones, dismiss false positives with a written reason. Stay quiet when nothing is new. Stop when the bots are green on the latest commit.
 
 ## Linear issues
 
-- One Linear issue owns one task (e.g. `SQU-6`). That issue is the tracker — not `roadmap.md`, not a plan file.
+- One Linear issue owns one task (e.g. `SQU-6`). That issue is the tracker, not a plan file.
 - Before starting: read the issue + comments, move it to In Progress, branch from its `gitBranchName`.
 - While working: post major progress as issue comments, never rewrite the description. Keep scratch outside the worktree.
 - Monitor by reading status + comments only. Don't start work on an issue already In Review unless asked.
 - Before finishing: link the PR to the issue at the top of the description before all content, move it to In Review, tick the `roadmap.md` box and add a changelog line referencing the issue ID in the same PR.
-- If merged: move the issue to Done. A merged PR is the implementation record, don't keep a second checklist.
+- If merged: move the issue to Done.
 
 ## Documentation
 
@@ -136,15 +137,14 @@ Most code changes need no docs change. Agents can read the code.
 - Keep a local implementation explanation in a nearby code comment. Use an internal doc when the reasoning crosses boundaries or needs context the code cannot carry well. Link to the relevant source instead of copying it.
 - When a documented decision or constraint changes, rewrite or remove the affected text. Do not append another account of the new behavior. A new internal page needs a distinct, durable reason to exist.
 - Keep user docs in the shipped product's voice, without implementation details or contributor tooling. Update the relevant feature section when how to use it changes. A UI tweak does not need a documentation entry, and a new control does not need its own page. A settings path is useful; descriptions of visible buttons, icons, layouts, animations, or every UI state are not. Before adding text, ask what task or decision it helps the user with.
-- The changelog rules live at the top of `docs/changelog.md` and still apply. One line per entry, grouped under Added, Changed, Fixed, Removed, Deprecated, Security. Trivial edits skip the changelog. Never write that an agent did the work.
+- The changelog rules live at the top of `docs/changelog.md` and still apply. One line per entry, grouped under Added, Changed, Fixed, Removed, Deprecated, Security. Trivial edits skip the changelog.
 - `docs/operations/` holds maintainer setup, release, and debugging procedures. Keep instructions for operating an installed inkling version in the user guides.
 
 ## Plans and work artifacts
 
 - Do not commit implementation plans, research notes, or agent scratch files. Keep temporary working material outside the worktree. `.plans/` is gitignored only as a safety net for legacy tooling.
-- Track active maintainer work in the GitHub issue or project item that owns it. External proposals follow `CONTRIBUTING.md`.
-- A merged PR is the implementation record. Close or update its tracking item when the work lands; do not preserve a second checklist in the repository.
-- While completing work, keep `docs/changelog.md` current per its own header rules. Close out the entry before starting an unrelated task so entries do not blur together. Organize details in the Unreleased section as you work or if you notice that changes are piling up so it doesn't become messy. Always ask the developer before making those types of changes but do not ask after every change, only after important or large amounts of work are done.
+- Track active maintainer work in its Linear issue (see [Linear issues](#linear-issues)). External proposals follow `CONTRIBUTING.md`.
+- A merged PR is the implementation record. Do not keep a task checklist in the repository; `docs/roadmap.md` records milestone standing only.
 
 ## How it works
 
@@ -162,25 +162,17 @@ Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behav
 - `src/lib/ingestion/` is the capture and extraction pipeline. Defuddle, metadata fallback, sanitizing, video link handling.
 - `src/components/` holds shared pieces such as the card media (`ItemMedia.tsx`), the expanded item overlay, and the PDF viewer. The library grid, cards, and Spaces UI live in `src/App.tsx`, and the reader is `src/ReaderView.tsx`.
 - `electron/` holds the desktop main process, preload bridge, SQLite storage, job queue, PDF/OCR, embeddings, and packaging inputs.
-- `benchmarks/` holds the 48 item corpus, the harness, expected outputs, and results. Of the results, only `results-latest.json` and `summary.md` are tracked.
+- `benchmarks/` holds the corpus, the harness, expected outputs, and results. Of the results, only `results-latest.json` and `summary.md` are tracked.
 - `public/seed-demo/` plus `src/seedPersonal.ts` is the committed demo library for UI work.
-- `docs/` holds product, behavior, stack, roadmap, and changelog. No other docs home exists yet.
 
 ## Taste
 
 - Complexity belongs at the adapter boundary. Ingestion stays explicit, UI stays dumb.
 - Inferred types over annotations. `any` is the enemy.
+- Effect stays in the main process and stops at the IPC edge; the renderer never imports it at runtime. Reusable Effect functions use `Effect.fnUntraced`, not `Effect.fn` (nothing collects spans). Keep `Effect.gen` for inline programs and layers.
 - Default to no comment. Keep one only where a reader would likely break something without it: a race or ordering guarantee, a security or sanitizing check, a Chromium, Electron, WebGPU or OS quirk, or an invariant another file relies on. One line where you can, four at most. Don't restate names, narrate steps, label sections, record history, explain the fix you just made (the PR carries that), or leave a TODO without an issue. Lint directives, knip tags and license headers stay. `inkling/no-low-value-comments` in `oxlint-plugin-inkling/` enforces the length cap and the mechanical cases, and every `oxlint-disable` needs a `-- reason`.
-- Our users should never notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations(with a slight execption for the mascot); they peg the GPU on high-refresh displays.
+- Our users should never notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations (with a slight exception for the mascot); they peg the GPU on high-refresh displays.
 - Capture paths stay fast and forgiving. Keep partial results when extraction fails. A URL with a title and domain beats an error card.
-- If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.
-
-## Working in this harness
-
-These apply whenever you run inside T3 Code only, and they override nothing above.
-
-- Screenshots the user must see never render from tool results. Save with `screenshot_out_file` to `C:\Users\$USER$\AppData\Local\Temp\agents\chat-images\$TASK$`, create it if missing, and embed with `![what](C:\...\chat-images\$TASK$\name.png)`. Only that subfolder may be wiped. Prefer full window shots unless asked to show one section.
-- Browser tools drive the web counterpart of the app when it is running.
 
 ## Additional tips
 

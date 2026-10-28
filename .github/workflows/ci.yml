@@ -100,11 +100,6 @@ jobs:
         with:
           bun-version-file: .bun-version
 
-      # Guards against the three Bun pins drifting apart: .bun-version,
-      # packageManager, and the Bun that setup-bun actually installed.
-      - name: Verify Bun version pin
-        run: bun run check:bun-version
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
