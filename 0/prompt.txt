@@ -1,0 +1,16 @@
+get rid of this tooltip here [Image: image.png; ref=image_0dd62395-bcb1-4e6b-ba64-24722d12f2f9] , just nuke that one alone, full send
+
+<t3_context version="1">
+<context kind="image" id="image_0dd62395-bcb1-4e6b-ba64-24722d12f2f9">
+name: image.png
+mimeType: image/png
+sizeBytes: 871093
+attachmentId: 4f0d3b31-b91e-4326-b400-b45a476c52a8-e97ddf39-165b-4b83-804b-27f07a98e639
+</context>
+</t3_context>
+
+[Attached image "image.png" is saved at: C:\Users\chris\.t3\userdata\attachments\4f0d3b31-b91e-4326-b400-b45a476c52a8-e97ddf39-165b-4b83-804b-27f07a98e639.png]
+
+---
+
+full send

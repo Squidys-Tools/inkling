@@ -1,0 +1,62 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M62DF4H9P2BKM3FGADTVGPF1",
+  "session_id": "d140e63b-5eb1-4ccf-95bf-98be92019bae",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-28T23:28:05.4935686Z",
+  "branch": "t3/remove-tooltip-from-screenshot",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "scripts/ui-smoke.mjs",
+    "src/features/capture/AddMenu/AddMenu.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-haiku-5-5",
+  "turn_id": "5e9033989e9a",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 47159,
+    "cache_read_tokens": 1103135,
+    "output_tokens": 7049,
+    "api_call_count": 21
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01F81TXjtRzoikasUh7NMBBY",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "full-send"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "5e9033989e9a",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 81,
+        "end": 82,
+        "entry_ids": [
+          "dfbe1e94-6ffb-4104-83f0-8b1e249e9133"
+        ],
+        "tool_use_id": "toolu_01F81TXjtRzoikasUh7NMBBY"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01F81TXjtRzoikasUh7NMBBY"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: full-send",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 1
+  }
+}
