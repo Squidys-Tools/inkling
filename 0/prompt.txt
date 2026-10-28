@@ -1,0 +1,43 @@
+Act as the implementation sub-agent for this task.
+
+Repo: inkling (Electron + React + TS, Bun, Windows app). Read AGENTS.md at the repo root and follow it (verifying rules, docs rules, PR rules, the "three ways to hurt yourself"). Do the work yourself; no subagents. This machine is Windows; use Bun APIs with argument arrays, no shell string commands, and no bash-only syntax in the script.
+
+## Goal
+Add `bun run check:changed`: one command an agent or dev runs while iterating and before pushing. It runs the fast subset of CI's checks for only what the branch changed. `bun run check` (the full CI mirror) stays as is. Inspiration is t3code's `scripts/check-changed.ts` (https://github.com/pingdotgg/t3code/blob/main/scripts/check-changed.ts), but ours must be much smaller: yagni, aim for roughly 100 lines. Do NOT copy its run-result cache, workspace/affected-package mapping, patch check, or GraphQL parts.
+
+## Behavior
+- `bun run check:changed` compares against `git merge-base HEAD origin/main`; optional first argument is another ref. If there is no merge base, print a one-line hint to `git fetch origin` and exit 1.
+- Changed files = `git diff --name-only --no-renames <base>` plus untracked files (`git ls-files --others --exclude-standard`). Only files that still exist are passed to tools. No changes -> print so and exit 0.
+- Steps (run concurrently, print each step's output when it finishes, then a pass/fail summary, exit non-zero if any failed):
+  1. `oxlint` on changed JS/TS files (`bunx oxlint <files>` or the local binary; match how package.json's `lint` script invokes it).
+  2. `oxfmt --check` on changed files oxfmt handles. Make sure files in `.oxfmtrc.json` ignorePatterns (md, yml, bun.lock, etc.) are not passed in a way that makes oxfmt error with "no target files"; test this with a docs-only change and with an ignored file.
+  3. `bun test` on changed test files plus sibling tests of changed source files (`foo.ts` -> `foo.test.ts` in the same directory; also `.test.tsx`). Skip the step when none.
+  4. `bun run knip` when any code file or package.json/knip.json changed.
+  5. `bun run typecheck` when any code or tsconfig/package.json changed (it is fast enough to run whole).
+- Must work on Windows (backslash paths from git are forward-slash; normalize anyway) and in a git worktree.
+
+## Also update (same change)
+- `package.json`: add the `check:changed` script.
+- `t3.json`: add a matching run script entry (AGENTS.md requires t3.json to stay in sync with package.json scripts).
+- `AGENTS.md` "Verifying": the first bullet currently hand-composes `bun test <files>`, `bunx oxlint <files>`, `bunx oxfmt --check <files>`, `bun run typecheck`. Replace that with `bun run check:changed` as the pre-push command (keep `bun test <files>` for fast iteration and keep the "do not run repo-wide checks" rule and the note that `bun run check` mirrors CI). Edit only that bullet; do not touch "Where code lives" or "How it works" (other open PRs edit those).
+- `docs/operations/development.md`: add it where the commands/checks are listed. Keep it to a line or two.
+- `bun run check:refs` must pass (it validates command references in docs).
+- Skip the changelog (internal dev tooling, trivial per docs rules) unless docs/changelog.md's header says otherwise.
+- A test only if the file-to-test mapping has non-obvious logic; do not add trivial tests. Prove it works by running `bun run check:changed` on your own branch's changes, on a docs-only change, on an empty diff, and once with a deliberately broken lint/test change (revert it afterwards). Report the observed results.
+
+## Delivery (full-stop: PR ready for the user, never merged by you)
+- Branch from latest origin/main (`git fetch origin; git switch -c chore/check-changed origin/main`). Other PRs are open, so keep the diff to the files above.
+- Conventional commit, e.g. `chore(scripts): add check:changed for fast pre-push checks`. End the commit message with your own `Co-Authored-By: <your model name> <noreply@anthropic.com>` line.
+- Push and open a PR with `gh` (use the `file-pr` skill if you have it). Body: the problem in a sentence or two (agents hand-assemble checks), how you fixed it, one line on how you verified, and end with your model name and harness `(T3 Code)`, then `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+- Never merge, enable auto-merge, or push to main. Do not call watch_pull_request; do not poll or sleep. Look at check state once.
+- Last line of your final message exactly: `PR <full URL>, head <SHA>, checks and reviews <state>`. Above it, 3-6 lines on what you did and any doubts.
+
+---
+
+<task-notification>
+<task-id>by535kmhq</task-id>
+<tool-use-id>toolu_01J2PPF8YKDrXG68U1s7USN1</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-94426d9b\3975d338-0e87-4fed-a189-153f81d3ec5c\tasks\by535kmhq.output</output-file>
+<status>completed</status>
+<summary>Background command "bun install --frozen-lockfile --ignore-scripts 2&gt;&amp;1 | tail -3; ls node_modules/.bin | grep -E "^(oxlint|oxfmt|knip)"; grep -n "oxlint\|oxfmt" .github/workflows/ci.yml; sed -n 1,12p docs/changelog.md" completed (exit code 0)</summary>
+</task-notification>
