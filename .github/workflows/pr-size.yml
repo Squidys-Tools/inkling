@@ -1,0 +1,128 @@
+name: PR size
+
+on:
+  pull_request_target:
+    # edited covers base changes, which change the diff.
+    types: [opened, reopened, synchronize, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  label:
+    name: Label PR size
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+    concurrency:
+      group: pr-size-${{ github.event.pull_request.number }}
+      # Never cancel mid-run: a cancel between removing the old label and adding
+      # the new one leaves the PR with no size label.
+      cancel-in-progress: false
+    steps:
+      # This pull_request_target job may fetch untrusted PR commits only as passive
+      # git data. Do not add dependency installs, build/test scripts, or cache
+      # actions here.
+      - name: Checkout base repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Sync PR size label
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { execFileSync } = require("node:child_process");
+
+            const pr = context.payload.pull_request;
+            const prRef = `refs/remotes/pr-size/${pr.number}`;
+            const sizes = [
+              { label: "size:XS", below: 10 },
+              { label: "size:S", below: 30 },
+              { label: "size:M", below: 100 },
+              { label: "size:L", below: 500 },
+              { label: "size:XL", below: 1000 },
+              { label: "size:XXL", below: Infinity },
+            ];
+            // test-library.ts is a test helper, not source.
+            const testExcludes = [
+              ":(glob,exclude)**/*.test.*",
+              ":(glob,exclude)**/*.spec.*",
+              ":(glob,exclude)**/test-*.ts",
+            ];
+
+            const git = (args) => execFileSync("git", args, { encoding: "utf8" });
+
+            // Added plus removed lines. Binary files report "-" and count as zero.
+            const changedLines = (numstat) =>
+              numstat
+                .split("\n")
+                .filter(Boolean)
+                .reduce((total, line) => {
+                  const [added, removed] = line.split("\t");
+                  return (
+                    total + (Number.parseInt(added, 10) || 0) + (Number.parseInt(removed, 10) || 0)
+                  );
+                }, 0);
+
+            git(["fetch", "--no-tags", "origin", pr.base.sha]);
+            git(["fetch", "--no-tags", "origin", `+refs/pull/${pr.number}/head:${prRef}`]);
+
+            const diffLines = (pathspecs) =>
+              changedLines(
+                git([
+                  "diff",
+                  "--numstat",
+                  "--ignore-all-space",
+                  "--ignore-blank-lines",
+                  `${pr.base.sha}...${prRef}`,
+                  "--",
+                  ".",
+                  ...pathspecs,
+                ]),
+              );
+
+            const totalLines = diffLines([]);
+            const sourceLines = diffLines(testExcludes);
+            const testLines = totalLines - sourceLines;
+            // Test-only PRs are sized by their test lines.
+            const changed = sourceLines || testLines;
+            const next = sizes.find((size) => changed < size.below).label;
+            const hugeLabel = "what the hell";
+            const wanted = changed > 5000 ? [hugeLabel] : [next];
+            const managed = [...sizes.map((size) => size.label), hugeLabel];
+
+            const { data: current } = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              per_page: 100,
+            });
+
+            for (const { name } of current) {
+              if (!managed.includes(name) || wanted.includes(name)) {
+                continue;
+              }
+
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                name,
+              });
+            }
+
+            const missing = wanted.filter((name) => !current.some((label) => label.name === name));
+            if (missing.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: missing,
+              });
+            }
+
+            core.info(
+              `PR #${pr.number}: ${sourceLines} source lines, ${testLines} test lines -> ${wanted.join(", ")}`,
+            );
