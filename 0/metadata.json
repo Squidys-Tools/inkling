@@ -1,0 +1,61 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M61P6VCJPBB3Z6BD4QQSF8HD",
+  "session_id": "c1fefb73-98d4-404d-b213-166396e23dc2",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-28T16:41:38.2218179Z",
+  "checkpoints_count": 14,
+  "files_touched": [
+    "electron/video-poster.test.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "408845481ed2",
+  "checkpoint_transcript_start": 189,
+  "transcript_lines_at_start": 189,
+  "compact_transcript_start": 22,
+  "token_usage": {
+    "input_tokens": 272,
+    "cache_creation_tokens": 398697,
+    "cache_read_tokens": 21612648,
+    "output_tokens": 88901,
+    "api_call_count": 121
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01NYQqrRb9gvFoDCjCebg2Px",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "full-stop"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "408845481ed2",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 196,
+        "end": 197,
+        "entry_ids": [
+          "2990c57b-71de-4e28-a446-eaa611af745d"
+        ],
+        "tool_use_id": "toolu_01NYQqrRb9gvFoDCjCebg2Px"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01NYQqrRb9gvFoDCjCebg2Px"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: full-stop",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 14
+  }
+}

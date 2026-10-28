@@ -1,0 +1,156 @@
+so is 2 just really a like check to be done before a pr when working on something and the full check suite is like for CI or something? okay we can switch CI to windows. yeah should probably do 4 and 5 and get stuff fixed. explain 6 more. also explain more about that react compiler no manual memo thing. set haiku on xhigh to do 1, full stop
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A67e398d4-e522-441a-af41-d38439157d08%3Adelegate-task%3Ad11982a6-53c6-4dc4-91f2-a204b6e37a4c (Fix stale code map in AGENTS.md) [completed]:
+PR #193 is open against `main` and not a draft. The `docs/agents-code-map` branch has one commit, rebased onto `origin/main` at #192.
+
+- Rewrote the "Where code lives" section of `AGENTS.md`, one line per location. Feature code now points at `src/features/`, and `src/App.tsx` is described as the composition root.
+- Added `packages/contracts`, `packages/ingestion-shared`, `extension/`, `scripts/`, and `electron/storage/`. Also noted that `electron/ai-jobs.ts` runs URL ingestion from `src/lib/ingestion/`.
+- Fixed the benchmark results path to `benchmarks/results/`, and replaced the stale "no other docs home" line for `docs/` with the real contents and `docs/operations/`.
+- Verified every path named in the section exists on disk, and `bun run check:refs` passes. Markdown is excluded from oxfmt by config, so no format check applies. No other AGENTS.md paths needed changing; the `.github/pr-assets/` and `.plans/` references are do-not-commit rules, not required paths.
+- Not touched: `src/lib/ingestion/README.md` says no function there fetches network content, but `http.ts` and `url-ingestion.ts` do, and the main process runs URL ingestion. That is outside AGENTS.md, so I left it for a follow-up.
+- The PR footer follows your brief (`Claude Haiku 5.5 (T3 Code)`), not the file-pr skill's "Created with ..." line. I did not poll checks, did not merge, and did not start a watch.
+
+Checks were in progress at my single read: `Label PR size` and `Greptile Review`. No reviews yet.
+
+PR https://github.com/Squidys-Tools/inkling/pull/193, head 8931952570aeb8cefacf0b75328b2f45ad7b7b94, checks and reviews in progress
+
+---
+
+Update on pull request #193 (https://github.com/Squidys-Tools/inkling/pull/193), which T3 Code is watching for you:
+- All 2 checks passed on 8931952.
+- 2 new comments:
+  - greptile-apps: "<h2><a href="https://app.greptile.com/api/retrigger?id=89846586"><picture><source media="(prefers-color-scheme: dark)" srcset="https://greptile-static-assets.s3.amazonaws.com/badges/RetriggerDark.s..." https://github.com/Squidys-Tools/inkling/pull/193#issuecomment-6473497048
+  - greptile-apps: APPROVED https://github.com/Squidys-Tools/inkling/pull/193#pullrequestreview-5685446796
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+okay then yeah do 2, does 3 come from t3 code? if its what t3 code does, and it fits well for us, then go try out 5 or 6 whicheever one. get haiku to fix merge conflicts for pr 1, then go do 3 and 4, full send, last do the spike thing for either 5 or 6 I forgot.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A67e398d4-e522-441a-af41-d38439157d08%3Adelegate-task%3Aa4ac752c-5a66-49f0-9545-0686c9b77eb9 (Resolve conflicts on PR 193) [completed]:
+Resolved and pushed `c8e5c5d` to `docs/agents-code-map` with `--force-with-lease`. The conflict was only in "Where code lives": I kept #193's corrected bullets and dropped the "48 item" count from #194. Outside that section, AGENTS.md matches `origin/main` exactly. #194 had removed the `docs/` bullet entirely; I kept #193's corrected version because it fixes a stale claim without counts or the "no other docs home" wording. Every named path exists, and `bun run check:refs` passes on Bun 1.4.4, which matches `.bun-version` (the brief said 1.4.2, but the file pins 1.4.4). I didn't merge or touch other branches.
+
+PR https://github.com/Squidys-Tools/inkling/pull/193, head c8e5dfaad27c022615bc8532ad4a957b40d5e6, checks and reviews pending on the new head (the API still shows 8931952, whose checks are SUCCESS, and mergeable is UNKNOWN)
+
+---
+
+Update on pull request #193 (https://github.com/Squidys-Tools/inkling/pull/193), which T3 Code is watching for you:
+- All 1 check passed on c8e5c5d.
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A67e398d4-e522-441a-af41-d38439157d08%3Adelegate-task%3A32e97416-2e7a-449c-82e1-da500e6ae1ed (Point agents at Effect 4 docs) [completed]:
+I added two sentences to the "How it works" paragraph in `AGENTS.md`. They say the main process is Effect 4 and point agents at `node_modules/effect/AGENTS.md`, `node_modules/effect/ai-docs/` and the package source. They also say to run `bun install` if `node_modules` is missing. Nothing else in `AGENTS.md` changed, and I left the changelog alone.
+
+I checked that `electron/` imports `effect` and that `package.json` pins `effect` and `@effect/sql-sqlite-node` at 4.0.6. The `node_modules/effect` symlink was dangling until I ran `bun install`. After that, `AGENTS.md`, `ai-docs/` and `src/` were all present. `bun run check:refs` passes. I did not check CI or reviews.
+
+PR https://github.com/Squidys-Tools/inkling/pull/195, head 49843a01f21b66fdf0928a6d7102d84c5bfdd293, checks and reviews not yet checked
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A67e398d4-e522-441a-af41-d38439157d08%25253Adelegate-task%25253A32e97416-2e7a-449c-82e1-da500e6ae1ed%3Aordinal%3A1%3A52b5f1af-6b98-469d-b0ec-ee077959195a (Point agents at Effect 4 docs) [completed]:
+The `bun install` task finished with exit code 0. That was the install I already waited on and used to verify the paths. Nothing new to act on.
+
+PR https://github.com/Squidys-Tools/inkling/pull/195, head 49843a01f21b66fdf0928a6d7102d84c5bfdd293, checks and reviews not yet checked
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A67e398d4-e522-441a-af41-d38439157d08%3Adelegate-task%3A30009db8-075d-4cdf-b228-36afcc8a4822 (Enable and fix React lint rules) [completed]:
+All 25 diagnostics are fixed and `react/refs`, `react/set-state-in-effect`, `react/exhaustive-effect-dependencies`, `react/immutability` and `react/purity` are now `error` in `.oxlintrc.json`. Repo-wide `bunx oxlint`, `bun run typecheck` and `oxfmt --check` on the changed files are clean. I ran only the neighbouring `imageZoom`, `archiveGridWindow` and `mascotStore` tests (14 pass); none of them cover the changed hooks. I added no new tests and did no UI pass.
+
+- **How I fixed them:** I reset or derived state during render, keyed remounts, moved writes into the click that causes them, and moved latest-callback refs into effects. Details per file are in the PR body.
+- **Disables kept (3):**
+  - `InklingMascot.tsx`, two `react/set-state-in-effect`: the frozen-frame path re-samples the mutable `BotEngine`.
+  - `LiquidGlass.tsx`, one `react/immutability`: the portal target is a DOM element held in state and sized imperatively.
+- **Small deviations from a pure refactor:**
+  - `useSpaces.ts`: the desktop membership fetch no longer re-runs when `localSpaceItems` changes. Preview membership is now derived instead of mirrored by an effect.
+  - `SpacesSection.tsx` and `App.tsx`: the rule flagged `draft.name` because `draft` carried a ref. The new-Space input ref is now a separate `draftNameInputRef` prop.
+- **Riskiest for a UI pass:** Settings open and close (tab reset, archive tab, selection mode), X post embed load, the video poster-to-player switch in the item view, the Spaces chips in the item overlay, new-Space form focus, Liquid Glass sizing, and the onboarding headline.
+
+The PR's checks are still pending, and I did not merge it.
+
+PR https://github.com/Squidys-Tools/inkling/pull/196, head 452b6cb9984ac91fa6c076b77d594acbac004766, checks and reviews pending
+
+---
+
+Update on pull request #195 (https://github.com/Squidys-Tools/inkling/pull/195), which T3 Code is watching for you:
+- All 2 checks passed on 49843a0.
+- 2 new comments:
+  - greptile-apps: "<h2><a href="https://app.greptile.com/api/retrigger?id=89877567"><picture><source media="(prefers-color-scheme: dark)" srcset="https://greptile-static-assets.s3.amazonaws.com/badges/RetriggerDark.s..." https://github.com/Squidys-Tools/inkling/pull/195#issuecomment-6474531807
+  - greptile-apps: APPROVED https://github.com/Squidys-Tools/inkling/pull/195#pullrequestreview-5686076347
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A67e398d4-e522-441a-af41-d38439157d08%3Adelegate-task%3A0ad7ee4b-f493-4dec-bb50-5a4c2d370170 (Add bun run check:changed) [completed]:
+I added `bun run check:changed` in `scripts/check-changed.ts` (93 lines) and opened the PR. It diffs against the merge-base with `origin/main` (or a ref you pass), then runs oxlint, oxfmt, related tests, Knip and typecheck concurrently, only where they apply.
+
+- **Scope:** it also updates `package.json`, `t3.json`, the AGENTS.md "Verifying" first bullet and `docs/operations/development.md`. `bun run check:refs` passes. I added no test and no changelog entry.
+- **Observed results:**
+  - Own branch: all five steps pass.
+  - Empty diff vs `HEAD`: "No changes to check", exit 0.
+  - Docs-only change: "No checks apply", exit 0.
+  - Change to an oxfmt-ignored `.html` file: passes with no "no target files" error. I pass `--no-error-on-unmatched-pattern` to both oxlint and oxfmt for that.
+  - Deliberately broken `src/lib/assetUrlCache.ts`: its sibling `.test.ts` ran, and oxfmt, test and Knip failed with exit 1. oxlint only warned and passed. I reverted it.
+- **Not checked:** I haven't seen the script's output from a worktree with no merge base, so the "git fetch origin" hint path is untested. CI on the PR was still pending when I looked once.
+- **Slip:** I briefly stashed my work with a tagged `git stash push -u` and dropped only that entry after restoring. Nothing else on the shared stack was touched.
+
+PR https://github.com/Squidys-Tools/inkling/pull/197, head 1b5bbd2b48def09126c268634f315e580e3fd89e, checks and reviews pending
+
+---
+
+Update on pull request #196 (https://github.com/Squidys-Tools/inkling/pull/196), which T3 Code is watching for you:
+- All 9 checks passed on 452b6cb.
+- 2 new comments:
+  - greptile-apps: "<h2><a href="https://app.greptile.com/api/retrigger?id=89878322"><picture><source media="(prefers-color-scheme: dark)" srcset="https://greptile-static-assets.s3.amazonaws.com/badges/RetriggerDark.s..." https://github.com/Squidys-Tools/inkling/pull/196#issuecomment-6474597952
+  - greptile-apps: APPROVED https://github.com/Squidys-Tools/inkling/pull/196#pullrequestreview-5686118092
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+<task-notification>
+<task-id>bm83xqpyc</task-id>
+<tool-use-id>toolu_01LPrY2TRm7jXgV1WRafVgzD</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-3d7b1414\c1fefb73-98d4-404d-b213-166396e23dc2\tasks\bm83xqpyc.output</output-file>
+<status>completed</status>
+<summary>Background command "Install deps and build the app bundle for PR 196" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bhsy93jpx</task-id>
+<tool-use-id>toolu_01MnTRcXPm7QiRjtg3Pw4U4U</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-3d7b1414\c1fefb73-98d4-404d-b213-166396e23dc2\tasks\bhsy93jpx.output</output-file>
+<status>completed</status>
+<summary>Background command "Install Electron binary and launch scratch app" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A67e398d4-e522-441a-af41-d38439157d08%3Adelegate-task%3A3ef25a05-9519-4037-92a8-0051c44a2b25 (Move frontend CI to Windows) [completed]:
+The `frontend` job now runs on `windows-latest`, and the local Windows run of the CI sequence passes. Actions hadn't reported any checks on the PR yet when I looked once, so the CI result is still the open proof.
+
+- **Workflow:** job id `frontend` and name `Frontend checks` are unchanged. `changes`, `electron-preview.yml` and the release workflows are untouched. I set `defaults.run.shell: bash` on the job, which covers the typecheck and canary steps without splitting them. I also reworded the CI sentence in `docs/operations/development.md`. `CONTRIBUTING.md` doesn't mention Linux CI, so I left it alone.
+- **Line endings:** no change needed. `.gitattributes` already forces LF on source files, and `oxfmt --check` passes on a default Windows checkout, which has autocrlf on.
+- **Failure 1:** one test assumed POSIX separators, `data directory keeps portable precedence...` in `electron/storage.test.ts`. I changed its expectations to use `join` and `resolve`.
+- **Failure 2:** four tests passed alone but hit bun's 5s default timeout in the full run: two Tesseract OCR tests, the PDF/system-font spawn probe, and the mascot face-margin test.
+  - Bun 1.4.4 ignores a timeout set in `bunfig.toml`. A preload `setDefaultTimeout` only applied to the first test file.
+  - I changed the `test` script to `bun test --timeout 30000`, and CI and `check` now run `bun run test`.
+  - `AGENTS.md` discourages per-test timeouts, so you may prefer a different fix. If CI runners are slower than this machine, 30s might still not be enough.
+- **Local results:**
+  - `bun run test`: 292 pass in about 55s.
+  - Passing: typecheck on all four workspaces, `check:refs`, `knip`, `lint`, `build`, `build:app`, `ingest:smoke`, and the extension build.
+  - The non-blocking canary `typecheck:tsc` still fails on `GPUTexture*` types in `LiquidGlass.tsx`, which isn't OS-specific.
+  - `bun install` took about 4 minutes here.
+
+PR https://github.com/Squidys-Tools/inkling/pull/198, head f5aa98a6c677281a102805fd5bfe14abb0bf5f19, checks and reviews none reported yet
