@@ -1,6 +1,6 @@
 # p3-stack skills
 
-The `principle-*`, `technical-writing`, `typescript-best-practices` and `unslop` skills in this folder come from [Tr1Fecta-7/p3-stack](https://github.com/Tr1Fecta-7/p3-stack) (a T3 Code rework of [poteto's pstack](https://github.com/poteto/pstack)), verbatim as of p3-stack `a370eb9` (pstack 0.15.28, 2026-10-19). Only the ones in use are kept. `maintain-verification-skill` has its paths and `create-verification-skill` references adjusted for this repo.
+`maintain-verification-skill` comes from [Tr1Fecta-7/p3-stack](https://github.com/Tr1Fecta-7/p3-stack) (a T3 Code rework of [poteto's pstack](https://github.com/poteto/pstack)), with its paths adjusted for this repo.
 
 ```
 MIT License
