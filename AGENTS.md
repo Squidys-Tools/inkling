@@ -169,7 +169,7 @@ Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behav
 
 - Complexity belongs at the adapter boundary. Ingestion stays explicit, UI stays dumb.
 - Inferred types over annotations. `any` is the enemy.
-- Effect stays in the main process and stops at the IPC edge; the renderer never imports it at runtime. Reusable Effect functions use `Effect.fnUntraced`, not `Effect.fn` (nothing collects spans). Keep `Effect.gen` for inline programs and layers.
+- Effect lives in the main process and stops at the IPC edge. The one renderer use is `src/lib/ingestion/http.ts` (preview-mode capture); don't add more. Reusable Effect functions use `Effect.fnUntraced`, not `Effect.fn` (nothing collects spans). Keep `Effect.gen` for inline programs and layers.
 - Default to no comment. Keep one only where a reader would likely break something without it: a race or ordering guarantee, a security or sanitizing check, a Chromium, Electron, WebGPU or OS quirk, or an invariant another file relies on. One line where you can, four at most. Don't restate names, narrate steps, label sections, record history, explain the fix you just made (the PR carries that), or leave a TODO without an issue. Lint directives, knip tags and license headers stay. `inkling/no-low-value-comments` in `oxlint-plugin-inkling/` enforces the length cap and the mechanical cases, and every `oxlint-disable` needs a `-- reason`.
 - Our users should never notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations (with a slight exception for the mascot); they peg the GPU on high-refresh displays.
 - Capture paths stay fast and forgiving. Keep partial results when extraction fails. A URL with a title and domain beats an error card.
