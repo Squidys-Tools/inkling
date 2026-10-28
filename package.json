@@ -177,7 +177,8 @@
       }
     },
     "deb": {
-      "maintainer": "inkling contributors"
+      "maintainer": "inkling contributors",
+      "fpm": ["--depends", "pkexec | policykit-1"]
     },
     "publish": [
       {

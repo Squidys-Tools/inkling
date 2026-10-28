@@ -17,7 +17,7 @@ export async function installDebianUpdate(file: string, expectedVersion: string)
         return [line.slice(0, separator), line.slice(separator + 1).trim()];
       }),
   );
-  if (fields.Package !== "inkling" || fields.Version !== expectedVersion)
+  if (fields.Package !== "inkling" || fields.Version !== expectedVersion.replaceAll("-", "~"))
     throw new Error("Update package identity does not match.");
   // PolicyKit owns authentication; no shell, password collection, apt repair or security overrides.
   await execute("/usr/bin/pkexec", ["/usr/bin/dpkg", "--install", file], { timeout: 300_000 });
