@@ -60,7 +60,7 @@ None — there are no local hooks by policy. Formatting, linting, and all other 
 
 ## CI behavior (what runs where)
 
-- `ci.yml`: docs-only pushes skip; otherwise the frontend job verifies the Bun version pin, typechecks every workspace, runs tests, `knip`, builds the app and extension, and runs ingestion smoke tests.
+- `ci.yml`: docs-only pushes skip; otherwise the frontend job runs on `windows-latest` (inkling ships on Windows only) and verifies the Bun version pin, typechecks every workspace, runs tests, `knip`, builds the app and extension, and runs ingestion smoke tests.
 - `security.yml`: JavaScript/TypeScript CodeQL on open/reopen and roughly every 4th push, dependency review on every PR; path gating applies to push-to-main only.
 - `knip.yml`: scheduled `knip --fix` (every other day) opens a cleanup PR. It strips unused `export` keywords and prunes dependencies; it never deletes files.
 - `links.yml`: weekly markdown link check, opens an issue on failures. New custom schemes (`inkling://`) or local hosts go in `.lycheeignore`.
