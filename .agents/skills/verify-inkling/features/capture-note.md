@@ -15,7 +15,7 @@ Save as `steps.json`, then run with a fresh evidence dir:
 
 ```json
 [
-  {"label": "open Add", "click": "button[data-tooltip='Add something to your library']"},
+  {"label": "open Add", "click": "button.add-button"},
   {"label": "choose Note", "clickText": {"selector": ".add-menu-tile", "text": "Note"}},
   {"label": "note field", "wait": "textarea[aria-label='New note']"},
   {"label": "type note", "fill": "textarea[aria-label='New note']", "text": "verify-inkling probe note"},

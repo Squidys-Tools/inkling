@@ -238,7 +238,6 @@ export function AddMenu({
             aria-expanded={false}
             aria-controls={panelId}
             disabled={saving}
-            data-tooltip="Add something to your library"
             onClick={onOpen}
           >
             <HugeiconsIcon icon={PlusSignIcon} size={16} />
