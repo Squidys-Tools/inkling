@@ -98,7 +98,7 @@ An empty library is a bad test. Seed your run with a copy of real data instead o
 
 ## Verifying
 
-- Smallest proof that the change works: `bun test <files>` for the tests you touched, `bunx oxlint <files>` and `bunx oxfmt --check <files>` for what you changed, and `bun run typecheck` (fast enough to run whole). The full check is `bun run check`, which mirrors the CI frontend job. Do not run it unless you changed something broad or the user asked.
+- Smallest proof that the change works. While iterating, `bun test <files>` for the tests you touched. Before pushing, `bun run check:changed`: lint, format, tests, Knip, and typecheck scoped to what the branch changed. The full check is `bun run check`, which mirrors the CI frontend job. Do not run it unless you changed something broad or the user asked.
 - **Do not run repo-wide checks.** No full `bun test` sweep or full `tsc` unless asked. CI owns the full suite.
 - A test earns its place by guarding something that breaks quietly: extraction and sanitizing, embed allowlists, OCR scoring, queue leases and recovery, migrations and persistence, asset path containment and range requests, deep link and external-format parsing, ordering and race guarantees, and `liquidGlassShape`. A test added with a bug fix stays; mark it `// regression: #NNN` if its name doesn't say so.
 - Don't write tests the types already prove, trivial logic, basic DOM behavior, static-markup renders, mock-call mirrors, smoke tests, duplicate table rows, or wall-clock and perf asserts.
