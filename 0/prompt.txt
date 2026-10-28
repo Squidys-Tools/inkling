@@ -1,0 +1,16 @@
+screenshots of your changes in the pr pls
+
+---
+
+correct me if im wrong but I just ran the dev app and this is how it looks [Image: image.png; ref=image_3a076246-5eec-4da2-9acc-c49d5938cc17]
+
+<t3_context version="1">
+<context kind="image" id="image_3a076246-5eec-4da2-9acc-c49d5938cc17">
+name: image.png
+mimeType: image/png
+sizeBytes: 924020
+attachmentId: 65a46404-9af5-44b4-818a-fa254030abe6-706db77d-64e9-40e1-bd2f-42cafe7f69ac
+</context>
+</t3_context>
+
+[Attached image "image.png" is saved at: C:\Users\chris\.t3\userdata\attachments\65a46404-9af5-44b4-818a-fa254030abe6-706db77d-64e9-40e1-bd2f-42cafe7f69ac.png]
