@@ -77,7 +77,7 @@ test("rejects lower/equal versions, wrong prerelease trains and a stale or modif
       expect(await f.controller.checkForUpdates()).toBeNull();
     }
     await f.controller.setChannel("nightly");
-    for (const version of ["0.2.0", "0.2.0-beta.1", "0.1.0-nightly.1"]) {
+    for (const version of ["0.2.0", "0.2.0-beta.1", "0.1.0-nightly.1", "0.2.0-nightly.evil"]) {
       f.setVersion(version);
       expect(await f.controller.checkForUpdates()).toBeNull();
     }

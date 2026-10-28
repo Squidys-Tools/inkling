@@ -92,15 +92,22 @@ export function createUpdateController({
     // electron-updater's channel setter implicitly enables downgrades.
     autoUpdater.allowDowngrade = false;
   };
-  const ready = preferences.read().then((saved) => {
-    state.channel = saved.channel ?? state.channel;
-    installRecord = saved.install;
-    if (installRecord && installRecord.target !== currentVersion) {
-      state.message = "The previous update did not apply. Check for updates to try again.";
-      state.errorContext = "install";
-    }
-    applyChannel();
-  });
+  const ready = preferences
+    .read()
+    .then((saved) => {
+      state.channel = saved.channel ?? state.channel;
+      installRecord = saved.install;
+      if (installRecord && installRecord.target !== currentVersion) {
+        state.message = "The previous update did not apply. Check for updates to try again.";
+        state.errorContext = "install";
+      }
+      applyChannel();
+    })
+    .catch(() => {
+      disabledReason =
+        "Update preferences could not be read. Check file permissions and restart inkling.";
+      state = { ...state, status: "disabled", message: disabledReason };
+    });
   const snapshot = () => ({ ...state });
   const fail = (context: NonNullable<UpdateState["errorContext"]>, message: string) => {
     state = { ...state, status: "error", message, errorContext: context, progress: null };
@@ -119,7 +126,8 @@ export function createUpdateController({
   });
   async function run<T>(operation: () => Promise<T>) {
     await ready;
-    if (active || state.status === "installing") throw new Error("An update action is already running.");
+    if (active || state.status === "installing")
+      throw new Error("An update action is already running.");
     if (disabledReason) throw new Error(disabledReason);
     active = true;
     try {
@@ -131,7 +139,9 @@ export function createUpdateController({
   function acceptable(version: string) {
     if (!valid(version) || !gt(version, currentVersion)) return false;
     const pre = prerelease(version);
-    return state.channel === "nightly" ? /^\d+\.\d+\.\d+-nightly\.\d{8}\.\d+$/.test(version) : pre === null;
+    return state.channel === "nightly"
+      ? /^\d+\.\d+\.\d+-nightly\.\d{8}\.\d+$/.test(version)
+      : pre === null;
   }
   async function check() {
     applyChannel();

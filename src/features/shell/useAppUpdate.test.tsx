@@ -218,7 +218,7 @@ test("install authentication failure stays actionable and preserves the verified
   });
   expect(update.updateState?.status).toBe("error");
   expect(update.updateState?.errorContext).toBe("install");
-  expect(update.availableUpdate?.version).toBe(initial.availableVersion);
+  expect(update.availableUpdate?.version).toBe(initial.availableVersion!);
   expect(update.isReadyToInstall).toBe(true);
   expect(update.updateState?.message).toBe("System authorization was cancelled.");
   expect(update.updateState?.downloadedVersion).toBe(initial.availableVersion);
