@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M61N4YK2ZF11JVZP7XVF4M94",
+  "strategy": "manual-commit",
+  "branch": "fix/react-lint-rules",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".oxlintrc.json",
+    "src/App.tsx",
+    "src/components/FirstRunOverlay.tsx",
+    "src/components/ItemMedia.tsx",
+    "src/components/LiquidGlass.tsx",
+    "src/components/mascot/InklingMascot.tsx",
+    "src/components/onboarding/SplitText.tsx",
+    "src/features/item-view/ItemStageMedia.tsx",
+    "src/features/item-view/PdfViewer.tsx",
+    "src/features/item-view/RichNoteEditor.tsx",
+    "src/features/item-view/ZoomableImage.tsx",
+    "src/features/settings/useArchive.ts",
+    "src/features/settings/useSettings.ts",
+    "src/features/shell/SpacesSection.tsx",
+    "src/features/shell/useAppShortcuts.ts",
+    "src/features/spaces/useSpaces.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 72,
+    "cache_creation_tokens": 86056,
+    "cache_read_tokens": 2778493,
+    "output_tokens": 21387,
+    "api_call_count": 36
+  }
+}

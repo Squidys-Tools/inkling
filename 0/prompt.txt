@@ -1,0 +1,30 @@
+Act as the implementation sub-agent for this task.
+
+Repo: inkling (Electron + React + TypeScript + Vite, Bun, Windows app). Read AGENTS.md at the repo root and follow it (performance principles, taste, verifying, comment rules enforced by `inkling/no-low-value-comments`, every `oxlint-disable` needs ` -- reason`). Do the work yourself; no subagents. Do NOT launch dev servers or the Electron app (the parent agent does the UI pass after you).
+
+## Goal
+`.oxlintrc.json` turns off several oxlint React rules that t3code (https://github.com/pingdotgg/t3code) runs as errors: `react/refs`, `react/set-state-in-effect`, `react/exhaustive-effect-dependencies`, `react/immutability`; `react/purity` is not enabled. Fix the existing violations in `src/` and turn all five rules on as `error`, so effects that just sync state stop causing cascading renders and the lint holds the line.
+
+## Known violations (measured on main with `bunx oxlint -D react/set-state-in-effect -D react/refs -D react/immutability -D react/exhaustive-effect-dependencies -D react/purity src`): ~25 diagnostics in 14 files: 13 set-state-in-effect, 8 refs, 2 immutability, 2 exhaustive-effect-dependencies, 0 purity. Files include src/components/mascot/InklingMascot.tsx, src/features/settings/useSettings.ts, src/features/settings/useArchive.ts, src/components/onboarding/SplitText.tsx, src/features/item-view/ZoomableImage.tsx, src/features/shell/useAppShortcuts.ts, src/App.tsx, src/features/item-view/PdfViewer.tsx, src/features/item-view/RichNoteEditor.tsx, src/features/shell/SpacesSection.tsx, src/components/ItemMedia.tsx, src/components/LiquidGlass.tsx, src/features/spaces/useSpaces.ts, src/components/FirstRunOverlay.tsx. Re-run the command yourself for the exact list.
+
+## How to fix (behavior must not change)
+- set-state-in-effect: derive the value during render, reset state with a `key`, or move the update into the event handler that causes it. If the effect truly synchronizes with something outside React and a synchronous setState is required (e.g. measuring layout, subscribing to a store/observer, a one-time mount read from an external API), keep it and add `// oxlint-disable-next-line react/set-state-in-effect -- <specific reason>`; the reason must say what external thing it syncs. Prefer a real fix; use disables sparingly and justify each.
+- refs: do not read or write `ref.current` during render. Typical fixes: keep the latest-callback ref updates inside an effect or layout effect, or use state/derived value. Event handlers and effects may use refs.
+- immutability (src/components/LiquidGlass.tsx ~line 433): do not mutate a value from useState or reassign locals after render.
+- exhaustive-effect-dependencies: remove the extra dependencies, but double check the effect really should not re-run on them.
+- Hot paths matter: the library grid, card, item overlay, and mascot are performance-sensitive. Do not add renders, re-subscriptions, or work per scroll/frame. No continuously repainting animations. Do not change the mascot's timing/behavior.
+- Do not add comments restating code. Keep diffs small per file; no refactors beyond what each fix needs.
+- Remove the `"off"` lines for these rules in `.oxlintrc.json` and set all five to `"error"` (`react/refs`, `react/set-state-in-effect`, `react/exhaustive-effect-dependencies`, `react/immutability`, `react/purity`). Leave other rules as they are. Check the overrides section still makes sense.
+
+## Proof
+- `bunx oxlint src` and `bunx oxlint` (whole repo lint, fast) clean with the new config; `bunx oxfmt --check` on files you changed; `bun run typecheck`; `bun test` only for test files beside the files you changed (a test covering a hook you altered must pass). No full `bun test` sweep.
+- If a fix changes logic that has no test and is easy to break quietly (ordering/race of state), add one focused test per AGENTS.md test rules; otherwise do not add tests.
+- In the PR body list each file and the kind of fix, and call out every `oxlint-disable` you kept with its reason, so the parent can do a targeted UI pass on those areas.
+- docs/changelog.md: skip unless a user-visible behavior changed (it should not).
+
+## Delivery (full-stop: PR ready for the user, never merged by you)
+- Branch from latest origin/main (`git fetch origin; git switch -c fix/react-lint-rules origin/main`).
+- Conventional commit, e.g. `fix(react): stop syncing state in effects and enable the React lint rules`. End with your own `Co-Authored-By: <your model name> <noreply@anthropic.com>`.
+- Push and open a PR with `gh` (use the `file-pr` skill if you have it). Body: problem in a sentence or two, how fixed, one line on proof, the per-file list above; end with your model name and harness `(T3 Code)`, then `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+- Never merge, enable auto-merge, or call watch_pull_request; no sleeping or polling; look at check state once.
+- Last line of your final message exactly: `PR <full URL>, head <SHA>, checks and reviews <state>`. Above it, 4-8 lines: what you fixed, which disables remain, which fixes are riskiest for a UI pass.

@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M61N4YK2ZF11JVZP7XVF4M94",
+  "session_id": "19741a92-37f8-407d-b242-8fff71045813",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-28T16:23:10.9616816Z",
+  "branch": "fix/react-lint-rules",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".oxlintrc.json",
+    "src/App.tsx",
+    "src/components/FirstRunOverlay.tsx",
+    "src/components/ItemMedia.tsx",
+    "src/components/LiquidGlass.tsx",
+    "src/components/mascot/InklingMascot.tsx",
+    "src/components/onboarding/SplitText.tsx",
+    "src/features/item-view/ItemStageMedia.tsx",
+    "src/features/item-view/PdfViewer.tsx",
+    "src/features/item-view/RichNoteEditor.tsx",
+    "src/features/item-view/ZoomableImage.tsx",
+    "src/features/settings/useArchive.ts",
+    "src/features/settings/useSettings.ts",
+    "src/features/shell/SpacesSection.tsx",
+    "src/features/shell/useAppShortcuts.ts",
+    "src/features/spaces/useSpaces.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "bbccc7d72d23",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 72,
+    "cache_creation_tokens": 86056,
+    "cache_read_tokens": 2778493,
+    "output_tokens": 21387,
+    "api_call_count": 36
+  }
+}
