@@ -1,0 +1,256 @@
+/maintain-verification-skill
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A5eda81b9-567a-4c73-b036-5ef473c5f992%3Adelegate-task%3A04ac6b24-817f-438e-be63-bd8200c93a0b (Source: capture-note) [completed]:
+1) **Feature summary**
+
+The Add button sits in the sidebar footer. Clicking it morphs the button in place into a dialog (`role="dialog"`, `aria-label="Add to your library"`, header "Add") with five tiles: Note, Link, Quote, File, Screen.
+
+- **Note tile:** switches the dialog to a form with a `textarea[aria-label='New note']`. Focus lands in the field automatically.
+- **Saving:** Enter submits. Shift+Enter inserts a newline, and an IME-confirming Enter is ignored. The `button.add-menu-save` ("Save to library") submits too.
+- **Save path:** the trimmed text goes through `persistText`, then `createNote({body, metadata:{captureSource:"quick note"}})`, then the IPC command `create_note`, then `items.createNote`.
+- **New card:** the renderer prepends it to `items` (`setItems([libraryItem, ...current])`), so it shows at the top of Everything immediately. A `generate_embedding` job is enqueued in the same transaction. The dialog then closes.
+- **Failure:** if the save fails, the form stays open with an `.add-menu-error` message.
+
+2) **Source entry points**
+
+- Add button: `src/features/capture/AddMenu/AddMenu.tsx:227-248` (`data-tooltip="Add something to your library"`, class `add-button`).
+- Tiles: `AddMenu.tsx:196-217`, with the `Tile` component at `:255-280` (`.add-menu-tile`).
+- Note form: `AddMenu.tsx:306-321` (textarea, Enter handling at `:310-317`). Save button: `:360`.
+- Mounted in the sidebar footer: `src/App.tsx:481-501`, `src/features/shell/Sidebar.tsx:145`.
+- Note save wiring: `App.tsx:494`, `useCapture.ts:452-469` (`saveFromAddMenu`), `useCapture.ts:209-230` (`persistText`).
+- API and contract: `src/lib/libraryApi.ts:245`, `packages/contracts/src/index.ts:138-142`, `electron/main.ts:317`.
+- DB insert: `electron/storage/items.ts:134-149`.
+- N shortcut: `src/lib/keyboardShortcuts.ts:23`, `src/features/shell/useAppShortcuts.ts:78`, `useCapture.ts:472-477`.
+
+3) **Likely doc drift**
+
+Most claims are accurate: selectors, menu contents, Enter/Save, null title, `body_format='md'`, and the top-of-Everything landing. Three items need correction.
+
+- **The N shortcut claim is misleading** (`capture-note.md:33`).
+  - The sidebar part is true: `openCapture` calls `setIsSidebarOpen(true)` (`useCapture.ts:476`).
+  - But N calls `openCapture("note")`, so it opens straight into the Note form and skips the tile menu (`useAppShortcuts.ts:78`).
+  - It is ignored when focus is in an input or textarea, when Add or Settings is already open, when an item, reader, or PDF is open, and while a capture is in progress (`useAppShortcuts.ts:55,69,78`).
+  - Corrected wording: "Pressing N (outside any text field) opens the sidebar and goes straight to the Note form, skipping the tile menu."
+- **The sidebar-must-be-open claim is only implicit** (`capture-note.md:33`).
+  - The Add button is always in the DOM, but a closed sidebar is `-translate-x-[102%] w-0 opacity-0`, and on wide windows it also gets `invisible` (`Sidebar.tsx:98-101`).
+  - A coordinate click on it will fail or miss.
+  - Suggested addition: "Add is only clickable while the sidebar is open (default on wide windows). If it is collapsed, press N or toggle the sidebar first."
+- **Text that looks like a URL is not saved as a note** (`useCapture.ts:212-220`).
+  - Text starting with `http(s)://`, or matching a bare-domain pattern with no spaces such as `example.com`, goes to `persistArticle` and creates a link item.
+  - The probe text "verify-inkling probe note" contains spaces, so it is safe.
+  - Suggested gotcha: "A note whose whole text is a URL or bare domain becomes a link item, not a note."
+
+Smaller additions:
+
+- The Screen tile has `aria-label="Screenshot"`, so `clickText` on "Screen" still matches via textContent. The doc's "Screen (screenshot)" is fine.
+- Because `title` is null, the note card shows `description`/`body`. The `expect` on `article` text works, since cards render as `<article>` (`LibraryCard.tsx:344`).
+- The row also has `description` set to the plain-text version of the body and `metadata = {"captureSource":"quick note"}`. These could be added to the end-state proof.
+- The ordering claim needs one qualifier. After a reload, `list_items` order comes from `selectCards`, which I did not read. The search path orders by `updated_at DESC, created_at DESC` (`search.ts:91,96`), so a fresh note should still be first.
+
+**Drivability of the other tiles**
+
+- **Link and Quote:** both are drivable.
+  - Link: `input[aria-label='URL to save']` plus `button.add-menu-save`. The save requires network fetching.
+  - Quote: `textarea[aria-label='Quote text']`, `input[aria-label='Quote attribution']`, and `input[aria-label='Quote source URL']`.
+  - Quote saves through `create_quote` and needs no network unless a source URL is given.
+  - Note that Enter in the quote textarea does not submit, because only the note textarea has the Enter handler.
+- **File:** not drivable. The tile calls `fileRef.current.click()` on a hidden `input[type=file]` (`AddMenu.tsx:208`), which opens a native dialog. The harness has no way to set the file.
+- **Screen:** not drivable. `startScreenshotCapture` triggers native screenshot capture (`useCapture.ts:485`).
+
+4) **Live-verification recipe**
+
+1. In a scratch instance, confirm the sidebar is open. The `button[data-tooltip='Add something to your library']` should be visible.
+2. `click` that button, then `wait` for `.add-menu-panel`.
+3. `clickText` `{selector: ".add-menu-tile", text: "Note"}`, then `wait` for `textarea[aria-label='New note']`.
+4. `fill` the textarea with `verify-inkling probe note`.
+5. Submit with either `click` on `button.add-menu-save`, or `key Enter` with the textarea focused. Run each in a separate pass, because the dialog closes after the first save.
+6. `expect` that `[...document.querySelectorAll('article')].some(a => a.textContent.includes('verify-inkling probe note'))` becomes true (timeout 10000).
+7. `expect` that `.add-menu-panel` is gone and `.add-button` is back, then `shot`.
+
+Expected row in scratch `library.sqlite3`, `SELECT ... FROM items WHERE kind='note'` opened read-only:
+
+- `kind='note'`
+- `title IS NULL`
+- `body='verify-inkling probe note'`
+- `body_format='md'`
+- `description='verify-inkling probe note'` (plain text of the body)
+- `source_url IS NULL`
+- `archived=0` (I did not read the schema default; `search.ts:83` filters on this column)
+- `metadata='{"captureSource":"quick note"}'`
+- `ocr_text=''`
+- `created_at` equal to `updated_at`
+
+Exactly one row should exist for that body. A `generate_embedding` job for the item id should also be present in the jobs table. I did not read that table's name or columns, so check the schema first. Its outcome is not part of the pass condition.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A5eda81b9-567a-4c73-b036-5ef473c5f992%3Adelegate-task%3A823df206-fe40-42be-815f-8afb4a1f3ab0 (Source: search) [completed]:
+I've finished reading and have enough to answer. Nothing was written, launched or built, and the empty-string behaviour and the model-missing path were not tested live.
+
+## 1) Feature summary
+
+- The field is `input[aria-label='Search your mind']`, rendered by `CaptureBar` through `SearchField`. At rest the input is in the DOM but visually hidden: width 0, opacity 0, with a pill showing the view name. On focus it expands, and the `esc to close` hint appears.
+- `/` or Ctrl/Cmd+K focuses the field when the focus isn't in an editable target. `N` opens a new note.
+- Typing updates `query` immediately. The backend search runs only after a 200 ms debounce. In the desktop app there is no client-side filtering (`canUseDesktopBackend` short-circuits it), so the grid changes about 200 ms plus IPC time after the last keystroke, not per keystroke.
+- The backend (`search_items`) tries to embed the query. If the embedder is missing or throws, it returns null and the search falls back to lexical only.
+- Lexical search is SQLite FTS5 over title, description, source_label, ocr_text, metadata and body. Each whitespace-separated token is double-quoted, so matching is whole-token with no prefix matching. `alp` does not match `alpha`. Results sort by `updated_at` descending.
+- If FTS5 is disabled, it falls back to `LIKE` substring matching.
+- Notes have a null title, so a note is found through `body`.
+- Clearing works four ways:
+  - Escape in the field clears the query and blurs.
+  - While the field is unfocused and the query is non-empty, a "Clear search" × button (`aria-label="Clear search"`) appears in the pinned filter row.
+  - Empty results show a "Clear search" text button.
+  - Emptying the text restores the grid after the debounce.
+- The pinned filter row (query chip, `.result-count`, "result(s)", "Save as Space") shows only when the field is unfocused and the query is non-empty.
+- The empty-results state is a dashed panel with the heading "Nothing surfaced yet.", the text "Try another word, or save something new to your mind." and a "Clear search" button.
+
+## 2) Source entry points
+
+- `src/features/capture/CaptureBar.tsx:76-77`: placeholder and aria-label "Search your mind".
+- `src/features/capture/CaptureBar.tsx:66`: hint is `esc to close`.
+- `src/features/capture/CaptureBar.tsx:70-74`: Escape clears the query and blurs.
+- `src/features/capture/CaptureBar.tsx:92-99`: "Clear search" × button.
+- `src/features/capture/CaptureBar.tsx:103-104`: `.result-count` and " result(s)".
+- `src/ui/SearchField.tsx:7,62-66`: the input is hidden at rest.
+- `src/lib/keyboardShortcuts.ts:14-22`: `/` and Ctrl/Cmd+K both return "search".
+- `src/features/shell/useAppShortcuts.ts:69-77`: the shortcut is ignored in editable targets, while a modal is open, in the reader or detail view, and while Settings or Add is open.
+- `src/features/library/useLibraryData.ts:46-49`: 200 ms debounce.
+- `src/features/library/useLibraryData.ts:129-133`: `searchItems(debouncedQuery)`.
+- `src/App.tsx:295-318`: no client-side filter in the desktop app.
+- `src/App.tsx:324`: `showFilterRow`.
+- `src/App.tsx:627-632`: typing resets the Space and view to Everything.
+- `src/features/library/LibraryStage.tsx:56-97`: grid versus the empty panel.
+- `electron/main.ts:251-258`: `embedQueryForSearch` returns null on failure.
+- `electron/main.ts:297-300`: `search_items` handler.
+- `electron/storage/search.ts:76-123`: FTS5 or LIKE, optional semantic merge, `semanticMatchFloor = 0.55`.
+- `electron/storage/search.ts:21-28`: token quoting, so no prefix match.
+- `electron/storage/schema.ts:161-167`: FTS columns.
+
+## 3) Likely doc drift
+
+Drift in `.claude/skills/verify-inkling/features/search.md`:
+
+1. **Line 18, wrong hint.** There is no `/ to search` hint anywhere in `src/`. The field's hint is `esc to close` (`CaptureBar.tsx:66`), and it shows only while the field is expanded. The same line is in the `.agents/skills/verify-inkling/features/search.md` copy. Corrected wording: "The expanded field shows an `esc to close` hint. `/` (or Ctrl+K) focuses it when no input is focused (`keyboardShortcuts.ts:14-22`)."
+2. **Line 17, stale platform claim.** "Not yet proven on a Linux run" is stale because the harness also runs on Windows. It also stays unverified until a run covers it. Suggested wording: "Not yet driven on any platform; the harness runs on Windows and Linux."
+3. **Line 9, "Results narrow as you type" is imprecise.** Suggested wording: "Results update about 200 ms after typing stops (`useLibraryData.ts:48`), computed by the backend. Clearing the field restores the grid. Escape clears and blurs."
+4. **Line 5 and 13 need correcting:**
+   - Search is whole-token FTS5. A partial word such as `alp` returns nothing, so use full words in steps.
+   - Notes match on `body`. Their title is null.
+   - Matching also covers description, source_label, ocr_text and metadata. Semantic similarity is merged in only when the embedder works, and otherwise search silently falls back to lexical (`main.ts:251-258`). A scratch library with no model downloaded should still pass lexical searches, though I did not read the embedder's no-model path in `electron/embeddings`.
+5. **Line 13, `fill` with an empty string is risky.** `fill` uses `Input.insertText`, and inserting an empty string may not replace the selection. Suggest clearing with `key: Escape` (it clears and blurs) or clicking `button[aria-label='Clear search']`. The × only exists while the field is unfocused and the query is non-empty. Escape is the safer route.
+6. **The doc is missing the selectors for the result count and the empty state.** Add `.result-count` (only visible when the field is unfocused), the "Nothing surfaced yet." heading and the "Clear search" button.
+7. **Related gotcha:** `/` is ignored when the focus is already in an input, so blur or press Escape first. The `key` step dispatches to the focused element.
+
+## 4) Live-verification recipe
+
+Preconditions: the scratch library has notes "alpha probe" and "bravo probe". The Everything view is open with no modal and no focused input.
+
+1. `expect` `[...document.querySelectorAll('article')].filter(a => /alpha probe|bravo probe/.test(a.textContent)).length === 2`. Then `shot` `search-before.png`.
+2. `key` `/`. Then `expect` `document.activeElement?.getAttribute('aria-label') === 'Search your mind'`. This proves the shortcut. If the field is already focused, press Escape first.
+3. `fill` `input[aria-label='Search your mind']` with text `alpha`.
+4. `expect` `[...document.querySelectorAll('article')].some(a => a.textContent.includes('alpha probe')) && ![...document.querySelectorAll('article')].some(a => a.textContent.includes('bravo probe'))`, with `timeoutMs` 5000 to allow for the debounce. This should leave exactly 1 matching card.
+5. `key` `Escape`. This blurs the field and the pinned filter row appears. Then `expect` `document.querySelector('.capture-bar')?.textContent.includes('Save as Space')`.
+   - Assert the count as `document.querySelector('.result-count')?.textContent.trim() === '1'`. `AnimatedCount` is unread, so the text format may differ.
+   - Step 4 is already covered by the card check, so skip the count if it is flaky.
+   - Then `shot` `search-alpha.png`.
+6. `click` `button[aria-label='Clear search']`. Then `expect` the same as step 1, with 2 cards. Re-run the card check for both probes.
+7. Empty state: `key` `/`, then `fill` `input[aria-label='Search your mind']` with `zzzzqqqq`.
+   - `expect` `document.body.textContent.includes('Nothing surfaced yet.') && document.querySelectorAll('article').length === 0`.
+   - `shot` `search-empty.png`.
+8. `clickText` `{selector: 'button', text: 'Clear search'}`. Then `expect` 2 cards again, restored.
+   - There may be both the filter-row × button, whose `aria-label` is "Clear search" but which has no text, and the empty-state text button. `clickText` matches on text content, so it should select the empty-state button.
+9. Optionally `fill` `bravo` and expect only "bravo probe" to show. `fill` `probe` should show both notes, because the token matches both. `fill` `alp` should show the empty state, which proves there is no prefix matching.
+10. Database proof: with `bun:sqlite` in readonly mode, select `id, kind, body, archived` from `items` where `body` matches the probe notes. Expect two rows with `archived = 0`. That covers the stored side effect for the search proof.
+
+Cleanup: run `instance.mjs cleanup`.
+
+Delegated task node:delegated-task:command%3Amcp%3A5eda81b9-567a-4c73-b036-5ef473c5f992%3Adelegate-task%3A8ff1d776-d0f4-4578-841c-6fa9b0357c19 (Source: spaces) [completed]. Use task_status with taskId node:delegated-task:command%3Amcp%3A5eda81b9-567a-4c73-b036-5ef473c5f992%3Adelegate-task%3A8ff1d776-d0f4-4578-841c-6fa9b0357c19 to read the result.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A5eda81b9-567a-4c73-b036-5ef473c5f992%3Adelegate-task%3A02b7c7fe-1ddc-4884-840a-54649782ec46 (Source: edit-note) [completed]:
+1) **Feature summary**
+
+Clicking a note card opens the item overlay (a `role="dialog"` section). The Info tab has an **Edit note** button, which is in the Info panel, not a toolbar. It swaps the inspector for a TipTap rich-text editor. Nothing autosaves.
+
+- **Save note** calls `update_item`. That writes `body`, `body_format='md'`, `description` and `updated_at`, and queues a re-embed. The editor then closes and the overlay stays open on the Info tab.
+- **Cancel**, the Close button, and Escape all leave the editor and discard the draft. They do not close the overlay.
+
+2) **Source entry points**
+
+- **Card to overlay:** `<article class="library-card" data-library-item-id=… tabIndex=0>` has `onClick={handleCardSelect}` → `context.onSelectItem` (`src/features/library/LibraryCard.tsx:344,363,314-321`). Enter and Space on the focused article do the same (`:370-379`).
+- **Edit note button:** `src/features/item-view/InfoPanel.tsx:215-221`. It is a plain `<button>` with text "Edit note" and no `aria-label`. It calls `onEditNote` → `setIsEditingNote(true)` (`ItemView.tsx:694-697`).
+- **Editor mount:** `ItemView.tsx:663-686`. While editing, the tabs and the action bar are hidden (`:622,706`).
+- **Editor element:** a TipTap/ProseMirror **contenteditable `div`**, not a textarea (`RichNoteEditor.tsx:69-76`). It has `class="note-editor-content"`, `role="textbox"` and `aria-label="Note content"`.
+- **Save:** `<button class="note-editor-save" aria-label="Save note">` (`RichNoteEditor.tsx:406-414`). Its handler `save()` (`:174-193`) refuses an empty body, awaits `onSave`, then calls `onEditingChange(false)`.
+- **Cancel:** `button.note-editor-cancel[aria-label='Cancel note editing']` (`:390-405`). It resets the content and exits editing.
+- **Close button:** `ItemView.tsx:632-660`, `onClick={handleOverlayClose}`. Its `aria-label` is `"Close details"` normally and `"Close editor"` while editing. It shows the text "Close" plus an `esc` kbd, not an X icon.
+- **Close behavior:** `handleOverlayClose` (`:477-487`) exits focus mode first, then exits editing, and only then calls `requestClose()`.
+- **Escape:** a capture-phase window listener (`:489-510`) follows the same order. It ignores Escape from an `<input>`, such as the link URL field.
+- **Persistence:**
+  - `useItemDetails.ts:214-249` `updateNote` calls `updateItem({id, body, bodyFormat:"md"})` (`libraryApi.ts:280`).
+  - The IPC command is `update_item` (`packages/contracts/src/index.ts:236`, `commands.ts:34`, `electron/main.ts:322`).
+  - The SQL is in `electron/storage/items.ts:289-312`. It sets `body`, `body_format='md'`, `description = markdownToPlainText(body)` and **`updated_at = Date.now()`**.
+  - `items.ts:314-326` enqueues `generate_embedding`.
+- **Where the body comes from:** the note body is fetched lazily with `getItemContent` (`useItemDetails.ts:141-160`). The editor shows "Loading note…" until it arrives (`RichNoteEditor.tsx:135-141`).
+
+3) **Likely doc drift** (`features/edit-note.md`)
+
+- **Wrong selector:** `button[aria-label='Edit note']` matches nothing (`InfoPanel.tsx:218` has no `aria-label`). Use `{"clickText": {"selector": "button", "text": "Edit note"}}`.
+- **Wrong location:** "Edit note in the toolbar" is wrong. The button is in the Info tab panel of the right-hand inspector (`InfoPanel.tsx:215-221`). The editor's real toolbar is `role="toolbar" aria-label="Note formatting"` (`RichNoteEditor.tsx:217-222`) and holds only formatting buttons.
+- **Wrong exits (lines 9 and 13):** "The overlay closes with the X button, Escape, or Save" is wrong in three ways:
+  - There is no X button. The control is `button[aria-label='Close details']`, or `'Close editor'` while editing.
+  - Save does not close the overlay. It ends editing and returns to the Info tab.
+  - While editing, Escape and Close exit the editor and discard the draft; the overlay stays open until a second Escape or Close.
+  - Suggested wording: "Save note returns to the Info tab with the overlay still open. Cancel, Close, and Escape discard the draft and also leave the editor only. Close the overlay afterwards with `button[aria-label='Close details']` or Escape."
+- **Missing editor and Save handles:** add `div[aria-label='Note content']` for the editor and `button[aria-label='Save note']` (or `button.note-editor-save`) for Save.
+- **`fill` will not replace the text:** `drive.mjs:110` runs `el.select?.()`, and a contenteditable `div` has no `.select()`. `Input.insertText` then inserts at the caret instead of replacing. The step before `fill` has to select the content, for example with an `expect` step. `key` only takes `Enter`, `Escape` or a single character, so it can't send Ctrl+A.
+- **"updated_at moved forward":** accurate. `items.ts:312` sets `updated_at = Date.now()`.
+- **Expected `body`:** the new text, stored as markdown. The title heading is re-attached only when the stored body opened with the item's title (`notes.ts:332-348`). A note with a null title shows as "Untitled note", so a plain probe note is stored unchanged.
+- **Other gotchas to record:**
+  - While editing, `ItemView.tsx:148-160` absorbs clicks outside the dialog. Only click elements inside the overlay.
+  - An empty save is refused with a `role="alert"` message and writes nothing.
+  - The "Not yet proven on a Linux run" gotcha is still accurate.
+  - I did not check whether `drive.mjs` can run an `expect` that takes a selection. The recipe assumes it evaluates any JS expression and waits for it to be truthy.
+
+4) **Live-verification recipe**
+
+Start from the scratch library with the `capture-note` probe note already present: `body='verify-inkling probe note'`, `title` null, so the overlay's dialog label is "Untitled note". Record `updated_at` first (readonly `bun:sqlite`: `SELECT id, body, body_format, updated_at FROM items WHERE kind='note'`).
+
+```json
+[
+  {"label":"open card","expect":"(()=>{const a=[...document.querySelectorAll('article.library-card')].find(a=>a.textContent.includes('verify-inkling probe note'));if(!a)return false;a.click();return true})()","timeoutMs":10000},
+  {"label":"overlay open","wait":"section[role='dialog'] button[aria-label='Close details']"},
+  {"label":"shot before","shot":"edit-before.png"},
+  {"label":"Edit note","clickText":{"selector":"button","text":"Edit note"}},
+  {"label":"editor shown","wait":"div[aria-label='Note content']"},
+  {"label":"body loaded","expect":"document.querySelector(\"div[aria-label='Note content']\").textContent.includes('verify-inkling probe note')","timeoutMs":10000},
+  {"label":"select all","expect":"(()=>{const e=document.querySelector(\"div[aria-label='Note content']\");e.focus();document.getSelection().selectAllChildren(e);return true})()"},
+  {"label":"replace text","fill":"div[aria-label='Note content']","text":"verify-inkling edited note"},
+  {"label":"typed","expect":"document.querySelector(\"div[aria-label='Note content']\").textContent.trim()==='verify-inkling edited note'"},
+  {"label":"shot editing","shot":"edit-editing.png"},
+  {"label":"Save","click":"button[aria-label='Save note']"},
+  {"label":"editor gone","expect":"!document.querySelector(\"div[aria-label='Note content']\")","timeoutMs":10000},
+  {"label":"back on Info","wait":"button[aria-label='Close details']"},
+  {"label":"shot saved","shot":"edit-saved.png"},
+  {"label":"close overlay","click":"button[aria-label='Close details']"},
+  {"label":"card shows new text","expect":"[...document.querySelectorAll('article.library-card')].some(a=>a.textContent.includes('verify-inkling edited note'))","timeoutMs":10000}
+]
+```
+
+After the run, query the scratch `library.sqlite3` readonly:
+
+- **`body`:** `'verify-inkling edited note'`.
+- **`body_format`:** `'md'`.
+- **`kind`:** still `'note'`, with `title` still null.
+- **`archived`:** `0`.
+- **`updated_at`:** greater than the value recorded before the run.
+- **`description`:** also `'verify-inkling edited note'`.
+- **`created_at`:** unchanged.
+- **Row count:** one note row.
+
+If `expect` can't run the select-all step, the fallback is to skip it. `fill` would then insert at the caret, so check that `body` contains `verify-inkling edited note` rather than equals it.
+
+Delegated task node:delegated-task:command%3Amcp%3A5eda81b9-567a-4c73-b036-5ef473c5f992%3Adelegate-task%3Ab8e731b8-7940-4f4a-a035-3daa008c98b0 (Source: archive-restore) [completed]. Use task_status with taskId node:delegated-task:command%3Amcp%3A5eda81b9-567a-4c73-b036-5ef473c5f992%3Adelegate-task%3Ab8e731b8-7940-4f4a-a035-3daa008c98b0 to read the result.
