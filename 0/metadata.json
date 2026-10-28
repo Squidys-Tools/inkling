@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M6111V6V6NMJ2N26A8BMBXCX",
+  "session_id": "60297327-9ac8-4d65-8579-5a23e1cf48f6",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-28T10:31:53.7474644Z",
+  "branch": "t3/readme-screenshots-1080p",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/assets/screenshots/detail.png",
+    "docs/assets/screenshots/library.png"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-haiku-5-5",
+  "turn_id": "78ee0cdaedee",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 79738,
+    "cache_read_tokens": 2489498,
+    "output_tokens": 17226,
+    "api_call_count": 35
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_014P2ijHACFo9VvBH4iLyHqo",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "full-send"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "78ee0cdaedee",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 41,
+        "end": 42,
+        "entry_ids": [
+          "d95432e1-e3d4-4d90-8f1c-225314550690"
+        ],
+        "tool_use_id": "toolu_014P2ijHACFo9VvBH4iLyHqo"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_014P2ijHACFo9VvBH4iLyHqo"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: full-send",
+        "default_collapsed": true
+      }
+    }
+  ]
+}
