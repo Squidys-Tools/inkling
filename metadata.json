@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M603RPCARDEP2G4W03572NKQ",
+  "strategy": "manual-commit",
+  "branch": "t3/audit-claude-codex-skills",
+  "checkpoints_count": 9,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 94,
+    "cache_creation_tokens": 212868,
+    "cache_read_tokens": 3590921,
+    "output_tokens": 36990,
+    "api_call_count": 39
+  }
+}
