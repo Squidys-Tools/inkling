@@ -2,7 +2,8 @@ name: PR size
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize]
+    # edited covers base changes, which change the diff.
+    types: [opened, reopened, synchronize, edited]
 
 permissions:
   contents: read
@@ -17,7 +18,9 @@ jobs:
       pull-requests: write
     concurrency:
       group: pr-size-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
+      # Never cancel mid-run: a cancel between removing the old label and adding
+      # the new one leaves the PR with no size label.
+      cancel-in-progress: false
     steps:
       # This pull_request_target job may fetch untrusted PR commits only as passive
       # git data. Do not add dependency installs, build/test scripts, or cache
@@ -42,7 +45,12 @@ jobs:
               { label: "size:XL", below: 1000 },
               { label: "size:XXL", below: Infinity },
             ];
-            const testExcludes = [":(glob,exclude)**/*.test.*", ":(glob,exclude)**/*.spec.*"];
+            // test-library.ts is a test helper, not source.
+            const testExcludes = [
+              ":(glob,exclude)**/*.test.*",
+              ":(glob,exclude)**/*.spec.*",
+              ":(glob,exclude)**/test-*.ts",
+            ];
 
             const git = (args) => execFileSync("git", args, { encoding: "utf8" });
 
