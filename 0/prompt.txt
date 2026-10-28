@@ -1,0 +1,9 @@
+Update on pull request #197 (https://github.com/Squidys-Tools/inkling/pull/197), which T3 Code is watching for you:
+- All 9 checks passed on 1b5bbd2.
+- 4 new comments:
+  - greptile-apps: "<h2><a href="https://app.greptile.com/api/retrigger?id=89879896"><picture><source media="(prefers-color-scheme: dark)" srcset="https://greptile-static-assets.s3.amazonaws.com/badges/RetriggerDark.s..." https://github.com/Squidys-Tools/inkling/pull/197#issuecomment-6474628756
+  - greptile-apps on scripts/check-changed.ts: "<a href="#"><img alt="P1" src="https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=9" align="top"></a> **Deleted files skip checks** Deleting a tracked source file removes it from `chan..." https://github.com/Squidys-Tools/inkling/pull/197#discussion_r4403263164
+  - greptile-apps on scripts/check-changed.ts: "<a href="#"><img alt="P1" src="https://greptile-static-assets.s3.amazonaws.com/badges/p1.svg?v=9" align="top"></a> **Extension code escapes typecheck** Changes under `extension/` trigger the root `..." https://github.com/Squidys-Tools/inkling/pull/197#discussion_r4403263178
+  - greptile-apps on scripts/check-changed.ts: "<a href="#"><img alt="P2" src="https://greptile-static-assets.s3.amazonaws.com/badges/p2.svg?v=9" align="top"></a> **Lint settings bypass lint** A change only to `.oxlintrc.json` runs the formatter..." https://github.com/Squidys-Tools/inkling/pull/197#discussion_r4403263184
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
