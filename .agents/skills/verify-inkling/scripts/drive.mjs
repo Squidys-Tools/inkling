@@ -49,7 +49,14 @@ socket.onmessage = (event) => {
 const send = (method, params = {}) =>
   new Promise((resolve, reject) => {
     const id = ++seq;
-    pending.set(id, { resolve, reject });
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error(`${method} got no reply in 20s: the page is wedged, run doctor`));
+    }, 20000);
+    pending.set(id, {
+      resolve: (value) => (clearTimeout(timer), resolve(value)),
+      reject: (error) => (clearTimeout(timer), reject(error)),
+    });
     socket.send(JSON.stringify({ id, method, params }));
   });
 await send("Runtime.enable");
@@ -154,8 +161,12 @@ for (const [index, step] of steps.entries()) {
     log(`PASS ${index + 1} ${label}`);
   } catch (error) {
     log(`FAIL ${index + 1} ${label}: ${error.message}`);
-    const { data } = await send("Page.captureScreenshot", { format: "png" });
-    await Bun.write(join(evidenceDir, "failure.png"), Buffer.from(data, "base64"));
+    try {
+      const { data } = await send("Page.captureScreenshot", { format: "png" });
+      await Bun.write(join(evidenceDir, "failure.png"), Buffer.from(data, "base64"));
+    } catch (shotError) {
+      log(`no failure.png: ${shotError.message}`);
+    }
     failed = true;
     break;
   }
