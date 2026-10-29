@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M63VTKPTXZR0A8ZHCPD3SRJH",
+  "session_id": "707004e4-518e-4e71-8891-5603312033b2",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-29T12:58:16.2305946Z",
+  "branch": "squidlee/squ-15-perf-pass-and-bundle-size-baseline",
+  "checkpoints_count": 2,
+  "save_step_count": 3,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "fc83f840c017",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 91866,
+    "cache_read_tokens": 3641457,
+    "output_tokens": 17327,
+    "api_call_count": 32
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_013JcxP1HA9FLb6bWAmWcXXd",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "verify-inkling"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "ff0e1efbc253",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 198,
+        "end": 199,
+        "entry_ids": [
+          "6995af81-18c1-492d-8199-8f40511016b2"
+        ],
+        "tool_use_id": "toolu_013JcxP1HA9FLb6bWAmWcXXd"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_013JcxP1HA9FLb6bWAmWcXXd"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: verify-inkling",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 20
+  }
+}
