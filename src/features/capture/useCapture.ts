@@ -468,12 +468,12 @@ export function useCapture({
     }
   }
 
-  // Add lives in the sidebar, so opening it brings the sidebar out.
-  function openCapture(mode: AddMode | null = null) {
+  // Shortcuts/Classic reveal the sidebar; the compact Codex trigger stays put.
+  function openCapture(mode: AddMode | null = null, revealSidebar = true) {
     setCaptureError(null);
     setCaptureMode(mode);
     setIsAdding(true);
-    setIsSidebarOpen(true);
+    if (revealSidebar) setIsSidebarOpen(true);
   }
 
   function closeCaptureModal() {

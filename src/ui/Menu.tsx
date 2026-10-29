@@ -13,6 +13,6 @@ export function focusFirstMenuItem(event: FocusEvent<HTMLElement>) {
   if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))
     return;
   event.currentTarget
-    .querySelector<HTMLElement>("[role^=menuitem]")
+    .querySelector<HTMLElement>('[role^=menuitem]:not([aria-disabled="true"]):not([data-disabled])')
     ?.focus({ preventScroll: true });
 }

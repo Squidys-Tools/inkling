@@ -8,6 +8,10 @@ export const APPEARANCE_OPTIONS = {
     { value: "pill", label: "Pill" },
     { value: "segmented", label: "Segmented" },
   ],
+  sidebarStyle: [
+    { value: "classic", label: "Classic" },
+    { value: "codex", label: "Codex (experimental)" },
+  ],
   sidebarToggle: [
     { value: "buttons", label: "Buttons" },
     { value: "edge", label: "Edge grip" },
@@ -23,7 +27,8 @@ const STORAGE_KEY = "appearance";
 function loadAppearance(): Appearance {
   let stored: Record<string, unknown> = {};
   try {
-    stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    stored = parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     // Unreadable or missing storage keeps the defaults.
   }
@@ -33,7 +38,11 @@ function loadAppearance(): Appearance {
     // TypeScript cannot tie a generic key's options to that key's values.
     return option.value as Appearance[Key];
   };
-  return { viewToggle: pick("viewToggle"), sidebarToggle: pick("sidebarToggle") };
+  return {
+    viewToggle: pick("viewToggle"),
+    sidebarToggle: pick("sidebarToggle"),
+    sidebarStyle: pick("sidebarStyle"),
+  };
 }
 
 export function useAppearance() {
