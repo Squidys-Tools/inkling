@@ -1,0 +1,36 @@
+Act as the review sub-agent for this task.
+
+Role: review only. Do not read files, run commands, edit anything, or use tools. Judge from this description alone, and say where you would want a claim checked before acting on it.
+
+Context: inkling is a Windows Electron desktop app: a React/TypeScript renderer, a Node main process with SQLite, and Effect 4 in the main process. Project rules that matter here: capture must never block on processing; full content must not cross Electron IPC (summaries and thumbnails only); the card grid is virtualized; fetched HTML is untrusted and sanitized; Effect lives only in the main process (one renderer exception, src/lib/ingestion/http.ts); no hardcoded localhost ports or user paths; a logic bug needs a failing test before its fix; prefer the smallest change, and treat rare cases, extra compatibility, and small performance costs as nits. The maintainer does not want scope creep or machinery for its own sake.
+
+Source: a read-only audit by SWE-2 of branch t3/quick-wins-audit, base commit 0e40de9. Goal: small, low-risk fixes that can land now without a product decision.
+
+Already changed in the working tree. Judge each as KEEP or REVERT:
+F1. update_item wrote the sourceUrl field with no validation. The other write paths (saveUrl, createQuote, captureUrl) validate it with normalizeHttpUrl. The change: update validates the same way when sourceUrl is provided. Null leaves the stored value alone; an empty string now errors. A regression test was added that fails without the fix.
+F2. The reader view rendered the stored sourceUrl as a link href with no scheme check, so a stored javascript: value would be clickable. The change: the footer link renders only for http and https URLs. This was found while verifying the audit, not by the audit itself.
+F3. Extension badge: the success timer after a save was never cancelled, so a second save within 1.4 seconds could have its badge cleared early by the first save's timer. The change: cancel the pending timer before arming a new one.
+F4. Copy: six places (the extension options page, its script, the background error message, the extension README twice, and STORE.md) say "Settings → Extension". The app's tab is labeled "Browser extension". The change: copy only.
+F5. Dead module: packages/ingestion-shared/src/defuddle-config.ts exported DEFUDDLE_VERSION_PIN ("0.19.3", while the root dependency is ^0.19.5) and INKLING_DEFUDDLE_OPTIONS. Nothing imports either. The change: the file was deleted, its re-export removed, the package's own defuddle dependency removed (the root still has it), the lockfile workspace entry updated, and the package description updated.
+
+Open, not changed yet:
+O1 [performance, medium size]. Every card-list query (active items, search, Smart Space results) selects the full metadata column. For articles that includes the full extracted HTML and text, and the code parses it for every row. Cards keep only 8 metadata fields, plus a palette and a has-article-content flag. The OCR text column is also selected in full, although cards keep only a 180-character snippet. Options: (a) project only the card fields in SQL, which still makes SQLite read the blob; (b) move article bodies to their own column, which needs a migration.
+O2 [latent correctness]. Smart Space kind aliases differ. The renderer maps url to article, embed to video, and tweet to post, on both sides of the comparison. The backend expands only "article". The app's UI never writes a kind into a query (it saves text only), so this affects only imported or hand-written queries.
+O3 [dead fields]. durationSeconds, fileSizeBytes, and readingMinutes are in the shared contract and read by card UI (video duration, file-size footnote, reading time). They are never passed through to cards and never written by the main process. Options: delete them, or add producers.
+O4 [dead code, about 300 lines with its test]. The extension selection, image, and video capture mappers and their payload types are used only by their own test. The extension currently posts only page-URL captures.
+O5 [dead code and doc drift]. src/lib/ingestion/asset-paths.ts (the thumbnail path policy) is imported only by a smoke test. Storage builds its own paths. The ingestion README describes the module as the live thumbnail policy.
+O6 [leak, preview mode only]. Preview-mode capture creates object URLs for images and videos and never revokes them.
+O7 [correctness, latent]. The file-kind extension lists differ between the renderer's classifier and the storage fallback. svg, heic, heif, and ogv count as image or video only in the renderer; ico and wmv count only in storage. The renderer's kind is normally passed through, so storage is only a fallback. It is unknown whether the image pipeline can decode HEIC or SVG.
+O8 [latent]. Imported library archives write source_url with no validation. The display is now guarded by F2. Open question: should import drop or reject invalid URLs?
+O9 [trivial]. A benchmark script writes scratch output under a home-directory folder with an old project name. Low confidence that it matters. Skipped so far.
+
+Already checked and clean, no action needed: renderer Effect use is limited to the one allowed file; no Effect.fn in the main process; scoped lint, format, tests, knip, and typecheck pass with the changes above.
+
+Task. For each of F1 to F5 and O1 to O9, give:
+- Verdict. For F items: KEEP or REVERT. For O items: FIX NOW, FIX LATER, NIT (dismiss), or NEEDS DECISION.
+- For FIX NOW: the smallest concrete change (which files, what changes), whether it needs a failing test first and what that test would assert, and what the change could break.
+- For NIT or REVERT: one line of reasoning.
+- For NEEDS DECISION: the exact question for the maintainer, and your recommended default.
+Then list anything in this description that sounds overstated or misdescribed, anything you would verify before acting, and any issue you think is missing from the list.
+
+Keep the reply under 1,200 words. Use one numbered line per item.
