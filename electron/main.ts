@@ -71,6 +71,7 @@ type Storage = {
 };
 let storage: Storage | undefined;
 let storageReady: Promise<Storage> | undefined;
+let queryEmbeddingWarmedUp = false;
 const librarySizeCache = createLibrarySizeCache(
   join(libraryDirectory, "library.sqlite3"),
   join(libraryDirectory, "assets"),
@@ -234,7 +235,15 @@ async function openStorage(): Promise<Storage> {
 
 function initializeLibraryStorage() {
   storageReady ??= openStorage().then(
-    (opened) => (storage = opened),
+    (opened) => {
+      storage = opened;
+      // Delayed so loading the model never competes with the first cards.
+      if (!queryEmbeddingWarmedUp) {
+        queryEmbeddingWarmedUp = true;
+        setTimeout(() => void embedQueryForSearch("warmup"), 5000);
+      }
+      return opened;
+    },
     (error) => {
       storageReady = undefined;
       throw error;
