@@ -45,6 +45,9 @@ export function useLibraryTransfer({
   const [lastExport, setLastExport] = useState<LibraryExportReport | null>(null);
   const [isImportingLibrary, setIsImportingLibrary] = useState(false);
   const [lastImport, setLastImport] = useState<LibraryImportReport | null>(null);
+  // Toasts cannot carry the reason, so the panel shows it next to the action.
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const exportLibraryToFolder = useCallback(async () => {
     if (!canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary) return;
@@ -58,6 +61,7 @@ export function useLibraryTransfer({
     if (!destination) return;
 
     setIsExportingLibrary(true);
+    setExportError(null);
     toast.loading("Exporting library…");
     try {
       const report = await exportLibrary(destination);
@@ -70,7 +74,8 @@ export function useLibraryTransfer({
         report.skippedAssets > 0 ? "Library exported with skipped assets" : "Library exported",
         { duration: 4000, dismissible: true },
       );
-    } catch {
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : String(error));
       toast.error("Export failed");
     } finally {
       setIsExportingLibrary(false);
@@ -89,6 +94,7 @@ export function useLibraryTransfer({
     if (!exportDirectory) return;
 
     setIsImportingLibrary(true);
+    setImportError(null);
     toast.loading("Restoring library…");
     try {
       const report = await importLibrary(exportDirectory);
@@ -105,7 +111,8 @@ export function useLibraryTransfer({
       } catch (error) {
         setCaptureError(error instanceof Error ? error.message : String(error));
       }
-    } catch {
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : String(error));
       toast.error("Import failed");
     } finally {
       setIsImportingLibrary(false);
@@ -124,8 +131,10 @@ export function useLibraryTransfer({
   return {
     isExportingLibrary,
     lastExport,
+    exportError,
     isImportingLibrary,
     lastImport,
+    importError,
     exportLibraryToFolder,
     importLibraryFromFolder,
   };

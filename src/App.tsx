@@ -237,8 +237,10 @@ function App() {
   const {
     isExportingLibrary,
     lastExport,
+    exportError,
     isImportingLibrary,
     lastImport,
+    importError,
     exportLibraryToFolder,
     importLibraryFromFolder,
   } = useLibraryTransfer({
@@ -698,7 +700,9 @@ function App() {
             onShowFolder: showLibraryFolderFromSettings,
             lastCopy,
             lastExport,
+            exportError,
             lastImport,
+            importError,
             isExporting: isExportingLibrary,
             isImporting: isImportingLibrary,
             onExport: () => void exportLibraryToFolder(),

@@ -100,7 +100,9 @@ export function LibraryPanel({
   onShowFolder,
   lastCopy,
   lastExport,
+  exportError,
   lastImport,
+  importError,
   isExporting,
   isImporting,
   onExport,
@@ -113,7 +115,9 @@ export function LibraryPanel({
   onShowFolder: () => void;
   lastCopy: LastExport | null;
   lastExport: LibraryExportReport | null;
+  exportError: string | null;
   lastImport: LibraryImportReport | null;
+  importError: string | null;
   isExporting: boolean;
   isImporting: boolean;
   onExport: () => void;
@@ -164,6 +168,14 @@ export function LibraryPanel({
               </span>
             </div>
           ) : null}
+          {exportError ? (
+            <div className={RESULT} role="alert">
+              <span className={SUMMARY}>Export failed</span>
+              <span className="font-mono text-[11px]/[14px] font-normal wrap-anywhere text-muted">
+                {exportError}
+              </span>
+            </div>
+          ) : null}
         </SettingsRow>
         <SettingsRow
           icon={isImporting ? Loading01Icon : Upload04Icon}
@@ -179,6 +191,14 @@ export function LibraryPanel({
           {lastImport ? (
             <div className={RESULT} role="status" aria-live="polite">
               <span className={SUMMARY}>{formatImportSummary(lastImport)}</span>
+            </div>
+          ) : null}
+          {importError ? (
+            <div className={RESULT} role="alert">
+              <span className={SUMMARY}>Import failed</span>
+              <span className="font-mono text-[11px]/[14px] font-normal wrap-anywhere text-muted">
+                {importError}
+              </span>
             </div>
           ) : null}
         </SettingsRow>
