@@ -28,6 +28,7 @@ import {
 } from "../src/lib/deepLinkCore.mjs";
 import { createAiJobProcessors, enqueueStaleImageEmbeddings, jobTimeouts } from "./ai-jobs.ts";
 import { serveAssetFile } from "./asset-response.ts";
+import { appContentTypes as mimeTypes } from "./app-content-types.ts";
 import { startCaptureServer } from "./capture-server.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
 import { createSingleFlightDirectoryPicker } from "./native-dialog.ts";
@@ -126,28 +127,6 @@ const contentSecurityPolicy = [
   "worker-src 'self' blob:",
   "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://platform.twitter.com",
 ].join("; ");
-
-const mimeTypes: Record<string, string> = {
-  ".avif": "image/avif",
-  ".css": "text/css; charset=utf-8",
-  ".html": "text/html; charset=utf-8",
-  ".ico": "image/x-icon",
-  ".jpeg": "image/jpeg",
-  ".jpg": "image/jpeg",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".mp3": "audio/mpeg",
-  ".mp4": "video/mp4",
-  ".mov": "video/quicktime",
-  ".pdf": "application/pdf",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".wasm": "application/wasm",
-  ".webp": "image/webp",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".webm": "video/webm",
-};
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -473,8 +452,11 @@ function createWindow() {
     minWidth: 320,
     minHeight: 360,
     frame: false,
-    titleBarStyle: "hidden",
-    titleBarOverlay: { color: "#00000000", symbolColor: "#e5ddd2", height: 32 },
+    titleBarStyle: process.platform === "linux" ? "default" : "hidden",
+    titleBarOverlay:
+      process.platform === "linux"
+        ? false
+        : { color: "#00000000", symbolColor: "#e5ddd2", height: 32 },
     autoHideMenuBar: true,
     backgroundColor: "#0c0c0b",
     show: false,

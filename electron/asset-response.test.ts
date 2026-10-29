@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serveAssetFile } from "./asset-response.ts";
+import { appContentTypes } from "./app-content-types.ts";
 
 const contentTypes = { ".mp4": "video/mp4", ".webp": "image/webp" };
 const bytes = Buffer.from(Array.from({ length: 1000 }, (_, index) => index % 251));
@@ -38,6 +39,18 @@ const clip = "/items/a/clip.mp4";
 async function body(response: Response) {
   return Buffer.from(await response.arrayBuffer());
 }
+
+test("packaged module workers have JavaScript MIME rather than an octet-stream response", async () => {
+  await writeFile(join(root, "pdf.worker.mjs"), "export const ready = true;");
+  const response = await serveAssetFile(new Request("app://local/pdf.worker.mjs"), {
+    root,
+    path: "/pdf.worker.mjs",
+    contentTypes: appContentTypes,
+  });
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+  expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+});
 
 test("a full GET streams the file with its headers", async () => {
   const response = await serve(clip);
