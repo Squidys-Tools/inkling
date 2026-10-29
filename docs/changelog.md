@@ -98,6 +98,9 @@ Guardrails:
 
 ### Changed
 
+- Loading the library, searching, and finding similar items read only the fields a card shows instead of every item's full article text, cutting the main-process work on large libraries (SQU-15)
+- Semantic search scores stored vectors first and loads full items only for the matches it returns (SQU-15)
+- The search model loads in the background a few seconds after the library opens, so the first search no longer waits for it (SQU-15)
 - Linting and formatting moved from Biome to oxlint and oxfmt, with a lint rule that rejects over-long comments, section dividers, and suppressions without a reason.
 - The interface is rebuilt on Tailwind CSS and Base UI primitives, split into feature folders with no visible change; tabs and menus now take one Tab stop and move with the arrow keys, and Escape in a menu closes only that menu (SQU-124)
 - Add opens in place into a small menu of Note, Link, Quote, File and Screen, after Viora UI's Create New Disclosure, replacing the capture dialog and the extra Add button in the library toolbar (#170)
