@@ -120,6 +120,15 @@ export function nonEmpty(value: unknown) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+export function isWebUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export const normalizeHttpUrl = Effect.fnUntraced(function* (value: unknown) {
   let url: URL;
   try {

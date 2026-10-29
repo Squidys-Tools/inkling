@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { safePublicImageUrl } from "./url";
+import { isWebUrl, safePublicImageUrl } from "./url";
 
-describe("safePublicImageUrl", () => {
+describe("URL helpers", () => {
   test("normalizes public HTTP images and rejects private hosts", () => {
     expect(safePublicImageUrl("https://example.com/image.jpg")).toBe(
       "https://example.com/image.jpg",
@@ -16,6 +16,22 @@ describe("safePublicImageUrl", () => {
       "https://user:password@example.com/image.jpg",
     ]) {
       expect(safePublicImageUrl(value)).toBeUndefined();
+    }
+  });
+
+  test("isWebUrl accepts only HTTP and HTTPS URLs", () => {
+    for (const [value, expected] of [
+      ["https://example.com/article", true],
+      ["http://example.com/article", true],
+      ["javascript:alert(1)", false],
+      ["data:text/html;base64,PGI+", false],
+      ["file:///tmp/note.txt", false],
+      ["ftp://example.com/file", false],
+      ["", false],
+      ["/relative/path", false],
+      ["not a url at all", false],
+    ] as const) {
+      expect(isWebUrl(value)).toBe(expected);
     }
   });
 });

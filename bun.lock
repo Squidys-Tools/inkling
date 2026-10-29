@@ -104,9 +104,6 @@
     "packages/ingestion-shared": {
       "name": "@inkling/ingestion-shared",
       "version": "0.1.0",
-      "dependencies": {
-        "defuddle": "0.19.5",
-      },
     },
   },
   "patchedDependencies": {

@@ -6,9 +6,6 @@ pipeline.
 - `file-classification.ts` classifies a File-like value as `image`, `pdf`,
   `video`, or `other`, using MIME type first and the filename extension as a
   fallback.
-- `asset-paths.ts` provides the deterministic thumbnail policy and safe,
-  app-relative asset paths. Generated previews are `webp` for images/videos and
-  `png` for the first PDF page; other files do not get a generated thumbnail.
 - `safe-embeds.ts` canonicalizes YouTube and Vimeo URLs to fixed provider
   origins. Direct video files require an exact HTTPS origin in
   `allowedDirectMediaOrigins`. `javascript:`, `data:`, `blob:`, HTTP, URLs with

@@ -23,7 +23,7 @@ The extension sends page URLs only. When paired, the token is sent only to `127.
 
 1. From the repository root, run `bun run --cwd extension build`.
 2. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select `extension/dist/`.
-3. Open the loaded extension's **Details → Extension options** to configure the app address and token from inkling's **Settings → Extension** panel. Pairing enables direct loopback saves; the capture link remains the fallback when the receiver is unavailable.
+3. Open the loaded extension's **Details → Extension options** to configure the app address and token from inkling's **Settings → Browser extension** panel. Pairing enables direct loopback saves; the capture link remains the fallback when the receiver is unavailable.
 
 ## Store checklist
 

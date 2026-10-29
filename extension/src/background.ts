@@ -19,17 +19,23 @@ async function readLoopbackConfig(): Promise<LoopbackConfig | null> {
   return { baseUrl, token };
 }
 
+let successResetTimer: ReturnType<typeof setTimeout> | undefined;
+
 async function showSuccess(title: string): Promise<void> {
-  await browser.action.setBadgeBackgroundColor({ color: "#347968" });
-  await browser.action.setBadgeText({ text: "✓" });
-  await browser.action.setTitle({ title });
-  setTimeout(() => {
+  // A second save inside the window must not be cleared by the first save's timer.
+  clearTimeout(successResetTimer);
+  successResetTimer = setTimeout(() => {
     void browser.action.setBadgeText({ text: "" });
     void browser.action.setTitle({ title: DEFAULT_TITLE });
   }, 1_400);
+  await browser.action.setBadgeBackgroundColor({ color: "#347968" });
+  await browser.action.setBadgeText({ text: "✓" });
+  await browser.action.setTitle({ title });
 }
 
 async function showFailure(message: string): Promise<void> {
+  // A pending success timer must not clear the failure badge or title.
+  clearTimeout(successResetTimer);
   await browser.action.setBadgeBackgroundColor({ color: "#a13b32" });
   await browser.action.setBadgeText({ text: "!" });
   await browser.action.setTitle({ title: `Couldn't save to inkling: ${message}` });
@@ -37,7 +43,8 @@ async function showFailure(message: string): Promise<void> {
 
 function captureErrorMessage(error: unknown): string {
   if (error instanceof CaptureResponseError) {
-    if (error.status === 401) return "check the extension pairing in inkling Settings → Extension";
+    if (error.status === 401)
+      return "check the extension pairing in inkling Settings → Browser extension";
     if (error.status === 429) return "too many saves; try again in a minute";
     return `inkling returned HTTP ${error.status}`;
   }

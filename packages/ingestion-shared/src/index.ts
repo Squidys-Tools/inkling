@@ -7,7 +7,6 @@ export {
   PayloadValidationError,
 } from "./payload";
 export type { BuildPagePayloadInput, IngestionPayloadKind, PageCapturePayloadV1 } from "./payload";
-export { DEFUDDLE_VERSION_PIN, INKLING_DEFUDDLE_OPTIONS } from "./defuddle-config";
 export {
   EXTENSION_ATTRIBUTION_MAX_CHARS,
   EXTENSION_IMAGE_DATA_URL_MAX_BYTES,

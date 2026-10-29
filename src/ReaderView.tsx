@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { isWebUrl } from "./lib/ingestion/url";
 import "./reader.css";
 
 export type ReaderOrigin = { x: number; y: number };
@@ -129,11 +130,14 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
 
           <div className="reader-content" dangerouslySetInnerHTML={{ __html: item.html }} />
 
-          <footer className="reader-footer">
-            <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer">
-              Continue reading at {host} <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />
-            </a>
-          </footer>
+          {/* The source link becomes an href, so a stored javascript: or data: value must not reach it. */}
+          {isWebUrl(item.sourceUrl) && (
+            <footer className="reader-footer">
+              <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer">
+                Continue reading at {host} <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />
+              </a>
+            </footer>
+          )}
         </article>
       </div>
 
