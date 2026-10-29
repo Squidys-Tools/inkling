@@ -1,0 +1,26 @@
+Act as the review sub-agent for this task.
+
+Review only. Do not edit, commit, push, comment on PRs, or start subagents.
+
+Repo: C:\Users\chris\.t3\worktrees\inkling\t3-92256e78
+Base: 0e40de9482cb8966eb948e31de1116a94383f804 (equal to HEAD). The whole change is the uncommitted working tree.
+See: git diff 0e40de9482cb8966eb948e31de1116a94383f804 ; git status --short (read any untracked files too; none are expected). Read the surrounding code, not just the diff.
+
+Intent: land a small set of verified fixes from a codebase audit.
+1. Stored source URLs must be HTTP or HTTPS. update_item rejects other values (electron/storage/items.ts). Imports store null for a non-web source URL and keep the item (electron/storage/import-library.ts). The reader renders the source link only for web URLs (src/ReaderView.tsx, src/lib/ingestion/url.ts).
+2. Extension: a pending success timer is cancelled on the next save and on failure (extension/src/background.ts). The copy "Settings → Extension" becomes "Settings → Browser extension" in the extension files and docs.
+3. Remove dead code: packages/ingestion-shared/src/defuddle-config.ts and its re-export and dependency; src/lib/ingestion/asset-paths.ts with its smoke asserts and README bullet.
+4. A Security line in docs/changelog.md under Unreleased.
+
+Out of scope, do not flag: card-list performance (metadata projection), dead contract fields, the unused extension capture mappers, file-extension lists, Smart Space kind aliases, preview-mode object URL revocation, the benchmark scratch folder name, and the tooling timeout.
+
+Checks already run: scoped lint, format, knip, and typecheck pass. storage.test.ts (42 tests) and url.test.ts pass. ingest:smoke passes. One earlier scoped run hit bun's default 5 s timeout on the export round-trip test under parallel load; a rerun passed.
+
+Find bugs, broken callers, and mismatches with the intent. Skip style unless it hides a bug. Hold to the smallest change: flag code, tests, or guards that the intent does not need. Rare paths, small performance costs, and extra compatibility are nits.
+Severity: blocker = the intended case is wrong. should = a real bug callers will hit, within the intent. nit = everything else.
+
+Reply in exactly this form:
+VERDICT: APPROVE or CHANGES
+S1 [blocker|should|nit] <file>:<line> <claim>. Fix: <smallest suggestion>
+S2 ...
+(Use stable ids. If there are no findings, write none.)
