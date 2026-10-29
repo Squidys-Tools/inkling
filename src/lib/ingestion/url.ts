@@ -194,6 +194,15 @@ export function normalizeHttpUrl(
   return parsed.toString();
 }
 
+export function isWebUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function normalizePublishedDate(value: string | null | undefined): string | null {
   const candidate = value?.trim();
   if (!candidate) {

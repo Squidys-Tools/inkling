@@ -300,11 +300,12 @@ export function makeItems(ctx: StorageContext) {
           ? null
           : markdownToPlainText(body)
         : String(input.description).trim();
+    const sourceUrl = input.sourceUrl == null ? null : yield* normalizeHttpUrl(input.sourceUrl);
     const updated = yield* sql`UPDATE items SET
       title = COALESCE(${input.title == null ? null : String(input.title).trim()}, title),
       description = COALESCE(${description}, description), body = COALESCE(${body}, body),
       body_format = COALESCE(${bodyFormat}, body_format),
-      source_url = COALESCE(${input.sourceUrl ?? null}, source_url),
+      source_url = COALESCE(${sourceUrl}, source_url),
       source_label = COALESCE(${input.sourceLabel ?? null}, source_label),
       local_asset_path = COALESCE(${input.localAssetPath ?? null}, local_asset_path),
       thumbnail_path = COALESCE(${input.thumbnailPath ?? null}, thumbnail_path),

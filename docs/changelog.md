@@ -179,6 +179,11 @@ Guardrails:
 - The Electron Windows desktop app window can now be resized below 1000×800; its minimum size is now 320×360, the narrowest width the stylesheet supports (`electron/main.mjs`)
 - Free-text search returns only items whose text matches or whose meaning is close to the query, instead of every item in the library; semantic matches below a 0.55 cosine similarity are dropped (`electron/storage.mjs`)
 - List view rows for notes, quotes, and videos sit in the same thumbnail column as other items, the quote text no longer overlaps itself, and the video play control sits on the thumbnail.
+- The browser extension's failure badge is no longer cleared by an earlier save's success timer (`extension/src/background.ts`)
+
+### Security
+
+- Source links must be HTTP or HTTPS: edits reject other values, imports drop them, and the reader only links web addresses.
 
 ---
 

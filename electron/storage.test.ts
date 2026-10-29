@@ -364,6 +364,17 @@ test("URL capture rolls back the item and its announcement when its job cannot b
   expect(events).toEqual([]);
 });
 
+test("update_item refuses a source URL that is not HTTP or HTTPS", async () => {
+  const { library } = await temporaryLibrary();
+  const note = await library.createNote({ title: "Saved", body: "Body" });
+  if (!note) throw new Error("note was not created");
+
+  await expect(
+    library.updateItem({ id: note.id, sourceUrl: "javascript:alert(1)" }),
+  ).rejects.toThrow("sourceUrl must use HTTP or HTTPS");
+  expect((await library.getItem(note.id))?.sourceUrl).toBeNull();
+});
+
 test("free-text search hybrid-ranks lexical and Nomic semantic matches", async () => {
   const { library } = await temporaryLibrary();
   const insert = library.db.prepare(`INSERT INTO items
@@ -931,6 +942,25 @@ test("restore rejects item ids that could escape the managed asset directory", a
   const restored = await trackedLibrary(join(root, "restored", "library.sqlite3"));
   await expect(restored.importLibrary(report.directory)).rejects.toThrow("unsafe item id");
   expect(await restored.listActiveItems()).toEqual([]);
+});
+
+test("restore keeps an item whose stored source URL is not a web link and drops the link", async () => {
+  const { root, library } = await temporaryLibrary();
+  const note = await library.createNote({ title: "Kept note", body: "Survives import." });
+  if (!note) throw new Error("note was not created");
+  library.db
+    .prepare("UPDATE items SET source_url = ? WHERE id = ?")
+    .run("javascript:alert(1)", note.id);
+  const destination = join(root, "exports");
+  mkdirSync(destination);
+  const report = await library.exportLibrary(destination, 0);
+
+  const restored = await trackedLibrary(join(root, "restored", "library.sqlite3"));
+  await restored.importLibrary(report.directory);
+
+  const item = await restored.getItem(note.id);
+  expect(item).not.toBeNull();
+  expect(item?.sourceUrl).toBeNull();
 });
 
 test("restore preserves Space kinds, ordering, and Regular Space membership", async () => {

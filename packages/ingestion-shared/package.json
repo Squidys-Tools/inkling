@@ -2,7 +2,7 @@
   "name": "@inkling/ingestion-shared",
   "version": "0.1.0",
   "private": true,
-  "description": "Versioned capture payload schema and shared extraction config for the inkling app and browser extension.",
+  "description": "Versioned capture payload schema for the inkling app and browser extension.",
   "type": "module",
   "exports": {
     ".": {
@@ -14,8 +14,5 @@
     "typecheck": "tsc-rs --noEmit -p tsconfig.json",
     "typecheck:tsc": "tsc --noEmit -p tsconfig.json",
     "test": "bun test src/"
-  },
-  "dependencies": {
-    "defuddle": "0.19.5"
   }
 }

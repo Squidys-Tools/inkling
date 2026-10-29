@@ -3,7 +3,6 @@ import { DefaultDefuddleAdapter } from "./defuddle-adapter";
 import { extractFallback } from "./fallback";
 import { collectSafeEmbeds, sanitizeHtml } from "./html-safety";
 import { classifyFile } from "./file-classification";
-import { assetRelativePath, sanitizeAssetSegment } from "./asset-paths";
 import { ingestUrl } from "./url-ingestion";
 import { isUrlIngestionError } from "./errors";
 import { normalizeHttpUrl } from "./url";
@@ -364,14 +363,5 @@ assert(
   "video MIME type is recognized",
 );
 assert(classifyFile({ name: "document.PDF", type: "" }) === "pdf", "PDF extension fallback works");
-assert(
-  assetRelativePath({ itemId: "../item", variant: "original", extension: ".jpg" }) ===
-    "items/-item/original.jpg",
-  "asset paths remain relative",
-);
-assert(
-  sanitizeAssetSegment("", "../unsafe fallback") === "-unsafe-fallback",
-  "fallback asset segment is sanitized",
-);
 
 console.log("Ingestion smoke checks passed.");

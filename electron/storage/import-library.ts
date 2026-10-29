@@ -18,7 +18,15 @@ import type { StorageContext } from "./context.ts";
 import { attempt, invalidInput, storageFailure } from "./errors.ts";
 import { IMAGE_THUMBNAIL_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
 import { openDatabase, SCHEMA_VERSION } from "./schema.ts";
-import { isInside, isMissing, isSafeItemId, isMetadata, parseJson, sha256File } from "./shared.ts";
+import {
+  isInside,
+  isMissing,
+  isSafeItemId,
+  isMetadata,
+  isWebUrl,
+  parseJson,
+  sha256File,
+} from "./shared.ts";
 import { normalizeSpaceColor, validateSmartQuery } from "./spaces.ts";
 
 type ImportedItem = {
@@ -372,6 +380,7 @@ export function makeImport(ctx: StorageContext) {
       if (metadata === undefined)
         return yield* invalidInput("the export contains invalid item metadata");
       item.metadata = JSON.stringify(metadata);
+      item.source_url = isWebUrl(item.source_url ?? "") ? item.source_url : null;
     }
     const itemIds = new Set(items.map((item) => item.id));
     const spaceIds = new Set(spaces.map((space) => space.id));
