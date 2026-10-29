@@ -16,6 +16,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { canvasAllowsDomInput } from "./canvasInput";
 import { type GlassShape, glassBands, glassShape, type ShapeBox } from "./liquidGlassShape";
 
 // The backdrop renders inside a `<canvas layoutsubtree>`, and liquid-dom draws
@@ -46,6 +47,9 @@ let support: Promise<LiquidGpu | null> | undefined;
 function liquidGlassSupport() {
   support ??= (async () => {
     if (!("layoutSubtree" in HTMLCanvasElement.prototype) || !navigator.gpu) return null;
+    // Painting support alone is not input support. Keep the live DOM/CSS glass
+    // when the experimental canvas would swallow card clicks and context menus.
+    if (!canvasAllowsDomInput(document)) return null;
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) return null;
     const [device, lib] = await Promise.all([adapter.requestDevice(), import("@liquid-dom/core")]);

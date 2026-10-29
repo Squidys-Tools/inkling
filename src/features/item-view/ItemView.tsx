@@ -63,7 +63,7 @@ export type ItemViewSpace = {
 };
 
 type Flight =
-  | { kind: "open"; id: number; from: FlightRect; to: FlightRect }
+  | { kind: "open"; id: number; from: FlightRect; to: FlightRect; progress: number }
   | {
       kind: "close";
       id: number;
@@ -180,11 +180,11 @@ export function ItemView({
 
   // Grows the view from a card-sized rectangle into the library frame.
   const beginOpenFlight = useCallback(
-    (from: FlightRect) => {
+    (from: FlightRect, progress = 0) => {
       const to = frameRect();
       setDestination(to);
       flightIdRef.current += 1;
-      setFlight({ kind: "open", id: flightIdRef.current, from, to });
+      setFlight({ kind: "open", id: flightIdRef.current, from, to, progress });
     },
     [frameRect],
   );
@@ -281,10 +281,7 @@ export function ItemView({
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- This effect consumes the source-rectangle snapshot once on mount.
   }, [beginOpenFlight]);
 
-  // Runs every flight. GSAP owns only the view's outer rectangle. While it
-  // flies, the stage fills the whole rectangle and the inspector is hidden, so
-  // the card reads as its own image growing into the frame; the inspector and
-  // the stage's margins ease in by CSS once it lands.
+  // One timeline owns the frame, stage inset and inspector in both directions.
   useLayoutEffect(() => {
     if (!flight) return;
     const dialog = dialogRef.current;
@@ -306,9 +303,10 @@ export function ItemView({
       timeline
         .fromTo(
           dialog,
-          { ...flight.from, borderRadius: cardCorners },
+          { ...flight.from, borderRadius: cardCorners, "--item-progress": flight.progress },
           {
             ...flight.to,
+            "--item-progress": 1,
             borderRadius: FRAME_RADIUS,
             duration,
             ease: OVERLAY_EASE,
@@ -329,7 +327,12 @@ export function ItemView({
             // Still mounted means archiving failed: bring the view back.
             const current = dialogRef.current;
             if (!current) return;
-            gsap.set(current, { ...flight.from, opacity: 1, borderRadius: FRAME_RADIUS });
+            gsap.set(current, {
+              ...flight.from,
+              opacity: 1,
+              borderRadius: FRAME_RADIUS,
+              "--item-progress": 1,
+            });
             setFlight(null);
           });
         },
@@ -340,6 +343,7 @@ export function ItemView({
           { ...flight.from },
           {
             ...flight.to,
+            "--item-progress": 0,
             borderRadius: cardCorners,
             duration,
             ease: OVERLAY_EASE,
@@ -372,6 +376,7 @@ export function ItemView({
           { ...flight.from },
           {
             ...flight.to,
+            "--item-progress": 0,
             borderRadius: cardCorners,
             duration,
             ease: OVERLAY_EASE,
@@ -420,7 +425,10 @@ export function ItemView({
       const dialog = dialogRef.current;
       if (!dialog) return;
       cancelPendingOpenRef.current = false;
-      beginOpenFlight(rectFrom(dialog.getBoundingClientRect()));
+      beginOpenFlight(
+        rectFrom(dialog.getBoundingClientRect()),
+        Number(gsap.getProperty(dialog, "--item-progress")) || 0,
+      );
       return;
     }
 
@@ -570,7 +578,7 @@ export function ItemView({
       <section
         ref={dialogRef}
         className={cx(
-          "expanded-overlay group/item pointer-events-auto overflow-hidden [--item-inset:8px] [--item-inspector-top:calc(3px_+_var(--spacing-titlebar))]",
+          "expanded-overlay group/item pointer-events-auto overflow-hidden [--item-progress:1] [--item-inset:8px] [--item-inspector-top:calc(3px_+_var(--spacing-titlebar))]",
           isFocusModeView
             ? "relative z-1 h-full w-[min(100%,1060px)] rounded-none bg-transparent"
             : "absolute top-0 left-0 size-0 rounded-l-[calc(var(--radius-frame)_-_1px)] bg-frame",
@@ -586,13 +594,7 @@ export function ItemView({
           className={cx(
             "absolute overflow-hidden border [--item-stage-surface:radial-gradient(circle,#2a2623_1px,transparent_1.2px)_0_0/18px_18px_#121110] [background:var(--item-stage-surface)]",
             isEditingNoteView ? "hidden" : "grid place-items-center",
-            isFlying
-              ? "inset-0 rounded-[inherit] border-transparent p-0"
-              : "inset-[var(--item-inset)_320px_var(--item-inset)_var(--item-inset)] rounded-[calc(var(--radius-frame)_-_1px_-_var(--item-inset)_+_4px)] border-border px-10 py-[60px] max-[780px]:inset-[var(--item-inspector-top)_var(--item-inset)_50%_var(--item-inset)] max-[780px]:p-4",
-            // The view mounts in its resting layout for a moment before the open
-            // flight starts, so the stage must not ease from there into the card.
-            flight?.kind !== "open" &&
-              "[transition:inset_0.32s_cubic-bezier(0.2,0.8,0.2,1),padding_0.32s_cubic-bezier(0.2,0.8,0.2,1),border-radius_0.32s_cubic-bezier(0.2,0.8,0.2,1)]",
+            "top-[calc(var(--item-inset)*var(--item-progress))] right-[calc(320px*var(--item-progress))] bottom-[calc(var(--item-inset)*var(--item-progress))] left-[calc(var(--item-inset)*var(--item-progress))] rounded-[calc(var(--radius-frame)_-_1px)] border-border px-[calc(40px*var(--item-progress))] py-[calc(60px*var(--item-progress))] max-[780px]:top-[calc(var(--item-inspector-top)*var(--item-progress))] max-[780px]:right-[calc(var(--item-inset)*var(--item-progress))] max-[780px]:bottom-[calc(50%*var(--item-progress))] max-[780px]:p-[calc(16px*var(--item-progress))]",
           )}
         >
           <ItemStageMedia item={shownItem} />
@@ -607,9 +609,8 @@ export function ItemView({
             isEditingNoteView
               ? "left-(--item-inset) w-auto px-0 pt-1.5"
               : "w-80 pt-1.5 pr-4 pl-[18px] max-[780px]:top-1/2 max-[780px]:left-0 max-[780px]:w-auto",
-            isFlying
-              ? "pointer-events-none translate-x-6 opacity-0"
-              : "[transition:opacity_0.25s_ease_0.08s,translate_0.32s_cubic-bezier(0.2,0.8,0.2,1)]",
+            "opacity-[var(--item-progress)] [translate:calc(24px*(1_-_var(--item-progress)))_0]",
+            isFlying && "pointer-events-none",
           )}
         >
           <header

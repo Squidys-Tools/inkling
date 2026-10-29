@@ -25,19 +25,25 @@ export function useCardMenu({ canUseDesktopBackend, openReader, forgetItem }: Ca
     y: number;
   } | null>(null);
   const closeCardMenu = useCallback(() => setCardMenu(null), []);
-  const openCardMenu = useCallback((item: LibraryItem, event: React.MouseEvent<HTMLElement>) => {
-    event.preventDefault();
-    const card = event.currentTarget;
-    // The keyboard menu key reports no pointer, so anchor to the card instead.
-    const fromKeyboard = event.clientX === 0 && event.clientY === 0;
-    const rect = card.getBoundingClientRect();
-    setCardMenu({
-      item,
-      card,
-      x: fromKeyboard ? rect.left + 16 : event.clientX,
-      y: fromKeyboard ? rect.top + 16 : event.clientY,
-    });
-  }, []);
+  const openCardMenu = useCallback(
+    (
+      item: LibraryItem,
+      event: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>,
+    ) => {
+      event.preventDefault();
+      const card = event.currentTarget;
+      // Keyboard menus have no pointer coordinates, so anchor to the card instead.
+      const fromKeyboard = !("clientX" in event) || (event.clientX === 0 && event.clientY === 0);
+      const rect = card.getBoundingClientRect();
+      setCardMenu({
+        item,
+        card,
+        x: fromKeyboard ? rect.left + 16 : event.clientX,
+        y: fromKeyboard ? rect.top + 16 : event.clientY,
+      });
+    },
+    [],
+  );
   const cardMenuEntries = useMemo<ContextMenuEntry[]>(() => {
     if (!cardMenu) return [];
     const { item } = cardMenu;

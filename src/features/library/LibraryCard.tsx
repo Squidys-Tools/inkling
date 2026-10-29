@@ -41,7 +41,10 @@ export type LibraryCardContext = {
   isArchivedItemSelected?: (item: LibraryItem) => boolean;
   onToggleArchivedItem?: (item: LibraryItem) => void;
   onRestoreArchivedItem?: (item: LibraryItem) => void | Promise<void>;
-  onOpenMenu?: (item: LibraryItem, event: React.MouseEvent<HTMLElement>) => void;
+  onOpenMenu?: (
+    item: LibraryItem,
+    event: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>,
+  ) => void;
 };
 
 // Each type gets its own treatment. Posts, images and videos with no artwork
@@ -369,6 +372,15 @@ export const LibraryCard = memo(function LibraryCard({
         tabIndex={0}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
+          if (
+            context.onOpenMenu &&
+            !archiveSelectionMode &&
+            (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey))
+          ) {
+            event.preventDefault();
+            context.onOpenMenu(item, event);
+            return;
+          }
           if (event.key !== "Enter" && event.key !== " ") return;
           event.preventDefault();
           if (archiveSelectionMode) {
