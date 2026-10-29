@@ -39,7 +39,7 @@ Needs two notes (see `capture-note.md`). Driven in three runs; the Space name fi
 ]
 ```
 
-Split the file after "create" and after "close overlay" to read the database between runs. End state, read from `library.sqlite3` readonly: after create, `spaces` has one row with `kind = 'regular'` and `query = '{}'`; after filing, `space_items` has one row linking the Space `id` to the item id; after delete, `spaces` and `space_items` are empty and both `items` rows still have `archived = 0`.
+Split the file after "create", after "close overlay", and after "renamed" to read the database between runs. End state, read from `library.sqlite3` readonly: after create, `spaces` has one row with `kind = 'regular'` and `query = '{}'`; after filing, `space_items` has one row linking the Space `id` to the item id; after rename, the same row has `name = 'Verify B'` and `updated_at` later than `created_at`; after delete, `spaces` and `space_items` are empty and both `items` rows still have `archived = 0`. A Smart Space made with Save as Space (see `search.md`) renames and deletes the same way.
 
 ## Gotchas
 

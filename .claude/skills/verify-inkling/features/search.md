@@ -3,6 +3,7 @@
 ## Sub-features
 
 - Text search across notes and titles; "/" focuses the field, Escape clears it.
+- Result count, and Save as Space, which turns the search into a Smart Space.
 
 ## How to get to it (user POV)
 
@@ -31,9 +32,29 @@ Needs two notes, `alpha probe` and `bravo probe` (see `capture-note.md`). Driven
 
 End state: nothing is stored by a search, so the proof is the visible card set at each step; read `items` once to show both notes were present and `archived = 0`.
 
+Save as Space, driven as a separate run (blurring keeps the query; Escape would clear it):
+
+```json
+[
+  {"label": "slash", "key": "/"},
+  {"label": "type", "fill": "input[aria-label='Search your mind']", "text": "alpha"},
+  {"label": "only alpha", "expect": "document.querySelectorAll('article').length === 1 && document.querySelector('article').textContent.includes('alpha probe')", "timeoutMs": 5000},
+  {"label": "blur", "expect": "(() => { document.activeElement.blur(); return true; })()"},
+  {"label": "count", "expect": "document.querySelector('.capture-bar').textContent.includes('1 result')", "timeoutMs": 5000},
+  {"label": "Save as Space", "clickText": {"selector": "button", "text": "Save as Space"}},
+  {"label": "name prefilled", "expect": "document.querySelector(\"input[aria-label='Space name']\")?.value === 'alpha'", "timeoutMs": 5000},
+  {"label": "create", "clickText": {"selector": "button[type=submit]", "text": "Create Space"}},
+  {"label": "row exists", "wait": "button[aria-label='Rename alpha']"}
+]
+```
+
+End state: `spaces` has one row with `kind = 'smart'` and `query = '{"text":"alpha"}'`. The new Space opens showing only the matching card.
+
 ## Gotchas
 
 - Matching is whole-token full-text search over title, description, body, OCR text and metadata. `alp` does not match `alpha`; use full words. It works in a scratch library with no embedding model, where it is lexical only.
 - Results update about 200 ms after typing stops, so give `expect` a timeout of a few seconds.
 - The field is hidden at rest and expands on focus. `/` is ignored while an input has focus; press Escape first.
-- The expanded field's hint reads `esc to close`. The result count and the "Save as Space" pill only show while the field is unfocused with a query set; not driven here.
+- The expanded field's hint reads `esc to close`. The filter row (query chip, result count, Save as Space) shows only while the field is unfocused with a query set.
+- The count is an animated digit roll, so `.result-count` text reads like `01231`. Assert on the bar text (`1 result`) instead.
+- Save as Space opens the sidebar Space form with the query as the name and Smart selected; nothing is saved until Create Space.

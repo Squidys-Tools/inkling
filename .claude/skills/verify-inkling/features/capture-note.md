@@ -33,4 +33,4 @@ End state proof: the card with the text is in the grid, and `items` has one row 
 - Note title is null; the text lives in `body`. Check `body`, not `title`. The card shows "Untitled note" with the text in the DOM.
 - Add is only clickable while the sidebar is open (the default at 1280 wide). N, pressed outside a text field, opens the sidebar and goes straight to the Note form, skipping the tile menu.
 - Text that is only a URL or a bare domain (`example.com`) is saved as a link item, not a note. Keep probe text to words with spaces.
-- Link (`input[aria-label='URL to save']`, needs the network) and Quote (`textarea[aria-label='Quote text']`, Enter does not submit) are drivable but not driven here. File and Screen open native pickers and cannot be driven.
+- Quote has its own file, `capture-quote.md`. Link (`input[aria-label='URL to save']`) fetches the URL over the network, so it is not driven. File and Screen open native pickers that `drive.mjs` cannot reach, so they cannot be driven.
