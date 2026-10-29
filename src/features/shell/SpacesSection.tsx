@@ -16,7 +16,7 @@ import { SpaceMark } from "../../ui/SpaceMark";
 import { countClass, rowClass } from "./Sidebar";
 
 const tool =
-  "grid flex-none place-items-center rounded-[5px] p-[3px] text-muted cursor-pointer transition-[color,background-color] duration-150 ease-[ease]";
+  "grid flex-none place-items-center rounded-[5px] p-[3px] text-muted cursor-pointer transition-[color,background-color] duration-150 ease-[ease] focus-visible:outline-none!";
 
 export type SpaceRowActions = {
   select: (space: StoredSpace) => void;
@@ -83,7 +83,7 @@ export function SpacesSection({
               )}
             >
               <Button
-                className="mr-2.5 grid size-4 flex-none place-items-center p-0 cursor-pointer focus-visible:outline-offset-2!"
+                className="mr-2.5 grid size-4 flex-none place-items-center p-0 cursor-pointer focus-visible:outline-none!"
                 data-tooltip={`Change color (now ${space.color})`}
                 aria-label={`Change color of ${space.name}`}
                 onClick={() => actions.cycleColor(space)}
@@ -95,7 +95,7 @@ export function SpacesSection({
               {renaming.id === space.id ? (
                 <input
                   ref={renaming.inputRef}
-                  className="min-h-[26px] w-full min-w-0 flex-1 rounded-lg border border-accent bg-surface px-2 py-0 text-[13px] text-ink"
+                  className="min-h-[26px] w-full min-w-0 flex-1 rounded-lg border border-accent bg-surface px-2 py-0 text-[13px] text-ink outline-none!"
                   value={renaming.draft}
                   aria-label={`Rename ${space.name}`}
                   maxLength={80}
@@ -113,7 +113,7 @@ export function SpacesSection({
                 />
               ) : (
                 <Button
-                  className="flex min-w-0 flex-1 items-center gap-2.5 p-0 text-left cursor-pointer focus-visible:outline-offset-2!"
+                  className="flex min-w-0 flex-1 items-center gap-2.5 p-0 text-left cursor-pointer focus-visible:outline-none!"
                   onClick={() => actions.select(space)}
                   aria-pressed={selected}
                 >
