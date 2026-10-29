@@ -78,6 +78,37 @@
         "label": "Skill: babysit-pr",
         "default_collapsed": true
       }
+    },
+    {
+      "id": "claude-skill-toolu_01Y11ebixJmCLXozHqcUboAz",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "leaving-pr-comments"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "c7f3fdd652fb",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 715,
+        "end": 716,
+        "entry_ids": [
+          "c8bc3ff4-401f-403f-91ee-455667c55a47"
+        ],
+        "tool_use_id": "toolu_01Y11ebixJmCLXozHqcUboAz"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Y11ebixJmCLXozHqcUboAz"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: leaving-pr-comments",
+        "default_collapsed": true
+      }
     }
   ],
   "session_metrics": {
