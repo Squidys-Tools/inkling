@@ -197,13 +197,6 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     const text = nonEmpty(query.text);
     const clauses: Fragment[] = [sql`i.archived = 0`];
     const from = sql.literal("items i");
-    let rankedCandidates: ReturnType<typeof cardFromRow>[] | null = null;
-    if (text) {
-      rankedCandidates = yield* search.searchItems(text, 200, queryVector);
-      if (!rankedCandidates.length) return [];
-      const ids = JSON.stringify(rankedCandidates.map((item) => item.id));
-      clauses.push(sql`i.id IN (SELECT value FROM json_each(${ids}))`);
-    }
     const tag = nonEmpty(query.tag);
     if (tag) clauses.push(sql`i.id IN (SELECT value FROM json_each(${yield* taggedItemIds(tag)}))`);
     const kind = nonEmpty(query.kind);
@@ -214,12 +207,10 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
           : sql`lower(i.kind) = lower(${kind})`,
       );
     }
+    // Every lane is scoped before its cap, including offline lexical search.
+    if (text) return yield* search.searchItems(text, cap, queryVector, sql.and(clauses));
     const rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM ${from}
       WHERE ${sql.and(clauses)} ORDER BY i.updated_at DESC, i.created_at DESC LIMIT ${cap}`;
-    if (rankedCandidates) {
-      const matchingIds = new Set(rows.map((row) => row.id));
-      return rankedCandidates.filter((item) => matchingIds.has(item.id)).slice(0, cap);
-    }
     return rows.map(cardFromRow);
   });
 

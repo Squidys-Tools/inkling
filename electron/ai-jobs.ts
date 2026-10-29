@@ -170,7 +170,7 @@ export function createAiJobProcessors({
       const image = yield* readAsset(item.localAssetPath);
       const text = (yield* attempt(() => ocr.recognize(image))).trim();
       if (text) {
-        yield* library.storeOcrText(item.id, text, "tesseract.js");
+        yield* library.storeOcrText(item.id, text, "tesseract.js", item.localAssetPath);
         yield* jobs.enqueue(item.id, "generate_embedding");
         yield* progress(job, workerId, 1, 1, "Image text indexed");
       } else {
@@ -213,9 +213,13 @@ export function createAiJobProcessors({
       );
       const result = yield* extract.pipe(Effect.ensuring(resetThumbnailBackfill));
       const pageCount = result.pages.length;
-      if (searchModels) yield* library.storePdfPages(item.id, item.localAssetPath, result.pages);
+      if (
+        searchModels &&
+        !(yield* library.storePdfPages(item.id, item.localAssetPath, result.pages))
+      )
+        return;
       if (result.text) {
-        yield* library.storeOcrText(item.id, result.text, result.engine);
+        yield* library.storeOcrText(item.id, result.text, result.engine, item.localAssetPath);
         yield* jobs.enqueue(item.id, "generate_embedding");
         yield* progress(job, workerId, pageCount, pageCount, "PDF text indexed");
       } else {

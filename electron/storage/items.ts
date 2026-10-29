@@ -207,15 +207,27 @@ export function makeItems(ctx: StorageContext) {
     const size =
       kind === "image" && inspectImage ? yield* attempt(() => inspectImage(bytes)) : null;
     const itemDirectory = join(ctx.assetsDirectory, id);
-    yield* attempt(() => mkdir(itemDirectory, { recursive: true }));
-    yield* attempt(() => writeFile(join(itemDirectory, fileName), bytes));
+    // Published asset paths are immutable: an in-flight decoder may still own
+    // the previous path, even when a replacement uses the same item/filename.
+    const storedFileName = yield* attempt(async () => {
+      await mkdir(itemDirectory, { recursive: true });
+      try {
+        await writeFile(join(itemDirectory, fileName), bytes, { flag: "wx" });
+        return fileName;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        const name = `${randomUUID()}-${fileName}`;
+        await writeFile(join(itemDirectory, name), bytes, { flag: "wx" });
+        return name;
+      }
+    });
     const metadata = JSON.stringify({
       fileName,
       mimeType,
       byteLength: bytes.length,
       ...(size ? { mediaWidth: size.width, mediaHeight: size.height } : {}),
     });
-    const assetPath = relativeAssetPath(`items/${id}/${fileName}`);
+    const assetPath = relativeAssetPath(`items/${id}/${storedFileName}`);
     const now = Date.now();
     const existing = yield* getItem(id);
     yield* sql.withTransaction(

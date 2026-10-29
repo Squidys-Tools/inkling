@@ -41,7 +41,7 @@ export function SearchDetails({ id }: { id: string }) {
           <button
             key={tag}
             type="button"
-            className="text-[13px]/4 text-muted hover:text-ink"
+            className="cursor-pointer border-0 bg-transparent p-0 text-[13px]/4 text-muted hover:text-ink"
             aria-label={`Remove suggested tag ${tag}`}
             onClick={() => {
               setError(null);

@@ -50,7 +50,12 @@ export function makeEnrichment(ctx: StorageContext) {
   const candidate = (query: string, afterRowid: number, kind: string) =>
     sql.unsafe<Candidate>(query, [afterRowid, kind]).pipe(Effect.map(([row]) => row));
 
-  const storeOcrText = Effect.fnUntraced(function* (id: string, text: string, engine: string) {
+  const storeOcrText = Effect.fnUntraced(function* (
+    id: string,
+    text: string,
+    engine: string,
+    assetPath?: string | null,
+  ) {
     const [row] = yield* sql<{ metadata: string }>`SELECT metadata FROM items WHERE id = ${id}`;
     if (!row) return yield* itemNotFound(id);
     const parsed = parseJson<unknown>(row.metadata, {});
@@ -61,7 +66,7 @@ export function makeEnrichment(ctx: StorageContext) {
     // Leaves updated_at alone: the library sorts by it, and background OCR
     // finishing should not move a card the user did not touch.
     yield* sql`UPDATE items SET ocr_text = ${String(text)}, metadata = ${JSON.stringify(metadata)}
-      WHERE id = ${id}`;
+      WHERE id = ${id} AND (${Number(assetPath === undefined)} = 1 OR local_asset_path = ${assetPath ?? null})`;
   });
 
   const applyUrlEnrichment = Effect.fnUntraced(function* (

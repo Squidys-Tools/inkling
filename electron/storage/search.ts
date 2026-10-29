@@ -1,17 +1,11 @@
 import { Effect } from "effect";
+import type { Fragment } from "effect/sql/Statement";
 import type { StoredLibraryCard } from "@inkling/contracts";
 import { IMAGE_MODEL, TEXT_MODEL } from "../embedding-contract.ts";
 import { SEARCH_INDEX, cosine, rankFusion } from "../search-core.ts";
 import { selectCards, type StorageContext } from "./context.ts";
 import { invalidInput } from "./errors.ts";
-import {
-  cardItem,
-  clampLimit,
-  type ItemRow,
-  itemColumns,
-  itemFromRow,
-  qualifiedItemColumns,
-} from "./shared.ts";
+import { cardItem, clampLimit, type ItemRow, itemFromRow, qualifiedItemColumns } from "./shared.ts";
 
 // Separate floors calibrated on the mixed-image/document development split.
 export const searchFloors = { text: 0.7, image: 0.63, legacyText: 0.55, legacyImage: 0.55 };
@@ -68,6 +62,7 @@ export function makeSearch(ctx: StorageContext) {
     query: unknown,
     limit: unknown = 100,
     queryVector: QueryVector = null,
+    scope: Fragment = sql`1 = 1`,
   ) {
     const search = String(query ?? "").trim(),
       cap = clampLimit(limit, 100, 200);
@@ -78,15 +73,15 @@ export function makeSearch(ctx: StorageContext) {
       const match = escapeFtsQuery(search);
       if (match) {
         rows =
-          yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM items_fts f JOIN items i ON i.id = f.item_id WHERE i.archived = 0 AND items_fts MATCH ${match} ORDER BY bm25(items_fts),i.updated_at DESC LIMIT ${cap}`;
+          yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM items_fts f JOIN items i ON i.id = f.item_id WHERE i.archived = 0 AND ${scope} AND items_fts MATCH ${match} ORDER BY bm25(items_fts),i.updated_at DESC LIMIT ${cap}`;
         chunkRows =
-          yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM search_chunks_fts f JOIN items i ON i.id = f.item_id WHERE i.archived = 0 AND EXISTS(SELECT 1 FROM search_index_state s WHERE s.item_id = i.id AND s.index_version = ${SEARCH_INDEX} AND s.revision = i.search_revision) AND search_chunks_fts MATCH ${match} ORDER BY bm25(search_chunks_fts) LIMIT ${cap}`;
+          yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM search_chunks_fts f JOIN items i ON i.id = f.item_id WHERE i.archived = 0 AND ${scope} AND EXISTS(SELECT 1 FROM search_index_state s WHERE s.item_id = i.id AND s.index_version = ${SEARCH_INDEX} AND s.revision = i.search_revision) AND search_chunks_fts MATCH ${match} ORDER BY bm25(search_chunks_fts) LIMIT ${cap}`;
       }
     } else {
       rows =
-        yield* sql<ItemRow>`SELECT ${sql.literal(itemColumns)} FROM items WHERE archived = 0 AND ${likeClause(sqlLikePattern(search))} ORDER BY updated_at DESC LIMIT ${cap}`;
+        yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM items i WHERE i.archived = 0 AND ${scope} AND ${likeClause(sqlLikePattern(search), "i.")} ORDER BY i.updated_at DESC LIMIT ${cap}`;
       chunkRows =
-        yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM search_chunks c JOIN items i ON i.id = c.item_id WHERE i.archived = 0 AND EXISTS(SELECT 1 FROM search_index_state s WHERE s.item_id = i.id AND s.index_version = ${SEARCH_INDEX} AND s.revision = i.search_revision) AND c.text COLLATE NOCASE LIKE ${sqlLikePattern(search)} ESCAPE char(92) LIMIT ${cap}`;
+        yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM search_chunks c JOIN items i ON i.id = c.item_id WHERE i.archived = 0 AND ${scope} AND EXISTS(SELECT 1 FROM search_index_state s WHERE s.item_id = i.id AND s.index_version = ${SEARCH_INDEX} AND s.revision = i.search_revision) AND c.text COLLATE NOCASE LIKE ${sqlLikePattern(search)} ESCAPE char(92) LIMIT ${cap}`;
     }
     const items = new Map([...rows, ...chunkRows].map((row) => [row.id, itemFromRow(row)]));
     const lexical = [...items.keys()];
@@ -119,12 +114,12 @@ export function makeSearch(ctx: StorageContext) {
     };
     if (vectors.current?.length) {
       const candidates =
-        yield* sql<EmbeddingRow>`SELECT ${sql.literal(qualifiedItemColumns)},e.dimension AS embedding_dimension,e.vector AS embedding_vector,e.kind AS embedding_kind FROM search_vectors e JOIN items i ON i.id = e.item_id WHERE i.archived = 0 AND e.index_version = ${SEARCH_INDEX} AND e.revision = i.search_revision`;
+        yield* sql<EmbeddingRow>`SELECT ${sql.literal(qualifiedItemColumns)},e.dimension AS embedding_dimension,e.vector AS embedding_vector,e.kind AS embedding_kind FROM search_vectors e JOIN items i ON i.id = e.item_id WHERE i.archived = 0 AND ${scope} AND e.index_version = ${SEARCH_INDEX} AND e.revision = i.search_revision`;
       appendLane(candidates, vectors.current, true);
     }
     if (vectors.legacy?.length) {
       const candidates =
-        yield* sql<EmbeddingRow>`SELECT ${sql.literal(qualifiedItemColumns)},e.dimension AS embedding_dimension,e.vector AS embedding_vector,e.kind AS embedding_kind FROM item_embeddings e JOIN items i ON i.id = e.item_id WHERE i.archived = 0 AND ((e.kind = 'text' AND e.model = ${TEXT_MODEL}) OR (e.kind = 'image' AND e.model = ${IMAGE_MODEL})) AND NOT EXISTS(SELECT 1 FROM search_index_state s WHERE s.item_id = i.id AND s.index_version = ${SEARCH_INDEX} AND s.revision = i.search_revision AND ${Number(Boolean(vectors.current?.length))} = 1)`;
+        yield* sql<EmbeddingRow>`SELECT ${sql.literal(qualifiedItemColumns)},e.dimension AS embedding_dimension,e.vector AS embedding_vector,e.kind AS embedding_kind FROM item_embeddings e JOIN items i ON i.id = e.item_id WHERE i.archived = 0 AND ${scope} AND ((e.kind = 'text' AND e.model = ${TEXT_MODEL}) OR (e.kind = 'image' AND e.model = ${IMAGE_MODEL})) AND NOT EXISTS(SELECT 1 FROM search_index_state s WHERE s.item_id = i.id AND s.index_version = ${SEARCH_INDEX} AND s.revision = i.search_revision AND ${Number(Boolean(vectors.current?.length))} = 1)`;
       appendLane(candidates, vectors.legacy, false);
     }
     return rankFusion(lanes, cap).flatMap((id) => {
