@@ -1,0 +1,50 @@
+<task-notification>
+<task-id>bdqefiu41</task-id>
+<tool-use-id>toolu_01BaJKg6ojEwTVB2n3oVXxZM</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-6c4f92e9\592b9cb0-967b-4c74-afcb-7f790df27647\tasks\bdqefiu41.output</output-file>
+<status>completed</status>
+<summary>Background command "cd /c/Users/chris/.t3/worktrees/inkling/t3-6c4f92e9; git add .claude/skills/verify-inkling .agents/skills/verify-inkling &amp;&amp; git commit -q -F - &lt;&lt;'EOF'
+docs(verify-inkling): drive every feature and fix the launch harness
+
+Every feature file now carries a step list driven end to end on Windows, and
+the doc drift found on the way is corrected (Edit note has no aria-label, Save
+keeps the overlay open, Spaces need Create Space, search is whole-token).
+
+Launch refuses a port another process owns, passes Chromium flags so an
+occluded window keeps firing animation frames, and drive.mjs fails a step on a
+silent page instead of hanging.
+
+Co-Authored-By: Claude Sonnet 5.5 &lt;noreply@anthropic.com&gt;
+EOF
+git push -u origin HEAD 2&gt;&amp;1 | tail -2
+gh pr create --title "docs(verify-inkling): drive every feature and fix the launch harness" --body - &lt;&lt;'EOF'
+Ran `/maintain-verification-skill` against `verify-inkling`. Four of the five feature files were mapped but never driven, and the map had drifted from the source. The launch harness also failed in two ways on a busy machine.
+
+**Map corrections** (each driven live on Windows against a scratch library, with DB rows checked):
+- Edit note: the button has no `aria-label` and sits on the Info tab; the editor is a contenteditable; Save keeps the overlay open; there is no X button.
+- Spaces: nothing commits until Create Space is clicked (not Enter or blur); the form offers Smart or Regular; filing an item is via Move to Space.
+- Search: the field hint is `esc to close`; matching is whole-token; Escape clears it.
+- Archive: archive lives in the item footer; added the Settings and Archive tab route and the batch Restore path.
+- Capture note: N opens the Note form directly; URL-only text becomes a link.
+
+**Harness fixes** (each re-driven live):
+- `launch` exits early when the CDP port has another owner. Before, it started Electron, which then failed to bind, and doctor was the only signal.
+- `launch` passes Chromium flags so an occluded window stays `visible`. A hidden window stops animation frames, so the item overlay never finished closing and Enter-save hung a drive.
+- `drive.mjs` fails a step after 20s without a CDP reply instead of hanging. The failure path was not triggered in the run; normal drives were unaffected.
+- Setup now notes that Bun skips Electron's download script (`node node_modules/electron/install.js`).
+
+`.agents/skills/verify-inkling` is a tracked mirror, so both copies are updated identically.
+
+Not covered: Link capture needs the network, and File and Screen open native pickers. The unfocused search result count and Save as Space pill were not driven. No product regressions were found.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+[Assistant quote](t3-citation://v1/8164cce9-439b-4404-a9e9-e2c2bccb629b/12eb4ab4-1abe-4063-9a1a-42ed7f92f9f7/message%3Aprovider%3AclaudeAgent%3Anative-item%3A8cf96534-0de3-4c35-a4ad-d728285d3098?text=Link+capture+needs+the+network%2C+and+File+and+Screen+open+native+pickers.%0A%0A%0AI+didn%27t+drive+the+search+result+count+or+the+%22Save+as+Space%22+pill.%0A%0A%0AI+didn%27t+read+the+spaces+table+after+the+rename+%28only+the+sidebar+label%29.+It+was+empty+after+delete.&start=1731&end=1972&prefix=ectron%2Finstall.js.+Not+covered%3A+&suffix=+I+found+no+product+regressions.&comment=should+these+be+covered+in+the+skill)
+
+---
+
+yes

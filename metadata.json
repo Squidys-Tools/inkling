@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M62JPW0NWWR8XDS7ZSYBM89S",
+  "strategy": "manual-commit",
+  "branch": "t3/maintain-verification-skill",
+  "checkpoints_count": 3,
+  "files_touched": [
+    ".claude/skills/verify-inkling/features/README.md",
+    ".claude/skills/verify-inkling/features/capture-note.md",
+    ".claude/skills/verify-inkling/features/capture-quote.md",
+    ".claude/skills/verify-inkling/features/search.md",
+    ".claude/skills/verify-inkling/features/spaces.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 154131,
+    "cache_read_tokens": 3144851,
+    "output_tokens": 13063,
+    "api_call_count": 22
+  }
+}
