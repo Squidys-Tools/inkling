@@ -278,6 +278,102 @@ test("list rows keep card fields while full content stays available by item id",
   expect(await library.getItem("missing-item")).toBeNull();
 });
 
+test("card reads trim OCR text and shrink metadata but survive malformed rows", async () => {
+  const { library } = await temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items
+    (id, kind, title, description, ocr_text, metadata, created_at, updated_at)
+    VALUES (?, 'article', ?, ?, ?, ?, ?, ?)`);
+  const heavy = {
+    html: `<article><p>${"htmlpayload ".repeat(200)}</p></article>`,
+    text: "textpayload ".repeat(200),
+    extractedText: "extractedpayload ".repeat(200),
+    safeEmbeds: [{ src: "https://video.example/embed" }],
+    quoteText: "quotepayload ".repeat(100),
+    author: "A. Writer",
+    tags: ["reading"],
+    social: { site: "example", card: "summary" },
+    imageUrls: ["https://example.com/a.png"],
+    imageDimensions: [{ width: 1200, height: 630 }],
+    mediaWidth: 1200,
+    mediaHeight: 630,
+    mediaAspectRatio: 1.9,
+    pdfPageCount: 4,
+    palette: ["#102030", "#405060"],
+  };
+  insert.run("heavy", "Heavy article", "Summary.", "short ocr", JSON.stringify(heavy), 9, 9);
+  insert.run("blank-html", "Blank", null, "", JSON.stringify({ html: " \t\n " }), 8, 8);
+  insert.run("numeric-html", "Numeric", null, "", JSON.stringify({ html: 42 }), 7, 7);
+  insert.run(
+    "spaced-ocr",
+    "Spaced",
+    null,
+    "  \t\n\u00a0\u3000\ufeff" + "lead".repeat(60),
+    "{}",
+    6,
+    6,
+  );
+  insert.run("long-ocr", "Long", null, "word ".repeat(100), "{}", 5, 5);
+  insert.run("malformed", "Malformed", null, "", "{unclosed", 4, 4);
+  insert.run("array-meta", "Array meta", null, "", "[1,2,3]", 3, 3);
+  insert.run("scalar-meta", "Scalar meta", null, "", '"plain"', 2, 2);
+
+  const cards = await library.listActiveItems();
+  const card = (id: string) => {
+    const found = cards.find((item) => item.id === id);
+    if (!found) throw new Error(`card ${id} was not listed`);
+    return found;
+  };
+
+  expect(card("heavy")).toEqual({
+    id: "heavy",
+    kind: "article",
+    title: "Heavy article",
+    description: "Summary.",
+    sourceUrl: null,
+    sourceLabel: null,
+    localAssetPath: null,
+    thumbnailPath: null,
+    palette: ["#102030", "#405060"],
+    ocrText: "short ocr",
+    metadata: {
+      tags: ["reading"],
+      social: { site: "example", card: "summary" },
+      imageUrls: ["https://example.com/a.png"],
+      imageDimensions: [{ width: 1200, height: 630 }],
+      mediaWidth: 1200,
+      mediaHeight: 630,
+      mediaAspectRatio: 1.9,
+      pdfPageCount: 4,
+    },
+    createdAt: 9,
+    archived: false,
+    hasArticleContent: true,
+  });
+  expect(JSON.stringify(card("heavy"))).not.toContain("payload");
+
+  expect(card("blank-html")?.hasArticleContent).toBe(false);
+  expect(card("numeric-html")?.hasArticleContent).toBe(false);
+  expect(card("spaced-ocr")?.ocrText).toBe("lead".repeat(45));
+  expect(card("long-ocr")?.ocrText).toBe("word ".repeat(36));
+  expect(card("malformed")).toMatchObject({ metadata: {}, hasArticleContent: false });
+  expect(card("array-meta")).toMatchObject({ metadata: {}, hasArticleContent: false });
+  expect(card("scalar-meta")).toMatchObject({ metadata: {}, hasArticleContent: false });
+
+  expect(await library.getItemCards(["heavy", "malformed"])).toEqual([
+    card("heavy"),
+    card("malformed"),
+  ]);
+  expect(ids(await library.searchItems("Heavy"))).toEqual(["heavy"]);
+  const space = await library.createSpace({ name: "Saved", kind: "regular" });
+  if (!space) throw new Error("Space was not created");
+  await library.addSpaceItem(space.id, "heavy");
+  expect(await library.listSpaceItems(space.id)).toEqual([card("heavy")]);
+
+  const detail = await library.getItem("heavy");
+  expect(detail?.metadata.html).toContain("htmlpayload");
+  expect(detail?.metadata.text).toContain("textpayload");
+});
+
 test("URL enrichment preserves a title and tags edited while extraction is queued", async () => {
   const { library } = await temporaryLibrary();
   const item = await library.captureUrl({

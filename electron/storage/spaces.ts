@@ -20,7 +20,7 @@ import {
   isMetadata,
   nonEmpty,
   parseJson,
-  qualifiedItemColumns,
+  qualifiedCardColumns,
 } from "./shared.ts";
 
 type SpaceRow = {
@@ -188,7 +188,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     if (!space) return yield* spaceNotFound(id);
     const cap = clampLimit(limit, 100, 200);
     if (space.kind === "regular") {
-      const rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)}
+      const rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedCardColumns)}
         FROM space_items s JOIN items i ON i.id = s.item_id
         WHERE s.space_id = ${id} AND i.archived = 0 ORDER BY s.added_at DESC, i.id LIMIT ${cap}`;
       return rows.map(cardFromRow);
@@ -221,7 +221,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
           : sql`lower(i.kind) = lower(${kind})`,
       );
     }
-    const rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM ${from}
+    const rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedCardColumns)} FROM ${from}
       WHERE ${sql.and(clauses)} ORDER BY i.updated_at DESC, i.created_at DESC LIMIT ${cap}`;
     if (rankedCandidates) {
       const matchingIds = new Set(rows.map((row) => row.id));

@@ -4,12 +4,12 @@ import { IMAGE_MODEL, TEXT_MODEL } from "../embedding-contract.ts";
 import { selectCards, type StorageContext } from "./context.ts";
 import { invalidInput } from "./errors.ts";
 import {
+  cardColumns,
   cardItem,
   clampLimit,
   type ItemRow,
-  itemColumns,
   itemFromRow,
-  qualifiedItemColumns,
+  qualifiedCardColumns,
 } from "./shared.ts";
 
 const semanticMatchFloor = 0.55;
@@ -85,13 +85,13 @@ export function makeSearch(ctx: StorageContext) {
     if (ctx.fts5Enabled) {
       const match = escapeFtsQuery(search);
       if (match) {
-        rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)}
+        rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedCardColumns)}
           FROM items_fts f JOIN items i ON i.id = f.item_id
           WHERE i.archived = 0 AND items_fts MATCH ${match}
           ORDER BY i.updated_at DESC, i.created_at DESC LIMIT ${cap}`;
       }
     } else {
-      rows = yield* sql<ItemRow>`SELECT ${sql.literal(itemColumns)} FROM items
+      rows = yield* sql<ItemRow>`SELECT ${sql.literal(cardColumns)} FROM items
         WHERE archived = 0 AND ${likeClause(sqlLikePattern(search))}
         ORDER BY updated_at DESC, created_at DESC LIMIT ${cap}`;
     }
@@ -99,7 +99,7 @@ export function makeSearch(ctx: StorageContext) {
     if (!queryVector?.length) return lexicalItems.map(cardItem);
 
     const ranked = new Map(lexicalItems.map((item) => [item.id, { item, score: 2 }]));
-    const candidates = yield* sql<EmbeddingRow>`SELECT ${sql.literal(qualifiedItemColumns)},
+    const candidates = yield* sql<EmbeddingRow>`SELECT ${sql.literal(qualifiedCardColumns)},
       e.dimension AS embedding_dimension, e.vector AS embedding_vector
       FROM item_embeddings e JOIN items i ON i.id = e.item_id
       WHERE i.archived = 0 AND ((e.kind = 'text' AND e.model = ${TEXT_MODEL})
@@ -136,7 +136,7 @@ export function makeSearch(ctx: StorageContext) {
       return yield* invalidInput(`stored ${kind} embedding dimension does not match its vector`);
     const kinds =
       kind === "image" ? sql`i.kind = 'image'` : sql`i.kind IN ('article', 'url', 'note', 'quote')`;
-    const candidates = yield* sql<EmbeddingRow>`SELECT ${sql.literal(qualifiedItemColumns)},
+    const candidates = yield* sql<EmbeddingRow>`SELECT ${sql.literal(qualifiedCardColumns)},
       e.dimension AS embedding_dimension, e.vector AS embedding_vector
       FROM item_embeddings e JOIN items i ON i.id = e.item_id
       WHERE i.archived = 0 AND i.id != ${itemId} AND ${kinds}

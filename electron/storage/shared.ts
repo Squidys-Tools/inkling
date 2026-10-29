@@ -25,16 +25,13 @@ export type ItemRow = {
 
 export type Metadata = Record<string, unknown>;
 
-export const itemColumns = `id, kind, title, description, source_url, source_label,
+const itemColumns = `id, kind, title, description, source_url, source_label,
   local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
   archived, NULL AS body, 'md' AS body_format`;
 export const detailColumns = itemColumns.replace(
   "NULL AS body, 'md' AS body_format",
   "body, body_format",
 );
-export const qualifiedItemColumns = `i.id, i.kind, i.title, i.description, i.source_url, i.source_label,
-  i.local_asset_path, i.thumbnail_path, i.ocr_text, i.metadata, i.created_at, i.updated_at,
-  i.archived, NULL AS body, 'md' AS body_format`;
 const cardMetadataFields = [
   "tags",
   "social",
@@ -45,6 +42,33 @@ const cardMetadataFields = [
   "mediaAspectRatio",
   "pdfPageCount",
 ];
+
+// String.prototype.trim removes this whole set; SQLite's trim(x) strips spaces only.
+const jsTrimCharacters = `char(${[
+  9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201,
+  8202, 8232, 8233, 8239, 8287, 12288, 65279,
+].join(",")})`;
+
+// Card reads never need the article payload, so the projection keeps only the
+// fields cardItem reads and reduces '$.html' to a marker it still recognizes.
+// json_valid degrades bad metadata per row; json functions would otherwise
+// error the whole list on one malformed row.
+const cardColumnsFor = (p: string) => `${p}id, ${p}kind, ${p}title, ${p}description,
+  ${p}source_url, ${p}source_label, ${p}local_asset_path, ${p}thumbnail_path,
+  substr(trim(${p}ocr_text, ${jsTrimCharacters}), 1, 180) AS ocr_text,
+  CASE WHEN json_valid(${p}metadata) AND json_type(${p}metadata) = 'object'
+    THEN json_set(
+      COALESCE((SELECT json_group_object(j.key, j.value) FROM json_each(${p}metadata) j
+        WHERE j.key IN ('${[...cardMetadataFields, "palette"].join("','")}')), '{}'),
+      '$.html',
+      CASE WHEN json_type(${p}metadata, '$.html') = 'text'
+        AND ltrim(json_extract(${p}metadata, '$.html'), ${jsTrimCharacters}) <> ''
+        THEN 'x' ELSE NULL END)
+    ELSE ${p}metadata END AS metadata,
+  ${p}created_at, ${p}updated_at, ${p}archived, NULL AS body, 'md' AS body_format`;
+
+export const cardColumns = cardColumnsFor("");
+export const qualifiedCardColumns = cardColumnsFor("i.");
 
 export function parseJson<T>(value: unknown, fallback: T): T {
   try {
@@ -102,9 +126,9 @@ export function cardItem(item: StoredLibraryItemDetail): StoredLibraryCard {
     localAssetPath: item.localAssetPath,
     thumbnailPath: item.thumbnailPath,
     palette: Array.isArray(metadata.palette) ? metadata.palette : undefined,
-    ocrText: String(item.ocrText ?? "")
-      .trim()
-      .slice(0, 180),
+    // Card queries deliver ocr_text trimmed and truncated; the slice caps it at
+    // 180 UTF-16 units (SQLite substr counts code points, not units).
+    ocrText: String(item.ocrText ?? "").slice(0, 180),
     metadata: cardMetadata,
     createdAt: item.createdAt,
     archived: item.archived,
