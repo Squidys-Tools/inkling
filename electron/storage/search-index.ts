@@ -152,11 +152,12 @@ export function makeSearchIndex(ctx: StorageContext) {
       Effect.gen(function* () {
         const item = yield* readItem(ctx, id);
         if (item?.kind !== "image" || item.localAssetPath !== assetPath) return false;
+        const previousRevision = yield* revision(id);
         yield* sql`INSERT INTO search_ai(item_id,model,asset_path,caption,tags) VALUES(${id},${CAPTION_MODEL},${assetPath},${caption.slice(0, 1200)},${JSON.stringify(tags.slice(0, 12))}) ON CONFLICT(item_id) DO UPDATE SET model = excluded.model, asset_path = excluded.asset_path, caption = excluded.caption, tags = excluded.tags`;
         yield* sql`UPDATE items SET search_revision = search_revision + 1 WHERE id = ${id}`;
-        // Caption/tag edits do not change image bytes. Keep the already-indexed
-        // image searchable while the revised text index is rebuilt in the queue.
-        yield* sql`UPDATE search_vectors SET revision = (SELECT search_revision FROM items WHERE id = ${id}) WHERE item_id = ${id} AND index_version = ${SEARCH_INDEX} AND kind = 'image'`;
+        // Only preserve image rows valid just before this metadata edit. Older
+        // revisions may belong to replaced bytes and must never become current.
+        yield* sql`UPDATE search_vectors SET revision = (SELECT search_revision FROM items WHERE id = ${id}) WHERE item_id = ${id} AND index_version = ${SEARCH_INDEX} AND kind = 'image' AND revision = ${previousRevision}`;
         yield* jobs.enqueue(id, "generate_embedding");
         yield* jobs.notify(id);
         return true;
@@ -170,12 +171,13 @@ export function makeSearchIndex(ctx: StorageContext) {
       Effect.gen(function* () {
         const [row] = yield* sql<AiRow>`SELECT * FROM search_ai WHERE item_id = ${id}`;
         if (!row) return;
+        const previousRevision = yield* revision(id);
         const removed = [...new Set([...stringArray(row.removed_tags), clean])];
         yield* sql`UPDATE search_ai SET removed_tags = ${JSON.stringify(removed)} WHERE item_id = ${id}`;
         yield* sql`UPDATE items SET search_revision = search_revision + 1 WHERE id = ${id}`;
-        // Caption/tag edits do not change image bytes. Keep the already-indexed
-        // image searchable while the revised text index is rebuilt in the queue.
-        yield* sql`UPDATE search_vectors SET revision = (SELECT search_revision FROM items WHERE id = ${id}) WHERE item_id = ${id} AND index_version = ${SEARCH_INDEX} AND kind = 'image'`;
+        // Only preserve image rows valid just before this metadata edit. Older
+        // revisions may belong to replaced bytes and must never become current.
+        yield* sql`UPDATE search_vectors SET revision = (SELECT search_revision FROM items WHERE id = ${id}) WHERE item_id = ${id} AND index_version = ${SEARCH_INDEX} AND kind = 'image' AND revision = ${previousRevision}`;
         yield* jobs.enqueue(id, "generate_embedding");
         yield* jobs.notify(id);
       }),

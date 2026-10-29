@@ -50,6 +50,56 @@ test("visual near-misses do not survive fusion; lexical results remain independe
   }
 });
 
+test("recaption and tag edits cannot revive vectors from replaced image bytes", async () => {
+  const root = mkdtempSync(join(tmpdir(), "inkling-recaption-replacement-"));
+  const lib = await openTestLibrary(join(root, "library.sqlite3"));
+  try {
+    for (const partial of [false, true]) {
+      const id = partial ? "partial" : "failed";
+      await lib.saveFile({
+        id,
+        fileName: "neutral.png",
+        kind: "image",
+        bytes: new Uint8Array([1]),
+      });
+      const original = await lib.searchInput(id);
+      await lib.storeSearchIndex(
+        id,
+        original!.revision,
+        [],
+        [{ kind: "image", chunkId: "image:old-bytes", vector: vector() }],
+      );
+      const replacement = await lib.saveFile({
+        id,
+        fileName: "neutral.png",
+        kind: "image",
+        bytes: new Uint8Array([2]),
+      });
+      const input = await lib.searchInput(id);
+      if (partial) await lib.storeSearchImage(id, input!.revision, vector(0), "new-bytes");
+      await lib.storeSearchAnnotation(id, replacement.localAssetPath!, "A new object", ["object"]);
+      await lib.removeSearchTag(id, "object");
+      const current = await lib.searchInput(id);
+      const old = lib.db
+        .prepare("SELECT revision FROM search_vectors WHERE item_id = ? AND chunk_id = ?")
+        .get(id, "image:old-bytes");
+      expect(old?.revision).not.toBe(current!.revision);
+      expect(
+        (await lib.searchItems("unmentioned category", 20, { current: vector() })).map((x) => x.id),
+      ).not.toContain(id);
+      if (partial) {
+        const fresh = lib.db
+          .prepare("SELECT revision FROM search_vectors WHERE item_id = ? AND chunk_id = ?")
+          .get(id, "image:new-bytes");
+        expect(fresh?.revision).toBe(current!.revision);
+      }
+    }
+  } finally {
+    await lib.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("caption version migrates in the background without invalidating unchanged image vectors or user text", async () => {
   const root = mkdtempSync(join(tmpdir(), "inkling-recaption-"));
   const lib = await openTestLibrary(join(root, "library.sqlite3"));
