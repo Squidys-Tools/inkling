@@ -1,0 +1,9 @@
+then try and make it credential free so this will be fully for agents to work on inkling
+
+---
+
+okay so now do we integrate this so that agents in the future will use instabox instead of my local computer for running checks and stuff
+
+---
+
+file apr
