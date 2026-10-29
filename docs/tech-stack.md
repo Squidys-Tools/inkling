@@ -33,7 +33,7 @@ The main process, preload, and snapshot worker are bundled by `scripts/build-ele
 
 ## Styling
 
-Components style themselves with Tailwind utilities against the tokens in `src/index.css`. Base UI supplies behavior and accessibility for dialogs, tabs, menus and buttons, with no theme of its own. Plain CSS files are kept only where utilities can't reach: `reader.css` and the note editor style HTML they don't render themselves, onboarding runs on keyframes, and Sonner's toasts are styled through its data attributes. Those files sit next to the component that owns them.
+Components style themselves with Tailwind utilities against the tokens in `src/index.css`. Base UI supplies behavior and accessibility for dialogs, tabs, menus and buttons, with no theme of its own. Plain CSS files are kept only where utilities can't reach: `reader.css` and the note editor style HTML they don't render themselves, onboarding runs on keyframes, and notch-toast's island is themed through the CSS variables it reads. Those files sit next to the component that owns them.
 
 Floating controls over the library are glass. In the desktop app, `LiquidGlass` renders the library inside a `<canvas layoutsubtree>`, Chromium's HTML-in-Canvas copies it into a WebGPU texture, and refracting glass is drawn under every `.glass` element. `.glass` and `.css-glass` both start as a blurred CSS glass. `LiquidGlass` marks a `.glass` element with `data-liquid` once its canvas draws it, which clears the CSS glass. `.css-glass` is for surfaces outside a canvas, and always stays CSS. The web preview, machines without WebGPU, and a lost GPU device keep the CSS glass. Each liquid surface costs GPU time, so glass stays on a few floating controls and never on card surfaces.
 

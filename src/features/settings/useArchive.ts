@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "notch-toast";
 import {
   archiveItem,
   deleteItem,
@@ -40,6 +40,17 @@ type ArchiveOptions = {
   setCaptureError: Dispatch<SetStateAction<string | null>>;
 };
 
+// notch-toast keeps the island up after its action runs, so Undo closes it here.
+function undoAction(onUndo: () => void) {
+  return {
+    label: "Undo",
+    onClick: () => {
+      toast.dismiss();
+      onUndo();
+    },
+  };
+}
+
 export function useArchive({
   canUseDesktopBackend,
   isSettingsOpen,
@@ -61,22 +72,18 @@ export function useArchive({
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
   const pendingPermanentDeletesRef = useRef<Map<string, PendingPermanentDelete>>(new Map());
 
-  const cancelPermanentDelete = useCallback((pending: PendingPermanentDelete) => {
-    const id = String(pending.item.id);
-    // Only the toast that scheduled a deletion may cancel it. Deleting the same
-    // item again stores a new record, and that older Undo has to stay a no-op.
-    if (pendingPermanentDeletesRef.current.get(id) !== pending) return false;
+  const cancelPermanentDelete = useCallback((id: string) => {
+    const pending = pendingPermanentDeletesRef.current.get(id);
+    if (pending === undefined) return;
     window.clearTimeout(pending.timer);
     pendingPermanentDeletesRef.current.delete(id);
-    return true;
   }, []);
 
   const restoreForgottenItem = useCallback(
     async (item: LibraryItem) => {
       // A restore un-archives the row, so any scheduled permanent delete for it
       // must be cancelled or its timer would still fire and destroy the assets.
-      const pending = pendingPermanentDeletesRef.current.get(String(item.id));
-      if (pending !== undefined) cancelPermanentDelete(pending);
+      cancelPermanentDelete(String(item.id));
       try {
         const restoredItem = canUseDesktopBackend
           ? await archiveItem(String(item.id), false).then(async (storedItem) => {
@@ -101,7 +108,7 @@ export function useArchive({
           current.filter((currentItem) => String(currentItem.id) !== String(item.id)),
         );
       } catch (error) {
-        toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
+        toast.error("Unable to restore this item");
         setCaptureError(error instanceof Error ? error.message : String(error));
       }
     },
@@ -126,17 +133,10 @@ export function useArchive({
         );
         setSelectedItem(null);
 
-        const toastId = `forgot-${String(item.id)}-${Date.now()}`;
         toast("Forgotten from your library", {
-          id: toastId,
-          description: item.title,
-          duration: Infinity,
-          closeButton: true,
-          className: "library-toast",
-          action: {
-            label: "Undo",
-            onClick: () => void restoreForgottenItem(item),
-          },
+          duration: 0,
+          dismissible: true,
+          action: undoAction(() => void restoreForgottenItem(item)),
         });
       } catch (error) {
         setCaptureError(error instanceof Error ? error.message : String(error));
@@ -241,20 +241,19 @@ export function useArchive({
           });
       }, 10000);
       pendingPermanentDeletesRef.current.set(id, pending);
-      return pending;
     },
     [canUseDesktopBackend, restoreArchivedItems, itemsRef, setCaptureError],
   );
 
-  const undoPermanentDelete = useCallback(
-    (pendingDeletes: PendingPermanentDelete[]) => {
-      const restored = pendingDeletes
-        .filter((pending) => cancelPermanentDelete(pending))
-        .map((pending) => pending.item);
-      restoreArchivedItems(restored);
-    },
-    [cancelPermanentDelete, restoreArchivedItems],
-  );
+  // Every delete still inside its window comes back together. A toast can be
+  // replaced by a newer delete's toast, so the Undo that is on screen must cover
+  // deletes it did not schedule. Delete toasts are not dismissible: notch-toast
+  // closes dismissible toasts on Escape, which would drop the only Undo.
+  const undoPermanentDeletes = useCallback(() => {
+    const pendingDeletes = Array.from(pendingPermanentDeletesRef.current.values());
+    for (const pending of pendingDeletes) cancelPermanentDelete(String(pending.item.id));
+    restoreArchivedItems(pendingDeletes.map((pending) => pending.item));
+  }, [cancelPermanentDelete, restoreArchivedItems]);
 
   useEffect(
     () => () => {
@@ -273,18 +272,15 @@ export function useArchive({
     (item: LibraryItem) => {
       setCaptureError(null);
       const itemId = String(item.id);
-      const pending = schedulePermanentDelete(item);
+      schedulePermanentDelete(item);
       setArchivedItems((current) => current.filter((candidate) => String(candidate.id) !== itemId));
       if (selectedItem && String(selectedItem.id) === itemId) setSelectedItem(null);
       toast("Deleted permanently", {
-        description: item.title,
         duration: 10000,
-        closeButton: true,
-        className: "library-toast",
-        action: { label: "Undo", onClick: () => undoPermanentDelete([pending]) },
+        action: undoAction(undoPermanentDeletes),
       });
     },
-    [schedulePermanentDelete, selectedItem, undoPermanentDelete, setSelectedItem, setCaptureError],
+    [schedulePermanentDelete, selectedItem, undoPermanentDeletes, setSelectedItem, setCaptureError],
   );
 
   const toggleArchiveSelectionMode = useCallback(() => {
@@ -321,8 +317,7 @@ export function useArchive({
             if (!canUseDesktopBackend) return null;
             // A restore un-archives the row, so cancel any scheduled permanent
             // delete for it before the timer can fire and destroy its assets.
-            const pending = pendingPermanentDeletesRef.current.get(String(item.id));
-            if (pending !== undefined) cancelPermanentDelete(pending);
+            cancelPermanentDelete(String(item.id));
             return archiveItem(String(item.id), false);
           }),
         );
@@ -364,10 +359,6 @@ export function useArchive({
           ...current,
         ]);
         setArchivedItems((current) => current.filter((item) => !restoredIds.has(String(item.id))));
-        if (restoredItems.length > 0)
-          toast.success(
-            `${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} restored`,
-          );
         if (failures > 0)
           setCaptureError(
             `${failures} ${failures === 1 ? "item" : "items"} could not be restored. They are still in the archive.`,
@@ -396,7 +387,7 @@ export function useArchive({
     if (selectedItems.length === 0) return;
     setCaptureError(null);
     const deletedIds = new Set(selectedItems.map((item) => String(item.id)));
-    const pendingDeletes = selectedItems.map((item) => schedulePermanentDelete(item));
+    for (const item of selectedItems) schedulePermanentDelete(item);
     setArchivedItems((current) => current.filter((item) => !deletedIds.has(String(item.id))));
     if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
     setSelectedArchivedIds(new Set());
@@ -405,9 +396,7 @@ export function useArchive({
       `${selectedItems.length} ${selectedItems.length === 1 ? "item" : "items"} deleted permanently`,
       {
         duration: 10000,
-        closeButton: true,
-        className: "library-toast",
-        action: { label: "Undo", onClick: () => undoPermanentDelete(pendingDeletes) },
+        action: undoAction(undoPermanentDeletes),
       },
     );
   }, [
@@ -415,7 +404,7 @@ export function useArchive({
     schedulePermanentDelete,
     selectedArchivedIds,
     selectedItem,
-    undoPermanentDelete,
+    undoPermanentDeletes,
     setSelectedItem,
     setCaptureError,
   ]);

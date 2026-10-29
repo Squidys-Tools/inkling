@@ -137,6 +137,7 @@ Guardrails:
 - The desktop backend is TypeScript built on Effect: storage runs on Effect's SQLite client, background jobs on Effect workers, URL downloads on Effect's HTTP client, and every IPC command is checked against one shared schema before it reaches storage
 - Restarting the app hands back every job the previous run left in progress, instead of waiting out its five-minute lease
 - The desktop shell runs on Electron 45 (Chromium 156, Node 24.22) instead of Electron 44 (#186)
+- Toasts appear as a notch-style island at the top centre of the window, showing one message at a time; export and import details stay in the Settings result cards, and Undo closes the island
 
 ### Removed
 

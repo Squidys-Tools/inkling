@@ -1,6 +1,6 @@
 import { Link01Icon } from "@hugeicons/core-free-icons";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "notch-toast";
 import {
   type CaptureStatus,
   getCaptureStatus,
@@ -51,7 +51,9 @@ export function ExtensionPairing() {
     if (!token) return;
     void navigator.clipboard
       .writeText(token)
-      .then(() => toast.success("Pairing token copied. Paste it into the extension."))
+      .then(() =>
+        toast.success("Pairing token copied. Paste it into the extension.", { duration: 5000 }),
+      )
       .catch(() =>
         toast.error("Copy failed. Reveal the token and copy it by hand.", { duration: 5000 }),
       );
@@ -63,7 +65,7 @@ export function ExtensionPairing() {
       .then((value) => {
         setToken(value);
         setIsRevealed(true);
-        toast.success("New pairing token issued. Update the extension.");
+        toast.success("New pairing token issued. Update the extension.", { duration: 5000 });
       })
       .catch(() => toast.error("Could not renew the pairing token.", { duration: 5000 }));
   };
@@ -80,7 +82,7 @@ export function ExtensionPairing() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
     };
     void check()
-      .then(() => toast.success("Extension receiver is reachable."))
+      .then(() => toast.success("Extension receiver is reachable.", { duration: 5000 }))
       .catch(() =>
         toast.error("No answer from the receiver. Is the app running?", { duration: 5000 }),
       )

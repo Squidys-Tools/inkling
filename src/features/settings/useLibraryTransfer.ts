@@ -1,5 +1,5 @@
 import { type Dispatch, type SetStateAction, useCallback, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "notch-toast";
 import {
   exportLibrary,
   getLastExport,
@@ -15,14 +15,10 @@ import {
 } from "../../lib/libraryApi";
 import type { LibraryItem } from "../../lib/types";
 import { storedItemToLibraryItem } from "../library/libraryItem";
-import { formatExportSummary, formatImportSummary } from "./format";
 
 export function showLibraryFolderFromSettings() {
-  void showLibraryFolder().catch((error: unknown) => {
-    toast.error("Could not open the library folder", {
-      description: error instanceof Error ? error.message : String(error),
-      closeButton: true,
-    });
+  void showLibraryFolder().catch(() => {
+    toast.error("Could not open the library folder", { duration: 5000 });
   });
 }
 
@@ -55,19 +51,14 @@ export function useLibraryTransfer({
     let destination: string | null = null;
     try {
       destination = await selectLibraryDirectory("Choose where to save the export");
-    } catch (error) {
-      toast.error("Could not open the folder picker", {
-        description: error instanceof Error ? error.message : String(error),
-        closeButton: true,
-      });
+    } catch {
+      toast.error("Could not open the folder picker", { duration: 5000 });
       return;
     }
     if (!destination) return;
 
     setIsExportingLibrary(true);
-    const toastId = toast.loading("Exporting library…", {
-      description: "Copying the database and its files",
-    });
+    toast.loading("Exporting library…");
     try {
       const report = await exportLibrary(destination);
       setLastExport(report);
@@ -77,20 +68,10 @@ export function useLibraryTransfer({
         .catch(() => undefined);
       toast.success(
         report.skippedAssets > 0 ? "Library exported with skipped assets" : "Library exported",
-        {
-          id: toastId,
-          description: formatExportSummary(report),
-          duration: 4000,
-          closeButton: true,
-        },
+        { duration: 4000, dismissible: true },
       );
-    } catch (error) {
-      toast.error("Export failed", {
-        id: toastId,
-        description: error instanceof Error ? error.message : String(error),
-        duration: Infinity,
-        closeButton: true,
-      });
+    } catch {
+      toast.error("Export failed");
     } finally {
       setIsExportingLibrary(false);
     }
@@ -101,28 +82,18 @@ export function useLibraryTransfer({
     let exportDirectory: string | null = null;
     try {
       exportDirectory = await selectLibraryDirectory("Choose an Inkling export to restore");
-    } catch (error) {
-      toast.error("Could not open the export picker", {
-        description: error instanceof Error ? error.message : String(error),
-        closeButton: true,
-      });
+    } catch {
+      toast.error("Could not open the export picker", { duration: 5000 });
       return;
     }
     if (!exportDirectory) return;
 
     setIsImportingLibrary(true);
-    const toastId = toast.loading("Restoring library…", {
-      description: "Checking the export and copying its files",
-    });
+    toast.loading("Restoring library…");
     try {
       const report = await importLibrary(exportDirectory);
       setLastImport(report);
-      toast.success("Library restored", {
-        id: toastId,
-        description: `${formatImportSummary(report)}. Search indexing will continue in the background.`,
-        duration: 5000,
-        closeButton: true,
-      });
+      toast.success("Library restored", { duration: 5000, dismissible: true });
       try {
         setSpaces(await listSpaces());
         const storedItems = await listArchivedItems();
@@ -134,13 +105,8 @@ export function useLibraryTransfer({
       } catch (error) {
         setCaptureError(error instanceof Error ? error.message : String(error));
       }
-    } catch (error) {
-      toast.error("Import failed", {
-        id: toastId,
-        description: error instanceof Error ? error.message : String(error),
-        duration: Infinity,
-        closeButton: true,
-      });
+    } catch {
+      toast.error("Import failed");
     } finally {
       setIsImportingLibrary(false);
     }

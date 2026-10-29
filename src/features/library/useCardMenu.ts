@@ -6,7 +6,7 @@ import {
   LinkSquare02Icon,
 } from "@hugeicons/core-free-icons";
 import { useCallback, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "notch-toast";
 import type { ContextMenuEntry } from "../../components/ContextMenu/ContextMenu";
 import type { LibraryItem } from "../../lib/types";
 import { showItemInFolderFromOverlay } from "../item-view/useItemDetails";
@@ -63,8 +63,8 @@ export function useCardMenu({ canUseDesktopBackend, openReader, forgetItem }: Ca
           icon: Copy01Icon,
           onSelect: () =>
             void navigator.clipboard.writeText(sourceUrl).then(
-              () => toast("Link copied", { className: "library-toast", duration: 2000 }),
-              () => toast.error("Could not copy the link", { closeButton: true }),
+              () => toast("Link copied", { duration: 2000 }),
+              () => toast.error("Could not copy the link", { duration: 5000 }),
             ),
         },
       );

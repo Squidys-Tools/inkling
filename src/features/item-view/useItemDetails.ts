@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "notch-toast";
 import {
   enqueueOcrJob,
   getItem,
@@ -31,13 +31,11 @@ import {
 export function showItemInFolderFromOverlay(item: LibraryItem) {
   void showItemInFolder(String(item.id))
     .then((shown) => {
-      if (!shown) toast("Nothing is stored on disk for this item", { closeButton: true });
+      if (!shown)
+        toast("Nothing is stored on disk for this item", { duration: 5000, dismissible: true });
     })
-    .catch((error: unknown) => {
-      toast.error("Could not show the item in its folder", {
-        description: error instanceof Error ? error.message : String(error),
-        closeButton: true,
-      });
+    .catch(() => {
+      toast.error("Could not show the item in its folder", { duration: 5000 });
     });
 }
 
@@ -266,11 +264,9 @@ export function useItemDetails({
         }
         if (requestId !== readerRequestIdRef.current || !readerItem.articleHtml) return;
         setReadingItem({ item: readerItem, origin });
-      } catch (error) {
+      } catch {
         if (requestId === readerRequestIdRef.current) {
-          toast.error("Unable to open reader", {
-            description: error instanceof Error ? error.message : String(error),
-          });
+          toast.error("Unable to open reader", { duration: 5000 });
         }
       }
     },
