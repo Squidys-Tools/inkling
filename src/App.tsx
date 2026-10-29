@@ -596,8 +596,11 @@ function App() {
         <main
           className={cx(
             "relative flex h-screen min-h-0 w-auto min-w-0 flex-auto flex-col overflow-hidden pt-(--main-pad-top) pr-(--main-pad-x) pb-(--main-pad-bottom) pl-(--main-pad-x) transition-[padding] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] [--library-top:var(--main-pad-top)] [--main-pad-bottom:30px] [--main-pad-top:calc(4px_+_var(--spacing-titlebar))] [--main-pad-x:14px] [--stage-background:var(--color-canvas)]",
-            "wide:rounded-l-frame wide:border wide:border-r-0 wide:border-border wide:bg-frame wide:transition-[margin-left,padding] wide:[--stage-background:var(--color-frame)]",
-            isSidebarOpen ? "wide:ml-(--spacing-sidebar)" : "wide:ml-0",
+            "wide:border-y wide:border-r-0 wide:border-border wide:bg-frame wide:transition-[margin-left,padding,border-radius] wide:[--stage-background:var(--color-frame)]",
+            // Closed, the frame meets the window's left edge, so its corners and left edge go flush.
+            isSidebarOpen
+              ? "wide:ml-(--spacing-sidebar) wide:rounded-l-frame wide:border-l"
+              : "wide:ml-0 wide:rounded-none",
             "max-[1120px]:w-[calc(100vw_-_var(--spacing-sidebar))] max-[780px]:w-full max-[780px]:transition-none max-[780px]:[--library-top:42px] max-[780px]:[--main-pad-bottom:24px] max-[780px]:[--main-pad-top:12px] max-[780px]:[--main-pad-x:18px]",
           )}
           ref={libraryFrameRef}
