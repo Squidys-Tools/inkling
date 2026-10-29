@@ -179,11 +179,11 @@ export function AddMenu({
           type="file"
           hidden
           tabIndex={-1}
-          accept="image/*,application/pdf,video/*"
+          multiple
           onChange={(event) => {
-            const file = event.target.files?.[0];
+            const files = Array.from(event.target.files ?? []);
             event.target.value = "";
-            if (file) onPickFile(file);
+            if (files.length) onPickFile(files);
           }}
         />
         <div
