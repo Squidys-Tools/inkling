@@ -5,6 +5,7 @@ import { selectCards, type StorageContext } from "./context.ts";
 import { invalidInput } from "./errors.ts";
 import {
   cardColumns,
+  cardFromRow,
   cardItem,
   clampLimit,
   type ItemRow,
@@ -14,7 +15,12 @@ import {
 
 const semanticMatchFloor = 0.55;
 
-type EmbeddingRow = ItemRow & { embedding_dimension: number; embedding_vector: Uint8Array };
+type EmbeddingRow = {
+  item_id: string;
+  updated_at: number;
+  embedding_dimension: number;
+  embedding_vector: Uint8Array;
+};
 
 export type QueryVector = ArrayLike<number> | null | undefined;
 
@@ -52,6 +58,17 @@ export function makeSearch(ctx: StorageContext) {
       sql`${sql.literal(`${prefix}${name}`)} COLLATE NOCASE LIKE ${pattern} ESCAPE char(92)`;
     return sql`(${sql.or(["title", "description", "body", "source_label", "ocr_text", "metadata"].map(column))})`;
   };
+
+  const cardsById = Effect.fnUntraced(function* (orderedIds: ReadonlyArray<string>) {
+    if (!orderedIds.length) return [] as StoredLibraryCard[];
+    const rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedCardColumns)}
+      FROM items i WHERE i.id IN (SELECT value FROM json_each(${JSON.stringify(orderedIds)}))`;
+    const byId = new Map(rows.map((row) => [row.id, cardFromRow(row)]));
+    return orderedIds.flatMap((id) => {
+      const card = byId.get(id);
+      return card ? [card] : [];
+    });
+  });
 
   const storeEmbedding = Effect.fnUntraced(function* (
     itemId: string,
@@ -98,8 +115,10 @@ export function makeSearch(ctx: StorageContext) {
     const lexicalItems = rows.map(itemFromRow);
     if (!queryVector?.length) return lexicalItems.map(cardItem);
 
-    const ranked = new Map(lexicalItems.map((item) => [item.id, { item, score: 2 }]));
-    const candidates = yield* sql<EmbeddingRow>`SELECT ${sql.literal(qualifiedCardColumns)},
+    const ranked = new Map(
+      lexicalItems.map((item) => [item.id, { score: 2, updatedAt: item.updatedAt }]),
+    );
+    const candidates = yield* sql<EmbeddingRow>`SELECT e.item_id, i.updated_at,
       e.dimension AS embedding_dimension, e.vector AS embedding_vector
       FROM item_embeddings e JOIN items i ON i.id = e.item_id
       WHERE i.archived = 0 AND ((e.kind = 'text' AND e.model = ${TEXT_MODEL})
@@ -107,19 +126,21 @@ export function makeSearch(ctx: StorageContext) {
     for (const row of candidates) {
       const vector = decodeFloatVector(row.embedding_vector, row.embedding_dimension);
       if (!vector || vector.length !== queryVector.length) continue;
-      const item = itemFromRow(row);
       const similarity = dotProduct(queryVector, vector);
-      const current = ranked.get(item.id);
+      const current = ranked.get(row.item_id);
       if (similarity < semanticMatchFloor && !current) continue;
       const score = current ? 2 + Math.max(similarity, 0) : similarity;
       if (current) current.score = Math.max(current.score, score);
-      else ranked.set(item.id, { item, score });
+      else ranked.set(row.item_id, { score, updatedAt: row.updated_at });
     }
 
-    return [...ranked.values()]
-      .sort((left, right) => right.score - left.score || right.item.updatedAt - left.item.updatedAt)
+    const winners = [...ranked.entries()]
+      .sort(
+        (left, right) => right[1].score - left[1].score || right[1].updatedAt - left[1].updatedAt,
+      )
       .slice(0, cap)
-      .map(({ item }) => cardItem(item));
+      .map(([id]) => id);
+    return yield* cardsById(winners);
   });
 
   const searchSimilar = Effect.fnUntraced(function* (
@@ -136,21 +157,22 @@ export function makeSearch(ctx: StorageContext) {
       return yield* invalidInput(`stored ${kind} embedding dimension does not match its vector`);
     const kinds =
       kind === "image" ? sql`i.kind = 'image'` : sql`i.kind IN ('article', 'url', 'note', 'quote')`;
-    const candidates = yield* sql<EmbeddingRow>`SELECT ${sql.literal(qualifiedCardColumns)},
+    const candidates = yield* sql<EmbeddingRow>`SELECT e.item_id, i.updated_at,
       e.dimension AS embedding_dimension, e.vector AS embedding_vector
       FROM item_embeddings e JOIN items i ON i.id = e.item_id
       WHERE i.archived = 0 AND i.id != ${itemId} AND ${kinds}
       AND e.kind = ${kind} AND e.model = ${model}`;
-    return candidates
+    const winners = candidates
       .flatMap((row) => {
         const vector = decodeFloatVector(row.embedding_vector, row.embedding_dimension);
         return vector && vector.length === sourceVector.length
-          ? [{ item: itemFromRow(row), score: dotProduct(sourceVector, vector) }]
+          ? [{ id: row.item_id, score: dotProduct(sourceVector, vector) }]
           : [];
       })
       .sort((left, right) => right.score - left.score)
       .slice(0, clampLimit(limit, 12, 50))
-      .map(({ item }) => cardItem(item));
+      .map(({ id }) => id);
+    return yield* cardsById(winners);
   });
 
   return { storeEmbedding, searchItems, searchSimilar, likeClause };

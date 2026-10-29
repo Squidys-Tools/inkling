@@ -481,6 +481,10 @@ test("free-text search hybrid-ranks lexical and Nomic semantic matches", async (
   insert.run("negative-match", "note", "antipodal", 4, 5);
   insert.run("legacy-image", "image", "old image vector", 5, 4);
   insert.run("archived-match", "note", "archived stars", 6, 3);
+  insert.run("wide-vector", "note", "opulent", 7, 2);
+  insert.run("corrupt-vector", "note", "gnarled", 8, 1);
+  insert.run("tied-older", "note", "wobble", 9, 40);
+  insert.run("tied-newer", "note", "wobble", 10, 60);
 
   await library.storeEmbedding("lexical-match", "text", TEXT_MODEL, vector([0, 1]), 2);
   await library.storeEmbedding("semantic-text", "text", TEXT_MODEL, vector([0.8, 0.6]), 2);
@@ -501,15 +505,48 @@ test("free-text search hybrid-ranks lexical and Nomic semantic matches", async (
   );
   await library.storeEmbedding("archived-match", "text", TEXT_MODEL, vector([1, 0]), 2);
   await library.archiveItem("archived-match");
+  await library.storeEmbedding("wide-vector", "text", TEXT_MODEL, vector([1, 0, 0]), 3);
+  library.db
+    .prepare(`INSERT INTO item_embeddings (item_id, kind, model, dimension, vector, created_at)
+      VALUES ('corrupt-vector', 'text', ?, 2, ?, 1)`)
+    .run(TEXT_MODEL, vector([1]));
+  await library.storeEmbedding(
+    "tied-older",
+    "text",
+    TEXT_MODEL,
+    vector([0.85, Math.sqrt(0.2775)]),
+    2,
+  );
+  await library.storeEmbedding(
+    "tied-newer",
+    "text",
+    TEXT_MODEL,
+    vector([0.85, Math.sqrt(0.2775)]),
+    2,
+  );
 
   const queryVector = Float32Array.from([1, 0]);
   expect(ids(await library.searchItems("violet galaxy", 20, queryVector))).toEqual([
     "lexical-match",
     "semantic-image",
+    "tied-newer",
+    "tied-older",
     "semantic-text",
+  ]);
+  expect(ids(await library.searchItems("violet galaxy", 2, queryVector))).toEqual([
+    "lexical-match",
+    "semantic-image",
   ]);
   expect(ids(await library.searchItems("quiet telescope", 20, queryVector))).toEqual([
     "semantic-image",
+    "tied-newer",
+    "tied-older",
+    "semantic-text",
+  ]);
+  expect(ids(await library.searchItems("zzzqqq", 20, queryVector))).toEqual([
+    "semantic-image",
+    "tied-newer",
+    "tied-older",
     "semantic-text",
   ]);
 });
@@ -555,6 +592,42 @@ test("free-text search keeps lexical matches and drops weak semantic matches", a
   expect(ids(await library.searchItems("quiet telescope", 20, queryVector))).toEqual([
     "strong-semantic",
   ]);
+});
+
+test("searchSimilar ranks by score inside one embedding kind and skips the source item", async () => {
+  const { library } = await temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items
+    (id, kind, title, metadata, created_at, updated_at) VALUES (?, ?, ?, '{}', ?, ?)`);
+  insert.run("source-note", "note", "source", 1, 6);
+  insert.run("close-note", "note", "close", 2, 5);
+  insert.run("farther-article", "article", "farther", 3, 4);
+  insert.run("image-item", "image", "image", 4, 3);
+  insert.run("file-item", "file", "file", 5, 2);
+  insert.run("archived-note", "note", "archived", 6, 1);
+
+  await library.storeEmbedding("source-note", "text", TEXT_MODEL, vector([1, 0]), 2);
+  await library.storeEmbedding("close-note", "text", TEXT_MODEL, vector([0.9, 0.1]), 2);
+  await library.storeEmbedding("farther-article", "text", TEXT_MODEL, vector([0.8, 0.2]), 2);
+  await library.storeEmbedding("image-item", "text", TEXT_MODEL, vector([1, 0]), 2);
+  await library.storeEmbedding("file-item", "text", TEXT_MODEL, vector([1, 0]), 2);
+  await library.storeEmbedding("archived-note", "text", TEXT_MODEL, vector([1, 0]), 2);
+  await library.archiveItem("archived-note");
+
+  expect(await library.searchSimilar("missing-item", "text")).toEqual([]);
+  expect(ids(await library.searchSimilar("source-note", "text"))).toEqual([
+    "close-note",
+    "farther-article",
+  ]);
+  expect(ids(await library.searchSimilar("source-note", "text", 1))).toEqual(["close-note"]);
+
+  insert.run("source-image", "image", "source image", 7, 7);
+  insert.run("wide-image", "image", "wide image", 8, 8);
+  await library.storeEmbedding("source-image", "image", IMAGE_MODEL, vector([1, 0]), 2);
+  await library.storeEmbedding("image-item", "image", IMAGE_MODEL, vector([0.7, 0.3]), 2);
+  await library.storeEmbedding("wide-image", "image", IMAGE_MODEL, vector([1, 0, 0]), 3);
+  await library.storeEmbedding("close-note", "image", IMAGE_MODEL, vector([1, 0]), 2);
+
+  expect(ids(await library.searchSimilar("source-image", "image"))).toEqual(["image-item"]);
 });
 
 test("Smart Spaces apply saved filters to hybrid text-search candidates", async () => {
