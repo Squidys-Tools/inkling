@@ -1,0 +1,48 @@
+are there any small gains, wins, or fixes we can knock out right now? use swe 2 to do a full conference audit to check for these little things
+
+---
+
+I meant full codebase audit
+
+---
+
+are there any small gains, wins, or fixes we can knock out right now? use swe 2 to do a full conference audit to check for these little things
+
+---
+
+ask opus 5.5 high to review your findings based off of your description alone, ask for which things it thinks should be fixed, which are nits that should be dismissed, and for the things that should be fixed, how. Then get swe 2 max to fix everything, smol loop, full stop
+
+---
+
+Continue where you left off.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Ab2aae3e7-2c39-46af-99a9-e97d776ea767%3Adelegate-task%3Asmol-loop-round-1-audit-fixes (smol-loop round 1: minion review of audit fixes) [completed]:
+VERDICT: APPROVE
+
+S1 [nit] electron/storage/shared.ts:123 `isWebUrl` duplicates `isWebUrl` in src/lib/ingestion/url.ts:197. Electron already imports from src/lib/ingestion, and the `value instanceof URL` branch exists only for the call in `normalizeHttpUrl`. Fix: import the url.ts helper, or have `normalizeHttpUrl` check `url.protocol` directly and drop the duplicate.
+
+S2 [nit] src/features/item-view/ItemActionBar.tsx:138 The "Open <host>" button calls `window.open(item.sourceUrl)` for any truthy value, so a row stored before this change with a `javascript:` source still gets the button. The reader is guarded and this path is not. Fix: gate the button with the same `isWebUrl(item.sourceUrl)` that ReaderView uses. Rare in practice, because the renderer never sends `sourceUrl` in updates.
+
+S3 [nit] extension/src/background.ts:24 The timer-cancel fix has no regression test, although AGENTS.md asks background logic changes to ship one. Fix: add a small test that fakes `browser.action` and the timers, covering a failure after a success and a success after a success, or accept it as-is for this scope.
+
+S4 [nit] extension/src/background.ts:28 `setTimeout` in `showSuccess` is armed after its awaits. If a failure lands during those awaits, the success timer can still clear the "!" badge about 1.4 s later. This needs two saves within a few milliseconds. Fix: none needed for this scope.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Ab2aae3e7-2c39-46af-99a9-e97d776ea767%3Adelegate-task%3Asmol-loop-round-2-audit-fixes (smol-loop round 2: minion review of changed code) [completed]:
+VERDICT: APPROVE
+
+R2-1 [nit] extension/src/background.ts:31 showSuccess now arms the reset timer before its three badge writes. If a failure from a second click clears that timer and its "✓" write lands after the failure's "!", the badge stays "✓" with the success title until the next save. This needs two saves within a few IPC round-trips. Fix: none needed for this change; if it matters, serialize showSuccess and showFailure through one promise chain.
+
+R2-2 [nit] electron/storage/import-library.ts:383 `item.source_url && isWebUrl(...)` passes an empty string through the guard, so `""` is imported as `""` rather than null. The intent is that non-HTTP values import as null. Fix: `item.source_url = isWebUrl(item.source_url ?? "") ? item.source_url : null;`
+
+R2-3 [nit] extension/src/background.test.ts:77 The assertion checks the last badge write, which only holds because the success path's "✓" write happens before the failure's "!" (deterministic under Bun's microtask order, but coupled to that). Fix: after firing the timer, assert `expect(badgeTexts).not.toContain("")` instead.
+
+Checked and not findings:
+- **S2:** Verified. The `setWindowOpenHandler` at electron/main.ts:454 denies every open and only calls `shell.openExternal` for URLs that pass `parseHttpUrlCore`, so a stored `javascript:` value cannot run. I agree with declining it.
+- **S1:** Fine as declined. `normalizeHttpUrl` is back to its original inline check.
+- **update_item:** `items.ts` now passes `sourceUrl` through `normalizeHttpUrl`. No caller sends `sourceUrl` on update (`useItemDetails.ts` sends only `body`/`addTag`), so nothing breaks.
+- **Copy:** "Settings → Browser extension" matches the `SettingsSheet.tsx:151` tab label.
+- **Test:** `background.test.ts` fails without the `clearTimeout` in `showFailure`. No other test file imports `webextension-polyfill`, so the process-wide `mock.module` does not leak.
