@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M63TKMPEPB7HMWV4C4HX32S7",
+  "session_id": "0644f591-38cc-4546-8b18-34732cd86f9d",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-29T12:37:35.8599768Z",
+  "branch": "t3/quick-wins-audit",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "bun.lock",
+    "docs/changelog.md",
+    "electron/storage.test.ts",
+    "electron/storage/import-library.ts",
+    "electron/storage/items.ts",
+    "electron/storage/shared.ts",
+    "extension/README.md",
+    "extension/STORE.md",
+    "extension/options.html",
+    "extension/src/background.ts",
+    "extension/src/options.ts",
+    "packages/ingestion-shared/package.json",
+    "packages/ingestion-shared/src/defuddle-config.ts",
+    "packages/ingestion-shared/src/index.ts",
+    "src/ReaderView.tsx",
+    "src/lib/ingestion/README.md",
+    "src/lib/ingestion/asset-paths.ts",
+    "src/lib/ingestion/ingestion.smoke.ts",
+    "src/lib/ingestion/url.test.ts",
+    "src/lib/ingestion/url.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-haiku-5-5",
+  "turn_id": "3f4cf93bf909",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 55232,
+    "cache_read_tokens": 406553,
+    "output_tokens": 15740,
+    "api_call_count": 7
+  },
+  "session_metrics": {
+    "turn_count": 1
+  }
+}

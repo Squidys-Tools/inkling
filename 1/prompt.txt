@@ -1,0 +1,33 @@
+Act as the review sub-agent for this task.
+
+Review only. Do not edit, commit, push, comment on PRs, or start subagents.
+
+Repo: C:\Users\chris\.t3\worktrees\inkling\t3-92256e78
+Base: 0e40de9482cb8966eb948e31de1116a94383f804 (equal to HEAD). The whole change is the uncommitted working tree plus the new untracked file extension/src/background.test.ts.
+See: git diff 0e40de9482cb8966eb948e31de1116a94383f804 ; git status --short. Read the untracked test file directly.
+
+Intent (unchanged from round 1): land a small set of verified fixes from a codebase audit. Stored source URLs must be HTTP or HTTPS. update_item rejects other values, imports store null for them and keep the item, and the reader links only web URLs. The extension badge timer is cancelled on the next save and on failure, and the copy "Settings → Extension" becomes "Settings → Browser extension". Dead code is removed (defuddle-config, asset-paths). The changelog gets a Security line.
+Out of scope, do not flag: card-list performance, dead contract fields, unused extension capture mappers, file-extension lists, Smart Space kind aliases, preview-mode object URL revocation, the benchmark scratch folder name, the tooling timeout.
+
+Round 1 verdict: APPROVE with four nits. Ledger:
+- S1 (duplicate isWebUrl in electron/storage/shared.ts and src/lib/ingestion/url.ts): partly fixed. normalizeHttpUrl is reverted to its original inline protocol check, and the storage helper now takes a string only. The cross-layer import was declined on purpose: storage stays independent of renderer code.
+- S2 (Open-host button in ItemActionBar.tsx calls window.open on any truthy sourceUrl): declined with evidence. The main process setWindowOpenHandler at electron/main.ts around line 452 denies every window.open and parses the URL with parseHttpUrlCore before calling shell.openExternal. A stored javascript: value cannot run. useCardMenu.ts has the same call and the same guard.
+- S3 (no regression test for the background timer): fixed in extension/src/background.test.ts. It fails without the clearTimeout in showFailure. The reported failure was Expected "!" Received "".
+- S4 (success timer armed after the awaits in showSuccess): fixed. The timer is now armed before the first await.
+
+Changed since round 1, which is the only scope for this round:
+- electron/storage/shared.ts (isWebUrl and normalizeHttpUrl)
+- electron/storage/import-library.ts (one line)
+- extension/src/background.ts (showSuccess)
+- extension/src/background.test.ts (new file)
+The rest of the diff is unchanged since round 1 and was approved. Do not re-review it.
+
+Checks already run: check:changed passes, including oxlint, oxfmt, the tests, knip, and all typechecks. storage.test.ts (42), background.test.ts, and url.test.ts pass.
+
+Find bugs, broken callers, and mismatches with the intent in the changed code. Skip style unless it hides a bug. Hold to the smallest change: flag code, tests, or guards the intent does not need. Rare paths, small performance costs, and extra compatibility are nits. If you disagree with the S2 or S1 decision, say so only if the cited evidence is wrong.
+Severity: blocker = the intended case is wrong. should = a real bug callers will hit, within the intent. nit = everything else.
+
+Reply in exactly this form:
+VERDICT: APPROVE or CHANGES
+S1 [blocker|should|nit] <file>:<line> <claim>. Fix: <smallest suggestion>
+(Use stable ids continuing from round 1 as R2-1, R2-2, and so on. If there are no findings, write none.)
