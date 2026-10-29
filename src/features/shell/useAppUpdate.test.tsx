@@ -33,6 +33,7 @@ let installs: string[];
 let checks: number;
 let readCount: number;
 let downloads: string[];
+const globals = new Map<string, PropertyDescriptor | undefined>();
 
 function Probe({ enabled }: { enabled: boolean }) {
   const controller = useAppUpdate(enabled);
@@ -46,12 +47,15 @@ beforeEach(() => {
   const { window: domWindow } = parseHTML(
     "<!doctype html><html><body><div id='root'></div></body></html>",
   );
-  Object.assign(globalThis, {
+  for (const [name, value] of Object.entries({
     window: domWindow,
     document: domWindow.document,
     HTMLElement: domWindow.HTMLElement,
     IS_REACT_ACT_ENVIRONMENT: true,
-  });
+  })) {
+    globals.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
+    Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
+  }
   backend = { ...initial };
   reads = async () => backend;
   download = async () =>
@@ -102,7 +106,15 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await act(() => root.unmount());
+  try {
+    await act(() => root?.unmount());
+  } finally {
+    for (const [name, descriptor] of globals) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else Reflect.deleteProperty(globalThis, name);
+    }
+    globals.clear();
+  }
 });
 
 async function mount(enabled = true) {

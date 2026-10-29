@@ -1,5 +1,6 @@
 import type { Canvas } from "@napi-rs/canvas";
-import { dirname, join, sep } from "node:path";
+import { dirname } from "node:path";
+import { pdfResourcePaths } from "./pdf-resources.ts";
 import { fileURLToPath } from "node:url";
 import type { PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 
@@ -64,10 +65,8 @@ async function openDocument(bytes: Uint8Array) {
   const loadingTask = library.getDocument({
     data: new Uint8Array(bytes),
     useSystemFonts: process.platform !== "linux",
-    standardFontDataUrl: join(pdfResources, "standard_fonts") + sep,
-    cMapUrl: join(pdfResources, "cmaps") + sep,
+    ...pdfResourcePaths(pdfResources),
     cMapPacked: true,
-    wasmUrl: join(pdfResources, "wasm") + sep,
   });
   return { library, loadingTask };
 }
