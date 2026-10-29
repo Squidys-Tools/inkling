@@ -31,6 +31,8 @@ Guardrails:
 - Local-video posters on Debian/Ubuntu through the system decoder, with bounded background WebP compression and thumbnail cache revalidation.
 - Stable / Beta and Nightly update channels, with separate verified download, cancellation and explicit installation on Windows and supported Linux packages.
 - Linux `.deb` and AppImage builds with desktop/protocol integration, consent-based screen capture, and packaged native OCR/PDF/model checks.
+- Local multimodal search combines EmbeddingGemma 2 image and passage embeddings with exact OCR and keyword matches; PDF passages retain page boundaries.
+- Florence generates separate image descriptions and removable suggested tags without replacing saved titles, user tags, or OCR text.
 
 - Right-click a card to read, open its link, copy its link, show it in its folder, or archive it, from a menu in the library's glass (#170)
 - Buttons show a short label on hover or keyboard focus, in the same glass as the controls around them (#170)

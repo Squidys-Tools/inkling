@@ -1,40 +1,30 @@
-# Embedding models
+# Local search models
 
-The initial learned embedding pair is:
+## Active index
 
-- Nomic Embed Text v1.5
-- Nomic Embed Vision v1.5
+`electron/search-model-manifest.json` pins the source revision, download URL and SHA-256 of every shipped asset. The active model pair is:
 
-Both models produce normalized 768-dimensional vectors in the same embedding
-space. This lets a natural-language query match text items and image items.
+- **EmbeddingGemma 2**, ONNX Community q8 export of Google's model (Apache-2.0): normalized 768-dimensional text and image embeddings. The embedding space is independent of Nomic, even though both have 768 dimensions.
+- **Florence-2-base-ft**, ONNX Community q8 export of Microsoft's model (MIT): short image captions. Suggested tags are derived from captions, not an independent object detector.
 
-## Runtime behavior
+The runtime uses Transformers.js and ONNX Runtime on CPU, with two intra-op threads and one inter-op thread. Quantization applies to weights; this export has float32 activations and outputs, not fp16. Text queries use `task: search result | query: ...`; document passages use `title: ... | text: ...`. Image preprocessing is supplied by the pinned model processor.
 
-The Electron embedding runtime uses ONNX Runtime with the published INT8 ONNX
-artifacts pinned to known Hugging Face revisions and verifies their SHA-256
-hashes. Development builds download model files into:
+## Capture and backfill
 
-```text
-<library data directory>\models\nomic-embed-text-v1.5\
-<library data directory>\models\nomic-embed-vision-v1.5\
-```
+Thumbnails stay on their own fast job lane. Images receive a visual vector before OCR. Existing library items backfill one at a time while idle; captions follow initial indexing. OCR and captions cause passage reindexing, reusing a content-hashed image vector. Long documents use overlapping passages of at most 1,800 UTF-16 code units with 180-unit overlap, preserving Unicode boundaries. PDF pages are stored separately and each passage retains its page number.
 
-The Windows installer bundles the pinned model files in the Electron resources
-directory for offline use. Development builds download verified files to the
-library data directory when an embedding job first needs them.
+Heavy inference runs in a bounded worker queue. Queries take priority over queued background work but cannot interrupt an active inference. The worker is retired when switching model families or after 60 seconds idle, reclaiming native model arenas. Individual model calls have a two-minute ceiling. The main thread never executes inference.
 
-Text documents use the `search_document:` prefix. User queries use the
-`search_query:` prefix. Vision preprocessing follows the model's 224px RGB
-normalization and uses the CLS token from the vision output.
+Published original-asset paths are immutable. Saving an existing item under the same filename uses exclusive-create and a fresh basename rather than overwriting bytes an in-flight decoder might own. Caption, PDF page and OCR commits are bound to that asset path. Vector/chunk commits additionally check the item's revision atomically. Background metadata does not replace user titles/tags/OCR. Removing a suggested tag is persisted as a tombstone and survives recaptioning and export/import.
 
-FTS5 and OCR remain active for exact terms, filenames, and numbers. Learned
-embeddings are used for semantic text search, text-to-image search, and image
-similarity. If the model bundle is unavailable, ordinary lexical search still
-works; indexing reports the model error and can be retried.
+## Retrieval and migration
 
-The database stores the model identifier and vector dimension with every
-embedding. Re-running an item's embedding job replaces an older vector for
-that item and kind, which keeps model migrations recoverable through
-regeneration. Changing the model revision requires regenerating existing
-embeddings before the new revision can be used for meaningful similarity
-comparisons.
+FTS5 (or escaped LIKE fallback) handles exact names, OCR, numbers and passage text. Text and visual vectors have separate acceptance floors (0.70 text, 0.63 image for the current pinned index). Reciprocal-rank fusion combines independently ranked lanes, deduplicating items rather than comparing raw scores across model families. Smart Space kind/tag/exclusion predicates apply before lane limits. These calibrated floors are not universal model constants; changing the model, processor or floor policy requires a new index version and a fresh evaluation.
+
+New vectors, passages, page text, AI annotations and readiness state live in separate `search_*` tables. Revision fences hide stale passages/vectors while edits reindex. Archived items are excluded and deletion clears their indexes. Legacy Nomic vectors remain intact and are queried only with the Nomic query encoder; the old 0.55 floor is retained for that fallback. They are never compared with Gemma vectors. The previous Nomic normalization and 224px vision processor remain unchanged for this migration lane.
+
+Queries never download models. Packaged builds bundle all pinned files; development indexing may fetch verified assets into `<library>/models/search/<repo>`. Missing/broken models produce an explicit visual-search-unavailable notice while exact text search continues. `get_search_progress` reports ready and total active items; the library shows indexing progress.
+
+## Validation boundaries
+
+The Linux CPU path, public IPC, source storage and local preview packaging are checked locally. A small independently labeled image corpus and synthetic PDF fixtures provide regression evidence, not general accuracy certification. Public photos can overlap model pretraining; PDF calibration and held-out query phrasings share the same three synthetic documents. Quantized parity is measured against the matching float32 ONNX export, not official PyTorch inference. Windows runtime and installer execution still require a Windows machine.

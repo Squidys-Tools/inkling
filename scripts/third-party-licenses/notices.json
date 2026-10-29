@@ -1,5 +1,19 @@
 [
   {
+    "name": "EmbeddingGemma 2 ONNX (quantized)",
+    "license": "Apache-2.0",
+    "sourceUrl": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX",
+    "description": "Local text and image search. Base model: Google EmbeddingGemma 2; ONNX conversion: ONNX Community.",
+    "noticeFile": "scripts/third-party-licenses/Apache-2.0.txt"
+  },
+  {
+    "name": "Florence-2-base-ft ONNX (quantized)",
+    "license": "MIT",
+    "sourceUrl": "https://huggingface.co/onnx-community/Florence-2-base-ft",
+    "description": "Local image descriptions. Copyright (c) Microsoft Corporation; ONNX conversion: ONNX Community.",
+    "noticeFile": "scripts/third-party-licenses/Florence-2-MIT.txt"
+  },
+  {
     "name": "bloub",
     "license": "MIT",
     "sourceUrl": "https://github.com/jeremy-prt/bloub",
