@@ -38,7 +38,12 @@ const runs = Number(values.runs);
 const items = Number(values.items);
 if (!Number.isSafeInteger(runs) || runs < 1 || !Number.isSafeInteger(items) || items < 16)
   throw new Error("--runs must be positive and --items must be an integer of at least 16");
-const electron = join(appRoot, "node_modules/electron/dist/electron");
+const isWindows = platform() === "win32";
+const electron = join(
+  appRoot,
+  "node_modules/electron/dist",
+  isWindows ? "electron.exe" : "electron",
+);
 for (const file of [electron, join(appRoot, "dist/index.html")])
   if (!existsSync(file)) throw new Error(`Missing ${file}. Supply a prebuilt production app.`);
 if (existsSync(output)) throw new Error(`Output already exists: ${output}`);
@@ -426,7 +431,9 @@ function installProbe(expectedItems) {
     await wait(
       () =>
         document.querySelector(cardSelector) &&
-        Number(document.querySelector(".result-count")?.textContent) === expectedItems,
+        new RegExp(`Everything\\s+${expectedItems.toLocaleString()}\\b`).test(
+          document.body.innerText,
+        ),
       "all seeded items loaded into the grid",
     );
     await settle();
@@ -567,16 +574,16 @@ async function reload(cdp) {
 async function trial(cdp, name) {
   const ready = await reload(cdp);
   const point = await cdp.evaluate(`(() => {
-    const card = document.querySelector('.library-card[data-library-item-id="bench-000000"]');
-    if (!card) throw new Error('First seeded card is missing');
-    const rect = card.querySelector('.library-card-media').getBoundingClientRect();
     const bounds = document.querySelector('.library-scroll').getBoundingClientRect();
-    const top = Math.max(rect.top, bounds.top);
-    const bottom = Math.min(rect.bottom, bounds.bottom);
-    const point = {x: rect.left + rect.width / 2, y: (top + bottom) / 2};
-    if (bottom <= top || document.elementFromPoint(point.x, point.y)?.closest('.library-card') !== card)
-      throw new Error('First card is not clickable inside the visible viewport');
-    return point;
+    for (const card of document.querySelectorAll('.library-card[data-library-item-id]')) {
+      const rect = card.querySelector('.library-card-media').getBoundingClientRect();
+      const top = Math.max(rect.top, bounds.top);
+      const bottom = Math.min(rect.bottom, bounds.bottom);
+      const point = {x: rect.left + rect.width / 2, y: (top + bottom) / 2};
+      if (bottom > top && document.elementFromPoint(point.x, point.y)?.closest('.library-card') === card)
+        return point;
+    }
+    throw new Error('No card is clickable inside the visible viewport');
   })()`);
   await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
   await cdp.send("Input.dispatchMouseEvent", {
@@ -673,13 +680,20 @@ const record = {
 let child;
 let cdp;
 let interrupted = null;
+const killTree = (signal) => {
+  if (isWindows) {
+    spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    return;
+  }
+  try {
+    process.kill(-child.pid, signal);
+  } catch (error) {
+    if (error.code !== "ESRCH") throw error;
+  }
+};
 const onInterrupt = (signal) => {
   interrupted = signal;
-  if (child?.pid) {
-    try {
-      process.kill(-child.pid, "SIGTERM");
-    } catch {}
-  }
+  if (child?.pid) killTree("SIGTERM");
   cdp?.close();
 };
 process.on("SIGINT", onInterrupt);
@@ -691,22 +705,38 @@ try {
   record.appCommit = git.status === 0 ? git.stdout.trim() : null;
   record.distIndexSha256 = hash(readFileSync(join(appRoot, "dist/index.html")));
   const port = await freePort();
-  const args = [
-    "-a",
-    "-s",
-    "-screen 0 960x540x24",
-    electron,
+  const appArgs = [
     ".",
-    "--no-sandbox",
     `--user-data-dir=${library}`,
     `--remote-debugging-port=${port}`,
     "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost",
   ];
-  child = spawn("xvfb-run", args, {
-    cwd: appRoot,
-    detached: true,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const { ELECTRON_RUN_AS_NODE: _, ...env } = process.env;
+  child = isWindows
+    ? spawn(
+        electron,
+        [
+          ...appArgs,
+          "--disable-renderer-backgrounding",
+          "--disable-backgrounding-occluded-windows",
+          "--disable-features=CalculateNativeWinOcclusion",
+        ],
+        {
+          cwd: appRoot,
+          env,
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      )
+    : spawn(
+        "xvfb-run",
+        ["-a", "-s", "-screen 0 960x540x24", electron, ...appArgs, "--no-sandbox"],
+        {
+          cwd: appRoot,
+          env,
+          detached: true,
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      );
   child.on("error", (error) => {
     child.launchError = error;
   });
@@ -768,23 +798,25 @@ try {
   cdp?.close();
   if (child?.pid) {
     try {
-      process.kill(-child.pid, "SIGTERM");
+      killTree("SIGTERM");
     } catch (error) {
-      if (error.code !== "ESRCH") record.failures.push(`Cleanup SIGTERM: ${error.message}`);
+      record.failures.push(`Cleanup SIGTERM: ${error.message}`);
     }
-    const deadline = performance.now() + 5000;
-    while (performance.now() < deadline) {
-      try {
-        process.kill(-child.pid, 0);
-      } catch {
-        break;
+    if (!isWindows) {
+      const deadline = performance.now() + 5000;
+      while (performance.now() < deadline) {
+        try {
+          process.kill(-child.pid, 0);
+        } catch {
+          break;
+        }
+        await pause(50);
       }
-      await pause(50);
-    }
-    try {
-      process.kill(-child.pid, "SIGKILL");
-    } catch (error) {
-      if (error.code !== "ESRCH") record.failures.push(`Cleanup SIGKILL: ${error.message}`);
+      try {
+        killTree("SIGKILL");
+      } catch (error) {
+        record.failures.push(`Cleanup SIGKILL: ${error.message}`);
+      }
     }
   }
   rmSync(library, { recursive: true, force: true });
