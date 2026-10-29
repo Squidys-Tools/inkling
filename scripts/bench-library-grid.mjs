@@ -165,6 +165,11 @@ async function seedLibrary() {
         tags: image.item.tags,
         ...(hasThumbnail ? { mediaWidth: image.width, mediaHeight: image.height } : {}),
         ...(kind === "pdf" ? { pdfPageCount: 1 } : {}),
+        // Preseeded like ocrText: without $.palette the app's idle backfill
+        // enqueues image_palette jobs mid-trial and trips the no-jobs proof.
+        ...(kind === "image"
+          ? { palette: ["#102030", "#405060", "#708090", "#a0b0c0", "#d0e0f0"] }
+          : {}),
         ...(kind === "article"
           ? { html: `<p>${description}</p>`.repeat(40), author: "Demo author" }
           : {}),
@@ -219,7 +224,7 @@ async function seedLibrary() {
     thumbnail:
       "JPEG quality 80, auto-oriented, inside 512x512, no enlargement; metadata uses original oriented pixel dimensions",
     embeddings:
-      "None. Raw inserts enqueue no work; stale-image migration only selects existing stale vectors. Image/PDF OCR text is preseeded to prevent lazy OCR on detail open. Every PDF has a thumbnail, so idle PDF backfill has no candidate.",
+      "None. Raw inserts enqueue no work; stale-image migration only selects existing stale vectors. Image/PDF OCR text is preseeded to prevent lazy OCR on detail open, and image palettes are preseeded so idle palette backfill has no candidate. Every PDF has a thumbnail, so idle PDF backfill has no candidate.",
     sharpVersion: sharp.versions.sharp,
     listPayload,
   };
