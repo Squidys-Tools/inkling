@@ -1,0 +1,16 @@
+Act as the review sub-agent for this task.
+
+Review only. Do not edit, commit, push, comment on PRs, or start subagents. Do not check out any branch (the checkout is on an unrelated branch); read the PR through git objects only.
+
+Repo: C:/Users/chris/.t3/worktrees/inkling/t3-ebb96dbb (GitHub Squidys-Tools/inkling). Base: 0e40de9 (origin/main). PR #205 head: 8209266fcf4834ce775b499d86fc82b602ac6417.
+To see it: `git fetch origin pull/205/head` then `git diff 0e40de9 FETCH_HEAD` and `git show FETCH_HEAD:<path>` to read whole files (or `gh pr diff 205 --repo Squidys-Tools/inkling`). Read the surrounding code, not just the diff. Read AGENTS.md in the repo root.
+
+Intent: (1) Cards/thumbnails stay button-free; left-click opens details, right-click opens actions, Shift+F10 and the menu key also open actions. (2) Card clicks must keep working where the experimental `layoutsubtree` canvas swallows hit-testing: probe first, fall back to the DOM/CSS liquid glass. (3) Details open and close as ONE motion: item, patterned background and right panel move together both ways (single `--item-progress` var animated by GSAP), reduced motion respected. Out of scope: the experimental sidebar, backend, Linux/updater, restyling.
+Checks: `bun run check:changed` passes on this head; 7 new tests pass; the author verified in the real Windows Electron app with real mouse events (left/right-click, menu key, Shift+F10, mid-flight progress sampling). Reduced motion and touch were not driven at runtime.
+
+Find bugs, broken callers, mismatch with intent. Skip style unless it hides a bug. Hold to the smallest change: flag code, tests or guards the intent does not need. Other paths, rare cases, small perf and extra compat are nits. Also watch AGENTS.md rules: no continuously repainting animation, no per-frame work outside the open/close flight, comments only where needed.
+blocker = intended case wrong. should = real bug callers will hit, in intent. nit = rest.
+
+Reply:
+VERDICT: APPROVE or CHANGES
+S1 [blocker|should|nit] <file>:<line> <claim>. Fix: <suggestion> (stable ids)

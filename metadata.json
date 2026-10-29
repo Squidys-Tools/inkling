@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M64EN6THG9WQRHCSG7AH2R1H",
+  "strategy": "manual-commit",
+  "branch": "squidlee/squ-15-perf-pass-and-bundle-size-baseline",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/bench-library-grid.mjs"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 128275,
+    "cache_read_tokens": 1678686,
+    "output_tokens": 55759,
+    "api_call_count": 17
+  }
+}
