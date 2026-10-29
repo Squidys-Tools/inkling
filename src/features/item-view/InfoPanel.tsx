@@ -14,6 +14,7 @@ import { RETRY_BUTTON } from "../../ui/Button";
 import { cx } from "../../ui/cx";
 import { SpaceMark } from "../../ui/SpaceMark";
 import { ItemTitle } from "./ItemTitle";
+import { SearchDetails } from "./SearchDetails";
 import type { ItemViewActions, ItemViewSpace } from "./ItemView";
 
 const PROCESSING =
@@ -194,6 +195,7 @@ export function InfoPanel({
       )}
 
       <TagList key={item.id} item={item} memberSpaces={memberSpaces} onAddTag={actions.onAddTag} />
+      <SearchDetails key={`search:${item.id}`} id={String(item.id)} />
 
       <section>
         <h3 className="mx-0 mt-0 mb-[9px] text-[11px]/[14px] font-medium tracking-[0.08em] text-muted uppercase">

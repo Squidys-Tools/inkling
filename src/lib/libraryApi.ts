@@ -215,6 +215,22 @@ export async function searchItems(query: string) {
   return invoke("search_items", { query, limit: 100 });
 }
 
+export async function searchItemsDetailed(query: string) {
+  return invoke("search_items_detailed", { query, limit: 100 });
+}
+
+export async function getSearchAnnotation(id: string) {
+  return invoke("get_search_annotation", { id });
+}
+
+export async function removeSearchTag(id: string, tag: string) {
+  return invoke("remove_search_tag", { id, tag });
+}
+
+export async function getSearchProgress() {
+  return invoke("get_search_progress");
+}
+
 export async function searchSimilarItems(itemId: string, kind: "image" | "text") {
   return invoke(kind === "image" ? "search_similar_images" : "search_similar_text", {
     itemId,

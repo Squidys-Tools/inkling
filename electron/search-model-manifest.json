@@ -1,0 +1,134 @@
+{
+  "embedding": {
+    "repo": "onnx-community/embeddinggemma-2-ONNX",
+    "revision": "daa72c51243991dfcaf9f9137d2c573d8f7790c0",
+    "assets": [
+      {
+        "path": "chat_template.jinja",
+        "sha256": "4b852efc0b9960283e735363331e6f325b33bc74bdbaa076f595bc4e9b94d85e",
+        "url": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/daa72c51243991dfcaf9f9137d2c573d8f7790c0/chat_template.jinja"
+      },
+      {
+        "path": "config.json",
+        "sha256": "8d011bfe08b5e345bbe0b81e5c6fd02c381920b345b986047bc2a33ce7b90d1d",
+        "url": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/daa72c51243991dfcaf9f9137d2c573d8f7790c0/config.json"
+      },
+      {
+        "path": "config_sentence_transformers.json",
+        "sha256": "031e56a498d33c349ab489a21885bcfe25b4fcba841149dc99e1e90d4a7c28f5",
+        "url": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/daa72c51243991dfcaf9f9137d2c573d8f7790c0/config_sentence_transformers.json"
+      },
+      {
+        "path": "onnx/model_quantized.onnx",
+        "sha256": "d06edd601f851c633a2519304cbeb8dc6170d7ceb61b436625c17fb9b6e74953",
+        "url": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/daa72c51243991dfcaf9f9137d2c573d8f7790c0/onnx/model_quantized.onnx"
+      },
+      {
+        "path": "onnx/model_quantized.onnx_data",
+        "sha256": "278a7ff1248c3618e4bd11a607fc54f7bdc7778854230f3956d3f86bd9db4f3b",
+        "url": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/daa72c51243991dfcaf9f9137d2c573d8f7790c0/onnx/model_quantized.onnx_data"
+      },
+      {
+        "path": "onnx/vision_encoder_quantized.onnx",
+        "sha256": "bb0de2df53a2448a32dc7908a187c168c8afd514d4d6f674f7f46024875fa4e3",
+        "url": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/daa72c51243991dfcaf9f9137d2c573d8f7790c0/onnx/vision_encoder_quantized.onnx"
+      },
+      {
+        "path": "onnx/vision_encoder_quantized.onnx_data",
+        "sha256": "3dabd69c0a36e9a8771ad82030dde74daa5a0e02b7047a5d3f3382b1137bab89",
+        "url": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/daa72c51243991dfcaf9f9137d2c573d8f7790c0/onnx/vision_encoder_quantized.onnx_data"
+      },
+      {
+        "path": "preprocessor_config.json",
+        "sha256": "9344893f8d0573a46ebb2ca54c03f56d044cea194c8dcfb1f4d652240ac21daa",
+        "url": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/daa72c51243991dfcaf9f9137d2c573d8f7790c0/preprocessor_config.json"
+      },
+      {
+        "path": "processor_config.json",
+        "sha256": "168f6a08522f3ce5dea596d94d003af2fd691742d4f41fe1f9d8cce76bfbf69c",
+        "url": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/daa72c51243991dfcaf9f9137d2c573d8f7790c0/processor_config.json"
+      },
+      {
+        "path": "tokenizer.json",
+        "sha256": "4d777ef5bdc1aa36227abdfb77c3e49e7b9c892d16e1b6bda41c393504828be4",
+        "url": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/daa72c51243991dfcaf9f9137d2c573d8f7790c0/tokenizer.json"
+      },
+      {
+        "path": "tokenizer_config.json",
+        "sha256": "17bd5d6e9364ca49a534e1502076593317c298d4a663623091ed45388f004874",
+        "url": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/daa72c51243991dfcaf9f9137d2c573d8f7790c0/tokenizer_config.json"
+      }
+    ]
+  },
+  "caption": {
+    "repo": "onnx-community/Florence-2-base-ft",
+    "revision": "e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f",
+    "assets": [
+      {
+        "path": "added_tokens.json",
+        "sha256": "ba67457c577895525996e7a42d7da60a05856506ea4fd25ff9a023a64662f74b",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/added_tokens.json"
+      },
+      {
+        "path": "config.json",
+        "sha256": "d90c22ed72eb55291f183fcd9b98ebd3bd3d92bfcffb6c7f6e1606085e793525",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/config.json"
+      },
+      {
+        "path": "generation_config.json",
+        "sha256": "7b8eb17bbd6cf8a07f619ad83ae03881eff05b6b9237bab89005b40e77783c29",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/generation_config.json"
+      },
+      {
+        "path": "merges.txt",
+        "sha256": "1ce1664773c50f3e0cc8842619a93edc4624525b728b188a9e0be33b7726adc5",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/merges.txt"
+      },
+      {
+        "path": "onnx/decoder_model_merged_quantized.onnx",
+        "sha256": "f22f52f980c33df0efa15932c2f3db6d9d3595ce6387eca938b8cfe23dc4c641",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/onnx/decoder_model_merged_quantized.onnx"
+      },
+      {
+        "path": "onnx/embed_tokens_quantized.onnx",
+        "sha256": "6b2258db1c8ee9b160576ccde3cd3814d83a2edaed0dd1c6ca9ff3c38fa62214",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/onnx/embed_tokens_quantized.onnx"
+      },
+      {
+        "path": "onnx/encoder_model_quantized.onnx",
+        "sha256": "f4ad7a68f1fb875d3bcf735ea14a7021b7ba7e83baf7cf10289881b4ed6d9b85",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/onnx/encoder_model_quantized.onnx"
+      },
+      {
+        "path": "onnx/vision_encoder_quantized.onnx",
+        "sha256": "3b79d54f23f666f731549db23cb070c35a979ce19cbd9720e90e67a78dc9768c",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/onnx/vision_encoder_quantized.onnx"
+      },
+      {
+        "path": "preprocessor_config.json",
+        "sha256": "c892857e34a7082284983a7717717d39c9bf7e574f1f41d80d4c918c97502efa",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/preprocessor_config.json"
+      },
+      {
+        "path": "special_tokens_map.json",
+        "sha256": "72ff172dc769bc1551b1b4211628ce3271643bc60379e4da45d85a9be9332c39",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/special_tokens_map.json"
+      },
+      {
+        "path": "tokenizer.json",
+        "sha256": "d69dcdb2323e124ac4f800cb9863ddccea0d7bb11e16125e8df3bd60f2f8aeac",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/tokenizer.json"
+      },
+      {
+        "path": "tokenizer_config.json",
+        "sha256": "d8e64607233cb53b619fb46664f6cad08176c26e0e8735b2d30d888364f19600",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/tokenizer_config.json"
+      },
+      {
+        "path": "vocab.json",
+        "sha256": "394fdc63c71aabe0a9b97117f5d62fb5fcc4d59b2b3ea929a3929e6a53217b3c",
+        "url": "https://huggingface.co/onnx-community/Florence-2-base-ft/resolve/e88a44eaf3791a35eae0c5a47b3dbcd36e67eb6f/vocab.json"
+      }
+    ]
+  }
+}

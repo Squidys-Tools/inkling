@@ -11,11 +11,12 @@ import {
   getChangeCount,
   getItemCards,
   getProcessingSummaries,
+  getSearchProgress,
   initializeStorage,
   listActiveItems,
   listenForJobUpdates,
   listSpaceItems,
-  searchItems,
+  searchItemsDetailed,
 } from "../../lib/libraryApi";
 import { patchItems } from "../../lib/patchItems";
 import { shouldUseSeedLibrary } from "../../lib/previewMode";
@@ -40,6 +41,10 @@ export function useLibraryData({
 }: LibraryDataOptions) {
   const [items, setItems] = useState<LibraryItem[]>(shouldUseSeedLibrary() ? demoSeedItems : []);
   const [activeJobCount, setActiveJobCount] = useState<number | null>(null);
+  const [searchNotice, setSearchNotice] = useState<string | null>(null);
+  const [searchProgress, setSearchProgress] = useState<{ ready: number; total: number } | null>(
+    null,
+  );
   // Debounced copy of the search box. The input stays instant; only the
   // backend round trip waits, so typing "design" issues one search instead
   // of six full reloads (search + N x job status + N x asset URL).
@@ -123,13 +128,17 @@ export function useLibraryData({
       fullLoadEpoch += 1;
       try {
         await initializeStorage();
+        if (!debouncedQuery.trim() && !cancelled) setSearchNotice(null);
         // Asked before the items: the main process answers in order, so a write
         // landing between the two reads still moves the count past this value.
         const changesPromise = readChanges();
         const storedItemsPromise = activeSpaceId
           ? listSpaceItems(activeSpaceId)
           : debouncedQuery.trim()
-            ? searchItems(debouncedQuery)
+            ? searchItemsDetailed(debouncedQuery).then((reply) => {
+                if (!cancelled) setSearchNotice(reply.message);
+                return reply.items;
+              })
             : listActiveItems();
         const activeJobsPromise = canUseDesktopBackend
           ? countActiveJobs().catch(() => null)
@@ -139,6 +148,10 @@ export function useLibraryData({
           storedItemsPromise,
           activeJobsPromise,
         ]);
+        if (canUseDesktopBackend) {
+          const progress = await getSearchProgress().catch(() => null);
+          if (!cancelled) setSearchProgress(progress);
+        }
         const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
         const libraryItems = await Promise.all(
           storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
@@ -249,5 +262,15 @@ export function useLibraryData({
 
   const reload = useCallback(() => loadItemsRef.current(), []);
 
-  return { items, setItems, itemsRef, activeJobCount, debouncedQuery, noteBodyCacheRef, reload };
+  return {
+    items,
+    setItems,
+    itemsRef,
+    activeJobCount,
+    searchNotice,
+    searchProgress,
+    debouncedQuery,
+    noteBodyCacheRef,
+    reload,
+  };
 }

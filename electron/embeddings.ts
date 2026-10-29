@@ -36,7 +36,7 @@ async function sha256(path: string) {
   return hash.digest("hex");
 }
 
-async function ensureAsset(
+export async function ensureAsset(
   path: string,
   { url, sha256: expectedHash }: ModelAsset,
   allowDownload = true,

@@ -549,7 +549,7 @@ test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", 
   closeDatabase(db);
 
   const migrated = await trackedLibrary(databasePath);
-  expect(migrated.status().schemaVersion).toBe(8);
+  expect(migrated.status().schemaVersion).toBe(9);
   expect(await migrated.getItemContent("legacy-note")).toEqual({
     id: "legacy-note",
     body: "Old body",

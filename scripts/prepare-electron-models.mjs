@@ -10,6 +10,9 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(
   await readFile(join(repositoryRoot, "electron/model-manifest.json"), "utf8"),
 );
+const searchManifest = JSON.parse(
+  await readFile(join(repositoryRoot, "electron/search-model-manifest.json"), "utf8"),
+);
 const cacheDirectory = join(repositoryRoot, ".artifacts/electron-model-cache/models");
 const bundledModelsDirectory = join(repositoryRoot, ".artifacts/electron-resources/models");
 
@@ -67,6 +70,9 @@ const assets = [
   [manifest.text.name, manifest.text.model],
   [manifest.text.name, manifest.text.tokenizer],
   [manifest.image.name, manifest.image.model],
+  ...Object.values(searchManifest).flatMap((group) =>
+    group.assets.map((asset) => [group.repo, asset]),
+  ),
 ];
 
 await rm(bundledModelsDirectory, { recursive: true, force: true });

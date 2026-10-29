@@ -75,7 +75,24 @@ export type UpdateState = {
   errorContext: "check" | "download" | "install" | null;
 };
 
-export type ProcessingJobKind = "ocr_image" | "ocr_pdf_page" | "generate_embedding" | "enrich_url";
+export type SearchAnnotation = {
+  model: string;
+  assetPath: string;
+  caption: string;
+  tags: string[];
+};
+export type SearchReply = {
+  items: StoredLibraryCard[];
+  status: "ready" | "fallback" | "unavailable";
+  message: string | null;
+};
+export type SearchProgress = { total: number; ready: number; index: string };
+export type ProcessingJobKind =
+  | "ocr_image"
+  | "ocr_pdf_page"
+  | "generate_embedding"
+  | "enrich_url"
+  | "caption_image";
 export type ProcessingJobStatus = "pending" | "processing" | "completed" | "failed";
 
 export type ProcessingJob = {
@@ -242,6 +259,10 @@ export const commandArgs = {
   get_change_count: None,
   get_item_content: ById,
   search_items: Schema.Struct({ query: Text, limit: Limit }),
+  search_items_detailed: Schema.Struct({ query: Text, limit: Limit }),
+  get_search_annotation: ById,
+  remove_search_tag: Schema.Struct({ id: Text, tag: Text }),
+  get_search_progress: None,
   search_similar_images: SimilarTo,
   search_similar_text: SimilarTo,
   list_spaces: None,
@@ -301,6 +322,10 @@ export type CommandResults = {
   get_change_count: number;
   get_item_content: StoredItemContent;
   search_items: StoredLibraryCard[];
+  search_items_detailed: SearchReply;
+  get_search_annotation: SearchAnnotation | null;
+  remove_search_tag: SearchAnnotation | null;
+  get_search_progress: SearchProgress;
   search_similar_images: StoredLibraryCard[];
   search_similar_text: StoredLibraryCard[];
   list_spaces: StoredSpace[];

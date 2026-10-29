@@ -11,7 +11,7 @@ import type { Fragment } from "effect/sql/Statement";
 import { readItem, type StorageContext } from "./context.ts";
 import { invalidInput, itemNotFound, spaceNotFound } from "./errors.ts";
 import type { QueryVector } from "./search.ts";
-import { escapeFtsQuery, type makeSearch, sqlLikePattern } from "./search.ts";
+import type { makeSearch } from "./search.ts";
 import {
   cardFromRow,
   changes,
@@ -196,20 +196,13 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     const query = space.query;
     const text = nonEmpty(query.text);
     const clauses: Fragment[] = [sql`i.archived = 0`];
-    let from = sql.literal("items i");
+    const from = sql.literal("items i");
     let rankedCandidates: ReturnType<typeof cardFromRow>[] | null = null;
-    if (text && queryVector?.length) {
+    if (text) {
       rankedCandidates = yield* search.searchItems(text, 200, queryVector);
       if (!rankedCandidates.length) return [];
       const ids = JSON.stringify(rankedCandidates.map((item) => item.id));
       clauses.push(sql`i.id IN (SELECT value FROM json_each(${ids}))`);
-    } else if (text && ctx.fts5Enabled) {
-      const match = escapeFtsQuery(text);
-      if (!match) return [];
-      from = sql.literal("items_fts f JOIN items i ON i.id = f.item_id");
-      clauses.push(sql`items_fts MATCH ${match}`);
-    } else if (text) {
-      clauses.push(search.likeClause(sqlLikePattern(text), "i."));
     }
     const tag = nonEmpty(query.tag);
     if (tag) clauses.push(sql`i.id IN (SELECT value FROM json_each(${yield* taggedItemIds(tag)}))`);

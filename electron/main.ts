@@ -267,7 +267,7 @@ function requireStorage() {
 async function embedQueryForSearch(query: string) {
   if (!query || !aiJobProcessors) return null;
   try {
-    return await aiJobProcessors.embedQuery(query);
+    return (await aiJobProcessors.queryVectors(query)).vectors;
   } catch {
     return null;
   }
@@ -314,6 +314,20 @@ function registerLibraryCommands() {
       const queryVector = await embedQueryForSearch(query.trim());
       return library().searchItems(query, limit, queryVector);
     },
+    search_items_detailed: async ({ query, limit }) => {
+      const result =
+        query.trim() && aiJobProcessors
+          ? await aiJobProcessors.queryVectors(query.trim())
+          : { vectors: {}, status: "ready" as const, message: null };
+      return {
+        items: await library().searchItems(query, limit, result.vectors),
+        status: result.status,
+        message: result.message,
+      };
+    },
+    get_search_annotation: ({ id }) => library().getSearchAnnotation(id),
+    remove_search_tag: ({ id, tag }) => library().removeSearchTag(id, tag),
+    get_search_progress: () => library().searchIndexProgress(),
     search_similar_images: ({ itemId, limit }) => library().searchSimilar(itemId, "image", limit),
     search_similar_text: ({ itemId, limit }) => library().searchSimilar(itemId, "text", limit),
     list_spaces: () => library().listSpaces(),

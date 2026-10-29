@@ -89,14 +89,23 @@ function App() {
     handleInstallUpdate,
     updateState,
   } = appUpdate;
-  const { items, setItems, itemsRef, activeJobCount, debouncedQuery, noteBodyCacheRef, reload } =
-    useLibraryData({
-      canUseDesktopBackend,
-      query,
-      activeSpaceId,
-      setSelectedItem,
-      setCaptureError,
-    });
+  const {
+    items,
+    setItems,
+    itemsRef,
+    activeJobCount,
+    searchNotice,
+    searchProgress,
+    debouncedQuery,
+    noteBodyCacheRef,
+    reload,
+  } = useLibraryData({
+    canUseDesktopBackend,
+    query,
+    activeSpaceId,
+    setSelectedItem,
+    setCaptureError,
+  });
   const {
     isSettingsOpen,
     setIsSettingsOpen,
@@ -654,6 +663,11 @@ function App() {
           inert={selectedItem != null}
         >
           <section className="flex-none max-[780px]:pt-[30px]"></section>
+          {searchNotice && (
+            <p role="status" className="m-0 py-2 text-[12px] text-muted">
+              {searchNotice}
+            </p>
+          )}
 
           <CaptureBar
             ref={captureBarRef}
@@ -687,6 +701,11 @@ function App() {
             captureError={showCaptureError ? captureError : null}
           />
 
+          {searchProgress && searchProgress.ready < searchProgress.total && (
+            <p role="status" className="m-0 px-2 py-1 text-[12px] text-muted">
+              Updating search · {searchProgress.ready}/{searchProgress.total}
+            </p>
+          )}
           <ViewDock
             ref={viewDockRef}
             look={appearance.viewToggle}

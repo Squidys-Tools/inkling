@@ -24,6 +24,7 @@ const builds = [
       "electron/updater.ts",
       "electron/thumbnail.ts",
       "electron/video-poster.ts",
+      "electron/search-worker.ts",
     ],
     outdir,
     target: "node",

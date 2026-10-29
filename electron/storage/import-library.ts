@@ -59,6 +59,14 @@ type ImportedSpace = {
 };
 
 type Membership = { space_id: string; item_id: string; added_at: number };
+type ImportedAnnotation = {
+  item_id: string;
+  model: string;
+  asset_path: string;
+  caption: string;
+  tags: string;
+  removed_tags: string;
+};
 
 type Manifest = {
   format?: unknown;
@@ -101,6 +109,9 @@ function readImportStage(databasePath: string) {
       spaces: stage.db
         .prepare("SELECT * FROM spaces ORDER BY position, created_at, id")
         .all() as ImportedSpace[],
+      annotations: stage.db
+        .prepare("SELECT item_id,model,asset_path,caption,tags,removed_tags FROM search_ai")
+        .all() as ImportedAnnotation[],
       memberships: stage.db
         .prepare(
           "SELECT space_id, item_id, added_at FROM space_items ORDER BY added_at, space_id, item_id",
@@ -288,6 +299,7 @@ export function makeImport(ctx: StorageContext) {
     spaces: ImportedSpace[],
     memberships: Membership[],
     assetFilesByItem: Map<string, number>,
+    annotations: ImportedAnnotation[],
   ) {
     const currentItemIds = yield* ids("items");
     const currentSpaceIds = yield* ids("spaces");
@@ -320,6 +332,19 @@ export function makeImport(ctx: StorageContext) {
       yield* jobs.enqueue(item.id, "generate_embedding");
       importedItemIds.add(item.id);
       assetFiles += assetFilesByItem.get(item.id) ?? 0;
+    }
+    for (const annotation of annotations) {
+      if (!importedItemIds.has(annotation.item_id)) continue;
+      for (const field of [annotation.tags, annotation.removed_tags]) {
+        const tags = parseJson<unknown>(field, null);
+        if (
+          !Array.isArray(tags) ||
+          tags.length > 1000 ||
+          tags.some((tag) => typeof tag !== "string" || tag.length > 120)
+        )
+          return yield* invalidInput("the export contains invalid derived tags");
+      }
+      yield* sql`INSERT INTO search_ai(item_id,model,asset_path,caption,tags,removed_tags) VALUES(${annotation.item_id},${annotation.model},${annotation.asset_path},${annotation.caption},${annotation.tags},${annotation.removed_tags})`;
     }
     let [{ value: nextPosition }] = yield* sql<{
       value: number;
@@ -440,7 +465,9 @@ export function makeImport(ctx: StorageContext) {
     }).pipe(Effect.tapError(() => removeDirectories(movedAssetDirectories)));
 
     const report = yield* sql
-      .withTransaction(insertStaged(items, spaces, memberships, assetFilesByItem))
+      .withTransaction(
+        insertStaged(items, spaces, memberships, assetFilesByItem, stage.annotations),
+      )
       .pipe(Effect.tapError(() => removeDirectories(movedAssetDirectories)));
     return { ...report, unverifiedAssetFiles } satisfies LibraryImportReport;
   });

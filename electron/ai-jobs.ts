@@ -6,6 +6,9 @@ import type { StoredLibraryItemDetail } from "@inkling/contracts";
 import { IMAGE_MODEL } from "./embedding-contract.ts";
 import { createEmbeddingEngine } from "./embeddings.ts";
 import { createTesseractOcr } from "./ocr.ts";
+import { createSearchModels } from "./search-models.ts";
+import { captionTags, contentHash } from "./search-core.ts";
+import type { SearchVectors } from "./storage/search.ts";
 import type { extractPdfTextByPages } from "./pdf.ts";
 import type { UrlArticle } from "./storage/enrichment.ts";
 import { attempt, storageFailure } from "./storage/errors.ts";
@@ -104,6 +107,7 @@ export type AiJobOptions = {
   bundledModelDirectory?: string;
   ocr?: Ocr;
   embeddings?: Embeddings;
+  searchModels?: ReturnType<typeof createSearchModels> | null;
   extractPdf?: typeof extractPdfTextByPages;
   extractUrl?: (sourceUrl: string) => Promise<UrlArticle>;
   nativeImage?: NativeImage;
@@ -114,7 +118,8 @@ export function createAiJobProcessors({
   modelCacheDirectory,
   bundledModelDirectory,
   ocr = createTesseractOcr({ cacheDirectory: join(modelCacheDirectory, "tesseract") }),
-  embeddings = createEmbeddingEngine(modelCacheDirectory, undefined, bundledModelDirectory),
+  embeddings: providedEmbeddings,
+  searchModels: providedSearchModels,
   extractPdf,
   extractUrl = async (sourceUrl) => {
     const { ingestUrl } = await import("../src/lib/ingestion/url-ingestion.ts");
@@ -123,6 +128,15 @@ export function createAiJobProcessors({
   nativeImage,
   videoDecoderPath,
 }: AiJobOptions) {
+  const embeddings =
+    providedEmbeddings ??
+    createEmbeddingEngine(modelCacheDirectory, undefined, bundledModelDirectory);
+  const searchModels =
+    providedSearchModels === undefined
+      ? providedEmbeddings
+        ? null
+        : createSearchModels(modelCacheDirectory, bundledModelDirectory)
+      : providedSearchModels;
   let thumbnailCursor = 0;
   let thumbnailBackfillDone = false;
   let paletteCursor = 0;
@@ -199,6 +213,7 @@ export function createAiJobProcessors({
       );
       const result = yield* extract.pipe(Effect.ensuring(resetThumbnailBackfill));
       const pageCount = result.pages.length;
+      if (searchModels) yield* library.storePdfPages(item.id, item.localAssetPath, result.pages);
       if (result.text) {
         yield* library.storeOcrText(item.id, result.text, result.engine);
         yield* jobs.enqueue(item.id, "generate_embedding");
@@ -228,8 +243,53 @@ export function createAiJobProcessors({
       );
     }),
 
+    caption_image: Effect.fnUntraced(function* (job, workerId) {
+      if (!searchModels) return;
+      const library = yield* Library;
+      const item = yield* requireItem(job.itemId, "image");
+      if (!item.localAssetPath) return;
+      yield* progress(job, workerId, 0, 1, "Describing image locally");
+      const image = yield* readAsset(item.localAssetPath);
+      const caption = yield* attempt(() => searchModels.caption(image));
+      yield* library.storeSearchAnnotation(
+        item.id,
+        item.localAssetPath,
+        caption,
+        captionTags(caption),
+      );
+      yield* progress(job, workerId, 1, 1, "Description indexed");
+    }),
+
     generate_embedding: Effect.fnUntraced(function* (job, workerId) {
       const library = yield* Library;
+      if (searchModels) {
+        const input = yield* library.searchInput(job.itemId);
+        if (!input) return;
+        const vectors: { kind: "text" | "image"; chunkId: string; vector: Float32Array }[] = [];
+        const total = input.chunks.length + Number(input.item.kind === "image");
+        let current = 0;
+        yield* progress(job, workerId, 0, total, "Loading local search models");
+        if (input.item.kind === "image") {
+          const image = yield* readAsset(input.item.localAssetPath);
+          const hash = contentHash(image);
+          const cached = yield* library.cachedSearchImage(input.item.id, hash);
+          const vector = cached ?? (yield* attempt(() => searchModels.embedImage(image)));
+          vectors.push({ kind: "image", chunkId: `image:${hash}`, vector });
+          yield* library.storeSearchImage(input.item.id, input.revision, vector, hash);
+          current += 1;
+          yield* progress(job, workerId, current, total, "Image search ready");
+        }
+        for (const chunk of input.chunks) {
+          const vector = yield* attempt(() =>
+            searchModels.embedText(chunk.text, input.item.title ?? undefined),
+          );
+          vectors.push({ kind: "text", chunkId: chunk.id, vector });
+          current += 1;
+          yield* progress(job, workerId, current, total, "Indexing document passages");
+        }
+        yield* library.storeSearchIndex(input.item.id, input.revision, input.chunks, vectors);
+        return;
+      }
       const item = yield* requireItem(job.itemId);
       const text = embeddingText(item);
       const total = Number(Boolean(text)) + Number(item.kind === "image");
@@ -313,6 +373,18 @@ export function createAiJobProcessors({
       }
       posterBackfillDone = true;
     }
+    if (searchModels) {
+      const next = yield* library.nextSearchCandidate();
+      if (next) {
+        yield* jobs.enqueue(next.id, "generate_embedding");
+        return;
+      }
+      const caption = yield* library.nextCaptionCandidate();
+      if (caption) {
+        yield* jobs.enqueue(caption.id, "caption_image");
+        return;
+      }
+    }
     if (thumbnailBackfillDone) return;
     const next = yield* library.nextPdfThumbnailCandidate(thumbnailCursor);
     if (!next) {
@@ -328,7 +400,35 @@ export function createAiJobProcessors({
     thumbnailProcessors,
     onIdle,
     embedQuery: async (text: string) => (await embeddings.embedQuery(text)).vector,
+    queryVectors: async (text: string) => {
+      const vectors: SearchVectors = {};
+      const failures: string[] = [];
+      if (searchModels) {
+        try {
+          vectors.current = await searchModels.embedQuery(text);
+        } catch (error) {
+          failures.push(error instanceof Error ? error.message : String(error));
+        }
+      }
+      try {
+        vectors.legacy = (await embeddings.embedQuery(text)).vector;
+      } catch (error) {
+        if (!vectors.current) failures.push(error instanceof Error ? error.message : String(error));
+      }
+      return {
+        vectors,
+        status: vectors.current
+          ? ("ready" as const)
+          : vectors.legacy
+            ? ("fallback" as const)
+            : ("unavailable" as const),
+        message: failures.length
+          ? "Visual search is unavailable; showing available text matches."
+          : null,
+      };
+    },
     close: async () => {
+      await searchModels?.close();
       await ocr.close?.();
     },
   };

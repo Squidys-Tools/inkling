@@ -1,6 +1,67 @@
 import { DatabaseSync } from "node:sqlite";
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
+
+const searchSchema = `
+CREATE TABLE IF NOT EXISTS search_vectors (
+  item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  index_version TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK(kind IN ('text','image')),
+  chunk_id TEXT NOT NULL,
+  revision INTEGER NOT NULL,
+  dimension INTEGER NOT NULL,
+  vector BLOB NOT NULL,
+  PRIMARY KEY(item_id,index_version,kind,chunk_id)
+);
+CREATE INDEX IF NOT EXISTS idx_search_vectors_version ON search_vectors(index_version,kind);
+CREATE TABLE IF NOT EXISTS search_chunks (
+  item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  chunk_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  page INTEGER,
+  text TEXT NOT NULL,
+  hash TEXT NOT NULL,
+  PRIMARY KEY(item_id,chunk_id)
+);
+CREATE TABLE IF NOT EXISTS search_pages (
+  item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  asset_path TEXT,
+  page INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  PRIMARY KEY(item_id,page)
+);
+CREATE TABLE IF NOT EXISTS search_ai (
+  item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+  model TEXT NOT NULL,
+  asset_path TEXT NOT NULL,
+  caption TEXT NOT NULL,
+  tags TEXT NOT NULL DEFAULT '[]',
+  removed_tags TEXT NOT NULL DEFAULT '[]'
+);
+CREATE TABLE IF NOT EXISTS search_index_state (
+  item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  index_version TEXT NOT NULL,
+  revision INTEGER NOT NULL,
+  PRIMARY KEY(item_id,index_version)
+);
+CREATE TRIGGER IF NOT EXISTS search_item_revision AFTER UPDATE ON items
+WHEN old.title IS NOT new.title OR old.description IS NOT new.description
+  OR old.body IS NOT new.body OR old.ocr_text IS NOT new.ocr_text
+  OR old.local_asset_path IS NOT new.local_asset_path
+  OR json_extract(old.metadata,'$.tags') IS NOT json_extract(new.metadata,'$.tags')
+  OR json_extract(old.metadata,'$.text') IS NOT json_extract(new.metadata,'$.text')
+  OR json_extract(old.metadata,'$.extractedText') IS NOT json_extract(new.metadata,'$.extractedText')
+BEGIN
+  UPDATE items SET search_revision = search_revision + 1 WHERE id = new.id;
+END;
+CREATE TRIGGER IF NOT EXISTS search_item_delete AFTER DELETE ON items BEGIN
+  DELETE FROM search_vectors WHERE item_id = old.id;
+  DELETE FROM search_chunks WHERE item_id = old.id;
+  DELETE FROM search_pages WHERE item_id = old.id;
+  DELETE FROM search_ai WHERE item_id = old.id;
+  DELETE FROM search_index_state WHERE item_id = old.id;
+END;
+`;
 
 const itemsSchema = `
 CREATE TABLE IF NOT EXISTS items (
@@ -158,6 +219,13 @@ function setupFts(db: DatabaseSync) {
       `);
     }
     db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS search_chunks_fts USING fts5(item_id UNINDEXED,chunk_id UNINDEXED,text);
+      CREATE TRIGGER IF NOT EXISTS search_chunks_insert AFTER INSERT ON search_chunks BEGIN
+        INSERT INTO search_chunks_fts(item_id,chunk_id,text) VALUES(new.item_id,new.chunk_id,new.text);
+      END;
+      CREATE TRIGGER IF NOT EXISTS search_chunks_delete AFTER DELETE ON search_chunks BEGIN
+        DELETE FROM search_chunks_fts WHERE item_id = old.item_id AND chunk_id = old.chunk_id;
+      END;
       CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
         item_id UNINDEXED, title, description, source_label, ocr_text, metadata, body
       );
@@ -229,6 +297,8 @@ export function openDatabase(databasePath: string) {
   db.exec(embeddingsSchema);
   db.exec(spacesSchema);
   db.exec(appSettingsSchema);
+  ensureColumns(db, "items", [["search_revision", "INTEGER NOT NULL DEFAULT 0"]]);
+  db.exec(searchSchema);
   ensureColumns(db, "spaces", [["kind", "TEXT NOT NULL DEFAULT 'smart'"]]);
   const fts5Enabled = setupFts(db);
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);

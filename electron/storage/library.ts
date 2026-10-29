@@ -13,6 +13,7 @@ import { JobQueue, type JobQueueOptions, makeJobQueue } from "./jobs.ts";
 import { toError } from "./errors.ts";
 import { openDatabase, SCHEMA_VERSION } from "./schema.ts";
 import { makeSearch } from "./search.ts";
+import { makeSearchIndex } from "./search-index.ts";
 import { makeSpaces } from "./spaces.ts";
 
 export {
@@ -88,6 +89,7 @@ const makeLibrary = Effect.fnUntraced(function* (
       ),
     ...makeItems(ctx),
     ...makeEnrichment(ctx),
+    ...makeSearchIndex(ctx),
     ...search,
     ...makeSpaces(ctx, search),
     ...makeExport(ctx),

@@ -224,7 +224,9 @@ export function makeItems(ctx: StorageContext) {
           yield* sql`UPDATE items SET kind = ${kind}, title = ${fileName}, description = NULL,
             body = '', body_format = 'md', source_label = ${mimeType}, local_asset_path = ${assetPath},
             thumbnail_path = NULL, ocr_text = '', metadata = ${metadata}, archived = 0,
-            updated_at = ${now} WHERE id = ${id}`;
+            updated_at = ${now}, search_revision = search_revision + 1 WHERE id = ${id}`;
+          yield* sql`DELETE FROM search_ai WHERE item_id = ${id}`;
+          yield* sql`DELETE FROM search_pages WHERE item_id = ${id}`;
         } else {
           yield* sql`INSERT INTO items (id, kind, title, body, body_format, source_label,
             local_asset_path, metadata, ocr_text, created_at, updated_at)
@@ -234,6 +236,7 @@ export function makeItems(ctx: StorageContext) {
         if (kind === "image") {
           // The palette job reads the thumbnail, so the thumbnail job queues it.
           yield* jobs.enqueue(id, IMAGE_THUMBNAIL_JOB);
+          yield* jobs.enqueue(id, "generate_embedding");
           yield* jobs.enqueue(id, "ocr_image");
         }
         if (kind === "pdf") yield* jobs.enqueue(id, "ocr_pdf_page");
