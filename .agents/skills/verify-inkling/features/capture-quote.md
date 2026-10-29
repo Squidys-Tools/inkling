@@ -12,7 +12,7 @@ Click Add at the foot of the sidebar and choose Quote. Type the quote, optionall
 
 ```json
 [
-  {"label": "open Add", "click": "button[data-tooltip='Add something to your library']"},
+  {"label": "open Add", "click": "button.add-button"},
   {"label": "choose Quote", "clickText": {"selector": ".add-menu-tile", "text": "Quote"}},
   {"label": "quote field", "wait": "textarea[aria-label='Quote text']"},
   {"label": "type quote", "fill": "textarea[aria-label='Quote text']", "text": "verify quote text"},
