@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "01M647R3Q1EBXZSD62J58WB7N2",
+  "strategy": "manual-commit",
+  "branch": "t3/quick-wins-audit",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".github/workflows/electron-preview.yml",
+    ".github/workflows/knip.yml",
+    ".github/workflows/release.yml",
+    ".github/workflows/security.yml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 3944,
+    "cache_read_tokens": 1237197,
+    "output_tokens": 1858,
+    "api_call_count": 7
+  }
+}
