@@ -1,11 +1,14 @@
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { join, extname } from "node:path";
+import { fork, type ChildProcess } from "node:child_process";
+import { createRequire } from "node:module";
+import { dirname, join, extname, delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Worker } from "node:worker_threads";
+import { listSupportedBackends } from "onnxruntime-node";
 import { ensureAsset } from "./embeddings.ts";
 import manifest from "./search-model-manifest.json" with { type: "json" };
 import type { SearchModelRequest } from "./search-runtime.ts";
+import { searchDevices, withCpuFallback, type SearchDevice } from "./search-device.ts";
 
 type Pending = {
   directory: string;
@@ -17,6 +20,18 @@ const workerUrl = new URL(
   `./search-worker${extname(fileURLToPath(import.meta.url))}`,
   import.meta.url,
 );
+const require = createRequire(import.meta.url);
+const ortRoot = dirname(require.resolve("onnxruntime-node/package.json"));
+const cudaProvider = join(
+  ortRoot,
+  "bin",
+  "napi-v6",
+  process.platform,
+  process.arch,
+  process.platform === "win32"
+    ? "onnxruntime_providers_cuda.dll"
+    : "libonnxruntime_providers_cuda.so",
+);
 async function matches(path: string, expected: string) {
   try {
     const hash = createHash("sha256");
@@ -27,12 +42,41 @@ async function matches(path: string, expected: string) {
   }
 }
 
-export function createSearchModels(cache: string, bundled?: string) {
+export type SearchModels = {
+  embedQuery: (text: string) => Promise<Float32Array>;
+  embedText: (text: string, title?: string) => Promise<Float32Array>;
+  embedImage: (bytes: Uint8Array) => Promise<Float32Array>;
+  caption: (bytes: Uint8Array) => Promise<string>;
+  close: () => Promise<void>;
+};
+
+export function createSearchModels(
+  cache: string,
+  bundled?: string,
+  options: {
+    device?: SearchDevice;
+    acceleratorDirectory?: string;
+    onDevice?: (device: SearchDevice, fallback: boolean) => void;
+    queryOnly?: boolean;
+  } = {},
+): SearchModels {
   const roots = new Map<string, Promise<string>>();
   const queue: Pending[] = [];
   const queries = new Map<string, Promise<Float32Array>>();
-  let worker: Worker | undefined,
+  const cpuOnly = new Set<string>();
+  // A text-only CPU process keeps typed queries independent of non-preemptible
+  // image/caption GPU work, without a second vision model or extra VRAM.
+  let queryModels: SearchModels | undefined;
+  const available = listSupportedBackends()
+    .filter((entry) => entry.bundled || (entry.name === "cuda" && existsSync(cudaProvider)))
+    .map((entry) => entry.name);
+  const preferred = options.device ?? searchDevices(process.platform, available)[0];
+  const accelerators =
+    options.acceleratorDirectory ??
+    (bundled ? join(bundled, "..", "accelerators", "cuda") : join(cache, "accelerators", "cuda"));
+  let worker: ChildProcess | undefined,
     directory = "",
+    activeDevice: SearchDevice = "cpu",
     nextId = 0;
   let idle: ReturnType<typeof setTimeout> | undefined;
   let closed = false,
@@ -71,9 +115,14 @@ export function createSearchModels(cache: string, bundled?: string) {
     const previous = worker;
     worker = undefined;
     directory = "";
-    if (previous) await previous.terminate();
+    if (previous?.pid && previous.exitCode === null && previous.signalCode === null) {
+      await new Promise<void>((resolve) => {
+        previous.once("exit", () => resolve());
+        previous.kill("SIGKILL");
+      });
+    }
   };
-  const invoke = (current: Worker, call: Pending) =>
+  const invoke = (current: ChildProcess, call: Pending) =>
     new Promise<Float32Array | string>((resolve, reject) => {
       const id = ++nextId;
       const cleanup = () => {
@@ -86,8 +135,8 @@ export function createSearchModels(cache: string, bundled?: string) {
         cleanup();
         reject(error);
       };
-      const exited = (code: number) => fail(new Error(`Search worker exited (${code})`));
-      const message = (reply: { id: number; result?: Float32Array | string; error?: string }) => {
+      const exited = (code: number | null) => fail(new Error(`Search worker exited (${code})`));
+      const message = (reply: { id?: number; result?: Float32Array | string; error?: string }) => {
         if (reply.id !== id) return;
         cleanup();
         if (reply.error || reply.result == null)
@@ -98,8 +147,40 @@ export function createSearchModels(cache: string, bundled?: string) {
       current.on("message", message);
       current.once("error", fail);
       current.once("exit", exited);
-      current.postMessage({ id, directory: call.directory, request: call.request });
+      current.send({ id, directory: call.directory, request: call.request }, (error) => {
+        if (error) fail(error);
+      });
     });
+  const execute = async (call: Pending, device: SearchDevice) => {
+    if (directory !== call.directory || activeDevice !== device) await retire();
+    if (closed) throw new Error("Search models are closed");
+    if (!worker) {
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: "1",
+        INKLING_SEARCH_DEVICE: device,
+        INKLING_SEARCH_TEXT_ONLY: options.queryOnly ? "1" : "0",
+      };
+      if (existsSync(accelerators)) {
+        env.LD_LIBRARY_PATH = [accelerators, process.env.LD_LIBRARY_PATH]
+          .filter(Boolean)
+          .join(delimiter);
+        if (process.platform === "win32")
+          env.PATH = [accelerators, process.env.PATH].filter(Boolean).join(delimiter);
+      }
+      worker = fork(workerUrl, [], {
+        serialization: "advanced",
+        stdio: ["ignore", "ignore", "ignore", "ipc"],
+        env,
+        execArgv: [],
+      });
+      directory = call.directory;
+      activeDevice = device;
+    }
+    const result = await invoke(worker, call);
+    options.onDevice?.(device, cpuOnly.has(call.directory));
+    return result;
+  };
   const drain = async () => {
     if (processing) return;
     processing = true;
@@ -109,12 +190,17 @@ export function createSearchModels(cache: string, bundled?: string) {
         const call = queue.shift();
         if (!call) break;
         try {
-          // A fresh thread reclaims ORT's native arenas when the model changes.
-          if (directory !== call.directory) await retire();
-          if (closed) throw new Error("Search models are closed");
-          worker ??= new Worker(workerUrl);
-          directory = call.directory;
-          call.resolve(await invoke(worker, call));
+          const device = cpuOnly.has(call.directory) ? "cpu" : preferred;
+          call.resolve(
+            await withCpuFallback(
+              device,
+              (selected) => execute(call, selected),
+              async () => {
+                cpuOnly.add(call.directory);
+                await retire();
+              },
+            ),
+          );
         } catch (error) {
           call.reject(error instanceof Error ? error : new Error(String(error)));
           await retire();
@@ -152,7 +238,14 @@ export function createSearchModels(cache: string, bundled?: string) {
     const key = text.trim(),
       cached = queries.get(key);
     if (cached) return cached;
-    const promise = vector({ kind: "query", text: key }, false).catch((error: unknown) => {
+    const pendingQuery = options.queryOnly
+      ? vector({ kind: "query", text: key }, false)
+      : (queryModels ??= createSearchModels(cache, bundled, {
+          ...options,
+          device: "cpu",
+          queryOnly: true,
+        })).embedQuery(key);
+    const promise = pendingQuery.catch((error: unknown) => {
       queries.delete(key);
       throw error;
     });
@@ -173,7 +266,7 @@ export function createSearchModels(cache: string, bundled?: string) {
       closed = true;
       queries.clear();
       for (const call of queue.splice(0)) call.reject(new Error("Search models are closed"));
-      await retire();
+      await Promise.all([retire(), queryModels?.close()]);
     },
   };
 }

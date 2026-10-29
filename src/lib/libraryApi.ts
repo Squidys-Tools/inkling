@@ -211,10 +211,6 @@ export async function getChangeCount() {
   return invoke("get_change_count");
 }
 
-export async function searchItems(query: string) {
-  return invoke("search_items", { query, limit: 100 });
-}
-
 export async function searchItemsDetailed(query: string) {
   return invoke("search_items_detailed", { query, limit: 100 });
 }

@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 
 export const SEARCH_INDEX = "embeddinggemma2-daa72c51-q8-768-v1";
-export const CAPTION_MODEL = "florence2-base-ft-q8-v1";
-export const VECTOR_DIMENSION = 768;
+export const CAPTION_MODEL = "florence2-base-ft-q8-detailed-v2";
+const VECTOR_DIMENSION = 768;
 
 export type SearchChunk = {
   id: string;

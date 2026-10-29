@@ -83,4 +83,5 @@ for (const [modelName, asset] of assets) {
   await copyFile(cachedPath, bundledPath);
 }
 
+await import("./prepare-search-accelerators.mjs");
 console.log(`Staged ${assets.length} pinned embedding assets for electron-builder.`);

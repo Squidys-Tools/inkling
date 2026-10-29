@@ -1,5 +1,33 @@
 [
   {
+    "name": "nvidia-curand (optional Linux CUDA bundle)",
+    "license": "LicenseRef-NVIDIA-SDK",
+    "sourceUrl": "https://pypi.org/project/nvidia-curand/",
+    "description": "Optional NVIDIA indexing runtime. Original NVIDIA terms apply; not MIT licensed. Exact distribution and library hashes are in electron/search-accelerators.json.",
+    "noticeFile": "scripts/third-party-licenses/nvidia-curand-License.txt"
+  },
+  {
+    "name": "nvidia-cudnn-cu12 (optional Linux CUDA bundle)",
+    "license": "LicenseRef-NVIDIA-SDK",
+    "sourceUrl": "https://pypi.org/project/nvidia-cudnn-cu12/",
+    "description": "Optional NVIDIA indexing runtime. Original NVIDIA terms apply; not MIT licensed. Exact distribution and library hashes are in electron/search-accelerators.json.",
+    "noticeFile": "scripts/third-party-licenses/nvidia-cudnn-cu12-License.txt"
+  },
+  {
+    "name": "nvidia-cuda-runtime (optional Linux CUDA bundle)",
+    "license": "LicenseRef-NVIDIA-SDK",
+    "sourceUrl": "https://pypi.org/project/nvidia-cuda-runtime/",
+    "description": "Optional NVIDIA indexing runtime. Original NVIDIA terms apply; not MIT licensed. Exact distribution and library hashes are in electron/search-accelerators.json.",
+    "noticeFile": "scripts/third-party-licenses/nvidia-cuda-runtime-License.txt"
+  },
+  {
+    "name": "nvidia-cublas (optional Linux CUDA bundle)",
+    "license": "LicenseRef-NVIDIA-SDK",
+    "sourceUrl": "https://pypi.org/project/nvidia-cublas/",
+    "description": "Optional NVIDIA indexing runtime. Original NVIDIA terms apply; not MIT licensed. Exact distribution and library hashes are in electron/search-accelerators.json.",
+    "noticeFile": "scripts/third-party-licenses/nvidia-cublas-License.txt"
+  },
+  {
     "name": "EmbeddingGemma 2 ONNX (quantized)",
     "license": "Apache-2.0",
     "sourceUrl": "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX",

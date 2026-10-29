@@ -138,6 +138,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": ".artifacts/electron-resources/accelerators",
+        "to": "accelerators",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "files": [

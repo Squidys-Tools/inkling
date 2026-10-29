@@ -7,8 +7,10 @@ import { selectCards, type StorageContext } from "./context.ts";
 import { invalidInput } from "./errors.ts";
 import { cardItem, clampLimit, type ItemRow, itemFromRow, qualifiedItemColumns } from "./shared.ts";
 
-// Separate floors calibrated on the mixed-image/document development split.
+// Absolute safety floor plus a best-hit margin prevents a broad visual neighbourhood
+// (for example dogs near a cat) from becoming an unbounded result lane.
 export const searchFloors = { text: 0.7, image: 0.63, legacyText: 0.55, legacyImage: 0.55 };
+const imageScoreMargin = 0.06;
 export type SearchVectors = { current?: ArrayLike<number>; legacy?: ArrayLike<number> };
 export type QueryVector = ArrayLike<number> | SearchVectors | null | undefined;
 type EmbeddingRow = ItemRow & {
@@ -109,7 +111,11 @@ export function makeSearch(ctx: StorageContext) {
             return [{ id: row.id, score }];
           })
           .sort((a, b) => b.score - a.score);
-        lanes.push({ ids: scored.map((entry) => entry.id), weight: kind === "image" ? 1.2 : 1 });
+        const accepted =
+          current && kind === "image" && scored.length
+            ? scored.filter((entry) => entry.score >= scored[0].score - imageScoreMargin)
+            : scored;
+        lanes.push({ ids: accepted.map((entry) => entry.id), weight: kind === "image" ? 1.2 : 1 });
       }
     };
     if (vectors.current?.length) {

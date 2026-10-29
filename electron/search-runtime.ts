@@ -12,20 +12,20 @@ import type { PreTrainedModel, Tensor } from "@huggingface/transformers";
 import { normalizedVector } from "./search-core.ts";
 import sharp from "sharp";
 import { sharpImageInput, validateImageDimensions } from "./thumbnail.ts";
+import { searchSessionOptions, type SearchDevice } from "./search-device.ts";
 
 export type SearchModelRequest =
   | { kind: "query"; text: string }
   | { kind: "text"; text: string; title?: string }
   | { kind: "image"; bytes: Uint8Array }
   | { kind: "caption"; bytes: Uint8Array };
-const options = {
-  device: "cpu",
-  dtype: "q8",
-  local_files_only: true,
-  session_options: { intraOpNumThreads: 2, interOpNumThreads: 1 },
-} as const;
-
-export function createSearchRuntime() {
+export function createSearchRuntime(device: SearchDevice = "cpu", textOnly = false) {
+  const options = {
+    device: "cpu",
+    dtype: "q8",
+    local_files_only: true,
+    session_options: searchSessionOptions(device),
+  } as const;
   env.allowRemoteModels = false;
   env.allowLocalModels = true;
   env.useFSCache = false;
@@ -52,6 +52,7 @@ export function createSearchRuntime() {
       } else {
         const config = await AutoConfig.from_pretrained(directory, { local_files_only: true });
         Object.assign(config, { audio_config: null });
+        if (textOnly) Object.assign(config, { vision_config: null });
         model = await AutoModel.from_pretrained(directory, { ...options, config });
         processor = (await AutoProcessor.from_pretrained(directory, {
           local_files_only: true,
@@ -68,11 +69,11 @@ export function createSearchRuntime() {
       if (request.kind === "caption") {
         const captionProcessor = processor as Florence2Processor;
         const captionModel = model as Florence2ForConditionalGeneration;
-        const task = "<CAPTION>";
+        const task = "<MORE_DETAILED_CAPTION>";
         const inputs = await captionProcessor(image, captionProcessor.construct_prompts(task));
         const ids = await captionModel.generate({
           ...inputs,
-          max_new_tokens: 48,
+          max_new_tokens: 96,
           do_sample: false,
           num_beams: 1,
         });

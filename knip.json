@@ -8,6 +8,7 @@
         "electron/main.ts",
         "electron/preload.ts",
         "electron/sqlite-snapshot-worker.ts",
+        "electron/search-worker.ts",
         "electron/**/*.test.ts"
       ],
       "project": ["src/**/*", "benchmarks/harness/**/*", "electron/**/*"],

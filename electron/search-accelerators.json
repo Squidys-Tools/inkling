@@ -1,0 +1,204 @@
+{
+  "platform": "linux",
+  "arch": "x64",
+  "ortVersion": "1.30.0",
+  "note": "Optional build-time runtime bundle; never downloaded during indexing. CPU fallback is always available. Exact versions tested together on NVIDIA RTX4050 driver595.91.07. No Windows acceptance implied.",
+  "packages": [
+    {
+      "name": "nvidia-cublas",
+      "version": "13.0.2.14",
+      "url": "https://files.pythonhosted.org/packages/28/d4/30e630055d8e0f7058cc0d39e562c965d692f4735537d3f02f45d579a280/nvidia_cublas-13.0.2.14-py3-none-manylinux_2_27_x86_64.whl",
+      "sha256": "0cf238ffdbe46c00cb9aa98e7bca745c223a5ca5a53e686ac8b3e5a08fe80d6c",
+      "files": [
+        {
+          "name": "libcublas.so.13",
+          "bytes": 54440120,
+          "sha256": "1d5f1452af53a0b1cf36bc7d8116d2a22a5f2cffbaa8fca25a1b70360a2e8d7a"
+        },
+        {
+          "name": "libcublasLt.so.13",
+          "bytes": 539533072,
+          "sha256": "4c15f403ac2a8040a3291d07f6c351b5c1f730b45f2ea41f302e415e9600655b"
+        },
+        {
+          "name": "libnvblas.so.13",
+          "bytes": 737504,
+          "sha256": "5a4583036d9c7b6a61252a63cc55c6f8826e5c44b71add382ed53d622b1bfbce"
+        }
+      ]
+    },
+    {
+      "name": "nvidia-cuda-runtime",
+      "version": "13.0.96",
+      "url": "https://files.pythonhosted.org/packages/2e/24/d1558f3b68b1d26e706813b1d10aa1d785e4698c425af8db8edc3dced472/nvidia_cuda_runtime-13.0.96-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "sha256": "7f82250d7782aa23b6cfe765ecc7db554bd3c2870c43f3d1821f1d18aebf0548",
+      "files": [
+        {
+          "name": "libcudart.so.13",
+          "bytes": 704288,
+          "sha256": "96c42e418cec19054186b9429c321603cc190bf26a18104e19408117a2a817b0"
+        }
+      ]
+    },
+    {
+      "name": "nvidia-curand",
+      "version": "10.4.0.35",
+      "url": "https://files.pythonhosted.org/packages/a5/9f/be0a41ca4a4917abf5cb9ae0daff1a6060cc5de950aec0396de9f3b52bc5/nvidia_curand-10.4.0.35-py3-none-manylinux_2_27_x86_64.whl",
+      "sha256": "1aee33a5da6e1db083fe2b90082def8915f30f3248d5896bcec36a579d941bfc",
+      "files": [
+        {
+          "name": "libcurand.so.10",
+          "bytes": 132698328,
+          "sha256": "b53732a66b302b11926e00f762e2c2ba67058347ff93cf4ae709de45e93e06da"
+        }
+      ]
+    },
+    {
+      "name": "nvidia-cudnn-cu12",
+      "version": "9.10.2.21",
+      "url": "https://files.pythonhosted.org/packages/ba/51/e123d997aa098c61d029f76663dedbfb9bc8dcf8c60cbd6adbe42f76d049/nvidia_cudnn_cu12-9.10.2.21-py3-none-manylinux_2_27_x86_64.whl",
+      "sha256": "949452be657fa16687d0930933f032835951ef0892b37d2d53824d1a84dc97a8",
+      "files": [
+        {
+          "name": "libcudnn.so.9",
+          "bytes": 125136,
+          "sha256": "3b68ea689be647bce63cb3c2d9edb589add415405a7e9f296d69ca029cae0b8b"
+        },
+        {
+          "name": "libcudnn_adv.so.9",
+          "bytes": 285226600,
+          "sha256": "9814d64e04fce1f6cbd16d02ccefd6611541b3c61736fb450e334b482635ca07"
+        },
+        {
+          "name": "libcudnn_cnn.so.9",
+          "bytes": 6301096,
+          "sha256": "655c2d2649466c73b6b4c19705fb6906fd95e331a1f8218314b49f37dd7cafed"
+        },
+        {
+          "name": "libcudnn_engines_precompiled.so.9",
+          "bytes": 547383096,
+          "sha256": "f504745d346542609f975de51227080647d3675eac576ead82c396b8124f8f28"
+        },
+        {
+          "name": "libcudnn_engines_runtime_compiled.so.9",
+          "bytes": 23094328,
+          "sha256": "8222672743c4f2e39feb1c365d6f6b6c40f56023471506f49944910847f1ee0a"
+        },
+        {
+          "name": "libcudnn_graph.so.9",
+          "bytes": 4439912,
+          "sha256": "787c955dce49091ead850e4536666594095ea9f92a8a08879d8ddad466674657"
+        },
+        {
+          "name": "libcudnn_heuristic.so.9",
+          "bytes": 58726712,
+          "sha256": "2804eee5f6fc11d0299ba07687eda0a974d3b2436357c639706c4e282cc2cc05"
+        },
+        {
+          "name": "libcudnn_ops.so.9",
+          "bytes": 127936080,
+          "sha256": "34f56d67f3df108949d1e5e03543064e055e217d0f5e53dc6d4f7c9454d852f8"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "name": "libcublas.so.13",
+      "bytes": 54440120,
+      "sha256": "1d5f1452af53a0b1cf36bc7d8116d2a22a5f2cffbaa8fca25a1b70360a2e8d7a"
+    },
+    {
+      "name": "libcublasLt.so.13",
+      "bytes": 539533072,
+      "sha256": "4c15f403ac2a8040a3291d07f6c351b5c1f730b45f2ea41f302e415e9600655b"
+    },
+    {
+      "name": "libcudart.so.13",
+      "bytes": 704288,
+      "sha256": "96c42e418cec19054186b9429c321603cc190bf26a18104e19408117a2a817b0"
+    },
+    {
+      "name": "libcudnn.so",
+      "bytes": 125136,
+      "sha256": "3b68ea689be647bce63cb3c2d9edb589add415405a7e9f296d69ca029cae0b8b"
+    },
+    {
+      "name": "libcudnn.so.9",
+      "bytes": 125136,
+      "sha256": "3b68ea689be647bce63cb3c2d9edb589add415405a7e9f296d69ca029cae0b8b"
+    },
+    {
+      "name": "libcudnn_adv.so.9",
+      "bytes": 285226600,
+      "sha256": "9814d64e04fce1f6cbd16d02ccefd6611541b3c61736fb450e334b482635ca07"
+    },
+    {
+      "name": "libcudnn_cnn.so.9",
+      "bytes": 6301096,
+      "sha256": "655c2d2649466c73b6b4c19705fb6906fd95e331a1f8218314b49f37dd7cafed"
+    },
+    {
+      "name": "libcudnn_engines_precompiled.so.9",
+      "bytes": 547383096,
+      "sha256": "f504745d346542609f975de51227080647d3675eac576ead82c396b8124f8f28"
+    },
+    {
+      "name": "libcudnn_engines_runtime_compiled.so.9",
+      "bytes": 23094328,
+      "sha256": "8222672743c4f2e39feb1c365d6f6b6c40f56023471506f49944910847f1ee0a"
+    },
+    {
+      "name": "libcudnn_graph.so.9",
+      "bytes": 4439912,
+      "sha256": "787c955dce49091ead850e4536666594095ea9f92a8a08879d8ddad466674657"
+    },
+    {
+      "name": "libcudnn_heuristic.so.9",
+      "bytes": 58726712,
+      "sha256": "2804eee5f6fc11d0299ba07687eda0a974d3b2436357c639706c4e282cc2cc05"
+    },
+    {
+      "name": "libcudnn_ops.so.9",
+      "bytes": 127936080,
+      "sha256": "34f56d67f3df108949d1e5e03543064e055e217d0f5e53dc6d4f7c9454d852f8"
+    },
+    {
+      "name": "libcurand.so.10",
+      "bytes": 132698328,
+      "sha256": "b53732a66b302b11926e00f762e2c2ba67058347ff93cf4ae709de45e93e06da"
+    },
+    {
+      "name": "libnvblas.so.13",
+      "bytes": 737504,
+      "sha256": "5a4583036d9c7b6a61252a63cc55c6f8826e5c44b71add382ed53d622b1bfbce"
+    },
+    {
+      "name": "nvidia-cublas-License.txt",
+      "bytes": 59262,
+      "sha256": "ad6f5853fba0ca0d159d0f58d49ae49830c2f8c93f7a92648b9ce90adb4c6ccd"
+    },
+    {
+      "name": "nvidia-cuda-runtime-License.txt",
+      "bytes": 59262,
+      "sha256": "ad6f5853fba0ca0d159d0f58d49ae49830c2f8c93f7a92648b9ce90adb4c6ccd"
+    },
+    {
+      "name": "nvidia-cudnn-cu12-License.txt",
+      "bytes": 18174,
+      "sha256": "49cf79bdb35734b52fe6203013b3bd759f81e998cd32aa2c65c51db9a88c61d2"
+    },
+    {
+      "name": "nvidia-curand-License.txt",
+      "bytes": 59262,
+      "sha256": "ad6f5853fba0ca0d159d0f58d49ae49830c2f8c93f7a92648b9ce90adb4c6ccd"
+    }
+  ],
+  "provider": {
+    "file": "libonnxruntime_providers_cuda.so",
+    "sha256": "32fb1e28e5eafe8a39d52ca2e1e9c7333f3285968d288b43485cbaa32af6686e",
+    "package": "Microsoft.ML.OnnxRuntime.Gpu.Linux",
+    "version": "1.30.0",
+    "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.gpu.linux/1.30.0/microsoft.ml.onnxruntime.gpu.linux.1.30.0.nupkg"
+  }
+}
