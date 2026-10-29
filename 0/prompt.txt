@@ -1,0 +1,41 @@
+yo I just found this package called notch-toast, I think it would be really nice to replace out sonner toasts and I want to try it out, replace all of our current toasts with it, make sure they work as intended, full stop
+
+---
+
+<task-notification>
+<task-id>bcu9iie1n</task-id>
+<tool-use-id>toolu_011R2FEM32XQKNbBycysRkr3</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-27490613\6d295d0f-afdf-4c29-bfd7-7946e1783b5b\tasks\bcu9iie1n.output</output-file>
+<status>completed</status>
+<summary>Background command "Launch scratch app instance and run doctor check" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bne13dkkv</task-id>
+<tool-use-id>toolu_01UkimswV2y1bec6nygA9zhT</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-27490613\6d295d0f-afdf-4c29-bfd7-7946e1783b5b\tasks\bne13dkkv.output</output-file>
+<status>completed</status>
+<summary>Background command "Relaunch scratch app instance named toast on port 9334" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bzul4dns8</task-id>
+<tool-use-id>toolu_011PApnieyupfbfDRi1EBcpm</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-27490613\6d295d0f-afdf-4c29-bfd7-7946e1783b5b\tasks\bzul4dns8.output</output-file>
+<status>completed</status>
+<summary>Background command "Relaunch scratch app instance in the background" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bgibx33sz</task-id>
+<tool-use-id>toolu_016Rw8UojtiuZVDfYLcegrVk</tool-use-id>
+<output-file>C:\Users\chris\AppData\Local\Temp\claude\C--Users-chris--t3-worktrees-inkling-t3-27490613\6d295d0f-afdf-4c29-bfd7-7946e1783b5b\tasks\bgibx33sz.output</output-file>
+<status>completed</status>
+<summary>Background command "Clean up instance, rebuild app, and relaunch with the z-index fix" completed (exit code 0)</summary>
+</task-notification>
