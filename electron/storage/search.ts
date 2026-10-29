@@ -58,7 +58,11 @@ export function makeSearch(ctx: StorageContext) {
   const likeClause = (pattern: string, prefix = "") => {
     const column = (name: string) =>
       sql`${sql.literal(`${prefix}${name}`)} COLLATE NOCASE LIKE ${pattern} ESCAPE char(92)`;
-    return sql`(${sql.or(["title", "description", "body", "source_label", "ocr_text", "metadata"].map(column))})`;
+    const content = (name: string) =>
+      sql`${sql.literal(`c.${name}`)} COLLATE NOCASE LIKE ${pattern} ESCAPE char(92)`;
+    return sql`(${sql.or(["title", "description", "body", "source_label", "ocr_text", "metadata"].map(column))}
+      OR EXISTS (SELECT 1 FROM item_content c WHERE c.item_id = ${sql.literal(`${prefix}id`)}
+        AND (${sql.or(["text", "extracted_text", "html"].map(content))})))`;
   };
 
   const cardsById = Effect.fnUntraced(function* (orderedIds: ReadonlyArray<string>) {

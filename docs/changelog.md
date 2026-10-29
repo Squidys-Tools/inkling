@@ -98,6 +98,7 @@ Guardrails:
 
 ### Changed
 
+- Article HTML and text now live in an `item_content` table instead of `items.metadata`, so card reads never touch the payload while article text stays searchable and detail reads still return it; the library upgrades to schema 9 on open (SQU-15)
 - Loading the library, searching, and finding similar items read only the fields a card shows instead of every item's full article text, cutting the main-process work on large libraries (SQU-15)
 - Semantic search scores stored vectors first, reads them without copying each number, and loads full items only for the matches it returns (SQU-15)
 - The search model loads in the background a few seconds after the library opens, so the first search no longer waits for it (SQU-15)

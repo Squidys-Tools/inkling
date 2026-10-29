@@ -4,6 +4,7 @@ import { isAbsolute, relative, sep } from "node:path";
 import { Effect, Predicate } from "effect";
 import type { StoredLibraryCard, StoredLibraryItemDetail } from "@inkling/contracts";
 import { invalidInput } from "./errors.ts";
+import { jsTrimCharacters } from "./schema.ts";
 
 export type ItemRow = {
   id: string;
@@ -21,17 +22,41 @@ export type ItemRow = {
   created_at: number;
   updated_at: number;
   archived: number;
+  content_html?: string | null;
+  content_text?: string | null;
+  content_extracted_text?: string | null;
 };
 
 export type Metadata = Record<string, unknown>;
 
-const itemColumns = `id, kind, title, description, source_url, source_label,
-  local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
-  archived, NULL AS body, 'md' AS body_format`;
-export const detailColumns = itemColumns.replace(
-  "NULL AS body, 'md' AS body_format",
-  "body, body_format",
-);
+// The heavy article keys live in item_content, not items.metadata. Writes run
+// through splitItemMetadata so the keys can never creep back into the column,
+// and detail reads merge them back so callers see the same shape as before.
+export type ItemContent = {
+  html: string | null;
+  text: string | null;
+  extracted_text: string | null;
+};
+
+export function splitItemMetadata(metadata: Metadata): {
+  metadata: Metadata;
+  content: ItemContent;
+} {
+  const { html, text, extractedText, ...rest } = metadata;
+  return {
+    metadata: rest,
+    content: {
+      html: nonEmpty(html),
+      text: nonEmpty(text),
+      extracted_text: nonEmpty(extractedText),
+    },
+  };
+}
+
+const detailColumnsFor = (p: string) => `${p}id, ${p}kind, ${p}title, ${p}description,
+  ${p}source_url, ${p}source_label, ${p}local_asset_path, ${p}thumbnail_path, ${p}ocr_text,
+  ${p}metadata, ${p}created_at, ${p}updated_at, ${p}archived, ${p}body, ${p}body_format`;
+export const qualifiedDetailColumns = detailColumnsFor("i.");
 const cardMetadataFields = [
   "tags",
   "social",
@@ -43,16 +68,10 @@ const cardMetadataFields = [
   "pdfPageCount",
 ];
 
-// String.prototype.trim removes this whole set; SQLite's trim(x) strips spaces only.
-const jsTrimCharacters = `char(${[
-  9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201,
-  8202, 8232, 8233, 8239, 8287, 12288, 65279,
-].join(",")})`;
-
-// Card reads never need the article payload, so the projection keeps only the
-// fields cardItem reads and reduces '$.html' to a marker it still recognizes.
-// json_valid degrades bad metadata per row; json functions would otherwise
-// error the whole list on one malformed row.
+// Card reads never need the article payload, so the projection reduces html
+// presence to a marker: IS NOT NULL reads only the item_content record header.
+// The metadata fallback covers rows written before schema 9; json_valid
+// degrades bad metadata per row instead of erroring the whole list.
 const cardColumnsFor = (p: string) => `${p}id, ${p}kind, ${p}title, ${p}description,
   ${p}source_url, ${p}source_label, ${p}local_asset_path, ${p}thumbnail_path,
   substr(trim(${p}ocr_text, ${jsTrimCharacters}), 1, 180) AS ocr_text,
@@ -61,8 +80,10 @@ const cardColumnsFor = (p: string) => `${p}id, ${p}kind, ${p}title, ${p}descript
       COALESCE((SELECT json_group_object(j.key, j.value) FROM json_each(${p}metadata) j
         WHERE j.key IN ('${[...cardMetadataFields, "palette"].join("','")}')), '{}'),
       '$.html',
-      CASE WHEN json_type(${p}metadata, '$.html') = 'text'
-        AND ltrim(json_extract(${p}metadata, '$.html'), ${jsTrimCharacters}) <> ''
+      CASE WHEN EXISTS(SELECT 1 FROM item_content c WHERE c.item_id = ${p}id
+        AND c.html IS NOT NULL)
+        OR (json_type(${p}metadata, '$.html') = 'text'
+          AND ltrim(json_extract(${p}metadata, '$.html'), ${jsTrimCharacters}) <> '')
         THEN 'x' ELSE NULL END)
     ELSE ${p}metadata END AS metadata,
   ${p}created_at, ${p}updated_at, ${p}archived, NULL AS body, 'md' AS body_format`;
@@ -90,6 +111,9 @@ export const parseObject = Effect.fnUntraced(function* (value: unknown, label = 
 export function itemFromRow(row: ItemRow): StoredLibraryItemDetail {
   const metadata = parseJson<unknown>(row.metadata, {});
   const fields = isMetadata(metadata) ? metadata : {};
+  if (row.content_html != null) fields.html = row.content_html;
+  if (row.content_text != null) fields.text = row.content_text;
+  if (row.content_extracted_text != null) fields.extractedText = row.content_extracted_text;
   return {
     id: row.id,
     kind: row.kind,

@@ -1,7 +1,7 @@
 import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Effect } from "effect";
-import { readItem, type StorageContext } from "./context.ts";
+import { readItem, syncItemContent, type StorageContext } from "./context.ts";
 import { attempt, invalidInput, itemNotFound, storageFailure } from "./errors.ts";
 import {
   IMAGE_PALETTE_JOB,
@@ -9,7 +9,14 @@ import {
   URL_ENRICHMENT_JOB,
   VIDEO_POSTER_JOB,
 } from "./jobs.ts";
-import { changes, isMetadata, nonEmpty, normalizeHttpUrl, parseJson } from "./shared.ts";
+import {
+  changes,
+  isMetadata,
+  nonEmpty,
+  normalizeHttpUrl,
+  parseJson,
+  splitItemMetadata,
+} from "./shared.ts";
 
 export type UrlArticle = {
   canonicalUrl?: unknown;
@@ -109,12 +116,14 @@ export function makeEnrichment(ctx: StorageContext) {
         }
         if (article.social) metadata.social = article.social;
 
+        const stored = splitItemMetadata(metadata);
         yield* sql`UPDATE items SET
           title = ${shouldUseArticleTitle ? (articleTitle ?? item.title) : item.title},
           description = ${nonEmpty(item.description) ? item.description : description},
           source_url = ${canonicalUrl}, source_label = ${sourceLabel},
-          metadata = ${JSON.stringify(metadata)}, updated_at = ${Date.now()}
+          metadata = ${JSON.stringify(stored.metadata)}, updated_at = ${Date.now()}
           WHERE id = ${item.id}`;
+        yield* syncItemContent(ctx, item.id, stored.content);
         yield* jobs.enqueue(item.id, "generate_embedding");
         return true;
       }),
@@ -166,11 +175,17 @@ export function makeEnrichment(ctx: StorageContext) {
     }
     const item = yield* readItem(ctx, id);
     if (item?.kind !== "image") return false;
-    const metadata = JSON.stringify({ ...item.metadata, palette });
-    const updated = yield* sql`UPDATE items SET metadata = ${metadata}
-      WHERE id = ${id} AND kind = 'image'`.raw;
-    if (changes(updated)) yield* jobs.notify(id);
-    return changes(updated) > 0;
+    const stored = splitItemMetadata({ ...item.metadata, palette });
+    return yield* sql.withTransaction(
+      Effect.gen(function* () {
+        const updated = yield* sql`UPDATE items SET
+          metadata = ${JSON.stringify(stored.metadata)} WHERE id = ${id} AND kind = 'image'`.raw;
+        if (!changes(updated)) return false;
+        yield* syncItemContent(ctx, id, stored.content);
+        yield* jobs.notify(id);
+        return true;
+      }),
+    );
   });
 
   return {

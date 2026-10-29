@@ -9,7 +9,7 @@ import type {
   CreateQuoteInput,
   UpdateItemInput,
 } from "@inkling/contracts";
-import { selectCards, readItem, type StorageContext } from "./context.ts";
+import { selectCards, readItem, syncItemContent, type StorageContext } from "./context.ts";
 import { attempt, invalidInput, itemNotFound } from "./errors.ts";
 import { IMAGE_THUMBNAIL_JOB, URL_ENRICHMENT_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
 import {
@@ -22,6 +22,7 @@ import {
   nonEmpty,
   normalizeHttpUrl,
   parseObject,
+  splitItemMetadata,
   validateItemId,
 } from "./shared.ts";
 
@@ -113,10 +114,9 @@ export function makeItems(ctx: StorageContext) {
     const sourceLabel = new URL(sourceUrl).hostname;
     const metadata = input.metadata;
     if (!("sourceUrl" in metadata)) metadata.sourceUrl = sourceUrl;
-    if (!("text" in metadata)) metadata.text = "";
     for (const key of ["imageUrls", "imageDimensions", "safeEmbeds"])
       yield* ensureArrayMetadata(metadata, key);
-    if (!("html" in metadata)) metadata.html = "";
+    const stored = splitItemMetadata(metadata);
     const id = randomUUID();
     const now = Date.now();
     yield* sql.withTransaction(
@@ -124,7 +124,8 @@ export function makeItems(ctx: StorageContext) {
         yield* sql`INSERT INTO items (id, kind, title, description, body, body_format, source_url,
           source_label, metadata, ocr_text, created_at, updated_at)
           VALUES (${id}, 'url', ${input.title}, NULL, '', '', ${sourceUrl}, ${sourceLabel},
-          ${JSON.stringify(metadata)}, '', ${now}, ${now})`;
+          ${JSON.stringify(stored.metadata)}, '', ${now}, ${now})`;
+        yield* syncItemContent(ctx, id, stored.content);
         yield* jobs.enqueue(id, URL_ENRICHMENT_JOB);
       }),
     );
@@ -134,6 +135,7 @@ export function makeItems(ctx: StorageContext) {
   const createNote = Effect.fnUntraced(function* (input: CreateNoteInput) {
     const body = String(input.body ?? "").trim();
     if (!body) return yield* invalidInput("note body cannot be empty");
+    const stored = splitItemMetadata(input.metadata ?? {});
     const id = randomUUID();
     const now = Date.now();
     yield* sql.withTransaction(
@@ -141,7 +143,8 @@ export function makeItems(ctx: StorageContext) {
         yield* sql`INSERT INTO items (id, kind, title, description, body, body_format, metadata,
           ocr_text, created_at, updated_at)
           VALUES (${id}, 'note', ${nonEmpty(input.title)}, ${markdownToPlainText(body)}, ${body}, 'md',
-          ${JSON.stringify(input.metadata ?? {})}, '', ${now}, ${now})`;
+          ${JSON.stringify(stored.metadata)}, '', ${now}, ${now})`;
+        yield* syncItemContent(ctx, id, stored.content);
         yield* jobs.enqueue(id, "generate_embedding");
       }),
     );
@@ -165,6 +168,7 @@ export function makeItems(ctx: StorageContext) {
     if (attribution) metadata.attribution = attribution;
     if (sourceUrl) metadata.sourceUrl = sourceUrl;
     metadata.text = attribution ? `${body}\n\n${attribution}` : body;
+    const stored = splitItemMetadata(metadata);
     const id = randomUUID();
     const now = Date.now();
     yield* sql.withTransaction(
@@ -172,7 +176,8 @@ export function makeItems(ctx: StorageContext) {
         yield* sql`INSERT INTO items (id, kind, title, description, body, body_format, source_url,
           source_label, metadata, ocr_text, created_at, updated_at)
           VALUES (${id}, 'quote', ${body}, ${attribution}, '', '', ${sourceUrl}, ${sourceLabel},
-          ${JSON.stringify(metadata)}, '', ${now}, ${now})`;
+          ${JSON.stringify(stored.metadata)}, '', ${now}, ${now})`;
+        yield* syncItemContent(ctx, id, stored.content);
         yield* jobs.enqueue(id, "generate_embedding");
       }),
     );
@@ -225,6 +230,8 @@ export function makeItems(ctx: StorageContext) {
             body = '', body_format = 'md', source_label = ${mimeType}, local_asset_path = ${assetPath},
             thumbnail_path = NULL, ocr_text = '', metadata = ${metadata}, archived = 0,
             updated_at = ${now} WHERE id = ${id}`;
+          // A saved file replaces the item: any article payload it had is gone.
+          yield* syncItemContent(ctx, id, { html: null, text: null, extracted_text: null });
         } else {
           yield* sql`INSERT INTO items (id, kind, title, body, body_format, source_label,
             local_asset_path, metadata, ocr_text, created_at, updated_at)
@@ -301,17 +308,23 @@ export function makeItems(ctx: StorageContext) {
           : markdownToPlainText(body)
         : String(input.description).trim();
     const sourceUrl = input.sourceUrl == null ? null : yield* normalizeHttpUrl(input.sourceUrl);
-    const updated = yield* sql`UPDATE items SET
-      title = COALESCE(${input.title == null ? null : String(input.title).trim()}, title),
-      description = COALESCE(${description}, description), body = COALESCE(${body}, body),
-      body_format = COALESCE(${bodyFormat}, body_format),
-      source_url = COALESCE(${sourceUrl}, source_url),
-      source_label = COALESCE(${input.sourceLabel ?? null}, source_label),
-      local_asset_path = COALESCE(${input.localAssetPath ?? null}, local_asset_path),
-      thumbnail_path = COALESCE(${input.thumbnailPath ?? null}, thumbnail_path),
-      metadata = COALESCE(${metadata == null ? null : JSON.stringify(metadata)}, metadata),
-      updated_at = ${Date.now()} WHERE id = ${input.id}`.raw;
-    if (!changes(updated)) return yield* itemNotFound(input.id);
+    const stored = metadata == null ? null : splitItemMetadata(metadata);
+    yield* sql.withTransaction(
+      Effect.gen(function* () {
+        const updated = yield* sql`UPDATE items SET
+          title = COALESCE(${input.title == null ? null : String(input.title).trim()}, title),
+          description = COALESCE(${description}, description), body = COALESCE(${body}, body),
+          body_format = COALESCE(${bodyFormat}, body_format),
+          source_url = COALESCE(${sourceUrl}, source_url),
+          source_label = COALESCE(${input.sourceLabel ?? null}, source_label),
+          local_asset_path = COALESCE(${input.localAssetPath ?? null}, local_asset_path),
+          thumbnail_path = COALESCE(${input.thumbnailPath ?? null}, thumbnail_path),
+          metadata = COALESCE(${stored == null ? null : JSON.stringify(stored.metadata)}, metadata),
+          updated_at = ${Date.now()} WHERE id = ${input.id}`.raw;
+        if (!changes(updated)) return yield* itemNotFound(input.id);
+        if (stored) yield* syncItemContent(ctx, input.id, stored.content);
+      }),
+    );
     const shouldReembed = (
       [
         "title",
@@ -353,6 +366,7 @@ export function makeItems(ctx: StorageContext) {
         Effect.gen(function* () {
           const deleted = yield* sql`DELETE FROM items WHERE id = ${id} AND archived = 1`.raw;
           if (!changes(deleted)) return yield* itemNotFound(id);
+          yield* sql`DELETE FROM item_content WHERE item_id = ${id}`;
           yield* sql`DELETE FROM space_items WHERE item_id = ${id}`;
         }),
       )

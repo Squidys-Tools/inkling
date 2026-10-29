@@ -1,6 +1,12 @@
 import { DatabaseSync } from "node:sqlite";
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
+
+// String.prototype.trim removes this whole set; SQLite's trim(x) strips spaces only.
+export const jsTrimCharacters = `char(${[
+  9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201,
+  8202, 8232, 8233, 8239, 8287, 12288, 65279,
+].join(",")})`;
 
 const itemsSchema = `
 CREATE TABLE IF NOT EXISTS items (
@@ -25,6 +31,18 @@ CREATE TABLE IF NOT EXISTS items (
 );
 CREATE INDEX IF NOT EXISTS idx_items_active_updated ON items (archived, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_items_kind ON items (kind);
+`;
+
+// Article payloads (cleaned HTML and text) live here, not in items.metadata, so
+// card reads never pay for them. A column holds a value only when it trims to
+// non-empty; hasArticleContent is therefore a header-only IS NOT NULL check.
+const itemContentSchema = `
+CREATE TABLE IF NOT EXISTS item_content (
+  item_id TEXT PRIMARY KEY NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  html TEXT,
+  text TEXT,
+  extracted_text TEXT
+);
 `;
 
 const jobsSchema = `
@@ -142,48 +160,144 @@ function migrateItemColumns(db: DatabaseSync, migrationNeeded: boolean) {
   }
 }
 
-function setupFts(db: DatabaseSync) {
+// Moves the heavy article keys out of items.metadata into item_content. One
+// transaction, so an interrupted open retries it next launch; re-running finds
+// no keys left and skips. Values are trimmed like the writers' nonEmpty check.
+function migrateItemContent(db: DatabaseSync) {
+  // returns true when it moved rows, so setupFts rebuilds an index built from the old keys
+  const hasKeys = Boolean(
+    db
+      .prepare(`SELECT 1 FROM items WHERE json_valid(metadata) AND (
+      json_type(metadata, '$.html') IS NOT NULL OR
+      json_type(metadata, '$.text') IS NOT NULL OR
+      json_type(metadata, '$.extractedText') IS NOT NULL) LIMIT 1`)
+      .get(),
+  );
+  if (!hasKeys) return false;
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    db.exec(`
+      INSERT OR REPLACE INTO item_content (item_id, html, text, extracted_text)
+      SELECT id,
+        CASE WHEN json_type(metadata, '$.html') = 'text'
+          THEN nullif(trim(json_extract(metadata, '$.html'), ${jsTrimCharacters}), '') END,
+        CASE WHEN json_type(metadata, '$.text') = 'text'
+          THEN nullif(trim(json_extract(metadata, '$.text'), ${jsTrimCharacters}), '') END,
+        CASE WHEN json_type(metadata, '$.extractedText') = 'text'
+          THEN nullif(trim(json_extract(metadata, '$.extractedText'), ${jsTrimCharacters}), '') END
+      FROM items
+      WHERE json_valid(metadata) AND (
+        json_type(metadata, '$.html') = 'text' OR
+        json_type(metadata, '$.text') = 'text' OR
+        json_type(metadata, '$.extractedText') = 'text');
+      DELETE FROM item_content WHERE html IS NULL AND text IS NULL AND extracted_text IS NULL;
+      UPDATE items SET metadata = json_remove(metadata, '$.html', '$.text', '$.extractedText')
+      WHERE json_valid(metadata) AND (
+        json_type(metadata, '$.html') IS NOT NULL OR
+        json_type(metadata, '$.text') IS NOT NULL OR
+        json_type(metadata, '$.extractedText') IS NOT NULL);
+    `);
+    db.exec("COMMIT");
+    return true;
+  } catch (error) {
+    if (db.isTransaction) db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+// FTS rows are keyed by the item's rowid so a delete is one lookup; content
+// columns come from item_content so article text stays searchable while the
+// items row stays small. The items triggers fire only on indexed columns, so
+// archive flips and thumbnail writes no longer rewrite FTS rows.
+const ftsColumns = `item_id, title, description, source_label, ocr_text, metadata, body,
+  content_text, content_html, content_extracted_text`;
+
+function setupFts(db: DatabaseSync, rebuild: boolean) {
   try {
     db.exec("BEGIN IMMEDIATE");
     const exists = Boolean(
       db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'items_fts'").get(),
     );
-    const hasBody = exists && tableHasColumn(db, "items_fts", "body");
-    if (exists && !hasBody) {
-      db.exec(`
-        DROP TRIGGER IF EXISTS items_fts_after_insert;
-        DROP TRIGGER IF EXISTS items_fts_after_update;
-        DROP TRIGGER IF EXISTS items_fts_after_delete;
-        DROP TABLE IF EXISTS items_fts;
-      `);
-    }
+    const current =
+      exists &&
+      tableHasColumn(db, "items_fts", "body") &&
+      tableHasColumn(db, "items_fts", "content_text");
+    if (exists && !current) db.exec("DROP TABLE items_fts");
     db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
-        item_id UNINDEXED, title, description, source_label, ocr_text, metadata, body
+        item_id UNINDEXED, title, description, source_label, ocr_text, metadata, body,
+        content_text, content_html, content_extracted_text
       );
       DROP TRIGGER IF EXISTS items_fts_after_insert;
       CREATE TRIGGER items_fts_after_insert AFTER INSERT ON items BEGIN
-        INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
-        VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata, new.body);
+        INSERT INTO items_fts(rowid, ${ftsColumns})
+        VALUES (new.rowid, new.id, new.title, new.description, new.source_label, new.ocr_text,
+          new.metadata, new.body,
+          (SELECT c.text FROM item_content c WHERE c.item_id = new.id),
+          (SELECT c.html FROM item_content c WHERE c.item_id = new.id),
+          (SELECT c.extracted_text FROM item_content c WHERE c.item_id = new.id));
       END;
       DROP TRIGGER IF EXISTS items_fts_after_delete;
       CREATE TRIGGER items_fts_after_delete AFTER DELETE ON items BEGIN
-        DELETE FROM items_fts WHERE item_id = old.id;
+        DELETE FROM items_fts WHERE rowid = old.rowid;
       END;
       DROP TRIGGER IF EXISTS items_fts_after_update;
-      CREATE TRIGGER items_fts_after_update AFTER UPDATE ON items BEGIN
-        DELETE FROM items_fts WHERE item_id = old.id;
-        INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
-        VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata, new.body);
+      CREATE TRIGGER items_fts_after_update AFTER UPDATE OF title, description, source_label,
+        ocr_text, metadata, body ON items BEGIN
+        DELETE FROM items_fts WHERE rowid = old.rowid;
+        INSERT INTO items_fts(rowid, ${ftsColumns})
+        VALUES (new.rowid, new.id, new.title, new.description, new.source_label, new.ocr_text,
+          new.metadata, new.body,
+          (SELECT c.text FROM item_content c WHERE c.item_id = new.id),
+          (SELECT c.html FROM item_content c WHERE c.item_id = new.id),
+          (SELECT c.extracted_text FROM item_content c WHERE c.item_id = new.id));
+      END;
+      DROP TRIGGER IF EXISTS item_content_fts_after_insert;
+      CREATE TRIGGER item_content_fts_after_insert AFTER INSERT ON item_content BEGIN
+        DELETE FROM items_fts
+          WHERE rowid = (SELECT i.rowid FROM items i WHERE i.id = new.item_id);
+        INSERT INTO items_fts(rowid, ${ftsColumns})
+        SELECT i.rowid, i.id, i.title, i.description, i.source_label, i.ocr_text, i.metadata,
+          i.body, new.text, new.html, new.extracted_text FROM items i WHERE i.id = new.item_id;
+      END;
+      DROP TRIGGER IF EXISTS item_content_fts_after_update;
+      CREATE TRIGGER item_content_fts_after_update AFTER UPDATE ON item_content BEGIN
+        DELETE FROM items_fts
+          WHERE rowid = (SELECT i.rowid FROM items i WHERE i.id = new.item_id);
+        INSERT INTO items_fts(rowid, ${ftsColumns})
+        SELECT i.rowid, i.id, i.title, i.description, i.source_label, i.ocr_text, i.metadata,
+          i.body, new.text, new.html, new.extracted_text FROM items i WHERE i.id = new.item_id;
+      END;
+      DROP TRIGGER IF EXISTS item_content_fts_after_delete;
+      CREATE TRIGGER item_content_fts_after_delete AFTER DELETE ON item_content BEGIN
+        DELETE FROM items_fts
+          WHERE rowid = (SELECT i.rowid FROM items i WHERE i.id = old.item_id);
+        INSERT INTO items_fts(rowid, ${ftsColumns})
+        SELECT i.rowid, i.id, i.title, i.description, i.source_label, i.ocr_text, i.metadata,
+          i.body, NULL, NULL, NULL FROM items i WHERE i.id = old.item_id;
       END;
     `);
     const itemCount = (db.prepare("SELECT COUNT(*) AS count FROM items").get() as Row).count;
     const indexedCount = (db.prepare("SELECT COUNT(*) AS count FROM items_fts").get() as Row).count;
-    if (!exists || !hasBody || itemCount !== indexedCount) {
+    // The triggers address FTS rows by items.rowid; a VACUUM on the live file
+    // could reassign rowids, so a mismatched pair means rebuild the index.
+    const rowidDrifted =
+      exists &&
+      Boolean(
+        db
+          .prepare(
+            `SELECT 1 FROM items_fts f WHERE NOT EXISTS (
+               SELECT 1 FROM items i WHERE i.rowid = f.rowid AND i.id = f.item_id) LIMIT 1`,
+          )
+          .get(),
+      );
+    if (!exists || !current || rebuild || itemCount !== indexedCount || rowidDrifted) {
       db.exec(`
         DELETE FROM items_fts;
-        INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
-        SELECT id, title, description, source_label, ocr_text, metadata, body FROM items;
+        INSERT INTO items_fts(rowid, ${ftsColumns})
+        SELECT i.rowid, i.id, i.title, i.description, i.source_label, i.ocr_text, i.metadata,
+          i.body, c.text, c.html, c.extracted_text
+        FROM items i LEFT JOIN item_content c ON c.item_id = i.id;
       `);
     }
     db.exec("COMMIT");
@@ -225,12 +339,31 @@ export function openDatabase(databasePath: string) {
     ["progress_total", "INTEGER"],
     ["progress_message", "TEXT"],
   ]);
+  // The FTS triggers rewrite the whole FTS row per statement, so they are
+  // parked while migrations rewrite items; setupFts recreates them after.
+  db.exec(`
+    DROP TRIGGER IF EXISTS items_fts_after_insert;
+    DROP TRIGGER IF EXISTS items_fts_after_update;
+    DROP TRIGGER IF EXISTS items_fts_after_delete;
+    DROP TRIGGER IF EXISTS item_content_fts_after_insert;
+    DROP TRIGGER IF EXISTS item_content_fts_after_update;
+    DROP TRIGGER IF EXISTS item_content_fts_after_delete;
+  `);
   migrateItemColumns(db, version < SCHEMA_VERSION);
+  db.exec(itemContentSchema);
+  // A failed move leaves v8-shaped rows that every read path still handles; the
+  // keys are still present, so the next open retries the migration.
+  let moved = false;
+  try {
+    moved = migrateItemContent(db);
+  } catch (error) {
+    console.warn("item content migration failed; will retry on next open", error);
+  }
   db.exec(embeddingsSchema);
   db.exec(spacesSchema);
   db.exec(appSettingsSchema);
   ensureColumns(db, "spaces", [["kind", "TEXT NOT NULL DEFAULT 'smart'"]]);
-  const fts5Enabled = setupFts(db);
+  const fts5Enabled = setupFts(db, moved);
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   return { db, fts5Enabled };
 }

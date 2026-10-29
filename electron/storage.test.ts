@@ -242,6 +242,23 @@ test("list rows keep card fields while full content stays available by item id",
   expect(JSON.stringify(articleCard)).not.toContain("indexhtmlneedle");
   expect(JSON.stringify(articleCard)).not.toContain("indextextneedle");
   expect(noteCard).not.toHaveProperty("body");
+  // The payload lives in item_content; items.metadata keeps only small keys.
+  expect(
+    library.db
+      .prepare("SELECT html, text, extracted_text FROM item_content WHERE item_id = ?")
+      .get(article.id),
+  ).toEqual({
+    html: "<article><p>indexhtmlneedle</p></article>",
+    text: "indextextneedle",
+    extracted_text: "indextextneedle",
+  });
+  const storedMetadata = JSON.parse(
+    String(library.db.prepare("SELECT metadata FROM items WHERE id = ?").get(article.id)?.metadata),
+  ) as Record<string, unknown>;
+  for (const key of ["html", "text", "extractedText"]) {
+    expect(storedMetadata).not.toHaveProperty(key);
+  }
+  expect(storedMetadata).toMatchObject({ tags: ["reading"], author: "A. Reader" });
   const htmlSearch = await library.searchItems("indexhtmlneedle");
   const textSearch = await library.searchItems("indextextneedle");
   const smartSpace = await library.createSpace({ name: "Reading", query: { tag: "reading" } });
@@ -435,7 +452,7 @@ test("URL capture commits the fallback item with a pending enrichment job", asyn
     description: null,
     sourceUrl: "https://example.com/article",
     sourceLabel: "example.com",
-    metadata: { captureSource: "quick link", text: "", html: "" },
+    metadata: { captureSource: "quick link" },
   });
   expect(await library.jobs.getForItem(item.id)).toMatchObject([
     { kind: URL_ENRICHMENT_JOB, status: "pending" },
@@ -687,7 +704,7 @@ test("LIKE fallback treats percent and underscore as literal search characters",
   expect(ids(await library.searchItems("file_name"))).toEqual(["literal-underscore"]);
 });
 
-test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", async () => {
+test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 9", async () => {
   const root = mkdtempSync(join(tmpdir(), "inkling-electron-storage-"));
   roots.push(root);
   const databasePath = join(root, "v7.sqlite3");
@@ -718,7 +735,7 @@ test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", 
   closeDatabase(db);
 
   const migrated = await trackedLibrary(databasePath);
-  expect(migrated.status().schemaVersion).toBe(8);
+  expect(migrated.status().schemaVersion).toBe(9);
   expect(await migrated.getItemContent("legacy-note")).toEqual({
     id: "legacy-note",
     body: "Old body",
@@ -733,6 +750,121 @@ test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", 
     }),
   );
   expect(busy).toEqual({ timeout: 5000 });
+});
+
+test("v8 libraries move article payloads into item_content and keep them searchable", async () => {
+  const root = mkdtempSync(join(tmpdir(), "inkling-electron-storage-"));
+  roots.push(root);
+  const databasePath = join(root, "v8.sqlite3");
+  const db = trackDatabase(new DatabaseSync(databasePath));
+  db.exec(`
+    CREATE TABLE items (
+      id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, title TEXT, description TEXT,
+      body TEXT NOT NULL DEFAULT '', body_format TEXT NOT NULL DEFAULT 'md',
+      source_url TEXT, source_label TEXT, local_asset_path TEXT, thumbnail_path TEXT,
+      ocr_text TEXT NOT NULL DEFAULT '', metadata TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      archived INTEGER NOT NULL DEFAULT 0, favorite INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE VIRTUAL TABLE items_fts USING fts5(
+      item_id UNINDEXED, title, description, source_label, ocr_text, metadata, body);
+    CREATE TRIGGER items_fts_after_insert AFTER INSERT ON items BEGIN
+      INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
+      VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata, new.body);
+    END;
+    INSERT INTO items (id, kind, title, description, metadata, created_at, updated_at)
+      VALUES
+      ('saved-article', 'url', 'Saved article', 'Summary.',
+        '{"tags":["reading"],"author":"A. Reader","html":"<article><p>htmlneedle</p></article>","text":"textneedle","extractedText":"textneedle"}', 1, 1),
+      ('saved-quote', 'quote', 'A quote', NULL,
+        '{"quoteText":"quoted words","text":"quoted words"}', 2, 2),
+      ('blank-payload', 'url', 'Blank', NULL, '{"html":" ","text":""}', 3, 3);
+    PRAGMA user_version = 8;
+  `);
+  closeDatabase(db);
+
+  const migrated = await trackedLibrary(databasePath);
+  expect(migrated.status().schemaVersion).toBe(9);
+  expect(
+    JSON.parse(
+      String(
+        migrated.db.prepare("SELECT metadata FROM items WHERE id = 'saved-article'").get()
+          ?.metadata,
+      ),
+    ),
+  ).toEqual({ tags: ["reading"], author: "A. Reader" });
+  expect(
+    migrated.db
+      .prepare("SELECT html, text, extracted_text FROM item_content WHERE item_id = ?")
+      .get("saved-article"),
+  ).toEqual({
+    html: "<article><p>htmlneedle</p></article>",
+    text: "textneedle",
+    extracted_text: "textneedle",
+  });
+  // An all-blank payload produces no content row and no marker.
+  expect(
+    migrated.db
+      .prepare("SELECT 1 AS found FROM item_content WHERE item_id = 'blank-payload'")
+      .get(),
+  ).toBeUndefined();
+  const cards = await migrated.listActiveItems();
+  expect(cards.find((item) => item.id === "saved-article")?.hasArticleContent).toBe(true);
+  expect(cards.find((item) => item.id === "blank-payload")?.hasArticleContent).toBe(false);
+  expect(await migrated.getItem("saved-article")).toMatchObject({
+    metadata: {
+      tags: ["reading"],
+      html: "<article><p>htmlneedle</p></article>",
+      text: "textneedle",
+      extractedText: "textneedle",
+    },
+  });
+  expect(ids(await migrated.searchItems("htmlneedle"))).toEqual(["saved-article"]);
+  expect(ids(await migrated.searchItems("quoted"))).toEqual(["saved-quote"]);
+  await migrated.archiveItem("saved-article");
+  await migrated.deleteItem("saved-article");
+  expect(count(migrated, "item_content")).toBe(1);
+  expect(ids(await migrated.searchItems("htmlneedle"))).toEqual([]);
+
+  await closeLibrary(migrated);
+  const reopened = await trackedLibrary(databasePath);
+  expect(await reopened.getItem("saved-quote")).toMatchObject({
+    metadata: { quoteText: "quoted words", text: "quoted words" },
+  });
+});
+
+test("a v9 library whose payload keys came back re-migrates to fresh content without double indexing", async () => {
+  const root = mkdtempSync(join(tmpdir(), "inkling-electron-storage-"));
+  roots.push(root);
+  const databasePath = join(root, "rewritten.sqlite3");
+  const first = await trackedLibrary(databasePath);
+  first.db
+    .prepare(`INSERT INTO items (id, kind, title, metadata, created_at, updated_at)
+      VALUES ('rewritten', 'url', 'Rewritten', '{"tags":["a"]}', 1, 1)`)
+    .run();
+  first.db
+    .prepare("INSERT INTO item_content (item_id, html) VALUES ('rewritten', '<p>stale</p>')")
+    .run();
+  // An older build writes the payload back into metadata without knowing item_content.
+  first.db
+    .prepare(`UPDATE items SET metadata = '{"tags":["a"],"html":"<p>freshneedle</p>"}'
+      WHERE id = 'rewritten'`)
+    .run();
+  await closeLibrary(first);
+
+  const reopened = await trackedLibrary(databasePath);
+  expect(
+    reopened.db.prepare("SELECT html FROM item_content WHERE item_id = 'rewritten'").get(),
+  ).toEqual({ html: "<p>freshneedle</p>" });
+  expect(
+    reopened.db.prepare("SELECT metadata FROM items WHERE id = 'rewritten'").get()?.metadata,
+  ).toBe('{"tags":["a"]}');
+  expect(
+    reopened.db.prepare("SELECT metadata FROM items_fts WHERE item_id = 'rewritten'").get()
+      ?.metadata,
+  ).toBe('{"tags":["a"]}');
+  expect(ids(await reopened.searchItems("freshneedle"))).toEqual(["rewritten"]);
+  expect(ids(await reopened.searchItems("stale"))).toEqual([]);
 });
 
 test("job leases are owner-bound, renew for five minutes, and recover only after expiry", async () => {

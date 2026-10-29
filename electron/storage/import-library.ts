@@ -58,6 +58,13 @@ type ImportedSpace = {
   updated_at: number;
 };
 
+type ImportedContent = {
+  item_id: string;
+  html: string | null;
+  text: string | null;
+  extracted_text: string | null;
+};
+
 type Membership = { space_id: string; item_id: string; added_at: number };
 
 type Manifest = {
@@ -98,6 +105,9 @@ function readImportStage(databasePath: string) {
         source_label, local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
         archived, favorite FROM items ORDER BY created_at, id`)
         .all() as ImportedItem[],
+      content: stage.db
+        .prepare("SELECT item_id, html, text, extracted_text FROM item_content")
+        .all() as ImportedContent[],
       spaces: stage.db
         .prepare("SELECT * FROM spaces ORDER BY position, created_at, id")
         .all() as ImportedSpace[],
@@ -285,12 +295,14 @@ export function makeImport(ctx: StorageContext) {
 
   const insertStaged = Effect.fnUntraced(function* (
     items: ImportedItem[],
+    content: ImportedContent[],
     spaces: ImportedSpace[],
     memberships: Membership[],
     assetFilesByItem: Map<string, number>,
   ) {
     const currentItemIds = yield* ids("items");
     const currentSpaceIds = yield* ids("spaces");
+    const contentByItem = new Map(content.map((row) => [row.item_id, row]));
     const importedItemIds = new Set<string>();
     const importedSpaceIds = new Set<string>();
     let assetFiles = 0;
@@ -311,6 +323,12 @@ export function makeImport(ctx: StorageContext) {
         ${item.body ?? ""}, ${item.body_format ?? "md"}, ${item.source_url}, ${item.source_label},
         ${item.local_asset_path}, ${item.thumbnail_path}, ${item.ocr_text}, ${item.metadata},
         ${item.created_at}, ${item.updated_at}, ${item.archived}, ${item.favorite})`;
+      const contentRow = contentByItem.get(item.id);
+      if (contentRow) {
+        yield* sql`INSERT INTO item_content (item_id, html, text, extracted_text)
+          VALUES (${item.id}, ${contentRow.html}, ${contentRow.text},
+          ${contentRow.extracted_text})`;
+      }
       if (item.kind === "image") yield* jobs.enqueue(item.id, "ocr_image");
       if (item.kind === "image" && !item.thumbnail_path)
         yield* jobs.enqueue(item.id, IMAGE_THUMBNAIL_JOB);
@@ -365,7 +383,7 @@ export function makeImport(ctx: StorageContext) {
       try: () => readImportStage(stageDatabase),
       catch: (cause) => cause,
     });
-    const { items, memberships } = stage;
+    const { items, content, memberships } = stage;
     const spaces: ImportedSpace[] = [];
     for (const space of stage.spaces) spaces.push(yield* validateImportedSpace(space));
     if (
@@ -440,7 +458,7 @@ export function makeImport(ctx: StorageContext) {
     }).pipe(Effect.tapError(() => removeDirectories(movedAssetDirectories)));
 
     const report = yield* sql
-      .withTransaction(insertStaged(items, spaces, memberships, assetFilesByItem))
+      .withTransaction(insertStaged(items, content, spaces, memberships, assetFilesByItem))
       .pipe(Effect.tapError(() => removeDirectories(movedAssetDirectories)));
     return { ...report, unverifiedAssetFiles } satisfies LibraryImportReport;
   });
