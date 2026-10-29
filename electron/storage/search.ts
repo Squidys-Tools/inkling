@@ -35,8 +35,10 @@ export function escapeFtsQuery(query: string) {
 
 function decodeFloatVector(blob: Uint8Array | null, dimension: number) {
   if (!blob || blob.byteLength !== dimension * 4) return null;
-  const bytes = Buffer.from(blob.buffer, blob.byteOffset, blob.byteLength);
-  return Array.from({ length: dimension }, (_, index) => bytes.readFloatLE(index * 4));
+  // Vectors are stored little-endian, which every platform we ship reads natively.
+  // A Float32Array view needs a 4-byte-aligned offset, so copy when the driver gives none.
+  const aligned = blob.byteOffset % 4 === 0 ? blob : new Uint8Array(blob);
+  return new Float32Array(aligned.buffer, aligned.byteOffset, dimension);
 }
 
 function dotProduct(left: ArrayLike<number>, right: ArrayLike<number>) {
