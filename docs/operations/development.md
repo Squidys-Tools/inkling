@@ -5,7 +5,7 @@ How to set up, run, check, and troubleshoot inkling. Contribution scope and PR e
 ## First-time setup
 
 1. Install Bun (pinned in `.bun-version`).
-2. `bun install` — plain install, no hooks and no lifecycle scripts.
+2. Run `bun install`. It installs no Git hooks and runs no lifecycle scripts; CI runs every gate.
 
 ## Running
 
@@ -77,20 +77,14 @@ Never add signing secrets or publish automatically. The Windows installer is not
 
 | Goal | Command | Notes |
 |---|---|---|
-| Everything | `bun run check` | Bun pin, frozen install (`--ignore-scripts`), typecheck of every workspace, tests, Knip, lint, both builds, ingestion smoke, extension build. CI runs the same steps as separate jobs |
-| Changed files | `bun run check:changed [ref]` | Pre-push subset for what the branch changed since `origin/main` (or `ref`): oxlint, oxfmt, related tests, Knip, typecheck. Not a CI substitute |
+| Everything | `bun run check` | Every gate CI runs, in one command |
+| Changed files | `bun run check:changed [ref]` | Lint, format, related tests, Knip and typecheck for what changed since `origin/main` or `ref`. Run it before pushing; it does not replace CI |
 | Typecheck | `bun run typecheck` | App, benchmark harness, and `electron/` |
 | Tests | `bun run test` | |
-| Unused code | `bun run knip` | Hard gate in CI; `knip.json` owns entry/project patterns. To clean up locally, run `bunx knip --fix` then `bun install` (re-syncs the lockfile if deps were pruned), fix any `noUnusedLocals` fallout, and re-run `bun run check` |
+| Unused code | `bun run knip` | To clean up, run `bunx knip --fix`, then `bun install` to re-sync the lockfile, then fix any `noUnusedLocals` errors |
 | Lint and format | `bun run lint` (`bun run lint:fix` to apply) | oxlint, with inkling rules in `oxlint-plugin-inkling/`, then oxfmt |
 | Bun pin | `bun run check:bun-version` | running Bun must match `.bun-version` |
-| Extension build | `bun run --cwd extension build` | Builds the Chrome MV3 extension and its service worker |
-
-For early signal, run `bun run check`. `noUnusedLocals` / `noUnusedParameters` are on — the compiler catches dead locals; Knip catches dead exports and dependencies.
-
-## Git hooks
-
-None — there are no local hooks by policy. Formatting, linting, and all other gates run in CI.
+| Extension build | `bun run --cwd extension build` | |
 
 ## CI behavior (what runs where)
 
