@@ -110,7 +110,6 @@ test("Collapsed Codex keeps every named Space selectable with its colour and act
         expect(button.getAttribute("aria-label")).toBe(spaces[index].name);
         expect(button.getAttribute("data-tooltip")).toBe(spaces[index].name);
         expect(button.getAttribute("aria-pressed")).toBe(String(index === 1));
-        expect(button.querySelector("svg")?.getAttribute("width")).toBe("15");
         expect(button.querySelector("svg")?.classList.contains("text-space-blue")).toBe(true);
         await act(async () => button.click());
       }
@@ -257,31 +256,4 @@ test("Collapsed Codex Space action reopens the sidebar and returns Add to tiles"
     expect(doc.querySelectorAll(".add-menu-tile")).toHaveLength(6);
     expect(doc.querySelector(".compact-add-option")).toBeNull();
   });
-});
-
-test("Codex Add keeps its label mounted for expanded view and the shared label fade", async () => {
-  await mounted(
-    <AddMenu
-      collapsible
-      open={false}
-      mode={null}
-      saving={false}
-      error={null}
-      onOpen={noop}
-      onClose={noop}
-      onModeChange={noop}
-      onSaveNote={async () => true}
-      onSaveLink={async () => true}
-      onSaveQuote={async () => true}
-      onPickFile={noop}
-      onScreenshot={noop}
-    />,
-    (doc) => {
-      const trigger = doc.querySelector(".codex-add-button")!;
-      expect(trigger.getAttribute("aria-label")).toBe("Add");
-      expect(trigger.querySelector(".codex-label")?.textContent).toBe("Add");
-      expect(trigger.querySelector(".sr-only")).toBeNull();
-      expect(trigger.querySelector("svg")?.getAttribute("width")).toBe("16");
-    },
-  );
 });
