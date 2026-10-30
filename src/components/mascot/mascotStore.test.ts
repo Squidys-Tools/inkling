@@ -20,11 +20,4 @@ describe("mascotStore", () => {
     expect(frame.bodyPath).not.toContain("NaN");
     expect(frame.eyes.length).toBeGreaterThan(0);
   });
-
-  test("unknown expression falls back instead of breaking", () => {
-    pushMascotParams({ state: "idle", expression: "nope" });
-    const frame = sampleMascotAt(5.0);
-    expect(frame.bodyPath.length).toBeGreaterThan(100);
-    pushMascotParams({ state: "idle", expression: "neutre" });
-  });
 });

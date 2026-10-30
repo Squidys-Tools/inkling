@@ -1,14 +1,14 @@
 import { useSyncExternalStore } from "react";
 import { BotEngine, type BotFrame } from "./bot/engine";
-import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION } from "./bot/expressions";
+import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION, type BotExpression } from "./bot/expressions";
 import { SHAPE_BY_ID } from "./bot/skins";
 import { RAYON } from "./bot/repere";
 import type { StateId } from "./bot/states";
 import { MascotFigure, MascotSearchEyes } from "./MascotFigure";
 
-export interface MascotParams {
+interface MascotParams {
   state: StateId;
-  expression: string;
+  expression: BotExpression["id"];
 }
 
 /**
@@ -106,10 +106,7 @@ export function pushMascotParams({ state, expression }: MascotParams) {
   if (state === appliedParams.state && expression === appliedParams.expression) return;
   appliedParams = { state, expression };
   engine.setState(state, clock);
-  engine.setExpression(
-    EXPRESSION_BY_ID.get(expression) ?? EXPRESSION_BY_ID.get(DEFAULT_EXPRESSION) ?? null,
-    clock,
-  );
+  engine.setExpression(EXPRESSION_BY_ID.get(expression) ?? null, clock);
   if (!running) {
     frame = engine.sample(clock);
     emit();
