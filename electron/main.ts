@@ -15,17 +15,12 @@ import {
   protocol,
   session,
   shell,
-  type WebContents,
 } from "electron";
 import electronUpdater from "electron-updater";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  type DeepLinkCapture,
-  parseDeepLinkCaptureCore,
-  parseHttpUrlCore,
-} from "../src/lib/deepLinkCore.mjs";
+import { parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
 import { createAiJobProcessors, jobTimeouts } from "./ai-jobs.ts";
 import { enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
 import { serveAssetFile } from "./asset-response.ts";
@@ -34,6 +29,12 @@ import { customWindowChrome } from "./window-chrome.ts";
 import { startCaptureServer } from "./capture-server.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
 import { createSingleFlightDirectoryPicker } from "./native-dialog.ts";
+import {
+  enqueueDeepLink,
+  handleDeepLinkArguments,
+  registerDeepLinkSubscriptions,
+  takePendingDeepLinks,
+} from "./deep-links.ts";
 import { createDisplayCaptureHandler } from "./display-capture.ts";
 import { snapshotDatabase } from "./sqlite-snapshot.ts";
 import {
@@ -99,8 +100,6 @@ const updateController = createUpdateController({
 app.setPath("userData", libraryDirectory);
 if (process.platform === "linux")
   app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
-const deepLinkSubscribers = new Set<WebContents>();
-const pendingDeepLinks: DeepLinkCapture[] = [];
 let mainWindow: BrowserWindow | undefined;
 let captureServer: Awaited<ReturnType<typeof startCaptureServer>> | undefined;
 let aiJobProcessors: ReturnType<typeof createAiJobProcessors> | undefined;
@@ -163,30 +162,6 @@ function allowCanvasReadableImages() {
       callback({ responseHeaders: { ...headers, "Access-Control-Allow-Origin": ["*"] } });
     },
   );
-}
-
-function sendDeepLinks(contents: WebContents, links: DeepLinkCapture[]) {
-  if (!contents.isDestroyed() && links.length > 0) {
-    contents.send("inkling:deep-link", links);
-  }
-}
-
-function enqueueDeepLink(value: string) {
-  const capture = parseDeepLinkCaptureCore(value);
-  if (!capture) return;
-
-  const subscribers = [...deepLinkSubscribers].filter((contents) => !contents.isDestroyed());
-  if (subscribers.length === 0) {
-    pendingDeepLinks.push(capture);
-    return;
-  }
-  for (const contents of subscribers) sendDeepLinks(contents, [capture]);
-}
-
-function handleDeepLinkArguments(argumentsList: string[]) {
-  for (const argument of argumentsList) {
-    if (argument.startsWith("inkling:")) enqueueDeepLink(argument);
-  }
 }
 
 function emitJobUpdated(itemId: string) {
@@ -368,7 +343,7 @@ function registerLibraryCommands() {
     cancel_update_download: () => updateController.cancelDownload(),
     check_for_updates: () => updateController.checkForUpdates(),
     install_update: ({ expectedVersion }) => updateController.installUpdate(expectedVersion),
-    "plugin:deep-link|get_current": () => pendingDeepLinks.splice(0),
+    "plugin:deep-link|get_current": takePendingDeepLinks,
   };
 
   for (const command of commandNames) {
@@ -389,14 +364,7 @@ function registerLibraryCommands() {
     });
   }
 
-  ipcMain.handle("inkling:deep-link:subscribe", (event) => {
-    deepLinkSubscribers.add(event.sender);
-    event.sender.once("destroyed", () => deepLinkSubscribers.delete(event.sender));
-    sendDeepLinks(event.sender, pendingDeepLinks.splice(0));
-  });
-  ipcMain.handle("inkling:deep-link:unsubscribe", (event) => {
-    deepLinkSubscribers.delete(event.sender);
-  });
+  registerDeepLinkSubscriptions();
 
   ipcMain.handle("inkling:window:minimize", (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize();
