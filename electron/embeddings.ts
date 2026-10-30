@@ -1,6 +1,5 @@
-import { createHash } from "node:crypto";
-import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdir, readFile, rename, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -10,6 +9,7 @@ import * as ort from "onnxruntime-node";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import { IMAGE_DIMENSION, IMAGE_MODEL, TEXT_DIMENSION, TEXT_MODEL } from "./embedding-contract.ts";
 import models from "./model-manifest.json" with { type: "json" };
+import { sha256File } from "./storage/shared.ts";
 import { sharpImageInput, validateImageDimensions } from "./thumbnail.ts";
 
 const maxTokens = 8192;
@@ -25,11 +25,11 @@ type TokenizerLike = {
   ): { ids: number[]; token_type_ids?: number[] };
 };
 
-async function sha256(path: string) {
-  const hash = createHash("sha256");
-  await pipeline(createReadStream(path), hash);
-  return hash.digest("hex");
-}
+const hasSha256 = (path: string, expected: string) =>
+  sha256File(path).then(
+    (hash) => hash === expected,
+    () => false,
+  );
 
 async function ensureAsset(
   path: string,
@@ -37,22 +37,11 @@ async function ensureAsset(
   allowDownload: boolean,
   bundledPath?: string,
 ) {
-  const cachedAssetExists = await stat(path).then(
-    () => true,
-    () => false,
-  );
-  if (cachedAssetExists && (await sha256(path)) === expectedHash) return path;
-
-  if (bundledPath) {
-    const bundledAssetExists = await stat(bundledPath).then(
-      () => true,
-      () => false,
-    );
-    if (bundledAssetExists && (await sha256(bundledPath)) === expectedHash) return bundledPath;
-  }
+  if (await hasSha256(path, expectedHash)) return path;
+  if (bundledPath && (await hasSha256(bundledPath, expectedHash))) return bundledPath;
 
   if (!allowDownload) throw new Error("model assets are unavailable for search");
-  if (cachedAssetExists) await rm(path, { force: true });
+  await rm(path, { force: true });
   await mkdir(dirname(path), { recursive: true });
   const partialPath = `${path}.${process.pid}.part`;
   try {
@@ -64,7 +53,7 @@ async function ensureAsset(
       Readable.fromWeb(response.body as WebReadableStream<Uint8Array>),
       createWriteStream(partialPath, { flags: "wx" }),
     );
-    if ((await sha256(partialPath)) !== expectedHash) {
+    if ((await sha256File(partialPath)) !== expectedHash) {
       throw new Error("model asset failed its SHA-256 check");
     }
     await rename(partialPath, path);
