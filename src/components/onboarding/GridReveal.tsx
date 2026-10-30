@@ -229,7 +229,7 @@ function drawScene(s: Scene) {
 
   const soft = 1 - smoothstep(GUTTER_FROM, GUTTER_TO, split);
   const gutter = s.scale * soft;
-  const rounded = soft > 0.01 && typeof ctx.roundRect === "function";
+  const rounded = soft > 0.01;
 
   const paint = (p: Patch) => {
     // snap to whole pixels so neighbouring cells stay flush with no seam
