@@ -37,14 +37,10 @@ export function formatImportSummary(report: LibraryImportReport) {
     `${countOf(report.importedSpaces, "Space")} added`,
   ];
   if (report.skippedDuplicateItems > 0) {
-    summary.push(
-      `${report.skippedDuplicateItems} existing ${report.skippedDuplicateItems === 1 ? "item" : "items"} left unchanged`,
-    );
+    summary.push(`${countOf(report.skippedDuplicateItems, "existing item")} left unchanged`);
   }
   if (report.skippedDuplicateSpaces > 0) {
-    summary.push(
-      `${report.skippedDuplicateSpaces} existing ${report.skippedDuplicateSpaces === 1 ? "Space" : "Spaces"} left unchanged`,
-    );
+    summary.push(`${countOf(report.skippedDuplicateSpaces, "existing Space")} left unchanged`);
   }
   if (report.assetFiles > 0) {
     summary.push(`${countOf(report.assetFiles, "file")} copied`);
