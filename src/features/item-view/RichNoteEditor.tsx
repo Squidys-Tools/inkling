@@ -27,7 +27,6 @@ export function RichNoteEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
-  const saveRef = useRef(onSave);
   const editorRootRef = useRef<HTMLDivElement>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
   const editor = useEditor({
@@ -43,10 +42,6 @@ export function RichNoteEditor({
       },
     },
   });
-
-  useEffect(() => {
-    saveRef.current = onSave;
-  }, [onSave]);
 
   useEffect(() => {
     if (!editor) return;
@@ -128,7 +123,7 @@ export function RichNoteEditor({
     setIsSaving(true);
     setError(null);
     try {
-      await saveRef.current(nextBody);
+      await onSave(nextBody);
       onEditingChange(false);
     } catch (saveError) {
       setError(errorMessage(saveError));
