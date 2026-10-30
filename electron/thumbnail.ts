@@ -150,13 +150,11 @@ export async function dominantImageColors(bytes: Buffer) {
     const key = (red << 8) | (green << 4) | blue;
     bins.set(key, (bins.get(key) ?? 0) + 1);
   }
+  const channel = (nibble: number) => (nibble * 17).toString(16).padStart(2, "0");
   const colors = [...bins]
     .sort((left, right) => right[1] - left[1])
     .slice(0, 5)
-    .map(
-      ([key]) =>
-        `#${((key >> 8) * 17).toString(16).padStart(2, "0")}${(((key >> 4) & 15) * 17).toString(16).padStart(2, "0")}${((key & 15) * 17).toString(16).padStart(2, "0")}`,
-    );
+    .map(([key]) => `#${channel(key >> 8)}${channel((key >> 4) & 15)}${channel(key & 15)}`);
   while (colors.length < 5) colors.push(colors.at(-1) ?? "#000000");
   return colors;
 }
