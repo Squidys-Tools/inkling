@@ -11,8 +11,7 @@ export type { StateId };
 export interface InklingMascotProps {
   size?: number;
   shape?: string;
-  color?: string;
-  /** Body color as any CSS color, overriding `color` when a skin hex will not do. */
+  /** Body color as any CSS color. */
   ink?: string;
   expression?: string;
   paper?: string;
@@ -53,8 +52,7 @@ const heldLook = (look: { yaw: number; pitch: number }) => ({
 export function InklingMascot({
   size = 80,
   shape = "inkling-splash",
-  color = "inkling",
-  ink: inkOverride,
+  ink = COLOR_BY_ID.get("inkling")?.hex ?? "#1a1a1a",
   expression = DEFAULT_EXPRESSION,
   paper = "#faf9f6",
   frozenAt,
@@ -64,7 +62,6 @@ export function InklingMascot({
   speed = 1,
 }: InklingMascotProps) {
   const shapeRadii = SHAPE_BY_ID.get(shape)?.radii ?? SHAPE_BY_ID.get(DEFAULT_SHAPE)?.radii ?? null;
-  const ink = inkOverride ?? COLOR_BY_ID.get(color)?.hex ?? "#1a1a1a";
   const expr = EXPRESSION_BY_ID.get(expression) ?? null;
 
   const [engine] = useState(() => {
