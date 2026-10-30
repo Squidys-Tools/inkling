@@ -28,30 +28,29 @@ export function capturePersistence({
   setItems: Dispatch<SetStateAction<LibraryItem[]>>;
   setSelectedItem: Dispatch<SetStateAction<LibraryItem | null>>;
 }) {
+  const prepend = (item: LibraryItem) => setItems((current) => [item, ...current]);
+
   async function persistFile(file: File, captureSource: string) {
     if (file.size > 50 * 1024 * 1024) throw new Error("File exceeds the 50 MB input limit");
     const kind = classifyFile(file);
-    if (canUseDesktopBackend) {
-      const storedItem = await saveFile({
-        fileName: file.name,
-        mimeType: file.type,
-        kind,
-        bytes: new Uint8Array(await file.arrayBuffer()),
-      });
-      const libraryItem = await storedItemToLibraryItem(storedItem);
-      setItems((current) => [libraryItem, ...current]);
-      return;
-    }
-
-    const item = await previewFileItem(file, kind, captureSource);
-    setItems((current) => [item, ...current]);
+    prepend(
+      canUseDesktopBackend
+        ? await storedItemToLibraryItem(
+            await saveFile({
+              fileName: file.name,
+              mimeType: file.type,
+              kind,
+              bytes: new Uint8Array(await file.arrayBuffer()),
+            }),
+          )
+        : await previewFileItem(file, kind, captureSource),
+    );
   }
 
   async function persistArticle(sourceUrl: string, captureSource: string, extensionTitle?: string) {
     const parsedUrl = parseHttpUrl(sourceUrl);
     const normalizedUrl = parsedUrl.toString();
     const preservedTitle = extensionTitle?.trim();
-    const fallbackTitle = preservedTitle || parsedUrl.hostname;
     if (canUseDesktopBackend) {
       const storedItem = await captureUrlItem({
         sourceUrl: normalizedUrl,
@@ -67,8 +66,8 @@ export function capturePersistence({
       return;
     }
 
-    const fallbackItem = previewArticleItem(parsedUrl, fallbackTitle);
-    setItems((current) => [fallbackItem, ...current]);
+    const fallbackItem = previewArticleItem(parsedUrl, preservedTitle || parsedUrl.hostname);
+    prepend(fallbackItem);
     void previewArticleEnrichment(normalizedUrl, fallbackItem, preservedTitle)
       .then((applyEnrichment) => {
         setItems((current) => current.map(applyEnrichment));
@@ -85,18 +84,13 @@ export function capturePersistence({
       return;
     }
 
-    if (canUseDesktopBackend) {
-      const storedItem = await createNote({
-        body: value,
-        metadata: { captureSource },
-      });
-      const libraryItem = await storedItemToLibraryItem(storedItem);
-      setItems((current) => [libraryItem, ...current]);
-      return;
-    }
-
-    const item = previewNoteItem(value, captureSource);
-    setItems((current) => [item, ...current]);
+    prepend(
+      canUseDesktopBackend
+        ? await storedItemToLibraryItem(
+            await createNote({ body: value, metadata: { captureSource } }),
+          )
+        : previewNoteItem(value, captureSource),
+    );
   }
 
   async function persistQuote(
@@ -117,20 +111,18 @@ export function capturePersistence({
         ? `https://${rawSource}`
         : rawSource;
 
-    if (canUseDesktopBackend) {
-      const storedItem = await createQuote({
-        body,
-        attribution: trimmedAttribution || undefined,
-        sourceUrl: trimmedSource || undefined,
-        metadata: { captureSource },
-      });
-      const libraryItem = await storedItemToLibraryItem(storedItem);
-      setItems((current) => [libraryItem, ...current]);
-      return;
-    }
-
-    const item = previewQuoteItem(body, trimmedAttribution, trimmedSource);
-    setItems((current) => [item, ...current]);
+    prepend(
+      canUseDesktopBackend
+        ? await storedItemToLibraryItem(
+            await createQuote({
+              body,
+              attribution: trimmedAttribution || undefined,
+              sourceUrl: trimmedSource || undefined,
+              metadata: { captureSource },
+            }),
+          )
+        : previewQuoteItem(body, trimmedAttribution, trimmedSource),
+    );
   }
 
   return { persistFile, persistArticle, persistText, persistQuote };
