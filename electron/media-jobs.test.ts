@@ -8,9 +8,9 @@ import {
   JOB_LEASE_MILLIS,
   PDF_THUMBNAIL_JOB,
 } from "./storage/library.ts";
+import { closeLibrary } from "./storage/test-helpers.ts";
 import {
   cleanUpJobTests,
-  closeLibrary,
   closeProcessors,
   createAiJobProcessors,
   imageFixture,

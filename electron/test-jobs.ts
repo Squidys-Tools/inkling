@@ -1,20 +1,23 @@
 import { afterAll, afterEach } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createAiJobProcessors as createProcessors } from "./ai-jobs.ts";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.ts";
 import type { Job } from "./storage/jobs.ts";
 import type { JobQueue, Library, LibraryOptions } from "./storage/library.ts";
-import { openTestLibrary, type TestLibrary } from "./storage/test-library.ts";
+import type { TestLibrary } from "./storage/test-library.ts";
+import {
+  closeAll,
+  removeTemporaryRoots,
+  temporaryRoot,
+  trackedLibrary,
+} from "./storage/test-helpers.ts";
 import type { WorkerOptions } from "./storage/worker.ts";
 import { createImageThumbnail, inspectImage } from "./thumbnail.ts";
 
 type Ai = ReturnType<typeof createProcessors>;
 type LaneOptions = Omit<WorkerOptions<Library | JobQueue>, "processors">;
 
-const roots: string[] = [];
-const libraries = new Set<TestLibrary>();
 const processors = new Set<Ai>();
 
 export function createAiJobProcessors(options: Parameters<typeof createProcessors>[0]) {
@@ -32,17 +35,14 @@ export async function openLibrary(
   path: string,
   { media, ...options }: Omit<LibraryOptions, "databasePath"> = {},
 ) {
-  const library = await openTestLibrary(path, {
+  return trackedLibrary(path, {
     media: { createThumbnail: createImageThumbnail, inspectImage, ...media },
     ...options,
   });
-  libraries.add(library);
-  return library;
 }
 
 export async function temporaryLibrary(options: Omit<LibraryOptions, "databasePath"> = {}) {
-  const root = mkdtempSync(join(tmpdir(), "inkling-electron-ai-"));
-  roots.push(root);
+  const root = temporaryRoot();
   return { root, library: await openLibrary(join(root, "library.sqlite3"), options) };
 }
 
@@ -93,22 +93,11 @@ export async function saveImage(library: TestLibrary, fileName = "photo.png") {
 export const thumbnailLane = (library: TestLibrary, ai: Ai, options: LaneOptions = {}) =>
   library.worker({ processors: ai.thumbnailProcessors, ...options });
 
-export async function closeLibrary(library: TestLibrary) {
-  libraries.delete(library);
-  await library.close();
-}
-
 export function cleanUpJobTests() {
   afterEach(async () => {
     for (const ai of processors) await closeProcessors(ai);
     processors.clear();
-    for (const library of libraries) await library.close();
-    libraries.clear();
-    Bun.gc(true);
+    await closeAll();
   });
-
-  afterAll(() => {
-    Bun.gc(true);
-    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-  });
+  afterAll(removeTemporaryRoots);
 }
