@@ -29,16 +29,14 @@ export type UrlArticle = {
 
 type Candidate = { rowid: number; id: string };
 
-// Exported so a test can check the query plan walks the kind index without sorting.
-export const pdfThumbnailCandidateSql = `SELECT rowid, id FROM items
-  WHERE kind = 'pdf' AND rowid > ? AND thumbnail_path IS NULL AND local_asset_path != ''
+const missingThumbnailCandidateSql = (kind: "pdf" | "video") => `SELECT rowid, id FROM items
+  WHERE kind = '${kind}' AND rowid > ? AND thumbnail_path IS NULL AND local_asset_path != ''
   AND NOT EXISTS (SELECT 1 FROM jobs WHERE item_id = items.id AND kind = ? AND status = 'failed')
   ORDER BY rowid LIMIT 1`;
 
-const videoPosterCandidateSql = `SELECT rowid, id FROM items
-  WHERE kind = 'video' AND rowid > ? AND thumbnail_path IS NULL AND local_asset_path != ''
-  AND NOT EXISTS (SELECT 1 FROM jobs WHERE item_id = items.id AND kind = ? AND status = 'failed')
-  ORDER BY rowid LIMIT 1`;
+// Exported so a test can check the query plan walks the kind index without sorting.
+export const pdfThumbnailCandidateSql = missingThumbnailCandidateSql("pdf");
+const videoPosterCandidateSql = missingThumbnailCandidateSql("video");
 
 const imagePaletteCandidateSql = `SELECT rowid, id FROM items
   WHERE kind = 'image' AND thumbnail_path IS NOT NULL AND rowid > ?
