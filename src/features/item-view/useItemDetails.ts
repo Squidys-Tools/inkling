@@ -30,7 +30,7 @@ import {
 import { errorMessage } from "../errorMessage";
 
 // The backend resolves false when the item has nothing on disk to point at.
-export function showItemInFolderFromOverlay(item: LibraryItem) {
+export function revealItemInFolder(item: LibraryItem) {
   void showItemInFolder(String(item.id))
     .then((shown) => {
       if (!shown) toast("Nothing is stored on disk for this item", { closeButton: true });

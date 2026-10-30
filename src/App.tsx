@@ -25,7 +25,7 @@ import { AddMenu } from "./features/capture/AddMenu/AddMenu";
 import { CaptureBar } from "./features/capture/CaptureBar";
 import { FileImportStatus } from "./features/capture/FileImportStatus";
 import { useCapture } from "./features/capture/useCapture";
-import { useItemDetails, showItemInFolderFromOverlay } from "./features/item-view/useItemDetails";
+import { useItemDetails, revealItemInFolder } from "./features/item-view/useItemDetails";
 import { useItemSelection } from "./features/item-view/useItemSelection";
 import type { LibraryCardContext } from "./features/library/LibraryCard";
 import { LibraryStage } from "./features/library/LibraryStage";
@@ -363,7 +363,7 @@ function App() {
       onOpenReader: openReader,
       onLoadSimilar: loadSimilarLibraryItems,
       onOpenItem: openSimilarItem,
-      onShowInFolder: canUseDesktopBackend ? showItemInFolderFromOverlay : undefined,
+      onShowInFolder: canUseDesktopBackend ? revealItemInFolder : undefined,
       onDelete: deleteArchivedLibraryItem,
       onForget: forgetItem,
       onRetryJob: retryJob,

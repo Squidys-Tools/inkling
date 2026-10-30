@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import type { ContextMenuEntry } from "../../components/ContextMenu/ContextMenu";
 import type { LibraryItem } from "../../lib/types";
 import { hostnameForUrl } from "../hostname";
-import { showItemInFolderFromOverlay } from "../item-view/useItemDetails";
+import { revealItemInFolder } from "../item-view/useItemDetails";
 
 type CardMenuOptions = {
   canUseDesktopBackend: boolean;
@@ -76,7 +76,7 @@ export function useCardMenu({ canUseDesktopBackend, openReader, forgetItem }: Ca
       entries.push({
         label: "Show in folder",
         icon: Folder01Icon,
-        onSelect: () => showItemInFolderFromOverlay(item),
+        onSelect: () => revealItemInFolder(item),
       });
     }
     entries.push({
