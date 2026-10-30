@@ -17,28 +17,27 @@ async function load() {
   if (typeof stored[TOKEN_KEY] === "string") tokenInput.value = stored[TOKEN_KEY];
 }
 
-saveButton.addEventListener("click", () => {
-  void (async () => {
-    const enteredAddress = baseUrlInput.value.trim();
-    const normalizedAddress = enteredAddress.includes("://")
-      ? enteredAddress
-      : `http://${enteredAddress}`;
-    const baseUrl = normalizeCaptureServerAddress(normalizedAddress);
-    if (!baseUrl) {
-      statusLine.textContent =
-        "Enter the 127.0.0.1 address shown in inkling Settings → Browser extension.";
-      return;
-    }
+async function save() {
+  const enteredAddress = baseUrlInput.value.trim();
+  const normalizedAddress = enteredAddress.includes("://")
+    ? enteredAddress
+    : `http://${enteredAddress}`;
+  const baseUrl = normalizeCaptureServerAddress(normalizedAddress);
+  if (!baseUrl) {
+    statusLine.textContent =
+      "Enter the 127.0.0.1 address shown in inkling Settings → Browser extension.";
+    return;
+  }
 
-    const token = tokenInput.value.trim();
-    if (!isPairingToken(token)) {
-      statusLine.textContent = "Enter the pairing token from inkling Settings → Browser extension.";
-      return;
-    }
+  const token = tokenInput.value.trim();
+  if (!isPairingToken(token)) {
+    statusLine.textContent = "Enter the pairing token from inkling Settings → Browser extension.";
+    return;
+  }
 
-    await browser.storage.local.set({ [BASE_URL_KEY]: baseUrl, [TOKEN_KEY]: token });
-    statusLine.textContent = "Saved.";
-  })();
-});
+  await browser.storage.local.set({ [BASE_URL_KEY]: baseUrl, [TOKEN_KEY]: token });
+  statusLine.textContent = "Saved.";
+}
 
+saveButton.addEventListener("click", () => void save());
 void load();
