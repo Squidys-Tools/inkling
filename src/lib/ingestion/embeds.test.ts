@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { embedCandidate } from "./embeds";
+import { parseHTML } from "linkedom";
+import { collectSafeEmbeds, embedCandidate } from "./embeds";
 
 const pageUrl = "https://example.com/articles/first";
 
@@ -46,4 +47,31 @@ test("direct media passes only as a media file off provider hosts", () => {
   expect(embedCandidate("https://example.com/not-a-video", "video", pageUrl)).toBeNull();
   expect(embedCandidate("https://www.youtube.com/watch.mp4", "video", pageUrl)).toBeNull();
   expect(embedCandidate("blob:https://example.com/clip.mp4", "video", pageUrl)).toBeNull();
+});
+
+test("collects each allowed embed on a page once", () => {
+  const { document } = parseHTML(`<html><head>
+    <meta property="og:video" content="https://www.youtube.com/embed/abc12345678">
+  </head><body>
+    <iframe src="https://www.youtube.com/watch?v=abc12345678" title="Video"></iframe>
+    <iframe src="https://www.youtube.com/not-a-video"></iframe>
+    <video src="https://www.youtube.com/watch?v=abc12345678"></video>
+    <audio><source src="/talk.mp3"></audio>
+  </body></html>`);
+  expect(collectSafeEmbeds(document, pageUrl)).toEqual([
+    {
+      kind: "iframe",
+      provider: "youtube",
+      sourceUrl: "https://www.youtube.com/watch?v=abc12345678",
+      embedUrl: "https://www.youtube-nocookie.com/embed/abc12345678",
+      title: "Video",
+    },
+    {
+      kind: "audio",
+      provider: "direct",
+      sourceUrl: "https://example.com/talk.mp3",
+      embedUrl: "https://example.com/talk.mp3",
+      title: undefined,
+    },
+  ]);
 });

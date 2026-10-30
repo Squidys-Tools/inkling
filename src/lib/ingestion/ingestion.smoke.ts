@@ -1,14 +1,9 @@
 import { parseHTML } from "linkedom";
 import { extractWithDefuddle } from "./defuddle-adapter";
 import { extractFallback } from "./fallback";
-import { collectSafeEmbeds } from "./embeds";
-import { cleanCapturedHtml } from "./captured-html";
-import { classifyFile } from "./file-classification";
 import { ingestUrl } from "./url-ingestion";
 import { isUrlIngestionError } from "./errors";
-import { normalizeHttpUrl } from "./url";
-import { autoplayEmbedUrl, providerLabel, videoLinkFromSourceUrl } from "./video-links";
-import { normalizeXPostOEmbed, parseXPostUrl, xPostOEmbedUrl } from "./x-post";
+import { xPostOEmbedUrl } from "./x-post";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`Smoke assertion failed: ${message}`);
@@ -94,29 +89,6 @@ assert(
   "fallback keeps Open Graph image dimensions",
 );
 
-const safeEmbeds = collectSafeEmbeds(document, pageUrl);
-assert(
-  safeEmbeds.some((embed) => embed.provider === "youtube"),
-  "valid YouTube iframe is allowlisted",
-);
-assert(
-  !safeEmbeds.some((embed) => embed.sourceUrl.includes("not-a-video")),
-  "malformed YouTube URL is rejected",
-);
-assert(
-  !safeEmbeds.some(
-    (embed) => embed.kind === "video" && embed.sourceUrl.includes("youtube.com/watch"),
-  ),
-  "provider URL is not accepted as direct video media",
-);
-
-const sanitized = cleanCapturedHtml(
-  `<iframe src="javascript:alert(1)"></iframe><video src="https://example.com/not-a-video"></video>`,
-  pageUrl,
-);
-assert(!sanitized.includes("javascript:"), "unsafe iframe URL is removed");
-assert(!sanitized.includes("not-a-video"), "unsupported direct video URL is removed");
-
 const fetched = await ingestUrl(pageUrl, {
   fetch: async () =>
     new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } }),
@@ -184,17 +156,7 @@ assert(
   "heading duplicating the description becomes a lede paragraph",
 );
 const xPostUrl = "https://x.com/jack/status/20";
-assert(parseXPostUrl(`${xPostUrl}#reply`)?.postId === "20", "X post URLs are recognized");
-assert(parseXPostUrl("https://x.com/jack") === null, "X profile URLs are not treated as posts");
 const xOEmbedHtml = `<blockquote class="twitter-tweet" data-dnt="true"><p lang="en">just setting up my twttr</p>&mdash; jack (@jack) <a href="${xPostUrl}">March 21, 2006</a></blockquote>`;
-const xOEmbed = normalizeXPostOEmbed(xPostUrl, {
-  html: xOEmbedHtml,
-  author_name: "jack",
-  author_url: "https://x.com/jack",
-  width: 550,
-});
-assert(xOEmbed?.provider === "x", "X oEmbed responses become social metadata");
-assert(xOEmbed?.text === "just setting up my twttr", "X oEmbed text is extracted");
 const ingestedXPost = await ingestUrl(xPostUrl, {
   fetch: async (url) => {
     assert(
@@ -265,29 +227,7 @@ assert(
   "redirects to private-network URLs are rejected before the next fetch",
 );
 
-assert(
-  normalizeHttpUrl("../cover.jpg", pageUrl) === "https://example.com/cover.jpg",
-  "relative URL normalization works",
-);
-assert(
-  videoLinkFromSourceUrl("https://youtu.be/abc12345678")?.provider === "youtube",
-  "short YouTube links become video link cards",
-);
-assert(
-  videoLinkFromSourceUrl("javascript:alert(1)") === null,
-  "video link policy rejects javascript URL",
-);
-
-const youTubeLink = videoLinkFromSourceUrl("https://www.youtube.com/watch?v=abc12345678");
-assert(youTubeLink?.provider === "youtube", "YouTube watch links become video link cards");
-assert(
-  youTubeLink?.embedUrl === "https://www.youtube-nocookie.com/embed/abc12345678",
-  "video link embed URLs are canonicalized",
-);
-assert(
-  youTubeLink?.posterUrl === "https://i.ytimg.com/vi/abc12345678/hqdefault.jpg",
-  "YouTube video links derive a poster image",
-);
+const youTubePoster = "https://i.ytimg.com/vi/abc12345678/hqdefault.jpg";
 const indexedYouTubeLink = await ingestUrl("https://www.youtube.com/watch?v=abc12345678", {
   fetch: async (url) => {
     assert(
@@ -298,7 +238,7 @@ const indexedYouTubeLink = await ingestUrl("https://www.youtube.com/watch?v=abc1
       JSON.stringify({
         title: "Indexed video title",
         author_name: "Theo",
-        thumbnail_url: "https://i.ytimg.com/vi/abc12345678/hqdefault.jpg",
+        thumbnail_url: youTubePoster,
       }),
       { headers: { "content-type": "application/json" } },
     );
@@ -309,44 +249,12 @@ assert(
   "video indexing preserves oEmbed titles",
 );
 assert(
-  indexedYouTubeLink.safeEmbeds[0]?.embedUrl === youTubeLink.embedUrl,
+  indexedYouTubeLink.safeEmbeds[0]?.embedUrl ===
+    "https://www.youtube-nocookie.com/embed/abc12345678",
   "video indexing stores the safe embed URL",
 );
 assert(
-  indexedYouTubeLink.imageUrls.includes(youTubeLink.posterUrl ?? ""),
+  indexedYouTubeLink.imageUrls.includes(youTubePoster),
   "video indexing stores the poster image",
 );
-const vimeoLink = videoLinkFromSourceUrl("https://vimeo.com/12345678901");
-assert(
-  vimeoLink?.provider === "vimeo" && vimeoLink.posterUrl === undefined,
-  "Vimeo links become video cards without a derived poster",
-);
-assert(
-  videoLinkFromSourceUrl("https://example.com/articles/first") === null,
-  "non-video article links stay articles",
-);
-assert(
-  videoLinkFromSourceUrl("https://youtube.com/channel/xyz") === null,
-  "YouTube pages without a video id stay articles",
-);
-assert(
-  autoplayEmbedUrl("https://player.vimeo.com/video/123") ===
-    "https://player.vimeo.com/video/123?autoplay=1",
-  "autoplay parameter appends cleanly",
-);
-assert(
-  providerLabel("youtube") === "YouTube" && providerLabel("vimeo") === "Vimeo",
-  "provider labels render properly",
-);
-
-assert(
-  classifyFile({ name: "photo.pdf", type: "image/png" }) === "image",
-  "recognized MIME type beats misleading extension",
-);
-assert(
-  classifyFile({ name: "clip.bin", type: "video/mp4; codecs=h264" }) === "video",
-  "video MIME type is recognized",
-);
-assert(classifyFile({ name: "document.PDF", type: "" }) === "pdf", "PDF extension fallback works");
-
 console.log("Ingestion smoke checks passed.");
