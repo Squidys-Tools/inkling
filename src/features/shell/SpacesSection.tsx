@@ -1,11 +1,4 @@
-import {
-  ArrowDown01Icon,
-  ArrowUp01Icon,
-  Cancel01Icon,
-  Edit01Icon,
-  PlusSignIcon,
-  Folder01Icon,
-} from "@hugeicons/core-free-icons";
+import { Folder01Icon, PlusSignIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AnimatePresence, motion } from "motion/react";
 import type { FormEvent, RefObject } from "react";
@@ -13,12 +6,8 @@ import type { SpaceKind, StoredSpace } from "../../lib/libraryApi";
 import { Button } from "../../ui/Button";
 import { cx } from "../../ui/cx";
 import { IconButton } from "../../ui/IconButton";
-import { SpaceMark } from "../../ui/SpaceMark";
-import { countClass, rowClass } from "./Sidebar";
+import { SpaceRow, type SpaceRenaming } from "./SpaceRow";
 import { SpacesRail } from "./SpacesRail";
-
-const tool =
-  "grid flex-none place-items-center rounded-[5px] p-[3px] text-muted cursor-pointer transition-[color,background-color] duration-150 ease-[ease] focus-visible:outline-none!";
 
 export type SpaceRowActions = {
   select: (space: StoredSpace) => void;
@@ -58,12 +47,7 @@ export function SpacesSection({
   spaces: StoredSpace[];
   activeSpaceId: string | null;
   activeCount: number;
-  renaming: {
-    id: string | null;
-    draft: string;
-    setDraft: (draft: string) => void;
-    inputRef: RefObject<HTMLInputElement | null>;
-  };
+  renaming: SpaceRenaming;
   actions: SpaceRowActions;
   draft: SpaceDraft;
   draftNameInputRef: RefObject<HTMLInputElement | null>;
@@ -88,116 +72,16 @@ export function SpacesSection({
             </IconButton>
           </div>
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5">
-            {spaces.map((space) => {
-              const selected = activeSpaceId === space.id;
-              return (
-                <div
-                  key={space.id}
-                  className={cx(
-                    rowClass,
-                    "group/space text-[14px]",
-                    selected ? "font-semibold text-ink-active" : "text-ink-soft hover:text-ink",
-                  )}
-                >
-                  <Button
-                    className="mr-2.5 grid size-4 flex-none place-items-center p-0 cursor-pointer focus-visible:outline-none!"
-                    data-tooltip={`Change color (now ${space.color})`}
-                    aria-label={`Change color of ${space.name}`}
-                    onClick={() => actions.cycleColor(space)}
-                  >
-                    <span className="block" aria-hidden="true">
-                      <SpaceMark color={space.color} />
-                    </span>
-                  </Button>
-                  {renaming.id === space.id ? (
-                    <input
-                      ref={renaming.inputRef}
-                      className="min-h-[26px] w-full min-w-0 flex-1 rounded-lg border border-accent bg-surface px-2 py-0 text-[13px] text-ink outline-none!"
-                      value={renaming.draft}
-                      aria-label={`Rename ${space.name}`}
-                      maxLength={80}
-                      onChange={(event) => renaming.setDraft(event.target.value)}
-                      onClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => {
-                        event.stopPropagation();
-                        if (event.key === "Enter") actions.rename(space, renaming.draft);
-                        else if (event.key === "Escape") actions.cancelRename();
-                      }}
-                      // Blur commits, matching Finder/Explorer/VS Code rename fields:
-                      // silently discarding typed text loses work, while an
-                      // accidental save is one rename away from fixed.
-                      onBlur={() => actions.rename(space, renaming.draft)}
-                    />
-                  ) : (
-                    <Button
-                      className="flex min-w-0 flex-1 items-center gap-2.5 p-0 text-left cursor-pointer focus-visible:outline-none!"
-                      onClick={() => actions.select(space)}
-                      aria-pressed={selected}
-                    >
-                      <span className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden whitespace-nowrap [overscroll-behavior-inline:contain] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        {space.name}
-                      </span>
-                      <span
-                        className={cx(
-                          countClass,
-                          "group-hover/space:hidden group-focus-within/space:hidden",
-                        )}
-                      >
-                        {(
-                          space.itemCount ?? (selected ? activeCount : undefined)
-                        )?.toLocaleString()}
-                      </span>
-                    </Button>
-                  )}
-                  <span className="flex w-0 flex-none overflow-hidden opacity-0 transition-opacity duration-150 ease-[ease] group-hover/space:ml-2.5 group-hover/space:w-[72px] group-hover/space:opacity-100 group-focus-within/space:ml-2.5 group-focus-within/space:w-[72px] group-focus-within/space:opacity-100">
-                    <Button
-                      className={cx(tool, "hover:text-ink")}
-                      aria-label={`Move ${space.name} up`}
-                      data-tooltip="Move Space up"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        actions.move(space, -1);
-                      }}
-                    >
-                      <HugeiconsIcon icon={ArrowUp01Icon} size={12} />
-                    </Button>
-                    <Button
-                      className={cx(tool, "hover:text-ink")}
-                      aria-label={`Move ${space.name} down`}
-                      data-tooltip="Move Space down"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        actions.move(space, 1);
-                      }}
-                    >
-                      <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
-                    </Button>
-                    <Button
-                      className={cx(tool, "hover:text-ink")}
-                      aria-label={`Rename ${space.name}`}
-                      data-tooltip="Rename Space"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        actions.startRename(space);
-                      }}
-                    >
-                      <HugeiconsIcon icon={Edit01Icon} size={12} />
-                    </Button>
-                    <Button
-                      className={cx(tool, "hover:text-[#e08a5e]")}
-                      aria-label={`Delete ${space.name}`}
-                      data-tooltip="Delete Space"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        actions.remove(space);
-                      }}
-                    >
-                      <HugeiconsIcon icon={Cancel01Icon} size={12} />
-                    </Button>
-                  </span>
-                </div>
-              );
-            })}
+            {spaces.map((space) => (
+              <SpaceRow
+                key={space.id}
+                space={space}
+                selected={activeSpaceId === space.id}
+                activeCount={activeCount}
+                renaming={renaming}
+                actions={actions}
+              />
+            ))}
           </div>
           <AnimatePresence mode="wait">
             {draft.isOpen && (
