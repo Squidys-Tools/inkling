@@ -21,9 +21,7 @@ export function useLibraryView(libraryScrollRef: RefObject<HTMLDivElement | null
   const libraryViewAnimationRef = useRef<gsap.core.Animation | null>(null);
   const libraryViewEnteringRef = useRef(false);
   const libraryViewTransitionRunRef = useRef(0);
-  const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
-    typeof window === "undefined" ? 960 : window.innerWidth,
-  );
+  const [libraryViewportWidth, setLibraryViewportWidth] = useState(() => window.innerWidth);
 
   // Only cards in view animate; the rest stay hidden until the entrance ends.
   const playLibraryEntrance = useCallback(
@@ -125,15 +123,9 @@ export function useLibraryView(libraryScrollRef: RefObject<HTMLDivElement | null
         setLibraryViewportWidth((current) => (current === nextWidth ? current : nextWidth));
     };
     updateWidth();
-
-    if (typeof ResizeObserver !== "undefined") {
-      const observer = new ResizeObserver(updateWidth);
-      observer.observe(element);
-      return () => observer.disconnect();
-    }
-
-    window.addEventListener("resize", updateWidth);
-    return () => window.removeEventListener("resize", updateWidth);
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+    return () => observer.disconnect();
   }, [libraryScrollRef]);
 
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);
