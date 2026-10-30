@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   AtSignIcon,
   Bookmark01Icon,
@@ -56,22 +56,19 @@ export function mediaAspectRatioFor(item: LibraryItem): number {
   }
 }
 
+const KIND_ICONS: Record<ItemKind, IconSvgElement> = {
+  Article: Link01Icon,
+  Image: Image01Icon,
+  Note: SparklesIcon,
+  PDF: FileTextIcon,
+  Quote: Bookmark01Icon,
+  Video: PlayIcon,
+  Post: AtSignIcon,
+  File: SparklesIcon,
+};
+
 export function KindIcon({ kind }: { kind: ItemKind }) {
-  const icon =
-    kind === "Image"
-      ? Image01Icon
-      : kind === "Article"
-        ? Link01Icon
-        : kind === "PDF"
-          ? FileTextIcon
-          : kind === "Quote"
-            ? Bookmark01Icon
-            : kind === "Post"
-              ? AtSignIcon
-              : kind === "Video"
-                ? PlayIcon
-                : SparklesIcon;
-  return <HugeiconsIcon icon={icon} size={13} />;
+  return <HugeiconsIcon icon={KIND_ICONS[kind]} size={13} />;
 }
 
 export function pdfPreviewTitle(value: string): string {
