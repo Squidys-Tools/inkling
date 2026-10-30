@@ -194,12 +194,8 @@ function splitNoteBody(markdown: string, title: string) {
   return { titleHeading: firstLine, body };
 }
 
-export function noteBodyForPreview(markdown: string, title: string): string {
-  return splitNoteBody(markdown, title).body;
-}
-
 export function noteBodyForEditor(markdown: string | undefined, title: string): string {
-  return markdown === undefined ? "" : noteBodyForPreview(markdown, title);
+  return markdown === undefined ? "" : splitNoteBody(markdown, title).body;
 }
 
 export function noteBodyForStorage(

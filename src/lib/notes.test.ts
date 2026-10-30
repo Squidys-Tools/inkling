@@ -3,7 +3,6 @@ import {
   isSafeNoteLink,
   markdownToPlainText,
   noteBodyForEditor,
-  noteBodyForPreview,
   noteBodyForStorage,
 } from "./notes";
 
@@ -141,28 +140,22 @@ describe("markdownToPlainText", () => {
   });
 });
 
-describe("noteBodyForPreview", () => {
+describe("noteBodyForEditor", () => {
   test("does not repeat a leading heading that matches the item title", () => {
-    expect(noteBodyForPreview("# Reading list\n\n- [ ] One", "Reading list")).toBe("- [ ] One");
+    expect(noteBodyForEditor("# Reading list\n\n- [ ] One", "Reading list")).toBe("- [ ] One");
   });
 
   test("keeps a distinct leading heading", () => {
-    expect(noteBodyForPreview("# Notes\n\nBody", "Reading list")).toBe("# Notes\n\nBody");
+    expect(noteBodyForEditor("# Notes\n\nBody", "Reading list")).toBe("# Notes\n\nBody");
   });
 
   test("keeps the leading heading when the item has no title to match it against", () => {
-    expect(noteBodyForPreview("# Notes\n\nBody", "")).toBe("# Notes\n\nBody");
-    expect(noteBodyForPreview("# Notes\n\nBody", "   ")).toBe("# Notes\n\nBody");
+    expect(noteBodyForEditor("# Notes\n\nBody", "")).toBe("# Notes\n\nBody");
+    expect(noteBodyForEditor("# Notes\n\nBody", "   ")).toBe("# Notes\n\nBody");
   });
 
   test("reads a body that is nothing but the title heading as empty", () => {
-    expect(noteBodyForPreview("# Reading list", "Reading list")).toBe("");
-  });
-});
-
-describe("noteBodyForEditor", () => {
-  test("removes the duplicated title before editing", () => {
-    expect(noteBodyForEditor("# Reading list\n\n- [ ] One", "Reading list")).toBe("- [ ] One");
+    expect(noteBodyForEditor("# Reading list", "Reading list")).toBe("");
   });
 
   test("is empty while the body has not loaded", () => {
