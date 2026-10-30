@@ -39,7 +39,7 @@ Supported media:
 
 Search for any word including words *inside* your images and scanned documents. inkling reads text out of pictures (OCR) so a screenshot of a recipe, a photo of a whiteboard, or a scanned PDF is just as searchable as a note you typed.
 
-It also understands meaning, not just exact words, and can find images that look similar to another image. Something like `shoes blue`, `type:image`, `tag:research`, or `red honeycrisp apple` just works.
+It also understands meaning, not just exact words, and can find images that look similar to another image. Searches like `blue shoes` or `red honeycrisp apple` just work.
 
 ### 3. Browse, read, and rediscover
 
@@ -48,7 +48,7 @@ It also understands meaning, not just exact words, and can find images that look
 - **PDF viewer** — page navigation built in.
 - **Video cards** — YouTube and Vimeo links get previews with click-to-play; uploaded videos play natively.
 - **Quote cards** — save a quote with where it came from.
-- **Smart Spaces** — Basically saved search queries, Spaces update themselves. Save a search once (say, `tag:essay`) and new saves show up on their own.
+- **Smart Spaces** — Basically saved search queries, Spaces update themselves. Save a search once (say, `essay`) and new saves show up on their own.
 
 ### 4. Your stuff stays yours
 
