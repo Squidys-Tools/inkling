@@ -1,184 +1,72 @@
 # inkling
 
-inkling is a home for everything worth keeping. Articles, images, screenshots, PDFs, notes, quotes, video links. An Electron desktop app for Windows, with React, TypeScript, and Vite in the frontend and Node.js and SQLite in the backend. Everything stays on the machine.
+inkling is a private visual library: a Windows Electron app with a React, TypeScript and Vite renderer and a Node.js main process on SQLite. Users save articles, images, screenshots, PDFs, notes, quotes and video links, and find them later by describing them. Search is the only organizer; there are no folders.
 
-Think of it as a private visual library with semantic search as the only organizer. No folders to maintain. Save arbitrary media in seconds, find it later by describing it.
+## Product rules
 
-## What makes inkling special
+Users keep things here they do not want to lose. A change that breaks one of these rules is a bug, however correct its code is.
 
-People keep things here they do not want to lose, things that are important to them, or that give them inspiration or creative ideas. These are the things that we must never compromise on.
+1. **Capture is instant.** The card appears at once. OCR, extraction, embeddings and indexing run as background jobs while the user keeps working.
+2. **Performance.** Send summaries and thumbnails over IPC, not full content. Keep the card grid virtualized. Load a thumbnail where one will do. FTS, vector search and Smart Space evaluation do not run on every keystroke. Nothing repaints continuously except the mascot.
+3. **Local first.** The library is a SQLite file plus assets under `assets/items/<id>/`. The network is used only for URLs the user saves, the one-time model download, update checks, and video embeds the user plays. No accounts, analytics or uploads.
+4. **Quiet intelligence.** AI improves search and stays out of the interface: no confidence scores, AI labels, tag correction flows or model management. Never rewrite a user's title, note or tag. When AI fails, fall back to metadata and text search. The ink-blot mascot never talks: calm at rest, subtly alive while jobs run, sad only when capture fails.
+5. **Visual by type.** Each `ItemKind` in `src/lib/types.ts` has its own card and thumbnail treatment. Keep that when adding a kind.
 
-### 1. Capture is instant and seamless
+Find the real constraint, then build the smallest thing that makes the correct behavior unsurprising. Remove complexity that does not earn its place and add none for show. If a rule here fights the task, say so and get a maintainer's sign-off.
 
-Saving must be faster than deciding where something belongs. The card appears right away. OCR, embeddings, fetching and/or indexing run in the background while the user keeps browsing or continues on with something else. A change that blocks capture on processing is a bug, no matter how correct the processing is.
+## Vocabulary
 
-### 2. Performance
+- **we** and **maintainers** are the people you work for. The **user** is the person using inkling.
+- An **item** is one saved thing, as data. A **card** is how an item looks, as UI.
+- The **library** is the SQLite database plus the asset store.
+- **Capture** is getting something in: the Add button, paste, drag and drop, clipboard, screenshot, or the **deep link** `inkling://capture?url=...`. The Chrome extension in `extension/` uses the deep link or the loopback receiver in `electron/capture-server.ts`.
+- A **job** is one unit of background work on the persisted queue with leases. Jobs retry, leases expire, and interrupted jobs recover on restart.
+- A **Space** is a collection. A Smart Space is a saved search that runs each time it loads; a regular Space holds items the user picked.
+- **Preview** is `bun run dev` or `bun run dev:app`: sample data and no desktop backend. The **full app** is the packaged build from `bun run build:dir`. OCR, embeddings and file access run only in the full app.
 
-Lots of apps have gotten bogged down with bad tech decisions and "slop". We regularly audit for performance regressions, often caused by passing full content over Electron IPC instead of summaries/thumbnails, rendering the card grid without virtualization, loading full assets where a thumbnail would do, blocking capture on extraction/OCR/embeddings, and running FTS + vector + Smart Space re-evaluation on every keystroke. Keep capture instant and processing in background jobs. Make sure all changes are considerate of performance impact.
+## Safety
 
-### 3. Local first, forever
-
-The library lives in SQLite on the user's disk, with files kept as assets beside it under `assets/items/<id>/`. No account, no feed, no tracking. Network is only for fetching data in a URL the user asked to save like video embed links, the one time model download, or when a user plays a video embed link but that is handled by the embed. Do not add calls home, analytics, or silent uploads.
-
-### 4. Quiet intelligence
-
-AI helpers stay invisible. They make search better. Never surface confidence scores, AI labels, tag correction flows, or model management chores in the main interface. Never rewrite a user title, note, or tag. When AI fails, fall back to plain metadata and text search. Our mascot is an ink-blot that stays out of the way. Calm at rest, subtly alive while work runs, sad only when capture fails. It never talks, never explains AI, never interrupts, it just chills in the background and gives some life to the app.
-
-### 5. Visual by type
-
-An article, a photo, a PDF, a quote and a note should not all look like generic bookmarks. Each media type gets its own card treatment and its own thumbnail. Keep it that way when adding types.
-
-## A note on taste
-
-Simple software that feels obvious beats impressive machinery. Do not preserve complexity just because it already exists. Do not introduce machinery because it looks architecturally impressive. Understand the real constraint, then fight for the smallest model that makes the correct behavior unsurprising.
-
-Channel both "measure twice, cut once" and "yagni". Fight scope creep. Try to honor the dev's intent in both a minimal and realistic fashion.
-
-The rest of this document is meant to help you navigate the codebase and make changes effectively. Think of these instructions less as "hard rules", more as "good defaults". The developer's preferences should be able to override anything here. Most work in this repo will be done by agents, sometimes remote. Be careful with data, dev servers, and anything that could damage the session you are working from.
-
-If a rule here fights the task in front of you, say so plainly and get a human sign off before breaking it.
-
-## Glossary
-
-We need to be on the same page with terminology. When communicating, use this language:
-
-- **you** means the agent reading this file and changing inkling.
-- **we and maintainers** mean the people building inkling. That is who you are talking to now.
-- **user** means the person using inkling, saving things and searching them later.
-- **item** means one saved thing in the library, whatever its type. Data, not UI.
-- **card** means how an item looks in the grid and in detail. UI, not data.
-- **library** means the SQLite database plus the asset store on disk.
-- **capture** means getting something into the library. Paste a URL, pick a file, drag in, paste from clipboard, screenshot, or deep link.
-- **job** means one unit of background work. OCR, extraction, embeddings, indexing. Runs on a persisted queue with leases.
-- **embedding** means the local vector for text or image search. Nomic text and vision share one 768-dimension space.
-- **Space** means a saved search shown as a collection. Smart Spaces update themselves. Regular Spaces hold manually user curated items.
-- **deep link** means the companion path into the app, `inkling://capture?url=...`.
-- **preview** means `bun run dev`, the web-only look with sample data.
-- **full app** means the Windows Electron desktop app with the real library, built with `bun run build:dir` or `bun run build:installer`.
-
-## The three ways to hurt yourself
-
-1. **Killing by pattern.** Never `pkill -f`, `pgrep | kill`, or `kill` a PID you found by matching a name, path, or worktree string. Your own agent process has this worktree's path in its argv, and this machine runs several other dev servers at once. Kill only a PID you captured at spawn, or the owner of your port after confirming it is your worktree (`Get-NetTCPConnection -LocalPort <port> -State Listen` and the `Win32_Process` command line on Windows, `ss -H -ltnp` and `/proc/<pid>/cwd` on Linux).
-
-2. **Writing to the live library.** The developer's real data is the SQLite file and asset store the running app owns. Reading it is fine. Copying from it for test fixtures is good. Never start a server against it, never open it read-write, never clean it up.
-
-3. **Baking in local paths and ports.** Never hardcode a localhost port, an absolute user path, or a machine specific model cache path into source or committed config. Preview and the full app must keep working from a fresh clone on another Windows machine. Never commit a database file, a model artifact, a downloaded embedding, or a benchmark output besides the two tracked files. Never commit a pairing secret, token, or full capture URL with real content.
+- Kill only a PID you captured at spawn, or the owner of your port after checking that its command line or cwd is your worktree. Never kill by name or path pattern (`pkill -f`, `pgrep | kill`): your own agent process has this worktree's path in its argv, and other dev servers run on this machine.
+- The developer's real library, the database and assets the installed app owns, is read-only to you. Never start a server against it or open it read-write. To test with real data, back the database up through SQLite into a scratch directory (a raw copy of a live database is corrupt without its `-wal` and `-shm` files) and copy only the assets your flow needs. Data flows into the sandbox, never back.
+- Source and committed config carry no localhost ports, absolute user paths or machine-specific cache paths; a fresh clone on another Windows machine must work. Never commit a database, model, embedding, real user item, pairing secret, token, or capture URL with real content. Of `benchmarks/results/`, only `results-latest.json` and `summary.md` are tracked.
+- Start servers detached, read the port from their output, and poll the log or port instead of sleeping. Stop what you started.
 
 ## Hit every surface
 
-The common defect here is a change that works on the path tested and is missing everywhere else. Before calling ingestion or display work done, walk this list and name the entries that applied; skip the rest silently.
+The usual defect works on the tested path and is missing elsewhere. Before calling capture or display work done, check each entry that applies and name it in your report:
 
-- **Entry points.** A behavior reachable from the Add button is usually also reachable from paste, drag and drop, clipboard, screenshot capture, and the deep link. Fixing one is not fixing the feature.
-- **Capture paths.** URL, article extraction, image file, screenshot, PDF, note, quote, video link, X post, misc file. An extractor change needs a decision per path, even if the decision is not supported here.
-- **Search paths.** Titles, notes, article text, OCR text, domains, authors, manual tags, derived concepts, colors, semantic similarity, dates, types. If you index a new field, say how search reaches it.
-- **Card types.** Article, image, PDF, video, post, note, quote, and file, as the `ItemKind` union in `src/lib/types.ts`. Shared thumbnail logic lives in one place. Keep the set coherent.
-- **Reverse states.** If you added a way in, add the way out and a way to see it. Trash needs restore. A Space needs rename and delete that keeps its items. A one way door is a bug.
-- **App modes.** Preview and the full app behave differently. OCR, embeddings, and file access only run in the Electron app. Do not ship a feature that silently does nothing in one mode.
-- **Docs.** Check whether the change makes existing guidance inaccurate. Apply the [documentation rules](#documentation) before adding anything.
+- **Entry points.** Add button, paste, drag and drop, clipboard, screenshot, deep link.
+- **Capture paths.** URL, article, image, screenshot, PDF, note, quote, video link, X post, other file. An extractor change needs a decision for each.
+- **Search.** Say how search reaches a newly indexed field.
+- **Card kinds.** Every `ItemKind`. Shared thumbnail logic stays in one place.
+- **Reverse states.** A way in needs a way out and a way to see it: trash needs restore, and a Space needs rename and a delete that keeps its items.
+- **Modes.** A feature must not silently do nothing in preview or in the full app.
 
-## Dev servers
+## Code
 
-- `bun install` installs. If module resolution looks broken, run `bun run check:bun-version`.
-- `bun run dev` is the quick web look at the UI. It uses sample data and has no desktop storage or processing backend.
-- `bun run dev:app` opens the Electron shell in preview mode. The renderer shows the sample library and does not call the desktop backend, so capture, OCR, embeddings, and local file access are not exercised there. Test the full backend with the packaged output of `bun run build:dir`.
-- `t3.json` lists the T3 Code run scripts. Keep it up to date: whenever a package.json script is renamed or removed, or a command it runs changes, update `t3.json` in the same change.
-- Ports and state come from the dev setup, not from memory. Read the actual terminal output. Do not assume a port.
-- Stop what you started, by the handle you tracked. See rule 1.
-- Never `Start-Sleep` (or any blocking wait) after launching a server. Start it detached, do other work, then poll its log or port. A sleep blocks you from doing anything else while you wait.
+- `src/` is the renderer; it reaches the main process only through `src/lib/libraryApi.ts` and the IPC contract in `packages/contracts/`. `src/lib/ingestion/` also runs in the main process, imported by `electron/ai-jobs.ts`.
+- The main process in `electron/` owns files, the job queue, the database and models, and is written with Effect 4, whose API differs a lot from the Effect 3 most models remember. Read `node_modules/effect/AGENTS.md` and `node_modules/effect/ai-docs/` before writing Effect code. Effect stops at the IPC edge; the renderer's one use is `src/lib/ingestion/http.ts`. Reusable functions use `Effect.fnUntraced`, inline programs and layers use `Effect.gen`.
+- Fetched HTML is untrusted: sanitize it, pass embeds through the allowlist, strip scripts and event handlers. Keep the preload bridge narrow. Dev-only and maintainer tooling can stay simple.
+- Keep partial results when extraction fails. A card with a title and domain beats an error card.
+- Let TypeScript infer types, and never use `any`.
+- Write a comment only where a reader would likely break something without it: an ordering or race guarantee, a security check, a Chromium, Electron, WebGPU or OS quirk, or an invariant another file relies on. One line where you can, four at most. `inkling/no-low-value-comments` enforces part of this, and every `oxlint-disable` needs a `-- reason`.
+- When a package.json script is renamed or removed, or its command changes, update `t3.json` in the same change.
 
-## Test data
+## Tests and checks
 
-An empty library is a bad test. Seed your run with a copy of real data instead of pointing at live state.
+- While iterating, run `bun test <files>`. Before pushing, run `bun run check:changed`. Leave `bun run check`, a full `bun test` and a full `tsc` to CI unless asked. If module resolution looks broken, run `bun run check:bun-version`.
+- Test what breaks quietly: extraction and sanitizing, embed allowlists, OCR scoring, queue leases and recovery, migrations, asset path containment and range requests, deep link and external-format parsing, ordering and races, and `liquidGlassShape`. Leave out tests of what the types prove, trivial logic, static renders, mock-call mirrors, smoke tests and timing.
+- A logic, data, state or protocol bug gets a test that fails on `main`, then the fix; mark it `// regression: #NNN` if its name does not say so. A visual bug gets before and after screenshots instead. Capture and background changes ship with focused tests.
+- Add a row or assertion to an existing test before writing a new `it`, at the lowest layer that fails.
+- Wait for the real signal of async work: a job drain, a lease state, an event. No sleeps, retries, polling or clock deltas.
+- Check a UI change once in the running app with the `verify-inkling` skill, preview for layout and the full app for native behavior, and include a screenshot. Subagents leave this to the primary agent.
+- The demo seed in `public/seed-demo/` and `src/seedPersonal.ts` is the default data for UI work.
 
-- Copy the database file with SQLite backup semantics so the copy is consistent even if the source app is open. A raw file copy of a live database is a corrupt copy. Bring the `-wal` and `-shm` siblings when you copy raw, or better, back up through the engine.
-- Data flows one way. Into your sandbox, never back out. Copy in, never symlink. Never write your test edits back to the source.
-- Bring assets only for the items your flow needs. Do not copy the whole asset store to test one card.
-- The committed demo seed in `public/seed-demo/` plus `src/seedPersonal.ts` is the safe default for UI work. It shuffles with a fixed seed so the order is mixed but stable. Prefer it over real data when it covers your case.
-- Never commit a copied database, a real user item, or a downloaded model. The gitignore already excludes run artifacts. Keep it that way.
+## Docs
 
-## Verifying
+Most code changes need no docs change. Product intent lives in `docs/product.md` and `docs/product-behavior.md`, architecture reasons in `docs/tech-stack.md`, maintainer procedures in `docs/operations/`, milestone status in `docs/roadmap.md`, and changes in `docs/changelog.md`, whose rules are at its top. Keep each fact in one place. Write down only what a maintainer would get wrong without it, and when a decision changes, rewrite the text that described it. Keep plans and scratch notes outside the worktree.
 
-- Smallest proof that the change works. While iterating, `bun test <files>` for the tests you touched. Before pushing, `bun run check:changed`: lint, format, tests, Knip, and typecheck scoped to what the branch changed. The full check is `bun run check`, which mirrors the CI frontend job. Do not run it unless you changed something broad or the user asked.
-- **Do not run repo-wide checks.** No full `bun test` sweep or full `tsc` unless asked. CI owns the full suite.
-- A test earns its place by guarding something that breaks quietly: extraction and sanitizing, embed allowlists, OCR scoring, queue leases and recovery, migrations and persistence, asset path containment and range requests, deep link and external-format parsing, ordering and race guarantees, and `liquidGlassShape`. A test added with a bug fix stays; mark it `// regression: #NNN` if its name doesn't say so.
-- Don't write tests the types already prove, trivial logic, basic DOM behavior, static-markup renders, mock-call mirrors, smoke tests, duplicate table rows, or wall-clock and perf asserts.
-- Ingestion and background changes ship with focused tests for that behavior. A behavior change with no test is unfinished.
-- Proof for a bug fix depends on the bug. Logic, data, state, and protocol bugs get a failing test first (the fewest that fail on `main` for that reason), then the fix. Purely visual bugs (spacing, colour, alignment, a layout shift) get before/after captures and no test.
-- Extend before you add. When an existing test or table covers the behavior, add a row or an assertion there. Write a new `it` only when no case fits. Test at the lowest layer that fails on `main`, not again in a wrapper or at each call site.
-- Background work is async. Await the real signal: a job drain, a lease state, an event. No fixed sleeps, per-test timeouts, retries, `Date.now()` or `performance.now()` deltas, polling loops, or skips without a reason.
-- UI changes need one real pass in the running app before you call them done (the `verify-inkling` skill drives it). Preview for layout, full app for anything native. Take a screenshot through the harness so the user can see it. The primary agent does this once after integrating. Subagents do not launch their own dev servers. Clean up what you launched when you are done.
-- There are no local hooks. CI runs the frontend checks and Electron package smoke tests.
+## Pull requests and Linear
 
-## Pull requests
-
-- Never make a PR unless the developer explicitly asks you to do so.
-- Conventional commit titles, plain language: `fix(reader): code blocks keep line breaks`.
-- Body: the problem in a sentence or two, then how you fixed it. End with the model and harness that did the work.
-- UI changes need before/after images. Motion or timing needs a short video.
-- Upload PR evidence to GitHub. Never commit PR-only screenshots or assets such as `.github/pr-assets/`.
-- One request is one PR. Split it only when the maintainer asks.
-
-## Linear issues
-
-- One Linear issue owns one task (e.g. `SQU-6`). That issue is the tracker, not a plan file.
-- Before starting: read the issue + comments, move it to In Progress, branch from its `gitBranchName`.
-- While working: post major progress as issue comments, never rewrite the description. Keep scratch outside the worktree.
-- Monitor by reading status + comments only. Don't start work on an issue already In Review unless asked.
-- Before finishing: link the PR to the issue at the top of the description before all content, move it to In Review, tick the `roadmap.md` box and add a changelog line referencing the issue ID in the same PR.
-- If merged: move the issue to Done.
-
-## Documentation
-
-Most code changes need no docs change. Agents can read the code.
-
-- Product intent lives in `docs/product.md` and `docs/product-behavior.md`. Architecture reasons live in `docs/tech-stack.md`. Standing goes in `docs/roadmap.md`. What changed goes in `docs/changelog.md`. Do not invent a second place for the same fact.
-- Before adding a paragraph, ask what a maintainer would get wrong without it. If reading the relevant code answers the question, leave it out.
-- Do not document every feature, enumerate fields or methods, narrate control flow, maintain file catalogs, or append PR summaries. Types, tests, and code already record the implementation. The glossary defines shared vocabulary; it is not a feature index.
-- Keep a local implementation explanation in a nearby code comment. Use an internal doc when the reasoning crosses boundaries or needs context the code cannot carry well. Link to the relevant source instead of copying it.
-- When a documented decision or constraint changes, rewrite or remove the affected text. Do not append another account of the new behavior. A new internal page needs a distinct, durable reason to exist.
-- Keep user docs in the shipped product's voice, without implementation details or contributor tooling. Update the relevant feature section when how to use it changes. A UI tweak does not need a documentation entry, and a new control does not need its own page. A settings path is useful; descriptions of visible buttons, icons, layouts, animations, or every UI state are not. Before adding text, ask what task or decision it helps the user with.
-- The changelog rules live at the top of `docs/changelog.md` and still apply. One line per entry, grouped under Added, Changed, Fixed, Removed, Deprecated, Security. Trivial edits skip the changelog.
-- `docs/operations/` holds maintainer setup, release, and debugging procedures. Keep instructions for operating an installed inkling version in the user guides.
-
-## Plans and work artifacts
-
-- Do not commit implementation plans, research notes, or agent scratch files. Keep temporary working material outside the worktree. `.plans/` is gitignored only as a safety net for legacy tooling.
-- Track active maintainer work in its Linear issue (see [Linear issues](#linear-issues)). External proposals follow `CONTRIBUTING.md`.
-- A merged PR is the implementation record. Do not keep a task checklist in the repository; `docs/roadmap.md` records milestone standing only.
-
-## How it works
-
-Capture creates the item immediately, then background jobs do the slow parts. Normalize, extract text and metadata, run OCR or PDF extraction or article parsing, generate embeddings. Writes to items update the FTS index through triggers. The user keeps browsing or does something else while jobs run. A job can be retried, its lease can expire, and interrupted jobs recover on restart.
-
-Search combines exact FTS over content, notes, and OCR text with semantic similarity over local embeddings. Smart Spaces are saved searches whose query runs each time their items load, so they need no background job.
-
-The Electron main process owns files, the job queue, the database, and model execution. It is written with Effect 4, whose API differs a lot from the Effect 3 most models remember. Before writing or changing Effect code, read `node_modules/effect/AGENTS.md`, `node_modules/effect/ai-docs/`, and the package source instead of relying on memory (run `bun install` if `node_modules` is missing). The renderer gets a narrow preload bridge, not raw filesystem or shell access. Fetched HTML is untrusted. It gets sanitized, embeds pass an allowlist, scripts and event handlers are stripped.
-
-Full reasoning in `docs/tech-stack.md`. Behavior contract in `docs/product-behavior.md`.
-
-## Where code lives
-
-- `src/` is the React and TypeScript frontend. Entry at `src/main.tsx`. Feature code lives in `src/features/` by area (library, item-view, spaces, capture, shell, settings). `src/App.tsx` composes the features, and the reader is `src/ReaderView.tsx`.
-- `src/lib/ingestion/` is the capture and extraction pipeline. Defuddle, metadata fallback, sanitizing, video link handling. URL ingestion also runs in Electron's main process (`electron/ai-jobs.ts` imports it).
-- `src/components/` holds shared pieces such as the card media (`ItemMedia.tsx`), the liquid glass surfaces, the mascot, and onboarding. `src/ui/` holds shared UI primitives.
-- `packages/contracts/` is the IPC contract: the command list and Effect Schemas that preload, main, and renderer share. The renderer calls them through `src/lib/libraryApi.ts`.
-- `packages/ingestion-shared/` is the capture payload format and validation shared by the extension and the app.
-- `electron/` holds the desktop main process (`main.ts`), preload bridge, PDF/OCR, embeddings, the loopback capture receiver (`capture-server.ts`), and packaging inputs. SQLite schema, storage, and the job queue are in `electron/storage/`.
-- `extension/` is the Chrome extension, a capture entry point. It posts to the loopback receiver, or hands the URL to the app through the `inkling://capture` link.
-- `scripts/` holds build and check scripts, such as `build-electron.ts` and `assert-command-refs.ts`.
-- `benchmarks/` holds the corpus, the harness, expected outputs, and results. Of `benchmarks/results/`, only `results-latest.json` and `summary.md` are tracked.
-- `public/seed-demo/` plus `src/seedPersonal.ts` is the committed demo library for UI work.
-- `docs/` holds product, behavior, design, models, stack, roadmap, bugs, and changelog. Maintainer procedures live in `docs/operations/`, and `docs/README.md` indexes them.
-
-## Taste
-
-- Complexity belongs at the adapter boundary. Ingestion stays explicit, UI stays dumb.
-- Inferred types over annotations. `any` is the enemy.
-- Effect lives in the main process and stops at the IPC edge. The one renderer use is `src/lib/ingestion/http.ts` (preview-mode capture); don't add more. Reusable Effect functions use `Effect.fnUntraced`, not `Effect.fn` (nothing collects spans). Keep `Effect.gen` for inline programs and layers.
-- Default to no comment. Keep one only where a reader would likely break something without it: a race or ordering guarantee, a security or sanitizing check, a Chromium, Electron, WebGPU or OS quirk, or an invariant another file relies on. One line where you can, four at most. Don't restate names, narrate steps, label sections, record history, explain the fix you just made (the PR carries that), or leave a TODO without an issue. Lint directives, knip tags and license headers stay. `inkling/no-low-value-comments` in `oxlint-plugin-inkling/` enforces the length cap and the mechanical cases, and every `oxlint-disable` needs a `-- reason`.
-- Our users should never notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations (with a slight exception for the mascot); they peg the GPU on high-refresh displays.
-- Capture paths stay fast and forgiving. Keep partial results when extraction fails. A URL with a title and domain beats an error card.
-
-## Additional tips
-
-- Security is important, but should not be over-indexed on, especially for dev mode/maintainer-only features. The main threat is untrusted web content rendered locally; `docs/tech-stack.md` says to treat all fetched HTML as untrusted. Keep sanitizing and allowlists strict. Keep dev ergonomics simple.
+- Open a PR only when asked, one per request. Use a conventional commit title such as `fix(reader): code blocks keep line breaks`. The body gives the problem, the fix, and the model and harness that did the work. UI changes need before and after images and motion needs a short video, uploaded to GitHub rather than committed.
+- A Linear issue such as `SQU-6` tracks one task. Before starting, read it and its comments, move it to In Progress, and branch from its `gitBranchName`. Post progress as comments and leave the description alone. Leave an issue in In Review alone unless asked. When done, link the PR at the top of its description, move the issue to In Review, and in the same PR tick its box in `docs/roadmap.md` and add a changelog line with the issue ID. Move it to Done once the PR merges.
