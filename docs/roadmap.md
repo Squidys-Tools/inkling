@@ -2,23 +2,23 @@
 
 The checked items reflect shipped work. See [changelog.md](changelog.md) for completed work and [bugs.md](bugs.md) for defects that are still open.
 
-## Milestone 0 -- Capture and Storage
+## Milestone 0 -- Capture and storage
 
 **Status: Complete**
 
 Local library with capture, extraction, and text search.
 
-- [x] Project scaffold (Tauri 2, React, TypeScript, Vite, SQLite)
+- [x] Project scaffold (Electron, React, TypeScript, Vite, SQLite)
 - [x] URL capture with Defuddle article extraction + fallback metadata
 - [x] File picker, drag-and-drop, clipboard, screenshot capture
 - [x] Browser-extension deep link (`inkling://capture?url=...`)
 - [x] SQLite storage with FTS5 full-text search
-- [x] Thumbnail generation and content-addressed asset storage
+- [x] Thumbnail generation and per-item asset storage
 - [x] Background job queue with lease management and recovery
 - [x] Safe embed allowlists (YouTube, Vimeo, direct media)
 - [x] HTML sanitization and security
 
-## Milestone 1 -- Vision and Semantics
+## Milestone 1 -- Vision and semantics
 
 **Status: Complete**
 
@@ -27,15 +27,14 @@ Vertical slice from capture through semantic understanding and search.
 - [x] Benchmark corpus (48 items, articles/images/screenshots/PDFs/notes/videos)
 - [x] Multi-engine OCR scoring (Windows OCR + tesseract.js)
 - [x] Background image OCR processing
-- [x] PDF text extraction and scanned-page OCR on Windows
-- [x] Local deterministic text and image embeddings
+- [x] PDF text extraction and scanned-page OCR
 - [x] CI, release, and security automation
 - [x] Nomic learned embedding models through ONNX Runtime
 - [x] Semantic search over text and images
 - [x] Image similarity search
 - [x] Smart Spaces (auto-updating saved searches)
 
-## Milestone 2 -- Reading and Writing
+## Milestone 2 -- Reading and writing
 
 **Status: Complete**
 
@@ -61,7 +60,7 @@ Surfacing forgotten material through browsing and curation.
 - [x] Export and backup (database snapshot + referenced assets + manifest)
 - [x] Import and restore from an export (SQU-119)
 
-## Milestone 4 -- Local Intelligence
+## Milestone 4 -- Local intelligence
 
 **Status: Not Started**
 
@@ -72,7 +71,7 @@ On-device AI for summaries and deeper understanding.
 - [ ] Structured analysis of saved content
 - [ ] Model selection across CPU, standard, and GPU modes
 
-## Milestone 5 -- Polish and Distribution
+## Milestone 5 -- Polish and distribution
 
 **Status: In Progress**
 

@@ -1,22 +1,17 @@
-# Ingestion utilities
+# Ingestion
 
-These modules are pure, UI-independent building blocks for the local ingestion
-pipeline.
+The URL capture pipeline and the helpers around it. `ingestUrl` in
+`url-ingestion.ts` fetches a page through `http.ts`, runs Defuddle on it,
+sanitizes the result, and passes embeds through the allowlist in
+`safe-embeds.ts`.
 
-- `file-classification.ts` classifies a File-like value as `image`, `pdf`,
-  `video`, or `other`, using MIME type first and the filename extension as a
-  fallback.
-- `safe-embeds.ts` canonicalizes YouTube and Vimeo URLs to fixed provider
-  origins. Direct video files require an exact HTTPS origin in
-  `allowedDirectMediaOrigins`. `javascript:`, `data:`, `blob:`, HTTP, URLs with
-  credentials/ports, unknown hosts, and malformed provider URLs are rejected.
-- `x-post.ts` recognizes public X/Twitter Post URLs and normalizes the official
-  X oEmbed response into sanitized embed markup plus searchable post metadata.
-  URL ingestion persists that metadata under `social`; the UI upgrades it with
-  X's official widgets when available and keeps a local fallback for offline or
-  blocked embeds.
+Three places import this folder, so it parses HTML with linkedom and imports
+nothing from Electron or the browser DOM:
 
-No function in this folder fetches network content, executes embeds, performs
-OCR, or exposes AI-derived metadata. A later ingestion service can call these
-helpers after Defuddle/Tesseract extraction and before persisting local assets.
+- the main process, where `electron/ai-jobs.ts` runs `ingestUrl` as a
+  background job;
+- the renderer, which uses helpers such as `file-classification.ts`,
+  `video-links.ts` and `x-post.ts`;
+- the benchmark harness in `benchmarks/harness/`.
 
+`bun run ingest:smoke` runs the pipeline on inline fixtures with a stubbed fetch.

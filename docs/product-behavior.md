@@ -1,4 +1,4 @@
-# Personal Library Product Behavior Specification
+# Product behavior
 
 ## Product definition
 
@@ -18,6 +18,8 @@ The product should feel quiet, immediate, and visual. Organization happens autom
 - Manual tags and Spaces are available for intentional projects, not required maintenance.
 - Local processing is explained during onboarding and settings, not repeatedly in the main interface.
 - User-authored notes and content must never be silently rewritten by AI.
+- When AI processing fails, search falls back to metadata and text.
+- Processing runs after capture, and the app stays usable while it is incomplete.
 - The library should encourage rediscovery, not only storage.
 
 ## Supported content
@@ -65,19 +67,18 @@ Quoted text should be stored with its source URL when available and displayed as
 
 ## Card types
 
-Minimum card types:
+The card kinds are the `ItemKind` values in `src/lib/types.ts`:
 
-- Image
-- Screenshot
-- Article
-- General Website
-- Product
-- Recipe
-- Book
+- Article, which also covers general web pages
+- Image, which also covers screenshots
 - PDF
-- Video/Embed
+- Video, for links and embeds as well as local files
 - Note
 - Quote
+- Post, for X posts
+- File, for anything else
+
+Product, Recipe and Book cards are planned.
 
 Each card may show a title, source, preview, date, tags, summary, and relevant metadata. The exact fields depend on the type.
 
