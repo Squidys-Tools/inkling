@@ -1,6 +1,7 @@
 export const TEXT_MODEL = "nomic-embed-text-v1.5";
 export const TEXT_DIMENSION = 768;
 
-// Sharp's cover resize is not Rust image's CatmullRom transform; isolate its vectors by model name.
+// The suffix marks vectors made with sharp's resize. Older image vectors carry another
+// name, so search skips them and startup queues them to be embedded again.
 export const IMAGE_MODEL = "nomic-embed-vision-v1.5-sharp";
 export const IMAGE_DIMENSION = 768;
