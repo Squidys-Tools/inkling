@@ -76,6 +76,31 @@ async function copyDirectory(
   }
 }
 
+async function copyItemAssets(
+  assetsDirectory: string,
+  destination: string,
+  itemIds: ReadonlyArray<string>,
+) {
+  const copied: Copied = { assetFiles: [], skippedAssets: [], assetsBytes: 0 };
+  for (const id of itemIds) {
+    if (!isSafeItemId(id)) continue;
+    const source = join(assetsDirectory, id);
+    const info = await stat(source).catch((error) =>
+      isMissing(error) ? null : Promise.reject(error),
+    );
+    if (!info) continue;
+    if (!info.isDirectory()) {
+      copied.skippedAssets.push({
+        path: `assets/items/${id}`,
+        error: "asset path is not a directory",
+      });
+      continue;
+    }
+    await copyDirectory(source, join(destination, id), `assets/items/${id}`, copied);
+  }
+  return copied;
+}
+
 const exists = (path: string) =>
   stat(path).then(
     () => true,
@@ -112,30 +137,9 @@ export function makeExport(ctx: StorageContext) {
       },
     );
     const databaseBytes = (yield* attempt(() => stat(databasePath))).size;
-    const copied: Copied = { assetFiles: [], skippedAssets: [], assetsBytes: 0 };
-    yield* attempt(async () => {
-      for (const id of itemIds) {
-        if (!isSafeItemId(id)) continue;
-        const source = join(ctx.assetsDirectory, id);
-        const info = await stat(source).catch((error) =>
-          isMissing(error) ? null : Promise.reject(error),
-        );
-        if (!info) continue;
-        if (!info.isDirectory()) {
-          copied.skippedAssets.push({
-            path: `assets/items/${id}`,
-            error: "asset path is not a directory",
-          });
-          continue;
-        }
-        await copyDirectory(
-          source,
-          join(directory, "assets", "items", id),
-          `assets/items/${id}`,
-          copied,
-        );
-      }
-    });
+    const copied = yield* attempt(() =>
+      copyItemAssets(ctx.assetsDirectory, join(directory, "assets", "items"), itemIds),
+    );
     const manifest = {
       format: "inkling-export",
       formatVersion: 1,
