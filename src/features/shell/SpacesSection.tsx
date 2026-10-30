@@ -360,7 +360,7 @@ export function SpacesSection({
                     ? "Holds only the items you file into it. Open an item and pick a Space to add it."
                     : draft.query.trim()
                       ? "A Smart Space that updates automatically as items match this search."
-                      : "An empty Smart Space matches everything you have saved."}
+                      : "A Smart Space that updates automatically as items match its name."}
                 </p>
                 <div className="flex items-center justify-between gap-2.5">
                   <Button variant="text" onClick={draft.cancel}>
