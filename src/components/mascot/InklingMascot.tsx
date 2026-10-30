@@ -45,7 +45,7 @@ const heldLook = (look: { yaw: number; pitch: number }) => ({
 
 /**
  * Self-contained mascot: owns its engine and animation loop. Used by the
- * dev board (?mascot) and frozen-frame renders. The live app slots share one
+ * welcome screens and the dev boards. The live app slots share one
  * engine through mascotStore instead, so the mascot can move between slots
  * without resetting its clock.
  */
