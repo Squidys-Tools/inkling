@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { ExtractionOutcome } from "./extract";
 import { corpusPath, type ExpectedSearch, type ManifestItem } from "./manifest";
 
-function normalizeForMatch(value: string): string {
+function normalizeForMatch(value: string) {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
@@ -10,30 +10,18 @@ function normalizeForMatch(value: string): string {
     .trim();
 }
 
-function tokenize(value: string): string[] {
+function tokenize(value: string) {
   return normalizeForMatch(value).split(" ").filter(Boolean);
 }
 
-interface TermMatch {
-  term: string;
-  found: boolean;
-}
-
-function termMatches(text: string, terms: string[]): TermMatch[] {
+function termMatches(text: string, terms: string[]) {
   const haystack = normalizeForMatch(text);
   return terms.map((term) => ({ term, found: haystack.includes(normalizeForMatch(term)) }));
 }
 
-function bannedTermHits(text: string, terms: string[]): string[] {
+function bannedTermHits(text: string, terms: string[]) {
   const haystack = normalizeForMatch(text);
   return terms.filter((term) => haystack.includes(normalizeForMatch(term)));
-}
-
-interface TokenStats {
-  recall: number;
-  precision: number;
-  expectedCount: number;
-  actualCount: number;
 }
 
 /**
@@ -42,7 +30,7 @@ interface TokenStats {
  * duplicated counts each time, so engines are compared against the documented
  * word-accuracy metric rather than distinct tokens.
  */
-function tokenStats(expected: string, actual: string): TokenStats {
+function tokenStats(expected: string, actual: string) {
   const expectedTokens = tokenize(expected);
   const actualTokens = tokenize(actual);
   if (expectedTokens.length === 0) {
@@ -77,7 +65,7 @@ function tokenStats(expected: string, actual: string): TokenStats {
 }
 
 /** Simple string-similarity for title/author matching: 1 exact, 0.75 contained, 0 otherwise. */
-function stringScore(expected: string, actual: string): number {
+function stringScore(expected: string, actual: string) {
   const want = normalizeForMatch(expected);
   const got = normalizeForMatch(actual);
   if (want === got) return 1;
@@ -85,7 +73,7 @@ function stringScore(expected: string, actual: string): number {
   return 0;
 }
 
-function average(values: number[]): number {
+function average(values: number[]) {
   if (values.length === 0) return 1;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
