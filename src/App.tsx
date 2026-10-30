@@ -84,6 +84,7 @@ function App() {
   const searchRef = useRef<HTMLInputElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const captureBarRef = useRef<HTMLElement>(null);
+  const libraryChromeRef = useRef<HTMLDivElement>(null);
   const viewDockRef = useRef<HTMLDivElement>(null);
   const tooltipLayerRef = useRef<HTMLDivElement>(null);
   const cardMenuLayerRef = useRef<HTMLDivElement>(null);
@@ -144,8 +145,8 @@ function App() {
     },
     filteredItemsRef,
   );
-  // A pinned query has its own band above the grid, so the grid starts below it.
-  // Only this boolean reaches the grid, so typing does not restyle it.
+  // Both sit under the toolbar in one column, so a capture error and the pinned
+  // query row stack instead of overlapping.
   const showFilterRow = !isSearchFocused && scope.query.trim() !== "";
   // An empty Space has nothing to search or re-lay out, so it drops the
   // browsing controls.
@@ -240,29 +241,34 @@ function App() {
           isSidebarOpen={isSidebarOpen}
           inert={selectedItem != null}
         >
-          <CaptureBar
-            ref={captureBarRef}
-            leading={
-              <ClosedSidebarControls
-                appearance={settings.appearance}
-                isOpen={isSidebarOpen}
-                setIsOpen={setIsSidebarOpen}
-                spaces={spaces}
-              />
-            }
-            showSearch={showBrowseControls}
-            searchRef={searchRef}
-            view={spaces.activeSpace?.name ?? "Everything"}
-            query={scope.query}
-            isSearchFocused={isSearchFocused}
-            onSearchFocusChange={setIsSearchFocused}
-            onQueryChange={scope.searchEverything}
-            onClearQuery={() => scope.setQuery("")}
-            showFilterRow={showFilterRow}
-            resultCount={filteredItems.length}
-            onSaveSearch={spaces.beginSaveSearch}
-            captureError={showCaptureError ? captureError : null}
-          />
+          <div
+            ref={libraryChromeRef}
+            className="library-chrome relative z-2 flex flex-none flex-col"
+          >
+            <CaptureBar
+              ref={captureBarRef}
+              leading={
+                <ClosedSidebarControls
+                  appearance={settings.appearance}
+                  isOpen={isSidebarOpen}
+                  setIsOpen={setIsSidebarOpen}
+                  spaces={spaces}
+                />
+              }
+              showSearch={showBrowseControls}
+              searchRef={searchRef}
+              view={spaces.activeSpace?.name ?? "Everything"}
+              query={scope.query}
+              isSearchFocused={isSearchFocused}
+              onSearchFocusChange={setIsSearchFocused}
+              onQueryChange={scope.searchEverything}
+              onClearQuery={() => scope.setQuery("")}
+              showFilterRow={showFilterRow}
+              resultCount={filteredItems.length}
+              onSaveSearch={spaces.beginSaveSearch}
+              captureError={showCaptureError ? captureError : null}
+            />
+          </div>
 
           {capture.fileImport && (
             <FileImportStatus progress={capture.fileImport} onDismiss={capture.clearFileImport} />
@@ -284,7 +290,8 @@ function App() {
             listMode={listMode}
             columnCount={gridColumnCount}
             context={libraryCardContext}
-            hasPinnedQuery={showFilterRow}
+            chromeRef={libraryChromeRef}
+            dockRef={viewDockRef}
             emptySpaceName={
               spaces.activeSpace?.kind === "regular" ? spaces.activeSpace.name : undefined
             }
