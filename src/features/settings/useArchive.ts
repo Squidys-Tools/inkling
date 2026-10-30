@@ -19,6 +19,7 @@ import type { LibraryItem } from "../../lib/types";
 import { storedItemToLibraryItem } from "../library/libraryItem";
 import { browserArchivedItems } from "../library/seed";
 import { errorMessage } from "../errorMessage";
+import { countOf } from "./format";
 import { usePermanentDeletes } from "./usePermanentDeletes";
 
 type ArchiveOptions = {
@@ -270,12 +271,10 @@ export function useArchive({
         ]);
         setArchivedItems((current) => current.filter((item) => !restoredIds.has(String(item.id))));
         if (restoredItems.length > 0)
-          toast.success(
-            `${restoredItems.length} ${restoredItems.length === 1 ? "item" : "items"} restored`,
-          );
+          toast.success(`${countOf(restoredItems.length, "item")} restored`);
         if (failures > 0)
           setCaptureError(
-            `${failures} ${failures === 1 ? "item" : "items"} could not be restored. They are still in the archive.`,
+            `${countOf(failures, "item")} could not be restored. They are still in the archive.`,
           );
       } catch (error) {
         setCaptureError(errorMessage(error));
@@ -306,15 +305,12 @@ export function useArchive({
     if (selectedItem && deletedIds.has(String(selectedItem.id))) setSelectedItem(null);
     setSelectedArchivedIds(new Set());
     setIsArchiveSelectionMode(false);
-    toast(
-      `${selectedItems.length} ${selectedItems.length === 1 ? "item" : "items"} deleted permanently`,
-      {
-        duration: 10000,
-        closeButton: true,
-        className: "library-toast",
-        action: { label: "Undo", onClick: () => undoPermanentDelete(pendingDeletes) },
-      },
-    );
+    toast(`${countOf(selectedItems.length, "item")} deleted permanently`, {
+      duration: 10000,
+      closeButton: true,
+      className: "library-toast",
+      action: { label: "Undo", onClick: () => undoPermanentDelete(pendingDeletes) },
+    });
   }, [
     archivedItems,
     schedulePermanentDelete,
