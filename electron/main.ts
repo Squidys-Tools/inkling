@@ -88,6 +88,9 @@ const librarySizeCache = createLibrarySizeCache(
 );
 registerAppScheme();
 
+const logFailure = (context: string) => (error: unknown) =>
+  console.error(`${context}: ${error instanceof Error ? error.message : String(error)}`);
+
 function emitJobUpdated(itemId: string) {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.webContents.isDestroyed())
@@ -295,9 +298,7 @@ if (!hasSingleInstanceLock) {
         captureUrl: async (input) => (await initializeLibraryStorage()).library.captureUrl(input),
       });
     } catch (error) {
-      console.error(
-        `capture server unavailable: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      logFailure("capture server unavailable")(error);
     }
     // The bundled main process runs from dist/electron, beside the renderer build.
     await protocol.handle(
@@ -324,28 +325,10 @@ if (!hasSingleInstanceLock) {
       if (quitDrainStarted) return;
       quitDrainStarted = true;
       void (async () => {
-        try {
-          await captureServer?.close();
-        } catch (error) {
-          console.error(
-            `capture server shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-        try {
-          // Interrupts both workers, which hand their running jobs back, then closes the database.
-          await storage?.runtime.dispose();
-        } catch (error) {
-          console.error(
-            `library shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-        try {
-          await aiJobProcessors?.close();
-        } catch (error) {
-          console.error(
-            `background jobs shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
+        await captureServer?.close().catch(logFailure("capture server shutdown failed"));
+        // Interrupts both workers, which hand their running jobs back, then closes the database.
+        await storage?.runtime.dispose().catch(logFailure("library shutdown failed"));
+        await aiJobProcessors?.close().catch(logFailure("background jobs shutdown failed"));
         quitDrainComplete = true;
         app.quit();
       })();
