@@ -4,7 +4,6 @@ import { createFileImportQueue, type FileImportProgress } from "./fileImport";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "../../lib/deepLink";
 import { classifyFile } from "../../lib/ingestion/file-classification";
 import { parseHttpUrl } from "../../lib/ingestion/url";
-import { videoLinkFromSourceUrl } from "../../lib/ingestion/video-links";
 import {
   captureUrlItem,
   createNote,
@@ -13,16 +12,17 @@ import {
   listenForDeepLinks,
   saveFile,
 } from "../../lib/libraryApi";
-import { markdownToPlainText, normalizeNoteBody } from "../../lib/notes";
 import { shouldUseSeedLibrary } from "../../lib/previewMode";
 import type { LibraryItem } from "../../lib/types";
-import {
-  postFallbackFromMetadata,
-  readImageDimensions,
-  storedItemToLibraryItem,
-} from "../library/libraryItem";
+import { storedItemToLibraryItem } from "../library/libraryItem";
 import { errorMessage } from "../errorMessage";
-import { hostnameForUrl } from "../hostname";
+import {
+  previewArticleEnrichment,
+  previewArticleItem,
+  previewFileItem,
+  previewNoteItem,
+  previewQuoteItem,
+} from "./previewItems";
 
 const BARE_DOMAIN =
   /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u;
@@ -66,23 +66,7 @@ export function useCapture({
       return;
     }
 
-    const image = kind === "image" ? URL.createObjectURL(file) : undefined;
-    const mediaDimensions = image ? await readImageDimensions(image) : undefined;
-
-    const item: LibraryItem = {
-      id: crypto.randomUUID(),
-      kind:
-        kind === "image" ? "Image" : kind === "pdf" ? "PDF" : kind === "video" ? "Video" : "File",
-      title: file.name,
-      description: `Saved from ${captureSource}.`,
-      source: captureSource,
-      date: "Just now",
-      tags: [],
-      image,
-      fileUrl: kind === "video" ? URL.createObjectURL(file) : undefined,
-      mediaWidth: mediaDimensions?.width,
-      mediaHeight: mediaDimensions?.height,
-    };
+    const item = await previewFileItem(file, kind, captureSource);
     setItems((current) => [item, ...current]);
   }
 
@@ -141,59 +125,10 @@ export function useCapture({
       return;
     }
 
-    const fallbackItem: LibraryItem = {
-      id: Date.now(),
-      kind: "Article",
-      title: fallbackTitle,
-      description: "",
-      source: parsedUrl.hostname,
-      sourceUrl: normalizedUrl,
-      date: "Just now",
-      tags: [],
-    };
+    const fallbackItem = previewArticleItem(parsedUrl, fallbackTitle);
     setItems((current) => [fallbackItem, ...current]);
-    void import("../../lib/ingestion")
-      .then(({ ingestUrl }) => ingestUrl(normalizedUrl))
-      .then((article) => {
-        const social = article.social;
-        const embeddedVideoLink = social ? null : videoLinkFromSourceUrl(article.canonicalUrl);
-        const firstImageDimensions = article.imageDimensions.find(
-          (value) => value.url === article.imageUrls[0],
-        );
-        const enrichedItem: LibraryItem = {
-          ...fallbackItem,
-          kind: social ? "Post" : embeddedVideoLink ? "Video" : "Article",
-          title: article.title || fallbackTitle,
-          description: article.description || article.text.slice(0, 180),
-          source: social
-            ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
-            : new URL(article.canonicalUrl).hostname,
-          sourceUrl: article.canonicalUrl,
-          author: article.author,
-          image: article.imageUrls[0],
-          mediaWidth: firstImageDimensions?.width,
-          mediaHeight: firstImageDimensions?.height,
-          mediaAspectRatio: firstImageDimensions
-            ? firstImageDimensions.width / firstImageDimensions.height
-            : undefined,
-          articleAuthor: article.author || undefined,
-          publishedDate: article.publishedDate ?? undefined,
-          articleHtml: article.html || undefined,
-          hasArticleContent: Boolean(article.html.trim()),
-          social,
-          post: social ? postFallbackFromMetadata(social) : undefined,
-          video: embeddedVideoLink ?? undefined,
-        };
-        const applyEnrichment = (item: LibraryItem) =>
-          String(item.id) === String(fallbackItem.id)
-            ? {
-                ...enrichedItem,
-                title:
-                  preservedTitle || item.title !== fallbackTitle
-                    ? item.title
-                    : article.title || item.title,
-              }
-            : item;
+    void previewArticleEnrichment(normalizedUrl, fallbackItem, preservedTitle)
+      .then((applyEnrichment) => {
         setItems((current) => current.map(applyEnrichment));
         setSelectedItem((current) => (current ? applyEnrichment(current) : current));
       })
@@ -222,17 +157,7 @@ export function useCapture({
       return;
     }
 
-    const item: LibraryItem = {
-      id: Date.now(),
-      kind: "Note",
-      title: value,
-      description: markdownToPlainText(value),
-      noteBody: normalizeNoteBody(value),
-      source: captureSource,
-      date: "Just now",
-      tags: [],
-      accent: "bg-blue-soft",
-    };
+    const item = previewNoteItem(value, captureSource);
     setItems((current) => [item, ...current]);
   }
 
@@ -266,21 +191,7 @@ export function useCapture({
       return;
     }
 
-    const sourceLabel = trimmedSource
-      ? (hostnameForUrl(trimmedSource) ?? trimmedSource)
-      : trimmedAttribution.split(",")[0]?.trim() || "Quote";
-
-    const item: LibraryItem = {
-      id: Date.now(),
-      kind: "Quote",
-      title: body,
-      description: trimmedAttribution,
-      source: sourceLabel,
-      date: "Just now",
-      tags: [],
-      accent: "bg-yellow-soft",
-      sourceUrl: trimmedSource || undefined,
-    };
+    const item = previewQuoteItem(body, trimmedAttribution, trimmedSource);
     setItems((current) => [item, ...current]);
   }
 
