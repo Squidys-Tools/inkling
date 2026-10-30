@@ -66,17 +66,11 @@ export interface RawArticleExtraction {
   imageDimensions?: ImageDimensions[];
 }
 
-export interface DefuddleAdapter {
-  readonly name: string;
-  extract(document: Document, url: string): RawArticleExtraction | Promise<RawArticleExtraction>;
-}
-
 export interface UrlIngestionOptions {
   fetch?: typeof globalThis.fetch;
   timeoutMs?: number;
   maxResponseBytes?: number;
-  userAgent?: string;
-  defuddleAdapter?: DefuddleAdapter;
+  extractArticle?: (document: Document, url: string) => RawArticleExtraction;
   /** Only enable this for trusted local fixture servers, never for user input. */
   allowPrivateNetwork?: boolean;
 }

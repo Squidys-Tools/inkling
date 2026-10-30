@@ -24,7 +24,6 @@ export class UrlIngestionError extends Error {
     readonly details: UrlIngestionErrorDetails = {},
   ) {
     super(message);
-    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 

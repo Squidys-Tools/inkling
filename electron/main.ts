@@ -1,4 +1,13 @@
-import { app, BrowserWindow, desktopCapturer, dialog, protocol, session, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  desktopCapturer,
+  dialog,
+  Menu,
+  protocol,
+  session,
+  shell,
+} from "electron";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createAiJobProcessors } from "./ai-jobs.ts";
@@ -213,6 +222,12 @@ function registerLibraryCommands() {
   registerWindowControls();
 }
 
+function showMainWindow() {
+  if (!mainWindow) return createWindow();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+}
+
 function createWindow() {
   mainWindow = createMainWindow({
     preload: join(mainDirectory, "preload.cjs"),
@@ -229,10 +244,7 @@ if (!hasSingleInstanceLock) {
 } else {
   app.on("second-instance", (_event, argv) => {
     handleDeepLinkArguments(argv);
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
+    if (mainWindow) showMainWindow();
   });
   app.on("open-url", (event, url) => {
     event.preventDefault();
@@ -247,7 +259,17 @@ if (!hasSingleInstanceLock) {
       ]);
     }
     registerLibraryCommands();
-    if (process.platform === "linux") {
+    // macOS routes Cmd+C, V, W and Q through the app menu; Electron's default also adds reload and DevTools.
+    if (process.platform === "darwin")
+      Menu.setApplicationMenu(
+        Menu.buildFromTemplate([
+          { role: "appMenu" },
+          { role: "fileMenu" },
+          { role: "editMenu" },
+          { role: "windowMenu" },
+        ]),
+      );
+    if (process.platform === "linux" || process.platform === "darwin") {
       session.defaultSession.setDisplayMediaRequestHandler(
         createDisplayCaptureHandler({
           isMainFrame: (frame) =>
@@ -275,6 +297,8 @@ if (!hasSingleInstanceLock) {
             return response - 1;
           },
         }),
+        // macOS 15 and later show their own picker and never call the handler.
+        { useSystemPicker: process.platform === "darwin" },
       );
     }
     try {
@@ -300,6 +324,8 @@ if (!hasSingleInstanceLock) {
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
+    // macOS stays running with no window and sends links here, not to a second instance.
+    app.on("open-url", showMainWindow);
     app.on("window-all-closed", () => {
       if (process.platform !== "darwin") app.quit();
     });

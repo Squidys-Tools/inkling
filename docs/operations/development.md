@@ -19,13 +19,14 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 | Electron directory build (unpacked) | `bun run build:dir` |
 | Windows NSIS installer | `bun run build:installer` |
 | Linux Debian package and AppImage | `bun run build:linux` |
+| macOS disk image (on an Apple silicon Mac) | `bun run build:mac` |
 | Ingestion smoke | `bun run ingest:smoke` |
 | Extraction benchmark | `bun run bench` |
 
 `build` keeps the committed demo seed, because the web preview and `preview` need
 it. `build:app` drops `public/seed-demo/` and the `src/seedPersonal.ts` bundle, then
 runs `scripts/assert-no-demo-seed.ts`, which fails the build if either is still
-present. `build:dir`, `build:installer` and `build:linux` all go through
+present. `build:dir`, `build:installer`, `build:linux` and `build:mac` all go through
 `build:app`, so no shipped package carries the ~9.7 MB seed. To change what the
 app ships, change `build:app`, not `build`.
 
@@ -43,9 +44,21 @@ development builds fetch them.
 - A pinned patch makes sharp use its WASM backend in Linux Electron, because the native libvips collides with Electron's GLib. When upgrading sharp, update the patch and `@img/sharp-wasm32` (a Knip runtime exception) together.
 - PDF rendering uses the bundled PDF.js fonts, character maps and WASM decoders, because the system-font scan crashes Linux Electron.
 
-`bun scripts/linux-backend-smoke.mjs` runs the unpacked build's PDF module, OCR worker and CPU model on Electron's Node runtime, with no GUI and no user library. Run `bun run build:dir` first, or pass another unpacked app directory. It does not replace checking features in the installed app.
+`bun scripts/packaged-backend-smoke.mjs` runs the unpacked build's PDF module, OCR worker, sharp and CPU models on Electron's Node runtime, with no GUI and no user library, on Linux or macOS. Run `bun run build:dir` first, or pass another unpacked app directory. It does not replace checking features in the installed app.
 
 `bun scripts/media-smoke.mjs source <output>` records thumbnail and poster sizes, warm median timings and pixel error. Pass the unpacked app directory instead of `source` to measure the packaged runtime.
+
+## macOS app
+
+`bun run build:mac` on an Apple silicon Mac writes an arm64 disk image to `.artifacts/electron/`.
+
+- Intel Macs get no build: onnxruntime-node ships no macOS x64 binary, so embeddings and semantic search could not run.
+- The app is ad-hoc signed (`mac.identity` is `-`) without the hardened runtime, because there is no Developer ID. An arm64 bundle without a valid signature does not launch at all; `codesign --verify --deep --strict` on the `.app` catches that.
+- Gatekeeper blocks the first launch of a downloaded copy. The user allows it once in System Settings → Privacy & Security → Open Anyway.
+- In-app updates are off; [tech-stack.md](../tech-stack.md#update-checks) says why and what turning them on takes.
+- Screen capture uses the system picker on macOS 15 and later, and asks for Screen Recording permission on older versions.
+- Each platform's `files` in `package.json` keeps only its own `onnxruntime-node/bin/napi-v6/<platform>` directory. electron-builder's `${os}` macro is `mac` on macOS and `${platform}` is the build host, so neither names the target's directory.
+- `isbinaryfile` is overridden to 5.x in `package.json`: the 4.x that `@electron/osx-sign` asks for crashes while sniffing the bundled ONNX models during signing.
 
 ## Updates and releases
 
@@ -59,7 +72,7 @@ Checking, downloading, canceling and installing are separate actions the user ta
 To cut a release:
 
 1. Push a `vX.Y.Z` tag, or run the Release workflow with the `stable` channel and a version. Nightlies run daily on a schedule, or run the workflow with the `nightly` channel; their version is the next patch with a `-nightly.YYYYMMDD.<run>` suffix.
-2. The workflow builds the Windows installer and the Linux `.deb` and AppImage, runs the packaged Linux smoke checks, and creates a draft GitHub release.
+2. The workflow builds the Windows installer, the Linux `.deb` and AppImage, and the macOS disk image, runs the packaged Linux and macOS smoke checks, and creates a draft GitHub release.
 3. Review the draft and publish it. Until a channel has a published release, update checks on it show an error.
 
 To test the updater locally, run `bun scripts/update-feed-smoke.mjs`, or pass `.artifacts/electron/linux-unpacked` to run it on the packaged runtime. It downloads from loopback feeds, verifies SHA512, replaces a scratch AppImage and checks Debian metadata, and never installs as root.
@@ -85,7 +98,7 @@ Pushes and PRs that change only Markdown, `docs/` or `AGENTS.md` skip CI and the
 
 - `ci.yml` runs the checks on `windows-latest`.
 - `security.yml` runs CodeQL when a PR opens or reopens and on about every fourth push to it, and dependency review on every PR push.
-- The `preview:win` label builds the Windows installer for a same-repository PR and links it in a comment (`electron-preview.yml`). Electron changes in a same-repository PR also build the Linux directory package and launch it under Xvfb.
+- The `preview:win` label builds the Windows installer for a same-repository PR and links it in a comment (`electron-preview.yml`). Electron changes in a same-repository PR also build the Linux directory package and launch it under Xvfb, and build the macOS app bundle, verify its signature, run the backend smoke and launch it.
 - The `preview:web` label deploys the web preview to Vercel and comments its URL (`web-preview.yml`).
 - `pr-size.yml` labels each PR by the size of its diff.
 - `knip.yml` runs `knip --fix` every other day and opens a cleanup PR. It strips unused exports and prunes dependencies but never deletes files; if its PRs get noisy, tune the patterns in `knip.json` rather than disabling it.

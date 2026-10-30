@@ -54,6 +54,10 @@ jobs:
           - os: ubuntu-latest
             command: build:linux
             name: linux
+          # onnxruntime-node ships no macOS x64 binary, so Intel Macs get no build.
+          - os: macos-15
+            command: build:mac
+            name: mac-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -83,10 +87,15 @@ jobs:
       - name: Exercise actual packaged Linux processing and local update feeds
         if: runner.os == 'Linux'
         run: |
-          bun scripts/linux-backend-smoke.mjs
+          bun scripts/packaged-backend-smoke.mjs
           bun scripts/update-feed-smoke.mjs .artifacts/electron/linux-unpacked
           python3 -I -B scripts/update-helper.test.py
           bun scripts/media-smoke.mjs .artifacts/electron/linux-unpacked .artifacts/media-smoke
+      - name: Exercise packaged macOS processing and its ad-hoc signature
+        if: runner.os == 'macOS'
+        run: |
+          codesign --verify --deep --strict .artifacts/electron/mac-arm64/inkling.app
+          bun scripts/packaged-backend-smoke.mjs
       - uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.name }}
@@ -94,9 +103,11 @@ jobs:
             .artifacts/electron/*.exe
             .artifacts/electron/*.deb
             .artifacts/electron/*.AppImage
+            .artifacts/electron/*.dmg
             .artifacts/electron/*.blockmap
             .artifacts/electron/latest*.yml
             .artifacts/electron/nightly*.yml
+            !.artifacts/electron/*-mac.yml
           if-no-files-found: error
 
   draft:

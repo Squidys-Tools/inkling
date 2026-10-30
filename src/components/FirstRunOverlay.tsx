@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState, type CSSProperties } from "react";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { modifierKeyLabel } from "../lib/keyboardShortcuts";
 import { prefersReducedMotion } from "../ui/reducedMotion";
 import { KeptFloating } from "./onboarding/KeptFloating";
 import { MemoryMatch } from "./onboarding/MemoryMatch";
@@ -191,7 +192,7 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
               It&apos;s kept the moment it lands. No folders to pick.
             </p>
             <div className="first-run-keys" style={{ left: 40, top: 300 }}>
-              <kbd>Ctrl</kbd>
+              <kbd>{modifierKeyLabel()}</kbd>
               <kbd>V</kbd>
               <span>works anywhere in inkling</span>
             </div>
@@ -254,7 +255,7 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
               thing. All on this computer.
             </p>
             <div className="first-run-keys" style={{ left: 24, top: 352 }}>
-              <kbd>Ctrl</kbd>
+              <kbd>{modifierKeyLabel()}</kbd>
               <kbd>K</kbd>
               <span>to search from anywhere</span>
             </div>

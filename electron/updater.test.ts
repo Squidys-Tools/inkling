@@ -202,12 +202,13 @@ test("single-flight excludes channel changes and duplicate clicks; cancellation 
   }
 });
 
-test("release runtime support is explicit for NSIS/AppImage/deb and excludes previews/unpacked builds", () => {
+test("release runtime support is explicit for NSIS/AppImage/deb and excludes macOS, previews and unpacked builds", () => {
   const options = { isPackaged: true, isPreview: false, hasFeed: true, platform: "linux" as const };
   expect(updateDisabledReason({ ...options, platform: "win32" })).toBeNull();
   expect(updateDisabledReason({ ...options, packageType: "deb" })).toBeNull();
   expect(updateDisabledReason({ ...options, appImage: "/tmp/a.AppImage" })).toBeNull();
   expect(updateDisabledReason(options)).not.toBeNull();
+  expect(updateDisabledReason({ ...options, platform: "darwin" })).not.toBeNull();
   expect(updateDisabledReason({ ...options, packageType: "deb", isPreview: true })).not.toBeNull();
   expect(updateDisabledReason({ ...options, platform: "win32", isPackaged: false })).not.toBeNull();
 });
