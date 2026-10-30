@@ -83,21 +83,6 @@
 .first-run-quiet:focus-visible {
   color: var(--color-ink);
 }
-.first-run-mascot {
-  position: absolute;
-  line-height: 0;
-  pointer-events: none;
-  animation: fr-mascot-in 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-.first-run-mascot.is-right {
-  --fr-corner: 1;
-}
-.first-run-mascot.is-left {
-  --fr-corner: -1;
-}
-.first-run-mascot.is-leaving {
-  animation: fr-mascot-out 320ms cubic-bezier(0.55, 0, 0.75, 0.4) both;
-}
 /* The --fr-* scale is in stage pixels: FirstRunOverlay scales the stage with
    the window, so never animate its scale. --fr-dir is 1 going forward and -1
    going back. */
@@ -184,18 +169,6 @@
   from {
     opacity: 0;
     translate: 0 14px;
-  }
-}
-@keyframes fr-mascot-in {
-  from {
-    opacity: 0;
-    translate: calc(var(--fr-corner) * 10%) 16%;
-  }
-}
-@keyframes fr-mascot-out {
-  to {
-    opacity: 0;
-    translate: calc(var(--fr-corner) * 6%) 10%;
   }
 }
 @keyframes fr-key-press {
@@ -635,7 +608,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .first-run-stage,
-  .first-run-mascot,
   .first-run-body,
   .first-run-keys,
   .first-run-keys kbd,

@@ -3,13 +3,14 @@ import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { modifierKeyLabel } from "../lib/keyboardShortcuts";
 import { prefersReducedMotion } from "../ui/reducedMotion";
+// Ahead of the screens, whose own stylesheets cascade after it.
+import "./onboarding/onboarding.css";
 import { KeptFloating } from "./onboarding/KeptFloating";
 import { MemoryMatch } from "./onboarding/MemoryMatch";
 import { OnboardingMascot } from "./onboarding/OnboardingMascot";
 import { preloadOnboardingPhotos } from "./onboarding/onboardingMedia";
 import { ReadsPictures } from "./onboarding/ReadsPictures";
 import { SplitText } from "./onboarding/SplitText";
-import "./onboarding/onboarding.css";
 
 /**
  * Every screen is drawn on a 960x540 stage that keeps a fixed share of the
