@@ -42,43 +42,45 @@ export function CaptureBar({
   return (
     // The bar passes pointer events through its empty space to the grid below.
     <section
-      className="capture-bar relative z-2 flex h-[52px] flex-none items-center gap-2 pointer-events-none [&>*]:pointer-events-auto"
+      className="capture-bar relative z-2 flex flex-none flex-col pointer-events-none"
       ref={ref}
       aria-label="Capture and search"
     >
-      {leading}
-      {showSearch && (
-        <SearchField
-          ref={searchRef}
-          expanded={isSearchFocused}
-          rest={
-            <>
-              <HugeiconsIcon icon={Search01Icon} size={14} />
-              {view}
-            </>
-          }
-          adornment={
-            <LiveMascotSearchEyes
-              size={22}
-              className={query ? "animate-mascot-bob motion-reduce:animate-none" : undefined}
-            />
-          }
-          hint="esc to close"
-          value={query}
-          onFocus={() => onSearchFocusChange(true)}
-          onBlur={() => onSearchFocusChange(false)}
-          onKeyDown={(event) => {
-            if (event.key !== "Escape") return;
-            onClearQuery();
-            event.currentTarget.blur();
-          }}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Search your mind"
-          aria-label="Search your mind"
-        />
-      )}
+      <div className="relative flex h-[52px] flex-none items-center gap-2 [&>*]:pointer-events-auto">
+        {leading}
+        {showSearch && (
+          <SearchField
+            ref={searchRef}
+            expanded={isSearchFocused}
+            rest={
+              <>
+                <HugeiconsIcon icon={Search01Icon} size={14} />
+                {view}
+              </>
+            }
+            adornment={
+              <LiveMascotSearchEyes
+                size={22}
+                className={query ? "animate-mascot-bob motion-reduce:animate-none" : undefined}
+              />
+            }
+            hint="esc to close"
+            value={query}
+            onFocus={() => onSearchFocusChange(true)}
+            onBlur={() => onSearchFocusChange(false)}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              onClearQuery();
+              event.currentTarget.blur();
+            }}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Search your mind"
+            aria-label="Search your mind"
+          />
+        )}
+      </div>
       {(showFilterRow || captureError) && (
-        <div className="absolute inset-x-0 top-full flex flex-col pointer-events-none!">
+        <div className="flex flex-col pointer-events-none!">
           {showFilterRow && (
             <div className="flex h-11 items-center justify-between gap-3 pb-1.5">
               {trimmedQuery && (
@@ -117,7 +119,7 @@ export function CaptureBar({
             <Surface
               liquid
               render={<p />}
-              className="mt-2 mb-0 mx-0 self-start rounded-[999px] px-3 py-1.5 text-[12px] whitespace-nowrap text-[#d07055] pointer-events-auto"
+              className="mt-2 mb-0 mx-0 max-w-full self-start rounded-[999px] px-3 py-1.5 text-[12px] break-words text-[#d07055] pointer-events-auto"
             >
               Couldn’t save this yet: {captureError}
             </Surface>

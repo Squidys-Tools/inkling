@@ -162,6 +162,7 @@ function App() {
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const captureBarRef = useRef<HTMLElement>(null);
+  const libraryChromeRef = useRef<HTMLDivElement>(null);
   const viewDockRef = useRef<HTMLDivElement>(null);
   const tooltipLayerRef = useRef<HTMLDivElement>(null);
   const cardMenuLayerRef = useRef<HTMLDivElement>(null);
@@ -330,9 +331,6 @@ function App() {
   // Both sit under the toolbar in one column, so a capture error and the pinned
   // query row stack instead of overlapping.
   const showFilterRow = !isSearchFocused && query.trim() !== "";
-  // A pinned query has its own band above the grid, so the grid starts below it.
-  // Only this boolean reaches the DOM, so typing does not restyle the grid.
-  const hasPinnedQuery = showFilterRow;
   // An empty Space has nothing to search or re-lay out, so it drops the
   // browsing controls.
   const isEmptySpace = Boolean(activeSpace) && filteredItems.length === 0 && !query.trim();
@@ -653,40 +651,45 @@ function App() {
           ref={libraryFrameRef}
           inert={selectedItem != null}
         >
-          <section className="flex-none max-[780px]:pt-[30px]"></section>
+          <div
+            ref={libraryChromeRef}
+            className="library-chrome relative z-2 flex flex-none flex-col"
+          >
+            <section className="flex-none max-[780px]:pt-[30px]"></section>
 
-          <CaptureBar
-            ref={captureBarRef}
-            leading={
-              !codexSidebar &&
-              !isSidebarOpen && (
-                <>
-                  <SidebarOpenButton
-                    edgeToggle={appearance.sidebarToggle === "edge"}
-                    onOpen={() => setIsSidebarOpen(true)}
-                  />
-                  {sidebarActionErrorAlert}
-                </>
-              )
-            }
-            showSearch={showBrowseControls}
-            searchRef={searchRef}
-            view={activeSpace?.name ?? activeView}
-            query={query}
-            isSearchFocused={isSearchFocused}
-            onSearchFocusChange={setIsSearchFocused}
-            onQueryChange={(value) => {
-              setActiveSpaceId(null);
-              setActiveView("Everything");
-              setQuery(value);
-            }}
-            onClearQuery={() => setQuery("")}
-            showFilterRow={showFilterRow}
-            resultCount={filteredItems.length}
-            onSaveSearch={beginSaveSearch}
-            captureError={showCaptureError ? captureError : null}
-          />
+            <CaptureBar
+              ref={captureBarRef}
+              leading={
+                !codexSidebar &&
+                !isSidebarOpen && (
+                  <>
+                    <SidebarOpenButton
+                      edgeToggle={appearance.sidebarToggle === "edge"}
+                      onOpen={() => setIsSidebarOpen(true)}
+                    />
+                    {sidebarActionErrorAlert}
+                  </>
+                )
+              }
+              showSearch={showBrowseControls}
+              searchRef={searchRef}
+              view={activeSpace?.name ?? activeView}
+              query={query}
+              isSearchFocused={isSearchFocused}
+              onSearchFocusChange={setIsSearchFocused}
+              onQueryChange={(value) => {
+                setActiveSpaceId(null);
+                setActiveView("Everything");
+                setQuery(value);
+              }}
+              onClearQuery={() => setQuery("")}
+              showFilterRow={showFilterRow}
+              resultCount={filteredItems.length}
+              onSaveSearch={beginSaveSearch}
+              captureError={showCaptureError ? captureError : null}
+            />
 
+          </div>
           <ViewDock
             ref={viewDockRef}
             look={appearance.viewToggle}
@@ -703,7 +706,8 @@ function App() {
             listMode={listMode}
             columnCount={gridColumnCount}
             context={libraryCardContext}
-            hasPinnedQuery={hasPinnedQuery}
+            chromeRef={libraryChromeRef}
+            dockRef={viewDockRef}
             emptySpaceName={activeSpace?.kind === "regular" ? activeSpace.name : undefined}
             onClearSearch={() => {
               setQuery("");

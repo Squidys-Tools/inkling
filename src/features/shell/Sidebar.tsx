@@ -112,7 +112,10 @@ export function Sidebar({
         }
       >
         <div
-          className={cx("-mb-2 flex h-11 items-center pr-1 pl-1.5", experimental && "codex-brand")}
+          className={cx(
+            "-mb-2 flex h-11 flex-none items-center pr-1 pl-1.5",
+            experimental && "codex-brand",
+          )}
         >
           {experimental && !isOpen ? (
             <button
@@ -152,7 +155,7 @@ export function Sidebar({
           </Button>
         </div>
 
-        <nav className="grid gap-0.5" aria-label="Main navigation">
+        <nav className="grid flex-none gap-0.5" aria-label="Main navigation">
           <NavRow
             active={everything.active}
             onClick={everything.onSelect}
@@ -172,9 +175,11 @@ export function Sidebar({
           </NavRow>
         </nav>
 
-        {children}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {children}
+        </div>
 
-        <div className="mt-auto grid gap-0.5">{footer}</div>
+        <div className="mt-auto grid flex-none gap-0.5">{footer}</div>
       </aside>
     </>
   );
