@@ -1,5 +1,13 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  truncateSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
@@ -246,4 +254,18 @@ test("the poster is the shell thumbnail at card size, or nothing", async () => {
     }),
   ).toBeNull();
   expect(await createVideoPoster("clip.mp4", { nativeImage: {}, decoderPath: null })).toBeNull();
+
+  const root = mkdtempSync(join(tmpdir(), "inkling-video-poster-"));
+  roots.push(root);
+  const oversized = join(root, "oversized.mp4");
+  writeFileSync(oversized, "");
+  truncateSync(oversized, 1024 * 1024 * 1024 + 1);
+  expect(
+    await createVideoPoster(oversized, { nativeImage: {}, decoderPath: process.execPath }),
+  ).toBeNull();
+  const undecodable = join(root, "undecodable.mp4");
+  writeFileSync(undecodable, "not a video");
+  expect(
+    await createVideoPoster(undecodable, { nativeImage: {}, decoderPath: process.execPath }),
+  ).toBeNull();
 });

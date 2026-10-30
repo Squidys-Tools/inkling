@@ -40,8 +40,7 @@ export async function createVideoPoster(
   if (!isAbsolute(decoder) || !isAbsolute(filePath) || filePath.includes("\0"))
     throw new Error("Video poster requires absolute local paths.");
   const source = await stat(filePath);
-  if (!source.isFile() || source.size > 50 * 1024 * 1024)
-    throw new Error("Video exceeds poster processing limits.");
+  if (!source.isFile() || source.size > 1024 * 1024 * 1024) return null;
   try {
     const { stdout } = await execute(
       decoder,
@@ -82,10 +81,7 @@ export async function createVideoPoster(
     if (!stdout.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
       throw new Error("Video decoder returned no image.");
     return stdout;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw new Error("A poster could not be decoded; the original video is unchanged.", {
-      cause: error,
-    });
+  } catch {
+    return null;
   }
 }

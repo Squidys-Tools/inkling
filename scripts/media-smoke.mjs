@@ -159,7 +159,7 @@ if (packaged && !process.versions.electron) {
     const decodeAndCompressionMs = performance.now() - start;
     const bad = join(scratch, "not-a-video.mp4");
     await writeFile(bad, "not a video");
-    await assert.rejects(() => createVideoPoster(bad, decoderOptions));
+    assert.equal(await createVideoPoster(bad, decoderOptions), null);
     assert.equal(
       await createVideoPoster(clip, {
         nativeImage: {},
@@ -173,7 +173,7 @@ if (packaged && !process.versions.electron) {
       playlist,
       "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\nhttp://127.0.0.1:1/never-fetch.ts\n#EXT-X-ENDLIST\n",
     );
-    await assert.rejects(() => createVideoPoster(playlist, decoderOptions));
+    assert.equal(await createVideoPoster(playlist, decoderOptions), null);
     assert.equal(hash(await readFile(clip)), original);
     report.video = {
       sourceSha256: original,
