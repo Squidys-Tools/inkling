@@ -8,11 +8,11 @@ import {
   closeLibrary,
   ids,
   removeTemporaryRoots,
-  seedFromDemo,
   temporaryLibrary,
   trackedLibrary,
   vector,
 } from "./test-helpers.ts";
+import { seedFromDemo } from "./test-seed.ts";
 
 afterEach(closeAll);
 afterAll(removeTemporaryRoots);

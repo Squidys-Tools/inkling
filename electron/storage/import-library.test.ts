@@ -7,11 +7,11 @@ import {
   closeDatabase,
   ids,
   removeTemporaryRoots,
-  seedFromDemo,
   temporaryLibrary,
   trackDatabase,
   trackedLibrary,
 } from "./test-helpers.ts";
+import { seedFromDemo } from "./test-seed.ts";
 
 afterEach(closeAll);
 afterAll(removeTemporaryRoots);

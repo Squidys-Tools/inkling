@@ -2,8 +2,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { personalSeedItems } from "../../src/seedPersonal";
-import parity from "../fixtures/storage-parity.json";
 import type { LibraryOptions } from "./library.ts";
 import { openTestLibrary, type TestLibrary } from "./test-library.ts";
 
@@ -69,25 +67,4 @@ export function vector(values: number[]) {
     bytes.writeFloatLE(value, index * 4);
   });
   return bytes;
-}
-
-export function seedFromDemo(library: TestLibrary) {
-  const selected = personalSeedItems.filter((item) => parity.sourceIds.includes(String(item.id)));
-  const insert = library.db
-    .prepare(`INSERT INTO items (id, kind, title, description, body, body_format,
-    source_label, metadata, ocr_text, created_at, updated_at)
-    VALUES (?, ?, ?, ?, '', 'md', 'Downloads', ?, '', ?, ?)`);
-  selected.forEach((item, index) => {
-    const now = index + 1;
-    insert.run(
-      item.id,
-      item.kind.toLowerCase(),
-      item.title,
-      item.description,
-      JSON.stringify({ tags: item.tags }),
-      now,
-      now,
-    );
-  });
-  return selected;
 }
