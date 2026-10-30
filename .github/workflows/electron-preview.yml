@@ -237,6 +237,16 @@ jobs:
       - name: Build Electron app bundle
         run: bun run build:dir
 
+      # electron-builder skips signing PR builds. Seal only this preview with
+      # the literal ad-hoc identity: no certificate, keychain or notarization.
+      - name: Ad-hoc sign the PR preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=".artifacts/electron/mac-arm64/inkling.app"
+          codesign --force --deep --sign - --timestamp=none "$app"
+          codesign --display --verbose=4 "$app" 2>&1 | grep -Fx 'Signature=adhoc'
+
       # An arm64 bundle whose signature broke during packaging will not launch: macOS calls it damaged.
       - name: Check the ad-hoc signature
         run: codesign --verify --deep --strict .artifacts/electron/mac-arm64/inkling.app
