@@ -23,7 +23,7 @@ import {
   PostArtwork,
   QuoteArtwork,
 } from "../../components/ItemMedia";
-import type { SourceRects } from "../item-view/overlayMotion";
+import { cardRects, type SourceRects } from "../item-view/overlayMotion";
 import type { ReaderOrigin } from "../../ReaderView";
 import type { LibraryItem } from "../../lib/types";
 import { RETRY_BUTTON } from "../../ui/Button";
@@ -128,29 +128,6 @@ function quoteAttribution(description: string): string {
 // Quotes show in full on the card; the art clamps only very long ones.
 function cardText(value: string | undefined, fallback: string): string {
   return value?.replace(/\s+/gu, " ").trim() || fallback;
-}
-
-// Captures the card and its media box before selection state changes, so the
-// item view's opening flight starts from the card's exact position.
-function cardRectsFor(card: HTMLElement): SourceRects {
-  const cardRect = card.getBoundingClientRect();
-  const mediaRect = card.querySelector<HTMLElement>(".library-card-media")?.getBoundingClientRect();
-  return {
-    card: {
-      left: cardRect.left,
-      top: cardRect.top,
-      width: cardRect.width,
-      height: cardRect.height,
-    },
-    media: mediaRect
-      ? {
-          left: mediaRect.left,
-          top: mediaRect.top,
-          width: mediaRect.width,
-          height: mediaRect.height,
-        }
-      : { left: cardRect.left, top: cardRect.top, width: cardRect.width, height: 0 },
-  };
 }
 
 // The pill is the only play affordance on a video card; playback happens in
@@ -320,7 +297,7 @@ export const LibraryCard = memo(function LibraryCard({
       context.onToggleArchivedItem?.(item);
       return;
     }
-    context.onSelectItem(item, cardRectsFor(event.currentTarget));
+    context.onSelectItem(item, cardRects(event.currentTarget));
   };
   const textColor = item.featured
     ? "text-muted"
@@ -386,7 +363,7 @@ export const LibraryCard = memo(function LibraryCard({
           if (archiveSelectionMode) {
             context.onToggleArchivedItem?.(item);
           } else {
-            context.onSelectItem(item, cardRectsFor(event.currentTarget));
+            context.onSelectItem(item, cardRects(event.currentTarget));
           }
         }}
       >
@@ -631,7 +608,7 @@ export const LibraryCard = memo(function LibraryCard({
                 onClick={(event) => {
                   event.stopPropagation();
                   const card = event.currentTarget.closest<HTMLElement>(".library-card");
-                  context.onSelectItem(item, card ? cardRectsFor(card) : undefined);
+                  context.onSelectItem(item, card ? cardRects(card) : undefined);
                 }}
               >
                 Watch <HugeiconsIcon icon={PlayIcon} size={11} />

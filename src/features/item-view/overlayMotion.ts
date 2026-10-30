@@ -53,7 +53,10 @@ export function queryCardRects(id: string | number): SourceRects | null {
   const card = document.querySelector<HTMLElement>(
     `.library-card[data-library-item-id="${CSS.escape(String(id))}"]`,
   );
-  if (!card) return null;
+  return card ? cardRects(card) : null;
+}
+
+export function cardRects(card: HTMLElement): SourceRects {
   const cardRect = card.getBoundingClientRect();
   const mediaRect = card.querySelector<HTMLElement>(".library-card-media")?.getBoundingClientRect();
   return {
