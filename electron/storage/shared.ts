@@ -6,9 +6,9 @@ import { invalidInput } from "./errors.ts";
 
 export type Metadata = Record<string, unknown>;
 
-export function parseJson<T>(value: unknown, fallback: T): T {
+export function parseJson<T>(text: string, fallback: T): T {
   try {
-    return JSON.parse(String(value));
+    return JSON.parse(text);
   } catch {
     return fallback;
   }
