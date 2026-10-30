@@ -116,6 +116,7 @@
   "patchedDependencies": {
     "sharp@0.35.5": "patches/sharp@0.35.5.patch",
     "@liquid-dom/core@0.1.1": "patches/@liquid-dom%2Fcore@0.1.1.patch",
+    "@virtuoso.dev/masonry@1.4.3": "patches/@virtuoso.dev%2Fmasonry@1.4.3.patch",
   },
   "overrides": {
     "isbinaryfile": "5.0.7",
