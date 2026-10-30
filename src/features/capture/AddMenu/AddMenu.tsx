@@ -34,7 +34,7 @@ type Props = {
   onSaveNote: (text: string) => Promise<boolean>;
   onSaveLink: (url: string) => Promise<boolean>;
   onSaveQuote: (text: string, attribution: string, sourceUrl: string) => Promise<boolean>;
-  onPickFile: (file: File) => void;
+  onPickFile: (files: File[]) => void;
   onScreenshot: () => void;
   onAddSpace?: () => void;
 };
@@ -179,11 +179,11 @@ export function AddMenu({
           type="file"
           hidden
           tabIndex={-1}
-          accept="image/*,application/pdf,video/*"
+          multiple
           onChange={(event) => {
-            const file = event.target.files?.[0];
+            const files = Array.from(event.target.files ?? []);
             event.target.value = "";
-            if (file) onPickFile(file);
+            if (files.length) onPickFile(files);
           }}
         />
         <div
@@ -296,13 +296,14 @@ export function AddMenu({
       <input
         ref={fileRef}
         type="file"
+        multiple
         className="sr-only"
         tabIndex={-1}
-        accept="image/*,application/pdf,video/*"
+        aria-label="Choose files"
         onChange={(event) => {
-          const file = event.target.files?.[0];
+          const files = Array.from(event.target.files ?? []);
           event.target.value = "";
-          if (file) onPickFile(file);
+          if (files.length) onPickFile(files);
         }}
       />
       <AnimatePresence initial={false}>

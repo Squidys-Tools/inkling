@@ -275,7 +275,9 @@ function App() {
     persistText,
     persistArticle,
     persistQuote,
-    captureFile,
+    captureFiles,
+    fileImport,
+    clearFileImport,
     startScreenshotCapture,
     handleDragOver,
     handleDragLeave,
@@ -529,7 +531,7 @@ function App() {
                 onSaveQuote={(text, attribution, sourceUrl) =>
                   saveFromAddMenu(() => persistQuote(text, attribution, sourceUrl, "quick quote"))
                 }
-                onPickFile={(file) => void captureFile(file, "file picker")}
+                onPickFile={(files) => captureFiles(files, "file picker")}
                 onScreenshot={startScreenshotCapture}
                 onAddSpace={
                   codexSidebar
@@ -705,6 +707,26 @@ function App() {
             onSaveSearch={beginSaveSearch}
             captureError={showCaptureError ? captureError : null}
           />
+
+          {fileImport && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="fixed right-5 bottom-5 z-50 flex items-center gap-3 rounded-xl border border-border bg-canvas px-4 py-2 text-xs shadow-sm"
+            >
+              <span>
+                {fileImport.active
+                  ? `Importing ${fileImport.completed} of ${fileImport.total} files…`
+                  : `${fileImport.saved} files saved. Processing continues in the background.`}
+                {fileImport.failed > 0 ? ` ${fileImport.failed} failed.` : ""}
+              </span>
+              {!fileImport.active && (
+                <button type="button" aria-label="Dismiss import status" onClick={clearFileImport}>
+                  ×
+                </button>
+              )}
+            </div>
+          )}
 
           <ViewDock
             ref={viewDockRef}
