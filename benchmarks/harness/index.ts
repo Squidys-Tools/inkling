@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { arch, cpus, platform, release, totalmem } from "node:os";
 import { join } from "node:path";
 import { loadManifest, corpusPath, benchmarksRoot } from "./manifest";
 import { startCorpusServer } from "./server";
@@ -16,6 +15,7 @@ import {
   type ItemResult,
 } from "./score";
 import type { ExpectedSearch, ManifestItem } from "./manifest";
+import { machineInfo, summarize, writeSummaryMarkdown } from "./report";
 
 const EXTRACTION_TYPES = new Set(["article", "recipe", "video"]);
 
