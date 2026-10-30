@@ -1,6 +1,6 @@
 import { EYE_H, EYE_SPLIT, EYE_W, REST_GAZE, type HeadGaze } from "./face";
 import { lerp } from "./math";
-import type { EyeCfg } from "./states";
+import type { EyeCfg } from "./pose";
 
 /**
  * Expression de repos du bot.

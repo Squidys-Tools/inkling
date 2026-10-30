@@ -12,7 +12,8 @@ import {
   type Point,
   type Silhouette,
 } from "./shape";
-import { STATE_BY_ID, type Pose, type StateDef, type StateId } from "./states";
+import type { Pose } from "./pose";
+import { STATE_BY_ID, type StateDef, type StateId } from "./states";
 
 interface RenderedEye {
   d: string;

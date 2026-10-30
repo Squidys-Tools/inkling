@@ -42,7 +42,8 @@ import { EXPRESSIONS, type BotExpression } from "./expressions";
 import { eyePoses } from "./face";
 import { radiusAtAngle, toPoints, type Point } from "./shape";
 import { SHAPES, SHAPE_BY_ID } from "./skins";
-import { STATES, type Pose, type StateDef, type StateId } from "./states";
+import type { Pose } from "./pose";
+import { STATES, type StateDef, type StateId } from "./states";
 
 /** Rayon de reference du solveur. Le decalage rendu est en unites de ce rayon. */
 const R = 100;
