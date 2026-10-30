@@ -43,6 +43,7 @@ export const normalizeHttpUrl = Effect.fnUntraced(function* (value: unknown) {
   return url.toString();
 });
 
+// `src/lib/notes.ts` has a second copy; change both together. It explains how they differ.
 export function markdownToPlainText(markdown: string) {
   return markdown
     .replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
