@@ -276,6 +276,8 @@ export function createUpdateController({
           state = { ...state, status: "installing", message: null, errorContext: null };
           await install(download.file, expectedVersion, download.hash);
         } catch {
+          installRecord = undefined;
+          await preferences.write({ channel: state.channel });
           fail(
             "install",
             "Installation was canceled or failed. Nothing is reported as installed; retry or use the release installer.",

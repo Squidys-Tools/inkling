@@ -174,6 +174,7 @@ test("single-flight excludes channel changes and duplicate clicks; cancellation 
     await failed.checkForUpdates();
     await failed.downloadUpdate("0.1.1");
     expect((await failed.installUpdate("0.1.1")).errorContext).toBe("install");
+    expect((await f.options.preferences.read()).install).toBeUndefined();
     expect((await failed.setChannel("nightly")).status).toBe("idle");
   } finally {
     await rm(f.root, { recursive: true, force: true });
