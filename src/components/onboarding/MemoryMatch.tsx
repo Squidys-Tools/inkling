@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { prefersReducedMotion } from "../../ui/reducedMotion";
 import { GridReveal } from "./GridReveal";
 import { onboardingPhotos } from "./onboardingMedia";
+import "./MemoryMatch.css";
 
 const MEMORY = "orange rocky cliffs, trees and bushes";
 /** The headline gets the first moments; the query starts typing once it has mostly landed. */
@@ -14,7 +15,7 @@ const DOT_STEP_MS = 85;
 const DOT_MS = 420;
 /** The photo is handed over as the last dot lands. */
 const SEARCH_MS = (TRAIL_DOTS - 1) * DOT_STEP_MS + DOT_MS;
-/** Matches --memory-card-w / --memory-card-h in onboarding.css. */
+/** Matches --memory-card-w / --memory-card-h in MemoryMatch.css. */
 const CARD_ASPECT = 264 / 308;
 
 type Phase = "typing" | "searching" | "found";
