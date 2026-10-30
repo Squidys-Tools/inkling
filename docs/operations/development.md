@@ -35,38 +35,26 @@ The Electron release package includes the pinned embedding models under its
 resources directory. In development, missing model files are downloaded and
 SHA-256 verified when an embedding job first needs them.
 
-On Debian/Ubuntu, `bun run build:linux` writes a `.deb` and AppImage to
-`.artifacts/electron/`. Install the `.deb` with `sudo apt install ./<package>.deb`,
-then open inkling from the app launcher. The standard electron-builder install
-scripts configure Chromium's sandbox and Ubuntu AppArmor integration. Do not
-work around a sandbox startup error with `--no-sandbox`; install the package
-normally. AppImages require a host that permits Chromium's sandbox to start.
-
-`bun scripts/linux-backend-smoke.mjs` checks the unpacked package's real PDF
-module, OCR worker and CPU model using Electron's Node runtime without a GUI or
-a user library. It is not a substitute for installed-app feature checks.
-The pinned sharp patch selects its supported WASM backend only in Linux
-Electron, avoiding the native libvips/GLib collision. Keep `@img/sharp-wasm32`
-(the Knip runtime exception) and the patch in sync when upgrading sharp.
-PDF rendering avoids Linux Electron's crashing system-font scan and uses the
-bundled PDF.js fonts, character maps and WASM decoders instead.
-On Wayland, Screen uses the system screen-sharing portal; if capture is denied
-or unavailable, use the system screenshot tool and paste or import the image.
-Image/poster compression runs in the existing background thumbnail worker with
-packaged sharp, not an end-user Bun runtime. The Debian package declares FFmpeg
-as an OS dependency for local-video posters; Windows/macOS retain their shell
-thumbnailers. AppImage users without `/usr/bin/ffmpeg` keep typed video artwork.
-The decoder accepts local files only, with bounded time/output and no remote
-playlist protocols; originals remain unchanged. Rewritten thumbnails revalidate
-instead of being cached as immutable. `bun scripts/media-smoke.mjs source <output>`
-records before/after bytes, warm median timings and pixel-error measurements;
-pass the unpacked app directory instead of `source` for packaged-runtime checks.
-
 `ui:smoke` builds the preview bundle, launches the Electron app with the demo seed
 against a throwaway user-data directory, and drives the core library flows over
 the Chrome DevTools protocol. It writes screenshots to `.artifacts/ui-smoke/`,
 fails on any console error, and exits non-zero with a PASS/FAIL line per check.
 It needs a display; on Linux without one it runs under `xvfb-run`.
+
+## Linux packages
+
+`bun run build:linux` writes a `.deb` and an AppImage to `.artifacts/electron/`.
+
+- Install the `.deb` with `sudo apt install ./<package>.deb`. Its install scripts set up Chromium's sandbox and Ubuntu's AppArmor profile. Never work around a sandbox startup error with `--no-sandbox`.
+- An AppImage runs only on a host that lets Chromium's sandbox start.
+- The `.deb` depends on FFmpeg for local-video posters, and on `pkexec` and `python3` for the update helper. An AppImage on a host without `/usr/bin/ffmpeg` shows the typed video card instead of a poster.
+- On Wayland, Screen capture goes through the system screen-sharing portal. If the user denies it, they can take a screenshot with the system tool and paste it.
+- A pinned patch makes sharp use its WASM backend in Linux Electron, because the native libvips collides with Electron's GLib. When upgrading sharp, update the patch and `@img/sharp-wasm32` (a Knip runtime exception) together.
+- PDF rendering uses the bundled PDF.js fonts, character maps and WASM decoders, because the system-font scan crashes Linux Electron.
+
+`bun scripts/linux-backend-smoke.mjs` runs the unpacked build's PDF module, OCR worker and CPU model on Electron's Node runtime, with no GUI and no user library. Run `bun run build:dir` first, or pass another unpacked app directory. It does not replace checking features in the installed app.
+
+`bun scripts/media-smoke.mjs source <output>` records thumbnail and poster sizes, warm median timings and pixel error. Pass the unpacked app directory instead of `source` to measure the packaged runtime.
 
 ## Updates and releases
 
