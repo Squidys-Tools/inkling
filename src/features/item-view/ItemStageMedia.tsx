@@ -1,11 +1,6 @@
 import type { ReactNode } from "react";
-import {
-  DetailVideoMedia,
-  KindIcon,
-  NoteArtwork,
-  PdfArtwork,
-  PostArtwork,
-} from "../../components/ItemMedia";
+import { DetailVideoMedia } from "../../components/DetailVideoMedia";
+import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork } from "../../components/ItemMedia";
 import { XPostEmbed } from "../../components/XPostEmbed";
 import type { LibraryItem } from "../../lib/types";
 import { cx } from "../../ui/cx";
