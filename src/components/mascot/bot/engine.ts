@@ -58,21 +58,15 @@ export interface BotFrame {
  * n'y a PAS de pointeur (arrivee au clavier, au tactile, ou souris sortie de la
  * fenetre), la tete doit rester tournee ET continuer de vivre. Les confondre
  * figeait le regard des que la vue s'ouvrait.
- *
- * `spin` est un tour a parcourir EN CHEMIN, en degres, qu'on fait fondre vers 0
- * avec l'arrivee. Comme les yeux vivent sur une sphere, un tour les fait passer
- * derriere la boule et revenir de l'autre cote — et `-360deg` etant le meme
- * angle que `0`, il ne change rien a l'endroit ou ils se posent.
  */
 export interface Look {
   yaw: number;
   pitch: number;
   mix: number;
-  spin: number;
   wander: number;
 }
 
-const NO_LOOK: Look = { yaw: 0, pitch: 0, mix: 0, spin: 0, wander: 1 };
+const NO_LOOK: Look = { yaw: 0, pitch: 0, mix: 0, wander: 1 };
 
 /**
  * Duree de rattrapage du regard vers la cible. Plus court que `SHAPE_MORPH` :
@@ -86,7 +80,6 @@ const lerpLook = (a: Look, b: Look, t: number): Look => ({
   yaw: lerp(a.yaw, b.yaw, t),
   pitch: lerp(a.pitch, b.pitch, t),
   mix: lerp(a.mix, b.mix, t),
-  spin: lerp(a.spin, b.spin, t),
   wander: lerp(a.wander, b.wander, t),
 });
 
@@ -310,7 +303,7 @@ export class BotEngine {
      * l'appelant. Celui-la est corrige, mais le moteur n'a pas a dependre de la
      * prudence de ses appelants pour rester rejouable.
      */
-    if (look && !Number.isFinite(look.yaw + look.pitch + look.mix + look.spin + look.wander)) {
+    if (look && !Number.isFinite(look.yaw + look.pitch + look.mix + look.wander)) {
       return;
     }
     this.lookPrev = this.lookAtTime(now);
@@ -498,10 +491,10 @@ export class BotEngine {
 
     const gaze = {
       // Les deux visees REMPLACENT celles de la pose au lieu de s'y ajouter (voir
-      // `Look`), et le tour se retranche en chemin. La derive s'ajoute APRES le
-      // melange, sinon la cible l'annulerait en meme temps que la pose — or elle
-      // doit survivre a une tete tournee sans pointeur.
-      yaw: lerp(pose.gaze.yaw, look.yaw, look.mix) + life.dYaw - look.spin,
+      // `Look`). La derive s'ajoute APRES le melange, sinon la cible l'annulerait
+      // en meme temps que la pose — or elle doit survivre a une tete tournee sans
+      // pointeur.
+      yaw: lerp(pose.gaze.yaw, look.yaw, look.mix) + life.dYaw,
       pitch: lerp(pose.gaze.pitch, look.pitch, look.mix) + life.dPitch,
       // le roulis, lui, ne suit rien : la tete du bot est penchee de -13deg dans
       // la video, et la faire rouler avec le curseur casse cette signature

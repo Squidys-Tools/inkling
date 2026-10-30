@@ -39,7 +39,6 @@ const HELD_LOOK_WANDER = 0.35;
 const heldLook = (look: { yaw: number; pitch: number }) => ({
   ...look,
   mix: 1,
-  spin: 0,
   wander: HELD_LOOK_WANDER,
 });
 

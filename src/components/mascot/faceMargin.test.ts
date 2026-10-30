@@ -84,7 +84,7 @@ function smallestGap(state: StateId, faces: string[], look: { yaw: number; pitch
     SHAPE_BY_ID.get("inkling-splash")?.radii ?? null,
     null,
   );
-  if (look) engine.setLook({ ...look, mix: 1, spin: 0, wander: 0.35 }, -10);
+  if (look) engine.setLook({ ...look, mix: 1, wander: 0.35 }, -10);
   let face = -1;
   let gap = Number.POSITIVE_INFINITY;
   for (let t = 0; t < 120; t += 0.1) {

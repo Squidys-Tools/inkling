@@ -107,10 +107,7 @@ function WatcherTile() {
             (e.clientY - (box.top + box.height / 2)) / Math.max(1, window.innerHeight / 2),
           ),
         );
-        engine.setLook(
-          { yaw: nx * 35, pitch: ny * 22, mix: 0.85, spin: 0, wander: 0.2 },
-          clockRef.current,
-        );
+        engine.setLook({ yaw: nx * 35, pitch: ny * 22, mix: 0.85, wander: 0.2 }, clockRef.current);
       }}
       onPointerLeave={() => engine.setLook(null, clockRef.current)}
     >

@@ -123,7 +123,7 @@ function frameAt(t: number): BotFrame {
     engine.setExpression({ ...e, split: PLACEMENT.split }, at);
   }
   const g = face(t).gaze;
-  engine.setLook({ yaw: g.yaw, pitch: g.pitch, mix: 1, spin: 0, wander: 0 }, -10);
+  engine.setLook({ yaw: g.yaw, pitch: g.pitch, mix: 1, wander: 0 }, -10);
   return engine.sample(t);
 }
 
