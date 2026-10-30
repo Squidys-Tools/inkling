@@ -66,6 +66,11 @@ describe("purifyHtml", () => {
       "<img><a>f</a>",
     ],
     [
+      "SVG links off the web",
+      '<svg><a xlink:href="/library-assets/items/abc/file.svg"><rect></rect></a><a xlink:href="ftp://example.com/x"><rect></rect></a></svg>',
+      '<svg><a xlink:href="https://example.com/library-assets/items/abc/file.svg"><rect></rect></a><a><rect></rect></a></svg>',
+    ],
+    [
       "base",
       '<base href="https://evil.example/"><a href="/x">x</a>',
       '<a href="https://example.com/x">x</a>',

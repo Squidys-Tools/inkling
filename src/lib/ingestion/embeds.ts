@@ -113,7 +113,7 @@ export function embedCandidate(
   return { kind, provider: "direct", sourceUrl, embedUrl: sourceUrl };
 }
 
-const URL_ATTRIBUTES = ["href", "src", "poster", "cite"];
+const URL_ATTRIBUTES = ["href", "xlink:href", "src", "poster", "cite"];
 
 /**
  * Keeps an element's links to http(s) URLs resolved against the page, and holds
