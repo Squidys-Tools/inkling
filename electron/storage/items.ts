@@ -7,6 +7,7 @@ import type {
   CaptureUrlInput,
   CreateNoteInput,
   CreateQuoteInput,
+  SaveFileInput,
   UpdateItemInput,
 } from "@inkling/contracts";
 import { selectCards, readItem, type StorageContext } from "./context.ts";
@@ -22,18 +23,9 @@ import {
   nonEmpty,
   normalizeHttpUrl,
   parseObject,
-  validateItemId,
 } from "./shared.ts";
 
 const maxFileBytes = 50 * 1024 * 1024;
-
-export type SaveFile = {
-  id?: string;
-  fileName: string;
-  mimeType?: string | null;
-  kind?: string | null;
-  bytes: unknown;
-};
 
 const sanitizeFileName = Effect.fnUntraced(function* (value: unknown) {
   let name = Array.from(String(value ?? "").trim(), (character) =>
@@ -192,9 +184,9 @@ export function makeItems(ctx: StorageContext) {
     });
   });
 
-  const saveFile = Effect.fnUntraced(function* (input: SaveFile) {
+  const saveFile = Effect.fnUntraced(function* (input: SaveFileInput) {
     const fileName = yield* sanitizeFileName(input.fileName);
-    const id = yield* validateItemId(input.id ?? randomUUID());
+    const id = randomUUID();
     const mimeType = nonEmpty(input.mimeType)?.toLowerCase() ?? null;
     const kind = yield* normalizeFileKind(input.kind, mimeType, fileName);
     const bytes = yield* fileInputBuffer(input.bytes);
@@ -217,20 +209,12 @@ export function makeItems(ctx: StorageContext) {
     });
     const assetPath = relativeAssetPath(`items/${id}/${fileName}`);
     const now = Date.now();
-    const existing = yield* getItem(id);
     yield* sql.withTransaction(
       Effect.gen(function* () {
-        if (existing) {
-          yield* sql`UPDATE items SET kind = ${kind}, title = ${fileName}, description = NULL,
-            body = '', body_format = 'md', source_label = ${mimeType}, local_asset_path = ${assetPath},
-            thumbnail_path = NULL, ocr_text = '', metadata = ${metadata}, archived = 0,
-            updated_at = ${now} WHERE id = ${id}`;
-        } else {
-          yield* sql`INSERT INTO items (id, kind, title, body, body_format, source_label,
-            local_asset_path, metadata, ocr_text, created_at, updated_at)
-            VALUES (${id}, ${kind}, ${fileName}, '', 'md', ${mimeType}, ${assetPath}, ${metadata}, '',
-            ${now}, ${now})`;
-        }
+        yield* sql`INSERT INTO items (id, kind, title, body, body_format, source_label,
+          local_asset_path, metadata, ocr_text, created_at, updated_at)
+          VALUES (${id}, ${kind}, ${fileName}, '', 'md', ${mimeType}, ${assetPath}, ${metadata}, '',
+          ${now}, ${now})`;
         if (kind === "image") {
           // The palette job reads the thumbnail, so the thumbnail job queues it.
           yield* jobs.enqueue(id, IMAGE_THUMBNAIL_JOB);

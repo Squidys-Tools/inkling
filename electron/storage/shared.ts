@@ -164,17 +164,6 @@ export function markdownToPlainText(markdown: string) {
     .replace(/ \?/g, "?");
 }
 
-export const validateItemId = Effect.fnUntraced(function* (id: unknown) {
-  const value = String(id ?? "").trim();
-  if (value.length < 1 || value.length > 128) {
-    return yield* invalidInput("item id must contain 1 to 128 characters");
-  }
-  if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
-    return yield* invalidInput("item id contains unsupported characters");
-  }
-  return value;
-});
-
 export const isSafeItemId = (id: string) => /^[a-zA-Z0-9_-]{1,128}$/.test(id);
 
 export function clampLimit(value: unknown, fallback: number, maximum: number) {
