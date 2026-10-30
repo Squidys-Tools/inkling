@@ -474,6 +474,16 @@ export function useCapture({
     }
   }
 
+  const saveNote = (text: string) => saveFromAddMenu(() => persistText(text, "quick note"));
+  const saveLink = (url: string) => saveFromAddMenu(() => persistArticle(url, "quick link"));
+  const saveQuote = (text: string, attribution: string, sourceUrl: string) =>
+    saveFromAddMenu(() => persistQuote(text, attribution, sourceUrl, "quick quote"));
+
+  function changeCaptureMode(mode: AddMode | null) {
+    setCaptureMode(mode);
+    setCaptureError(null);
+  }
+
   // Shortcuts/Classic reveal the sidebar; the compact Codex trigger stays put.
   function openCapture(mode: AddMode | null = null, revealSidebar = true) {
     setCaptureError(null);
@@ -542,10 +552,10 @@ export function useCapture({
     isDragActive,
     openCapture,
     closeCaptureModal,
-    saveFromAddMenu,
-    persistText,
-    persistArticle,
-    persistQuote,
+    changeCaptureMode,
+    saveNote,
+    saveLink,
+    saveQuote,
     captureFiles,
     startScreenshotCapture,
     handleDragOver,

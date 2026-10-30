@@ -240,10 +240,10 @@ function App() {
     isDragActive,
     openCapture,
     closeCaptureModal,
-    saveFromAddMenu,
-    persistText,
-    persistArticle,
-    persistQuote,
+    changeCaptureMode,
+    saveNote,
+    saveLink,
+    saveQuote,
     captureFiles,
     fileImport,
     clearFileImport,
@@ -438,15 +438,10 @@ function App() {
                 error={isAdding ? captureError : null}
                 onOpen={() => openCapture(null, !codexSidebar || isSidebarOpen)}
                 onClose={closeCaptureModal}
-                onModeChange={(mode) => {
-                  setCaptureMode(mode);
-                  setCaptureError(null);
-                }}
-                onSaveNote={(text) => saveFromAddMenu(() => persistText(text, "quick note"))}
-                onSaveLink={(url) => saveFromAddMenu(() => persistArticle(url, "quick link"))}
-                onSaveQuote={(text, attribution, sourceUrl) =>
-                  saveFromAddMenu(() => persistQuote(text, attribution, sourceUrl, "quick quote"))
-                }
+                onModeChange={changeCaptureMode}
+                onSaveNote={saveNote}
+                onSaveLink={saveLink}
+                onSaveQuote={saveQuote}
                 onPickFile={(files) => captureFiles(files, "file picker")}
                 onScreenshot={startScreenshotCapture}
                 onAddSpace={
