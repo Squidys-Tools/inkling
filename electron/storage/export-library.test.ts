@@ -46,6 +46,39 @@ test("export counts and copies assets from the database snapshot", async () => {
   ).toBe(1);
 });
 
+test("export identifies regenerable search data without discarding tag suppression choices", async () => {
+  const { root, library } = await temporaryLibrary();
+  const item = await library.createNote({ body: "Keep my explicit choices" });
+  library.db
+    .prepare(
+      "INSERT INTO search_ai(item_id,model,asset_path,caption,tags,removed_tags) VALUES(?,?,?,?,?,?)",
+    )
+    .run(item.id, "fixture", "fixture", "derived description", '["cat"]', '["cat"]');
+  const destination = join(root, "exports");
+  mkdirSync(destination);
+  const report = await library.exportLibrary(destination, 0);
+  const manifest = JSON.parse(readFileSync(join(report.directory, "manifest.json"), "utf8"));
+  for (const table of [
+    "search_chunks",
+    "search_chunks_fts",
+    "search_vectors",
+    "search_index_state",
+    "search_pages",
+  ])
+    expect(manifest.regenerable.tables).toContain(table);
+  expect(manifest.regenerable.columns).toContain("items.search_revision");
+  expect(manifest.regenerable.tables).not.toContain("search_ai");
+  expect(manifest.regenerable.columns).not.toContain("search_ai.removed_tags");
+  expect(manifest.durableSearchChoices.columns).toContain("search_ai.removed_tags");
+  const snapshot = trackDatabase(
+    new DatabaseSync(join(report.directory, "library.sqlite3"), { readOnly: true }),
+  );
+  expect(
+    snapshot.prepare("SELECT removed_tags FROM search_ai WHERE item_id=?").get(item.id)
+      ?.removed_tags,
+  ).toBe('["cat"]');
+});
+
 test("successful export details persist across reopening the library", async () => {
   const { root, library } = await temporaryLibrary();
   await library.createNote({ title: "Exported note", body: "A small library copy." });

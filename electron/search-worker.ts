@@ -1,6 +1,7 @@
 import { parentPort } from "node:worker_threads";
 import { createSearchRuntime, type SearchModelRequest } from "./search-runtime.ts";
 import type { SearchDevice } from "./search-device.ts";
+import { searchDiagnostic } from "./search-diagnostics.ts";
 
 const requested = process.env.INKLING_SEARCH_DEVICE;
 const device: SearchDevice =
@@ -23,8 +24,13 @@ async function drain() {
       try {
         const result = await runtime.run(message.directory, message.request);
         send({ id: message.id, result, device });
-      } catch {
-        send({ id: message.id, error: "Local search inference failed", device });
+      } catch (error) {
+        send({
+          id: message.id,
+          error: "Local search inference failed",
+          diagnostic: searchDiagnostic(error),
+          device,
+        });
       }
     }
   } finally {

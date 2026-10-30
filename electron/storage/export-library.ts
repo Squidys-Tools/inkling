@@ -156,7 +156,26 @@ export function makeExport(ctx: StorageContext) {
       bytes: { database: databaseBytes, assets: copied.assetsBytes },
       assetFiles: copied.assetFiles,
       skippedAssets: copied.skippedAssets,
-      regenerable: { tables: ["item_embeddings", "items_fts"], columns: ["items.ocr_text"] },
+      regenerable: {
+        tables: [
+          "item_embeddings",
+          "items_fts",
+          "search_chunks",
+          "search_chunks_fts",
+          "search_vectors",
+          "search_index_state",
+          "search_pages",
+        ],
+        columns: [
+          "items.ocr_text",
+          "items.search_revision",
+          "search_ai.model",
+          "search_ai.asset_path",
+          "search_ai.caption",
+          "search_ai.tags",
+        ],
+      },
+      durableSearchChoices: { columns: ["search_ai.removed_tags"], tables: ["space_exclusions"] },
     };
     yield* attempt(() =>
       writeFile(join(directory, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`),

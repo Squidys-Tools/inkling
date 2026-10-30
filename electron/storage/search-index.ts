@@ -185,16 +185,28 @@ export function makeSearchIndex(ctx: StorageContext) {
     );
     return yield* getSearchAnnotation(id);
   });
+  // Exhausted current work stays manual-retryable (no corrupt-input hot loop).
+  // Older failed history must not block a later success or a subsequent user edit.
+  const backfillAllowed = (kind: string) => sql`NOT EXISTS (
+    SELECT 1 FROM jobs j WHERE j.item_id = i.id AND j.kind = ${kind}
+      AND j.status IN ('pending','processing')
+  ) AND NOT EXISTS (
+    SELECT 1 FROM jobs j WHERE j.item_id = i.id AND j.kind = ${kind}
+      AND j.status = 'failed' AND j.created_at >= i.updated_at
+      AND j.rowid = (SELECT newer.rowid FROM jobs newer
+        WHERE newer.item_id = i.id AND newer.kind = ${kind}
+        ORDER BY newer.created_at DESC, newer.rowid DESC LIMIT 1)
+  )`;
   const nextSearchCandidate = () =>
     sql<{
       id: string;
-    }>`SELECT i.id FROM items i LEFT JOIN search_index_state s ON s.item_id = i.id AND s.index_version = ${SEARCH_INDEX} WHERE i.archived = 0 AND (s.revision IS NULL OR s.revision != i.search_revision) AND NOT EXISTS(SELECT 1 FROM jobs j WHERE j.item_id = i.id AND j.kind = 'generate_embedding' AND j.status IN ('pending','processing','failed')) ORDER BY i.created_at DESC LIMIT 1`.pipe(
+    }>`SELECT i.id FROM items i LEFT JOIN search_index_state s ON s.item_id = i.id AND s.index_version = ${SEARCH_INDEX} WHERE i.archived = 0 AND (s.revision IS NULL OR s.revision != i.search_revision) AND ${backfillAllowed("generate_embedding")} ORDER BY i.created_at DESC LIMIT 1`.pipe(
       Effect.map(([row]) => row),
     );
   const nextCaptionCandidate = () =>
     sql<{
       id: string;
-    }>`SELECT i.id FROM items i LEFT JOIN search_ai a ON a.item_id = i.id WHERE i.archived = 0 AND i.kind = 'image' AND (a.item_id IS NULL OR a.asset_path != i.local_asset_path OR a.model != ${CAPTION_MODEL}) AND NOT EXISTS(SELECT 1 FROM jobs j WHERE j.item_id = i.id AND j.kind = 'caption_image' AND j.status IN ('pending','processing','failed')) ORDER BY i.created_at DESC LIMIT 1`.pipe(
+    }>`SELECT i.id FROM items i LEFT JOIN search_ai a ON a.item_id = i.id WHERE i.archived = 0 AND i.kind = 'image' AND (a.item_id IS NULL OR a.asset_path != i.local_asset_path OR a.model != ${CAPTION_MODEL}) AND ${backfillAllowed("caption_image")} ORDER BY i.created_at DESC LIMIT 1`.pipe(
       Effect.map(([row]) => row),
     );
   const searchIndexProgress = () =>

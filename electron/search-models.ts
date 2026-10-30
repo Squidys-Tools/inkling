@@ -8,6 +8,7 @@ import { listSupportedBackends } from "onnxruntime-node";
 import { ensureAsset } from "./embeddings.ts";
 import manifest from "./search-model-manifest.json" with { type: "json" };
 import type { SearchModelRequest } from "./search-runtime.ts";
+import { searchDiagnostic } from "./search-diagnostics.ts";
 import { searchDevices, withCpuFallback, type SearchDevice } from "./search-device.ts";
 
 type Pending = {
@@ -57,9 +58,16 @@ export function createSearchModels(
     device?: SearchDevice;
     acceleratorDirectory?: string;
     onDevice?: (device: SearchDevice, fallback: boolean) => void;
+    onDiagnostic?: (message: string) => void;
     queryOnly?: boolean;
   } = {},
 ): SearchModels {
+  const diagnostics = new WeakMap<ChildProcess, string>();
+  const reportDiagnostic = (value: unknown) => {
+    const message = searchDiagnostic(value);
+    if (options.onDiagnostic) options.onDiagnostic(message);
+    else console.warn(`Local search worker: ${message}`);
+  };
   const roots = new Map<string, Promise<string>>();
   const queue: Pending[] = [];
   const queries = new Map<string, Promise<Float32Array>>();
@@ -109,6 +117,9 @@ export function createSearchModels(
     }
     return promise;
   };
+  // Keep only one resident vision/caption family per inference lane. Switching
+  // families deliberately retires its process to release native allocations;
+  // this trades reload cost for residency, not a throughput improvement claim.
   const retire = async () => {
     clearTimeout(idle);
     idle = undefined;
@@ -135,10 +146,21 @@ export function createSearchModels(
         cleanup();
         reject(error);
       };
-      const exited = (code: number | null) => fail(new Error(`Search worker exited (${code})`));
-      const message = (reply: { id?: number; result?: Float32Array | string; error?: string }) => {
+      const exited = (code: number | null, signal: NodeJS.Signals | null) => {
+        reportDiagnostic(
+          `exit code=${code} signal=${signal ?? "none"}: ${diagnostics.get(current) ?? "no stderr"}`,
+        );
+        fail(new Error(`Search worker exited (code=${code}, signal=${signal ?? "none"})`));
+      };
+      const message = (reply: {
+        id?: number;
+        result?: Float32Array | string;
+        error?: string;
+        diagnostic?: string;
+      }) => {
         if (reply.id !== id) return;
         cleanup();
+        if (reply.diagnostic) reportDiagnostic(reply.diagnostic);
         if (reply.error || reply.result == null)
           reject(new Error(reply.error ?? "Search model returned no result"));
         else resolve(reply.result);
@@ -170,9 +192,16 @@ export function createSearchModels(
       }
       worker = fork(workerUrl, [], {
         serialization: "advanced",
-        stdio: ["ignore", "ignore", "ignore", "ipc"],
+        stdio: ["ignore", "ignore", "pipe", "ipc"],
         env,
         execArgv: [],
+      });
+      const current = worker;
+      current.stderr?.on("data", (chunk: Buffer) => {
+        diagnostics.set(
+          current,
+          `${diagnostics.get(current) ?? ""}${chunk.toString()}`.slice(-4096),
+        );
       });
       directory = call.directory;
       activeDevice = device;
