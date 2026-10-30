@@ -21,7 +21,7 @@ afterEach(async () => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-describe("capture server parity", () => {
+describe("capture server request gate", () => {
   test("bearer tokens require the exact value", () => {
     expect(captureServerInternals.bearerToken({ authorization: "Bearer abc123" })).toBe("abc123");
     expect(captureServerInternals.tokensEqual("abc123", "abc123")).toBe(true);
@@ -60,7 +60,7 @@ describe("capture server parity", () => {
     }
   });
 
-  test("the rate limit matches the Rust receiver", () => {
+  test("the rate limit allows 60 requests a minute", () => {
     let now = 10_000;
     const allowRequest = captureServerInternals.createRateLimiter(() => now);
     for (let index = 0; index < 60; index += 1) expect(allowRequest()).toBe(true);

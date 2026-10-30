@@ -22,7 +22,7 @@ test("Nomic document normalization produces a unit vector and little-endian stor
   expect(floatVectorBytes(vector).readFloatLE(0)).toBeCloseTo(vector[0], 6);
 });
 
-test("tokenizer truncation preserves the final special token at the Rust document limit", () => {
+test("tokenizer truncation preserves the final special token at the 8192-token document limit", () => {
   const values = Array.from({ length: 8193 }, (_, index) => index);
   const typeIds = values.map((_, index) => Number(index === values.length - 1));
   const encoded = textTokens(
