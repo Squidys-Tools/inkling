@@ -10,14 +10,13 @@ test("view switches fade rows in place, retain grid scale and bypass animation f
   const previous = new Map<string, PropertyDescriptor | undefined>();
   const frames: FrameRequestCallback[] = [];
   let reduced = false;
-  Object.defineProperty(dom, "matchMedia", {
-    configurable: true,
-    value: () => ({ matches: reduced }),
-  });
+  // The linkedom window proxies globalThis, so matchMedia joins the globals
+  // that are saved and restored; otherwise the stub leaks into later test files.
   for (const [key, value] of Object.entries({
     window: dom,
     document: dom.document,
     HTMLElement: dom.HTMLElement,
+    matchMedia: () => ({ matches: reduced }),
     requestAnimationFrame: (frame: FrameRequestCallback) => frames.push(frame),
     IS_REACT_ACT_ENVIRONMENT: true,
   })) {
