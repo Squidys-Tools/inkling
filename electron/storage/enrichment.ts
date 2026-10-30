@@ -66,7 +66,7 @@ export function makeEnrichment(ctx: StorageContext) {
   const applyUrlEnrichment = Effect.fnUntraced(function* (
     jobId: string,
     workerId: string,
-    article: UrlArticle = {},
+    article: UrlArticle,
   ) {
     const canonicalUrl = yield* normalizeHttpUrl(article.canonicalUrl ?? "");
     const articleTitle = nonEmpty(article.title);
