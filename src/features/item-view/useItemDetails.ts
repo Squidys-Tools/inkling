@@ -22,6 +22,7 @@ import { markdownToPlainText, NOTE_BODY_FORMAT, normalizeNoteBody } from "../../
 import type { LibraryItem } from "../../lib/types";
 import type { ReaderItem, ReaderOrigin } from "../../ReaderView";
 import {
+  metadataTags,
   rememberNoteBody,
   storedItemToLibraryItem,
   withArticleContent,
@@ -186,17 +187,10 @@ export function useItemDetails({
       const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
       if (!clean) return;
       try {
-        let tags = canUseDesktopBackend ? [] : [...item.tags, clean];
-        if (canUseDesktopBackend) {
-          const storedItem = await updateItem({ id: String(item.id), addTag: clean });
-          tags = Array.isArray(storedItem.metadata.tags)
-            ? storedItem.metadata.tags.filter((value): value is string => typeof value === "string")
-            : [];
-        }
-        const apply = (current: LibraryItem) => ({
-          ...current,
-          tags,
-        });
+        const tags = canUseDesktopBackend
+          ? metadataTags((await updateItem({ id: String(item.id), addTag: clean })).metadata)
+          : [...item.tags, clean];
+        const apply = (current: LibraryItem) => ({ ...current, tags });
         setItems((current) =>
           current.map((currentItem) =>
             String(currentItem.id) === String(item.id) ? apply(currentItem) : currentItem,

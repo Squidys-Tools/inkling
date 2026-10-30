@@ -105,6 +105,11 @@ export function readImageDimensions(
   });
 }
 
+export function metadataTags(metadata: Record<string, unknown>) {
+  const tags = metadata.tags;
+  return Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === "string") : [];
+}
+
 export function cardKind(item: StoredLibraryItem | StoredLibraryCard): ItemKind {
   if (readXPostMetadata(item.metadata.social)) return "Post";
   const baseKind = displayKind(item.kind);
@@ -119,10 +124,6 @@ export async function storedItemToLibraryItem(
   const baseKind = displayKind(item.kind);
   const videoLink = baseKind === "Article" ? videoLinkFromSourceUrl(item.sourceUrl) : null;
   const kind = cardKind(item);
-  const metadataTags = item.metadata.tags;
-  const tags = Array.isArray(metadataTags)
-    ? metadataTags.filter((tag): tag is string => typeof tag === "string")
-    : [];
   const hasArticleContent =
     "hasArticleContent" in item
       ? item.hasArticleContent
@@ -197,7 +198,7 @@ export async function storedItemToLibraryItem(
     sourceUrl: item.sourceUrl ?? undefined,
     date: formatItemDate(item.createdAt),
     createdAt: item.createdAt,
-    tags,
+    tags: metadataTags(item.metadata),
     ocrText: item.ocrText,
     image,
     mediaWidth,
