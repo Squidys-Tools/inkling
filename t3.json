@@ -80,12 +80,6 @@
       "runOnWorktreeCreate": false
     },
     {
-      "name": "PDF smoke",
-      "command": "bun run test:pdf",
-      "icon": "test",
-      "runOnWorktreeCreate": false
-    },
-    {
       "name": "Run benchmarks",
       "command": "bun run bench",
       "icon": "debug",

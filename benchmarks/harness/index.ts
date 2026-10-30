@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { loadManifest, corpusPath, benchmarksRoot } from "./manifest";
 import { startCorpusServer } from "./server";
 import { extractFixture } from "./extract";
-import { extractPdf } from "./pdf";
 import { extractPdfTextByPages } from "../../electron/pdf.ts";
 import { availableOcrEngines, WindowsOcrEngine, TesseractJsEngine, type OcrEngine } from "./ocr";
 import { average, bannedTermHits, stringScore, termMatches, tokenStats, tokenize } from "./score";
@@ -274,11 +273,11 @@ async function runItem(
   if (item.type === "pdf") {
     let ocrLatencyMs = 0;
     const startedAt = performance.now();
-    let embeddedImages: number;
+    const bytes = readFileSync(filePath);
+    const embeddedImages = bytes.toString("latin1").match(/\/Subtype\s*\/Image\b/g)?.length ?? 0;
     let extraction: Awaited<ReturnType<typeof extractPdfTextByPages>>;
     try {
-      embeddedImages = extractPdf(filePath).embeddedImages;
-      extraction = await extractPdfTextByPages(readFileSync(filePath), {
+      extraction = await extractPdfTextByPages(bytes, {
         recognize: ocrEngines.length
           ? async (image) => {
               const failures: string[] = [];

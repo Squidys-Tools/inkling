@@ -21,7 +21,6 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 | Linux Debian package and AppImage | `bun run build:linux` |
 | Ingestion smoke | `bun run ingest:smoke` |
 | UI smoke (Electron, scratch profile) | `bun run ui:smoke` |
-| PDF smoke | `bun run test:pdf` |
 | Extraction benchmark | `bun run bench` |
 
 `build` keeps the committed demo seed, because the web preview and `preview` need
