@@ -194,6 +194,7 @@ export function useLibraryData({
         );
         if (cancelled || epoch !== fullLoadEpoch) return;
         if (activeJobs !== null) setActiveJobCount(activeJobs);
+        warmThumbnails(libraryItems);
         const patched = new Map(
           libraryItems.map((item) => [String(item.id), withSessionState(item)]),
         );

@@ -158,8 +158,10 @@ export async function storedItemToLibraryItem(
   const storedAspectRatio = positiveNumber(item.metadata.mediaAspectRatio);
   // A new image's thumbnail is made in the background, so until it lands (or
   // if it never can be) the card shows the original instead of a placeholder.
+  const thumbnailUrl = await assetUrl(item.thumbnailPath);
   const image =
-    (await assetUrl(item.thumbnailPath ?? (kind === "Image" ? item.localAssetPath : null))) ??
+    thumbnailUrl ??
+    (await assetUrl(kind === "Image" ? item.localAssetPath : null)) ??
     remoteImage ??
     videoLink?.posterUrl;
   // For an image this is the original file, which the item view swaps in once
@@ -200,6 +202,7 @@ export async function storedItemToLibraryItem(
     tags: metadataTags(item.metadata),
     ocrText: item.ocrText,
     image,
+    thumbnailUrl,
     mediaWidth,
     mediaHeight,
     mediaAspectRatio:
