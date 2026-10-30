@@ -305,21 +305,16 @@ export function useCapture({
   useEffect(() => {
     if (shouldUseSeedLibrary()) return;
     let cancelled = false;
-    const unlisten: Array<() => void> = [];
+    let removeListener: (() => void) | undefined;
 
     async function connectCaptureEvents() {
-      const removeListener = await listenForDeepLinks((payload) => {
-        void onDeepLink(payload);
-      });
-      if (cancelled) {
-        removeListener();
-      } else {
-        unlisten.push(removeListener);
-      }
+      const remove = await listenForDeepLinks((payload) => void onDeepLink(payload));
+      if (cancelled) remove();
+      else removeListener = remove;
 
       const links = await currentDeepLinks();
       if (!cancelled) {
-        for (const link of links ?? []) await onDeepLink(link);
+        for (const link of links) await onDeepLink(link);
       }
     }
 
@@ -328,9 +323,7 @@ export function useCapture({
     });
     return () => {
       cancelled = true;
-      unlisten.forEach((removeListener) => {
-        removeListener();
-      });
+      removeListener?.();
     };
   }, [setCaptureError]);
 
