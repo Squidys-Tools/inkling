@@ -263,7 +263,7 @@ export function makeItems(ctx: StorageContext) {
       if (!tag) return yield* invalidInput("tag cannot be empty");
       const base = metadata ?? (yield* getItem(input.id))?.metadata;
       if (!base) return yield* itemNotFound(input.id);
-      const tagged = { ...(yield* parseObject(base, "metadata")) };
+      const tagged = { ...(yield* parseObject(base)) };
       if (tagged.tags == null) tagged.tags = [];
       if (!Array.isArray(tagged.tags))
         return yield* invalidInput("metadata tags must be an array to add a tag");
