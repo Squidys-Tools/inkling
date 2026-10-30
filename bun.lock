@@ -80,6 +80,7 @@
         "knip": "^6.43.0",
         "oxfmt": "^0.74.0",
         "oxlint": "^1.89.0",
+        "postcss": "^8.5.30",
         "tailwindcss": "^4.3.3",
         "tsc-rs": "0.8.0",
         "typescript": "^7.0.2",
