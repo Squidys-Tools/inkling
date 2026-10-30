@@ -22,7 +22,7 @@ import pdfPointillismOptionB from "../assets/pdf-pointillism-option-b.png";
 import { cx } from "../ui/cx";
 import { canvasImageCrossOrigin } from "./LiquidGlass";
 
-export function mediaAspectRatioFor(item: LibraryItem): number {
+export function mediaAspectRatioFor(item: LibraryItem) {
   if (
     item.mediaAspectRatio &&
     Number.isFinite(item.mediaAspectRatio) &&
@@ -45,8 +45,6 @@ export function mediaAspectRatioFor(item: LibraryItem): number {
       return 16 / 10;
     case "Image":
       return 4 / 3;
-    case "Post":
-      return 1.45;
     case "PDF":
       return 4 / 3;
     case "Quote":
@@ -71,7 +69,7 @@ export function KindIcon({ kind }: { kind: ItemKind }) {
   return <HugeiconsIcon icon={KIND_ICONS[kind]} size={13} />;
 }
 
-export function pdfPreviewTitle(value: string): string {
+export function pdfPreviewTitle(value: string) {
   return value
     .replace(/\uFFFD/gu, "’")
     .replace(/\.[^.]+$/u, "")
@@ -164,12 +162,12 @@ export function FileArtwork({ item, compact }: { item: LibraryItem; compact?: bo
   );
 }
 
-function fileExtensionLabel(name: string): string {
+function fileExtensionLabel(name: string) {
   const match = /\.([a-z0-9]{1,5})$/iu.exec(name.trim());
   return match ? match[1].toUpperCase() : "";
 }
 
-function formatFileSize(bytes: number): string {
+function formatFileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];
   let value = bytes / 1024;
@@ -181,7 +179,7 @@ function formatFileSize(bytes: number): string {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-export function formatDuration(totalSeconds: number): string {
+export function formatDuration(totalSeconds: number) {
   const seconds = Math.floor(totalSeconds);
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -192,7 +190,7 @@ export function formatDuration(totalSeconds: number): string {
 // `item.description` is already the plain text the backend projected, so it is
 // counted as it came. Only a raw note body, which is still Markdown, needs the
 // projection first.
-function noteWordCount(value: string | undefined): number {
+function noteWordCount(value: string | undefined) {
   const text = value?.replace(/\s+/gu, " ").trim() ?? "";
   if (!text) return 0;
   return text.split(" ").length;
@@ -487,7 +485,7 @@ function waitForXWidget(root: HTMLElement, timeoutMs = 8000): Promise<boolean> {
 export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallback: ReactNode }) {
   const nativeRef = useRef<HTMLDivElement>(null);
   const [shouldLoad, setShouldLoad] = useState(false);
-  const [embedHtml, setEmbedHtml] = useState<string | undefined>(social.embedHtml);
+  const [embedHtml, setEmbedHtml] = useState(social.embedHtml);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
 
   const [syncedEmbedHtml, setSyncedEmbedHtml] = useState(social.embedHtml);
