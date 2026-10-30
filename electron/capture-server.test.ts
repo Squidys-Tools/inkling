@@ -60,14 +60,7 @@ describe("capture server parity", () => {
     }
   });
 
-  test("pairing tokens and the rate limit match the Rust receiver", () => {
-    const token = "a".repeat(64);
-    expect(captureServerInternals.tokenLooksValid(token)).toBe(true);
-    expect(captureServerInternals.tokenLooksValid("short")).toBe(false);
-    expect(captureServerInternals.tokenLooksValid("has spaces in it yes indeed 1234567890")).toBe(
-      false,
-    );
-
+  test("the rate limit matches the Rust receiver", () => {
     let now = 10_000;
     const allowRequest = captureServerInternals.createRateLimiter(() => now);
     for (let index = 0; index < 60; index += 1) expect(allowRequest()).toBe(true);

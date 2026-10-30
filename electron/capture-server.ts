@@ -1,14 +1,14 @@
-import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { once } from "node:events";
-import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingHttpHeaders,
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { validateCapturePayload } from "./capture-payload.ts";
+import { openPairingToken } from "./pairing-token.ts";
 
 const MAX_JSON_BYTES = 5 * 1024 * 1024;
 const MAX_HEAD_BYTES = 64 * 1024;
@@ -17,7 +17,6 @@ const RATE_LIMIT_WINDOW = 60_000;
 const READ_TIMEOUT = 10_000;
 const HEALTH_PATH = "/v1/health";
 const CAPTURES_PATH = "/v1/captures";
-const TOKEN_FILE_NAME = "pairing_token";
 
 function originAllowed(origin: string | undefined) {
   const trimmed = origin?.trim();
@@ -117,36 +116,6 @@ async function readBody(request: IncomingMessage) {
   if (length > MAX_JSON_BYTES) throw new Error("body-too-large");
   if (length !== contentLength) throw new Error("bad-request");
   return Buffer.concat(chunks, length);
-}
-
-function tokenLooksValid(value: string) {
-  const token = value.trim();
-  return token.length >= 32 && token.length <= 128 && /^[a-z\d]+$/iu.test(token);
-}
-
-async function persistToken(path: string, token: string) {
-  await mkdir(dirname(path), { recursive: true });
-  const temporaryPath = `${path}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(temporaryPath, token, { encoding: "utf8", flag: "wx", mode: 0o600 });
-    await rename(temporaryPath, path);
-    await chmod(path, 0o600).catch(() => {});
-  } finally {
-    await rm(temporaryPath, { force: true }).catch(() => {});
-  }
-}
-
-async function loadOrGenerateToken(path: string) {
-  try {
-    const stored = await readFile(path, "utf8");
-    if (tokenLooksValid(stored)) {
-      await chmod(path, 0o600).catch(() => {});
-      return stored.trim();
-    }
-  } catch {}
-  const token = randomBytes(32).toString("hex");
-  await persistToken(path, token).catch(() => {});
-  return token;
 }
 
 type CaptureUrl = (input: {
@@ -249,8 +218,7 @@ export async function startCaptureServer({
   libraryDirectory: string;
   captureUrl: CaptureUrl;
 }) {
-  const tokenPath = join(libraryDirectory, TOKEN_FILE_NAME);
-  let token = await loadOrGenerateToken(tokenPath);
+  const pairing = await openPairingToken(join(libraryDirectory, "pairing_token"));
   const allowRequest = createRateLimiter();
   const server = createServer({ maxHeaderSize: MAX_HEAD_BYTES }, (request, response) => {
     request.setTimeout(READ_TIMEOUT, () => {
@@ -260,7 +228,7 @@ export async function startCaptureServer({
       request.destroy();
     });
     void handleRequest(request, response, {
-      token,
+      token: pairing.current(),
       allowRequest,
       captureUrl,
     });
@@ -283,15 +251,8 @@ export async function startCaptureServer({
         healthUrl: `http://127.0.0.1:${address.port}${HEALTH_PATH}`,
       };
     },
-    getPairingToken() {
-      return token;
-    },
-    async regeneratePairingToken() {
-      const nextToken = randomBytes(32).toString("hex");
-      await persistToken(tokenPath, nextToken);
-      token = nextToken;
-      return token;
-    },
+    getPairingToken: pairing.current,
+    regeneratePairingToken: pairing.regenerate,
     close() {
       if (!server.listening) return Promise.resolve();
       return new Promise<void>((resolve, reject) => {
@@ -306,6 +267,5 @@ export const captureServerInternals = Object.freeze({
   corsHeaders,
   createRateLimiter,
   originAllowed,
-  tokenLooksValid,
   tokensEqual,
 });
