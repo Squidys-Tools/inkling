@@ -14,7 +14,6 @@ export type ReaderItem = {
   author?: string;
   publishedDate?: string;
   savedDate: string;
-  sourceLabel: string;
   sourceUrl: string;
   html: string;
 };

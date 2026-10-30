@@ -24,7 +24,6 @@ import type { ItemViewActions } from "./features/item-view/ItemView";
 const ReaderView = lazy(() =>
   import("./ReaderView").then((module) => ({ default: module.ReaderView })),
 );
-import type { ReaderItem } from "./ReaderView";
 import type { LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import { AddMenu } from "./features/capture/AddMenu/AddMenu";
@@ -705,21 +704,10 @@ function App() {
           )}
         </AnimatePresence>
         <AnimatePresence>
-          {readingItem?.item.articleHtml && (
+          {readingItem && (
             <Suspense key={readingItem.item.id} fallback={null}>
               <ReaderView
-                item={
-                  {
-                    id: readingItem.item.id,
-                    title: readingItem.item.title,
-                    author: readingItem.item.articleAuthor,
-                    publishedDate: readingItem.item.publishedDate,
-                    savedDate: readingItem.item.date,
-                    sourceLabel: readingItem.item.source,
-                    sourceUrl: readingItem.item.sourceUrl ?? "",
-                    html: readingItem.item.articleHtml,
-                  } satisfies ReaderItem
-                }
+                item={readingItem.item}
                 origin={readingItem.origin}
                 onRequestClose={closeReader}
               />

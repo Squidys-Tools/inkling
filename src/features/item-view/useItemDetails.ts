@@ -20,7 +20,7 @@ import {
 } from "../../lib/libraryApi";
 import { markdownToPlainText, NOTE_BODY_FORMAT, normalizeNoteBody } from "../../lib/notes";
 import type { LibraryItem } from "../../lib/types";
-import type { ReaderOrigin } from "../../ReaderView";
+import type { ReaderItem, ReaderOrigin } from "../../ReaderView";
 import {
   rememberNoteBody,
   storedItemToLibraryItem,
@@ -42,7 +42,7 @@ export function showItemInFolderFromOverlay(item: LibraryItem) {
     });
 }
 
-export type ReadingItem = { item: LibraryItem; origin: ReaderOrigin };
+export type ReadingItem = { item: ReaderItem; origin: ReaderOrigin };
 
 type ItemDetailsOptions = {
   canUseDesktopBackend: boolean;
@@ -266,7 +266,18 @@ export function useItemDetails({
           return;
         }
         if (requestId !== readerRequestIdRef.current || !readerItem.articleHtml) return;
-        setReadingItem({ item: readerItem, origin });
+        setReadingItem({
+          item: {
+            id: readerItem.id,
+            title: readerItem.title,
+            author: readerItem.articleAuthor,
+            publishedDate: readerItem.publishedDate,
+            savedDate: readerItem.date,
+            sourceUrl: readerItem.sourceUrl ?? "",
+            html: readerItem.articleHtml,
+          },
+          origin,
+        });
       } catch (error) {
         if (requestId === readerRequestIdRef.current) {
           toast.error("Unable to open reader", {
