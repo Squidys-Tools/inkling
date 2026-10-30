@@ -6,10 +6,13 @@ import "@fontsource/libre-baskerville/400-italic.css";
 import "@fontsource-variable/dm-sans/wght.css";
 import "@fontsource/dm-mono/400.css";
 import App from "./App";
+import { AppRecovery } from "./components/AppRecovery";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <AppRecovery>
+      <App />
+    </AppRecovery>
   </React.StrictMode>,
 );

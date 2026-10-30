@@ -46,6 +46,7 @@ let support: Promise<LiquidGpu | null> | undefined;
 // One device for every surface, so pipelines compile once.
 function liquidGlassSupport() {
   support ??= (async () => {
+    if (new URLSearchParams(location.search).has("safeGraphics")) return null;
     if (!("layoutSubtree" in HTMLCanvasElement.prototype) || !navigator.gpu) return null;
     // Painting support alone is not input support. Keep the live DOM/CSS glass
     // when the experimental canvas would swallow card clicks and context menus.

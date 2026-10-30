@@ -1,0 +1,18 @@
+diff --git a/dist/index.js b/dist/index.js
+index 5b197082747cf4d1a5a1ae168c169568b6bbdaa6..88e0910e6e22e38ae85bbfee04c7c0dca50b050e 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -535,7 +535,12 @@ const pe = {
+       }), Object.keys(I).length > 0 && (g = {
+         ...g,
+         [Ft]: I
+-      }), n.pubIn(g);
++      });
++      // Do not write React/layout state inside ResizeObserver delivery.
++      // Chromium otherwise reports undelivered observations on result changes.
++      requestAnimationFrame(() => {
++        if (l.current) n.pubIn(g);
++      });
+     });
+   }), o = _(
+     (c) => {

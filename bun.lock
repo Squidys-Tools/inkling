@@ -113,6 +113,7 @@
   "patchedDependencies": {
     "sharp@0.35.5": "patches/sharp@0.35.5.patch",
     "@liquid-dom/core@0.1.1": "patches/@liquid-dom%2Fcore@0.1.1.patch",
+    "@virtuoso.dev/masonry@1.4.3": "patches/@virtuoso.dev%2Fmasonry@1.4.3.patch",
   },
   "packages": {
     "@babel/runtime": ["@babel/runtime@8.0.7", "", {}, "sha512-k0hagDDq/6w4v+0Sp4wFvIz/yswH5O7Va6aRTnD7N62Tnborp4X+YB+H3XUcWVSR4aE47WPEXiIIZchBs0GmYg=="],
