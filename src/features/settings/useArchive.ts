@@ -333,16 +333,12 @@ export function useArchive({
         let failures = results.filter((result) => result.status === "rejected").length;
         // One batched summaries call for the whole restore. If it fails, the
         // items are still restored; only their processing badges fall back.
-        let summaries = new Map<string, ProcessingSummary>();
-        try {
-          if (canUseDesktopBackend && restoredStored.length > 0) {
-            summaries = await getProcessingSummaries(
-              restoredStored.map((storedItem) => storedItem.id),
-            );
-          }
-        } catch {
-          summaries = new Map<string, ProcessingSummary>();
-        }
+        const summaries =
+          restoredStored.length > 0
+            ? await getProcessingSummaries(restoredStored.map((storedItem) => storedItem.id)).catch(
+                () => new Map<string, ProcessingSummary>(),
+              )
+            : new Map<string, ProcessingSummary>();
         // Convert per item so one unreadable item cannot sink the whole batch.
         const settled = await Promise.allSettled(
           restoredStored.map((storedItem) =>
@@ -353,10 +349,7 @@ export function useArchive({
         const converted = settled.flatMap((result) =>
           result.status === "fulfilled" ? [result.value] : [],
         );
-        const restoredItems: LibraryItem[] = [
-          ...itemsToRestore.filter(() => !canUseDesktopBackend),
-          ...converted,
-        ];
+        const restoredItems = canUseDesktopBackend ? converted : itemsToRestore;
         const restoredIds = new Set(restoredItems.map((item) => String(item.id)));
         setItems((current) => [
           ...restoredItems.filter(
