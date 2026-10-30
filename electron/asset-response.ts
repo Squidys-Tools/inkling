@@ -64,7 +64,7 @@ export async function serveAssetFile(
 
     const { size } = fileStat;
     // Asset URLs are not versioned (thumbnail.webp is rewritten in place), so these are
-    // validators only. Cache-Control stays unset: nothing here may be called immutable.
+    // validators only and no response may be marked immutable.
     const etag = `"${Math.floor(fileStat.mtimeMs).toString(16)}-${size.toString(16)}"`;
     const lastModified = fileStat.mtime.toUTCString();
 
