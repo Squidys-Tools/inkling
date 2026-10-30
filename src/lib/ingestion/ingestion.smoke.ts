@@ -1,7 +1,8 @@
 import { parseHTML } from "linkedom";
 import { DefaultDefuddleAdapter } from "./defuddle-adapter";
 import { extractFallback } from "./fallback";
-import { collectSafeEmbeds, sanitizeHtml } from "./html-safety";
+import { collectSafeEmbeds } from "./embeds";
+import { sanitizeHtml } from "./html-safety";
 import { classifyFile } from "./file-classification";
 import { ingestUrl } from "./url-ingestion";
 import { isUrlIngestionError } from "./errors";

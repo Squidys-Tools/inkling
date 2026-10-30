@@ -1,15 +1,10 @@
 import { parseHTML } from "linkedom";
 import { DefaultDefuddleAdapter } from "./defuddle-adapter";
+import { collectSafeEmbeds } from "./embeds";
 import { UrlIngestionError } from "./errors";
 import { extractFallback } from "./fallback";
 import { downloadPage, fetchJson, runHttp } from "./http";
-import {
-  collectImageUrls,
-  collectSafeEmbeds,
-  hasReadableText,
-  htmlToText,
-  sanitizeHtml,
-} from "./html-safety";
+import { collectImageUrls, hasReadableText, htmlToText, sanitizeHtml } from "./html-safety";
 import { visibleByline } from "./fallback";
 import {
   normalizeHttpUrl,
