@@ -25,6 +25,7 @@ import {
 import { shouldUseSeedLibrary } from "../../lib/previewMode";
 import type { LibraryItem } from "../../lib/types";
 import { seedSpaceItems, seedSpaces } from "../library/seed";
+import type { SpaceDraft } from "../shell/SpacesSection";
 import { errorMessage } from "../errorMessage";
 
 const SPACE_COLORS: SpaceColor[] = ["blue", "orange", "green", "pink", "purple", "yellow"];
@@ -81,6 +82,12 @@ export function useSpaces({
   // Generation counter for space moves: only the latest move may apply its
   // backend result; older ones resync, so rapid clicks cannot overwrite newer state.
   const spaceMoveSeqRef = useRef(0);
+
+  function openSpaceDraft() {
+    setIsCreatingSpace(true);
+    setNewSpaceName("");
+    setNewSpaceKind("smart");
+  }
 
   function beginSaveSearch() {
     setIsCreatingSpace(true);
@@ -363,28 +370,51 @@ export function useSpaces({
     [itemSpaceIds, manualSpaces],
   );
 
+  const draft: SpaceDraft = {
+    isOpen: isCreatingSpace,
+    name: newSpaceName,
+    kind: newSpaceKind,
+    query,
+    toggle: () => {
+      setIsCreatingSpace((current) => !current);
+      setNewSpaceName("");
+      setNewSpaceKind("smart");
+    },
+    setName: setNewSpaceName,
+    setKind: setNewSpaceKind,
+    cancel: () => {
+      setIsCreatingSpace(false);
+      setNewSpaceName("");
+    },
+    submit: handleCreateSpace,
+  };
+  const renaming = {
+    id: renamingSpaceId,
+    draft: renameDraft,
+    setDraft: setRenameDraft,
+    inputRef: spaceRenameInputRef,
+  };
+
+  function startRename(space: StoredSpace) {
+    setRenamingSpaceId(space.id);
+    setRenameDraft(space.name);
+  }
+
   return {
     spaces,
     setSpaces,
     activeSpace,
     selectedItemSpaces,
     localSpaceItems,
-    isCreatingSpace,
-    setIsCreatingSpace,
-    newSpaceName,
-    setNewSpaceName,
-    newSpaceKind,
-    setNewSpaceKind,
-    newSpaceNameInputRef,
-    renamingSpaceId,
-    setRenamingSpaceId,
-    renameDraft,
-    setRenameDraft,
-    spaceRenameInputRef,
+    draft,
+    draftNameInputRef: newSpaceNameInputRef,
+    openSpaceDraft,
+    renaming,
+    startRename,
+    cancelRename: () => setRenamingSpaceId(null),
     sidebarActionError,
     setSidebarActionError,
     beginSaveSearch,
-    handleCreateSpace,
     handleToggleItemInSpace,
     handleDeleteSpace,
     handleRenameSpace,

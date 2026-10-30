@@ -198,22 +198,15 @@ function App() {
     activeSpace,
     selectedItemSpaces,
     localSpaceItems,
-    isCreatingSpace,
-    setIsCreatingSpace,
-    newSpaceName,
-    setNewSpaceName,
-    newSpaceKind,
-    setNewSpaceKind,
-    newSpaceNameInputRef,
-    renamingSpaceId,
-    setRenamingSpaceId,
-    renameDraft,
-    setRenameDraft,
-    spaceRenameInputRef,
+    draft: spaceDraft,
+    draftNameInputRef,
+    openSpaceDraft,
+    renaming,
+    startRename,
+    cancelRename,
     sidebarActionError,
     setSidebarActionError,
     beginSaveSearch,
-    handleCreateSpace,
     handleToggleItemInSpace,
     handleDeleteSpace,
     handleRenameSpace,
@@ -482,9 +475,7 @@ function App() {
                   codexSidebar
                     ? () => {
                         setIsSidebarOpen(true);
-                        setIsCreatingSpace(true);
-                        setNewSpaceName("");
-                        setNewSpaceKind("smart");
+                        openSpaceDraft();
                       }
                     : undefined
                 }
@@ -515,44 +506,21 @@ function App() {
             spaces={spaces}
             activeSpaceId={activeSpaceId}
             activeCount={filteredItems.length}
-            renaming={{
-              id: renamingSpaceId,
-              draft: renameDraft,
-              setDraft: setRenameDraft,
-              inputRef: spaceRenameInputRef,
-            }}
+            renaming={renaming}
             actions={{
               select: selectSpace,
               cycleColor: (space) => void handleCycleSpaceColor(space),
               move: (space, direction) => void handleMoveSpace(space, direction),
               startRename: (space) => {
                 if (codexSidebar) setIsSidebarOpen(true);
-                setRenamingSpaceId(space.id);
-                setRenameDraft(space.name);
+                startRename(space);
               },
               rename: (space, name) => void handleRenameSpace(space, name),
-              cancelRename: () => setRenamingSpaceId(null),
+              cancelRename,
               remove: (space) => void handleDeleteSpace(space),
             }}
-            draftNameInputRef={newSpaceNameInputRef}
-            draft={{
-              isOpen: isCreatingSpace,
-              name: newSpaceName,
-              kind: newSpaceKind,
-              query,
-              toggle: () => {
-                setIsCreatingSpace((current) => !current);
-                setNewSpaceName("");
-                setNewSpaceKind("smart");
-              },
-              setName: setNewSpaceName,
-              setKind: setNewSpaceKind,
-              cancel: () => {
-                setIsCreatingSpace(false);
-                setNewSpaceName("");
-              },
-              submit: handleCreateSpace,
-            }}
+            draftNameInputRef={draftNameInputRef}
+            draft={spaceDraft}
           />
           {isSidebarOpen && sidebarActionErrorAlert}
         </Sidebar>
