@@ -1,5 +1,6 @@
 import { gsap } from "gsap";
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { prefersReducedMotion } from "../item-view/overlayMotion";
 
 export const LIBRARY_VIEW_TRANSITION_MS = 440;
 
@@ -79,7 +80,7 @@ export function useLibraryView(libraryScrollRef: RefObject<HTMLDivElement | null
       libraryViewTransitionRunRef.current += 1;
       libraryViewAnimationRef.current?.kill();
       const grid = libraryScrollRef.current?.querySelector<HTMLElement>(".library-grid");
-      if (!grid || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (!grid || prefersReducedMotion()) {
         if (grid) gsap.set(grid, { clearProps: "opacity" });
         setListMode(nextListMode);
         return;

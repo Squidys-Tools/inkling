@@ -9,6 +9,7 @@ import {
 import { gsap } from "gsap";
 import {
   isCardTooFarOffscreen,
+  prefersReducedMotion,
   queryCardRects,
   scrollViewport,
   scrollViewportRect,
@@ -71,7 +72,7 @@ export function useItemSelection({
         selectionScrollRef.current = false;
       };
 
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (prefersReducedMotion()) {
         scrollElement.scrollTop = nextScrollTop;
         finish();
         return;
