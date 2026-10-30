@@ -50,7 +50,7 @@ We need to be on the same page with terminology. When communicating, use this la
 - **library** means the SQLite database plus the asset store on disk.
 - **capture** means getting something into the library. Paste a URL, pick a file, drag in, paste from clipboard, screenshot, or deep link.
 - **job** means one unit of background work. OCR, extraction, embeddings, indexing. Runs on a persisted queue with leases.
-- **embedding** means the local vector for text or image search. Nomic text and vision share one 768-dimension space.
+- **embedding** means the local vector for text or image search. The active index is EmbeddingGemma 2, 768 dimensions; the earlier Nomic vectors remain as a legacy fallback lane in the same dimension.
 - **Space** means a saved search shown as a collection. Smart Spaces update themselves. Regular Spaces hold manually user curated items.
 - **deep link** means the companion path into the app, `inkling://capture?url=...`.
 - **preview** means `bun run dev`, the web-only look with sample data.
