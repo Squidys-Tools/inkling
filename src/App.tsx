@@ -240,8 +240,6 @@ function App() {
           isSidebarOpen={isSidebarOpen}
           inert={selectedItem != null}
         >
-          <section className="flex-none max-[780px]:pt-[30px]"></section>
-
           <CaptureBar
             ref={captureBarRef}
             leading={

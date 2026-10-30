@@ -31,6 +31,7 @@ export function LibraryFrame({
       ref={ref}
       inert={inert}
     >
+      <section className="flex-none max-[780px]:pt-[30px]"></section>
       {children}
     </main>
   );
