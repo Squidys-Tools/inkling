@@ -1,4 +1,6 @@
 import { parseHTML } from "linkedom";
+import { act, type ReactNode } from "react";
+import { createRoot } from "react-dom/client";
 
 // Gives React a linkedom document with a #root to render into. The returned
 // restore puts back whatever globals were there before.
@@ -26,4 +28,20 @@ export function installTestDom() {
       }
     },
   };
+}
+
+// Renders `content` into a fresh test DOM, runs `check` on it, then unmounts.
+export async function mountInTestDom(
+  content: ReactNode,
+  check: (doc: Document) => void | Promise<void>,
+) {
+  const { restore } = installTestDom();
+  const root = createRoot(document.getElementById("root")!);
+  try {
+    await act(async () => root.render(content));
+    await check(document);
+  } finally {
+    await act(async () => root.unmount());
+    restore();
+  }
 }
