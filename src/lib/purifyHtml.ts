@@ -1,8 +1,5 @@
 import createDOMPurify, { type WindowLike } from "dompurify";
-import { embedCandidate } from "./ingestion/embeds";
-import { normalizeHttpUrl } from "./ingestion/url";
-
-const URL_ATTRIBUTES = ["href", "src", "poster", "cite"];
+import { applyEmbedPolicy } from "./ingestion/embeds";
 
 /**
  * The trust boundary for stored article and X embed HTML, run right before it
@@ -12,38 +9,7 @@ const URL_ATTRIBUTES = ["href", "src", "poster", "cite"];
  */
 export function purifyHtml(window: WindowLike, html: string, pageUrl: string): string {
   const purify = createDOMPurify(window);
-  purify.addHook("afterSanitizeAttributes", (node) => {
-    for (const name of URL_ATTRIBUTES) {
-      const raw = node.getAttribute(name);
-      if (!raw) continue;
-      const url = normalizeHttpUrl(raw, pageUrl);
-      if (url) node.setAttribute(name, url);
-      else node.removeAttribute(name);
-    }
-
-    const tagName = node.nodeName.toLowerCase();
-    if (tagName === "iframe") {
-      const candidate = embedCandidate(node.getAttribute("src"), "iframe", pageUrl);
-      if (!candidate) {
-        node.remove();
-        return;
-      }
-      node.setAttribute("src", candidate.embedUrl);
-      node.setAttribute("loading", "lazy");
-      node.setAttribute("referrerpolicy", "no-referrer");
-      return;
-    }
-
-    const mediaParent = node.parentElement?.nodeName.toLowerCase();
-    const inMedia = mediaParent === "video" || mediaParent === "audio";
-    if (tagName !== "video" && tagName !== "audio" && !(tagName === "source" && inMedia)) return;
-    const src = node.getAttribute("src");
-    const kind = tagName === "audio" || mediaParent === "audio" ? "audio" : "video";
-    if (src && !embedCandidate(src, kind, pageUrl)) {
-      if (tagName === "source") node.remove();
-      else node.removeAttribute("src");
-    }
-  });
+  purify.addHook("afterSanitizeAttributes", (node) => applyEmbedPolicy(node, pageUrl));
   return purify.sanitize(html, {
     ADD_TAGS: ["iframe"],
     // The main window opens target=_blank links in the browser and refuses other navigation.

@@ -1,7 +1,6 @@
 import { parseHTML } from "linkedom";
-import { embedCandidate } from "./embeds";
+import { applyEmbedPolicy } from "./embeds";
 import { normalizeHttpUrl, normalizeText, uniqueStrings } from "./url";
-import type { SafeEmbedKind } from "./types";
 
 function urlsFromSrcSet(value: string | null, pageUrl: string): string[] {
   if (!value) return [];
@@ -13,52 +12,14 @@ function urlsFromSrcSet(value: string | null, pageUrl: string): string[] {
 }
 
 function sanitizeElement(element: Element, pageUrl: string): void {
-  const tagName = element.tagName.toLowerCase();
-  const attributes = Array.from(element.attributes);
-
-  for (const attribute of attributes) {
+  for (const attribute of Array.from(element.attributes)) {
     const name = attribute.name.toLowerCase();
     if (name.startsWith("on") || name === "style" || name === "srcdoc" || name === "integrity") {
       element.removeAttribute(attribute.name);
     }
   }
-
-  for (const attributeName of ["href", "src", "poster", "cite"]) {
-    const raw = element.getAttribute(attributeName);
-    if (!raw) continue;
-    const normalized = normalizeHttpUrl(raw, pageUrl);
-    if (normalized) element.setAttribute(attributeName, normalized);
-    else element.removeAttribute(attributeName);
-  }
-
   element.removeAttribute("srcset");
-
-  if (tagName === "iframe") {
-    const candidate = embedCandidate(element.getAttribute("src"), "iframe", pageUrl);
-    if (!candidate) {
-      element.remove();
-      return;
-    }
-    element.setAttribute("src", candidate.embedUrl);
-    element.setAttribute("loading", "lazy");
-    element.setAttribute("referrerpolicy", "no-referrer");
-    element.removeAttribute("allow");
-    element.removeAttribute("allowfullscreen");
-  }
-
-  const mediaParent = element.parentElement?.tagName.toLowerCase();
-  if (
-    tagName === "video" ||
-    tagName === "audio" ||
-    (tagName === "source" && (mediaParent === "video" || mediaParent === "audio"))
-  ) {
-    const rawSource = element.getAttribute("src");
-    const kind: SafeEmbedKind = tagName === "audio" || mediaParent === "audio" ? "audio" : "video";
-    if (rawSource && !embedCandidate(rawSource, kind, pageUrl)) {
-      if (tagName === "source") element.remove();
-      else element.removeAttribute("src");
-    }
-  }
+  applyEmbedPolicy(element, pageUrl);
 }
 
 export function sanitizeHtml(html: string, pageUrl: string): string {

@@ -113,6 +113,48 @@ export function embedCandidate(
   return { kind, provider: "direct", sourceUrl, embedUrl: sourceUrl };
 }
 
+const URL_ATTRIBUTES = ["href", "src", "poster", "cite"];
+
+/**
+ * Keeps an element's links to http(s) URLs resolved against the page, and holds
+ * iframes and media sources to the embed allowlist. Capture and render share it
+ * so stored and displayed HTML agree.
+ */
+export function applyEmbedPolicy(element: Element, pageUrl: string): void {
+  for (const name of URL_ATTRIBUTES) {
+    const raw = element.getAttribute(name);
+    if (!raw) continue;
+    const url = normalizeHttpUrl(raw, pageUrl);
+    if (url) element.setAttribute(name, url);
+    else element.removeAttribute(name);
+  }
+
+  const tagName = element.tagName.toLowerCase();
+  if (tagName === "iframe") {
+    const candidate = embedCandidate(element.getAttribute("src"), "iframe", pageUrl);
+    if (!candidate) {
+      element.remove();
+      return;
+    }
+    element.setAttribute("src", candidate.embedUrl);
+    element.setAttribute("loading", "lazy");
+    element.setAttribute("referrerpolicy", "no-referrer");
+    element.removeAttribute("allow");
+    element.removeAttribute("allowfullscreen");
+    return;
+  }
+
+  const mediaParent = element.parentElement?.tagName.toLowerCase();
+  const inMedia = mediaParent === "video" || mediaParent === "audio";
+  if (tagName !== "video" && tagName !== "audio" && !(tagName === "source" && inMedia)) return;
+  const src = element.getAttribute("src");
+  const kind = tagName === "audio" || mediaParent === "audio" ? "audio" : "video";
+  if (src && !embedCandidate(src, kind, pageUrl)) {
+    if (tagName === "source") element.remove();
+    else element.removeAttribute("src");
+  }
+}
+
 function titleFor(element: Element): string | undefined {
   return (
     normalizeText(element.getAttribute("title") ?? element.getAttribute("aria-label")) || undefined
