@@ -266,10 +266,7 @@ export async function deleteItem(id: string) {
   await invoke("delete_item", { id });
 }
 
-// Desktop only: the export needs a native folder picker and storage backend.
 export async function exportLibrary(destination: string) {
-  // The core has no timezone database, so the folder name gets its wall clock
-  // from here: the browser's own offset at export time.
   return invoke("export_library", {
     destination,
     timezoneOffsetMinutes: new Date().getTimezoneOffset(),
