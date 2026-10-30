@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -15,6 +16,7 @@ import { createServer } from "node:net";
 import { cpus, homedir, loadavg, platform, release } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { setTimeout as pause } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -47,10 +49,6 @@ const scratchRoot = join(homedir(), ".capy/work");
 mkdirSync(scratchRoot, { recursive: true });
 const library = mkdtempSync(join(scratchRoot, "inkling-grid-bench-"));
 const database = join(library, "library.sqlite3");
-const pause = (ms) => new Promise((done) => setTimeout(done, ms));
-const assert = (condition, message) => {
-  if (!condition) throw new Error(message);
-};
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 async function seedLibrary() {
