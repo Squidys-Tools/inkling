@@ -1,99 +1,12 @@
-# AI and Extraction Benchmarks
+# Benchmarks
 
 This directory contains the representative corpus and evaluation notes used to choose OCR, extraction, embedding, vision, and local language models.
 
 The corpus should contain only files and URLs that we are allowed to use for local testing. Do not commit private or copyrighted material to the repository unless we have permission.
 
-## Structure
+## Corpus
 
-```text
-benchmarks/
-  README.md
-  manifest.json
-  generate-corpus.ps1
-  fetch-macrumors.ts
-  harness/
-    index.ts
-    manifest.ts
-    server.ts
-    extract.ts
-    pdf.ts
-    ocr.ts
-    score.ts
-    win-ocr.ps1
-  corpus/
-    articles/
-    screenshots/
-    images/
-    pdfs/
-    videos/
-    notes/
-    edge-cases/
-    live/macrumors/
-  expected/
-    ocr/
-    extraction/
-    search/
-    similarity/
-  results/
-```
-
-## Corpus checklist
-
-### Articles
-
-- Short blog post
-- Long-form essay
-- News article
-- Recipe
-- Technical documentation page
-- Article with footnotes
-- Article with code blocks
-- Article with an image gallery
-- JavaScript-heavy article
-- Page with ads and sticky navigation
-- Paywalled or inaccessible page for failure handling
-- Latest MacRumors article (live web page, fetched by `fetch-macrumors.ts`)
-
-### Images and screenshots
-
-- Photograph
-- Design reference
-- Screenshot with large text
-- Screenshot with small text
-- Meme
-- Handwriting
-- Multiple text columns
-- Low-resolution image
-- Rotated text
-- Image with a visually similar partner
-- Image with a visually different distractor
-
-### PDFs
-
-- Native-text PDF
-- Scanned PDF
-- Multi-column PDF
-- PDF with tables
-- PDF with images and captions
-- PDF with bad or missing metadata
-
-### Video and embeds
-
-- YouTube page
-- Vimeo page
-- Article with an embedded video
-- Page with an unsupported iframe
-- Page with no playable media
-
-### Notes and quotes
-
-- Quick note
-- Long note
-- Note with Markdown
-- Note with a todo
-- Quote with a source URL
-- Quote without a source URL
+[corpus/README.md](corpus/README.md) lists what the corpus holds and where each kind of fixture lives. `manifest.json` records every item, and `expected/` holds the expected extraction metadata and OCR text.
 
 ## Required manifest fields
 
