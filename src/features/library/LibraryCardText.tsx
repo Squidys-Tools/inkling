@@ -33,6 +33,7 @@ export function LibraryCardText({
   const showText = list || gridArticle;
   const isQuote = item.kind === "Quote";
   const canOpenReader = Boolean(item.articleHtml || item.hasArticleContent);
+  const failedJob = item.processing?.failedJob;
   const textColor = item.featured
     ? "text-muted"
     : kind === "article"
@@ -123,7 +124,7 @@ export function LibraryCardText({
           )}
         </div>
       )}
-      {item.processing?.failedJob && (
+      {failedJob && (
         <div
           className={cx(
             "mt-[13px] flex items-start gap-[7px] font-body text-[10px]/[1.35] text-[#d07055] [&_svg]:animate-[spin_1.2s_linear_infinite] [&>span:nth-child(3)]:ml-auto [&>span:nth-child(3)]:text-muted",
@@ -132,13 +133,13 @@ export function LibraryCardText({
           role="alert"
         >
           <HugeiconsIcon icon={AlertCircleIcon} size={13} />
-          <span>{item.processing.failedJob.errorMessage ?? "Processing failed"}</span>
+          <span>{failedJob.errorMessage ?? "Processing failed"}</span>
           <button
             type="button"
             className={RETRY_BUTTON}
             onClick={(event) => {
               event.stopPropagation();
-              void context.onRetryJob(item.processing?.failedJob?.id ?? "");
+              void context.onRetryJob(failedJob.id);
             }}
           >
             <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
