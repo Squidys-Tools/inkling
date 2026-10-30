@@ -6,7 +6,7 @@ import {
   useEffectEvent,
   useState,
 } from "react";
-import type { AddMode } from "../capture/AddMenu/AddMenu";
+import type { useCapture } from "../capture/useCapture";
 import { appKeyboardShortcut } from "../../lib/keyboardShortcuts";
 import type { LibraryItem } from "../../lib/types";
 import type { ReadingItem } from "../item-view/useItemDetails";
@@ -18,12 +18,15 @@ type AppShortcutsOptions = {
   pdfViewerItem: LibraryItem | null;
   isSettingsOpen: boolean;
   setIsSettingsOpen: Dispatch<SetStateAction<boolean>>;
-  isAdding: boolean;
-  isCapturing: boolean;
-  captureMode: AddMode | null;
-  setCaptureMode: Dispatch<SetStateAction<AddMode | null>>;
-  openCapture: (mode?: AddMode | null) => void;
-  closeCaptureModal: () => void;
+  capture: Pick<
+    ReturnType<typeof useCapture>,
+    | "isAdding"
+    | "isCapturing"
+    | "captureMode"
+    | "setCaptureMode"
+    | "openCapture"
+    | "closeCaptureModal"
+  >;
   setIsSidebarOpen: Dispatch<SetStateAction<boolean>>;
 };
 
@@ -34,16 +37,13 @@ export function useAppShortcuts({
   pdfViewerItem,
   isSettingsOpen,
   setIsSettingsOpen,
-  isAdding,
-  isCapturing,
-  captureMode,
-  setCaptureMode,
-  openCapture,
-  closeCaptureModal,
+  capture,
   setIsSidebarOpen,
 }: AppShortcutsOptions) {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    const { isAdding, isCapturing, captureMode, setCaptureMode, openCapture, closeCaptureModal } =
+      capture;
     if (isShortcutsOpen) return;
     if (readingItem || selectedItem || pdfViewerItem) return;
     if (event.key === "Escape") {

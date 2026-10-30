@@ -216,26 +216,7 @@ function App() {
   });
   const { listMode, viewSelectionListMode, switchLibraryView, gridColumnCount } =
     useLibraryView(libraryScrollRef);
-  const {
-    isAdding,
-    captureMode,
-    setCaptureMode,
-    isCapturing,
-    isDragActive,
-    openCapture,
-    closeCaptureModal,
-    changeCaptureMode,
-    saveNote,
-    saveLink,
-    saveQuote,
-    captureFiles,
-    fileImport,
-    clearFileImport,
-    startScreenshotCapture,
-    handleDragOver,
-    handleDragLeave,
-    handleDrop,
-  } = useCapture({
+  const capture = useCapture({
     canUseDesktopBackend,
     setItems,
     setSelectedItem,
@@ -248,12 +229,7 @@ function App() {
     pdfViewerItem,
     isSettingsOpen,
     setIsSettingsOpen,
-    isAdding,
-    isCapturing,
-    captureMode,
-    setCaptureMode,
-    openCapture,
-    closeCaptureModal,
+    capture,
     setIsSidebarOpen,
   });
 
@@ -277,7 +253,7 @@ function App() {
   // An empty Space has nothing to search or re-lay out, so it drops the
   // browsing controls.
   const showBrowseControls = !activeSpace || filteredItems.length > 0 || query.trim() !== "";
-  const showCaptureError = Boolean(captureError) && !isAdding;
+  const showCaptureError = Boolean(captureError) && !capture.isAdding;
 
   const { cardMenu, closeCardMenu, openCardMenu, cardMenuEntries } = useCardMenu({
     canUseDesktopBackend,
@@ -366,13 +342,13 @@ function App() {
   return (
     <MotionConfig reducedMotion="user">
       <div
-        className={`app-shell relative flex h-full min-h-screen overflow-hidden bg-canvas wide:bg-app ${isElectronRuntime() ? "electron-shell" : ""} ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`}
+        className={`app-shell relative flex h-full min-h-screen overflow-hidden bg-canvas wide:bg-app ${isElectronRuntime() ? "electron-shell" : ""} ${capture.isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`}
         data-sidebar-style={appearance.sidebarStyle}
         data-sidebar-open={isSidebarOpen}
         data-native-captions={window.inkling?.windowControls.nativeCaptions || undefined}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        onDragOver={capture.handleDragOver}
+        onDragLeave={capture.handleDragLeave}
+        onDrop={capture.handleDrop}
       >
         <TitleBar />
         <Sidebar
@@ -392,18 +368,18 @@ function App() {
               <AddMenu
                 collapsible={codexSidebar}
                 compact={codexSidebar && !isSidebarOpen}
-                open={isAdding}
-                mode={captureMode}
-                saving={isCapturing}
-                error={isAdding ? captureError : null}
-                onOpen={() => openCapture()}
-                onClose={closeCaptureModal}
-                onModeChange={changeCaptureMode}
-                onSaveNote={saveNote}
-                onSaveLink={saveLink}
-                onSaveQuote={saveQuote}
-                onPickFile={(files) => captureFiles(files, "file picker")}
-                onScreenshot={startScreenshotCapture}
+                open={capture.isAdding}
+                mode={capture.captureMode}
+                saving={capture.isCapturing}
+                error={capture.isAdding ? captureError : null}
+                onOpen={() => capture.openCapture()}
+                onClose={capture.closeCaptureModal}
+                onModeChange={capture.changeCaptureMode}
+                onSaveNote={capture.saveNote}
+                onSaveLink={capture.saveLink}
+                onSaveQuote={capture.saveQuote}
+                onPickFile={(files) => capture.captureFiles(files, "file picker")}
+                onScreenshot={capture.startScreenshotCapture}
                 onAddSpace={codexSidebar ? openSpaceDraft : undefined}
               />
               <UpdateNavRow update={appUpdate} />
@@ -488,7 +464,9 @@ function App() {
             captureError={showCaptureError ? captureError : null}
           />
 
-          {fileImport && <FileImportStatus progress={fileImport} onDismiss={clearFileImport} />}
+          {capture.fileImport && (
+            <FileImportStatus progress={capture.fileImport} onDismiss={capture.clearFileImport} />
+          )}
 
           <ViewDock
             ref={viewDockRef}
