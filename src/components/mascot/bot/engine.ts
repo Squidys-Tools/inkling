@@ -190,7 +190,7 @@ function keepFaceInside(eyes: PlacedEye[], sil: Silhouette, cx: number, cy: numb
  */
 export class BotEngine {
   /** rayon de la boule au repos, en unites de viewBox */
-  readonly scale: number;
+  private readonly scale: number;
 
   private cur: StateId;
   private prev: StateId | null = null;
@@ -217,10 +217,10 @@ export class BotEngine {
   static readonly SHAPE_MORPH = 0.45;
 
   constructor(
-    scale = 100,
-    initial: StateId = "idle",
-    shape: number[] | null = null,
-    expression: BotExpression | null = null,
+    scale: number,
+    initial: StateId,
+    shape: number[] | null,
+    expression: BotExpression | null,
   ) {
     this.scale = scale;
     this.cur = initial;
@@ -232,7 +232,7 @@ export class BotEngine {
    * Expression de repos choisie dans le personnalisateur. Comme la forme, elle
    * glisse vers la nouvelle valeur au lieu de sauter.
    */
-  setExpression(expression: BotExpression | null, now = 0) {
+  setExpression(expression: BotExpression | null, now: number) {
     if (expression === this.expr) return;
     this.exprPrev = this.expr;
     this.expr = expression;
@@ -257,7 +257,7 @@ export class BotEngine {
    * Le changement se fait en morph, pas d'un coup : comme toutes les formes sont
    * echantillonnees aux memes angles, il suffit d'interpoler les rayons.
    */
-  setShape(radii: number[] | null, now = 0) {
+  setShape(radii: number[] | null, now: number) {
     if (radii === this.shape) return;
     this.shapePrev = this.shape;
     this.shape = radii;
