@@ -216,14 +216,6 @@ export function noteBodyForStorage(
     : normalizeNoteBody(`${titleHeading}\n\n${normalizedBody}`);
 }
 
-// A note link opens in the user's browser, so only real web URLs are storable.
-// Everything else, including `javascript:` and data payloads, is refused here
-// before it can reach the stored Markdown.
-export function isSafeNoteLink(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
-  } catch {
-    return false;
-  }
-}
+// A note link opens in the user's browser, so only real web URLs are storable;
+// `javascript:` and data payloads never reach the stored Markdown.
+export { isWebUrl as isSafeNoteLink } from "./ingestion/url";

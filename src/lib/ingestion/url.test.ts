@@ -26,8 +26,11 @@ describe("URL helpers", () => {
       ["javascript:alert(1)", false],
       ["data:text/html;base64,PGI+", false],
       ["file:///tmp/note.txt", false],
+      ["vbscript:msgbox(1)", false],
       ["ftp://example.com/file", false],
       ["", false],
+      ["   ", false],
+      ["example.com", false],
       ["/relative/path", false],
       ["not a url at all", false],
     ] as const) {
