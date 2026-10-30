@@ -27,7 +27,7 @@ URL ingestion downloads through Effect's HTTP client, which retries rate limits,
 
 ## Styling
 
-Components style themselves with Tailwind utilities against the tokens in `src/index.css`. Base UI supplies behavior and accessibility for dialogs, tabs, menus and buttons, with no theme of its own. Plain CSS files exist only where utilities can't reach, such as HTML a component doesn't render itself (`reader.css`, the note editor), keyframe animations, vendored components, and Sonner's data attributes. Each sits next to the component that owns it.
+Components style themselves with Tailwind utilities against the tokens in `src/index.css`. Base UI supplies behavior and accessibility for dialogs, tabs, menus and buttons, with no theme of its own. Plain CSS files exist only where utilities can't reach, such as HTML a component doesn't render itself (the reader's `readerContent.css`, the note editor), keyframe animations, vendored components, and Sonner's data attributes. Each sits next to the component that owns it.
 
 Floating controls over the library are glass. In the desktop app, `LiquidGlass` renders the library inside a `<canvas layoutsubtree>`, Chromium's HTML-in-Canvas copies it into a WebGPU texture, and refracting glass is drawn under every `.glass` element. `.glass` and `.css-glass` both start as a blurred CSS glass. `LiquidGlass` marks a `.glass` element with `data-liquid` once its canvas draws it, which clears the CSS glass. `.css-glass` is for surfaces outside a canvas, and always stays CSS. The web preview, machines without WebGPU, and a lost GPU device keep the CSS glass. Each liquid surface costs GPU time, so glass stays on a few floating controls and never on card surfaces.
 
