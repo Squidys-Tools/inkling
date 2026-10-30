@@ -1,5 +1,5 @@
 import { ipcMain, type WebContents } from "electron";
-import { type DeepLinkCapture, parseDeepLinkCaptureCore } from "../src/lib/deepLinkCore.mjs";
+import { type DeepLinkCapture, parseDeepLinkCapture } from "../src/lib/deepLink.ts";
 
 // Links that arrive before the renderer subscribes wait here until it does.
 const subscribers = new Set<WebContents>();
@@ -12,7 +12,7 @@ function sendDeepLinks(contents: WebContents, links: DeepLinkCapture[]) {
 }
 
 export function enqueueDeepLink(value: string) {
-  const capture = parseDeepLinkCaptureCore(value);
+  const capture = parseDeepLinkCapture(value);
   if (!capture) return;
 
   const live = [...subscribers].filter((contents) => !contents.isDestroyed());
