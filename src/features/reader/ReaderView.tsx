@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
@@ -6,6 +6,7 @@ import { hostnameForUrl } from "../hostname";
 import { isWebUrl } from "../../lib/ingestion/url";
 import { purifyHtml } from "../../lib/purifyHtml";
 import "./reader.css";
+import { ReaderFontPicker, useReaderFontSet } from "./ReaderFontPicker";
 
 export type ReaderOrigin = { x: number; y: number };
 
@@ -19,28 +20,6 @@ export type ReaderItem = {
   html: string;
 };
 
-const READER_FONT_SETS = [
-  { id: "quiet-classic", label: "Quiet Classic" },
-  { id: "bookplate", label: "Bookplate" },
-  { id: "print-shop", label: "Print Shop" },
-  { id: "bold-editorial", label: "Bold Editorial" },
-  { id: "statement", label: "Statement" },
-  { id: "web-standard", label: "Web Standard" },
-  { id: "casual-web", label: "Casual Web" },
-] as const;
-
-type ReaderFontSet = (typeof READER_FONT_SETS)[number]["id"];
-
-const FONT_SET_STORAGE_KEY = "reader-font-set";
-
-function loadFontSet(): ReaderFontSet {
-  try {
-    const stored = localStorage.getItem(FONT_SET_STORAGE_KEY);
-    if (stored && READER_FONT_SETS.some((set) => set.id === stored)) return stored as ReaderFontSet;
-  } catch {}
-  return "quiet-classic";
-}
-
 type ReaderViewProps = {
   item: ReaderItem;
   origin: ReaderOrigin;
@@ -48,14 +27,8 @@ type ReaderViewProps = {
 };
 
 export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
-  const [fontSet, setFontSet] = useState<ReaderFontSet>(loadFontSet);
+  const [fontSet, setFontSet] = useReaderFontSet();
   const shouldReduceMotion = useReducedMotion() ?? false;
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(FONT_SET_STORAGE_KEY, fontSet);
-    } catch {}
-  }, [fontSet]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -134,21 +107,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
         </article>
       </div>
 
-      <div className="reader-font-picker">
-        <label>
-          <span>Typeface</span>
-          <select
-            value={fontSet}
-            onChange={(event) => setFontSet(event.target.value as ReaderFontSet)}
-          >
-            {READER_FONT_SETS.map((set) => (
-              <option key={set.id} value={set.id}>
-                {set.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <ReaderFontPicker value={fontSet} onChange={setFontSet} />
     </motion.div>
   );
 }

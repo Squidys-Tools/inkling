@@ -1,0 +1,190 @@
+@import "@fontsource/crimson-pro/400.css";
+@import "@fontsource/crimson-pro/600.css";
+@import "@fontsource/crimson-pro/700.css";
+@import "@fontsource/crimson-pro/400-italic.css";
+@import "@fontsource/source-serif-4/400.css";
+@import "@fontsource/source-serif-4/600.css";
+@import "@fontsource/source-serif-4/400-italic.css";
+@import "@fontsource/newsreader/400.css";
+@import "@fontsource/newsreader/400-italic.css";
+@import "@fontsource/lora/400.css";
+@import "@fontsource/lora/600.css";
+@import "@fontsource/lora/400-italic.css";
+@import "@fontsource/eb-garamond/400.css";
+@import "@fontsource/eb-garamond/600.css";
+@import "@fontsource/eb-garamond/700.css";
+@import "@fontsource/eb-garamond/400-italic.css";
+@import "@fontsource/literata/400.css";
+@import "@fontsource/literata/600.css";
+@import "@fontsource/literata/400-italic.css";
+@import "@fontsource/cormorant-garamond/500.css";
+@import "@fontsource/cormorant-garamond/500-italic.css";
+@import "@fontsource/vollkorn/400.css";
+@import "@fontsource/vollkorn/600.css";
+@import "@fontsource/vollkorn/400-italic.css";
+@import "@fontsource/spectral/400.css";
+@import "@fontsource/spectral/600.css";
+@import "@fontsource/spectral/700.css";
+@import "@fontsource/spectral/400-italic.css";
+@import "@fontsource/pt-serif/400.css";
+@import "@fontsource/pt-serif/700.css";
+@import "@fontsource/pt-serif/400-italic.css";
+@import "@fontsource/bitter/400.css";
+@import "@fontsource/bitter/600.css";
+@import "@fontsource/bitter/400-italic.css";
+@import "@fontsource/gelasio/400.css";
+@import "@fontsource/gelasio/600.css";
+@import "@fontsource/gelasio/400-italic.css";
+@import "@fontsource/fraunces/400.css";
+@import "@fontsource/fraunces/600.css";
+@import "@fontsource/fraunces/700.css";
+@import "@fontsource/fraunces/400-italic.css";
+@import "@fontsource/playfair-display/500-italic.css";
+@import "@fontsource/zilla-slab/400.css";
+@import "@fontsource/zilla-slab/600.css";
+@import "@fontsource/zilla-slab/400-italic.css";
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/700.css";
+@import "@fontsource/ibm-plex-serif/400.css";
+@import "@fontsource/ibm-plex-serif/600.css";
+@import "@fontsource/ibm-plex-serif/400-italic.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/roboto/400.css";
+@import "@fontsource/roboto/700.css";
+@import "@fontsource/roboto/400-italic.css";
+@import "@fontsource/arimo/400.css";
+@import "@fontsource/arimo/700.css";
+@import "@fontsource/arimo/400-italic.css";
+@import "@fontsource/noto-sans/400.css";
+@import "@fontsource/noto-sans/700.css";
+@import "@fontsource/noto-sans/400-italic.css";
+@import "@fontsource/nunito-sans/400.css";
+@import "@fontsource/nunito-sans/700.css";
+@import "@fontsource/nunito-sans/900.css";
+@import "@fontsource/nunito-sans/400-italic.css";
+@import "@fontsource/source-sans-3/400.css";
+@import "@fontsource/source-sans-3/600.css";
+@import "@fontsource/source-sans-3/400-italic.css";
+@import "@fontsource/pt-sans/400.css";
+@import "@fontsource/pt-sans/700.css";
+@import "@fontsource/pt-sans/400-italic.css";
+
+.reader-font-picker {
+  position: fixed;
+  left: 18px;
+  bottom: var(--spacing-component);
+  z-index: 3;
+}
+
+.reader-font-picker label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--reader-rule);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--reader-bg) 90%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.reader-font-picker span {
+  color: var(--reader-faint);
+  font: 10px var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.reader-font-picker select {
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--reader-ink);
+  font: 12px var(--font-body);
+  cursor: pointer;
+}
+
+.reader-overlay.reader-font-quiet-classic {
+  --reader-font-heading: "Crimson Pro", Georgia, serif;
+  --reader-font-body: "Source Serif 4", Georgia, serif;
+  --reader-font-quote: "Newsreader", Georgia, serif;
+  --reader-font-list: "Lora", Georgia, serif;
+  --reader-font-meta: var(--font-body);
+  --reader-heading-weight: 600;
+  --reader-heading-tracking: -0.01em;
+  --reader-body-size: 19px;
+}
+
+.reader-overlay.reader-font-bookplate {
+  --reader-font-heading: "EB Garamond", Georgia, serif;
+  --reader-font-body: "Literata", Georgia, serif;
+  --reader-font-quote: "Cormorant Garamond", Georgia, serif;
+  --reader-font-list: "Vollkorn", Georgia, serif;
+  --reader-font-meta: "EB Garamond", Georgia, serif;
+  --reader-heading-weight: 600;
+  --reader-heading-tracking: 0;
+  --reader-body-size: 19px;
+  --reader-quote-bg: color-mix(in srgb, var(--reader-accent) 5%, transparent);
+}
+
+.reader-overlay.reader-font-print-shop {
+  --reader-font-heading: "Spectral", Georgia, serif;
+  --reader-font-body: "PT Serif", Georgia, serif;
+  --reader-font-quote: "Bitter", Georgia, serif;
+  --reader-font-list: "Gelasio", Georgia, serif;
+  --reader-font-meta: "Spectral", Georgia, serif;
+  --reader-heading-weight: 700;
+  --reader-heading-tracking: -0.005em;
+  --reader-body-size: 18px;
+}
+
+.reader-overlay.reader-font-bold-editorial {
+  --reader-font-heading: "Fraunces", Georgia, serif;
+  --reader-font-body: "Bitter", Georgia, serif;
+  --reader-font-quote: "Playfair Display", Georgia, serif;
+  --reader-font-list: "Zilla Slab", Georgia, serif;
+  --reader-font-meta: "Zilla Slab", Georgia, serif;
+  --reader-heading-weight: 700;
+  --reader-heading-tracking: -0.015em;
+  --reader-body-size: 18px;
+}
+
+.reader-overlay.reader-font-statement {
+  --reader-font-heading: "Space Grotesk", ui-sans-serif, sans-serif;
+  --reader-font-body: "Gelasio", Georgia, serif;
+  --reader-font-quote: "Libre Baskerville", Georgia, serif;
+  --reader-font-list: "IBM Plex Serif", Georgia, serif;
+  --reader-font-meta: "Space Grotesk", ui-sans-serif, sans-serif;
+  --reader-heading-weight: 700;
+  --reader-heading-tracking: -0.02em;
+  --reader-body-size: 18px;
+}
+
+.reader-overlay.reader-font-web-standard {
+  --reader-font-heading: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --reader-font-body: "Roboto", Arial, sans-serif;
+  --reader-font-quote: "Arimo", Arial, sans-serif;
+  --reader-font-list: "Noto Sans", Arial, sans-serif;
+  --reader-font-meta: "Roboto", Arial, sans-serif;
+  --reader-heading-weight: 700;
+  --reader-heading-tracking: -0.02em;
+  --reader-body-size: 17px;
+  --reader-quote-bg: color-mix(in srgb, var(--reader-faint) 8%, transparent);
+}
+
+.reader-overlay.reader-font-web-standard .reader-content blockquote {
+  font-style: normal;
+  font-size: 1em;
+}
+
+.reader-overlay.reader-font-casual-web {
+  --reader-font-heading: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
+  --reader-font-body: "Source Sans 3", ui-sans-serif, sans-serif;
+  --reader-font-quote: "Lora", Georgia, serif;
+  --reader-font-list: "PT Sans", ui-sans-serif, sans-serif;
+  --reader-font-meta: "Source Sans 3", ui-sans-serif, sans-serif;
+  --reader-heading-weight: 900;
+  --reader-heading-tracking: -0.01em;
+  --reader-body-size: 18px;
+}
