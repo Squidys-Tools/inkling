@@ -54,18 +54,15 @@ export function parseJson<T>(value: unknown, fallback: T): T {
   }
 }
 
-export const isMetadata = (value: unknown): value is Metadata =>
-  Predicate.isObject(value) && !Array.isArray(value);
-
 export const parseObject = Effect.fnUntraced(function* (value: unknown, label = "metadata") {
   if (value == null) return {} as Metadata;
-  if (!isMetadata(value)) return yield* invalidInput(`${label} must be a JSON object`);
+  if (!Predicate.isObject(value)) return yield* invalidInput(`${label} must be a JSON object`);
   return value;
 });
 
 export function itemFromRow(row: ItemRow): StoredLibraryItemDetail {
   const metadata = parseJson<unknown>(row.metadata, {});
-  const fields = isMetadata(metadata) ? metadata : {};
+  const fields = Predicate.isObject(metadata) ? metadata : {};
   return {
     id: row.id,
     kind: row.kind,

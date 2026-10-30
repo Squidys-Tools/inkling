@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Effect } from "effect";
+import { Effect, Predicate } from "effect";
 import {
   type CreateSpaceInput,
   type SmartSpaceQuery,
@@ -17,7 +17,6 @@ import {
   changes,
   clampLimit,
   type ItemRow,
-  isMetadata,
   nonEmpty,
   parseJson,
   qualifiedItemColumns,
@@ -52,7 +51,7 @@ function spaceFromRow(row: SpaceRow): StoredSpace {
 }
 
 export const validateSmartQuery = Effect.fnUntraced(function* (query: unknown = {}) {
-  if (!isMetadata(query)) return yield* invalidInput("Space query must be an object");
+  if (!Predicate.isObject(query)) return yield* invalidInput("Space query must be an object");
   const clean = Effect.fnUntraced(function* (value: unknown, field: string, max: number) {
     if (value == null) return undefined;
     if (typeof value !== "string") return yield* invalidInput(`${field} must be text`);

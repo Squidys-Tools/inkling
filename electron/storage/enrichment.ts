@@ -1,6 +1,6 @@
 import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { Effect } from "effect";
+import { Effect, Predicate } from "effect";
 import { readItem, type StorageContext } from "./context.ts";
 import { attempt, invalidInput, itemNotFound, storageFailure } from "./errors.ts";
 import {
@@ -9,7 +9,7 @@ import {
   URL_ENRICHMENT_JOB,
   VIDEO_POSTER_JOB,
 } from "./jobs.ts";
-import { changes, isMetadata, nonEmpty, normalizeHttpUrl, parseJson } from "./shared.ts";
+import { changes, nonEmpty, normalizeHttpUrl, parseJson } from "./shared.ts";
 
 export type UrlArticle = {
   canonicalUrl?: unknown;
@@ -54,7 +54,7 @@ export function makeEnrichment(ctx: StorageContext) {
     const [row] = yield* sql<{ metadata: string }>`SELECT metadata FROM items WHERE id = ${id}`;
     if (!row) return yield* itemNotFound(id);
     const parsed = parseJson<unknown>(row.metadata, {});
-    const metadata = isMetadata(parsed) ? parsed : {};
+    const metadata = Predicate.isObject(parsed) ? parsed : {};
     delete metadata.ocrText;
     metadata.ocrEngine = engine;
     metadata.ocrCompletedAt = Date.now();
@@ -90,7 +90,7 @@ export function makeEnrichment(ctx: StorageContext) {
         const metadata = { ...item.metadata };
         const pending = metadata.pendingUrlCapture;
         const shouldUseArticleTitle =
-          isMetadata(pending) &&
+          Predicate.isObject(pending) &&
           pending.preserveTitle !== true &&
           item.title === pending.initialTitle;
         delete metadata.pendingUrlCapture;

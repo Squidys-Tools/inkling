@@ -12,21 +12,13 @@ import {
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { Effect } from "effect";
+import { Effect, Predicate } from "effect";
 import type { LibraryImportReport } from "@inkling/contracts";
 import type { StorageContext } from "./context.ts";
 import { attempt, invalidInput, storageFailure } from "./errors.ts";
 import { IMAGE_THUMBNAIL_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
 import { openDatabase, SCHEMA_VERSION } from "./schema.ts";
-import {
-  isInside,
-  isMissing,
-  isSafeItemId,
-  isMetadata,
-  isWebUrl,
-  parseJson,
-  sha256File,
-} from "./shared.ts";
+import { isInside, isMissing, isSafeItemId, isWebUrl, parseJson, sha256File } from "./shared.ts";
 import { normalizeSpaceColor, validateSmartQuery } from "./spaces.ts";
 
 type ImportedItem = {
@@ -81,7 +73,8 @@ const validateImportedSpace = Effect.fnUntraced(function* (space: ImportedSpace)
   if (space.kind !== "smart" && space.kind !== "regular")
     return yield* invalidInput("the export contains an unsupported Space kind");
   const query = parseJson<unknown>(space.query, null);
-  if (!isMetadata(query)) return yield* invalidInput("the export contains an invalid Space query");
+  if (!Predicate.isObject(query))
+    return yield* invalidInput("the export contains an invalid Space query");
   // Older exports can carry a pin filter; it is accepted and dropped with pins.
   if (Object.keys(query).some((field) => !["text", "kind", "tag", "favorite"].includes(field)))
     return yield* invalidInput("the export contains an unsupported Space query field");
