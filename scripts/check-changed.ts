@@ -57,6 +57,7 @@ const WORKSPACES = ["extension", "packages/contracts", "packages/ingestion-share
 
 const steps: { name: string; cmd: string[] }[] = [];
 const lintAll = touched.some((file) => LINT_CONFIG.includes(file));
+// Ignore patterns can leave oxlint or oxfmt with no targets; that must not fail the run.
 if (lintAll) steps.push({ name: "lint", cmd: ["bun", "run", "lint"] });
 else if (code.length) {
   steps.push({
@@ -91,7 +92,6 @@ for (const dir of WORKSPACES) {
   }
 }
 
-// Ignore patterns can leave a tool with no targets; that must not fail the run.
 if (steps.length === 0) console.log("No checks apply to these files.");
 
 const results = await Promise.all(
