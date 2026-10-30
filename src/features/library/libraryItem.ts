@@ -38,11 +38,10 @@ function displayKind(kind: string): ItemKind {
 }
 
 function formatItemDate(timestamp: number) {
-  const date = new Date(timestamp);
-  const age = Date.now() - date.getTime();
+  const age = Date.now() - timestamp;
   if (age < 60 * 60 * 1000) return "Just now";
   if (age < 24 * 60 * 60 * 1000) return "Today";
-  return date.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+  return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "2-digit" });
 }
 
 function readXPostMetadata(value: unknown): XPostMetadata | undefined {
