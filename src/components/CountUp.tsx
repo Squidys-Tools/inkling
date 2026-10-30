@@ -1,9 +1,8 @@
 // Adapted from React Bits Count Up (https://reactbits.dev/text-animations/count-up).
 // Copyright (c) 2026 David Haz. Licensed MIT + Commons Clause v1.0; the license
 // text is in GradualBlur/LICENSE.md, which comes from the same project.
-import { animate, cubicBezier, useInView } from "motion/react";
+import { animate, cubicBezier } from "motion/react";
 import {
-  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -14,22 +13,11 @@ import {
 } from "react";
 
 interface CountUpProps {
+  /** A count: a whole number, never negative. */
   to: number;
-  from?: number;
-  direction?: "up" | "down";
   delay?: number;
   duration?: number;
   className?: string;
-  style?: CSSProperties;
-  startWhen?: boolean;
-  separator?: string;
-  prefix?: string;
-  suffix?: string;
-  decimals?: number;
-  format?: "standard" | "compact";
-  trigger?: "view" | "load";
-  replayOnHover?: boolean;
-  onStart?: () => void;
   onEnd?: () => void;
 }
 
@@ -44,16 +32,13 @@ type Column = {
   delta: number;
 };
 
-type Mark = { char: string; enter?: boolean; leave?: boolean; follow?: number };
-
-type Slot = Column | Mark;
+type Slot = Column | { char: string };
 
 type Roll = { slots: Slot[]; columns: Column[]; label: string };
 
 type Play = { id: number; from: number; to: number; spin: boolean; wait?: boolean };
 
 type Live = {
-  onStart?: () => void;
   onEnd?: () => void;
   model: Roll;
   duration: number;
@@ -85,8 +70,6 @@ const SR_ONLY: CSSProperties = {
   border: 0,
 };
 
-const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
-
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 const smooth = (edge0: number, edge1: number, value: number) => {
   const t = clamp01((value - edge0) / (edge1 - edge0));
@@ -96,63 +79,29 @@ const mod10 = (value: number) => ((value % 10) + 10) % 10;
 
 const ease = cubicBezier(0.33, 1, 0.68, 1);
 
-const getDecimalPlaces = (num: number): number => {
-  const str = num.toString();
-
-  if (str.includes(".")) {
-    const decimals = str.split(".")[1];
-
-    if (parseInt(decimals, 10) !== 0) {
-      return decimals.length;
-    }
-  }
-
-  return 0;
-};
-
-const unitFor = (value: number): [number, string] =>
-  UNITS.find(([size]) => Math.abs(value) >= size * 0.9995) || [1, ""];
-
-const scaleFor = (
-  value: number,
-  compact: boolean,
-  decimals: number | undefined,
-  places: number,
-) => {
-  if (!compact) return { size: 1, label: "", digits: places };
-  const [size, label] = unitFor(value);
-  const digits = decimals ?? (label ? (Math.abs(value) / size < 100 ? 1 : 0) : places);
-  return { size, label, digits };
+const scaleFor = (value: number) => {
+  const [size, label] = UNITS.find(([unit]) => value >= unit * 0.9995) || [1, ""];
+  return { size, label, digits: label && value / size < 100 ? 1 : 0 };
 };
 
 const splitNumber = (value: number, digits: number, size: number) => {
-  const fixed = (Math.abs(value) / size).toFixed(digits);
-  const [int, frac = ""] = fixed.split(".");
-  return { negative: value < 0 && Number(fixed) !== 0, int, frac };
+  const [int, frac = ""] = (value / size).toFixed(digits).split(".");
+  return { int, frac };
 };
 
-const group = (int: string, separator: string) =>
-  separator ? int.replace(/\B(?=(\d{3})+(?!\d))/g, separator) : int;
+const formatValue = (value: number) => {
+  const { size, label, digits } = scaleFor(value);
+  const { int, frac } = splitNumber(value, digits, size);
+  return `${int}${frac ? `.${frac}` : ""}${label}`;
+};
 
-const buildRoll = (
-  a: number,
-  b: number,
-  spin: boolean,
-  {
-    compact,
-    decimals,
-    places,
-    separator,
-  }: { compact: boolean; decimals: number | undefined; places: number; separator: string },
-): Roll => {
-  const { size, label, digits } = scaleFor(b, compact, decimals, places);
+const buildRoll = (a: number, b: number, spin: boolean): Roll => {
+  const { size, label, digits } = scaleFor(b);
   const pa = splitNumber(a, digits, size);
   const pb = splitNumber(b, digits, size);
   const length = Math.max(pa.int.length, pb.int.length);
   const slots: Slot[] = [];
   const columns: Column[] = [];
-  if (pa.negative || pb.negative)
-    slots.push({ char: "-", enter: !pa.negative, leave: !pb.negative });
   const digitAt = (parts: { int: string; frac: string }, place: number) => {
     if (place < 0) return Number(parts.frac[-place - 1]);
     const index = parts.int.length - 1 - place;
@@ -174,8 +123,6 @@ const buildRoll = (
     };
     slots.push(column);
     columns.push(column);
-    if (separator && place > 0 && place % 3 === 0)
-      slots.push({ char: separator, follow: column.index });
   }
   const up = spin || b >= a;
   columns.forEach((column, index) => {
@@ -192,83 +139,35 @@ const buildRoll = (
   return { slots, columns, label };
 };
 
-export default function CountUp({
-  to,
-  from = 0,
-  direction = "up",
-  delay = 0,
-  duration = 2,
-  className = "",
-  style,
-  startWhen = true,
-  separator = "",
-  prefix = "",
-  suffix = "",
-  decimals,
-  format = "standard",
-  trigger = "view",
-  replayOnHover = false,
-  onStart,
-  onEnd,
-}: CountUpProps) {
+export default function CountUp({ to, delay = 0, duration = 2, className, onEnd }: CountUpProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const slotRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const filterRefs = useRef<(SVGFEGaussianBlurElement | null)[]>([]);
   const uid = useId().replace(/[^\w-]/g, "");
-  const startValue = direction === "down" ? to : from;
-  const endValue = direction === "down" ? from : to;
-  const valueRef = useRef(startValue);
-  const startedRef = useRef(false);
+  const valueRef = useRef(0);
   const runningRef = useRef(false);
   const [play, setPlay] = useState<Play | null>(null);
-  const isInView = useInView(ref, { once: true, margin: "0px" });
-  const active = trigger === "load" || isInView;
-  const compact = format === "compact";
-  const places = decimals ?? Math.max(getDecimalPlaces(from), getDecimalPlaces(to));
 
-  const formatValue = useCallback(
-    (latest: number) => {
-      const { size, label, digits } = scaleFor(latest, compact, decimals, places);
-      const parts = splitNumber(latest, digits, size);
-      const body = `${parts.negative ? "-" : ""}${group(parts.int, separator)}${parts.frac ? `.${parts.frac}` : ""}`;
-      return `${prefix}${body}${label}${suffix}`;
-    },
-    [compact, decimals, places, separator, prefix, suffix],
+  const model = useMemo(
+    () => (play ? buildRoll(play.from, play.to, play.spin) : buildRoll(0, to, false)),
+    [play, to],
   );
-
-  const model = useMemo(() => {
-    const a = play ? play.from : startValue;
-    const b = play ? play.to : endValue;
-    return buildRoll(a, b, !!play?.spin, { compact, decimals, places, separator });
-  }, [play, startValue, endValue, compact, decimals, places, separator]);
 
   const latestRef = useRef<Live | null>(null);
 
-  useIsoLayoutEffect(() => {
-    latestRef.current = {
-      onStart,
-      onEnd,
-      model,
-      duration: Math.max(0, duration),
-      delay,
-    };
+  useLayoutEffect(() => {
+    latestRef.current = { onEnd, model, duration: Math.max(0, duration), delay };
   });
 
-  useIsoLayoutEffect(() => {
-    if (!startedRef.current) valueRef.current = startValue;
-  }, [startValue]);
-
   useEffect(() => {
-    if (!active || !startWhen) return;
-    startedRef.current = true;
     setPlay((previous) => ({
       id: (previous?.id || 0) + 1,
       from: valueRef.current,
-      to: endValue,
+      to,
       spin: false,
       wait: true,
     }));
-  }, [active, startWhen, endValue]);
+  }, [to]);
 
   useEffect(() => {
     const live = latestRef.current;
@@ -276,7 +175,7 @@ export default function CountUp({
     const total = live.duration;
     const progress = (t: number) => (total > 0 ? clamp01(t / total) : 1);
 
-    const { columns: layout, slots } = live.model;
+    const { columns: layout } = live.model;
     const fontSize = parseFloat(getComputedStyle(ref.current).fontSize) || 16;
     const cell = CELL * fontSize;
     const stagger = layout.length > 1 ? Math.min(STAGGER, (total * 0.4) / (layout.length - 1)) : 0;
@@ -295,26 +194,10 @@ export default function CountUp({
         width: box ? box.scrollWidth : 0,
         base: Math.floor(column.from),
         sigma: 0,
-        presence: column.enter ? 0 : 1,
       };
     });
-    const marks = slots
-      .map((slot, index) => ({ ...slot, node: slotRefs.current[index] }))
-      .filter(
-        (slot): slot is Mark & { node: HTMLSpanElement } =>
-          "char" in slot &&
-          !!slot.node &&
-          (!!slot.enter || !!slot.leave || slot.follow !== undefined),
-      )
-      .map((slot) => ({ ...slot, width: slot.node.scrollWidth }));
 
-    const fade = (
-      node: HTMLSpanElement | null | undefined,
-      width: number,
-      presence: number,
-      settled: boolean,
-    ) => {
-      if (!node) return;
+    const fade = (node: HTMLSpanElement, width: number, presence: number, settled: boolean) => {
       node.style.width = settled ? "" : `${(presence * width).toFixed(2)}px`;
       node.style.opacity = settled ? "" : presence.toFixed(3);
     };
@@ -348,29 +231,16 @@ export default function CountUp({
           }
         }
 
-        if (column.enter || column.leave) {
-          column.presence = column.enter ? smooth(0, 0.45, u) : 1 - smooth(0.55, 1, u);
-          fade(column.box, column.width, column.presence, column.enter && u >= 1);
+        if (column.box && (column.enter || column.leave)) {
+          const presence = column.enter ? smooth(0, 0.45, u) : 1 - smooth(0.55, 1, u);
+          fade(column.box, column.width, presence, column.enter && u >= 1);
         }
       });
 
-      const overall = progress(t);
-      marks.forEach((mark) => {
-        if (mark.follow !== undefined) {
-          const column = columns[mark.follow];
-          if (column && (column.enter || column.leave))
-            fade(mark.node, mark.width, column.presence, column.enter && column.presence >= 1);
-        } else {
-          const presence = mark.enter ? smooth(0, 0.3, overall) : 1 - smooth(0.7, 1, overall);
-          fade(mark.node, mark.width, presence, !!mark.enter && overall >= 1);
-        }
-      });
-
-      valueRef.current = play.from + (play.to - play.from) * ease(overall);
+      valueRef.current = play.from + (play.to - play.from) * ease(progress(t));
     };
 
     runningRef.current = true;
-    if (typeof live.onStart === "function") live.onStart();
 
     const finish = () => {
       render(Infinity);
@@ -399,7 +269,7 @@ export default function CountUp({
   }, [play, uid]);
 
   const replay = () => {
-    if (!replayOnHover || runningRef.current || !startedRef.current) return;
+    if (runningRef.current) return;
     setPlay((previous) => ({
       id: (previous?.id || 0) + 1,
       from: valueRef.current,
@@ -408,41 +278,31 @@ export default function CountUp({
     }));
   };
 
-  const finalText = formatValue(play ? play.to : endValue);
-
   return (
     <span
       className={className}
       ref={ref}
-      style={{ fontVariantNumeric: "tabular-nums", ...style }}
-      onPointerEnter={replayOnHover ? replay : undefined}
+      style={{ fontVariantNumeric: "tabular-nums" }}
+      onPointerEnter={replay}
     >
       <span
         key={`roll-${play?.id || 0}`}
         aria-hidden="true"
         style={{ display: "inline-flex", whiteSpace: "pre", userSelect: "none" }}
       >
-        {prefix && <span style={SLOT_STYLE}>{prefix}</span>}
         {model.slots.map((slot, index) => {
-          const hidden =
-            "char" in slot
-              ? slot.enter || (slot.follow !== undefined && model.columns[slot.follow].enter)
-              : slot.enter;
-          const collapsed = hidden ? { width: 0, opacity: 0 } : null;
           if ("char" in slot) {
             return (
               <span
                 // oxlint-disable-next-line react/no-array-index-key -- slots are positional and index-addressed via slotRefs
                 key={index}
-                ref={(node) => {
-                  slotRefs.current[index] = node;
-                }}
-                style={{ ...SLOT_STYLE, overflow: "hidden", ...collapsed }}
+                style={{ ...SLOT_STYLE, overflow: "hidden" }}
               >
                 {slot.char}
               </span>
             );
           }
+          const collapsed = slot.enter ? { width: 0, opacity: 0 } : null;
           return (
             <span
               // oxlint-disable-next-line react/no-array-index-key -- slots are positional and index-addressed via slotRefs
@@ -469,9 +329,8 @@ export default function CountUp({
           );
         })}
         {model.label && <span style={SLOT_STYLE}>{model.label}</span>}
-        {suffix && <span style={SLOT_STYLE}>{suffix}</span>}
       </span>
-      <span style={SR_ONLY}>{finalText}</span>
+      <span style={SR_ONLY}>{formatValue(play ? play.to : to)}</span>
       <svg aria-hidden="true" width="0" height="0" style={{ position: "absolute" }}>
         <defs>
           {model.columns.map((column) => (

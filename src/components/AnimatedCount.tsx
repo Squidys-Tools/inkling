@@ -11,11 +11,8 @@ export function AnimatedCount({ value, className }: { value: number; className?:
     <CountUp
       to={value}
       className={className}
-      format="compact"
       delay={intro ? 0.5 : 0}
       duration={0.5}
-      trigger="load"
-      replayOnHover
       onEnd={() => {
         // The library loads empty first; wait for a real count before dropping the delay.
         if (value > 0) setIntro(false);
