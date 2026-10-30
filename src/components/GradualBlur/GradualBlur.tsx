@@ -4,14 +4,14 @@
 // blur the library uses. Copyright (c) 2026 David Haz.
 // Licensed MIT + Commons Clause v1.0; see LICENSE.md in this directory.
 
-import { useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { useLayoutEffect, useMemo, useRef, type CSSProperties } from "react";
 
-import './GradualBlur.css';
+import "./GradualBlur.css";
 
-type GradualBlurCurve = 'linear' | 'bezier' | 'ease-in' | 'ease-out' | 'ease-in-out';
+type GradualBlurCurve = "linear" | "bezier" | "ease-in" | "ease-out" | "ease-in-out";
 
 export interface GradualBlurProps {
-  position?: 'top' | 'bottom';
+  position?: "top" | "bottom";
   height?: string | number;
   strength?: number;
   layers?: number;
@@ -26,14 +26,14 @@ export interface GradualBlurProps {
 }
 
 const CURVES: Record<GradualBlurCurve, (t: number) => number> = {
-  linear: t => t,
-  bezier: t => t * t * (3 - 2 * t),
-  'ease-in': t => t * t,
-  'ease-out': t => 1 - (1 - t) * (1 - t),
-  'ease-in-out': t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2)
+  linear: (t) => t,
+  bezier: (t) => t * t * (3 - 2 * t),
+  "ease-in": (t) => t * t,
+  "ease-out": (t) => 1 - (1 - t) * (1 - t),
+  "ease-in-out": (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2),
 };
 
-const FADE = '0.3s ease-out';
+const FADE = "0.3s ease-out";
 
 const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
 
@@ -41,23 +41,23 @@ const findScroller = (root: HTMLElement) => {
   const parent = root.parentElement;
   if (!parent) return null;
   const scrolls = (node: Element) => /(auto|scroll|overlay)/.test(getComputedStyle(node).overflowY);
-  const sibling = Array.from(parent.children).find(child => child !== root && scrolls(child));
+  const sibling = Array.from(parent.children).find((child) => child !== root && scrolls(child));
   return sibling || (scrolls(parent) ? parent : null);
 };
 
 const GradualBlur = ({
-  position = 'bottom',
-  height = '6rem',
+  position = "bottom",
+  height = "6rem",
   strength = 2,
   layers = 8,
-  curve = 'linear',
+  curve = "linear",
   exponential = true,
   opacity = 1,
   saturation = 1,
-  tint = 'transparent',
+  tint = "transparent",
   autoHide = false,
   zIndex = 1000,
-  className = ''
+  className = "",
 }: GradualBlurProps) => {
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -77,18 +77,20 @@ const GradualBlur = ({
       const radius = Math.sqrt(Math.max(to * to - from * from, 0));
       const filter = [
         `blur(calc(${radius.toFixed(3)}px * var(--gradual-blur-reveal, 1)))`,
-        boost !== 1 ? `saturate(calc(1 + ${(boost - 1).toFixed(4)} * var(--gradual-blur-reveal, 1)))` : ''
+        boost !== 1
+          ? `saturate(calc(1 + ${(boost - 1).toFixed(4)} * var(--gradual-blur-reveal, 1)))`
+          : "",
       ]
         .filter(Boolean)
-        .join(' ');
+        .join(" ");
       steps.push({
-        position: 'absolute',
+        position: "absolute",
         inset: 0,
-        borderRadius: 'inherit',
+        borderRadius: "inherit",
         backdropFilter: filter,
         maskImage: `linear-gradient(${direction}, transparent ${((i / layers) * 100).toFixed(2)}%, #000 ${(((i + 1) / layers) * 100).toFixed(2)}%)`,
         opacity,
-        transition: `backdrop-filter ${FADE}`
+        transition: `backdrop-filter ${FADE}`,
       });
     }
     const stops = Array.from({ length: 9 }, (_, k) => {
@@ -96,17 +98,17 @@ const GradualBlur = ({
       const t = shape(u);
       const alpha = t * t * t * (t * (t * 6 - 15) + 10);
       return `rgba(0, 0, 0, ${alpha.toFixed(3)}) ${(u * 100).toFixed(1)}%`;
-    }).join(', ');
+    }).join(", ");
     const wash: CSSProperties | null =
-      tint && tint !== 'transparent'
+      tint && tint !== "transparent"
         ? {
-            position: 'absolute',
+            position: "absolute",
             inset: 0,
-            borderRadius: 'inherit',
+            borderRadius: "inherit",
             background: tint,
             maskImage: `linear-gradient(${direction}, ${stops})`,
-            opacity: 'var(--gradual-blur-reveal, 1)',
-            transition: `opacity ${FADE}`
+            opacity: "var(--gradual-blur-reveal, 1)",
+            transition: `opacity ${FADE}`,
           }
         : null;
     return { steps, wash };
@@ -116,7 +118,7 @@ const GradualBlur = ({
     const root = rootRef.current;
     if (!root) return undefined;
     if (!autoHide) {
-      root.style.removeProperty('--gradual-blur-reveal');
+      root.style.removeProperty("--gradual-blur-reveal");
       return undefined;
     }
     const scroller = findScroller(root);
@@ -126,41 +128,47 @@ const GradualBlur = ({
       const offset = scroller.scrollTop;
       const limit = scroller.scrollHeight - scroller.clientHeight;
       const reach = Math.max(root.getBoundingClientRect().height, 1);
-      const room = position === 'top' ? offset : limit - offset;
-      root.style.setProperty('--gradual-blur-reveal', clamp01(room / reach).toFixed(3));
+      const room = position === "top" ? offset : limit - offset;
+      root.style.setProperty("--gradual-blur-reveal", clamp01(room / reach).toFixed(3));
     };
 
     update();
-    scroller.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('resize', update);
+    scroller.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
     const observer = new ResizeObserver(update);
     observer.observe(scroller);
     if (scroller.firstElementChild) observer.observe(scroller.firstElementChild);
     return () => {
-      scroller.removeEventListener('scroll', update);
-      window.removeEventListener('resize', update);
+      scroller.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
       observer.disconnect();
     };
   }, [autoHide, position]);
 
-  const corner = (edge: 'top' | 'bottom') => (position === edge ? 'inherit' : undefined);
+  const corner = (edge: "top" | "bottom") => (position === edge ? "inherit" : undefined);
   const rootStyle: CSSProperties = {
-    position: 'absolute',
+    position: "absolute",
     zIndex,
-    borderTopLeftRadius: corner('top'),
-    borderTopRightRadius: corner('top'),
-    borderBottomLeftRadius: corner('bottom'),
-    borderBottomRightRadius: corner('bottom'),
-    top: position === 'top' ? 0 : undefined,
-    bottom: position === 'bottom' ? 0 : undefined,
+    borderTopLeftRadius: corner("top"),
+    borderTopRightRadius: corner("top"),
+    borderBottomLeftRadius: corner("bottom"),
+    borderBottomRightRadius: corner("bottom"),
+    top: position === "top" ? 0 : undefined,
+    bottom: position === "bottom" ? 0 : undefined,
     left: 0,
     right: 0,
-    height: typeof height === 'number' ? `${height}px` : height
+    height: typeof height === "number" ? `${height}px` : height,
   };
 
   return (
-    <div ref={rootRef} className={`gradual-blur ${className}`.trim()} style={rootStyle} aria-hidden="true">
+    <div
+      ref={rootRef}
+      className={`gradual-blur ${className}`.trim()}
+      style={rootStyle}
+      aria-hidden="true"
+    >
       {stack.steps.map((layer, index) => (
+        // oxlint-disable-next-line react/no-array-index-key -- a fixed stack of layers that never reorders.
         <div key={index} style={layer} />
       ))}
       {stack.wash && <div style={stack.wash} />}
