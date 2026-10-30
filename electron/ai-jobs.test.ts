@@ -4,11 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect } from "effect";
 import sharp from "sharp";
-import {
-  createAiJobProcessors as createProcessors,
-  embeddingText,
-  enqueueStaleImageEmbeddings,
-} from "./ai-jobs.ts";
+import { createAiJobProcessors as createProcessors } from "./ai-jobs.ts";
+import { embeddingText, enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.ts";
 import { extractPdfTextByPages } from "./pdf.ts";
 import type { Job } from "./storage/jobs.ts";

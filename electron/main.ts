@@ -26,7 +26,8 @@ import {
   parseDeepLinkCaptureCore,
   parseHttpUrlCore,
 } from "../src/lib/deepLinkCore.mjs";
-import { createAiJobProcessors, enqueueStaleImageEmbeddings, jobTimeouts } from "./ai-jobs.ts";
+import { createAiJobProcessors, jobTimeouts } from "./ai-jobs.ts";
+import { enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
 import { serveAssetFile } from "./asset-response.ts";
 import { appContentTypes as mimeTypes } from "./app-content-types.ts";
 import { customWindowChrome } from "./window-chrome.ts";
