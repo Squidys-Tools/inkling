@@ -79,9 +79,9 @@ export const makeWorker = Effect.fnUntraced(function* <R>({
 
   const run = Effect.gen(function* () {
     const wake = yield* PubSub.subscribe(jobs.enqueued);
-    const workQueued = Effect.gen(function* () {
-      while (!(yield* PubSub.takeAll(wake)).some((kind) => kinds.includes(kind))) {}
-    });
+    const workQueued = PubSub.takeAll(wake).pipe(
+      Effect.repeat({ until: (queued) => queued.some((kind) => kinds.includes(kind)) }),
+    );
     yield* jobs.recoverExpired();
     while (true) {
       yield* drain.pipe(Effect.catchCause((cause) => Effect.logError("job worker failed", cause)));
