@@ -35,10 +35,7 @@ Object.defineProperty(globalThis, "window", {
   value: { inkling: { commands } },
 });
 
-// Keep this suite's lazy storage initialization separate from mounted hook fixtures.
-const apiModule = "./libraryApi?library-api-tests";
-const { assetUrl, importLibrary, listSpaces, selectLibraryDirectory, summariesFromJobs } =
-  (await import(apiModule)) as typeof import("./libraryApi");
+const { assetUrl, selectLibraryDirectory, summariesFromJobs } = await import("./libraryApi");
 
 function job(overrides: Partial<ProcessingJob>): ProcessingJob {
   return {
@@ -162,6 +159,9 @@ test("the newest failed job surfaces for its item", () => {
 });
 
 test("Space reads and export restores wait for storage initialization", async () => {
+  // Mounted hook fixtures may have initialized the default module already.
+  const apiModule = "./libraryApi?library-api-initialization-test";
+  const { listSpaces, importLibrary } = (await import(apiModule)) as typeof import("./libraryApi");
   invokeCalls.length = 0;
 
   await Promise.all([listSpaces(), importLibrary("export-folder")]);
