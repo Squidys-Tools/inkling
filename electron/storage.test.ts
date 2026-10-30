@@ -1,20 +1,10 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Duration, Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { personalSeedItems } from "../src/seedPersonal";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.ts";
 import parity from "./fixtures/storage-parity.json";
 import { pdfThumbnailCandidateSql } from "./storage/enrichment.ts";
@@ -22,48 +12,25 @@ import { storageFailure } from "./storage/errors.ts";
 import {
   IMAGE_THUMBNAIL_JOB,
   JOB_LEASE_MILLIS,
-  type LibraryOptions,
   PDF_THUMBNAIL_JOB,
   resolveLibraryDataDirectory,
   URL_ENRICHMENT_JOB,
 } from "./storage/library.ts";
-import { openTestLibrary, type TestLibrary } from "./storage/test-library.ts";
-
-type Options = Omit<LibraryOptions, "databasePath">;
-
-const roots: string[] = [];
-const libraries = new Set<TestLibrary>();
-const databases = new Set<DatabaseSync>();
-
-async function trackedLibrary(path: string, options: Options = {}) {
-  const library = await openTestLibrary(path, options);
-  libraries.add(library);
-  return library;
-}
-
-async function closeLibrary(library: TestLibrary) {
-  libraries.delete(library);
-  await library.close();
-}
-
-async function temporaryLibrary(options: Options = {}) {
-  const root = mkdtempSync(join(tmpdir(), "inkling-electron-storage-"));
-  roots.push(root);
-  return { root, library: await trackedLibrary(join(root, "library.sqlite3"), options) };
-}
-
-function trackDatabase(database: DatabaseSync) {
-  databases.add(database);
-  return database;
-}
-
-function closeDatabase(database: DatabaseSync) {
-  databases.delete(database);
-  database.close();
-}
-
-const count = (library: TestLibrary, table: string) =>
-  Number(library.db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()?.count);
+import {
+  closeAll,
+  closeDatabase,
+  closeLibrary,
+  count,
+  ids,
+  removeTemporaryRoots,
+  seedFromDemo,
+  temporaryLibrary,
+  temporaryRoot,
+  trackDatabase,
+  trackedLibrary,
+  vector,
+} from "./storage/test-helpers.ts";
+import type { TestLibrary } from "./storage/test-library.ts";
 
 async function enrichUrl(library: TestLibrary, itemId: string, article: object) {
   const workerId = `url-test-${randomUUID()}`;
@@ -74,49 +41,8 @@ async function enrichUrl(library: TestLibrary, itemId: string, article: object) 
   expect(await library.jobs.complete(job.id, workerId)).toBe(true);
 }
 
-function seedFromDemo(library: TestLibrary) {
-  const selected = personalSeedItems.filter((item) => parity.sourceIds.includes(String(item.id)));
-  const insert = library.db
-    .prepare(`INSERT INTO items (id, kind, title, description, body, body_format,
-    source_label, metadata, ocr_text, created_at, updated_at)
-    VALUES (?, ?, ?, ?, '', 'md', 'Downloads', ?, '', ?, ?)`);
-  selected.forEach((item, index) => {
-    const now = index + 1;
-    insert.run(
-      item.id,
-      item.kind.toLowerCase(),
-      item.title,
-      item.description,
-      JSON.stringify({ tags: item.tags }),
-      now,
-      now,
-    );
-  });
-  return selected;
-}
-
-function vector(values: number[]) {
-  const bytes = Buffer.alloc(values.length * 4);
-  values.forEach((value, index) => {
-    bytes.writeFloatLE(value, index * 4);
-  });
-  return bytes;
-}
-
-const ids = (items: { id: string }[]) => items.map((item) => item.id);
-
-afterEach(async () => {
-  for (const library of libraries) await library.close();
-  libraries.clear();
-  for (const database of databases) database.close();
-  databases.clear();
-  Bun.gc(true);
-});
-
-afterAll(() => {
-  Bun.gc(true);
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+afterEach(closeAll);
+afterAll(removeTemporaryRoots);
 
 test("completed onboarding persists across library reopen", async () => {
   const { root, library } = await temporaryLibrary();
@@ -519,9 +445,7 @@ test("LIKE fallback treats percent and underscore as literal search characters",
 });
 
 test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", async () => {
-  const root = mkdtempSync(join(tmpdir(), "inkling-electron-storage-"));
-  roots.push(root);
-  const databasePath = join(root, "v7.sqlite3");
+  const databasePath = join(temporaryRoot(), "v7.sqlite3");
   const db = trackDatabase(new DatabaseSync(databasePath));
   db.exec(`
     CREATE TABLE items (
