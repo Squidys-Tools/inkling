@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { AddMode } from "./AddMenu/AddMenu";
 import { createFileImportQueue, type FileImportProgress } from "./fileImport";
-import { parseDeepLinkCapture, validateDeepLinkCapture } from "../../lib/deepLink";
+import { type DeepLinkCapture, validateDeepLinkCapture } from "../../lib/deepLink";
 import { currentDeepLinks, listenForDeepLinks } from "../../lib/libraryApi";
 import { shouldUseSeedLibrary } from "../../lib/previewMode";
 import type { LibraryItem } from "../../lib/types";
@@ -123,14 +123,8 @@ export function useCapture({
     }
   }
 
-  async function handleDeepLinkPayload(payload: unknown) {
-    const values = Array.isArray(payload) ? payload : [payload];
-    for (const value of values) {
-      const capture =
-        typeof value === "string" ? parseDeepLinkCapture(value) : validateDeepLinkCapture(value);
-      if (!capture) continue;
-      // Every path creates the provisional card immediately; extraction,
-      // embeddings, and indexing run as background jobs from there.
+  async function captureDeepLinks(captures: DeepLinkCapture[]) {
+    for (const capture of captures) {
       if (capture.kind === "quote") {
         await persistQuote(
           capture.selection,
@@ -178,21 +172,22 @@ export function useCapture({
     return () => window.removeEventListener("paste", listener);
   }, []);
 
-  const onDeepLink = useEffectEvent(handleDeepLinkPayload);
+  const onDeepLinks = useEffectEvent(captureDeepLinks);
   useEffect(() => {
     if (shouldUseSeedLibrary()) return;
     let cancelled = false;
     let removeListener: (() => void) | undefined;
 
     async function connectCaptureEvents() {
-      const remove = await listenForDeepLinks((payload) => void onDeepLink(payload));
+      const remove = await listenForDeepLinks((payload) => {
+        const captures = Array.isArray(payload) ? payload.map(validateDeepLinkCapture) : [];
+        void onDeepLinks(captures.filter((capture) => capture !== null));
+      });
       if (cancelled) remove();
       else removeListener = remove;
 
       const links = await currentDeepLinks();
-      if (!cancelled) {
-        for (const link of links) await onDeepLink(link);
-      }
+      if (!cancelled) await onDeepLinks(links);
     }
 
     void connectCaptureEvents().catch((error: unknown) => {
