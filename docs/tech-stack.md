@@ -67,15 +67,14 @@ SQLite triggers keep the FTS5 index in step with each write, so no job updates i
 
 ### Runtime choices
 
-| Capability | Initial choice |
+| Capability | Choice |
 |---|---|
 | OCR | Tesseract |
-| Text embeddings | Nomic Embed Text v1.5 through local ONNX Runtime; use `search_document:` for stored content and `search_query:` for user queries |
-| Image embeddings | Nomic Embed Vision v1.5 through local ONNX Runtime; shares the text model's 768-dimensional space |
-| Image concepts | Deterministic image analysis plus vision/embedding model |
-| Summaries | Optional quantized local LLM through llama.cpp |
-| PDF extraction | Local PDF text extraction, followed by Tesseract for scanned pages |
-| Vector search | Start with a simple local implementation; evaluate sqlite-vec after benchmarking |
+| Text and image embeddings | Nomic Embed Text and Vision v1.5 through local ONNX Runtime; [models.md](models.md) has the details |
+| PDF extraction | PDF.js text extraction, then Tesseract on rendered pages for scanned PDFs |
+| Vector search | A linear scan over stored vectors; evaluate `sqlite-vec` after benchmarking |
+| Image concepts (planned) | Deterministic image analysis plus a vision or embedding model |
+| Summaries (planned) | An optional quantized local LLM through llama.cpp |
 
 ONNX Runtime is appropriate for Windows CPU/GPU inference. llama.cpp is appropriate for a bundled or downloaded quantized local language model and provides Windows builds and a local server interface.
 
@@ -83,9 +82,9 @@ ONNX Runtime is appropriate for Windows CPU/GPU inference. llama.cpp is appropri
 
 ## Model selection policy
 
-Nomic Embed Text v1.5 and Nomic Embed Vision v1.5 are the initial learned embedding pair. They are downloaded as pinned INT8 ONNX artifacts into the app model cache on the first indexing run, with SHA-256 verification before use. Models will still be evaluated using a representative local test corpus, not by reputation alone. Revisit the choice if semantic search relevance, image similarity relevance, CPU time, RAM usage, GPU acceleration, download size, cold-start time, or batch processing time is not acceptable.
+Evaluate models on the benchmark corpus in `benchmarks/`, not by reputation. Revisit the Nomic pair if semantic search relevance, image similarity relevance, CPU time, RAM use, GPU acceleration, download size, cold-start time or batch processing time falls short.
 
-Support three operating modes:
+The planned model selection supports three modes:
 
 1. Baseline CPU mode.
 2. Standard mode for typical 16 GB machines.
