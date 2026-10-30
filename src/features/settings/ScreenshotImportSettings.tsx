@@ -54,7 +54,12 @@ export function ScreenshotImportSettings() {
     <SettingsRow
       icon={Camera01Icon}
       title="Automatic screenshot import"
-      description="Add new PNG, JPEG and WebP images from your screenshots folder. Off by default; existing files are left alone when enabled."
+      description={
+        <span className="text-ink-soft">
+          Add new PNG, JPEG and WebP images from your screenshots folder. Off by default; existing
+          files are left alone when enabled.
+        </span>
+      }
       action={null}
     >
       <fieldset
@@ -73,8 +78,8 @@ export function ScreenshotImportSettings() {
           ]}
           onChange={(value) => void change(() => setScreenshotImportEnabled(value === "on"))}
         />
-        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
-          <span className="min-w-0 flex-1 break-all font-mono text-[11px]/[17px] text-muted">
+        <div className="mt-2 flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center">
+          <span className="min-w-0 max-w-full font-mono text-[12px]/[18px] text-ink-soft [overflow-wrap:anywhere] sm:max-w-[360px]">
             {state?.directory}
           </span>
           <button
@@ -86,7 +91,7 @@ export function ScreenshotImportSettings() {
           </button>
         </div>
       </fieldset>
-      <p role="status" className="mt-2 mb-0 font-body text-[12px]/[18px] text-muted">
+      <p role="status" className="mt-2 mb-0 font-body text-[12px]/[18px] text-ink-soft">
         {error ??
           state?.message ??
           (!desktop
