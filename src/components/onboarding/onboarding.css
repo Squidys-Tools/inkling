@@ -641,7 +641,9 @@
   .first-run-keys kbd,
   .first-run-crumb ol > *,
   .memory-card,
-  .memory-slot {
+  .memory-slot,
+  .memory-found,
+  .kept-card {
     animation: none;
   }
   .reads-card,
@@ -653,10 +655,6 @@
   }
   .reads-beam {
     display: none;
-  }
-  .kept-card,
-  .memory-found {
-    animation: none;
   }
   .memory-dot {
     animation: none !important;
