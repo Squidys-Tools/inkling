@@ -12,7 +12,7 @@ Your library lives on your own computer. The app contacts GitHub only when you c
 
 ## Why you'll like it
 
-**You don't have to micromanage it.** Like actaully. Just save things and let it do its shit. The search is the organizer. inkling indexes what you saved in the background so you can find it later by describing it.
+**You don't have to micromanage it.** Like actually. Just save things and let it do its shit. The search is the organizer. inkling indexes what you saved in the background so you can find it later by describing it.
 
 **It's visual.** Your library's displayed as a beautiful grid, not some ugly list of item details or some random, hastily made, scrapbook looking ideaboard. Articles, photos, PDFs, quotes, notes, videos, and posts each either show their contents in full or have their own custom little thumbnail made.
 
@@ -47,8 +47,8 @@ It also understands meaning, not just exact words, and can find images that look
 - **Distraction-free reader** — saved articles open with clean typography and styling, without ads or page clutter.
 - **PDF viewer** — page navigation built in.
 - **Video cards** — YouTube and Vimeo links get previews with click-to-play; uploaded videos play natively.
-- **Quote cards** — save a qoute with where it came from.
-- **Smart Spaces** — Bascially saved search queries, Spaces update themselves. Save a search once (say, `tag:essay`) and new saves show up on their own.
+- **Quote cards** — save a quote with where it came from.
+- **Smart Spaces** — Basically saved search queries, Spaces update themselves. Save a search once (say, `tag:essay`) and new saves show up on their own.
 
 ### 4. Your stuff stays yours
 
@@ -81,7 +81,7 @@ Little by little, inkling is growing toward:
 - On-device summaries, automatic concept extraction, and structured analysis
 - First-run onboarding, an accessibility audit, and web-version portability
 - Performance and refactoring work as the feature set settles
-- Possibly cross platform support in the future if I can get money for a macbook and find some time to test it on linux. Likely distros will be Ubuntu, Arch, and Debain for the widest range of support up-front.
+- Possibly cross platform support in the future if I can get money for a macbook and find some time to test it on linux. Likely distros will be Ubuntu, Arch, and Debian for the widest range of support up-front.
 
 See [the Roadmap](docs/roadmap.md) for the honest, checkbox-level status, and [open bugs](docs/bugs.md) for what is known to be broken.
 
