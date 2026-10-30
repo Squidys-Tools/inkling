@@ -8,7 +8,7 @@ import { MascotFigure } from "./MascotFigure";
 
 export type { StateId };
 
-export interface InklingMascotProps {
+interface InklingMascotProps {
   size?: number;
   shape?: string;
   /** Body color as any CSS color. */

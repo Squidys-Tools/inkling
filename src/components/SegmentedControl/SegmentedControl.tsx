@@ -8,7 +8,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import "./SegmentedControl.css";
 
-export type SegmentedControlOption<Value extends string> = {
+type SegmentedControlOption<Value extends string> = {
   value: Value;
   label: string;
 };
