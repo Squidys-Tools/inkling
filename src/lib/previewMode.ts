@@ -3,52 +3,19 @@
 // and the URL has ?preview=1, or in dev with ?preview=1.
 import { isDesktopRuntime } from "./libraryApi";
 
-function hasPreviewQuery(search: string): boolean {
-  try {
-    return new URLSearchParams(search).get("preview") === "1";
-  } catch {
-    return false;
-  }
-}
-
-function isPreviewBuildFlag(env: unknown): boolean {
-  if (!env || typeof env !== "object") return false;
-  return (env as Record<string, unknown>).VITE_INKLING_PREVIEW === "1";
-}
-
-function isDevFlag(env: unknown): boolean {
-  if (!env || typeof env !== "object") return false;
-  return (env as Record<string, unknown>).DEV === true;
-}
-
-export type SeedLibraryOptions = {
+type SeedLibraryOptions = {
   search?: string;
   dev?: boolean;
   previewBuild?: boolean;
   desktop?: boolean;
 };
 
-function currentSearch(): string {
-  if (typeof window === "undefined") return "";
-  return window.location.search;
-}
-
-function currentEnv(): Record<string, unknown> {
-  try {
-    return (import.meta as unknown as { env: Record<string, unknown> }).env ?? {};
-  } catch {
-    return {};
-  }
-}
-
 // Injectable options exist so bun tests can cover every branch without DOM.
-export function shouldUseSeedLibrary(options?: SeedLibraryOptions): boolean {
-  const desktop = options?.desktop ?? isDesktopRuntime();
-  if (!desktop) return true;
-  const search = options?.search ?? currentSearch();
-  if (!hasPreviewQuery(search)) return false;
-  const env = currentEnv();
-  const dev = options?.dev ?? isDevFlag(env);
-  const previewBuild = options?.previewBuild ?? isPreviewBuildFlag(env);
+export function shouldUseSeedLibrary(options: SeedLibraryOptions = {}): boolean {
+  if (!(options.desktop ?? isDesktopRuntime())) return true;
+  const search = options.search ?? (typeof window === "undefined" ? "" : window.location.search);
+  if (new URLSearchParams(search).get("preview") !== "1") return false;
+  const dev = options.dev ?? import.meta.env.DEV === true;
+  const previewBuild = options.previewBuild ?? import.meta.env.VITE_INKLING_PREVIEW === "1";
   return dev || previewBuild;
 }
