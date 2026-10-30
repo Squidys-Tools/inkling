@@ -100,52 +100,18 @@ Well no duh. Saving a fresh URL needs internet though, obviously.
 
 ## For developers
 
-### Working with the source
-
-**Windows**, with Linux `.deb` and AppImage build targets for Debian/Ubuntu.
-
-1. Install [Bun](https://bun.sh) (the version in `.bun-version`).
-2. Clone this repo, then:
+inkling runs on Windows, with `.deb` and AppImage builds for Debian and Ubuntu. Install [Bun](https://bun.sh) at the version in `.bun-version`, clone this repo, then:
 
 ```powershell
 bun install
-bun run dev:app
+bun run dev:app  # full desktop app
+bun run dev      # browser-only preview of the UI with sample data
 ```
 
-For a quick browser-only look at the UI, run the web preview instead:
+The Chrome extension lives in `extension/`; [extension/README.md](extension/README.md) covers loading and pairing it.
 
-```powershell
-bun install
-bun run dev
-```
+The stack is Electron, React, TypeScript and Vite, with Node.js and SQLite (FTS5) in the main process, Defuddle for articles, Tesseract for OCR, and local Nomic text and image embeddings through ONNX Runtime. [docs/tech-stack.md](docs/tech-stack.md) gives the reasons.
 
-Save a page URL from Chrome's toolbar or its **Save to inkling** context menu. The extension uses the app's local receiver when paired and falls back to the existing `inkling://capture?url=...` link.
-
-This part is for people who want to build, tinker, or contribute. Everyone else can stop here. 🙂
-
-**Stack:** Electron 45 + React + TypeScript + Vite on the front, Node.js + SQLite (FTS5) in the back. Article extraction with Defuddle, OCR with Tesseract, local Nomic text/vision embeddings through ONNX Runtime. Full reasoning in the [tech stack](docs/tech-stack.md).
-
-**Start here:**
-
-- [docs/README.md](docs/README.md) — index of all project docs
-- [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/operations/development.md](docs/operations/development.md) — setup, commands, checks, troubleshooting
-- [docs/product.md](docs/product.md) — who it's for and why it exists
-- [docs/product-behavior.md](docs/product-behavior.md) — how each feature should behave
-- [docs/tech-stack.md](docs/tech-stack.md) — architecture choices and reasoning
-- [docs/roadmap.md](docs/roadmap.md) — where things stand
-- [docs/changelog.md](docs/changelog.md) — what changed recently
-- `benchmarks/` — 48-item corpus + harness for extraction/OCR quality
-
-**Prereqs:** Bun (see `.bun-version`).
-
-**Commands:**
-
-```powershell
-bun install
-bun run dev              # quick browser preview of the UI
-bun run dev:app          # full Windows desktop app
-bun run build:installer  # build the Windows installer
-bun run check            # same checks CI runs before pushing changes
-```
+Start with [docs/README.md](docs/README.md), the index of project docs. [docs/operations/development.md](docs/operations/development.md) lists every command and check, and [CONTRIBUTING.md](CONTRIBUTING.md) says what contributions we take.
 
 License: MIT
