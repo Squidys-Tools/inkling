@@ -205,6 +205,12 @@ export function openDatabase(databasePath: string) {
   const db = new DatabaseSync(databasePath);
   db.exec("PRAGMA busy_timeout = 5000");
   const version = Number((db.prepare("PRAGMA user_version").get() as Row).user_version);
+  if (version > SCHEMA_VERSION) {
+    db.close();
+    throw new Error(
+      `This library uses schema ${version}, newer than supported schema ${SCHEMA_VERSION}. Update inkling before opening it.`,
+    );
+  }
   if (version < 1) db.exec(itemsSchema);
   else if (version === 1) {
     try {

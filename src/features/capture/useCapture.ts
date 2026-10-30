@@ -81,8 +81,11 @@ export function useCapture({
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
 
-  async function persistFile(file: File, captureSource: string) {
-    const destination = activeSpace;
+  async function persistFile(
+    file: File,
+    captureSource: string,
+    destination: CaptureSpace = activeSpace,
+  ) {
     if (file.size > 50 * 1024 * 1024) throw new Error("File exceeds the 50 MB input limit");
     const kind = classifyFile(file);
     if (canUseDesktopBackend) {
@@ -136,8 +139,12 @@ export function useCapture({
     fileQueue.enqueue(files, (file) => persistFile(file, captureSource));
   }
 
-  async function persistArticle(sourceUrl: string, captureSource: string, extensionTitle?: string) {
-    const destination = activeSpace;
+  async function persistArticle(
+    sourceUrl: string,
+    captureSource: string,
+    extensionTitle?: string,
+    destination: CaptureSpace = activeSpace,
+  ) {
     const parsedUrl = parseHttpUrl(sourceUrl);
     const normalizedUrl = parsedUrl.toString();
     const preservedTitle = extensionTitle?.trim();
@@ -195,8 +202,8 @@ export function useCapture({
     attribution: string,
     sourceUrl: string,
     captureSource: string,
+    destination: CaptureSpace = activeSpace,
   ) {
-    const destination = activeSpace;
     const body = quoteText.trim();
     if (!body) throw new Error("Quote text cannot be empty.");
     const trimmedAttribution = attribution.trim();
@@ -260,11 +267,12 @@ export function useCapture({
       const segment =
         imageUrl.split("?")[0].split("#")[0].split("/").filter(Boolean).pop() || "image";
       const file = new File([blob], segment.slice(0, 80), { type: blob.type || "image/png" });
-      await persistFile(file, captureSource);
+      // External saves always enter Everything, never the open Regular Space.
+      await persistFile(file, captureSource, null);
     } catch {
       // A direct download can fail on hotlink protection or CORS; the page
-      // itself is still worth keeping.
-      await persistArticle(pageUrl, captureSource);
+      // itself is still worth keeping in Everything.
+      await persistArticle(pageUrl, captureSource, undefined, null);
     } finally {
       setIsCapturing(false);
     }
@@ -284,12 +292,13 @@ export function useCapture({
           capture.attribution,
           capture.url,
           "browser extension",
+          null,
         );
       } else if (capture.kind === "image") {
         await captureImageUrl(capture.pageUrl, capture.imageUrl, "browser extension");
       } else {
         await runCapture(
-          () => persistArticle(capture.url, "browser extension", capture.title),
+          () => persistArticle(capture.url, "browser extension", capture.title, null),
           false,
         );
       }

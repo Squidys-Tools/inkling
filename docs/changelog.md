@@ -15,6 +15,8 @@ Rules for entries:
 
 ### Added
 
+- Space-local Remove, Undo and Allow actions; in-app Regular Space capture retains its starting destination, while external browser-extension and deep-link saves enter Everything (#219).
+- Libraries created by newer schema versions are rejected before migration instead of rewriting their version header (#219).
 - Local-video posters on Debian/Ubuntu through the system decoder, with bounded background WebP compression and thumbnail cache revalidation.
 - Stable / Beta and Nightly update channels, with separate verified download, cancellation and explicit installation on Windows and supported Linux packages.
 - Linux `.deb` and AppImage builds with desktop/protocol integration, consent-based screen capture, and packaged native OCR/PDF/model checks.

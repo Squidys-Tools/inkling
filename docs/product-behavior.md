@@ -120,11 +120,15 @@ Spaces are saved searches presented as visual collections.
 
 Smart Spaces update automatically whenever an item matches their query. They can use type, date, tag, domain, search terms, OCR text, image concepts, colors, or semantic criteria.
 
+Removing a card from an open Smart Space records an exclusion for that Space only; it does not archive or delete the item or hide it from Everything or other Spaces. Undo restores the match, and Allow in Space clears an exclusion. Exclusions survive background indexing, restart, export and restore (#219).
+
 ### Regular Spaces
 
 Regular Spaces hold items the user adds by hand. Opening an item shows its Regular Spaces as chips; choosing one files the item in, and choosing it again takes the item back out. Whether a Space is Smart or Regular is chosen when it is created and does not change afterwards.
 
 Archiving an item hides it from a Regular Space without removing it, so restoring the item returns it to the Space it was filed in. Deleting an item for good removes it from every Space.
+
+Remove from an open Regular Space changes only that membership. In-app file, note, link and quote captures started in a Regular Space retain that starting destination even if the open Space changes while saving. A nonmatching capture in a Smart Space remains saved in Everything rather than being forced into the saved search. External browser-extension and deep-link saves always enter Everything, regardless of the open Space; they never acquire its Regular membership (#219).
 
 Users should be able to create, rename, reorder, recolor, and delete Spaces. Deleting a Space must not delete its items.
 
