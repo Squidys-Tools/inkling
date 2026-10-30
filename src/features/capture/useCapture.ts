@@ -1,5 +1,6 @@
 import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from "react";
 import type { AddMode } from "./AddMenu/AddMenu";
+import { createFileImportQueue, type FileImportProgress } from "./fileImport";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "../../lib/deepLink";
 import { classifyFile } from "../../lib/ingestion/file-classification";
 import { parseHttpUrl } from "../../lib/ingestion/url";
@@ -42,6 +43,7 @@ export function useCapture({
   const [isDragActive, setIsDragActive] = useState(false);
 
   async function persistFile(file: File, captureSource: string) {
+    if (file.size > 50 * 1024 * 1024) throw new Error("File exceeds the 50 MB input limit");
     const kind = classifyFile(file);
     if (canUseDesktopBackend) {
       const storedItem = await saveFile({
@@ -59,7 +61,7 @@ export function useCapture({
     const mediaDimensions = image ? await readImageDimensions(image) : undefined;
 
     const item: LibraryItem = {
-      id: Date.now(),
+      id: crypto.randomUUID(),
       kind:
         kind === "image" ? "Image" : kind === "pdf" ? "PDF" : kind === "video" ? "Video" : "File",
       title: file.name,
@@ -75,18 +77,21 @@ export function useCapture({
     setItems((current) => [item, ...current]);
   }
 
-  async function captureFile(file: File, captureSource: string) {
+  const [fileImport, setFileImport] = useState<FileImportProgress | null>(null);
+  const [fileQueue] = useState(() =>
+    createFileImportQueue<File>(setFileImport, (file, error) => {
+      setCaptureError(
+        `Couldn’t import ${file.name}: ${error instanceof Error ? error.message : String(error)}. Other files will continue.`,
+      );
+    }),
+  );
+  function captureFiles(files: readonly File[], captureSource: string) {
+    if (!files.length) return;
     setCaptureError(null);
-    setIsCapturing(true);
-    try {
-      await persistFile(file, captureSource);
-      setIsAdding(false);
-      setCaptureMode(null);
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsCapturing(false);
-    }
+    setIsAdding(false);
+    setCaptureMode(null);
+    // Keep the persistence closure from this selection, including its destination.
+    fileQueue.enqueue(files, (file) => persistFile(file, captureSource));
   }
 
   async function persistArticle(sourceUrl: string, captureSource: string, extensionTitle?: string) {
@@ -386,9 +391,9 @@ export function useCapture({
     }
   }
 
-  const captureFileRef = useRef(captureFile);
+  const captureFilesRef = useRef(captureFiles);
   const captureTextRef = useRef(captureText);
-  captureFileRef.current = captureFile;
+  captureFilesRef.current = captureFiles;
   captureTextRef.current = captureText;
 
   useEffect(() => {
@@ -402,10 +407,10 @@ export function useCapture({
         return;
       }
 
-      const file = Array.from(event.clipboardData?.files ?? [])[0];
-      if (file) {
+      const files = Array.from(event.clipboardData?.files ?? []);
+      if (files.length) {
         event.preventDefault();
-        void captureFileRef.current(file, "clipboard");
+        captureFilesRef.current(files, "clipboard");
         return;
       }
 
@@ -509,9 +514,9 @@ export function useCapture({
   function handleDrop(event: React.DragEvent<HTMLElement>) {
     event.preventDefault();
     setIsDragActive(false);
-    const file = Array.from(event.dataTransfer.files)[0];
-    if (file) {
-      void captureFile(file, "drag and drop");
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length) {
+      captureFiles(files, "drag and drop");
       return;
     }
 
@@ -538,7 +543,9 @@ export function useCapture({
     isAdding,
     captureMode,
     setCaptureMode,
-    isCapturing,
+    isCapturing: isCapturing || Boolean(fileImport?.active),
+    fileImport,
+    clearFileImport: () => setFileImport(null),
     isDragActive,
     openCapture,
     closeCaptureModal,
@@ -546,7 +553,7 @@ export function useCapture({
     persistText,
     persistArticle,
     persistQuote,
-    captureFile,
+    captureFiles,
     startScreenshotCapture,
     handleDragOver,
     handleDragLeave,
