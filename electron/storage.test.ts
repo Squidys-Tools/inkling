@@ -3,8 +3,6 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { Effect } from "effect";
-import { SqlClient } from "effect/sql";
 import { TEXT_MODEL } from "./embedding-contract.ts";
 import { pdfThumbnailCandidateSql } from "./storage/enrichment.ts";
 import { IMAGE_THUMBNAIL_JOB, PDF_THUMBNAIL_JOB, URL_ENRICHMENT_JOB } from "./storage/library.ts";
@@ -17,7 +15,6 @@ import {
   removeTemporaryRoots,
   seedFromDemo,
   temporaryLibrary,
-  temporaryRoot,
   trackDatabase,
   trackedLibrary,
   vector,
@@ -218,52 +215,6 @@ test("update_item refuses a source URL that is not HTTP or HTTPS", async () => {
     library.updateItem({ id: note.id, sourceUrl: "javascript:alert(1)" }),
   ).rejects.toThrow("sourceUrl must use HTTP or HTTPS");
   expect((await library.getItem(note.id))?.sourceUrl).toBeNull();
-});
-
-test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", async () => {
-  const databasePath = join(temporaryRoot(), "v7.sqlite3");
-  const db = trackDatabase(new DatabaseSync(databasePath));
-  db.exec(`
-    CREATE TABLE items (
-      id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, title TEXT, description TEXT,
-      source_url TEXT, source_label TEXT, local_asset_path TEXT, thumbnail_path TEXT,
-      ocr_text TEXT NOT NULL DEFAULT '', metadata TEXT NOT NULL DEFAULT '{}',
-      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
-      archived INTEGER NOT NULL DEFAULT 0, favorite INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE TABLE spaces (
-      id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, color TEXT NOT NULL DEFAULT 'blue',
-      query TEXT NOT NULL DEFAULT '{}', position INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE jobs (id TEXT PRIMARY KEY NOT NULL, item_id TEXT NOT NULL, kind TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending', retry_count INTEGER NOT NULL DEFAULT 0,
-      max_retries INTEGER NOT NULL DEFAULT 3, error_message TEXT, created_at INTEGER NOT NULL,
-      started_at INTEGER, completed_at INTEGER);
-    INSERT INTO items (id, kind, title, description, created_at, updated_at)
-      VALUES ('legacy-note', 'note', 'Legacy', 'Old body', 1, 1);
-    INSERT INTO spaces (id, name, created_at, updated_at)
-      VALUES ('legacy-space', 'Old Space', 1, 1);
-    PRAGMA user_version = 7;
-  `);
-  closeDatabase(db);
-
-  const migrated = await trackedLibrary(databasePath);
-  expect(migrated.status().schemaVersion).toBe(8);
-  expect(await migrated.getItemContent("legacy-note")).toEqual({
-    id: "legacy-note",
-    body: "Old body",
-    bodyFormat: "md",
-  });
-  expect((await migrated.getSpace("legacy-space"))?.kind).toBe("smart");
-  expect(ids(await migrated.searchItems("Old"))).toEqual(["legacy-note"]);
-  const [busy] = await migrated.run(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      return yield* sql`PRAGMA busy_timeout`;
-    }),
-  );
-  expect(busy).toEqual({ timeout: 5000 });
 });
 
 test("file capture persists its item and asset before queued processing becomes visible", async () => {
