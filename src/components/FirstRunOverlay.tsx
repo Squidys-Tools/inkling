@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type CSSProperties } from "react";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { prefersReducedMotion } from "./mascot/mascotStore";
@@ -85,16 +85,13 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
     setLeaving(step);
     leaveTimer.current = window.setTimeout(land, LEAVE_MS);
   };
-  const goRef = useRef(go);
-  useEffect(() => {
-    goRef.current = go;
+  const closeOnEscape = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key === "Escape") go("close");
   });
 
   useEffect(() => {
     const update = () => setScale(stageScale());
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") goRef.current("close");
-    };
+    const onKeyDown = (event: KeyboardEvent) => closeOnEscape(event);
     window.addEventListener("resize", update);
     window.addEventListener("keydown", onKeyDown);
     return () => {
