@@ -277,7 +277,8 @@ export function createUpdateController({
           await install(download.file, expectedVersion, download.hash);
         } catch {
           installRecord = undefined;
-          await preferences.write({ channel: state.channel });
+          // Best effort: a failed cleanup write must not wedge the controller in "installing".
+          await preferences.write({ channel: state.channel }).catch(() => {});
           fail(
             "install",
             "Installation was canceled or failed. Nothing is reported as installed; retry or use the release installer.",

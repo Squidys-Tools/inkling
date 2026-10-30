@@ -176,6 +176,27 @@ test("single-flight excludes channel changes and duplicate clicks; cancellation 
     expect((await failed.installUpdate("0.1.1")).errorContext).toBe("install");
     expect((await f.options.preferences.read()).install).toBeUndefined();
     expect((await failed.setChannel("nightly")).status).toBe("idle");
+    let preferenceWrites = 0;
+    const wedgingPreferences = createUpdatePreferences(join(f.root, "wedging-updates.json"));
+    const wedging = createUpdateController({
+      ...f.options,
+      preferences: {
+        ...wedgingPreferences,
+        write: async (value: object) => {
+          preferenceWrites++;
+          if (preferenceWrites > 1) throw new Error("read-only volume");
+          await wedgingPreferences.write(value);
+        },
+      },
+      install: async () => {
+        throw new Error("PolicyKit canceled");
+      },
+    });
+    await wedging.checkForUpdates();
+    await wedging.downloadUpdate("0.1.1");
+    expect((await wedging.installUpdate("0.1.1")).errorContext).toBe("install");
+    expect((await wedging.getState()).status).toBe("error");
+    expect(await wedging.checkForUpdates()).toEqual({ version: "0.1.1" });
   } finally {
     await rm(f.root, { recursive: true, force: true });
   }
