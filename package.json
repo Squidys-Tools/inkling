@@ -149,7 +149,8 @@
       "!**/node_modules/onnxruntime-node/bin/napi-v6/!(${os}*)/**",
       "!**/node_modules/onnxruntime-node/bin/napi-v6/*/!(${arch})/**",
       "!**/node_modules/@img/sharp-{linux,linuxmusl,libvips-linux,libvips-linuxmusl}-*/**",
-      "!**/node_modules/@napi-rs/canvas-linux-*-musl/**"
+      "!**/node_modules/@napi-rs/canvas-linux-*-musl/**",
+      "!**/node_modules/tesseract.js-core/*.wasm.js"
     ],
     "asarUnpack": [
       "**/tesseract.js/**/*",
