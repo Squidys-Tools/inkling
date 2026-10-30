@@ -23,8 +23,11 @@ import { fileURLToPath } from "node:url";
 import { parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
 import { createAiJobProcessors, jobTimeouts } from "./ai-jobs.ts";
 import { enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
-import { serveAssetFile } from "./asset-response.ts";
-import { appContentTypes as mimeTypes } from "./app-content-types.ts";
+import {
+  allowCanvasReadableImages,
+  createAppAssetHandler,
+  registerAppScheme,
+} from "./app-protocol.ts";
 import { customWindowChrome } from "./window-chrome.ts";
 import { startCaptureServer } from "./capture-server.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
@@ -114,55 +117,7 @@ const librarySizeCache = createLibrarySizeCache(
   join(libraryDirectory, "library.sqlite3"),
   join(libraryDirectory, "assets"),
 );
-
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  "object-src 'none'",
-  "script-src 'self' https://platform.twitter.com",
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self' data:",
-  "img-src 'self' data: blob: https:",
-  "media-src 'self' data: blob: https:",
-  "connect-src 'self' https:",
-  "worker-src 'self' blob:",
-  "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://platform.twitter.com",
-].join("; ");
-
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: "app",
-    // stream lets <video> and <audio> issue Range requests against the asset handler.
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      corsEnabled: false,
-      stream: true,
-    },
-  },
-]);
-
-// Remote card images load with crossorigin so the liquid glass canvas can draw
-// them (Chromium paints opaque cross-origin images blank). Most hosts send no
-// CORS header, so the app's session adds one to image responses. The requests
-// themselves are unchanged.
-function allowCanvasReadableImages() {
-  session.defaultSession.webRequest.onHeadersReceived(
-    { urls: ["https://*/*"] },
-    ({ resourceType, responseHeaders }, callback) => {
-      if (resourceType !== "image") return callback({});
-      const headers = Object.fromEntries(
-        Object.entries(responseHeaders ?? {}).filter(
-          ([name]) => name.toLowerCase() !== "access-control-allow-origin",
-        ),
-      );
-      callback({ responseHeaders: { ...headers, "Access-Control-Allow-Origin": ["*"] } });
-    },
-  );
-}
+registerAppScheme();
 
 function emitJobUpdated(itemId: string) {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -384,37 +339,6 @@ function registerLibraryCommands() {
   });
 }
 
-async function serveAppAsset(request: Request) {
-  const url = new URL(request.url);
-  if (url.hostname !== "local") return new Response(null, { status: 404 });
-
-  let requestPath: string;
-  try {
-    requestPath = decodeURIComponent(url.pathname);
-  } catch {
-    return new Response(null, { status: 400 });
-  }
-  if (requestPath === "/" || requestPath.endsWith("/")) requestPath += "index.html";
-
-  const libraryAssetPrefix = "/library-assets/";
-  const isLibraryAsset = requestPath.startsWith(libraryAssetPrefix);
-  // The bundled main process runs from dist/electron, beside the renderer build.
-  const assetDirectory = isLibraryAsset
-    ? join(app.getPath("userData"), "assets")
-    : app.isPackaged
-      ? join(app.getAppPath(), "dist")
-      : resolve(mainDirectory, "..");
-  const relativeRequestPath = isLibraryAsset
-    ? `/${requestPath.slice(libraryAssetPrefix.length)}`
-    : requestPath;
-  return serveAssetFile(request, {
-    root: assetDirectory,
-    path: relativeRequestPath,
-    contentTypes: mimeTypes,
-    headers: { "Content-Security-Policy": contentSecurityPolicy },
-  });
-}
-
 function createWindow() {
   mainWindow = new BrowserWindow({
     title: "inkling",
@@ -536,7 +460,13 @@ if (!hasSingleInstanceLock) {
         `capture server unavailable: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    await protocol.handle("app", serveAppAsset);
+    // The bundled main process runs from dist/electron, beside the renderer build.
+    await protocol.handle(
+      "app",
+      createAppAssetHandler(
+        app.isPackaged ? join(app.getAppPath(), "dist") : resolve(mainDirectory, ".."),
+      ),
+    );
     allowCanvasReadableImages();
     handleDeepLinkArguments(process.argv);
     createWindow();
