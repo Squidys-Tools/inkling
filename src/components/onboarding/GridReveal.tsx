@@ -74,7 +74,7 @@ function smoothstep(a: number, b: number, x: number) {
 
 // never reaches its ceiling, so a run that outlasts the estimate keeps creeping
 function selfPaced(elapsedMs: number, durationMs: number) {
-  return HOLD * (1 - Math.exp(-elapsedMs / (durationMs > 0 ? durationMs : 1)));
+  return HOLD * (1 - Math.exp(-elapsedMs / durationMs));
 }
 
 function hash(x: number, y: number, z: number) {
@@ -323,13 +323,14 @@ function readAverages(el: HTMLImageElement, root: Cell, branches: Cell[], at: nu
 export function GridReveal({
   src,
   aspect,
-  estimatedDuration = 2400,
+  estimatedDuration,
   className,
 }: {
   src: string | null;
   /** Width over height of the frame the canvas fills. */
   aspect: number;
-  estimatedDuration?: number;
+  /** Milliseconds the wait is paced for; the photo arriving ends it. */
+  estimatedDuration: number;
   className?: string;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
