@@ -153,6 +153,7 @@ Guardrails:
 - Lefthook dependency, hook installer, and local formatting and frontend-check Git hooks. Entire continues to manage its own hooks.
 - Dead `note-art` / `note-pin` / `note-scribble` card styles left over from the note thumbnail reuse (`src/App.css`)
 - WiX MSI installer target. Windows releases build the NSIS installer only, which is the one Tauri's updater can replace in place (SQU-80).
+- Entire session-tracking setup: `.entire/` config, agent hooks for Claude Code, Codex and OpenCode, and the Git hooks it installed.
 ### Fixed
 
 - The + Add tag button in the expanded item view meets the 24×24 px minimum touch target size (SQU-102).

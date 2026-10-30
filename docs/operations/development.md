@@ -119,7 +119,6 @@ None — there are no local hooks by policy. Formatting, linting, and all other 
 - `knip.yml`: scheduled `knip --fix` (every other day) opens a cleanup PR. It strips unused `export` keywords and prunes dependencies; it never deletes files.
 - `links.yml`: weekly markdown link check, opens an issue on failures. New custom schemes (`inkling://`) or local hosts go in `.lycheeignore`.
 - `electron-preview.yml`: when a same-repository PR has the `preview:win` label, builds and uploads the Windows Electron installer. Electron changes also build the Linux directory package and launch it under Xvfb; pinned model files are cached only in GitHub Actions.
-- Automation config (`.entire/`) never skips checks.
 
 ## Troubleshooting
 
