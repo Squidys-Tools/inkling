@@ -1,9 +1,8 @@
 import { app, BrowserWindow, desktopCapturer, dialog, protocol, session, shell } from "electron";
-import electronUpdater from "electron-updater";
-import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createAiJobProcessors } from "./ai-jobs.ts";
+import { createAppUpdates } from "./app-updates.ts";
 import { type CommandHandlers, registerCommandHandlers } from "./ipc-commands.ts";
 import {
   allowCanvasReadableImages,
@@ -23,11 +22,8 @@ import {
 } from "./deep-links.ts";
 import { createDisplayCaptureHandler } from "./display-capture.ts";
 import { resolveLibraryDataDirectory } from "./storage/library.ts";
-import { createUpdateController, createUpdatePreferences } from "./updater.ts";
-import { installDebianUpdate, updateDisabledReason } from "./update-install.ts";
 
 const mainDirectory = dirname(fileURLToPath(import.meta.url));
-const { autoUpdater } = electronUpdater;
 const isPreview = process.argv.includes("--preview");
 const commandLineDataDirectory = app.commandLine.getSwitchValue("user-data-dir");
 const libraryDirectory = resolveLibraryDataDirectory({
@@ -36,43 +32,10 @@ const libraryDirectory = resolveLibraryDataDirectory({
   portable: app.isPackaged && process.env.INKLING_PORTABLE === "1",
   overrideDirectory: commandLineDataDirectory || undefined,
 });
-const packageTypePath = join(process.resourcesPath, "package-type");
-const packageType = existsSync(packageTypePath)
-  ? readFileSync(packageTypePath, "utf8").trim()
-  : undefined;
-const updateController = createUpdateController({
-  autoUpdater,
-  currentVersion: app.getVersion(),
-  disabledReason: updateDisabledReason({
-    isPackaged: app.isPackaged,
-    isPreview,
-    hasFeed: existsSync(join(process.resourcesPath, "app-update.yml")),
-    platform: process.platform,
-    appImage: process.env.APPIMAGE,
-    packageType,
-  }),
-  preferences: createUpdatePreferences(join(libraryDirectory, "updates.json")),
-  install: async (file, version, sha512) => {
-    if (!mainWindow || mainWindow.isDestroyed()) throw new Error("No active app window.");
-    const { response } = await dialog.showMessageBox(mainWindow, {
-      type: "question",
-      title: "Install inkling update",
-      message: `Install inkling ${version}?`,
-      detail:
-        "inkling will restart after installation. Debian may ask for system authorization. Your library stays on this computer.",
-      buttons: ["Cancel", "Install and restart"],
-      defaultId: 0,
-      cancelId: 0,
-    });
-    if (response !== 1) throw new Error("Update installation canceled.");
-    if (process.platform === "linux" && packageType === "deb") {
-      await installDebianUpdate(file, version, sha512);
-      app.relaunch();
-      app.quit();
-    } else {
-      autoUpdater.quitAndInstall(false, true);
-    }
-  },
+const updateController = createAppUpdates({
+  libraryDirectory,
+  isPreview,
+  getWindow: () => mainWindow,
 });
 app.setPath("userData", libraryDirectory);
 if (process.platform === "linux")
