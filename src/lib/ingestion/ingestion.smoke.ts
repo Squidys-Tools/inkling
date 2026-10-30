@@ -6,7 +6,6 @@ import { classifyFile } from "./file-classification";
 import { ingestUrl } from "./url-ingestion";
 import { isUrlIngestionError } from "./errors";
 import { normalizeHttpUrl } from "./url";
-import { sanitizeEmbedUrl } from "./safe-embeds";
 import { autoplayEmbedUrl, providerLabel, videoLinkFromSourceUrl } from "./video-links";
 import { normalizeXPostOEmbed, parseXPostUrl, xPostOEmbedUrl } from "./x-post";
 
@@ -273,24 +272,12 @@ assert(
   "relative URL normalization works",
 );
 assert(
-  sanitizeEmbedUrl("https://youtu.be/abc12345678")?.provider === "youtube",
-  "standalone YouTube policy allows valid URL",
+  videoLinkFromSourceUrl("https://youtu.be/abc12345678")?.provider === "youtube",
+  "short YouTube links become video link cards",
 );
 assert(
-  sanitizeEmbedUrl("https://videos.example/clip.mp4", {
-    allowedDirectMediaOrigins: ["https://videos.example"],
-  })?.type === "video",
-  "standalone direct-media policy allows exact origin",
-);
-assert(
-  sanitizeEmbedUrl("https://videos.example/clip.mp4", {
-    allowedDirectMediaOrigins: ["https://other.example"],
-  }) === null,
-  "standalone direct-media policy rejects unknown origin",
-);
-assert(
-  sanitizeEmbedUrl("javascript:alert(1)") === null,
-  "standalone embed policy rejects javascript URL",
+  videoLinkFromSourceUrl("javascript:alert(1)") === null,
+  "video link policy rejects javascript URL",
 );
 
 const youTubeLink = videoLinkFromSourceUrl("https://www.youtube.com/watch?v=abc12345678");

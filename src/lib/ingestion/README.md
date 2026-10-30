@@ -3,7 +3,7 @@
 The URL capture pipeline and the helpers around it. `ingestUrl` in
 `url-ingestion.ts` fetches a page through `http.ts`, runs Defuddle on it,
 sanitizes the result, and passes embeds through the allowlist in
-`safe-embeds.ts`.
+`html-safety.ts`.
 
 Three places import this folder, so it parses HTML with linkedom and imports
 nothing from Electron or the browser DOM:
