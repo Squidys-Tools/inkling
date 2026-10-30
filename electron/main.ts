@@ -20,7 +20,6 @@ import electronUpdater from "electron-updater";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
 import { createAiJobProcessors, jobTimeouts } from "./ai-jobs.ts";
 import { enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
 import {
@@ -28,7 +27,7 @@ import {
   createAppAssetHandler,
   registerAppScheme,
 } from "./app-protocol.ts";
-import { customWindowChrome } from "./window-chrome.ts";
+import { createMainWindow, registerWindowControls } from "./main-window.ts";
 import { startCaptureServer } from "./capture-server.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
 import { createSingleFlightDirectoryPicker } from "./native-dialog.ts";
@@ -320,80 +319,17 @@ function registerLibraryCommands() {
   }
 
   registerDeepLinkSubscriptions();
-
-  ipcMain.handle("inkling:window:minimize", (event) => {
-    BrowserWindow.fromWebContents(event.sender)?.minimize();
-  });
-  ipcMain.handle("inkling:window:toggle-maximize", (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    if (!window) return;
-    if (window.isMaximized()) window.unmaximize();
-    else window.maximize();
-  });
-  ipcMain.handle("inkling:window:close", (event) => {
-    BrowserWindow.fromWebContents(event.sender)?.close();
-  });
-  ipcMain.handle("inkling:window:ready", (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    if (window && !window.isVisible()) window.show();
-  });
+  registerWindowControls();
 }
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    title: "inkling",
-    width: 1280,
-    height: 720,
-    // 320px matches the body min-width in src/index.css. At 240px high the library grid shrinks to 65px; 360px keeps it near 185px.
-    minWidth: 320,
-    minHeight: 360,
-    ...customWindowChrome,
-    autoHideMenuBar: true,
-    backgroundColor: "#0c0c0b",
-    show: false,
-    webPreferences: {
-      preload: join(mainDirectory, "preload.cjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webSecurity: true,
-      // HTML-in-Canvas, so liquid glass can refract the live grid. Chromium
-      // ships it behind this flag; without it the renderer keeps the CSS glass.
-      enableBlinkFeatures: "CanvasDrawElement",
-    },
-  });
-  mainWindow.setMenu(null);
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    const externalUrl = parseHttpUrlCore(url)?.toString();
-    if (externalUrl) void shell.openExternal(externalUrl).catch(() => {});
-    return { action: "deny" };
-  });
-  mainWindow.webContents.on("will-navigate", (event, target) => {
-    let url: URL;
-    try {
-      url = new URL(target);
-    } catch {
-      event.preventDefault();
-      return;
-    }
-    if (url.protocol !== "app:" || url.hostname !== "local") event.preventDefault();
-  });
-  // The renderer calls inkling:window:ready once it knows whether the welcome
-  // runs and has painted that first frame, so a first launch never flashes the
-  // library before onboarding. The timer only guards against a renderer that
-  // never says so: the window must always appear.
-  mainWindow.once("ready-to-show", () => {
-    const window = mainWindow;
-    setTimeout(() => {
-      if (window && !window.isDestroyed() && !window.isVisible()) window.show();
-    }, 3000);
+  mainWindow = createMainWindow({
+    preload: join(mainDirectory, "preload.cjs"),
+    query: isPreview ? "?preview=1" : "",
   });
   mainWindow.on("closed", () => {
     mainWindow = undefined;
   });
-
-  const query = isPreview ? "?preview=1" : "";
-  void mainWindow.loadURL(`app://local/index.html${query}`);
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
