@@ -4,7 +4,7 @@
 
 inkling is a quiet little home for everything you want to keep: articles, images, screenshots, PDFs, notes, quotes, and video links. No folders to maintain, no manually tagging documents. You save something in a couple of seconds; inkling helps you find it again later.
 
-Your library lives on your own computer. The app checks GitHub for updates once when it opens; GitHub sees the app version, but no library data is sent.
+Your library lives on your own computer. The app contacts GitHub only when you check for updates, and sends it no library data.
 
 <img src="docs/assets/mascots/inkling-splash-loop.svg" alt="inkling mascot, a small ink blot that drifts, blinks and changes expression" width="160">
 
@@ -16,7 +16,7 @@ Your library lives on your own computer. The app checks GitHub for updates once 
 
 **It's visual.** Your library's displayed as a beautiful grid, not some ugly list of item details or some random, hastily made, scrapbook looking ideaboard. Articles, photos, PDFs, quotes, notes, videos, and posts each either show their contents in full or have their own custom little thumbnail made.
 
-**It's private.** Your library is stored locally in SQLite on your Windows machine, with your files kept as content-addressed assets beside it. No cloud account required, feed, social features, or usage analytics. Update checks contact GitHub at launch but never send library data.
+**It's private.** Your library is stored locally in SQLite on your computer, with your files in a folder beside it. No cloud account, feed, social features, or usage analytics. Update checks happen only when you ask and never send library data.
 
 
 ## Take the tour
@@ -96,7 +96,7 @@ Early development, but the core already works: capture, storage, keyword search 
 Nope. Save it and move on. Smart Spaces collect items that match saved searches, and Regular Spaces let you curate collections by hand.
 
 **Is my stuff uploaded somewhere?**
-Nope. Processing and storage are local. Network access is used to fetch indexing models on first run, fetch URLs or remote media you choose to save, and check GitHub for an update when the app opens. The update check shares the app version, not library data.
+Nope. Processing and storage are local. inkling goes online to fetch URLs or remote media you choose to save, play videos you start, and check GitHub for an update when you ask it to. The update check shares the app version, not library data.
 
 **What can I save?**
 Articles, general web pages, images, screenshots, PDFs, notes, quotes, video links, X posts, and miscellaneous files.
