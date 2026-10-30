@@ -55,81 +55,37 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useSidebarOpen();
   const { isFirstRunOpen, setIsFirstRunOpen, finishFirstRun } = useFirstRun(canUseDesktopBackend);
   const appUpdate = useAppUpdate(canUseDesktopBackend);
-  const {
-    items,
-    setItems,
-    itemsRef,
-    activeJobCount,
-    debouncedQuery,
-    noteBodyCacheRef,
-    reload,
-    retryJob,
-  } = useLibraryData({
+  const library = useLibraryData({
     canUseDesktopBackend,
     query,
     activeSpaceId,
     setSelectedItem,
     setCaptureError,
   });
-  const {
-    isSettingsOpen,
-    setIsSettingsOpen,
-    settingsTab,
-    setSettingsTab,
-    isArchiveTabOpen,
-    appearance,
-    setAppearanceOption,
-    appVersion,
-    librarySizeBytes,
-    wholeLibraryKinds,
-    lastCopy,
-    setLastCopy,
-    settingsDialogRef,
-  } = useSettings({ canUseDesktopBackend, activeSpaceId, debouncedQuery });
-  const codexSidebar = appearance.sidebarStyle === "codex";
-  const {
-    archivedItems,
-    setArchivedItems,
-    isArchiveLoaded,
-    setIsArchiveLoaded,
-    isArchiveSelectionMode,
-    selectedArchivedIds,
-    forgetItem,
-    deleteArchivedLibraryItem,
-    toggleArchiveSelectionMode,
-    toggleArchivedLibraryItem,
-    isArchivedLibraryItemSelected,
-    restoreSelectedArchivedItems,
-    restoreArchivedLibraryItem,
-    deleteSelectedArchivedItems,
-  } = useArchive({
+  const settings = useSettings({
     canUseDesktopBackend,
-    isSettingsOpen,
-    isArchiveTabOpen,
-    setItems,
-    itemsRef,
-    noteBodyCacheRef,
+    activeSpaceId,
+    debouncedQuery: library.debouncedQuery,
+  });
+  const codexSidebar = settings.appearance.sidebarStyle === "codex";
+  const archive = useArchive({
+    canUseDesktopBackend,
+    isSettingsOpen: settings.isSettingsOpen,
+    isArchiveTabOpen: settings.isArchiveTabOpen,
+    setItems: library.setItems,
+    itemsRef: library.itemsRef,
+    noteBodyCacheRef: library.noteBodyCacheRef,
     selectedItem,
     setSelectedItem,
     setCaptureError,
   });
-  const {
-    pdfViewerItem,
-    setPdfViewerItem,
-    readingItem,
-    openReader,
-    closeReader,
-    addTagToItem,
-    updateNote,
-    loadSimilarLibraryItems,
-    similarItemCacheRef,
-  } = useItemDetails({
+  const details = useItemDetails({
     canUseDesktopBackend,
     selectedItem,
     setSelectedItem,
-    setItems,
-    setArchivedItems,
-    noteBodyCacheRef,
+    setItems: library.setItems,
+    setArchivedItems: archive.setArchivedItems,
+    noteBodyCacheRef: library.noteBodyCacheRef,
     setCaptureError,
   });
   const searchRef = useRef<HTMLInputElement>(null);
@@ -140,14 +96,7 @@ function App() {
   const cardMenuLayerRef = useRef<HTMLDivElement>(null);
   const libraryFrameRef = useRef<HTMLElement>(null);
   const filteredItemsRef = useRef<LibraryItem[]>([]);
-  const {
-    selectionRectsRef,
-    selectionScrollRef,
-    selectLibraryItem,
-    selectArchivedLibraryItem,
-    bringHistoryCardIntoView,
-    openSimilarItem,
-  } = useItemSelection({
+  const selection = useItemSelection({
     libraryScrollRef,
     captureBarRef,
     filteredItemsRef,
@@ -172,58 +121,58 @@ function App() {
     query,
     activeSpaceId,
     selectedItemId,
-    reload,
+    reload: library.reload,
     selectSpace,
     clearToDefaultView,
     setActiveView,
     setCaptureError,
     setIsSidebarOpen,
   });
-  const {
-    isExportingLibrary,
-    lastExport,
-    isImportingLibrary,
-    lastImport,
-    exportLibraryToFolder,
-    importLibraryFromFolder,
-  } = useLibraryTransfer({
+  const transfer = useLibraryTransfer({
     canUseDesktopBackend,
-    setLastCopy,
+    setLastCopy: settings.setLastCopy,
     setSpaces: spaces.setSpaces,
-    setArchivedItems,
-    setIsArchiveLoaded,
-    reload,
+    setArchivedItems: archive.setArchivedItems,
+    setIsArchiveLoaded: archive.setIsArchiveLoaded,
+    reload: library.reload,
     setCaptureError,
   });
   const { listMode, viewSelectionListMode, switchLibraryView, gridColumnCount } =
     useLibraryView(libraryScrollRef);
   const capture = useCapture({
     canUseDesktopBackend,
-    setItems,
+    setItems: library.setItems,
     setSelectedItem,
     setCaptureError,
   });
   const { isShortcutsOpen, setIsShortcutsOpen } = useAppShortcuts({
     searchRef,
-    readingItem,
+    readingItem: details.readingItem,
     selectedItem,
-    pdfViewerItem,
-    isSettingsOpen,
-    setIsSettingsOpen,
+    pdfViewerItem: details.pdfViewerItem,
+    isSettingsOpen: settings.isSettingsOpen,
+    setIsSettingsOpen: settings.setIsSettingsOpen,
     capture,
     setIsSidebarOpen,
   });
 
   const filteredItems = useMemo(
     () =>
-      visibleLibraryItems(items, {
+      visibleLibraryItems(library.items, {
         canUseDesktopBackend,
         query,
         activeView,
         activeSpace: spaces.activeSpace,
         localSpaceItems: spaces.localSpaceItems,
       }),
-    [spaces.activeSpace, activeView, canUseDesktopBackend, items, spaces.localSpaceItems, query],
+    [
+      spaces.activeSpace,
+      activeView,
+      canUseDesktopBackend,
+      library.items,
+      spaces.localSpaceItems,
+      query,
+    ],
   );
   useLayoutEffect(() => {
     filteredItemsRef.current = filteredItems;
@@ -238,19 +187,19 @@ function App() {
 
   const { cardMenu, closeCardMenu, openCardMenu, cardMenuEntries } = useCardMenu({
     canUseDesktopBackend,
-    openReader,
-    forgetItem,
+    openReader: details.openReader,
+    forgetItem: archive.forgetItem,
   });
 
   const libraryCardContext = useMemo<LibraryCardContext>(
     () => ({
       layout: listMode ? "list" : "grid",
-      onSelectItem: selectLibraryItem,
-      onOpenReader: openReader,
-      onRetryJob: retryJob,
+      onSelectItem: selection.selectLibraryItem,
+      onOpenReader: details.openReader,
+      onRetryJob: library.retryJob,
       onOpenMenu: openCardMenu,
     }),
-    [listMode, openCardMenu, openReader, retryJob, selectLibraryItem],
+    [listMode, openCardMenu, details.openReader, library.retryJob, selection.selectLibraryItem],
   );
 
   const { historyCloseRequest, closeItem } = useHistory({
@@ -258,14 +207,14 @@ function App() {
     activeSpaceId,
     query,
     selectedItem,
-    items,
-    archivedItems,
-    similarItemCacheRef,
+    items: library.items,
+    archivedItems: archive.archivedItems,
+    similarItemCacheRef: details.similarItemCacheRef,
     filteredItemsRef,
-    selectionRectsRef,
-    selectionScrollRef,
-    bringHistoryCardIntoView,
-    selectArchivedLibraryItem,
+    selectionRectsRef: selection.selectionRectsRef,
+    selectionScrollRef: selection.selectionScrollRef,
+    bringHistoryCardIntoView: selection.bringHistoryCardIntoView,
+    selectArchivedLibraryItem: selection.selectArchivedLibraryItem,
     setActiveView,
     setActiveSpaceId,
     setQuery,
@@ -275,38 +224,38 @@ function App() {
   const expandedOverlayActions = useMemo<ItemViewActions>(
     () => ({
       onClose: closeItem,
-      onOpenPdf: setPdfViewerItem,
-      onOpenReader: openReader,
-      onLoadSimilar: loadSimilarLibraryItems,
-      onOpenItem: openSimilarItem,
+      onOpenPdf: details.setPdfViewerItem,
+      onOpenReader: details.openReader,
+      onLoadSimilar: details.loadSimilarLibraryItems,
+      onOpenItem: selection.openSimilarItem,
       onShowInFolder: canUseDesktopBackend ? revealItemInFolder : undefined,
-      onDelete: deleteArchivedLibraryItem,
-      onForget: forgetItem,
-      onRetryJob: retryJob,
-      onAddTag: addTagToItem,
-      onUpdateNote: updateNote,
+      onDelete: archive.deleteArchivedLibraryItem,
+      onForget: archive.forgetItem,
+      onRetryJob: library.retryJob,
+      onAddTag: details.addTagToItem,
+      onUpdateNote: details.updateNote,
       onToggleSpace: spaces.handleToggleItemInSpace,
     }),
     [
-      addTagToItem,
+      details.addTagToItem,
       canUseDesktopBackend,
       closeItem,
-      deleteArchivedLibraryItem,
-      forgetItem,
+      archive.deleteArchivedLibraryItem,
+      archive.forgetItem,
       spaces.handleToggleItemInSpace,
-      loadSimilarLibraryItems,
-      openReader,
-      openSimilarItem,
-      retryJob,
-      setPdfViewerItem,
-      updateNote,
+      details.loadSimilarLibraryItems,
+      details.openReader,
+      selection.openSimilarItem,
+      library.retryJob,
+      details.setPdfViewerItem,
+      details.updateNote,
     ],
   );
 
   useMascotMood({
     canUseDesktopBackend,
-    activeJobCount,
-    items,
+    activeJobCount: library.activeJobCount,
+    items: library.items,
     captureError,
     isSearchFocused,
     query,
@@ -315,8 +264,8 @@ function App() {
   return (
     <MotionConfig reducedMotion="user">
       <div
-        className={`app-shell relative flex h-full min-h-screen overflow-hidden bg-canvas wide:bg-app ${isElectronRuntime() ? "electron-shell" : ""} ${capture.isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`}
-        data-sidebar-style={appearance.sidebarStyle}
+        className={`app-shell relative flex h-full min-h-screen overflow-hidden bg-canvas wide:bg-app ${isElectronRuntime() ? "electron-shell" : ""} ${capture.isDragActive ? "drag-active" : ""} ${settings.isSettingsOpen ? "settings-open" : ""}`}
+        data-sidebar-style={settings.appearance.sidebarStyle}
         data-sidebar-open={isSidebarOpen}
         data-native-captions={window.inkling?.windowControls.nativeCaptions || undefined}
         onDragOver={capture.handleDragOver}
@@ -325,13 +274,13 @@ function App() {
       >
         <TitleBar />
         <AppSidebar
-          appearance={appearance}
+          appearance={settings.appearance}
           isOpen={isSidebarOpen}
           setIsOpen={setIsSidebarOpen}
           isSearchFocused={isSearchFocused}
           everything={{
             active: activeView === "Everything" && !activeSpaceId,
-            count: items.length,
+            count: library.items.length,
             onSelect: clearToDefaultView,
           }}
           capture={capture}
@@ -340,15 +289,15 @@ function App() {
           activeSpaceId={activeSpaceId}
           activeCount={filteredItems.length}
           update={appUpdate}
-          isSettingsOpen={isSettingsOpen}
+          isSettingsOpen={settings.isSettingsOpen}
           onOpenSettings={() => {
             setSelectedItem(null);
-            setIsSettingsOpen(true);
+            settings.setIsSettingsOpen(true);
           }}
         />
         {/* A closed sidebar's grip would sit over an open item's stage. */}
         {!codexSidebar &&
-          appearance.sidebarToggle === "edge" &&
+          settings.appearance.sidebarToggle === "edge" &&
           (isSidebarOpen || !selectedItem) && (
             <SidebarEdgeGrip
               isOpen={isSidebarOpen}
@@ -371,7 +320,7 @@ function App() {
               !isSidebarOpen && (
                 <>
                   <SidebarOpenButton
-                    edgeToggle={appearance.sidebarToggle === "edge"}
+                    edgeToggle={settings.appearance.sidebarToggle === "edge"}
                     onOpen={() => setIsSidebarOpen(true)}
                   />
                   {spaces.sidebarActionError && (
@@ -408,7 +357,7 @@ function App() {
 
           <ViewDock
             ref={viewDockRef}
-            look={appearance.viewToggle}
+            look={settings.appearance.viewToggle}
             show={showBrowseControls}
             listMode={listMode}
             selectionListMode={viewSelectionListMode}
@@ -438,47 +387,47 @@ function App() {
         <ShortcutsDialog open={isShortcutsOpen} onOpenChange={setIsShortcutsOpen} />
 
         <SettingsSheet
-          open={isSettingsOpen}
-          dialogRef={settingsDialogRef}
-          tab={settingsTab}
-          onTabChange={setSettingsTab}
-          onClose={() => setIsSettingsOpen(false)}
-          appVersion={appVersion}
+          open={settings.isSettingsOpen}
+          dialogRef={settings.settingsDialogRef}
+          tab={settings.settingsTab}
+          onTabChange={settings.setSettingsTab}
+          onClose={() => settings.setIsSettingsOpen(false)}
+          appVersion={settings.appVersion}
           update={appUpdate}
-          appearance={appearance}
-          onAppearanceChange={setAppearanceOption}
+          appearance={settings.appearance}
+          onAppearanceChange={settings.setAppearanceOption}
           onShowWelcome={() => {
-            setIsSettingsOpen(false);
+            settings.setIsSettingsOpen(false);
             setIsFirstRunOpen(true);
           }}
           archive={{
-            items: archivedItems,
-            isLoaded: isArchiveLoaded,
-            selectionMode: isArchiveSelectionMode,
-            selectedCount: selectedArchivedIds.size,
-            onSelectItem: selectArchivedLibraryItem,
-            onOpenReader: openReader,
-            onRetryJob: retryJob,
-            onDeleteItem: deleteArchivedLibraryItem,
-            onRestoreItem: restoreArchivedLibraryItem,
-            isItemSelected: isArchivedLibraryItemSelected,
-            onToggleItem: toggleArchivedLibraryItem,
-            onToggleSelectionMode: toggleArchiveSelectionMode,
-            onRestoreSelected: () => void restoreSelectedArchivedItems(),
-            onDeleteSelected: () => void deleteSelectedArchivedItems(),
+            items: archive.archivedItems,
+            isLoaded: archive.isArchiveLoaded,
+            selectionMode: archive.isArchiveSelectionMode,
+            selectedCount: archive.selectedArchivedIds.size,
+            onSelectItem: selection.selectArchivedLibraryItem,
+            onOpenReader: details.openReader,
+            onRetryJob: library.retryJob,
+            onDeleteItem: archive.deleteArchivedLibraryItem,
+            onRestoreItem: archive.restoreArchivedLibraryItem,
+            isItemSelected: archive.isArchivedLibraryItemSelected,
+            onToggleItem: archive.toggleArchivedLibraryItem,
+            onToggleSelectionMode: archive.toggleArchiveSelectionMode,
+            onRestoreSelected: () => void archive.restoreSelectedArchivedItems(),
+            onDeleteSelected: () => void archive.deleteSelectedArchivedItems(),
           }}
           library={{
-            kinds: wholeLibraryKinds ?? items.map((item) => item.kind),
-            sizeBytes: librarySizeBytes,
+            kinds: settings.wholeLibraryKinds ?? library.items.map((item) => item.kind),
+            sizeBytes: settings.librarySizeBytes,
             canUseFolderPicker: canUseDesktopBackend,
             onShowFolder: showLibraryFolderFromSettings,
-            lastCopy,
-            lastExport,
-            lastImport,
-            isExporting: isExportingLibrary,
-            isImporting: isImportingLibrary,
-            onExport: () => void exportLibraryToFolder(),
-            onImport: () => void importLibraryFromFolder(),
+            lastCopy: settings.lastCopy,
+            lastExport: transfer.lastExport,
+            lastImport: transfer.lastImport,
+            isExporting: transfer.isExportingLibrary,
+            isImporting: transfer.isImportingLibrary,
+            onExport: () => void transfer.exportLibraryToFolder(),
+            onImport: () => void transfer.importLibraryFromFolder(),
           }}
         />
 
@@ -487,14 +436,14 @@ function App() {
           itemView={{
             actions: expandedOverlayActions,
             spaces: spaces.selectedItemSpaces,
-            originRectsRef: selectionRectsRef,
+            originRectsRef: selection.selectionRectsRef,
             frameRef: libraryFrameRef,
             historyCloseRequest,
           }}
-          pdfViewerItem={pdfViewerItem}
-          onClosePdf={() => setPdfViewerItem(null)}
-          readingItem={readingItem}
-          onCloseReader={closeReader}
+          pdfViewerItem={details.pdfViewerItem}
+          onClosePdf={() => details.setPdfViewerItem(null)}
+          readingItem={details.readingItem}
+          onCloseReader={details.closeReader}
         />
       </div>
       <TooltipLayer ref={tooltipLayerRef} />
