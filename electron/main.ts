@@ -94,6 +94,11 @@ function requireStorage() {
   return storage;
 }
 
+function requireCaptureServer() {
+  if (!captureServer) throw new Error("The Electron capture server is unavailable.");
+  return captureServer;
+}
+
 async function embedQueryForSearch(query: string) {
   if (!query || !aiJobProcessors) return null;
   try {
@@ -177,14 +182,8 @@ function registerLibraryCommands() {
     retry_processing_job: ({ jobId }) => jobs().retry(jobId),
     get_capture_status: () =>
       captureServer?.status() ?? { running: false, port: null, healthUrl: null },
-    get_pairing_token: () => {
-      if (!captureServer) throw new Error("The Electron capture server is unavailable.");
-      return captureServer.getPairingToken();
-    },
-    regenerate_pairing_token: () => {
-      if (!captureServer) throw new Error("The Electron capture server is unavailable.");
-      return captureServer.regeneratePairingToken();
-    },
+    get_pairing_token: () => requireCaptureServer().getPairingToken(),
+    regenerate_pairing_token: () => requireCaptureServer().regeneratePairingToken(),
     select_library_directory: ({ title }) => chooseLibraryDirectory(title),
     get_update_state: () => updateController.getState(),
     set_update_channel: ({ channel }) => updateController.setChannel(channel),
