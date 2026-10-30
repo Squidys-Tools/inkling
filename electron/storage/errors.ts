@@ -1,7 +1,7 @@
 import { Effect, Schema } from "effect";
 import { SqlError } from "effect/sql/SqlError";
 
-// The renderer shows these messages, so each keeps the wording it had before storage moved to Effect.
+// The renderer shows these messages verbatim, so their wording is part of the contract.
 class StorageError extends Schema.TaggedError<StorageError>()("StorageError", {
   message: Schema.String,
 }) {}
