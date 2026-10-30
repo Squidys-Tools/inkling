@@ -6,6 +6,7 @@ import { hostnameForUrl } from "../hostname";
 import { isWebUrl } from "../../lib/ingestion/url";
 import { purifyHtml } from "../../lib/purifyHtml";
 import "./reader.css";
+import "./readerContent.css";
 import { ReaderFontPicker, useReaderFontSet } from "./ReaderFontPicker";
 
 export type ReaderOrigin = { x: number; y: number };
