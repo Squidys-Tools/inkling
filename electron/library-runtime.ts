@@ -40,7 +40,6 @@ export async function openLibraryRuntime({
         onIdle: ai.onIdle,
         timeouts: jobTimeouts,
       });
-      // New cards wait on thumbnails, so they never queue behind OCR or embeddings.
       const thumbnails = yield* makeWorker({
         processors: ai.thumbnailProcessors,
         timeouts: jobTimeouts,
