@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+} from "react";
 import { canvasImageCrossOrigin, LiquidGlass } from "../../components/LiquidGlass";
 import { cx } from "../../ui/cx";
 import {
@@ -135,10 +142,7 @@ export function ZoomableImage({
     setPan(clampPan(moved, { width: natural.width * next, height: natural.height * next }, frame));
     setZoomLevel(next <= fit * 1.001 ? null : next);
   }
-  const zoomByRef = useRef(zoomBy);
-  useLayoutEffect(() => {
-    zoomByRef.current = zoomBy;
-  });
+  const zoomByOnWheel = useEffectEvent(zoomBy);
 
   // Ctrl+wheel zooms at the cursor. React's wheel listener is passive, so this
   // one is attached by hand to stop the page zooming instead.
@@ -149,7 +153,7 @@ export function ZoomableImage({
       if (!event.ctrlKey) return;
       event.preventDefault();
       const rect = element.getBoundingClientRect();
-      zoomByRef.current(wheelZoomFactor(event.deltaY), {
+      zoomByOnWheel(wheelZoomFactor(event.deltaY), {
         x: event.clientX - rect.left - rect.width / 2,
         y: event.clientY - rect.top - rect.height / 2,
       });
