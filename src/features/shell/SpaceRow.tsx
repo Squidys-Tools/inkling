@@ -4,7 +4,7 @@ import {
   Cancel01Icon,
   Edit01Icon,
 } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import type { RefObject } from "react";
 import type { StoredSpace } from "../../lib/libraryApi";
 import { Button } from "../../ui/Button";
@@ -12,9 +12,6 @@ import { cx } from "../../ui/cx";
 import { SpaceMark } from "../../ui/SpaceMark";
 import { countClass, rowClass } from "./Sidebar";
 import type { SpaceRowActions } from "./SpacesSection";
-
-const tool =
-  "grid flex-none place-items-center rounded-[5px] p-[3px] text-muted cursor-pointer transition-[color,background-color] duration-150 ease-[ease] focus-visible:outline-none!";
 
 export type SpaceRenaming = {
   id: string | null;
@@ -90,51 +87,63 @@ export function SpaceRow({
         </Button>
       )}
       <span className="flex w-0 flex-none overflow-hidden opacity-0 transition-opacity duration-150 ease-[ease] group-hover/space:ml-2.5 group-hover/space:w-[72px] group-hover/space:opacity-100 group-focus-within/space:ml-2.5 group-focus-within/space:w-[72px] group-focus-within/space:opacity-100">
-        <Button
-          className={cx(tool, "hover:text-ink")}
-          aria-label={`Move ${space.name} up`}
-          data-tooltip="Move Space up"
-          onClick={(event) => {
-            event.stopPropagation();
-            actions.move(space, -1);
-          }}
-        >
-          <HugeiconsIcon icon={ArrowUp01Icon} size={12} />
-        </Button>
-        <Button
-          className={cx(tool, "hover:text-ink")}
-          aria-label={`Move ${space.name} down`}
-          data-tooltip="Move Space down"
-          onClick={(event) => {
-            event.stopPropagation();
-            actions.move(space, 1);
-          }}
-        >
-          <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
-        </Button>
-        <Button
-          className={cx(tool, "hover:text-ink")}
-          aria-label={`Rename ${space.name}`}
-          data-tooltip="Rename Space"
-          onClick={(event) => {
-            event.stopPropagation();
-            actions.startRename(space);
-          }}
-        >
-          <HugeiconsIcon icon={Edit01Icon} size={12} />
-        </Button>
-        <Button
-          className={cx(tool, "hover:text-[#e08a5e]")}
-          aria-label={`Delete ${space.name}`}
-          data-tooltip="Delete Space"
-          onClick={(event) => {
-            event.stopPropagation();
-            actions.remove(space);
-          }}
-        >
-          <HugeiconsIcon icon={Cancel01Icon} size={12} />
-        </Button>
+        <SpaceTool
+          label={`Move ${space.name} up`}
+          tooltip="Move Space up"
+          icon={ArrowUp01Icon}
+          onSelect={() => actions.move(space, -1)}
+        />
+        <SpaceTool
+          label={`Move ${space.name} down`}
+          tooltip="Move Space down"
+          icon={ArrowDown01Icon}
+          onSelect={() => actions.move(space, 1)}
+        />
+        <SpaceTool
+          label={`Rename ${space.name}`}
+          tooltip="Rename Space"
+          icon={Edit01Icon}
+          onSelect={() => actions.startRename(space)}
+        />
+        <SpaceTool
+          label={`Delete ${space.name}`}
+          tooltip="Delete Space"
+          icon={Cancel01Icon}
+          danger
+          onSelect={() => actions.remove(space)}
+        />
       </span>
     </div>
+  );
+}
+
+function SpaceTool({
+  label,
+  tooltip,
+  icon,
+  danger = false,
+  onSelect,
+}: {
+  label: string;
+  tooltip: string;
+  icon: IconSvgElement;
+  danger?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <Button
+      className={cx(
+        "grid flex-none place-items-center rounded-[5px] p-[3px] text-muted cursor-pointer transition-[color,background-color] duration-150 ease-[ease] focus-visible:outline-none!",
+        danger ? "hover:text-[#e08a5e]" : "hover:text-ink",
+      )}
+      aria-label={label}
+      data-tooltip={tooltip}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect();
+      }}
+    >
+      <HugeiconsIcon icon={icon} size={12} />
+    </Button>
   );
 }
