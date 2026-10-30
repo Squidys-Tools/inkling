@@ -1,4 +1,11 @@
-import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import type { AddMode } from "./AddMenu/AddMenu";
 import { createFileImportQueue, type FileImportProgress } from "./fileImport";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "../../lib/deepLink";
@@ -265,42 +272,36 @@ export function useCapture({
     }
   }
 
-  const captureFilesRef = useRef(captureFiles);
-  const captureTextRef = useRef(captureText);
-  captureFilesRef.current = captureFiles;
-  captureTextRef.current = captureText;
+  const onPaste = useEffectEvent((event: ClipboardEvent) => {
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      (target instanceof HTMLElement && target.isContentEditable)
+    ) {
+      return;
+    }
 
+    const files = Array.from(event.clipboardData?.files ?? []);
+    if (files.length) {
+      event.preventDefault();
+      captureFiles(files, "clipboard");
+      return;
+    }
+
+    const text = event.clipboardData?.getData("text/plain").trim();
+    if (text) {
+      event.preventDefault();
+      void captureText(text, "clipboard");
+    }
+  });
   useEffect(() => {
-    const onPaste = (event: ClipboardEvent) => {
-      const target = event.target;
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable)
-      ) {
-        return;
-      }
-
-      const files = Array.from(event.clipboardData?.files ?? []);
-      if (files.length) {
-        event.preventDefault();
-        captureFilesRef.current(files, "clipboard");
-        return;
-      }
-
-      const text = event.clipboardData?.getData("text/plain").trim();
-      if (text) {
-        event.preventDefault();
-        void captureTextRef.current(text, "clipboard");
-      }
-    };
-
-    window.addEventListener("paste", onPaste);
-    return () => window.removeEventListener("paste", onPaste);
+    const listener = (event: ClipboardEvent) => onPaste(event);
+    window.addEventListener("paste", listener);
+    return () => window.removeEventListener("paste", listener);
   }, []);
 
-  const handleDeepLinkPayloadRef = useRef(handleDeepLinkPayload);
-  handleDeepLinkPayloadRef.current = handleDeepLinkPayload;
+  const onDeepLink = useEffectEvent(handleDeepLinkPayload);
   useEffect(() => {
     if (shouldUseSeedLibrary()) return;
     let cancelled = false;
@@ -308,7 +309,7 @@ export function useCapture({
 
     async function connectCaptureEvents() {
       const removeListener = await listenForDeepLinks((payload) => {
-        void handleDeepLinkPayloadRef.current(payload);
+        void onDeepLink(payload);
       });
       if (cancelled) {
         removeListener();
@@ -318,7 +319,7 @@ export function useCapture({
 
       const links = await currentDeepLinks();
       if (!cancelled) {
-        for (const link of links ?? []) await handleDeepLinkPayloadRef.current(link);
+        for (const link of links ?? []) await onDeepLink(link);
       }
     }
 
