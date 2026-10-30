@@ -74,6 +74,14 @@ export interface Look {
 
 const NO_LOOK: Look = { yaw: 0, pitch: 0, mix: 0, spin: 0, wander: 1 };
 
+/**
+ * Duree de rattrapage du regard vers la cible. Plus court que `SHAPE_MORPH` :
+ * un regard qui suit doit paraitre attentif, pas visqueux. Comme la cible est
+ * reposee a chaque mouvement de souris, c'est cette duree qui donne au suivi
+ * son inertie — le regard n'atteint jamais tout a fait un curseur qui bouge.
+ */
+const LOOK_MORPH = 0.24;
+
 const lerpLook = (a: Look, b: Look, t: number): Look => ({
   yaw: lerp(a.yaw, b.yaw, t),
   pitch: lerp(a.pitch, b.pitch, t),
@@ -211,19 +219,9 @@ export class BotEngine {
   private look: Look = NO_LOOK;
   private lookPrev: Look = NO_LOOK;
   private lookAt = -10;
-  /** duree de rattrapage en cours ; voir `LOOK_MORPH`, sa valeur par defaut */
-  private lookMorph = 0.24;
 
   /** duree du morph quand on change la forme du corps */
   static readonly SHAPE_MORPH = 0.45;
-
-  /**
-   * Duree de rattrapage du regard vers la cible. Plus court que `SHAPE_MORPH` :
-   * un regard qui suit doit paraitre attentif, pas visqueux. Comme la cible est
-   * reposee a chaque mouvement de souris, c'est cette duree qui donne au suivi
-   * son inertie — le regard n'atteint jamais tout a fait un curseur qui bouge.
-   */
-  static readonly LOOK_MORPH = 0.24;
 
   constructor(
     scale = 100,
@@ -303,7 +301,7 @@ export class BotEngine {
    * setter horodate, jamais par une variable lue pendant `sample`, sinon le
    * moteur cesse d'etre une fonction pure du temps.
    */
-  setLook(look: Look | null, now: number, morph = BotEngine.LOOK_MORPH) {
+  setLook(look: Look | null, now: number) {
     /*
      * Une cible non finie est refusee. Le moteur GARDE la derniere : un `NaN`
      * pose une seule fois se propagerait a chaque image et le bot ne se
@@ -318,12 +316,11 @@ export class BotEngine {
     this.lookPrev = this.lookAtTime(now);
     this.look = look ?? NO_LOOK;
     this.lookAt = now;
-    this.lookMorph = morph;
   }
 
   /** Regard effectif a l'instant `now`, rattrapage en cours compris. */
   private lookAtTime(now: number): Look {
-    const k = (now - this.lookAt) / this.lookMorph;
+    const k = (now - this.lookAt) / LOOK_MORPH;
     if (k >= 1) return this.look;
     return lerpLook(this.lookPrev, this.look, easings.easeOutQuint(clamp(k)));
   }
