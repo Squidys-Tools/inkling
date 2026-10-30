@@ -187,6 +187,31 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     return { tokenizer, session };
   }
 
+  const keepTextRuntime = (runtime: TextRuntime) => (textRuntime ??= runtime);
+
+  function loadTextRuntime(allowDownload: boolean) {
+    if (allowDownload) {
+      textRuntimePromise ??= (async () => {
+        const cachedRuntime = textQueryRuntimePromise
+          ? await textQueryRuntimePromise.catch(() => null)
+          : null;
+        return cachedRuntime ?? openTextRuntime(true);
+      })()
+        .then(keepTextRuntime)
+        .finally(() => {
+          textRuntimePromise = undefined;
+        });
+      return textRuntimePromise;
+    }
+    textQueryRuntimePromise ??= openTextRuntime(false)
+      .then(keepTextRuntime)
+      .catch((error) => {
+        textQueryRuntimePromise = undefined;
+        throw error;
+      });
+    return textQueryRuntimePromise;
+  }
+
   async function openImageSession() {
     const definition = models.image;
     const modelPath = await ensureAsset(
@@ -206,37 +231,7 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     const content = String(text ?? "").trim();
     if (!content || !hasEmbeddableCharacters(content))
       throw new Error("text contains no embeddable characters");
-    if (!textRuntime) {
-      if (allowDownload) {
-        textRuntimePromise ??= (async () => {
-          const cachedRuntime = textQueryRuntimePromise
-            ? await textQueryRuntimePromise.catch(() => null)
-            : null;
-          return cachedRuntime ?? openTextRuntime(true);
-        })()
-          .then((runtime) => {
-            textRuntime ??= runtime;
-            return runtime;
-          })
-          .finally(() => {
-            textRuntimePromise = undefined;
-          });
-        await textRuntimePromise;
-      } else {
-        textQueryRuntimePromise ??= openTextRuntime(false)
-          .then((runtime) => {
-            textRuntime ??= runtime;
-            return runtime;
-          })
-          .catch((error) => {
-            textQueryRuntimePromise = undefined;
-            throw error;
-          });
-        await textQueryRuntimePromise;
-      }
-    }
-    if (!textRuntime) throw new Error("Nomic text runtime failed to load");
-    const { tokenizer, session } = textRuntime;
+    const { tokenizer, session } = textRuntime ?? (await loadTextRuntime(allowDownload));
     const { ids, typeIds, mask } = textTokens(tokenizer, `${prefix} ${content}`);
     const tensor = (values: number[]) =>
       new ort.Tensor(
