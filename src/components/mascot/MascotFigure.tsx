@@ -36,6 +36,31 @@ export function MascotFigure({
       : mixHex(paper === "transparent" ? ink : paper, ink, dot.depth);
   };
 
+  const dots = (
+    <g>
+      {frame.dots.map((dot, i) =>
+        dot.d ? (
+          <path
+            key={i}
+            d={dot.d}
+            transform={`translate(${dot.x} ${dot.y}) rotate(${dot.rot ?? 0}) scale(${RAYON})`}
+            fill={dotFill(dot)}
+            opacity={dot.opacity}
+          />
+        ) : (
+          <circle
+            key={i}
+            cx={dot.x}
+            cy={dot.y}
+            r={dot.r}
+            fill={dotFill(dot)}
+            opacity={dot.opacity}
+          />
+        ),
+      )}
+    </g>
+  );
+
   return (
     <svg
       width={size}
@@ -84,30 +109,7 @@ export function MascotFigure({
         ))}
       </g>
 
-      {frame.dotsBehind && (
-        <g>
-          {frame.dots.map((dot, i) =>
-            dot.d ? (
-              <path
-                key={`pb${i}`}
-                d={dot.d}
-                transform={`translate(${dot.x} ${dot.y}) rotate(${dot.rot ?? 0}) scale(${RAYON})`}
-                fill={dotFill(dot)}
-                opacity={dot.opacity}
-              />
-            ) : (
-              <circle
-                key={`pb${i}`}
-                cx={dot.x}
-                cy={dot.y}
-                r={dot.r}
-                fill={dotFill(dot)}
-                opacity={dot.opacity}
-              />
-            ),
-          )}
-        </g>
-      )}
+      {frame.dotsBehind && dots}
 
       <g opacity={frame.bodyAlpha}>
         <path d={frame.bodyPath} fill={paper} />
@@ -116,30 +118,7 @@ export function MascotFigure({
         </g>
       </g>
 
-      {!frame.dotsBehind && (
-        <g>
-          {frame.dots.map((dot, i) =>
-            dot.d ? (
-              <path
-                key={`pf${i}`}
-                d={dot.d}
-                transform={`translate(${dot.x} ${dot.y}) rotate(${dot.rot ?? 0}) scale(${RAYON})`}
-                fill={dotFill(dot)}
-                opacity={dot.opacity}
-              />
-            ) : (
-              <circle
-                key={`pf${i}`}
-                cx={dot.x}
-                cy={dot.y}
-                r={dot.r}
-                fill={dotFill(dot)}
-                opacity={dot.opacity}
-              />
-            ),
-          )}
-        </g>
-      )}
+      {!frame.dotsBehind && dots}
 
       {frame.notif && (
         <circle cx={frame.notif.x} cy={frame.notif.y} r={frame.notif.r} fill="#3b93f0" />
