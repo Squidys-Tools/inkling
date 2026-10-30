@@ -5,8 +5,8 @@ import {
   NoteArtwork,
   PdfArtwork,
   PostArtwork,
-  XPostEmbed,
 } from "../../components/ItemMedia";
+import { XPostEmbed } from "../../components/XPostEmbed";
 import type { LibraryItem } from "../../lib/types";
 import { cx } from "../../ui/cx";
 import { ZoomableImage } from "./ZoomableImage";
