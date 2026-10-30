@@ -1,7 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-
-const isMissing = (error: unknown) => (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
+import { isMissing } from "./storage/shared.ts";
 
 async function directoryBytes(directory: string): Promise<number> {
   const entries = await readdir(directory, { withFileTypes: true }).catch((error: unknown) => {

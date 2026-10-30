@@ -5,6 +5,7 @@ import { basename, dirname } from "node:path";
 import { gt, prerelease, valid } from "semver";
 import { CancellationToken } from "builder-util-runtime";
 import type { UpdateChannel, UpdateState } from "@inkling/contracts";
+import { isMissing } from "./storage/shared.ts";
 
 type UpdateInfo = { version: string; files?: ReadonlyArray<{ url: string; sha512: string }> };
 export type UpdaterLike = {
@@ -39,8 +40,7 @@ export function createUpdatePreferences(path: string) {
               : undefined,
         };
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT" || error instanceof SyntaxError)
-          return {};
+        if (isMissing(error) || error instanceof SyntaxError) return {};
         throw error;
       }
     },
