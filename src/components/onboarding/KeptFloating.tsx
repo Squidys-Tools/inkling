@@ -227,8 +227,6 @@ export function KeptFloating() {
 function orbitStyle(card: FloatCard, index: number) {
   const { x, y } = orbitPosition(card, 0);
   return {
-    left: 0,
-    top: 0,
     width: card.w,
     height: card.h,
     transform: `translate3d(${x}px, ${y}px, 0)`,
