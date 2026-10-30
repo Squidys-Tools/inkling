@@ -39,46 +39,8 @@ export const SHAPES: BotShape[] = [
 export const SHAPE_BY_ID = new Map<string, BotShape>(SHAPES.map((s) => [s.id, s]));
 export const DEFAULT_SHAPE = "cercle";
 
-type ColorId =
-  | "encre"
-  | "creme"
-  | "brun"
-  | "rouge"
-  | "orange"
-  | "ambre"
-  | "vert"
-  | "turquoise"
-  | "bleu"
-  | "violet"
-  | "rose"
-  | "gris"
-  // INKLING EXTENSION: near-black body from docs/design.md character tokens.
-  | "inkling";
-
-export interface BotColor {
-  id: ColorId;
-  hex: string;
-}
-
-/** Palette du personnalisateur d'origine. */
-const COLORS: BotColor[] = [
-  { id: "encre", hex: "#0a0a0c" },
-  { id: "brun", hex: "#8b5e3c" },
-  { id: "rouge", hex: "#e8483f" },
-  { id: "orange", hex: "#f08a24" },
-  { id: "ambre", hex: "#f0b429" },
-  { id: "vert", hex: "#3ecf8e" },
-  { id: "turquoise", hex: "#2fbfa0" },
-  { id: "bleu", hex: "#3b93f0" },
-  { id: "violet", hex: "#8b5cf6" },
-  { id: "rose", hex: "#e152b0" },
-  { id: "gris", hex: "#a3a3a3" },
-  { id: "creme", hex: "#f1efe9" },
-  // INKLING EXTENSION: character body per docs/design.md (ink primary).
-  { id: "inkling", hex: "#1a1a1a" },
-];
-
-export const COLOR_BY_ID = new Map<string, BotColor>(COLORS.map((c) => [c.id, c]));
+// INKLING EXTENSION: near-black body from docs/design.md character tokens.
+export const COLOR_BY_ID = new Map([["inkling", { hex: "#1a1a1a" }]]);
 
 /** Melange deux couleurs hex. Sert a la brume de profondeur des particules. */
 export function mixHex(from: string, to: string, t: number): string {
