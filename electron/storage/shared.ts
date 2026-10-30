@@ -14,12 +14,6 @@ export function parseJson<T>(text: string, fallback: T): T {
   }
 }
 
-export const parseObject = Effect.fnUntraced(function* (value: unknown, label = "metadata") {
-  if (value == null) return {} as Metadata;
-  if (!Predicate.isObject(value)) return yield* invalidInput(`${label} must be a JSON object`);
-  return value;
-});
-
 export function nonEmpty(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();

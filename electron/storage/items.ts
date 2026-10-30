@@ -21,7 +21,6 @@ import {
   type Metadata,
   nonEmpty,
   normalizeHttpUrl,
-  parseObject,
 } from "./shared.ts";
 import { attempt, invalidInput, itemNotFound } from "./errors.ts";
 import { IMAGE_THUMBNAIL_JOB, URL_ENRICHMENT_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
@@ -119,7 +118,7 @@ export function makeItems(ctx: StorageContext) {
     const sourceLabel = sourceUrl
       ? new URL(sourceUrl).hostname
       : attribution?.split(",")[0].trim() || null;
-    const metadata = { ...(yield* parseObject(input.metadata)) };
+    const metadata: Metadata = { ...input.metadata };
     metadata.quoteText = body;
     if (attribution) metadata.attribution = attribution;
     if (sourceUrl) metadata.sourceUrl = sourceUrl;
@@ -234,17 +233,14 @@ export function makeItems(ctx: StorageContext) {
     if (input.metadataPatch != null) {
       const current = yield* getItem(input.id);
       if (!current) return yield* itemNotFound(input.id);
-      metadata = {
-        ...current.metadata,
-        ...(yield* parseObject(input.metadataPatch, "metadata patch")),
-      };
+      metadata = { ...current.metadata, ...input.metadataPatch };
     }
     if (input.addTag != null) {
       const tag = input.addTag.trim().replace(/^#+/u, "").trim().toLowerCase();
       if (!tag) return yield* invalidInput("tag cannot be empty");
       const base = metadata ?? (yield* getItem(input.id))?.metadata;
       if (!base) return yield* itemNotFound(input.id);
-      const tagged = { ...(yield* parseObject(base)) };
+      const tagged = { ...base };
       if (tagged.tags == null) tagged.tags = [];
       if (!Array.isArray(tagged.tags))
         return yield* invalidInput("metadata tags must be an array to add a tag");
