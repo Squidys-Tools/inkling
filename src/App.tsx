@@ -1,24 +1,11 @@
-import { lazy, Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { MotionConfig } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Settings01Icon } from "@hugeicons/core-free-icons";
 import { isElectronRuntime, type StoredSpace } from "./lib/libraryApi";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { ContextMenu } from "./components/ContextMenu/ContextMenu";
-// Below-the-fold / on-demand surfaces stay off the boot bundle and load from
-// local disk on first open (Suspense fallback null: no spinner, no layout
-// shift — the chunk resolves in milliseconds).
-const PdfViewer = lazy(() => import("./features/item-view/PdfViewer"));
-
-const ItemView = lazy(() =>
-  import("./features/item-view/ItemView").then((module) => ({
-    default: module.ItemView,
-  })),
-);
 import type { ItemViewActions } from "./features/item-view/ItemView";
-const ReaderView = lazy(() =>
-  import("./ReaderView").then((module) => ({ default: module.ReaderView })),
-);
 import type { LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import { AddMenu } from "./features/capture/AddMenu/AddMenu";
@@ -40,6 +27,7 @@ import {
 } from "./features/settings/useLibraryTransfer";
 import { SettingsSheet } from "./features/settings/SettingsSheet";
 import { useSettings } from "./features/settings/useSettings";
+import { ItemLayers } from "./features/shell/ItemLayers";
 import { ShortcutsDialog } from "./features/shell/ShortcutsDialog";
 import { NavRow, navLabelClass, Sidebar, SidebarError } from "./features/shell/Sidebar";
 import { SidebarEdgeGrip, SidebarOpenButton } from "./features/shell/SidebarToggles";
@@ -586,49 +574,20 @@ function App() {
           }}
         />
 
-        {selectedItem && (
-          <Suspense fallback={null}>
-            <ItemView
-              key="item-view"
-              item={selectedItem}
-              actions={expandedOverlayActions}
-              spaces={selectedItemSpaces}
-              originRectsRef={selectionRectsRef}
-              frameRef={libraryFrameRef}
-              historyCloseRequest={historyCloseRequest}
-            />
-          </Suspense>
-        )}
-        <AnimatePresence>
-          {pdfViewerItem?.fileUrl && (
-            <motion.div
-              key="pdf-viewer"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
-            >
-              <Suspense fallback={null}>
-                <PdfViewer
-                  url={pdfViewerItem.fileUrl}
-                  title={pdfViewerItem.title}
-                  onClose={() => setPdfViewerItem(null)}
-                />
-              </Suspense>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <AnimatePresence>
-          {readingItem && (
-            <Suspense key={readingItem.item.id} fallback={null}>
-              <ReaderView
-                item={readingItem.item}
-                origin={readingItem.origin}
-                onRequestClose={closeReader}
-              />
-            </Suspense>
-          )}
-        </AnimatePresence>
+        <ItemLayers
+          item={selectedItem}
+          itemView={{
+            actions: expandedOverlayActions,
+            spaces: selectedItemSpaces,
+            originRectsRef: selectionRectsRef,
+            frameRef: libraryFrameRef,
+            historyCloseRequest,
+          }}
+          pdfViewerItem={pdfViewerItem}
+          onClosePdf={() => setPdfViewerItem(null)}
+          readingItem={readingItem}
+          onCloseReader={closeReader}
+        />
       </div>
       <TooltipLayer ref={tooltipLayerRef} />
       <div ref={cardMenuLayerRef}>
