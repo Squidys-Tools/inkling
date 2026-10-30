@@ -178,6 +178,8 @@ test("links, oversize, hidden and non-image files are ignored; a rejected image 
     await writeFile(join(f.directory, "good.png"), "valid accepted pixels");
     await until(async () => (await f.library.countActiveItems()) === 1);
     expect((await f.library.listActiveItems())[0].title).toBe("good.png");
+    // The SQLite commit precedes the scan's checkpoint/status publication.
+    await importer.scanNow();
     expect((await importer.getState()).status).toBe("error");
   } finally {
     await importer.close();
