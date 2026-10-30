@@ -9,6 +9,7 @@ import { Effect, Layer, ManagedRuntime, Schema } from "effect";
 import {
   app,
   BrowserWindow,
+  desktopCapturer,
   dialog,
   ipcMain,
   protocol,
@@ -17,7 +18,7 @@ import {
   type WebContents,
 } from "electron";
 import electronUpdater from "electron-updater";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -27,9 +28,11 @@ import {
 } from "../src/lib/deepLinkCore.mjs";
 import { createAiJobProcessors, enqueueStaleImageEmbeddings, jobTimeouts } from "./ai-jobs.ts";
 import { serveAssetFile } from "./asset-response.ts";
+import { appContentTypes as mimeTypes } from "./app-content-types.ts";
 import { startCaptureServer } from "./capture-server.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
 import { createSingleFlightDirectoryPicker } from "./native-dialog.ts";
+import { createDisplayCaptureHandler } from "./display-capture.ts";
 import { snapshotDatabase } from "./sqlite-snapshot.ts";
 import {
   JobQueue,
@@ -40,7 +43,8 @@ import {
   resolveLibraryDataDirectory,
 } from "./storage/library.ts";
 import { makeWorker } from "./storage/worker.ts";
-import { createUpdateController } from "./updater.ts";
+import { createUpdateController, createUpdatePreferences } from "./updater.ts";
+import { installDebianUpdate, updateDisabledReason } from "./update-install.ts";
 
 const mainDirectory = dirname(fileURLToPath(import.meta.url));
 const { autoUpdater } = electronUpdater;
@@ -52,13 +56,47 @@ const libraryDirectory = resolveLibraryDataDirectory({
   portable: app.isPackaged && process.env.INKLING_PORTABLE === "1",
   overrideDirectory: commandLineDataDirectory || undefined,
 });
+const packageTypePath = join(process.resourcesPath, "package-type");
+const packageType = existsSync(packageTypePath)
+  ? readFileSync(packageTypePath, "utf8").trim()
+  : undefined;
 const updateController = createUpdateController({
   autoUpdater,
-  // Unpacked `build:dir` output ships without app-update.yml, so it has no feed to check.
-  isPackaged: app.isPackaged && existsSync(join(process.resourcesPath, "app-update.yml")),
-  platform: process.platform,
+  currentVersion: app.getVersion(),
+  disabledReason: updateDisabledReason({
+    isPackaged: app.isPackaged,
+    isPreview,
+    hasFeed: existsSync(join(process.resourcesPath, "app-update.yml")),
+    platform: process.platform,
+    appImage: process.env.APPIMAGE,
+    packageType,
+  }),
+  preferences: createUpdatePreferences(join(libraryDirectory, "updates.json")),
+  install: async (file, version, sha512) => {
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error("No active app window.");
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: "question",
+      title: "Install inkling update",
+      message: `Install inkling ${version}?`,
+      detail:
+        "inkling will restart after installation. Debian may ask for system authorization. Your library stays on this computer.",
+      buttons: ["Cancel", "Install and restart"],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    if (response !== 1) throw new Error("Update installation canceled.");
+    if (process.platform === "linux" && packageType === "deb") {
+      await installDebianUpdate(file, version, sha512);
+      app.relaunch();
+      app.quit();
+    } else {
+      autoUpdater.quitAndInstall(false, true);
+    }
+  },
 });
 app.setPath("userData", libraryDirectory);
+if (process.platform === "linux")
+  app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
 const deepLinkSubscribers = new Set<WebContents>();
 const pendingDeepLinks: DeepLinkCapture[] = [];
 let mainWindow: BrowserWindow | undefined;
@@ -91,28 +129,6 @@ const contentSecurityPolicy = [
   "worker-src 'self' blob:",
   "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://platform.twitter.com",
 ].join("; ");
-
-const mimeTypes: Record<string, string> = {
-  ".avif": "image/avif",
-  ".css": "text/css; charset=utf-8",
-  ".html": "text/html; charset=utf-8",
-  ".ico": "image/x-icon",
-  ".jpeg": "image/jpeg",
-  ".jpg": "image/jpeg",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".mp3": "audio/mpeg",
-  ".mp4": "video/mp4",
-  ".mov": "video/quicktime",
-  ".pdf": "application/pdf",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".wasm": "application/wasm",
-  ".webp": "image/webp",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".webm": "video/webm",
-};
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -344,6 +360,10 @@ function registerLibraryCommands() {
       return captureServer.regeneratePairingToken();
     },
     select_library_directory: ({ title }) => chooseLibraryDirectory(title),
+    get_update_state: () => updateController.getState(),
+    set_update_channel: ({ channel }) => updateController.setChannel(channel),
+    download_update: ({ expectedVersion }) => updateController.downloadUpdate(expectedVersion),
+    cancel_update_download: () => updateController.cancelDownload(),
     check_for_updates: () => updateController.checkForUpdates(),
     install_update: ({ expectedVersion }) => updateController.installUpdate(expectedVersion),
     "plugin:deep-link|get_current": () => pendingDeepLinks.splice(0),
@@ -508,6 +528,36 @@ if (!hasSingleInstanceLock) {
       ]);
     }
     registerLibraryCommands();
+    if (process.platform === "linux") {
+      session.defaultSession.setDisplayMediaRequestHandler(
+        createDisplayCaptureHandler({
+          isMainFrame: (frame) =>
+            Boolean(
+              mainWindow && !mainWindow.isDestroyed() && frame === mainWindow.webContents.mainFrame,
+            ),
+          getSources: () =>
+            desktopCapturer.getSources({
+              types: ["screen"],
+              thumbnailSize: { width: 0, height: 0 },
+            }),
+          usesPortal: Boolean(
+            process.env.WAYLAND_DISPLAY || process.env.XDG_SESSION_TYPE === "wayland",
+          ),
+          chooseSource: async (names) => {
+            if (!names.length || !mainWindow || mainWindow.isDestroyed()) return -1;
+            const { response } = await dialog.showMessageBox(mainWindow, {
+              type: "question",
+              title: "Capture a screenshot",
+              message: "Choose a screen to save to your library",
+              buttons: ["Cancel", ...names],
+              defaultId: 0,
+              cancelId: 0,
+            });
+            return response - 1;
+          },
+        }),
+      );
+    }
     try {
       captureServer = await startCaptureServer({
         libraryDirectory,

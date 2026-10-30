@@ -300,7 +300,9 @@ export function useCapture({
 
   async function captureScreenshot() {
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      setCaptureError("Screenshot capture is not available in this window.");
+      setCaptureError(
+        "Screen capture is unavailable. Take a screenshot with your system tool, then paste it here or add it with File.",
+      );
       return;
     }
 
@@ -326,7 +328,13 @@ export function useCapture({
       await persistFile(file, "screenshot");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      setCaptureError(
+        error instanceof DOMException
+          ? "Screen capture was canceled or unavailable. You can paste a screenshot from your system tool, or add it with File."
+          : error instanceof Error
+            ? error.message
+            : String(error),
+      );
     } finally {
       stream?.getTracks().forEach((track) => {
         track.stop();

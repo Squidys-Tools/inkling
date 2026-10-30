@@ -28,6 +28,10 @@ Guardrails:
 
 ### Added
 
+- Local-video posters on Debian/Ubuntu through the system decoder, with bounded background WebP compression and thumbnail cache revalidation.
+- Stable / Beta and Nightly update channels, with separate verified download, cancellation and explicit installation on Windows and supported Linux packages.
+- Linux `.deb` and AppImage builds with desktop/protocol integration, consent-based screen capture, and packaged native OCR/PDF/model checks.
+
 - Right-click a card to read, open its link, copy its link, show it in its folder, or archive it, from a menu in the library's glass (#170)
 - Buttons show a short label on hover or keyboard focus, in the same glass as the controls around them (#170)
 - Settings → General → Open source licenses lists every shipped dependency, vendored component, and bundled model with its license text and source, searchable and filterable by license (#170)
@@ -75,6 +79,7 @@ Guardrails:
 
 - Card clicks, right-clicks and the keyboard menu key reach cards again on runtimes where the experimental liquid-glass canvas swallows input: those runtimes keep the DOM/CSS glass (#205)
 - The item details open and close as one motion: the item, its patterned background and the right panel move together instead of flying then settling separately (#205)
+- Linux Electron image processing uses the supported sharp WASM backend, and PDF rendering loads bundled fonts without the native system-font scan that can crash the app.
 - An open item takes over the whole library frame instead of floating inside it, so the grid/list toggle and the selected card no longer show around its edges, and its stage fills the frame with an even margin (#170)
 - List view thumbnails fill rows that grow taller than the artwork, instead of leaving a strip at the bottom (#170)
 - List view rows size to their text, so a tall photo or a short description no longer leaves a band of empty space above the footer (#170)

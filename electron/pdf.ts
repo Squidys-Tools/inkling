@@ -1,4 +1,7 @@
-import { type Canvas, createCanvas, DOMMatrix, ImageData, Path2D } from "@napi-rs/canvas";
+import type { Canvas } from "@napi-rs/canvas";
+import { dirname } from "node:path";
+import { pdfResourcePaths } from "./pdf-resources.ts";
+import { fileURLToPath } from "node:url";
 import type { PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 const maxCanvasEdge = 8192;
@@ -6,9 +9,29 @@ const maxCanvasPixels = 16_777_216;
 const maxThumbnailEdge = 512;
 const minTextLayerCharacters = 500;
 let pdfjsPromise: Promise<typeof import("pdfjs-dist/legacy/build/pdf.mjs")> | undefined;
+let canvasPromise: Promise<typeof import("@napi-rs/canvas")> | undefined;
+const pdfResources = dirname(fileURLToPath(import.meta.resolve("pdfjs-dist/package.json")));
+
+function nativeCanvas() {
+  return (canvasPromise ??= (async () => {
+    // Electron's Linux fontconfig initialization crashes the native font scan; use PDF fonts instead.
+    const skipFontScan = process.platform === "linux" && Boolean(process.versions.electron);
+    const previous = process.env.DISABLE_SYSTEM_FONTS_LOAD;
+    if (skipFontScan) process.env.DISABLE_SYSTEM_FONTS_LOAD = "1";
+    try {
+      return await import("@napi-rs/canvas");
+    } finally {
+      if (skipFontScan) {
+        if (previous === undefined) delete process.env.DISABLE_SYSTEM_FONTS_LOAD;
+        else process.env.DISABLE_SYSTEM_FONTS_LOAD = previous;
+      }
+    }
+  })());
+}
 
 async function pdfjs() {
   // pdf.js expects browser canvas globals; @napi-rs/canvas provides compatible ones.
+  const { DOMMatrix, ImageData, Path2D } = await nativeCanvas();
   const canvasGlobals = globalThis as Record<string, unknown>;
   canvasGlobals.DOMMatrix ??= DOMMatrix;
   canvasGlobals.ImageData ??= ImageData;
@@ -30,6 +53,7 @@ async function renderPage(page: PDFPageProxy) {
     Math.sqrt(maxCanvasPixels / (naturalViewport.width * naturalViewport.height)),
   );
   const viewport = page.getViewport({ scale });
+  const { createCanvas } = await nativeCanvas();
   const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
   await page.render(renderParameters(canvas, viewport)).promise;
   return canvas.toBuffer("image/png");
@@ -40,7 +64,9 @@ async function openDocument(bytes: Uint8Array) {
   const library = await pdfjs();
   const loadingTask = library.getDocument({
     data: new Uint8Array(bytes),
-    useSystemFonts: true,
+    useSystemFonts: process.platform !== "linux",
+    ...pdfResourcePaths(pdfResources),
+    cMapPacked: true,
   });
   return { library, loadingTask };
 }
@@ -67,6 +93,7 @@ async function renderFirstPageThumbnail(page: PDFPageProxy) {
   if (!isPositiveFinite(viewport.width) || !isPositiveFinite(viewport.height))
     throw new Error("PDF thumbnail size is not a finite positive number");
   const edge = (value: number) => Math.min(maxThumbnailEdge, Math.max(1, Math.round(value)));
+  const { createCanvas } = await nativeCanvas();
   const canvas = createCanvas(edge(viewport.width), edge(viewport.height));
   const context = canvas.getContext("2d");
   context.fillStyle = "#ffffff";

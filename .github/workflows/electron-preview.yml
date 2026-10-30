@@ -52,6 +52,9 @@ jobs:
               - 'bun.lock'
               - '.github/workflows/electron-preview.yml'
               - 'scripts/prepare-electron-models.mjs'
+              - 'scripts/linux-backend-smoke.mjs'
+              - 'scripts/linux-packaging.test.ts'
+              - 'patches/**'
               - 'electron/model-manifest.json'
 
   build:
@@ -181,6 +184,9 @@ jobs:
 
       - name: Build Electron directory
         run: bun run build:dir
+
+      - name: Check packaged Linux OCR, PDF and native models
+        run: bun scripts/linux-backend-smoke.mjs
 
       - name: Install X11 window probe
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y xdotool

@@ -81,8 +81,14 @@ function App() {
   const selectedItemId = selectedItem ? String(selectedItem.id) : null;
   const [isSidebarOpen, setIsSidebarOpen] = useSidebarOpen();
   const { isFirstRunOpen, setIsFirstRunOpen, finishFirstRun } = useFirstRun(canUseDesktopBackend);
-  const { availableUpdate, isInstallingUpdate, updateInstallFailed, handleInstallUpdate } =
-    useAppUpdate(canUseDesktopBackend);
+  const appUpdate = useAppUpdate(canUseDesktopBackend);
+  const {
+    availableUpdate,
+    isInstallingUpdate,
+    updateInstallFailed,
+    handleInstallUpdate,
+    updateState,
+  } = appUpdate;
   const { items, setItems, itemsRef, activeJobCount, debouncedQuery, noteBodyCacheRef, reload } =
     useLibraryData({
       canUseDesktopBackend,
@@ -522,19 +528,36 @@ function App() {
                   tone="update"
                   aria-live="polite"
                   disabled={isInstallingUpdate}
-                  data-tooltip={`Version ${availableUpdate.version} is ready. Inkling checks for updates when it opens; GitHub sees the app version but no library data. Selecting this downloads and installs the update, then restarts inkling.`}
-                  onClick={() => void handleInstallUpdate()}
+                  data-tooltip={
+                    updateState?.message ||
+                    (appUpdate.isReadyToInstall
+                      ? `Version ${updateState?.downloadedVersion} is downloaded. Select to restart and install. Linux may ask for system authorization.`
+                      : `Version ${availableUpdate.version} is available. Select to download; installation needs a separate Restart and install action.`)
+                  }
+                  onClick={() =>
+                    void (updateInstallFailed && updateState?.errorContext === "check"
+                      ? appUpdate.handleCheckForUpdates()
+                      : handleInstallUpdate())
+                  }
                 >
                   <HugeiconsIcon
                     icon={isInstallingUpdate ? Loading01Icon : RotateCwIcon}
                     size={15}
                   />
                   <span className={navLabelClass}>
-                    {isInstallingUpdate
-                      ? "Installing update..."
-                      : updateInstallFailed
-                        ? "Update failed · retry"
-                        : "Update available"}
+                    {updateState?.status === "installing"
+                      ? "Installing…"
+                      : updateState?.status === "downloading"
+                        ? `Downloading${updateState.progress == null ? "…" : ` ${Math.round(updateState.progress)}%`}`
+                        : isInstallingUpdate
+                          ? "Updating…"
+                          : appUpdate.isReadyToInstall
+                            ? "Restart and install"
+                            : updateInstallFailed
+                              ? updateState?.errorContext === "check"
+                                ? "Check failed · retry"
+                                : "Download failed · retry"
+                              : "Download update"}
                   </span>
                 </NavRow>
               )}
@@ -700,6 +723,7 @@ function App() {
           onTabChange={setSettingsTab}
           onClose={() => setIsSettingsOpen(false)}
           appVersion={appVersion}
+          update={appUpdate}
           appearance={appearance}
           onAppearanceChange={setAppearanceOption}
           onShowWelcome={() => {

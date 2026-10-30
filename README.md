@@ -111,7 +111,7 @@ Well no duh. Saving a fresh URL needs internet though, obviously.
 
 ### Working with the source
 
-**Windows** (that's the only platform for now).
+**Windows**, with Linux `.deb` and AppImage build targets for Debian/Ubuntu.
 
 1. Install [Bun](https://bun.sh) (the version in `.bun-version`).
 2. Clone this repo, then:
