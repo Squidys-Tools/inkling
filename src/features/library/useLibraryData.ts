@@ -24,6 +24,7 @@ import type { LibraryItem } from "../../lib/types";
 import { storedItemToLibraryItem } from "./libraryItem";
 import { demoSeedItems } from "./seed";
 import { errorMessage } from "../errorMessage";
+import { warmThumbnails } from "./thumbnailCache";
 
 type LibraryDataOptions = {
   canUseDesktopBackend: boolean;
@@ -148,6 +149,7 @@ export function useLibraryData({
         if (!cancelled) {
           seenChanges = changes;
           if (activeJobs !== null) setActiveJobCount(activeJobs);
+          warmThumbnails(libraryItems);
           setItems(libraryItems.map(withSessionState));
           syncSelectedItem(libraryItems);
         }
