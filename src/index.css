@@ -66,10 +66,6 @@
   }
 }
 
-:root {
-  --glass-filter: blur(18px) saturate(140%) brightness(0.7);
-}
-
 @layer base {
   :root {
     interpolate-size: allow-keywords;
