@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { MotionConfig } from "motion/react";
 import { isElectronRuntime, type StoredSpace } from "./lib/libraryApi";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
@@ -33,7 +33,7 @@ import { useHistory } from "./features/shell/useHistory";
 import { useMascotMood } from "./features/shell/useMascotMood";
 import { useSidebarOpen } from "./features/shell/useSidebarOpen";
 import "./features/shell/codex-sidebar.css";
-import { visibleLibraryItems } from "./features/spaces/smartQuery";
+import { useVisibleItems } from "./features/spaces/smartQuery";
 import { useSpaces } from "./features/spaces/useSpaces";
 import { Toaster } from "./ui/Toaster";
 import { TooltipLayer } from "./ui/Tooltip";
@@ -151,27 +151,17 @@ function App() {
     setIsSidebarOpen,
   });
 
-  const filteredItems = useMemo(
-    () =>
-      visibleLibraryItems(library.items, {
-        canUseDesktopBackend,
-        query,
-        activeView,
-        activeSpace: spaces.activeSpace,
-        localSpaceItems: spaces.localSpaceItems,
-      }),
-    [
-      spaces.activeSpace,
-      activeView,
+  const filteredItems = useVisibleItems(
+    library.items,
+    {
       canUseDesktopBackend,
-      library.items,
-      spaces.localSpaceItems,
       query,
-    ],
+      activeView,
+      activeSpace: spaces.activeSpace,
+      localSpaceItems: spaces.localSpaceItems,
+    },
+    filteredItemsRef,
   );
-  useLayoutEffect(() => {
-    filteredItemsRef.current = filteredItems;
-  }, [filteredItems]);
   // A pinned query has its own band above the grid, so the grid starts below it.
   // Only this boolean reaches the grid, so typing does not restyle it.
   const showFilterRow = !isSearchFocused && query.trim() !== "";

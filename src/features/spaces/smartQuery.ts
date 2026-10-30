@@ -1,3 +1,4 @@
+import { type RefObject, useLayoutEffect, useMemo } from "react";
 import type { SmartSpaceQuery, StoredSpace } from "../../lib/libraryApi";
 import type { LibraryItem } from "../../lib/types";
 
@@ -47,7 +48,7 @@ function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
 
 // The desktop backend already searched and listed the open Space, so only the
 // "Everything" view gate applies there; preview filters the seed items here.
-export function visibleLibraryItems(
+function visibleLibraryItems(
   items: LibraryItem[],
   {
     canUseDesktopBackend,
@@ -83,4 +84,28 @@ export function visibleLibraryItems(
         : false);
     return matchesQuery && matchesView;
   });
+}
+
+export function useVisibleItems(
+  items: LibraryItem[],
+  scope: Parameters<typeof visibleLibraryItems>[1],
+  visibleItemsRef: RefObject<LibraryItem[]>,
+) {
+  const { canUseDesktopBackend, query, activeView, activeSpace, localSpaceItems } = scope;
+  const visibleItems = useMemo(
+    () =>
+      visibleLibraryItems(items, {
+        canUseDesktopBackend,
+        query,
+        activeView,
+        activeSpace,
+        localSpaceItems,
+      }),
+    [activeSpace, activeView, canUseDesktopBackend, items, localSpaceItems, query],
+  );
+  // Selection and history read the grid's list from event handlers, after render.
+  useLayoutEffect(() => {
+    visibleItemsRef.current = visibleItems;
+  }, [visibleItems, visibleItemsRef]);
+  return visibleItems;
 }
