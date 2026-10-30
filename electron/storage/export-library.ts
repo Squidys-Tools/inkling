@@ -179,10 +179,10 @@ export function makeExport(ctx: StorageContext) {
   });
 
   const exportLibrary = Effect.fnUntraced(function* (
-    destination: unknown,
-    timezoneOffsetMinutes: unknown = new Date().getTimezoneOffset(),
+    destination: string,
+    timezoneOffsetMinutes = new Date().getTimezoneOffset(),
   ) {
-    const target = resolve(String(destination ?? ""));
+    const target = resolve(destination);
     const targetInfo = yield* attempt(() => stat(target)).pipe(
       Effect.catch(() => invalidInput("choose an existing folder to export into")),
     );
@@ -193,7 +193,7 @@ export function makeExport(ctx: StorageContext) {
     if (isInside(realTarget, assetsRoot))
       return yield* invalidInput("choose a folder outside inkling's own asset store");
     const exportedAt = Date.now();
-    const stamp = exportDateStamp(exportedAt - Number(timezoneOffsetMinutes || 0) * 60_000);
+    const stamp = exportDateStamp(exportedAt - (timezoneOffsetMinutes || 0) * 60_000);
     let directory = join(target, `inkling-export-${stamp}`);
     for (let index = 2; yield* attempt(() => exists(directory)); index += 1) {
       if (index >= 1000)

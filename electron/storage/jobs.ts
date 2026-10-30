@@ -221,10 +221,10 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
   ) {
     const job = yield* owned(jobId, workerId);
     if (!job) return false;
-    const progressCurrent = Math.max(0, Number(current) || 0);
-    const progressTotal = total == null ? null : Math.max(progressCurrent, Number(total) || 0);
+    const progressCurrent = Math.max(0, current || 0);
+    const progressTotal = total == null ? null : Math.max(progressCurrent, total || 0);
     const updated = yield* sql`UPDATE jobs SET progress_current = ${progressCurrent},
-      progress_total = ${progressTotal}, progress_message = ${message == null ? null : String(message)}
+      progress_total = ${progressTotal}, progress_message = ${message}
       WHERE id = ${jobId} AND status = 'processing' AND worker_id = ${workerId}`.raw;
     if (!changes(updated)) return false;
     yield* announce(job);

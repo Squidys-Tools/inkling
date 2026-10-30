@@ -445,10 +445,8 @@ export function makeImport(ctx: StorageContext) {
     return { ...report, unverifiedAssetFiles } satisfies LibraryImportReport;
   });
 
-  const importLibrary = Effect.fnUntraced(function* (exportDirectory: unknown) {
-    const exportRoot = yield* attempt(() =>
-      realpath(String(exportDirectory ?? "")).catch(() => null),
-    );
+  const importLibrary = Effect.fnUntraced(function* (exportDirectory: string) {
+    const exportRoot = yield* attempt(() => realpath(exportDirectory).catch(() => null));
     if (!exportRoot) return yield* invalidInput("choose an existing Inkling export folder");
     const exportInfo = yield* attempt(() => stat(exportRoot));
     if (!exportInfo.isDirectory())

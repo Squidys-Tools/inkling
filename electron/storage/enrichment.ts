@@ -56,11 +56,11 @@ export function makeEnrichment(ctx: StorageContext) {
     const parsed = parseJson<unknown>(row.metadata, {});
     const metadata = isMetadata(parsed) ? parsed : {};
     delete metadata.ocrText;
-    metadata.ocrEngine = String(engine);
+    metadata.ocrEngine = engine;
     metadata.ocrCompletedAt = Date.now();
     // Leaves updated_at alone: the library sorts by it, and background OCR
     // finishing should not move a card the user did not touch.
-    yield* sql`UPDATE items SET ocr_text = ${String(text)}, metadata = ${JSON.stringify(metadata)}
+    yield* sql`UPDATE items SET ocr_text = ${text}, metadata = ${JSON.stringify(metadata)}
       WHERE id = ${id}`;
   });
 
