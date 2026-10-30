@@ -83,6 +83,7 @@
     "dompurify": "^3.4.17",
     "effect": "4.0.6",
     "electron-updater": "6.8.11",
+    "entities": "^7.0.1",
     "gsap": "^3.15.0",
     "linkedom": "0.18.13",
     "motion": "^14.6.0",

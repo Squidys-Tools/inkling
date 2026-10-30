@@ -64,6 +64,8 @@ describe("markdownToPlainText", () => {
   test("decodes HTML entities to their text", () => {
     expect(markdownToPlainText("&lt;div&gt;hello&lt;/div&gt;")).toBe("<div>hello</div>");
     expect(markdownToPlainText("5 &gt; 3 and 2 &lt; 4 &amp; 1")).toBe("5 > 3 and 2 < 4 & 1");
+    expect(markdownToPlainText("I &hearts; &#x41;&#66;")).toBe("I ♥ AB");
+    expect(markdownToPlainText("salt &amp pepper")).toBe("salt &amp pepper");
   });
 
   test("decodes entities exactly once", () => {
