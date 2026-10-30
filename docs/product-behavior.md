@@ -1,4 +1,4 @@
-# Personal Library Product Behavior Specification
+# Product behavior
 
 ## Product definition
 
