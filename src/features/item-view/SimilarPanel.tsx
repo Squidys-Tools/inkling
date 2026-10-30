@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { LibraryItem } from "../../lib/types";
 import { cx } from "../../ui/cx";
 import { ItemTitle } from "./ItemTitle";
@@ -154,4 +155,37 @@ export function SimilarPanel({
       )}
     </>
   );
+}
+
+// Looks up similar items while the Similar tab is open. Reloads only when the
+// shown item changes, not on every edit to its record.
+export function useSimilarItems(
+  item: LibraryItem,
+  open: boolean,
+  load: (item: LibraryItem) => Promise<LibraryItem[]>,
+) {
+  // Tied to the item's id so a stale list never shows for another item.
+  const [similar, setSimilar] = useState<{ itemId: string; items: LibraryItem[] } | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const itemId = String(item.id);
+    let cancelled = false;
+    load(item).then(
+      (items) => {
+        if (!cancelled)
+          setSimilar({
+            itemId,
+            items: items.filter((candidate) => String(candidate.id) !== itemId),
+          });
+      },
+      () => {
+        if (!cancelled) setSimilar({ itemId, items: [] });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Keyed on the item ID; the lookup reads the item it was started for.
+  }, [open, item.id]);
+  return similar?.itemId === String(item.id) ? similar.items : null;
 }

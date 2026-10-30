@@ -391,7 +391,6 @@ export function useItemFlight({
   actionsRef.current = actions;
 
   return {
-    actionsRef,
     layerRef,
     dialogRef,
     closeButtonRef,

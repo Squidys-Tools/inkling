@@ -19,7 +19,7 @@ import { ItemActionBar } from "./ItemActionBar";
 import { ItemStageMedia } from "./ItemStageMedia";
 import { itemViewTitle } from "./ItemTitle";
 import type { SourceRects } from "./overlayMotion";
-import { SimilarPanel } from "./SimilarPanel";
+import { SimilarPanel, useSimilarItems } from "./SimilarPanel";
 import { useItemFlight } from "./useItemFlight";
 
 const RichNoteEditor = lazy(() =>
@@ -83,8 +83,6 @@ export function ItemView({
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("info");
-  // The similar items for one item. Tied to its id so a stale list never shows for another item.
-  const [similar, setSimilar] = useState<{ itemId: string; items: LibraryItem[] } | null>(null);
   const isEditingNoteRef = useRef(false);
   const isFocusModeRef = useRef(false);
 
@@ -100,7 +98,6 @@ export function ItemView({
     setIsFocusMode(false);
   }, []);
   const {
-    actionsRef,
     layerRef,
     dialogRef,
     closeButtonRef,
@@ -178,29 +175,11 @@ export function ItemView({
     setInspectorTab("info");
   }
 
-  // Looks up similar items when the Similar tab is open. Reloads only when the
-  // shown item changes, not on every edit to its record.
-  useEffect(() => {
-    if (inspectorTab !== "similar") return;
-    const itemId = String(shownItem.id);
-    let cancelled = false;
-    actionsRef.current.onLoadSimilar(shownItem).then(
-      (items) => {
-        if (!cancelled)
-          setSimilar({
-            itemId,
-            items: items.filter((candidate) => String(candidate.id) !== itemId),
-          });
-      },
-      () => {
-        if (!cancelled) setSimilar({ itemId, items: [] });
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Keyed on the item ID; the lookup reads the item it was started for.
-  }, [inspectorTab, shownItem.id]);
+  const similarItems = useSimilarItems(
+    shownItem,
+    inspectorTab === "similar",
+    actions.onLoadSimilar,
+  );
 
   const isFlying = flight !== null;
   const placedStyle: CSSProperties | undefined =
@@ -215,7 +194,6 @@ export function ItemView({
 
   const isEditingNoteView = isEditingNote && shownItem.kind === "Note";
   const isFocusModeView = isFocusMode && isEditingNoteView;
-  const similarItems = similar?.itemId === String(shownItem.id) ? similar.items : null;
   const memberSpaces = spaces?.filter((space) => space.member) ?? [];
 
   // Classes that override each other are picked here rather than stacked as
