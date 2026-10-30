@@ -10,10 +10,10 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { Effect, Option, Schema } from "effect";
 import type { LibraryExportReport } from "@inkling/contracts";
 import type { StorageContext } from "./context.ts";
+import { withDatabaseFile } from "./database-file.ts";
 import { attempt, invalidInput, storageFailure } from "./errors.ts";
 import { SCHEMA_VERSION } from "./schema.ts";
 import { isInside, isMissing, isSafeItemId, sha256File } from "./shared.ts";
@@ -83,23 +83,6 @@ const exists = (path: string) =>
     () => false,
   );
 
-function readSnapshotCounts(databasePath: string) {
-  const snapshot = new DatabaseSync(databasePath, { readOnly: true });
-  try {
-    const count = (query: string) => Number(snapshot.prepare(query).get()?.count ?? 0);
-    return {
-      itemIds: snapshot
-        .prepare("SELECT id FROM items")
-        .all()
-        .map((row) => String(row.id)),
-      archivedItems: count("SELECT COUNT(*) AS count FROM items WHERE archived = 1"),
-      spaces: count("SELECT COUNT(*) AS count FROM spaces"),
-    };
-  } finally {
-    snapshot.close();
-  }
-}
-
 export function makeExport(ctx: StorageContext) {
   const { sql } = ctx;
 
@@ -113,10 +96,22 @@ export function makeExport(ctx: StorageContext) {
     const createSnapshot = ctx.media.createSnapshot;
     if (createSnapshot) yield* attempt(() => createSnapshot(ctx.databasePath, databasePath));
     else yield* sql`VACUUM INTO ${databasePath}`;
-    const { itemIds, archivedItems, spaces } = yield* Effect.try({
-      try: () => readSnapshotCounts(databasePath),
-      catch: (cause) => cause,
-    });
+    const { itemIds, archivedItems, spaces } = yield* withDatabaseFile(
+      { filename: databasePath, readonly: true },
+      (snapshot) => {
+        const count = ([row]: ReadonlyArray<{ count: number }>) => Number(row?.count ?? 0);
+        return Effect.all({
+          itemIds: snapshot<{ id: string }>`SELECT id FROM items`.pipe(
+            Effect.map((rows) => rows.map((row) => row.id)),
+          ),
+          archivedItems: snapshot<{ count: number }>`SELECT COUNT(*) AS count FROM items
+            WHERE archived = 1`.pipe(Effect.map(count)),
+          spaces: snapshot<{ count: number }>`SELECT COUNT(*) AS count FROM spaces`.pipe(
+            Effect.map(count),
+          ),
+        });
+      },
+    );
     const databaseBytes = (yield* attempt(() => stat(databasePath))).size;
     const copied: Copied = { assetFiles: [], skippedAssets: [], assetsBytes: 0 };
     yield* attempt(async () => {
