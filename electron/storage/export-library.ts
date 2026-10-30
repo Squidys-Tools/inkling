@@ -10,22 +10,27 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { Effect } from "effect";
-import type { LastExport, LibraryExportReport } from "@inkling/contracts";
+import { Effect, Option, Schema } from "effect";
+import type { LibraryExportReport } from "@inkling/contracts";
 import type { StorageContext } from "./context.ts";
+import { withDatabaseFile } from "./database-file.ts";
 import { attempt, invalidInput, storageFailure } from "./errors.ts";
 import { SCHEMA_VERSION } from "./schema.ts";
-import { isInside, isMissing, isSafeItemId, parseJson, sha256File } from "./shared.ts";
+import { isInside, isMissing, isSafeItemId, sha256File } from "./shared.ts";
+
+const LastExportJson = Schema.fromJsonString(
+  Schema.Struct({ exportedAt: Schema.Finite, items: Schema.Int }),
+);
+const decodeLastExport = Schema.decodeUnknownOption(LastExportJson);
+const encodeLastExport = Schema.encodeSync(LastExportJson);
 
 type AssetFile = { path: string; byteLength: number; sha256: string };
 type SkippedAsset = { path: string; error: string };
 type Copied = { assetFiles: AssetFile[]; skippedAssets: SkippedAsset[]; assetsBytes: number };
 
 function exportDateStamp(millis: number) {
-  const date = new Date(millis);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}-${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}`;
+  const iso = new Date(millis).toISOString();
+  return `${iso.slice(0, 10)}-${iso.slice(11, 19).replaceAll(":", "")}`;
 }
 
 async function copyFileAtomically(source: string, destination: string) {
@@ -71,40 +76,43 @@ async function copyDirectory(
   }
 }
 
+async function copyItemAssets(
+  assetsDirectory: string,
+  destination: string,
+  itemIds: ReadonlyArray<string>,
+) {
+  const copied: Copied = { assetFiles: [], skippedAssets: [], assetsBytes: 0 };
+  for (const id of itemIds) {
+    if (!isSafeItemId(id)) continue;
+    const source = join(assetsDirectory, id);
+    const info = await stat(source).catch((error) =>
+      isMissing(error) ? null : Promise.reject(error),
+    );
+    if (!info) continue;
+    if (!info.isDirectory()) {
+      copied.skippedAssets.push({
+        path: `assets/items/${id}`,
+        error: "asset path is not a directory",
+      });
+      continue;
+    }
+    await copyDirectory(source, join(destination, id), `assets/items/${id}`, copied);
+  }
+  return copied;
+}
+
 const exists = (path: string) =>
   stat(path).then(
     () => true,
     () => false,
   );
 
-function readSnapshotCounts(databasePath: string) {
-  const snapshot = new DatabaseSync(databasePath, { readOnly: true });
-  try {
-    const count = (query: string) => Number(snapshot.prepare(query).get()?.count ?? 0);
-    return {
-      itemIds: snapshot
-        .prepare("SELECT id FROM items")
-        .all()
-        .map((row) => String(row.id)),
-      archivedItems: count("SELECT COUNT(*) AS count FROM items WHERE archived = 1"),
-      spaces: count("SELECT COUNT(*) AS count FROM spaces"),
-    };
-  } finally {
-    snapshot.close();
-  }
-}
-
 export function makeExport(ctx: StorageContext) {
   const { sql } = ctx;
 
   const getLastExport = () =>
     sql<{ value: string }>`SELECT value FROM app_settings WHERE key = 'last_export'`.pipe(
-      Effect.map(([row]): LastExport | null => {
-        const value = parseJson<{ exportedAt?: unknown; items?: unknown } | null>(row?.value, null);
-        if (!value || !Number.isFinite(value.exportedAt) || !Number.isInteger(value.items))
-          return null;
-        return { exportedAt: Number(value.exportedAt), items: Number(value.items) };
-      }),
+      Effect.map(([row]) => Option.getOrNull(decodeLastExport(row?.value))),
     );
 
   const writeExport = Effect.fnUntraced(function* (directory: string, exportedAt: number) {
@@ -112,35 +120,26 @@ export function makeExport(ctx: StorageContext) {
     const createSnapshot = ctx.media.createSnapshot;
     if (createSnapshot) yield* attempt(() => createSnapshot(ctx.databasePath, databasePath));
     else yield* sql`VACUUM INTO ${databasePath}`;
-    const { itemIds, archivedItems, spaces } = yield* Effect.try({
-      try: () => readSnapshotCounts(databasePath),
-      catch: (cause) => cause,
-    });
+    const { itemIds, archivedItems, spaces } = yield* withDatabaseFile(
+      { filename: databasePath, readonly: true },
+      (snapshot) => {
+        const count = ([row]: ReadonlyArray<{ count: number }>) => Number(row?.count ?? 0);
+        return Effect.all({
+          itemIds: snapshot<{ id: string }>`SELECT id FROM items`.pipe(
+            Effect.map((rows) => rows.map((row) => row.id)),
+          ),
+          archivedItems: snapshot<{ count: number }>`SELECT COUNT(*) AS count FROM items
+            WHERE archived = 1`.pipe(Effect.map(count)),
+          spaces: snapshot<{ count: number }>`SELECT COUNT(*) AS count FROM spaces`.pipe(
+            Effect.map(count),
+          ),
+        });
+      },
+    );
     const databaseBytes = (yield* attempt(() => stat(databasePath))).size;
-    const copied: Copied = { assetFiles: [], skippedAssets: [], assetsBytes: 0 };
-    yield* attempt(async () => {
-      for (const id of itemIds) {
-        if (!isSafeItemId(id)) continue;
-        const source = join(ctx.assetsDirectory, id);
-        const info = await stat(source).catch((error) =>
-          isMissing(error) ? null : Promise.reject(error),
-        );
-        if (!info) continue;
-        if (!info.isDirectory()) {
-          copied.skippedAssets.push({
-            path: `assets/items/${id}`,
-            error: "asset path is not a directory",
-          });
-          continue;
-        }
-        await copyDirectory(
-          source,
-          join(directory, "assets", "items", id),
-          `assets/items/${id}`,
-          copied,
-        );
-      }
-    });
+    const copied = yield* attempt(() =>
+      copyItemAssets(ctx.assetsDirectory, join(directory, "assets", "items"), itemIds),
+    );
     const manifest = {
       format: "inkling-export",
       formatVersion: 1,
@@ -172,17 +171,17 @@ export function makeExport(ctx: StorageContext) {
       databaseBytes,
       assetsBytes: copied.assetsBytes,
     };
-    const lastExport = JSON.stringify({ exportedAt, items: report.items });
+    const lastExport = encodeLastExport({ exportedAt, items: report.items });
     yield* sql`INSERT INTO app_settings (key, value) VALUES ('last_export', ${lastExport})
       ON CONFLICT(key) DO UPDATE SET value = excluded.value`;
     return report;
   });
 
   const exportLibrary = Effect.fnUntraced(function* (
-    destination: unknown,
-    timezoneOffsetMinutes: unknown = new Date().getTimezoneOffset(),
+    destination: string,
+    timezoneOffsetMinutes = new Date().getTimezoneOffset(),
   ) {
-    const target = resolve(String(destination ?? ""));
+    const target = resolve(destination);
     const targetInfo = yield* attempt(() => stat(target)).pipe(
       Effect.catch(() => invalidInput("choose an existing folder to export into")),
     );
@@ -193,7 +192,7 @@ export function makeExport(ctx: StorageContext) {
     if (isInside(realTarget, assetsRoot))
       return yield* invalidInput("choose a folder outside inkling's own asset store");
     const exportedAt = Date.now();
-    const stamp = exportDateStamp(exportedAt - Number(timezoneOffsetMinutes || 0) * 60_000);
+    const stamp = exportDateStamp(exportedAt - (timezoneOffsetMinutes || 0) * 60_000);
     let directory = join(target, `inkling-export-${stamp}`);
     for (let index = 2; yield* attempt(() => exists(directory)); index += 1) {
       if (index >= 1000)

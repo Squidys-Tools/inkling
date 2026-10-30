@@ -1,16 +1,17 @@
 import { Effect } from "effect";
 import type { StoredLibraryCard } from "@inkling/contracts";
 import { IMAGE_MODEL, TEXT_MODEL } from "../embedding-contract.ts";
-import { selectCards, type StorageContext } from "./context.ts";
-import { invalidInput } from "./errors.ts";
+import type { StorageContext } from "./context.ts";
 import {
   cardItem,
-  clampLimit,
-  type ItemRow,
   itemColumns,
   itemFromRow,
+  type ItemRow,
   qualifiedItemColumns,
-} from "./shared.ts";
+  selectCards,
+} from "./rows.ts";
+import { clampLimit } from "./shared.ts";
+import { invalidInput } from "./errors.ts";
 
 const semanticMatchFloor = 0.55;
 
@@ -27,14 +28,14 @@ export function escapeFtsQuery(query: string) {
     .join(" ");
 }
 
-function decodeFloatVector(blob: Uint8Array | null, dimension: number) {
-  if (!blob || blob.byteLength !== dimension * 4) return null;
+function decodeFloatVector(blob: Uint8Array, dimension: number) {
+  if (blob.byteLength !== dimension * 4) return null;
   const bytes = Buffer.from(blob.buffer, blob.byteOffset, blob.byteLength);
   return Array.from({ length: dimension }, (_, index) => bytes.readFloatLE(index * 4));
 }
 
+// Callers skip vectors whose length differs from the query's.
 function dotProduct(left: ArrayLike<number>, right: ArrayLike<number>) {
-  if (left.length !== right.length) return Number.NEGATIVE_INFINITY;
   let score = 0;
   for (let index = 0; index < left.length; index += 1) score += left[index] * right[index];
   return score;
@@ -68,17 +69,17 @@ export function makeSearch(ctx: StorageContext) {
       return yield* invalidInput("embedding vector dimension does not match its bytes");
     }
     yield* sql`INSERT INTO item_embeddings (item_id, kind, model, dimension, vector, created_at)
-      VALUES (${itemId}, ${kind}, ${String(model)}, ${dimension}, ${vector}, ${Date.now()})
+      VALUES (${itemId}, ${kind}, ${model}, ${dimension}, ${vector}, ${Date.now()})
       ON CONFLICT(item_id, kind) DO UPDATE SET model = excluded.model,
       dimension = excluded.dimension, vector = excluded.vector, created_at = excluded.created_at`;
   });
 
   const searchItems = Effect.fnUntraced(function* (
-    query: unknown,
-    limit: unknown = 100,
+    query: string,
+    limit = 100,
     queryVector: QueryVector = null,
   ) {
-    const search = String(query ?? "").trim();
+    const search = query.trim();
     const cap = clampLimit(limit, 100, 200);
     if (!search) return yield* selectCards(ctx, sql`archived = 0`, cap);
     let rows: ReadonlyArray<ItemRow> = [];
@@ -125,7 +126,7 @@ export function makeSearch(ctx: StorageContext) {
   const searchSimilar = Effect.fnUntraced(function* (
     itemId: string,
     kind: "image" | "text",
-    limit: unknown = 12,
+    limit = 12,
   ) {
     const model = kind === "image" ? IMAGE_MODEL : TEXT_MODEL;
     const [source] = yield* sql<{ dimension: number; vector: Uint8Array }>`SELECT dimension, vector

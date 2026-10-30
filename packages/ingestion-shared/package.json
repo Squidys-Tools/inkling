@@ -12,7 +12,6 @@
   },
   "scripts": {
     "typecheck": "tsc-rs --noEmit -p tsconfig.json",
-    "typecheck:tsc": "tsc --noEmit -p tsconfig.json",
     "test": "bun test src/"
   }
 }

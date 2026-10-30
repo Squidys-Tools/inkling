@@ -2,117 +2,17 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { isAbsolute, relative, sep } from "node:path";
 import { Effect, Predicate } from "effect";
-import type { StoredLibraryCard, StoredLibraryItemDetail } from "@inkling/contracts";
 import { invalidInput } from "./errors.ts";
-
-export type ItemRow = {
-  id: string;
-  kind: string;
-  title: string | null;
-  description: string | null;
-  body: string | null;
-  body_format: string | null;
-  source_url: string | null;
-  source_label: string | null;
-  local_asset_path: string | null;
-  thumbnail_path: string | null;
-  ocr_text: string;
-  metadata: string;
-  created_at: number;
-  updated_at: number;
-  archived: number;
-};
 
 export type Metadata = Record<string, unknown>;
 
-export const itemColumns = `id, kind, title, description, source_url, source_label,
-  local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
-  archived, NULL AS body, 'md' AS body_format`;
-export const detailColumns = itemColumns.replace(
-  "NULL AS body, 'md' AS body_format",
-  "body, body_format",
-);
-export const qualifiedItemColumns = `i.id, i.kind, i.title, i.description, i.source_url, i.source_label,
-  i.local_asset_path, i.thumbnail_path, i.ocr_text, i.metadata, i.created_at, i.updated_at,
-  i.archived, NULL AS body, 'md' AS body_format`;
-const cardMetadataFields = [
-  "tags",
-  "social",
-  "imageUrls",
-  "imageDimensions",
-  "mediaWidth",
-  "mediaHeight",
-  "mediaAspectRatio",
-  "pdfPageCount",
-];
-
-export function parseJson<T>(value: unknown, fallback: T): T {
+export function parseJson<T>(text: string, fallback: T): T {
   try {
-    return JSON.parse(String(value));
+    return JSON.parse(text);
   } catch {
     return fallback;
   }
 }
-
-export const isMetadata = (value: unknown): value is Metadata =>
-  Predicate.isObject(value) && !Array.isArray(value);
-
-export const parseObject = Effect.fnUntraced(function* (value: unknown, label = "metadata") {
-  if (value == null) return {} as Metadata;
-  if (!isMetadata(value)) return yield* invalidInput(`${label} must be a JSON object`);
-  return value;
-});
-
-export function itemFromRow(row: ItemRow): StoredLibraryItemDetail {
-  const metadata = parseJson<unknown>(row.metadata, {});
-  const fields = isMetadata(metadata) ? metadata : {};
-  return {
-    id: row.id,
-    kind: row.kind,
-    title: row.title,
-    description: row.description,
-    body: row.body ?? "",
-    bodyFormat: row.body_format ?? "md",
-    sourceUrl: row.source_url,
-    sourceLabel: row.source_label,
-    localAssetPath: row.local_asset_path,
-    thumbnailPath: row.thumbnail_path,
-    ocrText: row.ocr_text,
-    metadata: fields,
-    palette: Array.isArray(fields.palette) ? fields.palette : undefined,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    archived: row.archived !== 0,
-  };
-}
-
-export function cardItem(item: StoredLibraryItemDetail): StoredLibraryCard {
-  const metadata = item.metadata;
-  const cardMetadata: Metadata = {};
-  for (const field of cardMetadataFields) {
-    if (Object.hasOwn(metadata, field)) cardMetadata[field] = metadata[field];
-  }
-  return {
-    id: item.id,
-    kind: item.kind,
-    title: item.title,
-    description: item.description,
-    sourceUrl: item.sourceUrl,
-    sourceLabel: item.sourceLabel,
-    localAssetPath: item.localAssetPath,
-    thumbnailPath: item.thumbnailPath,
-    palette: Array.isArray(metadata.palette) ? metadata.palette : undefined,
-    ocrText: String(item.ocrText ?? "")
-      .trim()
-      .slice(0, 180),
-    metadata: cardMetadata,
-    createdAt: item.createdAt,
-    archived: item.archived,
-    hasArticleContent: typeof metadata.html === "string" && Boolean(metadata.html.trim()),
-  };
-}
-
-export const cardFromRow = (row: ItemRow) => cardItem(itemFromRow(row));
 
 export function nonEmpty(value: unknown) {
   if (typeof value !== "string") return null;
@@ -143,6 +43,7 @@ export const normalizeHttpUrl = Effect.fnUntraced(function* (value: unknown) {
   return url.toString();
 });
 
+// `src/lib/notes.ts` has a second copy; change both together. It explains how they differ.
 export function markdownToPlainText(markdown: string) {
   return markdown
     .replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
@@ -164,21 +65,9 @@ export function markdownToPlainText(markdown: string) {
     .replace(/ \?/g, "?");
 }
 
-export const validateItemId = Effect.fnUntraced(function* (id: unknown) {
-  const value = String(id ?? "").trim();
-  if (value.length < 1 || value.length > 128) {
-    return yield* invalidInput("item id must contain 1 to 128 characters");
-  }
-  if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
-    return yield* invalidInput("item id contains unsupported characters");
-  }
-  return value;
-});
-
 export const isSafeItemId = (id: string) => /^[a-zA-Z0-9_-]{1,128}$/.test(id);
 
-export function clampLimit(value: unknown, fallback: number, maximum: number) {
-  const limit = Number(value);
+export function clampLimit(limit: number, fallback: number, maximum: number) {
   return Number.isFinite(limit) ? Math.min(maximum, Math.max(1, Math.trunc(limit))) : fallback;
 }
 

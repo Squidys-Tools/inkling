@@ -38,12 +38,6 @@
       "runOnWorktreeCreate": false
     },
     {
-      "name": "UI smoke",
-      "command": "bun run ui:smoke",
-      "icon": "test",
-      "runOnWorktreeCreate": false
-    },
-    {
       "name": "Check everything",
       "command": "bun run check",
       "icon": "test",
@@ -76,12 +70,6 @@
     {
       "name": "Ingestion smoke",
       "command": "bun run ingest:smoke",
-      "icon": "test",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "PDF smoke",
-      "command": "bun run test:pdf",
       "icon": "test",
       "runOnWorktreeCreate": false
     },

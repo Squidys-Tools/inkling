@@ -7,25 +7,23 @@ Index of project documentation. Product docs describe what inkling is; operation
 - [product.md](product.md) — who it's for and why it exists.
 - [product-behavior.md](product-behavior.md) — how each feature should behave.
 - [design.md](design.md) — visual system.
-- [models.md](models.md) — local model choices.
+- [models.md](models.md) — the embedding models and how the app loads them.
 
 ## Architecture
 
-- [tech-stack.md](tech-stack.md) — Electron + React + Node.js + SQLite decisions and reasoning.
+- [tech-stack.md](tech-stack.md) — the stack and the reasons for it.
 
 ## Planning
 
 - [roadmap.md](roadmap.md) — milestones and status.
 - [bugs.md](bugs.md) — open defects with severity and where the code is. Start here when picking up unfinished work.
-- [changelog.md](changelog.md) — completed work; append under `Unreleased` (`Added`/`Changed`/`Fixed`/`Removed`). See its header for the format.
+- [changelog.md](changelog.md) — completed work. Its header has the rules for new entries.
 
 ## Contributor operations
 
-- [operations/development.md](operations/development.md) — setup, commands, checks, CI behavior, troubleshooting (full reference).
-- `CONTRIBUTING.md` (repo root) — contribution scope and PR expectations.
+- [operations/development.md](operations/development.md) — setup, commands, checks, CI and releases.
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — which contributions we take and what a PR needs.
+- [benchmarks/README.md](../benchmarks/README.md) — the extraction and OCR benchmark corpus and harness.
+- [extension/README.md](../extension/README.md) — loading and pairing the Chrome extension.
 
-## Where new docs go
-
-- User-facing how-tos: `docs/` next to the product docs above.
-- Maintainer procedures (setup, checks, release): `docs/operations/`.
-- Architecture decisions and constraints: alongside `tech-stack.md` or the relevant product doc — not in a separate internals tree until the repo outgrows this index.
+[AGENTS.md](../AGENTS.md) says which doc owns which kind of fact.

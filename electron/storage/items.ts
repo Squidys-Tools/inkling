@@ -7,11 +7,11 @@ import type {
   CaptureUrlInput,
   CreateNoteInput,
   CreateQuoteInput,
+  SaveFileInput,
   UpdateItemInput,
 } from "@inkling/contracts";
-import { selectCards, readItem, type StorageContext } from "./context.ts";
-import { attempt, invalidInput, itemNotFound } from "./errors.ts";
-import { IMAGE_THUMBNAIL_JOB, URL_ENRICHMENT_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
+import type { StorageContext } from "./context.ts";
+import { readItem, selectCards } from "./rows.ts";
 import {
   changes,
   isInside,
@@ -21,22 +21,14 @@ import {
   type Metadata,
   nonEmpty,
   normalizeHttpUrl,
-  parseObject,
-  validateItemId,
 } from "./shared.ts";
+import { attempt, invalidInput, itemNotFound } from "./errors.ts";
+import { IMAGE_THUMBNAIL_JOB, URL_ENRICHMENT_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
 
 const maxFileBytes = 50 * 1024 * 1024;
 
-export type SaveFile = {
-  id?: string;
-  fileName: string;
-  mimeType?: string | null;
-  kind?: string | null;
-  bytes: unknown;
-};
-
-const sanitizeFileName = Effect.fnUntraced(function* (value: unknown) {
-  let name = Array.from(String(value ?? "").trim(), (character) =>
+const sanitizeFileName = Effect.fnUntraced(function* (value: string) {
+  let name = Array.from(value.trim(), (character) =>
     /[\\/:*?"<>|]/.test(character) || /\p{Cc}/u.test(character) ? "_" : character,
   ).join("");
   while (name.endsWith(".") || name.endsWith(" ")) name = name.slice(0, -1);
@@ -61,7 +53,7 @@ const fileInputBuffer = Effect.fnUntraced(function* (value: unknown) {
 });
 
 const normalizeFileKind = Effect.fnUntraced(function* (
-  kind: unknown,
+  kind: string | null | undefined,
   mimeType: string | null,
   fileName: string,
 ) {
@@ -86,13 +78,6 @@ const normalizeFileKind = Effect.fnUntraced(function* (
   return "file";
 });
 
-const ensureArrayMetadata = Effect.fnUntraced(function* (metadata: Metadata, key: string) {
-  if (!(key in metadata)) metadata[key] = [];
-  if (!Array.isArray(metadata[key])) {
-    return yield* invalidInput(`metadata.${key} must be a JSON array`);
-  }
-});
-
 const relativeAssetPath = (path: string) => `assets/${path.split(sep).join("/")}`;
 
 export function makeItems(ctx: StorageContext) {
@@ -104,35 +89,8 @@ export function makeItems(ctx: StorageContext) {
       Effect.flatMap((item) => (item ? Effect.succeed(item) : Effect.fail(itemNotFound(id)))),
     );
 
-  const saveUrl = Effect.fnUntraced(function* (input: {
-    sourceUrl: string;
-    title: string;
-    metadata: Metadata;
-  }) {
-    const sourceUrl = yield* normalizeHttpUrl(input.sourceUrl);
-    const sourceLabel = new URL(sourceUrl).hostname;
-    const metadata = input.metadata;
-    if (!("sourceUrl" in metadata)) metadata.sourceUrl = sourceUrl;
-    if (!("text" in metadata)) metadata.text = "";
-    for (const key of ["imageUrls", "imageDimensions", "safeEmbeds"])
-      yield* ensureArrayMetadata(metadata, key);
-    if (!("html" in metadata)) metadata.html = "";
-    const id = randomUUID();
-    const now = Date.now();
-    yield* sql.withTransaction(
-      Effect.gen(function* () {
-        yield* sql`INSERT INTO items (id, kind, title, description, body, body_format, source_url,
-          source_label, metadata, ocr_text, created_at, updated_at)
-          VALUES (${id}, 'url', ${input.title}, NULL, '', '', ${sourceUrl}, ${sourceLabel},
-          ${JSON.stringify(metadata)}, '', ${now}, ${now})`;
-        yield* jobs.enqueue(id, URL_ENRICHMENT_JOB);
-      }),
-    );
-    return yield* writtenItem(id);
-  });
-
   const createNote = Effect.fnUntraced(function* (input: CreateNoteInput) {
-    const body = String(input.body ?? "").trim();
+    const body = input.body.trim();
     if (!body) return yield* invalidInput("note body cannot be empty");
     const id = randomUUID();
     const now = Date.now();
@@ -149,7 +107,7 @@ export function makeItems(ctx: StorageContext) {
   });
 
   const createQuote = Effect.fnUntraced(function* (input: CreateQuoteInput) {
-    const body = String(input.body ?? "").trim();
+    const body = input.body.trim();
     if (!body) return yield* invalidInput("quote text cannot be empty");
     if (body.length > 2000)
       return yield* invalidInput("quote text must be at most 2000 characters");
@@ -160,7 +118,7 @@ export function makeItems(ctx: StorageContext) {
     const sourceLabel = sourceUrl
       ? new URL(sourceUrl).hostname
       : attribution?.split(",")[0].trim() || null;
-    const metadata = { ...(yield* parseObject(input.metadata)) };
+    const metadata: Metadata = { ...input.metadata };
     metadata.quoteText = body;
     if (attribution) metadata.attribution = attribution;
     if (sourceUrl) metadata.sourceUrl = sourceUrl;
@@ -181,20 +139,35 @@ export function makeItems(ctx: StorageContext) {
 
   const captureUrl = Effect.fnUntraced(function* (input: CaptureUrlInput) {
     const sourceUrl = yield* normalizeHttpUrl(input.sourceUrl);
-    const title = nonEmpty(input.title) ?? new URL(sourceUrl).hostname;
-    return yield* saveUrl({
+    const sourceLabel = new URL(sourceUrl).hostname;
+    const title = nonEmpty(input.title) ?? sourceLabel;
+    const metadata = {
+      captureSource: input.captureSource ?? "",
+      pendingUrlCapture: { initialTitle: title, preserveTitle: Boolean(nonEmpty(input.title)) },
       sourceUrl,
-      title,
-      metadata: {
-        captureSource: String(input.captureSource ?? ""),
-        pendingUrlCapture: { initialTitle: title, preserveTitle: Boolean(nonEmpty(input.title)) },
-      },
-    });
+      text: "",
+      imageUrls: [],
+      imageDimensions: [],
+      safeEmbeds: [],
+      html: "",
+    };
+    const id = randomUUID();
+    const now = Date.now();
+    yield* sql.withTransaction(
+      Effect.gen(function* () {
+        yield* sql`INSERT INTO items (id, kind, title, description, body, body_format, source_url,
+          source_label, metadata, ocr_text, created_at, updated_at)
+          VALUES (${id}, 'url', ${title}, NULL, '', '', ${sourceUrl}, ${sourceLabel},
+          ${JSON.stringify(metadata)}, '', ${now}, ${now})`;
+        yield* jobs.enqueue(id, URL_ENRICHMENT_JOB);
+      }),
+    );
+    return yield* writtenItem(id);
   });
 
-  const saveFile = Effect.fnUntraced(function* (input: SaveFile) {
+  const saveFile = Effect.fnUntraced(function* (input: SaveFileInput) {
     const fileName = yield* sanitizeFileName(input.fileName);
-    const id = yield* validateItemId(input.id ?? randomUUID());
+    const id = randomUUID();
     const mimeType = nonEmpty(input.mimeType)?.toLowerCase() ?? null;
     const kind = yield* normalizeFileKind(input.kind, mimeType, fileName);
     const bytes = yield* fileInputBuffer(input.bytes);
@@ -217,20 +190,12 @@ export function makeItems(ctx: StorageContext) {
     });
     const assetPath = relativeAssetPath(`items/${id}/${fileName}`);
     const now = Date.now();
-    const existing = yield* getItem(id);
     yield* sql.withTransaction(
       Effect.gen(function* () {
-        if (existing) {
-          yield* sql`UPDATE items SET kind = ${kind}, title = ${fileName}, description = NULL,
-            body = '', body_format = 'md', source_label = ${mimeType}, local_asset_path = ${assetPath},
-            thumbnail_path = NULL, ocr_text = '', metadata = ${metadata}, archived = 0,
-            updated_at = ${now} WHERE id = ${id}`;
-        } else {
-          yield* sql`INSERT INTO items (id, kind, title, body, body_format, source_label,
-            local_asset_path, metadata, ocr_text, created_at, updated_at)
-            VALUES (${id}, ${kind}, ${fileName}, '', 'md', ${mimeType}, ${assetPath}, ${metadata}, '',
-            ${now}, ${now})`;
-        }
+        yield* sql`INSERT INTO items (id, kind, title, body, body_format, source_label,
+          local_asset_path, metadata, ocr_text, created_at, updated_at)
+          VALUES (${id}, ${kind}, ${fileName}, '', 'md', ${mimeType}, ${assetPath}, ${metadata}, '',
+          ${now}, ${now})`;
         if (kind === "image") {
           // The palette job reads the thumbnail, so the thumbnail job queues it.
           yield* jobs.enqueue(id, IMAGE_THUMBNAIL_JOB);
@@ -245,8 +210,8 @@ export function makeItems(ctx: StorageContext) {
     return yield* writtenItem(id);
   });
 
-  const resolveAssetPath = Effect.fnUntraced(function* (assetPath: unknown) {
-    const normalized = String(assetPath ?? "").replaceAll("\\", "/");
+  const resolveAssetPath = Effect.fnUntraced(function* (assetPath: string) {
+    const normalized = assetPath.replaceAll("\\", "/");
     if (!normalized.startsWith("assets/"))
       return yield* invalidInput("asset path must be relative to the managed assets directory");
     const parts = normalized.slice("assets/".length).split("/");
@@ -268,17 +233,14 @@ export function makeItems(ctx: StorageContext) {
     if (input.metadataPatch != null) {
       const current = yield* getItem(input.id);
       if (!current) return yield* itemNotFound(input.id);
-      metadata = {
-        ...current.metadata,
-        ...(yield* parseObject(input.metadataPatch, "metadata patch")),
-      };
+      metadata = { ...current.metadata, ...input.metadataPatch };
     }
     if (input.addTag != null) {
-      const tag = String(input.addTag).trim().replace(/^#+/u, "").trim().toLowerCase();
+      const tag = input.addTag.trim().replace(/^#+/u, "").trim().toLowerCase();
       if (!tag) return yield* invalidInput("tag cannot be empty");
       const base = metadata ?? (yield* getItem(input.id))?.metadata;
       if (!base) return yield* itemNotFound(input.id);
-      const tagged = { ...(yield* parseObject(base, "metadata")) };
+      const tagged = { ...base };
       if (tagged.tags == null) tagged.tags = [];
       if (!Array.isArray(tagged.tags))
         return yield* invalidInput("metadata tags must be an array to add a tag");
@@ -286,11 +248,11 @@ export function makeItems(ctx: StorageContext) {
         tagged.tags = [...tagged.tags, tag];
       metadata = tagged;
     }
-    const body = input.body == null ? null : String(input.body).trim();
+    const body = input.body == null ? null : input.body.trim();
     if (body != null && !body) return yield* invalidInput("body cannot be empty");
     let bodyFormat = body == null ? null : "md";
     if (input.bodyFormat != null) {
-      const requested = String(input.bodyFormat).trim().toLowerCase();
+      const requested = input.bodyFormat.trim().toLowerCase();
       if (requested && requested !== "md") return yield* invalidInput("bodyFormat must be 'md'");
       bodyFormat = "md";
     }
@@ -299,10 +261,10 @@ export function makeItems(ctx: StorageContext) {
         ? body == null
           ? null
           : markdownToPlainText(body)
-        : String(input.description).trim();
+        : input.description.trim();
     const sourceUrl = input.sourceUrl == null ? null : yield* normalizeHttpUrl(input.sourceUrl);
     const updated = yield* sql`UPDATE items SET
-      title = COALESCE(${input.title == null ? null : String(input.title).trim()}, title),
+      title = COALESCE(${input.title == null ? null : input.title.trim()}, title),
       description = COALESCE(${description}, description), body = COALESCE(${body}, body),
       body_format = COALESCE(${bodyFormat}, body_format),
       source_url = COALESCE(${sourceUrl}, source_url),
@@ -329,7 +291,7 @@ export function makeItems(ctx: StorageContext) {
   });
 
   const archiveItem = Effect.fnUntraced(function* (id: string, archived = true) {
-    const updated = yield* sql`UPDATE items SET archived = ${Number(Boolean(archived))},
+    const updated = yield* sql`UPDATE items SET archived = ${Number(archived)},
       updated_at = ${Date.now()} WHERE id = ${id}`.raw;
     if (!changes(updated)) return yield* itemNotFound(id);
     return yield* writtenItem(id);

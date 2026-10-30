@@ -4,13 +4,13 @@ Representative test material for the extraction and AI benchmarks.
 
 ## What is here
 
-All files in this corpus are **original and generated locally** — no private,
+All files in this corpus are original and generated locally — no private,
 personal, or unlicensed copyrighted material. Images, screenshots, and PDFs
 are produced deterministically by `../generate-corpus.ps1`; article, video,
 and note fixtures are hand-written HTML/Markdown stored in this folder.
 
-The one exception is `live/macrumors/`: a small set of **public news pages
-captured from macrumors.com** (their own fetched HTML), included to exercise
+The one exception is `live/macrumors/`: a small set of public news pages
+captured from macrumors.com (their own fetched HTML), included to exercise
 the extraction pipeline against real-world markup. These are the property of
 their respective publishers and are used here only as brief benchmark
 samples for interoperability testing; replace them or remove the
@@ -37,20 +37,10 @@ corpus. They are regenerated on demand by `../fetch-macrumors.ts`, never by
   the note above; expected extraction metadata lives in
   `../expected/extraction/article-live-macrumors-*.json`.
 
-## Regenerating images and PDFs
-
-```powershell
-pwsh -File benchmarks/generate-corpus.ps1
-```
-
-Re-running overwrites files and rewrites `expected/ocr/*.txt`. The
-hand-written text fixtures in `articles/`, `videos/`, and `notes/` are not
-touched by the generator.
+[../README.md](../README.md#refreshing-fixtures) covers regenerating and
+refreshing fixtures.
 
 ## Expected outputs
 
 OCR expectations live in `../expected/ocr/` and are referenced from
 `../manifest.json` via each item's `expected.ocr_text_file`.
-
-Keep private credentials, tokens, personal documents, and unlicensed
-copyrighted material out of this directory.

@@ -34,7 +34,11 @@ Same commands on Windows and Linux. Launch starts Electron detached and returns 
 bun .claude/skills/verify-inkling/scripts/instance.mjs launch
 ```
 
-It runs `node_modules/electron/dist/electron .` with `--remote-debugging-port=9333 --user-data-dir=<tmpdir>/verify-inkling-run/default/library`, writing `electron.pid` and `electron.log` beside the library. On Linux with no `DISPLAY` it wraps Electron in `xvfb-run -a` and adds `--no-sandbox`. It also passes `--disable-renderer-backgrounding`, `--disable-backgrounding-occluded-windows` and `--disable-features=CalculateNativeWinOcclusion`: an occluded window reports `visibilityState` "hidden" and stops firing animation frames, which strands the item overlay mid-close and hangs motion-gated steps. Ready means `app://local/index.html` is listed at `http://127.0.0.1:9333/json/list`, which takes about 10 seconds. Launch refuses when the port already has an owner. Other dev servers on the machine often hold 9333, so set `INKLING_VERIFY_PORT` to a free port and pass it to doctor, drive, and cleanup as well. The first launch against an empty dir shows "0 items in library".
+It runs `node_modules/electron/dist/electron .` with `--remote-debugging-port=9333 --user-data-dir=<tmpdir>/verify-inkling-run/default/library`, writing `electron.pid` and `electron.log` beside the library. On Linux with no `DISPLAY` it wraps Electron in `xvfb-run -a` and adds `--no-sandbox`.
+
+It also disables renderer backgrounding and occlusion tracking. An occluded window reports `visibilityState` "hidden" and stops firing animation frames, which strands the item overlay mid-close and hangs motion-gated steps.
+
+Ready means `app://local/index.html` is listed at `http://127.0.0.1:9333/json/list`, which takes about 10 seconds. The first launch against an empty dir shows "0 items in library". Launch refuses when the port already has an owner. Other dev servers on the machine often hold 9333, so set `INKLING_VERIFY_PORT` to a free port and pass it to doctor, drive, and cleanup as well.
 
 Two instances side by side: give each its own name and port, `INKLING_VERIFY_NAME=b INKLING_VERIFY_PORT=9334 bun .claude/skills/verify-inkling/scripts/instance.mjs launch`, then pass the same two variables to doctor, drive, and cleanup.
 
@@ -91,7 +95,7 @@ It stops only the recorded pid, then removes that instance's scratch library and
 
 ## Known platform noise
 
-On Linux, Xvfb has no dbus session, so dbus and dconf errors in `electron.log` are environment noise, not app errors. The sharp Linux warning is also environment-only. Packaged Linux PDF.js worker failure is pre-existing and not caused by this skill.
+On Linux, Xvfb has no dbus session, so dbus and dconf errors in `electron.log` are environment noise, not app errors. The sharp Linux warning is also environment-only. A PDF.js worker failure in the packaged Linux app is a known app issue.
 
 ## Keeping the map current
 

@@ -6,7 +6,6 @@ import { createTesseractOcr } from "../../electron/ocr.ts";
 
 export interface OcrEngine {
   name: string;
-  available(): Promise<boolean>;
   run(imagePath: string | Uint8Array): Promise<string>;
   close?(): Promise<void>;
 }
@@ -18,30 +17,21 @@ export interface OcrEngine {
  */
 export class WindowsOcrEngine implements OcrEngine {
   name = "windows-ocr";
-  private checked = false;
-  private ready = false;
 
   constructor(private readonly scriptPath: string) {}
 
-  async available(): Promise<boolean> {
-    if (this.checked) return this.ready;
-    this.checked = true;
+  static available() {
     if (process.platform !== "win32") return false;
-    try {
-      const result = Bun.spawnSync([
-        "powershell.exe",
-        "-NoProfile",
-        "-Command",
-        "& { $null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType=WindowsRuntime]; exit 0 }",
-      ]);
-      this.ready = result.exitCode === 0;
-    } catch {
-      this.ready = false;
-    }
-    return this.ready;
+    const result = Bun.spawnSync([
+      "powershell.exe",
+      "-NoProfile",
+      "-Command",
+      "& { $null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType=WindowsRuntime]; exit 0 }",
+    ]);
+    return result.exitCode === 0;
   }
 
-  async run(imagePath: string | Uint8Array): Promise<string> {
+  async run(imagePath: string | Uint8Array) {
     let temporaryDirectory: string | null = null;
     try {
       let sourcePath: string;
@@ -84,15 +74,6 @@ export class TesseractJsEngine implements OcrEngine {
     cacheDirectory: join(tmpdir(), "inkling-benchmark-tesseract"),
   });
 
-  async available(): Promise<boolean> {
-    try {
-      await import("tesseract.js");
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   async run(imagePath: string | Uint8Array) {
     return this.engine.recognize(
       typeof imagePath === "string" ? await readFile(imagePath) : Buffer.from(imagePath),
@@ -102,16 +83,4 @@ export class TesseractJsEngine implements OcrEngine {
   close() {
     return this.engine.close();
   }
-}
-
-export async function availableOcrEngines(engines: OcrEngine[]): Promise<OcrEngine[]> {
-  const ready: OcrEngine[] = [];
-  for (const engine of engines) {
-    try {
-      if (await engine.available()) ready.push(engine);
-    } catch {
-      // engine not usable; skip it
-    }
-  }
-  return ready;
 }

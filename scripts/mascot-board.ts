@@ -8,7 +8,7 @@ import { buildReadmeMascot } from "../src/components/mascot/readmeMascot";
 const r2 = (n: number) => String(Math.round(n * 100) / 100);
 
 /** Standalone frozen-frame SVG string. Mirrors InklingMascot.tsx output. */
-export function frameToSvgString(frame: BotFrame, ink: string, paper: string): string {
+function frameToSvgString(frame: BotFrame, ink: string, paper: string) {
   const VB = DEMI_VIEWBOX;
   const dots = frame.dots
     .map((dot) => {
@@ -42,7 +42,7 @@ export function frameToSvgString(frame: BotFrame, ink: string, paper: string): s
   );
 }
 
-const SHAPES = ["inkling-splash"];
+const SHAPE = "inkling-splash";
 const STATES: Array<{ state: StateId; at: number }> = [
   { state: "idle", at: 1.0 },
   { state: "wink", at: 0.8 },
@@ -53,21 +53,16 @@ const INK = COLOR_BY_ID.get("inkling")?.hex ?? "#1a1a1a";
 const PAPER = "#faf9f6";
 
 const outDir = "docs/assets/mascots";
-await Bun.$`mkdir -p ${outDir}`.quiet();
 
-for (const shape of SHAPES) {
-  const radii = SHAPE_BY_ID.get(shape)?.radii ?? null;
-  for (const { state, at } of STATES) {
-    const engine = new BotEngine(RAYON, state, radii, EXPRESSION_BY_ID.get("neutre") ?? null);
-    const frame = engine.sample(at);
-    const svg = frameToSvgString(frame, INK, PAPER);
-    const path = `${outDir}/${shape}-${state}.svg`;
-    await Bun.write(path, svg);
-    console.log(`wrote ${path}`);
-  }
+const radii = SHAPE_BY_ID.get(SHAPE)?.radii ?? null;
+for (const { state, at } of STATES) {
+  const engine = new BotEngine(RAYON, state, radii, EXPRESSION_BY_ID.get("neutre") ?? null);
+  const path = `${outDir}/${SHAPE}-${state}.svg`;
+  await Bun.write(path, frameToSvgString(engine.sample(at), INK, PAPER));
+  console.log(`wrote ${path}`);
 }
 
 // The README hero, which breathes and blinks rather than holding a pose.
-const loopPath = `${outDir}/inkling-splash-loop.svg`;
+const loopPath = `${outDir}/${SHAPE}-loop.svg`;
 await Bun.write(loopPath, buildReadmeMascot());
 console.log(`wrote ${loopPath}`);
