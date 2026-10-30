@@ -68,17 +68,17 @@ export function makeSearch(ctx: StorageContext) {
       return yield* invalidInput("embedding vector dimension does not match its bytes");
     }
     yield* sql`INSERT INTO item_embeddings (item_id, kind, model, dimension, vector, created_at)
-      VALUES (${itemId}, ${kind}, ${String(model)}, ${dimension}, ${vector}, ${Date.now()})
+      VALUES (${itemId}, ${kind}, ${model}, ${dimension}, ${vector}, ${Date.now()})
       ON CONFLICT(item_id, kind) DO UPDATE SET model = excluded.model,
       dimension = excluded.dimension, vector = excluded.vector, created_at = excluded.created_at`;
   });
 
   const searchItems = Effect.fnUntraced(function* (
-    query: unknown,
-    limit: unknown = 100,
+    query: string,
+    limit = 100,
     queryVector: QueryVector = null,
   ) {
-    const search = String(query ?? "").trim();
+    const search = query.trim();
     const cap = clampLimit(limit, 100, 200);
     if (!search) return yield* selectCards(ctx, sql`archived = 0`, cap);
     let rows: ReadonlyArray<ItemRow> = [];
@@ -125,7 +125,7 @@ export function makeSearch(ctx: StorageContext) {
   const searchSimilar = Effect.fnUntraced(function* (
     itemId: string,
     kind: "image" | "text",
-    limit: unknown = 12,
+    limit = 12,
   ) {
     const model = kind === "image" ? IMAGE_MODEL : TEXT_MODEL;
     const [source] = yield* sql<{ dimension: number; vector: Uint8Array }>`SELECT dimension, vector

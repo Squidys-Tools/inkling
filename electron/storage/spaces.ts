@@ -68,8 +68,8 @@ export const validateSmartQuery = Effect.fnUntraced(function* (query: unknown = 
   };
 });
 
-const normalizeSpaceName = Effect.fnUntraced(function* (name: unknown) {
-  const normalized = String(name ?? "").trim();
+const normalizeSpaceName = Effect.fnUntraced(function* (name: string) {
+  const normalized = name.trim();
   if (!normalized) return yield* invalidInput("space name cannot be empty");
   if (Buffer.byteLength(normalized) > 80)
     return yield* invalidInput("space name must be at most 80 characters");
@@ -179,7 +179,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
 
   const listSpaceItems = Effect.fnUntraced(function* (
     id: string,
-    limit: unknown = 100,
+    limit = 100,
     queryVector: QueryVector = null,
   ) {
     const space = yield* getSpace(id);

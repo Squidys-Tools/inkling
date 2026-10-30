@@ -166,8 +166,7 @@ export function markdownToPlainText(markdown: string) {
 
 export const isSafeItemId = (id: string) => /^[a-zA-Z0-9_-]{1,128}$/.test(id);
 
-export function clampLimit(value: unknown, fallback: number, maximum: number) {
-  const limit = Number(value);
+export function clampLimit(limit: number, fallback: number, maximum: number) {
   return Number.isFinite(limit) ? Math.min(maximum, Math.max(1, Math.trunc(limit))) : fallback;
 }
 
