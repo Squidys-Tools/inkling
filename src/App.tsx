@@ -28,6 +28,7 @@ import {
 import { SettingsSheet } from "./features/settings/SettingsSheet";
 import { useSettings } from "./features/settings/useSettings";
 import { ItemLayers } from "./features/shell/ItemLayers";
+import { LibraryFrame } from "./features/shell/LibraryFrame";
 import { ShortcutsDialog } from "./features/shell/ShortcutsDialog";
 import { NavRow, navLabelClass, Sidebar, SidebarError } from "./features/shell/Sidebar";
 import { SidebarEdgeGrip, SidebarOpenButton } from "./features/shell/SidebarToggles";
@@ -43,7 +44,6 @@ import { useSidebarOpen } from "./features/shell/useSidebarOpen";
 import "./features/shell/codex-sidebar.css";
 import { visibleLibraryItems } from "./features/spaces/smartQuery";
 import { useSpaces } from "./features/spaces/useSpaces";
-import { cx } from "./ui/cx";
 import { Toaster } from "./ui/Toaster";
 import { TooltipLayer } from "./ui/Tooltip";
 
@@ -448,20 +448,10 @@ function App() {
             />
           )}
 
-        {/* An open item replaces the library, which stays mounted underneath so
-            the item can fly back into its card. */}
-        <main
-          className={cx(
-            "relative flex h-screen min-h-0 w-auto min-w-0 flex-auto flex-col overflow-hidden pt-(--main-pad-top) pr-(--main-pad-x) pb-(--main-pad-bottom) pl-(--main-pad-x) transition-[padding] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] [--library-top:var(--main-pad-top)] [--main-pad-bottom:30px] [--main-pad-top:calc(4px_+_var(--spacing-titlebar))] [--main-pad-x:14px] [--stage-background:var(--color-canvas)]",
-            "wide:border-y wide:border-r-0 wide:border-border wide:bg-frame wide:transition-[margin-left,padding,border-radius] wide:[--stage-background:var(--color-frame)]",
-            codexSidebar && "motion-reduce:transition-none",
-            // Codex retains a rail when compact; Classic closes to the window edge.
-            codexSidebar || isSidebarOpen
-              ? "wide:ml-(--spacing-sidebar) wide:rounded-l-frame wide:border-l"
-              : "wide:ml-0 wide:rounded-none",
-            "max-[1120px]:w-[calc(100vw_-_var(--spacing-sidebar))] max-[780px]:w-full max-[780px]:transition-none max-[780px]:[--library-top:42px] max-[780px]:[--main-pad-bottom:24px] max-[780px]:[--main-pad-top:12px] max-[780px]:[--main-pad-x:18px]",
-          )}
+        <LibraryFrame
           ref={libraryFrameRef}
+          codexSidebar={codexSidebar}
+          isSidebarOpen={isSidebarOpen}
           inert={selectedItem != null}
         >
           <section className="flex-none max-[780px]:pt-[30px]"></section>
@@ -523,7 +513,7 @@ function App() {
               clearToDefaultView();
             }}
           />
-        </main>
+        </LibraryFrame>
 
         {isFirstRunOpen ? <FirstRunOverlay onFinish={finishFirstRun} /> : null}
 
