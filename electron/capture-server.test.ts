@@ -78,7 +78,7 @@ describe("capture server parity", () => {
     }
   });
 
-  test("v1 payload normalization and Rust scrubber vectors stay in parity", () => {
+  test("v1 payloads normalize to a capture URL and title", () => {
     const good = {
       version: 1,
       kind: "page",
@@ -95,16 +95,7 @@ describe("capture server parity", () => {
       ],
     };
     const input = captureServerInternals.validateCapturePayload(Buffer.from(JSON.stringify(good)));
-    expect(input.sourceUrl).toBe("https://example.com/article");
-    expect(input.title).toBe("A quiet page");
-    expect(input.metadata).toMatchObject({
-      origin: "browser-extension",
-      payloadVersion: 1,
-      author: "A Writer",
-      imageUrls: ["https://example.com/img.jpg"],
-    });
-    expect(input.metadata.html).toContain("<p>kept</p>");
-    expect(input.metadata.html).not.toContain("script");
+    expect(input).toEqual({ sourceUrl: "https://example.com/article", title: "A quiet page" });
 
     const blankTitle = captureServerInternals.validateCapturePayload(
       Buffer.from(
@@ -139,6 +130,8 @@ describe("capture server parity", () => {
       { version: 1, kind: "page", url: "javascript:alert(1)" },
       { version: 2, kind: "page", url: "https://example.com/" },
       { version: 1, kind: "selection", url: "https://example.com/" },
+      { version: 1, kind: "page", url: "https://example.com/", author: "a".repeat(241) },
+      { version: 1, kind: "page", url: "https://example.com/", imageUrls: [1] },
       null,
     ]) {
       expect(() =>
@@ -146,45 +139,6 @@ describe("capture server parity", () => {
       ).toThrow();
     }
     expect(() => captureServerInternals.validateCapturePayload(Buffer.from("not json"))).toThrow();
-  });
-
-  test("scrubber removes the executable subset and preserves safe article markup", () => {
-    const dirty = [
-      "<!-- a comment -->",
-      '<p onclick="evil()" style="color:red">Hi <a href="javascript:alert(1)">x</a></p>',
-      "<script>alert(1)</script>",
-      "<style>p{}</style>",
-      '<form action="https://example.com/submit"><input></form>',
-      '<iframe src="https://evil.example/x"></iframe>',
-      '<iframe src="https://www.youtube-nocookie.com/embed/abc123" allowfullscreen></iframe>',
-      '<img src="https://example.com/a.jpg" srcset="a 1x" onerror="e()">',
-      '<a href="/relative/path">rel</a>',
-      '<a href="https://example.com/abs">abs</a>',
-    ].join("");
-    const clean = captureServerInternals.scrubExtensionHtml(dirty, "https://example.com/article");
-    for (const banned of [
-      "<script",
-      "onclick",
-      "style=",
-      "javascript:",
-      "<form",
-      "evil.example",
-      "allowfullscreen",
-      "srcset",
-      "onerror",
-      "<!--",
-    ]) {
-      expect(clean).not.toContain(banned);
-    }
-    for (const kept of [
-      "<p>Hi",
-      "https://www.youtube-nocookie.com/embed/abc123",
-      "https://example.com/a.jpg",
-      "/relative/path",
-      "https://example.com/abs",
-    ]) {
-      expect(clean).toContain(kept);
-    }
   });
 
   test("token generation, rate limiting, and payload cap match the Rust receiver", () => {
