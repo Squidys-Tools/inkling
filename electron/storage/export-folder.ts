@@ -74,26 +74,22 @@ async function verifyExportAsset(exportDirectory: string, itemId: string, relati
   return path;
 }
 
-async function copyAssetDirectory(source: string, destination: string): Promise<number> {
+async function copyAssetDirectory(source: string, destination: string) {
   const info = await lstat(source).catch((error) =>
     isMissing(error) ? null : Promise.reject(error),
   );
-  if (!info) return 0;
+  if (!info) return;
   if (!info.isDirectory() || info.isSymbolicLink())
     reject("the export contains an unsafe item asset folder");
   await mkdir(destination, { recursive: true });
-  let count = 0;
   for (const entry of await readdir(source, { withFileTypes: true })) {
     if (entry.isSymbolicLink()) reject("the export contains a symbolic link in its asset files");
     const from = join(source, entry.name);
     const to = join(destination, entry.name);
-    if (entry.isDirectory()) count += await copyAssetDirectory(from, to);
-    else if (entry.isFile()) {
-      await copyFile(from, to);
-      count += 1;
-    } else reject("the export contains an unsupported asset file");
+    if (entry.isDirectory()) await copyAssetDirectory(from, to);
+    else if (entry.isFile()) await copyFile(from, to);
+    else reject("the export contains an unsupported asset file");
   }
-  return count;
 }
 
 // Copies the assets of the given items from an export into the staging folder,
