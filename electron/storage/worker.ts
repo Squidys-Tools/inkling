@@ -83,10 +83,11 @@ export const makeWorker = Effect.fnUntraced(function* <R>({
       Effect.repeat({ until: (queued) => queued.some((kind) => kinds.includes(kind)) }),
     );
     yield* jobs.recoverExpired();
-    while (true) {
-      yield* drain.pipe(Effect.catchCause((cause) => Effect.logError("job worker failed", cause)));
-      yield* Effect.raceFirst(workQueued, Effect.sleep(pollInterval));
-    }
+    return yield* drain.pipe(
+      Effect.catchCause((cause) => Effect.logError("job worker failed", cause)),
+      Effect.andThen(Effect.raceFirst(workQueued, Effect.sleep(pollInterval))),
+      Effect.forever,
+    );
   });
 
   return { workerId, drain, run: Effect.scoped(run) };
