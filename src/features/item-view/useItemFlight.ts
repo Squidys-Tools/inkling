@@ -1,33 +1,16 @@
 import { gsap } from "gsap";
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { LibraryItem } from "../../lib/types";
+import { type Flight, playFlight, settleFlight } from "./flightTimeline";
 import type { ItemViewActions } from "./ItemView";
 import {
   findCard,
-  OVERLAY_EASE,
-  OVERLAY_FLIGHT_MS,
   prefersReducedMotion,
   queryCardRects,
   rectFrom,
   type FlightRect,
   type SourceRects,
 } from "./overlayMotion";
-
-type Flight =
-  | { kind: "open"; id: number; from: FlightRect; to: FlightRect; progress: number }
-  | {
-      kind: "close";
-      id: number;
-      fromItem: LibraryItem;
-      from: FlightRect;
-      to: FlightRect | null;
-      thenOpen: boolean;
-    }
-  /** Shrinks and fades where it is, then archives the item. */
-  | { kind: "archive"; id: number; fromItem: LibraryItem; from: FlightRect; to: FlightRect };
-
-// The settled view's corners match the library frame it covers.
-const FRAME_RADIUS = "16px 0px 0px 16px";
 
 // Flies the item view between its card and the library frame: opening,
 // closing, switching items and archiving.
@@ -193,7 +176,6 @@ export function useItemFlight({
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- This effect consumes the source-rectangle snapshot once on mount.
   }, [beginOpenFlight]);
 
-  // One timeline owns the frame, stage inset and inspector in both directions.
   useLayoutEffect(() => {
     if (!flight) return;
     const dialog = dialogRef.current;
@@ -201,105 +183,25 @@ export function useItemFlight({
       if (flight.kind !== "open") actionsRef.current.onClose();
       return;
     }
-    const cardRadius = `${getComputedStyle(dialog).getPropertyValue("--radius-sidebar").trim() || "14px"}`;
-    const cardCorners = `${cardRadius} ${cardRadius} ${cardRadius} ${cardRadius}`;
-    const duration = OVERLAY_FLIGHT_MS / 1000;
-
-    if (flight.kind === "open") {
-      const timeline = gsap.timeline({
-        onComplete: () => {
+    const timeline = playFlight(dialog, flight, () => {
+      if (flight.kind === "open") {
+        setFlight(null);
+        closeButtonRef.current?.focus({ preventScroll: true });
+      } else if (flight.kind === "archive") {
+        void Promise.resolve(actionsRef.current.onForget(flight.fromItem)).then(() => {
+          // Still mounted means archiving failed: bring the view back.
+          const current = dialogRef.current;
+          if (!current) return;
+          settleFlight(current, flight.from);
           setFlight(null);
-          closeButtonRef.current?.focus({ preventScroll: true });
-        },
-      });
-      timeline
-        .fromTo(
-          dialog,
-          { ...flight.from, borderRadius: cardCorners, "--item-progress": flight.progress },
-          {
-            ...flight.to,
-            "--item-progress": 1,
-            borderRadius: FRAME_RADIUS,
-            duration,
-            ease: OVERLAY_EASE,
-            autoRound: false,
-          },
-          0,
-        )
-        .fromTo(dialog, { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "power1.out" }, 0);
-      return () => {
-        timeline.kill();
-      };
-    }
-
-    if (flight.kind === "archive") {
-      const timeline = gsap.timeline({
-        onComplete: () => {
-          void Promise.resolve(actionsRef.current.onForget(flight.fromItem)).then(() => {
-            // Still mounted means archiving failed: bring the view back.
-            const current = dialogRef.current;
-            if (!current) return;
-            gsap.set(current, {
-              ...flight.from,
-              opacity: 1,
-              borderRadius: FRAME_RADIUS,
-              "--item-progress": 1,
-            });
-            setFlight(null);
-          });
-        },
-      });
-      timeline
-        .fromTo(
-          dialog,
-          { ...flight.from },
-          {
-            ...flight.to,
-            "--item-progress": 0,
-            borderRadius: cardCorners,
-            duration,
-            ease: OVERLAY_EASE,
-            autoRound: false,
-          },
-          0,
-        )
-        .to(dialog, { opacity: 0, duration: duration * 0.7, ease: "power1.in" }, duration * 0.3);
-      return () => {
-        timeline.kill();
-      };
-    }
-
-    // Closing: the view returns to its source card and dissolves into it, or —
-    // when the source card is no longer mounted — fades out in place.
-    const timeline = gsap.timeline({
-      onComplete: () => {
-        if (flight.thenOpen && !cancelPendingOpenRef.current) {
-          setFlight(null);
-          setPendingOpen(true);
-        } else {
-          actionsRef.current.onClose();
-        }
-      },
+        });
+      } else if (flight.thenOpen && !cancelPendingOpenRef.current) {
+        setFlight(null);
+        setPendingOpen(true);
+      } else {
+        actionsRef.current.onClose();
+      }
     });
-    if (flight.to) {
-      timeline
-        .fromTo(
-          dialog,
-          { ...flight.from },
-          {
-            ...flight.to,
-            "--item-progress": 0,
-            borderRadius: cardCorners,
-            duration,
-            ease: OVERLAY_EASE,
-            autoRound: false,
-          },
-          0,
-        )
-        .to(dialog, { opacity: 0, duration: 0.18, ease: "power1.in" }, duration - 0.18);
-    } else {
-      timeline.to(dialog, { opacity: 0, duration: 0.25, ease: "power1.in" });
-    }
     return () => {
       timeline.kill();
     };
