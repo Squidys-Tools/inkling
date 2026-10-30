@@ -62,10 +62,6 @@ export function isElectronRuntime() {
   return Boolean(bridge());
 }
 
-export function isDesktopRuntime() {
-  return isElectronRuntime();
-}
-
 function invoke<C extends CommandName>(command: C, args?: CommandArgs<C>) {
   const handler = bridge()?.commands?.[command] as
     | ((args?: CommandArgs<C>) => Promise<CommandResults[C]>)

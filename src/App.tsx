@@ -2,7 +2,7 @@ import { lazy, Suspense, useLayoutEffect, useMemo, useRef, useState } from "reac
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Settings01Icon } from "@hugeicons/core-free-icons";
-import { isDesktopRuntime, isElectronRuntime, type StoredSpace } from "./lib/libraryApi";
+import { isElectronRuntime, type StoredSpace } from "./lib/libraryApi";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { ContextMenu } from "./components/ContextMenu/ContextMenu";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
@@ -60,7 +60,7 @@ import { Toaster } from "./ui/Toaster";
 import { TooltipLayer } from "./ui/Tooltip";
 
 function App() {
-  const canUseDesktopBackend = isDesktopRuntime() && !shouldUseSeedLibrary();
+  const canUseDesktopBackend = isElectronRuntime() && !shouldUseSeedLibrary();
   const [query, setQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeView, setActiveView] = useState("Everything");

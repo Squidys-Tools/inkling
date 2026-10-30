@@ -5,7 +5,7 @@ import {
   type CaptureStatus,
   getCaptureStatus,
   getPairingToken,
-  isDesktopRuntime,
+  isElectronRuntime,
   regeneratePairingToken,
 } from "../../lib/libraryApi";
 import { pillButton, SettingsEmptyState } from "./SettingsPanel";
@@ -19,13 +19,13 @@ export function ExtensionPairing() {
   const [isConfirmingRenew, setIsConfirmingRenew] = useState(false);
 
   useEffect(() => {
-    if (!isDesktopRuntime()) return;
+    if (!isElectronRuntime()) return;
     void getCaptureStatus()
       .then(setStatus)
       .catch(() => setStatus(null));
   }, []);
 
-  if (!isDesktopRuntime()) {
+  if (!isElectronRuntime()) {
     return (
       <SettingsEmptyState icon={Link01Icon} title="Pairing needs the desktop app.">
         Open Settings in the installed app to pair the browser extension.

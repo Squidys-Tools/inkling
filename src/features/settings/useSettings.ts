@@ -3,7 +3,7 @@ import {
   getAppVersion,
   getLastExport,
   getLibrarySize,
-  isDesktopRuntime,
+  isElectronRuntime,
   type LastExport,
   type LibrarySize,
   listActiveItems,
@@ -69,7 +69,7 @@ export function useSettings({
   // walks every asset file, so Settings shows the last measured value at once
   // and replaces it when a fresh walk finishes, without holding up the rest.
   useEffect(() => {
-    if (!isSettingsOpen || !isDesktopRuntime()) return;
+    if (!isSettingsOpen || !isElectronRuntime()) return;
     let cancelled = false;
     void Promise.all([
       getAppVersion().catch(() => undefined),
