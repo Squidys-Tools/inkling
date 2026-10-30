@@ -80,23 +80,11 @@ export function pdfPreviewTitle(value: string): string {
     .trim();
 }
 
-/** The PDF and note card art; onboarding draws its sample cards with it too. */
-export function DocumentArtwork({
-  label,
-  title,
-  count,
-}: {
-  label: string;
-  title: string;
-  count: string;
-}) {
-  return <TypedArtwork label={label} title={title} footnote={count} />;
-}
-
 // Every typed card (PDF, note, file) shares one layout: a mono label and ring,
 // the title in DM Sans caps, three dots, and a mono footnote. The shader texture
 // is the same for all of them; only the copy changes. Compact is the list row.
-function TypedArtwork({
+// Onboarding draws its sample note and PDF cards with it too.
+export function TypedArtwork({
   label,
   title,
   footnote,

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PlayIcon } from "@hugeicons/core-free-icons";
-import { DocumentArtwork, QuoteArtwork } from "../ItemMedia";
+import { QuoteArtwork, TypedArtwork } from "../ItemMedia";
 import { prefersReducedMotion } from "../mascot/mascotStore";
 import { onboardingPhotos } from "./onboardingMedia";
 
@@ -144,9 +144,9 @@ function CardBody({ content }: { content: Content }): ReactNode {
       );
     // The library's own note, PDF and quote artwork, so these read as real cards.
     case "note":
-      return <DocumentArtwork label="NOTE" title={content.title} count={content.words} />;
+      return <TypedArtwork label="NOTE" title={content.title} footnote={content.words} />;
     case "pdf":
-      return <DocumentArtwork label="PDF" title={content.title} count={content.pages} />;
+      return <TypedArtwork label="PDF" title={content.title} footnote={content.pages} />;
     case "quote":
       return (
         <QuoteArtwork
