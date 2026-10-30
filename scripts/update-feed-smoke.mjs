@@ -4,33 +4,31 @@ import { createServer } from "node:http";
 import { mkdtemp, mkdir, readFile, writeFile, rm, readdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const packaged = process.argv[2];
+const root = resolve(import.meta.dirname, "..");
+const packaged = process.argv[2] && resolve(process.argv[2]);
 if (packaged && !process.versions.electron) {
-  const child = spawnSync(
-    join(resolve(packaged), "inkling"),
-    [fileURLToPath(import.meta.url), resolve(packaged)],
-    { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, stdio: "inherit" },
-  );
+  const child = spawnSync(join(packaged, "inkling"), [fileURLToPath(import.meta.url), packaged], {
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+    stdio: "inherit",
+  });
   assert.equal(child.status, 0, `packaged updater smoke: ${child.signal}`);
 } else {
-  const require = createRequire(
-    packaged
-      ? join(resolve(packaged), "resources/app.asar/package.json")
-      : join(root, "package.json"),
-  );
+  const rootRequire = createRequire(join(root, "package.json"));
+  const require = packaged
+    ? createRequire(join(packaged, "resources/app.asar/package.json"))
+    : rootRequire;
   const { AppImageUpdater, DebUpdater } = require("electron-updater");
-  const { NodeHttpExecutor } = createRequire(join(root, "package.json"))(
-    createRequire(join(root, "package.json")).resolve("builder-util/out/nodeHttpExecutor.js", {
-      paths: [createRequire(join(root, "package.json")).resolve("electron-builder")],
+  const { NodeHttpExecutor } = rootRequire(
+    rootRequire.resolve("builder-util/out/nodeHttpExecutor.js", {
+      paths: [rootRequire.resolve("electron-builder")],
     }),
   );
   const modulePath = packaged
-    ? join(resolve(packaged), "resources/app.asar/dist/electron/updater.mjs")
+    ? join(packaged, "resources/app.asar/dist/electron/updater.mjs")
     : join(root, "electron/updater.ts");
   const { createUpdateController, createUpdatePreferences } = await import(
     pathToFileURL(modulePath).href
