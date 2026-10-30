@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { AddMode } from "./AddMenu";
 
+export const ADD_TITLES: Record<AddMode, string> = { note: "Note", url: "Link", quote: "Quote" };
+
 export function useAddDrafts() {
   const [note, setNote] = useState("");
   const [url, setUrl] = useState("");
@@ -97,4 +99,12 @@ export function AddForm({
       </button>
     </form>
   );
+}
+
+export function AddError({ error }: { error: string | null }) {
+  return error ? (
+    <p className="add-menu-error" role="alert">
+      Couldn’t save this yet: {error}
+    </p>
+  ) : null;
 }

@@ -11,8 +11,10 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef } from "react";
-import { AddForm, useAddDrafts } from "./AddForm";
+import { useCallback, useId } from "react";
+import { ADD_TITLES, AddError, AddForm, useAddDrafts } from "./AddForm";
+import { CompactAddMenu } from "./CompactAddMenu";
+import { useAddMenu } from "./useAddMenu";
 import "./AddMenu.css";
 
 // The sidebar's Add button opens into the menu in place, after Viora UI's
@@ -38,89 +40,34 @@ type Props = {
   onAddSpace?: () => void;
 };
 
-const TITLES: Record<AddMode, string> = { note: "Note", url: "Link", quote: "Quote" };
+export type AddMenuLayoutProps = Omit<
+  Props,
+  "collapsible" | "compact" | "onSaveNote" | "onSaveLink" | "onSaveQuote"
+> & {
+  drafts: ReturnType<typeof useAddDrafts>;
+  onSubmit: (event: React.FormEvent) => void;
+};
 
 export function AddMenu({
   collapsible = false,
   compact = false,
-  open,
-  mode,
-  saving,
-  error,
-  onOpen,
-  onClose,
-  onModeChange,
   onSaveNote,
   onSaveLink,
   onSaveQuote,
-  onPickFile,
-  onScreenshot,
-  onAddSpace,
+  ...props
 }: Props) {
-  const reducedMotion = useReducedMotion();
-  const panelId = useId();
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  // Presence can mount a panel after the open-state effect has run. Focus
-  // on the actual mount too, rather than depending on animation timing.
-  const mountPanel = useCallback((node: HTMLDivElement | null) => {
-    panelRef.current = node;
-    node?.querySelector<HTMLElement>(".add-menu-tile")?.focus({ preventScroll: true });
-  }, []);
-  const compactRootRef = useRef<HTMLDivElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const focusTriggerRef = useRef(false);
-  // Drafts live here, not in the panel, so closing the menu keeps them.
+  // Drafts live here, not in either layout, so closing the menu or switching
+  // layouts keeps them.
   const drafts = useAddDrafts();
 
-  // Closing from inside the menu (Escape, the close button) hands focus back
-  // to Add once it is back; an outside click leaves focus where it landed.
-  useLayoutEffect(() => {
-    if (open) return;
-    if (focusTriggerRef.current && triggerRef.current) {
-      triggerRef.current.focus({ preventScroll: true });
-      focusTriggerRef.current = false;
-    }
-  }, [open]);
-
-  // Opening, or stepping back from a form, puts focus on the first tile. A form
-  // focuses its own first field.
-  useLayoutEffect(() => {
-    if (!open || mode) return;
-    const root = compact ? compactRootRef.current : panelRef.current;
-    root
-      ?.querySelector<HTMLElement>(compact ? ".compact-add-option" : ".add-menu-tile")
-      ?.focus({ preventScroll: true });
-  }, [open, mode, compact]);
-
-  useEffect(() => {
-    if (!open) return;
-    const dismiss = (event: PointerEvent) => {
-      const root = compact ? compactRootRef.current : panelRef.current;
-      if (
-        event.target instanceof Node &&
-        (root?.contains(event.target) || triggerRef.current?.contains(event.target))
-      )
-        return;
-      onClose();
-    };
-    window.addEventListener("pointerdown", dismiss, true);
-    return () => window.removeEventListener("pointerdown", dismiss, true);
-  }, [open, onClose, compact]);
-
-  // Escape is handled by useAppShortcuts, which steps back from a form before closing.
-  const onKeyDownCapture = (event: React.KeyboardEvent) => {
-    if (event.key === "Escape" && !mode) focusTriggerRef.current = true;
-  };
-
-  const save = async (event: React.FormEvent) => {
+  const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const { note, url, quote } = drafts;
-    if (mode === "note" && note.trim()) {
+    if (props.mode === "note" && note.trim()) {
       if (await onSaveNote(note.trim())) drafts.setNote("");
-    } else if (mode === "url" && url.trim()) {
+    } else if (props.mode === "url" && url.trim()) {
       if (await onSaveLink(url.trim())) drafts.setUrl("");
-    } else if (mode === "quote" && quote.trim()) {
+    } else if (props.mode === "quote" && quote.trim()) {
       if (await onSaveQuote(quote, drafts.attribution, drafts.sourceUrl)) {
         drafts.setQuote("");
         drafts.setAttribution("");
@@ -129,149 +76,51 @@ export function AddMenu({
     }
   };
 
-  if (compact) {
-    const closeFromControl = () => {
-      focusTriggerRef.current = true;
-      onClose();
-    };
-    const options = [
-      { label: "Note", icon: FileTextIcon },
-      { label: "Link", icon: Link01Icon },
-      { label: "Quote", icon: Bookmark01Icon },
-      { label: "File", icon: Image01Icon },
-      { label: "Screenshot", icon: Camera01Icon },
-      ...(onAddSpace ? [{ label: "Space", icon: Folder01Icon }] : []),
-    ];
-    const selectOption = (label: string) => {
-      if (label === "Note") onModeChange("note");
-      else if (label === "Link") onModeChange("url");
-      else if (label === "Quote") onModeChange("quote");
-      else if (label === "File") {
-        closeFromControl();
-        fileRef.current?.click();
-      } else if (label === "Screenshot") {
-        focusTriggerRef.current = true;
-        onScreenshot();
-      } else {
-        onClose();
-        onAddSpace?.();
-      }
-    };
-    return (
-      <div
-        ref={compactRootRef}
-        className="add-menu compact-add"
-        data-open={open && !mode}
-        onKeyDownCapture={(event) => {
-          if (event.key !== "Escape") return;
-          event.preventDefault();
-          event.stopPropagation();
-          if (mode) onModeChange(null);
-          else closeFromControl();
-        }}
-      >
-        <input
-          ref={fileRef}
-          type="file"
-          hidden
-          tabIndex={-1}
-          multiple
-          onChange={(event) => {
-            const files = Array.from(event.target.files ?? []);
-            event.target.value = "";
-            if (files.length) onPickFile(files);
-          }}
-        />
-        <div
-          id={panelId}
-          className="compact-add-stack"
-          role="toolbar"
-          aria-orientation="vertical"
-          aria-label="Add to your library"
-          aria-hidden={!open || Boolean(mode)}
-          inert={!open || Boolean(mode)}
-          onKeyDown={(event) => {
-            if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
-            event.preventDefault();
-            const buttons = [
-              ...event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
-            ];
-            const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-            const next =
-              event.key === "Home"
-                ? 0
-                : event.key === "End"
-                  ? buttons.length - 1
-                  : (index + (event.key === "ArrowUp" ? 1 : -1) + buttons.length) % buttons.length;
-            buttons[next]?.focus({ preventScroll: true });
-          }}
-        >
-          {options.map((option, index) => (
-            <button
-              key={option.label}
-              type="button"
-              className="compact-add-option"
-              style={{ "--add-index": index } as React.CSSProperties}
-              aria-label={option.label}
-              data-tooltip={option.label}
-              disabled={saving}
-              onClick={() => selectOption(option.label)}
-            >
-              <HugeiconsIcon icon={option.icon} size={16} />
-            </button>
-          ))}
-        </div>
-        {open && mode && (
-          <div
-            className="add-menu-panel compact-add-form"
-            role="dialog"
-            aria-label={`Add ${TITLES[mode]}`}
-          >
-            <div className="add-menu-header">
-              <button
-                type="button"
-                className="add-menu-round"
-                aria-label="Back"
-                onClick={() => onModeChange(null)}
-              >
-                <HugeiconsIcon icon={ArrowLeft01Icon} size={14} />
-              </button>
-              <span className="add-menu-title">{TITLES[mode]}</span>
-              <button
-                type="button"
-                className="add-menu-round"
-                aria-label="Close"
-                onClick={closeFromControl}
-              >
-                <HugeiconsIcon icon={Cancel01Icon} size={13} />
-              </button>
-            </div>
-            <div className="add-menu-body">
-              <AddForm mode={mode} saving={saving} drafts={drafts} onSubmit={save} />
-              {error && (
-                <p className="add-menu-error" role="alert">
-                  Couldn’t save this yet: {error}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-        <button
-          ref={triggerRef}
-          type="button"
-          className="add-button codex-add-button"
-          aria-label="Add"
-          aria-expanded={open}
-          aria-controls={panelId}
-          data-tooltip="Add"
-          disabled={saving}
-          onClick={open ? closeFromControl : onOpen}
-        >
-          <HugeiconsIcon icon={PlusSignIcon} size={16} />
-        </button>
-      </div>
-    );
-  }
+  return compact ? (
+    <CompactAddMenu {...props} drafts={drafts} onSubmit={onSubmit} />
+  ) : (
+    <FloatingAddMenu {...props} collapsible={collapsible} drafts={drafts} onSubmit={onSubmit} />
+  );
+}
+
+function FloatingAddMenu({
+  collapsible,
+  open,
+  mode,
+  saving,
+  error,
+  drafts,
+  onSubmit,
+  onOpen,
+  onClose,
+  onModeChange,
+  onPickFile,
+  onScreenshot,
+  onAddSpace,
+}: AddMenuLayoutProps & { collapsible: boolean }) {
+  const reducedMotion = useReducedMotion();
+  const panelId = useId();
+  const { rootRef, triggerRef, fileRef, focusTriggerRef, pickFiles } = useAddMenu({
+    open,
+    mode,
+    onClose,
+    onPickFile,
+    firstOption: ".add-menu-tile",
+  });
+  // Presence can mount a panel after the open-state effect has run. Focus
+  // on the actual mount too, rather than depending on animation timing.
+  const mountPanel = useCallback(
+    (node: HTMLDivElement | null) => {
+      rootRef.current = node;
+      node?.querySelector<HTMLElement>(".add-menu-tile")?.focus({ preventScroll: true });
+    },
+    [rootRef],
+  );
+
+  // Escape is handled by useAppShortcuts, which steps back from a form before closing.
+  const onKeyDownCapture = (event: React.KeyboardEvent) => {
+    if (event.key === "Escape" && !mode) focusTriggerRef.current = true;
+  };
 
   return (
     <div className="add-menu" data-open={open}>
@@ -282,11 +131,7 @@ export function AddMenu({
         className="sr-only"
         tabIndex={-1}
         aria-label="Choose files"
-        onChange={(event) => {
-          const files = Array.from(event.target.files ?? []);
-          event.target.value = "";
-          if (files.length) onPickFile(files);
-        }}
+        onChange={pickFiles}
       />
       <AnimatePresence initial={false}>
         {open && (
@@ -316,7 +161,7 @@ export function AddMenu({
                   <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
                 </button>
               )}
-              <span className="add-menu-title">{mode ? TITLES[mode] : "Add"}</span>
+              <span className="add-menu-title">{mode ? ADD_TITLES[mode] : "Add"}</span>
               <button
                 type="button"
                 className="add-menu-round"
@@ -339,7 +184,7 @@ export function AddMenu({
               animate={{ opacity: 1, transition: { delay: 0.08, duration: 0.18 } }}
             >
               {mode ? (
-                <AddForm mode={mode} saving={saving} drafts={drafts} onSubmit={save} />
+                <AddForm mode={mode} saving={saving} drafts={drafts} onSubmit={onSubmit} />
               ) : (
                 <div className="add-menu-grid">
                   <Tile icon={FileTextIcon} label="Note" onSelect={() => onModeChange("note")} />
@@ -376,11 +221,7 @@ export function AddMenu({
                   )}
                 </div>
               )}
-              {error && (
-                <p className="add-menu-error" role="alert">
-                  Couldn’t save this yet: {error}
-                </p>
-              )}
+              <AddError error={error} />
             </motion.div>
           </motion.div>
         )}
