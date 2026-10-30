@@ -8,19 +8,12 @@ import {
   type UpdateSpaceInput,
 } from "@inkling/contracts";
 import type { Fragment } from "effect/sql/Statement";
-import { readItem, type StorageContext } from "./context.ts";
+import type { StorageContext } from "./context.ts";
+import { cardFromRow, type ItemRow, qualifiedItemColumns, readItem } from "./rows.ts";
+import { changes, clampLimit, nonEmpty, parseJson } from "./shared.ts";
 import { invalidInput, itemNotFound, spaceNotFound } from "./errors.ts";
 import type { QueryVector } from "./search.ts";
 import { escapeFtsQuery, type makeSearch, sqlLikePattern } from "./search.ts";
-import {
-  cardFromRow,
-  changes,
-  clampLimit,
-  type ItemRow,
-  nonEmpty,
-  parseJson,
-  qualifiedItemColumns,
-} from "./shared.ts";
 
 type SpaceRow = {
   id: string;

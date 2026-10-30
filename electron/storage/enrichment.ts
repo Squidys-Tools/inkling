@@ -1,7 +1,9 @@
 import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Effect, Predicate } from "effect";
-import { readItem, type StorageContext } from "./context.ts";
+import type { StorageContext } from "./context.ts";
+import { readItem } from "./rows.ts";
+import { changes, nonEmpty, normalizeHttpUrl, parseJson } from "./shared.ts";
 import { attempt, invalidInput, itemNotFound, storageFailure } from "./errors.ts";
 import {
   IMAGE_PALETTE_JOB,
@@ -9,7 +11,6 @@ import {
   URL_ENRICHMENT_JOB,
   VIDEO_POSTER_JOB,
 } from "./jobs.ts";
-import { changes, nonEmpty, normalizeHttpUrl, parseJson } from "./shared.ts";
 
 export type UrlArticle = {
   canonicalUrl?: unknown;

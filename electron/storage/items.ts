@@ -10,9 +10,8 @@ import type {
   SaveFileInput,
   UpdateItemInput,
 } from "@inkling/contracts";
-import { selectCards, readItem, type StorageContext } from "./context.ts";
-import { attempt, invalidInput, itemNotFound } from "./errors.ts";
-import { IMAGE_THUMBNAIL_JOB, URL_ENRICHMENT_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
+import type { StorageContext } from "./context.ts";
+import { readItem, selectCards } from "./rows.ts";
 import {
   changes,
   isInside,
@@ -24,6 +23,8 @@ import {
   normalizeHttpUrl,
   parseObject,
 } from "./shared.ts";
+import { attempt, invalidInput, itemNotFound } from "./errors.ts";
+import { IMAGE_THUMBNAIL_JOB, URL_ENRICHMENT_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
 
 const maxFileBytes = 50 * 1024 * 1024;
 

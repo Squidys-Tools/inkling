@@ -1,16 +1,17 @@
 import { Effect } from "effect";
 import type { StoredLibraryCard } from "@inkling/contracts";
 import { IMAGE_MODEL, TEXT_MODEL } from "../embedding-contract.ts";
-import { selectCards, type StorageContext } from "./context.ts";
-import { invalidInput } from "./errors.ts";
+import type { StorageContext } from "./context.ts";
 import {
   cardItem,
-  clampLimit,
-  type ItemRow,
   itemColumns,
   itemFromRow,
+  type ItemRow,
   qualifiedItemColumns,
-} from "./shared.ts";
+  selectCards,
+} from "./rows.ts";
+import { clampLimit } from "./shared.ts";
+import { invalidInput } from "./errors.ts";
 
 const semanticMatchFloor = 0.55;
 
