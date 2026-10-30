@@ -12,6 +12,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { type Editor, useEditorState } from "@tiptap/react";
+import "./NoteEditorToolbar.css";
 
 const IDLE_TOOLBAR = {
   h1: false,
