@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { once } from "node:events";
 import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import {
   createServer,
@@ -339,14 +340,8 @@ export async function startCaptureServer({
   server.headersTimeout = READ_TIMEOUT;
   server.requestTimeout = READ_TIMEOUT;
   server.keepAliveTimeout = 1_000;
-  await new Promise<void>((resolve, reject) => {
-    const onError = (error: Error) => reject(error);
-    server.once("error", onError);
-    server.listen(0, "127.0.0.1", () => {
-      server.off("error", onError);
-      resolve();
-    });
-  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
 
   return {
     status() {
