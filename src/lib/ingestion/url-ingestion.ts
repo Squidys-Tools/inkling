@@ -4,7 +4,7 @@ import { collectSafeEmbeds } from "./embeds";
 import { UrlIngestionError } from "./errors";
 import { extractFallback } from "./fallback";
 import { downloadPage, fetchJson, runHttp } from "./http";
-import { collectImageUrls, hasReadableText, htmlToText, sanitizeHtml } from "./html-safety";
+import { cleanCapturedHtml, collectImageUrls, hasReadableText, htmlToText } from "./captured-html";
 import { visibleByline } from "./fallback";
 import {
   normalizeHttpUrl,
@@ -264,7 +264,7 @@ export async function ingestUrl(
   const title = normalizeText(extraction.title) || new URL(fetchedUrl).hostname;
   const description = normalizeText(extraction.description);
   const contentDocument = parseDocument(
-    `<html><head></head><body>${sanitizeHtml(extraction.contentHtml ?? "", fetchedUrl)}</body></html>`,
+    `<html><head></head><body>${cleanCapturedHtml(extraction.contentHtml ?? "", fetchedUrl)}</body></html>`,
   );
   const html = cleanArticleHeadings(contentDocument, title, description);
   if (!hasReadableText(html)) {

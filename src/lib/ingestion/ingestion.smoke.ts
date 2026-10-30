@@ -2,7 +2,7 @@ import { parseHTML } from "linkedom";
 import { DefaultDefuddleAdapter } from "./defuddle-adapter";
 import { extractFallback } from "./fallback";
 import { collectSafeEmbeds } from "./embeds";
-import { sanitizeHtml } from "./html-safety";
+import { cleanCapturedHtml } from "./captured-html";
 import { classifyFile } from "./file-classification";
 import { ingestUrl } from "./url-ingestion";
 import { isUrlIngestionError } from "./errors";
@@ -110,7 +110,7 @@ assert(
   "provider URL is not accepted as direct video media",
 );
 
-const sanitized = sanitizeHtml(
+const sanitized = cleanCapturedHtml(
   `<iframe src="javascript:alert(1)"></iframe><video src="https://example.com/not-a-video"></video>`,
   pageUrl,
 );

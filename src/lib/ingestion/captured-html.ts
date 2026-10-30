@@ -22,7 +22,12 @@ function sanitizeElement(element: Element, pageUrl: string): void {
   applyEmbedPolicy(element, pageUrl);
 }
 
-export function sanitizeHtml(html: string, pageUrl: string): string {
+/**
+ * Keeps scripts, styles, forms and handlers out of stored HTML and the text
+ * extracted from it, and resolves its links against the page. This is storage
+ * hygiene on linkedom; the trust boundary is purifyHtml at render.
+ */
+export function cleanCapturedHtml(html: string, pageUrl: string): string {
   const { document } = parseHTML(`<html><head></head><body>${html}</body></html>`);
   for (const element of document.querySelectorAll("noscript")) {
     const parent = element.parentElement;

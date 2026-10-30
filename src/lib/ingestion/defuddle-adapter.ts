@@ -1,7 +1,7 @@
 import Defuddle from "defuddle";
 import type { DefuddleResponse } from "defuddle";
 import { extractDocumentAuthor } from "./fallback";
-import { hasReadableText } from "./html-safety";
+import { hasReadableText } from "./captured-html";
 import { extractJsonLdMetadata } from "./json-ld";
 import { normalizeHttpUrl, normalizePublishedDate, normalizeText, uniqueStrings } from "./url";
 import type { DefuddleAdapter, RawArticleExtraction } from "./types";
