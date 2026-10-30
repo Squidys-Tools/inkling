@@ -8,7 +8,7 @@ import type { UpdateChannel, UpdateState } from "@inkling/contracts";
 import { isMissing } from "./storage/shared.ts";
 
 type UpdateInfo = { version: string; files?: ReadonlyArray<{ url: string; sha512: string }> };
-export type UpdaterLike = {
+type UpdaterLike = {
   autoDownload: boolean;
   autoInstallOnAppQuit: boolean;
   allowDowngrade: boolean;

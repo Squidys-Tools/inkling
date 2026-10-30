@@ -127,7 +127,7 @@ export function libraryLayer({ media = {}, jobQueue, useFts5, ...options }: Libr
   );
 }
 
-export type Promised<T> = {
+type Promised<T> = {
   [K in keyof T]: T[K] extends (...args: infer A) => Effect.Effect<infer R, infer _E, never>
     ? (...args: A) => Promise<R>
     : T[K];
