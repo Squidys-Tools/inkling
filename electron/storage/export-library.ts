@@ -29,9 +29,8 @@ type SkippedAsset = { path: string; error: string };
 type Copied = { assetFiles: AssetFile[]; skippedAssets: SkippedAsset[]; assetsBytes: number };
 
 function exportDateStamp(millis: number) {
-  const date = new Date(millis);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}-${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}`;
+  const iso = new Date(millis).toISOString();
+  return `${iso.slice(0, 10)}-${iso.slice(11, 19).replaceAll(":", "")}`;
 }
 
 async function copyFileAtomically(source: string, destination: string) {
