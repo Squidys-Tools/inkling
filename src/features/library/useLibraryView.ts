@@ -10,7 +10,7 @@ const GRID_GAP = 12;
 const TARGET_CARD_WIDTH = 286;
 const MAX_GRID_COLUMNS = 12;
 
-function masonryColumnCount(width: number): number {
+function masonryColumnCount(width: number) {
   const columns = Math.round((width + GRID_GAP) / (TARGET_CARD_WIDTH + GRID_GAP));
   return Math.min(Math.max(columns, 1), MAX_GRID_COLUMNS);
 }

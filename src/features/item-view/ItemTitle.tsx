@@ -2,7 +2,7 @@ import { pdfPreviewTitle } from "../../components/ItemMedia";
 import type { LibraryItem } from "../../lib/types";
 import { cx } from "../../ui/cx";
 
-export function itemViewTitle(item: LibraryItem): string {
+export function itemViewTitle(item: LibraryItem) {
   return item.kind === "PDF" ? pdfPreviewTitle(item.title) || item.title : item.title;
 }
 

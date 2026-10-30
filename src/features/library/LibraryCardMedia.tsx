@@ -53,14 +53,14 @@ const MEDIA_FILL =
   "pointer-events-none absolute inset-0 size-full min-h-0 aspect-auto object-cover";
 const MEDIA_ROW = "pointer-events-none relative inset-auto h-full w-auto aspect-auto object-cover";
 
-export function quoteAttribution(description: string): string {
+export function quoteAttribution(description: string) {
   const text = description.trim();
   if (!text) return "";
   return text.startsWith("—") ? text : `— ${text}`;
 }
 
 // Quotes show in full on the card; the art clamps only very long ones.
-function cardText(value: string | undefined, fallback: string): string {
+function cardText(value: string | undefined, fallback: string) {
   return value?.replace(/\s+/gu, " ").trim() || fallback;
 }
 

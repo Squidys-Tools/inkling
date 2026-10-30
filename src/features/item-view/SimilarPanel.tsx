@@ -16,7 +16,7 @@ const TEXT_TILE = cx(
 );
 const SMALL_CAPS = "font-mono text-[9px]/3 text-muted uppercase";
 
-function similarTileHeight(item: LibraryItem): number {
+function similarTileHeight(item: LibraryItem) {
   if (item.image) {
     const ratio = item.mediaWidth && item.mediaHeight ? item.mediaHeight / item.mediaWidth : 1.25;
     return Math.round(Math.min(200, Math.max(100, SIMILAR_TILE_WIDTH * ratio)));
@@ -38,7 +38,7 @@ function splitIntoColumns(items: LibraryItem[]): [LibraryItem[], LibraryItem[]] 
   return columns;
 }
 
-function wordCount(text: string): number {
+function wordCount(text: string) {
   return text.trim().split(/\s+/u).filter(Boolean).length;
 }
 

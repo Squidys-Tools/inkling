@@ -44,7 +44,7 @@ export type LibraryCardContext = {
 const SELECTED_RING =
   "[&.is-selected]:after:pointer-events-none [&.is-selected]:after:absolute [&.is-selected]:after:inset-0 [&.is-selected]:after:z-5 [&.is-selected]:after:rounded-[inherit] [&.is-selected]:after:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_80%,transparent)]";
 
-function cardShape(layout: CardLayout, kind: CardKind): string {
+function cardShape(layout: CardLayout, kind: CardKind) {
   if (layout === "list") return "grid grid-cols-[155px_1fr] aspect-auto";
   if (layout === "archive") return "aspect-auto";
   switch (kind) {
@@ -63,7 +63,7 @@ function cardShape(layout: CardLayout, kind: CardKind): string {
   }
 }
 
-function mediaBox(layout: CardLayout, kind: CardKind, media: MediaKind): string {
+function mediaBox(layout: CardLayout, kind: CardKind, media: MediaKind) {
   if (layout === "list") return "static inset-0 min-w-0";
   if (layout === "grid" && kind === "article")
     return media === "paper" ? "hidden" : "relative inset-auto h-[120px] min-w-0 flex-none";

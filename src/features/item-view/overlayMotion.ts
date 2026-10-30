@@ -15,7 +15,7 @@ export function rectFrom(rect: DOMRect): FlightRect {
 
 const CARD_OFFSCREEN_THRESHOLD = 0.25;
 
-export function isCardTooFarOffscreen(card: FlightRect, viewport: FlightRect): boolean {
+export function isCardTooFarOffscreen(card: FlightRect, viewport: FlightRect) {
   if (card.width <= 0 || card.height <= 0) return true;
   const visibleWidth = Math.max(
     0,
@@ -32,7 +32,7 @@ export function isCardTooFarOffscreen(card: FlightRect, viewport: FlightRect): b
   return Math.max(clippedWidth, clippedHeight) > CARD_OFFSCREEN_THRESHOLD;
 }
 
-export function scrollViewport(root: HTMLElement | null): HTMLElement | null {
+export function scrollViewport(root: HTMLElement | null) {
   if (!root) return null;
   return root.querySelector<HTMLElement>('[data-testid="virtuoso-scroller"]') ?? root;
 }
