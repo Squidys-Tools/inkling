@@ -107,7 +107,7 @@ export type StoredSpace = {
   position: number;
   createdAt: number;
   updatedAt: number;
-  /** How many items the Space holds, when the core reports it. The sidebar shows it when present. */
+  /** Set for Regular Spaces only; a Smart Space has no stored membership to count. */
   itemCount?: number;
 };
 
