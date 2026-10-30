@@ -1,7 +1,8 @@
 import { createReadStream } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
-import { extname, isAbsolute, relative, resolve } from "node:path";
+import { extname, resolve } from "node:path";
 import { Readable } from "node:stream";
+import { isInside } from "./storage/shared.ts";
 
 // Returns the byte window to serve, "unsatisfiable", or null when the header has to be ignored.
 // Multiple ranges, other units and malformed specs are ignored: RFC 9110 lets a server answer
@@ -46,10 +47,7 @@ export async function serveAssetFile(
   }
 
   const filePath = resolve(root, `.${path}`);
-  const pathFromRoot = relative(root, filePath);
-  if (pathFromRoot.startsWith("..") || isAbsolute(pathFromRoot)) {
-    return new Response(null, { status: 403 });
-  }
+  if (!isInside(filePath, root)) return new Response(null, { status: 403 });
 
   try {
     const [realRoot, realFile, fileStat] = await Promise.all([
@@ -57,8 +55,7 @@ export async function serveAssetFile(
       realpath(filePath),
       stat(filePath),
     ]);
-    const realRelativePath = relative(realRoot, realFile);
-    if (!fileStat.isFile() || realRelativePath.startsWith("..") || isAbsolute(realRelativePath)) {
+    if (!fileStat.isFile() || !isInside(realFile, realRoot)) {
       return new Response(null, { status: 403 });
     }
 
