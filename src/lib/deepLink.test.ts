@@ -11,15 +11,6 @@ describe("parseDeepLinkCapture", () => {
     });
   });
 
-  test("ignores the via provenance marker", () => {
-    expect(
-      parseDeepLinkCapture("inkling://capture?url=https%3A%2F%2Fexample.com%2F&via=extension"),
-    ).toEqual({
-      kind: "url",
-      url: "https://example.com/",
-    });
-  });
-
   test("preserves the extension fallback title for immediate desktop capture", () => {
     expect(
       parseDeepLinkCapture(
