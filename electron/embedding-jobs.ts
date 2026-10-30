@@ -19,20 +19,19 @@ export function embeddingText(
     "title" | "description" | "body" | "bodyFormat" | "ocrText" | "metadata"
   >,
 ) {
-  const bodyValue = String(item.body ?? "").trim();
+  const bodyValue = item.body.trim();
   const body = bodyValue
     ? item.bodyFormat === "md"
       ? markdownToPlainText(bodyValue)
       : bodyValue
     : null;
-  const description = body ?? item.description;
-  const parts = [item.title, description, item.ocrText]
-    .map((value) => String(value ?? "").trim())
+  const parts = [item.title, body ?? item.description, item.ocrText]
+    .map((value) => value?.trim())
     .filter(Boolean);
 
   if (body == null) {
     for (const key of ["text", "extractedText"]) {
-      const value = String(item.metadata?.[key] ?? "").trim();
+      const value = String(item.metadata[key] ?? "").trim();
       if (value) parts.push(value);
     }
   }
