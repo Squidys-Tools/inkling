@@ -13,7 +13,7 @@ Local library with capture, extraction, and text search.
 - [x] File picker, drag-and-drop, clipboard, screenshot capture
 - [x] Browser-extension deep link (`inkling://capture?url=...`)
 - [x] SQLite storage with FTS5 full-text search
-- [x] Thumbnail generation and content-addressed asset storage
+- [x] Thumbnail generation and per-item asset storage
 - [x] Background job queue with lease management and recovery
 - [x] Safe embed allowlists (YouTube, Vimeo, direct media)
 - [x] HTML sanitization and security
@@ -27,8 +27,7 @@ Vertical slice from capture through semantic understanding and search.
 - [x] Benchmark corpus (48 items, articles/images/screenshots/PDFs/notes/videos)
 - [x] Multi-engine OCR scoring (Windows OCR + tesseract.js)
 - [x] Background image OCR processing
-- [x] PDF text extraction and scanned-page OCR on Windows
-- [x] Local deterministic text and image embeddings
+- [x] PDF text extraction and scanned-page OCR
 - [x] CI, release, and security automation
 - [x] Nomic learned embedding models through ONNX Runtime
 - [x] Semantic search over text and images
