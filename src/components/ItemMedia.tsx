@@ -403,7 +403,7 @@ let xWidgetsPromise: Promise<void> | null = null;
 const X_WIDGETS_SRC = "https://platform.twitter.com/widgets.js";
 
 function loadXWidgets() {
-  if (typeof window === "undefined" || window.twttr?.widgets) return Promise.resolve();
+  if (window.twttr?.widgets) return Promise.resolve();
   if (xWidgetsPromise) return xWidgetsPromise;
 
   xWidgetsPromise = new Promise<void>((resolve, reject) => {
@@ -451,8 +451,8 @@ function loadXWidgets() {
   return xWidgetsPromise;
 }
 
-function waitForXWidget(root: HTMLElement, timeoutMs = 8000): Promise<boolean> {
-  return new Promise((resolve) => {
+function waitForXWidget(root: HTMLElement) {
+  return new Promise<boolean>((resolve) => {
     let settled = false;
     let observer: MutationObserver | null = null;
     let timeoutId: number | undefined;
@@ -478,7 +478,7 @@ function waitForXWidget(root: HTMLElement, timeoutMs = 8000): Promise<boolean> {
     observer = new MutationObserver(watchWidget);
     observer.observe(root, { childList: true, subtree: true });
     watchWidget();
-    timeoutId = window.setTimeout(() => finish(false), timeoutMs);
+    timeoutId = window.setTimeout(() => finish(false), 8000);
   });
 }
 
