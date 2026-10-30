@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
+import { constants, openSync, closeSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, symlink, truncate, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -31,6 +33,62 @@ async function fixture() {
   };
   return { root, directory, library, options };
 }
+
+test.skipIf(process.platform === "win32")(
+  "a regular file replaced by a FIFO cannot block Off or shutdown",
+  async () => {
+    for (const action of ["off", "close"] as const) {
+      const root = await mkdtemp(join(tmpdir(), "inkling-screenshot-fifo-"));
+      const directory = join(root, "Screenshots");
+      await mkdir(directory);
+      const path = join(directory, "swap.png");
+      let saves = 0;
+      const importer = createScreenshotImporter({
+        preferencesPath: join(root, "preferences.json"),
+        defaultDirectory: directory,
+        pollMillis: 1000000,
+        save: async () => {
+          saves++;
+          return true;
+        },
+      });
+      let operation: Promise<unknown> | undefined;
+      let scan: Promise<unknown> | undefined;
+      try {
+        await importer.configure(true);
+        await importer.scanNow();
+        await writeFile(path, "regular candidate before stabilization");
+        scan = importer.scanNow();
+        await pause(30);
+        await rm(path);
+        execFileSync("mkfifo", [path]);
+        await pause(200);
+        operation = action === "off" ? importer.configure(false) : importer.close();
+        const completed = await Promise.race([
+          Promise.all([scan, operation]).then(() => true),
+          pause(500).then(() => false),
+        ]);
+        expect(completed).toBe(true);
+        expect(saves).toBe(0);
+        if (action === "off") expect((await importer.getState()).enabled).toBe(false);
+      } finally {
+        // Cleanup only: a failing old-version regression must not strand its FIFO reader.
+        // The assertion above must finish without this writer being opened.
+        try {
+          const fd = openSync(path, constants.O_WRONLY | constants.O_NONBLOCK);
+          closeSync(fd);
+        } catch (error) {
+          if (!["ENOENT", "ENXIO"].includes((error as NodeJS.ErrnoException).code ?? ""))
+            throw error;
+        }
+        await scan;
+        await operation;
+        await importer.close();
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  },
+);
 
 test("off by default, enable skips old files, new screenshots save once and Off ignores its interval", async () => {
   const f = await fixture();

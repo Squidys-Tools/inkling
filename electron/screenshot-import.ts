@@ -118,7 +118,12 @@ export function createScreenshotImporter({
           const path = join(preferences.directory, row.name);
           await pause(100);
           if (closed || epoch !== generation || !preferences.enabled) return;
-          const handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+          // A regular file can become a FIFO during stabilization. Never wait
+          // for a device/pipe writer before the descriptor's regular-file check.
+          const handle = await open(
+            path,
+            constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0),
+          );
           try {
             const before = await handle.stat();
             if (!before.isFile() || signature(before) !== row.stamp) continue;
