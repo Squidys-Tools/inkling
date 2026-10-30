@@ -15,8 +15,7 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc-rs --noEmit -p tsconfig.json",
-    "typecheck:tsc": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc-rs --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "effect": "4.0.6"

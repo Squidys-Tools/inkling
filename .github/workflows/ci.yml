@@ -115,15 +115,6 @@ jobs:
           bun run --cwd packages/ingestion-shared typecheck
           bun run --cwd packages/contracts typecheck
 
-      - name: 'Canary: real tsc typecheck (non-blocking)'
-        if: always()
-        continue-on-error: true
-        run: |
-          bun run typecheck:tsc
-          bun run --cwd extension typecheck:tsc
-          bun run --cwd packages/ingestion-shared typecheck:tsc
-          bun run --cwd packages/contracts typecheck:tsc
-
       - name: Check documented commands exist
         run: bun run check:refs
 

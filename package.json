@@ -28,7 +28,6 @@
     "check:changed": "bun scripts/check-changed.ts",
     "check:refs": "bun scripts/assert-command-refs.ts",
     "typecheck": "tsc-rs --noEmit && tsc-rs -p benchmarks/harness/tsconfig.json --noEmit && tsc-rs -p electron/tsconfig.json --noEmit",
-    "typecheck:tsc": "tsc --noEmit && tsc -p benchmarks/harness/tsconfig.json --noEmit && tsc -p electron/tsconfig.json --noEmit",
     "test": "bun test --timeout 30000",
     "test:pdf": "bun benchmarks/harness/pdf.smoke.ts",
     "knip": "knip --no-progress",
