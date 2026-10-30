@@ -3,9 +3,6 @@
   "ignorePatterns": [
     "public/seed-demo",
     "benchmarks/corpus",
-    ".entire",
-    ".opencode",
-    ".codex",
     "docs/assets",
     "extension/icons",
     "src/components/GradualBlur",
