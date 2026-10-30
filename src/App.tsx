@@ -506,12 +506,16 @@ function App() {
                 }
                 onPickFile={(file) => void captureFile(file, "file picker")}
                 onScreenshot={startScreenshotCapture}
-                onAddSpace={() => {
-                  setIsSidebarOpen(true);
-                  setIsCreatingSpace(true);
-                  setNewSpaceName("");
-                  setNewSpaceKind("smart");
-                }}
+                onAddSpace={
+                  codexSidebar
+                    ? () => {
+                        setIsSidebarOpen(true);
+                        setIsCreatingSpace(true);
+                        setNewSpaceName("");
+                        setNewSpaceKind("smart");
+                      }
+                    : undefined
+                }
               />
               {availableUpdate && (
                 <NavRow

@@ -203,9 +203,9 @@ export function AddMenu({
             const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
             const next =
               event.key === "Home"
-                ? buttons.length - 1
+                ? 0
                 : event.key === "End"
-                  ? 0
+                  ? buttons.length - 1
                   : (index + (event.key === "ArrowUp" ? 1 : -1) + buttons.length) % buttons.length;
             buttons[next]?.focus({ preventScroll: true });
           }}
@@ -217,7 +217,7 @@ export function AddMenu({
               className="compact-add-option"
               style={{ "--add-index": index } as React.CSSProperties}
               aria-label={option.label === "Screen" ? "Screenshot" : option.label}
-              data-tooltip={option.label}
+              data-tooltip={option.label === "Screen" ? "Screenshot" : option.label}
               disabled={saving}
               onClick={() => selectOption(option.label)}
             >

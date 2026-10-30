@@ -156,7 +156,7 @@ export function Sidebar({
           <NavRow
             active={everything.active}
             onClick={everything.onSelect}
-            aria-label="Everything"
+            aria-label={experimental && !isOpen ? "Everything" : undefined}
             data-tooltip={experimental && !isOpen ? "Everything" : undefined}
           >
             <span

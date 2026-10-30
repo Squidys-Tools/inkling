@@ -232,6 +232,42 @@ test("Expanded Add names the folder action Space without changing its handler", 
   );
 });
 
+test("Collapsed Codex Space action reopens the sidebar and returns Add to tiles", async () => {
+  function Probe() {
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [open, setOpen] = useState(false);
+    return (
+      <AddMenu
+        collapsible
+        compact={!sidebarOpen}
+        open={open}
+        mode={null}
+        saving={false}
+        error={null}
+        onOpen={() => setOpen(true)}
+        onClose={() => setOpen(false)}
+        onModeChange={noop}
+        onSaveNote={async () => true}
+        onSaveLink={async () => true}
+        onSaveQuote={async () => true}
+        onPickFile={noop}
+        onScreenshot={noop}
+        onAddSpace={() => setSidebarOpen(true)}
+      />
+    );
+  }
+  await mounted(<Probe />, async (doc) => {
+    const trigger = () => doc.querySelector<HTMLButtonElement>('[aria-label="Add"]')!;
+    await act(async () => trigger().click());
+    expect(doc.querySelectorAll(".compact-add-option")).toHaveLength(6);
+    await act(async () => doc.querySelector<HTMLButtonElement>('[aria-label="Space"]')!.click());
+    expect(doc.querySelector(".compact-add-option")).toBeNull();
+    await act(async () => trigger().click());
+    expect(doc.querySelectorAll(".add-menu-tile")).toHaveLength(6);
+    expect(doc.querySelector(".compact-add-option")).toBeNull();
+  });
+});
+
 test("Codex Add keeps its label mounted for expanded view and the shared label fade", async () => {
   await mounted(
     <AddMenu

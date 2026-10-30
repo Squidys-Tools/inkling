@@ -16,6 +16,7 @@
   left: 8px;
   width: calc(var(--spacing-sidebar) - 16px);
   padding: 8px 4px;
+  overflow: hidden;
   border: 0;
   border-radius: var(--radius-sidebar);
   transition: width var(--codex-motion);
@@ -71,6 +72,7 @@
 }
 .codex-spaces {
   position: relative;
+  min-height: 0;
 }
 .codex-spaces-content {
   display: grid;
@@ -151,8 +153,15 @@
     padding var(--codex-motion);
 }
 @media (max-width: 780px) {
+  /* The open rail overlays the content, like the classic scrim; the closed
+     rail keeps its 76px and main shrinks to the remainder instead of clipping. */
   .app-shell[data-sidebar-style="codex"][data-sidebar-open="true"] > main {
-    margin-left: 76px;
+    margin-left: 0;
+    width: 100%;
+  }
+  .app-shell[data-sidebar-style="codex"][data-sidebar-open="false"] > main {
+    margin-left: var(--spacing-sidebar);
+    width: calc(100% - var(--spacing-sidebar));
   }
   .codex-sidebar {
     z-index: 30;
