@@ -64,10 +64,7 @@ async function saveUrl(rawUrl: string | undefined, title: string | undefined): P
     return;
   }
 
-  let config: LoopbackConfig | null = null;
-  try {
-    config = await readLoopbackConfig();
-  } catch {}
+  const config = await readLoopbackConfig().catch(() => null);
   if (config) {
     try {
       await postPayloadToLoopback(config.baseUrl, config.token, payload);
