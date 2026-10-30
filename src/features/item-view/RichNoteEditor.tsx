@@ -11,7 +11,8 @@ type RichNoteEditorProps = {
   body?: string;
   title: string;
   onSave: (body: string) => void | Promise<void>;
-  onEditingChange: (editing: boolean) => void;
+  /** Leaves editing, after a save or on Cancel. */
+  onDone: () => void;
   focusMode: boolean;
   onFocusModeChange: (focusMode: boolean) => void;
 };
@@ -21,7 +22,7 @@ export function RichNoteEditor({
   body,
   title,
   onSave,
-  onEditingChange,
+  onDone,
   focusMode,
   onFocusModeChange,
 }: RichNoteEditorProps) {
@@ -125,7 +126,7 @@ export function RichNoteEditor({
     setError(null);
     try {
       await onSave(nextBody);
-      onEditingChange(false);
+      onDone();
     } catch (saveError) {
       setError(errorMessage(saveError));
     } finally {
@@ -182,7 +183,7 @@ export function RichNoteEditor({
             type="button"
             className="note-editor-cancel"
             aria-label="Cancel note editing"
-            onClick={() => onEditingChange(false)}
+            onClick={onDone}
           >
             Cancel
           </button>

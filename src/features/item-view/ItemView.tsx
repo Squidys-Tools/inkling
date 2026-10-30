@@ -83,7 +83,6 @@ export function ItemView({
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("info");
 
-  // Leave the editor rather than carry the draft onto another item.
   const leaveEditor = useCallback(() => {
     setIsEditingNote(false);
     setIsFocusMode(false);
@@ -286,10 +285,7 @@ export function ItemView({
                   body={shownItem.noteBody}
                   title={shownItem.title}
                   onSave={(body) => actions.onUpdateNote(shownItem, body)}
-                  onEditingChange={(editing) => {
-                    setIsEditingNote(editing);
-                    if (!editing) setIsFocusMode(false);
-                  }}
+                  onDone={leaveEditor}
                   focusMode={isFocusModeView}
                   onFocusModeChange={setIsFocusMode}
                 />

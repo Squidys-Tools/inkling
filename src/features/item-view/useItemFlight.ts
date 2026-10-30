@@ -27,7 +27,7 @@ export function useItemFlight({
   originRectsRef: RefObject<SourceRects | null>;
   frameRef: RefObject<HTMLElement | null>;
   historyCloseRequest: number;
-  /** Called when the item changes under an open view. */
+  /** Called when the item changes under an open view, so a draft never carries over. */
   leaveEditor: () => void;
 }) {
   const layerRef = useRef<HTMLDivElement>(null);
