@@ -1,6 +1,7 @@
 import type { ArcSpec, DotRender } from "./decor";
 import { EYE_H, EYE_SPLIT, EYE_W, REST_GAZE, type HeadGaze } from "./face";
-import { circle, type Silhouette } from "./shape";
+import { lerp } from "./math";
+import { blend, circle, type Silhouette } from "./shape";
 
 export interface EyeCfg {
   /** largeur locale (axe court de la gelule), en unites de rayon de boule */
@@ -54,5 +55,40 @@ export function base(over: Partial<Pose> = {}): Pose {
     notif: null,
     dotsBehind: false,
     ...over,
+  };
+}
+
+const lerpEye = (a: EyeCfg, b: EyeCfg, t: number) => ({
+  w: lerp(a.w, b.w, t),
+  h: lerp(a.h, b.h, t),
+  open: lerp(a.open, b.open, t),
+  tilt: lerp(a.tilt ?? 0, b.tilt ?? 0, t),
+});
+
+/** Interpolation de deux poses. Le decor se croise en opacite, pas en geometrie. */
+export function blendPose(a: Pose, b: Pose, t: number): Pose {
+  const out = 1 - t;
+  return {
+    sil: blend(a.sil, b.sil, t),
+    gaze: {
+      yaw: lerp(a.gaze.yaw, b.gaze.yaw, t),
+      pitch: lerp(a.gaze.pitch, b.gaze.pitch, t),
+      roll: lerp(a.gaze.roll, b.gaze.roll, t),
+    },
+    split: lerp(a.split, b.split, t),
+    eyes: [lerpEye(a.eyes[0], b.eyes[0], t), lerpEye(a.eyes[1], b.eyes[1], t)],
+    eyeAlpha: lerp(a.eyeAlpha, b.eyeAlpha, t),
+    bodyAlpha: lerp(a.bodyAlpha, b.bodyAlpha, t),
+    dots: [
+      ...a.dots.map((d) => ({ ...d, opacity: d.opacity * out })),
+      ...b.dots.map((d) => ({ ...d, opacity: d.opacity * t })),
+    ],
+    arcs: [
+      ...a.arcs.map((r) => ({ ...r, id: `a${r.id}`, opacity: r.opacity * out })),
+      ...b.arcs.map((r) => ({ ...r, id: `b${r.id}`, opacity: r.opacity * t })),
+    ],
+    // la pastille appartient a un seul des deux etats, elle ne se melange pas
+    notif: t < 0.5 ? a.notif : b.notif,
+    dotsBehind: t < 0.5 ? a.dotsBehind : b.dotsBehind,
   };
 }
