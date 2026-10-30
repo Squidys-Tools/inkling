@@ -143,7 +143,9 @@
     "files": [
       "dist/**/*",
       "package.json",
-      "!**/node_modules/**/*.{map,ts,mts,cts}"
+      "!**/node_modules/**/*.{map,ts,mts,cts}",
+      "!**/node_modules/{@base-ui,@floating-ui,@fontsource,@fontsource-variable,@hugeicons,@liquid-dom,@tiptap,@virtuoso.dev}/**",
+      "!**/node_modules/{framer-motion,gsap,motion,motion-dom,motion-utils,prosemirror-*,react-dom,sonner}/**"
     ],
     "asarUnpack": [
       "**/tesseract.js/**/*",
