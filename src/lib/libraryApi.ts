@@ -1,5 +1,4 @@
-import { parseDeepLinkCapture, validateDeepLinkCapture } from "./deepLink";
-import type { DeepLinkCapture } from "./deepLink";
+import { type DeepLinkCapture, validateDeepLinkCapture } from "./deepLink";
 import { summariesFromJobs } from "./processingSummary";
 import type {
   CommandArgs,
@@ -329,11 +328,7 @@ export async function regeneratePairingToken() {
 export async function currentDeepLinks() {
   if (!isDesktopRuntime()) return [] satisfies DeepLinkCapture[];
   const links = await invoke("plugin:deep-link|get_current");
-  return (links ?? [])
-    .map((link) =>
-      typeof link === "string" ? parseDeepLinkCapture(link) : validateDeepLinkCapture(link),
-    )
-    .filter((link): link is DeepLinkCapture => link !== null);
+  return links.map(validateDeepLinkCapture).filter((link) => link !== null);
 }
 
 export function listenForDeepLinks(handler: (payload: unknown) => void) {
