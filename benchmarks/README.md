@@ -6,34 +6,18 @@ The corpus should contain only files and URLs that we are allowed to use for loc
 
 ## Corpus
 
-[corpus/README.md](corpus/README.md) lists what the corpus holds and where each kind of fixture lives. `manifest.json` records every item, and `expected/` holds the expected extraction metadata and OCR text.
+[corpus/README.md](corpus/README.md) lists what the corpus holds and where each kind of fixture lives. `manifest.json` records every item and its expected values.
 
-## Required manifest fields
+## Adding an item
 
-Each corpus item should have a stable ID, relative path or URL, content type, language, expected extraction behavior, expected OCR text when applicable, search terms that should match, search terms that should not match, similarity group when applicable, and notes about known edge cases.
+1. Add the file to `corpus/`.
+2. Record it in `manifest.json` with a stable `id`, its `path`, `type` and `language`, an optional `similarity_group`, `notes` on known edge cases, and the `expected` values the harness scores: title, author, search terms that must and must not match, an OCR text file, and image and embed counts. `harness/manifest.ts` defines the shape.
+3. Put expected OCR text in `expected/ocr/`.
+4. Run `bun run bench`.
 
-## Evaluation metrics
+## What it measures
 
-- OCR character and word accuracy
-- Article extraction completeness
-- Metadata accuracy
-- Search recall and precision
-- Semantic search relevance
-- Image similarity relevance
-- Summary usefulness
-- CPU time and peak memory
-- Model download size
-- Cold-start time
-- Batch processing time
-
-## Workflow
-
-1. Add files and URLs to `corpus/`.
-2. Record them in `manifest.json`.
-3. Add expected outputs under `expected/`.
-4. Run the benchmark harness.
-5. Store machine and model information with results.
-6. Compare candidates before selecting production models.
+The harness scores extraction against the expected values and OCR by token recall and precision, and records OCR and PDF latency with the machine it ran on. It does not measure semantic search relevance or image similarity yet, so the eight vision and similarity items are skipped. Summaries, memory, model download size, cold-start time and batch time still need measuring before the next model choice.
 
 ## Running the harness
 
