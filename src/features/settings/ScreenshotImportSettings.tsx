@@ -41,10 +41,15 @@ export function ScreenshotImportSettings() {
       const next = await operation();
       if (mounted.current) setState(next);
     } catch {
-      if (mounted.current)
-        setError("Could not change screenshot import. Check the folder and try again.");
       const next = await getScreenshotImportState().catch(() => null);
-      if (mounted.current && next) setState(next);
+      if (mounted.current) {
+        if (next) setState(next);
+        // A failed durable Off may stop only this session. Keep the backend's
+        // restart warning visible rather than hiding it behind a generic error.
+        setError(
+          next?.message ?? "Could not change screenshot import. Check the folder and try again.",
+        );
+      }
     } finally {
       pending.current = false;
       if (mounted.current) setBusy(false);
