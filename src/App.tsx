@@ -52,7 +52,7 @@ import { useHistory } from "./features/shell/useHistory";
 import { useMascotMood } from "./features/shell/useMascotMood";
 import { useSidebarOpen } from "./features/shell/useSidebarOpen";
 import "./features/shell/codex-sidebar.css";
-import { itemMatchesSmartQuery } from "./features/spaces/smartQuery";
+import { visibleLibraryItems } from "./features/spaces/smartQuery";
 import { useSpaces } from "./features/spaces/useSpaces";
 import { cx } from "./ui/cx";
 import { Toaster } from "./ui/Toaster";
@@ -274,30 +274,17 @@ function App() {
     setIsSidebarOpen,
   });
 
-  const filteredItems = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return items.filter((item) => {
-      const matchesQuery = !normalizedQuery
-        ? true
-        : canUseDesktopBackend || activeSpace
-          ? true
-          : [item.title, item.description, item.source, item.kind, ...item.tags]
-              .join(" ")
-              .toLowerCase()
-              .includes(normalizedQuery);
-      const matchesView =
-        activeView === "Everything" ||
-        (activeSpace
-          ? canUseDesktopBackend
-            ? true
-            : activeSpace.kind === "regular"
-              ? // Mirror of the core's membership read for browser (seed) mode.
-                (localSpaceItems.get(activeSpace.id)?.has(String(item.id)) ?? false)
-              : itemMatchesSmartQuery(item, activeSpace.query)
-          : false);
-      return matchesQuery && matchesView;
-    });
-  }, [activeSpace, activeView, canUseDesktopBackend, items, localSpaceItems, query]);
+  const filteredItems = useMemo(
+    () =>
+      visibleLibraryItems(items, {
+        canUseDesktopBackend,
+        query,
+        activeView,
+        activeSpace,
+        localSpaceItems,
+      }),
+    [activeSpace, activeView, canUseDesktopBackend, items, localSpaceItems, query],
+  );
   useLayoutEffect(() => {
     filteredItemsRef.current = filteredItems;
   }, [filteredItems]);
