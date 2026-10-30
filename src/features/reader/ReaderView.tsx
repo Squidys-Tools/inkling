@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
-import { hostnameForUrl } from "./features/hostname";
-import { isWebUrl } from "./lib/ingestion/url";
-import { purifyHtml } from "./lib/purifyHtml";
+import { hostnameForUrl } from "../hostname";
+import { isWebUrl } from "../../lib/ingestion/url";
+import { purifyHtml } from "../../lib/purifyHtml";
 import "./reader.css";
 
 export type ReaderOrigin = { x: number; y: number };

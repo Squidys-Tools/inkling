@@ -11,7 +11,7 @@ import {
 } from "react";
 import { isElectronRuntime } from "../../lib/libraryApi";
 import type { LibraryItem } from "../../lib/types";
-import type { ReaderOrigin } from "../../ReaderView";
+import type { ReaderOrigin } from "../reader/ReaderView";
 import { cx } from "../../ui/cx";
 import { InfoPanel, NOTE_BOX } from "./InfoPanel";
 import { ItemActionBar } from "./ItemActionBar";

@@ -20,7 +20,7 @@ import {
 } from "../../lib/libraryApi";
 import { markdownToPlainText, NOTE_BODY_FORMAT, normalizeNoteBody } from "../../lib/notes";
 import type { LibraryItem } from "../../lib/types";
-import type { ReaderItem, ReaderOrigin } from "../../ReaderView";
+import type { ReaderItem, ReaderOrigin } from "../reader/ReaderView";
 import {
   metadataTags,
   rememberNoteBody,

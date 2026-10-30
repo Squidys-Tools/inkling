@@ -14,7 +14,7 @@ const ItemView = lazy(() =>
 );
 const PdfViewer = lazy(() => import("../item-view/PdfViewer"));
 const ReaderView = lazy(() =>
-  import("../../ReaderView").then((module) => ({ default: module.ReaderView })),
+  import("../reader/ReaderView").then((module) => ({ default: module.ReaderView })),
 );
 
 export function ItemLayers({

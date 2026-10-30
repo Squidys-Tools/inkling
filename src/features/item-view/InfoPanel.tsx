@@ -9,7 +9,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { LibraryItem } from "../../lib/types";
-import type { ReaderOrigin } from "../../ReaderView";
+import type { ReaderOrigin } from "../reader/ReaderView";
 import { RETRY_BUTTON } from "../../ui/Button";
 import { cx } from "../../ui/cx";
 import { SpaceMark } from "../../ui/SpaceMark";

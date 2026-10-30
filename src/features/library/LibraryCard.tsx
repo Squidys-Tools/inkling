@@ -2,7 +2,7 @@
 import { memo } from "react";
 import { mediaAspectRatioFor } from "../../components/ItemMedia";
 import { cardRects, type SourceRects } from "../item-view/overlayMotion";
-import type { ReaderOrigin } from "../../ReaderView";
+import type { ReaderOrigin } from "../reader/ReaderView";
 import type { LibraryItem } from "../../lib/types";
 import { cx } from "../../ui/cx";
 import { ArchiveTileControls } from "./ArchiveTileControls";
