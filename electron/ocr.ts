@@ -33,7 +33,7 @@ export function createTesseractOcr({
   workerFactory?: OcrWorkerFactory;
 }) {
   const cachePath = resolve(cacheDirectory);
-  let workerPromise: Promise<OcrWorker> | null | undefined;
+  let workerPromise: Promise<OcrWorker> | undefined;
 
   async function worker(): Promise<OcrWorker> {
     workerPromise ??= (async () => {
@@ -98,7 +98,7 @@ export function createTesseractOcr({
   async function close() {
     if (workerPromise) {
       const current = await workerPromise;
-      workerPromise = null;
+      workerPromise = undefined;
       await current.terminate();
     }
   }
