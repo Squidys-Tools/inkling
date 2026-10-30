@@ -3,7 +3,7 @@ import { BotEngine, type BotFrame } from "./bot/engine";
 import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION } from "./bot/expressions";
 import { COLOR_BY_ID, SHAPE_BY_ID, DEFAULT_SHAPE } from "./bot/skins";
 import { RAYON } from "./bot/repere";
-import { STATE_BY_ID, type StateId } from "./bot/states";
+import type { StateId } from "./bot/states";
 import { MascotFigure } from "./MascotFigure";
 
 export type { StateId };
@@ -117,8 +117,4 @@ export function InklingMascot({
   }, [engine, frozenAt, playing, speed]);
 
   return <MascotFigure frame={frame} size={size} ink={ink} paper={paper} />;
-}
-
-export function isKnownMascotState(value: string): value is StateId {
-  return STATE_BY_ID.has(value as StateId);
 }
