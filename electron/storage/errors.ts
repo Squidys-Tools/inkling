@@ -31,6 +31,6 @@ export function errorMessage(error: unknown): string {
 }
 
 export function toError(error: unknown) {
-  if (error instanceof StorageError || !(error instanceof SqlError)) return error;
+  if (!(error instanceof SqlError)) return error;
   return new Error(errorMessage(error), { cause: error });
 }
