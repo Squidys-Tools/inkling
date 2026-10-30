@@ -1,8 +1,8 @@
 # Benchmarks
 
-This directory contains the representative corpus and evaluation notes used to choose OCR, extraction, embedding, vision, and local language models.
+The corpus and harness that score inkling's article extraction and OCR, and the evidence for choosing models.
 
-The corpus should contain only files and URLs that we are allowed to use for local testing. Do not commit private or copyrighted material to the repository unless we have permission.
+Commit only files and URLs we may use for local testing, and no private or copyrighted material without permission.
 
 ## Corpus
 
@@ -21,73 +21,21 @@ The harness scores extraction against the expected values and OCR by token recal
 
 ## Running the harness
 
-Requires [Bun](https://bun.sh) (the harness and the ingestion pipeline are
-TypeScript). From the repo root:
+From the repository root, run `bun run bench`. It serves `corpus/` over a local HTTP server so fixture pages are fetched like live pages, then:
 
-```sh
-bun benchmarks/harness/index.ts   # or: bun run bench
-```
+- runs article, recipe and video items through the production URL pipeline (`ingestUrl`, Defuddle, sanitizing);
+- runs PDFs through the app's PDF.js extraction and scanned-page OCR in `electron/pdf.ts`;
+- runs image and screenshot OCR through every available engine and keeps the best-scoring result. Tesseract.js, with the app's settings from `electron/ocr.ts`, runs everywhere; Windows also runs the built-in `Windows.Media.Ocr` through `harness/win-ocr.ps1`.
 
-On Windows, the harness also compares the built-in Windows OCR engine with
-Tesseract for image and screenshot fixtures. The PDF path uses the same local
-PDF.js extraction and OCR engines as the Electron app on every platform.
+Search terms match against the extracted title, description and text with whitespace normalized, the way a saved item is searched. OCR is scored by token recall and precision against `expected/ocr/`. Each run writes `results/results-latest.json` and `results/summary.md`, which are tracked, and a timestamped JSON copy, which git ignores.
 
-What it does:
+## Findings
 
-1. Serves `corpus/` over a local HTTP server (`harness/server.ts`) so the
-   fixture pages are fetched exactly like live pages.
-2. For `article` / `recipe` / `video` items, runs the production extraction
-   pipeline (`ingestUrl` → Defuddle → sanitize) via `harness/extract.ts`.
-3. For PDFs, runs page-by-page extraction and scanned-page OCR through the
-   production PDF.js pipeline in `electron/pdf.ts`. The corpus-only stream
-   parser in `harness/pdf.ts` counts embedded images and remains covered by a
-   smoke test.
-4. For image and screenshot OCR, tries **every available engine** in
-   `harness/ocr.ts` and keeps the best-scoring result: **Windows built-in OCR**
-   (`Windows.Media.Ocr`, invoked via `harness/win-ocr.ps1` — zero-install on
-   Windows) and **tesseract.js** (multi-PSM 3/6/7 with selective contrast and
-   deskew fallbacks). Scanned PDFs use Tesseract on rendered pages.
-5. Scores each item against `expected` (title/author/search terms/must-not
-   match/embeds/image counts) and writes `results/results-latest.json`, a
-   timestamped copy, and `results/summary.md`.
+[results/summary.md](results/summary.md) has the latest scores. What earlier runs established:
 
-Scoring notes: search terms are matched across the extracted
-title + description + text (whitespace-normalized on both sides), mirroring
-how a saved item would be searched. OCR items are scored with token recall +
-precision against `expected/ocr/`.
-
-## Initial findings
-
-Baseline run on the 42-item corpus with the `windows-ocr` engine:
-
-- **25 pass, 8 partial, 1 fail, 8 skip — overall 0.940.**
-- 8 skips: vision / similarity items (photos, design refs, similar pairs,
-  distractor, low-res) — these need the embeddings benchmark.
-
-After fixes (JSON-LD article metadata, `<noscript>` fallback text, author
-byline heuristics, a multi-engine OCR harness, and more legible generated
-meme/scanned-PDF fixtures), the same 42 items plus 6 live MacRumors pages:
-
-- **36 pass, 4 partial, 0 fail, 8 skip — overall 0.992.**
-- All 6 live-article fixtures pass at 1.000, verifying extraction against
-  real-world macrumors.com markup (title, author, and search terms all match;
-  authors come from the articles' own JSON-LD).
-- Fixed by the above:
-  - `article-news-01` / `article-recipe-01` (byline authors now recognized),
-    `article-js-heavy-01` (noscript fallback text restored), `image-meme-01`
-    (0.93, was fail), `pdf-scanned-01` (full memo OCR'd in order).
-- Remaining partials are genuine engine limits, not fixture errors:
-  - `screenshot-large-text-01` 0.97 and `screenshot-small-text-01` 0.86
-    (Windows OCR misses a few dense tokens; the small-text one is a dense
-    table, 110 tokens).
-  - `image-rotated-01` 0.92 (Windows OCR misses 6 of 36 rotated tokens).
-  - `image-meme-01` 0.93 (OCR merges some words; stylized Impact text).
-- Engine split observed: tesseract.js wins on the two-column layout and the
-  scanned PDF; Windows OCR wins on the meme, handwriting, rotated image, and
-  screenshots. Best-of-multi-engine is therefore the right default.
-
-Fixtures deliberately model realistic pages; these residual gaps are
-documented as findings.
+- On Windows, JSON-LD article metadata, `<noscript>` fallback text, byline heuristics, multi-engine OCR and more legible generated fixtures took the score from 0.940 on 42 items to 0.992 on 48. The six live MacRumors articles pass at 1.000, with authors from their own JSON-LD.
+- The remaining partials are OCR engine limits, not fixture errors: dense screenshot text, rotated text and stylized meme text.
+- Neither OCR engine wins everywhere. Tesseract.js won on the two-column layout and the scanned PDF; Windows OCR won on the meme, handwriting, rotated image and screenshots. The harness keeps the best of both for that reason; the app runs Tesseract only.
 
 ## Refreshing fixtures
 
