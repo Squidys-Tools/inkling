@@ -1,5 +1,3 @@
-/** Pure file classification helpers used by the ingestion pipeline. */
-
 export type LibraryFileKind = "image" | "pdf" | "video" | "other";
 
 export interface FileClassificationInput {
@@ -30,28 +28,17 @@ function fileExtension(name: string | null | undefined): string {
   return dot > -1 ? lastSegment.slice(dot + 1).toLowerCase() : "";
 }
 
-/** Classifies a browser File or any object with File-like name/type fields. */
 export function classifyFile(input: FileClassificationInput): LibraryFileKind {
   const mimeType = (input.type ?? "").split(";", 1)[0].trim().toLowerCase();
   const extension = fileExtension(input.name);
 
   // Prefer a recognized MIME type. A misleading filename must not make an
   // image or video upload behave like a PDF (or vice versa).
-  if (mimeType === "application/pdf") {
-    return "pdf";
-  }
-
-  if (mimeType.startsWith("image/")) {
-    return "image";
-  }
-
-  if (mimeType.startsWith("video/")) {
-    return "video";
-  }
-
+  if (mimeType === "application/pdf") return "pdf";
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("video/")) return "video";
   if (extension === "pdf") return "pdf";
   if (IMAGE_EXTENSIONS.has(extension)) return "image";
   if (VIDEO_EXTENSIONS.has(extension)) return "video";
-
   return "other";
 }
