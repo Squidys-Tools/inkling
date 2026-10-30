@@ -9,11 +9,10 @@ class StorageError extends Schema.TaggedError<StorageError>()("StorageError", {
 export const invalidInput = (detail: string) =>
   new StorageError({ message: `invalid storage input: ${detail}` });
 
-export const itemNotFound = (id: unknown) =>
-  new StorageError({ message: `item not found: ${String(id)}` });
+export const itemNotFound = (id: string) => new StorageError({ message: `item not found: ${id}` });
 
-export const spaceNotFound = (id: unknown) =>
-  new StorageError({ message: `space not found: ${String(id)}` });
+export const spaceNotFound = (id: string) =>
+  new StorageError({ message: `space not found: ${id}` });
 
 export const storageFailure = (message: string) => new StorageError({ message });
 
