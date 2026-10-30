@@ -166,9 +166,17 @@ export function makeSearch(ctx: StorageContext) {
         yield* sql<EmbeddingRow>`SELECT ${sql.literal(qualifiedItemColumns)},e.dimension AS embedding_dimension,e.vector AS embedding_vector,e.kind AS embedding_kind FROM item_embeddings e JOIN items i ON i.id = e.item_id WHERE i.archived = 0 AND ${scope} AND ((e.kind = 'text' AND e.model = ${TEXT_MODEL}) OR (e.kind = 'image' AND e.model = ${IMAGE_MODEL})) AND NOT EXISTS(SELECT 1 FROM search_index_state s WHERE s.item_id = i.id AND s.index_version = ${SEARCH_INDEX} AND s.revision = i.search_revision AND ${Number(Boolean(vectors.current?.length))} = 1)`;
       appendLane(candidates, vectors.legacy, false);
     }
-    return rankFusion(lanes, cap).flatMap((id) => {
-      const item = items.get(id);
-      return item ? [cardItem(item)] : [];
+    // Caption-derived subject IDs may have no lexical/vector row. Hydrate
+    // every final winner instead of silently dropping that independent lane.
+    const winnerIds = rankFusion(lanes, cap);
+    if (!winnerIds.length) return [];
+    const winners = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)}
+      FROM items i WHERE i.archived = 0 AND i.id IN
+        (SELECT value FROM json_each(${JSON.stringify(winnerIds)}))`;
+    const byId = new Map(winners.map((row) => [row.id, cardItem(itemFromRow(row))]));
+    return winnerIds.flatMap((id) => {
+      const item = byId.get(id);
+      return item ? [item] : [];
     });
   });
 

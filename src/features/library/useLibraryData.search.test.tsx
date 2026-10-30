@@ -52,10 +52,14 @@ test("text matches paint before a held model and late semantic results never ove
       return new Promise((resolve) => held.set(query, resolve));
     },
   };
-  Object.assign(dom, {
+  // Linkedom proxies share descriptors with earlier suites; restore exactly.
+  for (const [key, value] of Object.entries({
     location: { search: "" },
     inkling: { commands, onJobUpdated: () => () => {} },
-  });
+  })) {
+    previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    Object.defineProperty(dom, key, { configurable: true, writable: true, value });
+  }
   const globals = {
     window: dom,
     document: dom.document,

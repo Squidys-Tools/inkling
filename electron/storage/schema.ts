@@ -1,6 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
 
-export const SCHEMA_VERSION = 9;
+// Multimodal revisions plus persistent Smart Space exclusions. Upstream's
+// separate article-content migration (#210) needs its own combined successor.
+export const SCHEMA_VERSION = 10;
 
 const searchSchema = `
 CREATE TABLE IF NOT EXISTS search_vectors (
@@ -142,6 +144,13 @@ CREATE TABLE IF NOT EXISTS space_items (
   PRIMARY KEY (space_id, item_id)
 );
 CREATE INDEX IF NOT EXISTS idx_space_items_item ON space_items (item_id);
+CREATE TABLE IF NOT EXISTS space_exclusions (
+  space_id TEXT NOT NULL,
+  item_id TEXT NOT NULL,
+  excluded_at INTEGER NOT NULL,
+  PRIMARY KEY (space_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_space_exclusions_item ON space_exclusions (item_id);
 `;
 
 const appSettingsSchema = `

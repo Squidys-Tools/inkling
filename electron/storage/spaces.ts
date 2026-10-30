@@ -99,9 +99,10 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
   const { sql } = ctx;
 
   const listSpaces = () =>
-    sql<SpaceRow>`SELECT spaces.*, membership.item_count FROM spaces
+    sql<SpaceRow>`SELECT spaces.*, COALESCE(membership.item_count, 0) AS item_count FROM spaces
       LEFT JOIN (
-        SELECT space_id, COUNT(*) AS item_count FROM space_items GROUP BY space_id
+        SELECT m.space_id, COUNT(*) AS item_count FROM space_items m
+        JOIN items i ON i.id = m.item_id AND i.archived = 0 GROUP BY m.space_id
       ) membership ON membership.space_id = spaces.id
       ORDER BY spaces.position, spaces.created_at`.pipe(
       Effect.map((rows) => rows.map(spaceFromRow)),
@@ -155,6 +156,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     sql.withTransaction(
       Effect.gen(function* () {
         yield* sql`DELETE FROM space_items WHERE space_id = ${id}`;
+        yield* sql`DELETE FROM space_exclusions WHERE space_id = ${id}`;
         const deleted = yield* sql`DELETE FROM spaces WHERE id = ${id}`.raw;
         if (!changes(deleted)) return yield* spaceNotFound(id);
       }),
@@ -207,7 +209,11 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     }
     const query = space.query;
     const text = smartSpaceText(space);
-    const clauses: Fragment[] = [sql`i.archived = 0`];
+    const clauses: Fragment[] = [
+      sql`i.archived = 0`,
+      sql`NOT EXISTS (SELECT 1 FROM space_exclusions e
+        WHERE e.space_id = ${id} AND e.item_id = i.id)`,
+    ];
     const from = sql.literal("items i");
     const tag = nonEmpty(query.tag);
     if (tag) clauses.push(sql`i.id IN (SELECT value FROM json_each(${yield* taggedItemIds(tag)}))`);
@@ -232,16 +238,27 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
   const addSpaceItem = Effect.fnUntraced(function* (spaceId: string, itemId: string) {
     const space = yield* getSpace(spaceId);
     if (!space) return yield* spaceNotFound(spaceId);
-    if (space.kind !== "regular")
-      return yield* invalidInput("items can only be added to a Regular Space");
     if (!(yield* readItem(ctx, itemId))) return yield* itemNotFound(itemId);
-    yield* sql`INSERT OR IGNORE INTO space_items (space_id, item_id, added_at)
-      VALUES (${spaceId}, ${itemId}, ${Date.now()})`;
+    if (space.kind === "regular") {
+      yield* sql`INSERT OR IGNORE INTO space_items (space_id, item_id, added_at)
+        VALUES (${spaceId}, ${itemId}, ${Date.now()})`;
+    } else {
+      // Restoring a Smart Space item allows its saved query to match again;
+      // it never forces a nonmatching item into that Space.
+      yield* sql`DELETE FROM space_exclusions WHERE space_id = ${spaceId} AND item_id = ${itemId}`;
+    }
   });
 
   const removeSpaceItem = Effect.fnUntraced(function* (spaceId: string, itemId: string) {
-    if (!(yield* getSpace(spaceId))) return yield* spaceNotFound(spaceId);
-    yield* sql`DELETE FROM space_items WHERE space_id = ${spaceId} AND item_id = ${itemId}`;
+    const space = yield* getSpace(spaceId);
+    if (!space) return yield* spaceNotFound(spaceId);
+    if (!(yield* readItem(ctx, itemId))) return yield* itemNotFound(itemId);
+    if (space.kind === "regular") {
+      yield* sql`DELETE FROM space_items WHERE space_id = ${spaceId} AND item_id = ${itemId}`;
+    } else {
+      yield* sql`INSERT OR IGNORE INTO space_exclusions (space_id, item_id, excluded_at)
+        VALUES (${spaceId}, ${itemId}, ${Date.now()})`;
+    }
   });
 
   const listItemSpaces = (itemId: string) =>
@@ -261,5 +278,10 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     addSpaceItem,
     removeSpaceItem,
     listItemSpaces,
+    listItemSpaceExclusions: (itemId: string) =>
+      sql<{ id: string }>`SELECT s.id FROM space_exclusions e JOIN spaces s ON s.id = e.space_id
+        WHERE e.item_id = ${itemId} AND s.kind = 'smart' ORDER BY s.position, s.created_at`.pipe(
+        Effect.map((rows) => rows.map((row) => row.id)),
+      ),
   };
 }
