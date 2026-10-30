@@ -162,7 +162,7 @@ function requestPath(target: string) {
   return stripped;
 }
 
-function readBody(request: IncomingMessage) {
+async function readBody(request: IncomingMessage) {
   const declaredLength = request.headers["content-length"];
   const contentLength = declaredLength === undefined ? 0 : Number(declaredLength);
   if (
@@ -170,25 +170,17 @@ function readBody(request: IncomingMessage) {
     contentLength <= 0 ||
     contentLength > MAX_JSON_BYTES
   ) {
-    return Promise.reject(new Error("body-too-large"));
+    throw new Error("body-too-large");
   }
-  return (async () => {
-    const chunks: Buffer[] = [];
-    let length = 0;
-    let tooLarge = false;
-    for await (const chunk of request) {
-      length += chunk.length;
-      if (length > MAX_JSON_BYTES) {
-        tooLarge = true;
-        chunks.length = 0;
-      } else if (!tooLarge) {
-        chunks.push(chunk);
-      }
-    }
-    if (tooLarge) throw new Error("body-too-large");
-    if (length !== contentLength) throw new Error("bad-request");
-    return Buffer.concat(chunks, length);
-  })();
+  const chunks: Buffer[] = [];
+  let length = 0;
+  for await (const chunk of request) {
+    length += chunk.length;
+    if (length <= MAX_JSON_BYTES) chunks.push(chunk);
+  }
+  if (length > MAX_JSON_BYTES) throw new Error("body-too-large");
+  if (length !== contentLength) throw new Error("bad-request");
+  return Buffer.concat(chunks, length);
 }
 
 function tokenLooksValid(value: string) {
