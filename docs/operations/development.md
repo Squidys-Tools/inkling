@@ -24,22 +24,20 @@ How to set up, run, check, and troubleshoot inkling. Contribution scope and PR e
 | PDF smoke | `bun run test:pdf` |
 | Extraction benchmark | `bun run bench` |
 
-`build` keeps the committed demo seed, because the web look and `preview` need
-it. `build:app` drops it — both `public/seed-demo/` and the `src/seedPersonal.ts`
-bundle — and then runs `scripts/assert-no-demo-seed.ts`, which fails the build if
-either is still present. `build:dir` and `build:installer` use it, so a shipped
-installer never carries the ~9.7 MB seed. Changing what the app ships means
-changing that mode, not `build`.
+`build` keeps the committed demo seed, because the web preview and `preview` need
+it. `build:app` drops `public/seed-demo/` and the `src/seedPersonal.ts` bundle, then
+runs `scripts/assert-no-demo-seed.ts`, which fails the build if either is still
+present. `build:dir`, `build:installer` and `build:linux` all go through
+`build:app`, so no shipped package carries the ~9.7 MB seed. To change what the
+app ships, change `build:app`, not `build`.
 
-The Electron release package includes the pinned embedding models under its
-resources directory. In development, missing model files are downloaded and
-SHA-256 verified when an embedding job first needs them.
+Packaged builds bundle the embedding models; [models.md](../models.md) covers how
+development builds fetch them.
 
-`ui:smoke` builds the preview bundle, launches the Electron app with the demo seed
-against a throwaway user-data directory, and drives the core library flows over
-the Chrome DevTools protocol. It writes screenshots to `.artifacts/ui-smoke/`,
-fails on any console error, and exits non-zero with a PASS/FAIL line per check.
-It needs a display; on Linux without one it runs under `xvfb-run`.
+`ui:smoke` launches the Electron app with the demo seed against a throwaway
+user-data directory and drives the core library flows over the Chrome DevTools
+protocol. It writes screenshots to `.artifacts/ui-smoke/` and fails on any console
+error. It needs a display; on Linux without one it runs under `xvfb-run`.
 
 ## Linux packages
 
