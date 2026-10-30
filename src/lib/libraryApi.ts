@@ -118,6 +118,18 @@ function invoke<C extends CommandName>(command: C, args?: CommandArgs<C>) {
   return handler(args);
 }
 
+export function getScreenshotImportState() {
+  return invoke("get_screenshot_import_state", {});
+}
+
+export function setScreenshotImportEnabled(enabled: boolean) {
+  return invoke("set_screenshot_import_enabled", { enabled });
+}
+
+export function chooseScreenshotImportDirectory() {
+  return invoke("choose_screenshot_import_directory", {});
+}
+
 export function getUpdateState() {
   return invoke("get_update_state", {});
 }

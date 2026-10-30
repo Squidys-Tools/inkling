@@ -43,6 +43,7 @@ import {
   resolveLibraryDataDirectory,
 } from "./storage/library.ts";
 import { makeWorker } from "./storage/worker.ts";
+import { createScreenshotImporter } from "./screenshot-import.ts";
 import { createUpdateController, createUpdatePreferences } from "./updater.ts";
 import { installDebianUpdate, updateDisabledReason } from "./update-install.ts";
 
@@ -109,6 +110,22 @@ type Storage = {
 };
 let storage: Storage | undefined;
 let storageReady: Promise<Storage> | undefined;
+let screenshotImporter: ReturnType<typeof createScreenshotImporter> | undefined;
+function screenshots() {
+  if (isPreview)
+    throw new Error("Screenshot import is available in the desktop library, not previews.");
+  return (screenshotImporter ??= createScreenshotImporter({
+    preferencesPath: join(libraryDirectory, "screenshot-import.json"),
+    defaultDirectory: join(app.getPath("pictures"), "Screenshots"),
+    save: async (input) => {
+      const { library } = await initializeLibraryStorage();
+      // Never replace, unarchive or duplicate a previously committed screenshot.
+      if (await library.getItem(input.id)) return false;
+      await library.saveFile(input);
+      return true;
+    },
+  }));
+}
 const librarySizeCache = createLibrarySizeCache(
   join(libraryDirectory, "library.sqlite3"),
   join(libraryDirectory, "assets"),
@@ -360,6 +377,14 @@ function registerLibraryCommands() {
       return captureServer.regeneratePairingToken();
     },
     select_library_directory: ({ title }) => chooseLibraryDirectory(title),
+    get_screenshot_import_state: () => screenshots().getState(),
+    set_screenshot_import_enabled: ({ enabled }) => screenshots().configure(enabled),
+    choose_screenshot_import_directory: async () => {
+      const manager = screenshots();
+      const directory = await chooseLibraryDirectory("Choose a screenshots folder");
+      const current = await manager.getState();
+      return directory ? manager.configure(current.enabled, directory) : current;
+    },
     get_update_state: () => updateController.getState(),
     set_update_channel: ({ channel }) => updateController.setChannel(channel),
     download_update: ({ expectedVersion }) => updateController.downloadUpdate(expectedVersion),
@@ -572,6 +597,7 @@ if (!hasSingleInstanceLock) {
     allowCanvasReadableImages();
     handleDeepLinkArguments(process.argv);
     createWindow();
+    if (!isPreview) void screenshots().getState();
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -595,6 +621,8 @@ if (!hasSingleInstanceLock) {
           );
         }
         try {
+          // Stop admitting screenshot writes before closing storage or workers.
+          await screenshotImporter?.close();
           // Interrupts both workers, which hand their running jobs back, then closes the database.
           await storage?.runtime.dispose();
         } catch (error) {

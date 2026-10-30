@@ -28,6 +28,7 @@ import {
 } from "./SettingsPanel";
 import type { SettingsTab } from "./useSettings";
 import { UpdateSettings } from "./UpdateSettings";
+import { ScreenshotImportSettings } from "./ScreenshotImportSettings";
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -174,6 +175,7 @@ export function SettingsSheet({
                 />
                 <div className={SETTINGS_SCROLL}>
                   <UpdateSettings update={update} />
+                  <ScreenshotImportSettings />
                   <SettingsRow
                     icon={PlayIcon}
                     title="Welcome tour"

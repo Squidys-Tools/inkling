@@ -226,6 +226,9 @@ export const commandArgs = {
   check_for_updates: None,
   install_update: Schema.Struct({ expectedVersion: Text }),
   get_update_state: None,
+  get_screenshot_import_state: None,
+  set_screenshot_import_enabled: Schema.Struct({ enabled: Schema.Boolean }),
+  choose_screenshot_import_directory: None,
   set_update_channel: Schema.Struct({ channel: Schema.Literals(["latest", "nightly"]) }),
   download_update: Schema.Struct({ expectedVersion: Text }),
   cancel_update_download: None,
@@ -279,12 +282,23 @@ export const commandArgs = {
   "plugin:deep-link|get_current": None,
 } satisfies Record<CommandName, Schema.Top>;
 
+export type ScreenshotImportState = {
+  enabled: boolean;
+  directory: string;
+  status: "off" | "watching" | "missing-folder" | "error";
+  imported: number;
+  message: string | null;
+};
+
 export type CommandArgs<C extends CommandName> = (typeof commandArgs)[C]["Type"];
 
 export type CommandResults = {
   check_for_updates: AvailableUpdate | null;
   install_update: UpdateState;
   get_update_state: UpdateState;
+  get_screenshot_import_state: ScreenshotImportState;
+  set_screenshot_import_enabled: ScreenshotImportState;
+  choose_screenshot_import_directory: ScreenshotImportState;
   set_update_channel: UpdateState;
   download_update: UpdateState;
   cancel_update_download: UpdateState;
