@@ -23,6 +23,7 @@ import {
   previewNoteItem,
   previewQuoteItem,
 } from "./previewItems";
+import { grabScreenshot } from "./screenshot";
 
 const BARE_DOMAIN =
   /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u;
@@ -205,23 +206,8 @@ export function useCapture({
 
     setCaptureError(null);
     setIsCapturing(true);
-    let stream: MediaStream | null = null;
     try {
-      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      await video.play();
-      const width = video.videoWidth;
-      const height = video.videoHeight;
-      if (width === 0 || height === 0)
-        throw new Error("The selected display has no capturable frame.");
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      canvas.getContext("2d")?.drawImage(video, 0, 0, width, height);
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-      if (!blob) throw new Error("The screenshot could not be encoded.");
-      const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" });
+      const file = await grabScreenshot();
       await persistFile(file, "screenshot");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -231,9 +217,6 @@ export function useCapture({
           : errorMessage(error),
       );
     } finally {
-      stream?.getTracks().forEach((track) => {
-        track.stop();
-      });
       setIsCapturing(false);
     }
   }
