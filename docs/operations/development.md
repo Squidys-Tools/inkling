@@ -1,6 +1,6 @@
 # Development
 
-How to set up, run, check, and troubleshoot inkling. Contribution scope and PR expectations live in `CONTRIBUTING.md`; this is the command and check reference.
+How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CONTRIBUTING.md) says which contributions we take.
 
 ## First-time setup
 
@@ -86,15 +86,19 @@ Never add signing secrets or publish automatically. The Windows installer is not
 | Bun pin | `bun run check:bun-version` | running Bun must match `.bun-version` |
 | Extension build | `bun run --cwd extension build` | |
 
-## CI behavior (what runs where)
+## CI
 
-- `ci.yml`: docs-only pushes skip; otherwise the frontend job runs on `windows-latest` (inkling ships on Windows only) and verifies the Bun version pin, typechecks every workspace, runs tests, `knip`, builds the app and extension, and runs ingestion smoke tests.
-- `security.yml`: JavaScript/TypeScript CodeQL on open/reopen and roughly every 4th push, dependency review on every PR; path gating applies to push-to-main only.
-- `knip.yml`: scheduled `knip --fix` (every other day) opens a cleanup PR. It strips unused `export` keywords and prunes dependencies; it never deletes files.
-- `links.yml`: weekly markdown link check, opens an issue on failures. New custom schemes (`inkling://`) or local hosts go in `.lycheeignore`.
-- `electron-preview.yml`: when a same-repository PR has the `preview:win` label, builds and uploads the Windows Electron installer. Electron changes also build the Linux directory package and launch it under Xvfb; pinned model files are cached only in GitHub Actions.
+Pushes and PRs that change only Markdown, `docs/` or `AGENTS.md` skip CI and the security scans.
+
+- `ci.yml` runs the checks on `windows-latest`.
+- `security.yml` runs CodeQL when a PR opens or reopens and on about every fourth push to it, and dependency review on every PR push.
+- The `preview:win` label builds the Windows installer for a same-repository PR and links it in a comment (`electron-preview.yml`). Electron changes in a same-repository PR also build the Linux directory package and launch it under Xvfb.
+- The `preview:web` label deploys the web preview to Vercel and comments its URL (`web-preview.yml`).
+- `pr-size.yml` labels each PR by the size of its diff.
+- `knip.yml` runs `knip --fix` every other day and opens a cleanup PR. It strips unused exports and prunes dependencies but never deletes files; if its PRs get noisy, tune the patterns in `knip.json` rather than disabling it.
+- `links.yml` checks Markdown links weekly and opens an issue on failures. Add custom schemes such as `inkling://` and local hosts to `.lycheeignore`.
+- `release.yml` builds releases; see [Updates and releases](#updates-and-releases).
 
 ## Troubleshooting
 
 - `Expected Bun X, found Y`: install the Bun in `.bun-version`; don't edit the check to match your install.
-- `knip --fix` PR is noisy: tune `knip.json` entry/project patterns instead of disabling the workflow.
