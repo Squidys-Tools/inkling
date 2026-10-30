@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, realpath, rename, rm, writeFile } from "node:fs/promises";
-import { extname, join, resolve, sep } from "node:path";
+import { extname, join, resolve } from "node:path";
 import { types } from "node:util";
 import { Effect } from "effect";
 import type {
@@ -77,8 +77,6 @@ const normalizeFileKind = Effect.fnUntraced(function* (
     return "video";
   return "file";
 });
-
-const relativeAssetPath = (path: string) => `assets/${path.split(sep).join("/")}`;
 
 export function makeItems(ctx: StorageContext) {
   const { sql, jobs } = ctx;
@@ -188,7 +186,7 @@ export function makeItems(ctx: StorageContext) {
       byteLength: bytes.length,
       ...(size ? { mediaWidth: size.width, mediaHeight: size.height } : {}),
     });
-    const assetPath = relativeAssetPath(`items/${id}/${fileName}`);
+    const assetPath = `assets/items/${id}/${fileName}`;
     const now = Date.now();
     yield* sql.withTransaction(
       Effect.gen(function* () {
