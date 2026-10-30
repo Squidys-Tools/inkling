@@ -74,7 +74,7 @@ async function verifyExportAsset(exportDirectory: string, itemId: string, relati
   return path;
 }
 
-export async function copyAssetDirectory(source: string, destination: string): Promise<number> {
+async function copyAssetDirectory(source: string, destination: string): Promise<number> {
   const info = await lstat(source).catch((error) =>
     isMissing(error) ? null : Promise.reject(error),
   );
@@ -94,6 +94,23 @@ export async function copyAssetDirectory(source: string, destination: string): P
     } else reject("the export contains an unsupported asset file");
   }
   return count;
+}
+
+// Copies the assets of the given items from an export into the staging folder,
+// refusing symbolic links and anything that is not a file or directory.
+export async function stageExportAssets(
+  exportRoot: string,
+  stageRoot: string,
+  itemIds: ReadonlyArray<string>,
+) {
+  for (const itemId of itemIds) {
+    const source = join(exportRoot, "assets", "items", itemId);
+    const isDirectory = await lstat(source).then(
+      (info) => info.isDirectory(),
+      () => false,
+    );
+    if (isDirectory) await copyAssetDirectory(source, join(stageRoot, "assets", "items", itemId));
+  }
 }
 
 export async function readManifest(exportRoot: string): Promise<Manifest> {

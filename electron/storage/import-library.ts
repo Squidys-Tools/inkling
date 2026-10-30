@@ -7,10 +7,10 @@ import { withDatabaseFile } from "./database-file.ts";
 import { attempt, invalidInput, storageFailure } from "./errors.ts";
 import {
   collectAssetFiles,
-  copyAssetDirectory,
   type Manifest,
   readManifest,
   reject,
+  stageExportAssets,
   verifyExportAssets,
 } from "./export-folder.ts";
 import { IMAGE_THUMBNAIL_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
@@ -64,6 +64,39 @@ const validateImportedSpace = Effect.fnUntraced(function* (space: ImportedSpace)
     return yield* invalidInput("the export contains an unsupported Space query field");
   return { ...space, query: JSON.stringify(yield* validateSmartQuery(query)) };
 });
+
+// Records each directory in `moved` as soon as it lands, so a later failure
+// can remove every one already moved into the library.
+async function moveStagedAssets(
+  stageRoot: string,
+  assetsDirectory: string,
+  items: ReadonlyArray<ImportedItem>,
+  moved: string[],
+) {
+  const movedItemIds: string[] = [];
+  for (const item of items) {
+    const stagedAssets = join(stageRoot, "assets", "items", item.id);
+    const targetAssets = join(assetsDirectory, item.id);
+    const stagedInfo = await lstat(stagedAssets).catch((error) =>
+      isMissing(error) ? null : Promise.reject(error),
+    );
+    if (stagedInfo?.isDirectory()) {
+      const targetExists = await lstat(targetAssets).then(
+        () => true,
+        () => false,
+      );
+      if (targetExists)
+        reject(`asset files already exist for item ${item.id}; refusing to overwrite them`);
+      await mkdir(dirname(targetAssets), { recursive: true });
+      await rename(stagedAssets, targetAssets);
+      moved.push(targetAssets);
+      movedItemIds.push(item.id);
+    } else if (item.local_asset_path || item.thumbnail_path) {
+      reject(`asset files for item ${item.id} could not be staged`);
+    }
+  }
+  return movedItemIds;
+}
 
 const removeDirectories = (directories: string[]) =>
   attempt(async () => {
@@ -201,48 +234,25 @@ export function makeImport(ctx: StorageContext) {
       const itemId = path.split("/")[2];
       assetFileCounts.set(itemId, (assetFileCounts.get(itemId) ?? 0) + 1);
     }
-    yield* attempt(async () => {
-      for (const itemId of itemIds) {
-        if (existingItemIds.has(itemId)) continue;
-        const source = join(exportRoot, "assets", "items", itemId);
-        const isDirectory = await lstat(source).then(
-          (info) => info.isDirectory(),
-          () => false,
-        );
-        if (isDirectory)
-          await copyAssetDirectory(source, join(stageRoot, "assets", "items", itemId));
-      }
-    });
+    const newItems = items.filter((item) => !existingItemIds.has(item.id));
+    yield* attempt(() =>
+      stageExportAssets(
+        exportRoot,
+        stageRoot,
+        newItems.map((item) => item.id),
+      ),
+    );
     const unverifiedAssetFiles = yield* attempt(() =>
       verifyExportAssets(exportRoot, manifest, items, actualPaths),
     );
 
     const movedAssetDirectories: string[] = [];
-    const assetFilesByItem = new Map<string, number>();
-    yield* attempt(async () => {
-      for (const item of items) {
-        if (existingItemIds.has(item.id)) continue;
-        const stagedAssets = join(stageRoot, "assets", "items", item.id);
-        const targetAssets = join(ctx.assetsDirectory, item.id);
-        const stagedInfo = await lstat(stagedAssets).catch((error) =>
-          isMissing(error) ? null : Promise.reject(error),
-        );
-        if (stagedInfo?.isDirectory()) {
-          const targetExists = await lstat(targetAssets).then(
-            () => true,
-            () => false,
-          );
-          if (targetExists)
-            reject(`asset files already exist for item ${item.id}; refusing to overwrite them`);
-          await mkdir(dirname(targetAssets), { recursive: true });
-          await rename(stagedAssets, targetAssets);
-          movedAssetDirectories.push(targetAssets);
-          assetFilesByItem.set(item.id, assetFileCounts.get(item.id) ?? 0);
-        } else if (item.local_asset_path || item.thumbnail_path) {
-          reject(`asset files for item ${item.id} could not be staged`);
-        }
-      }
-    }).pipe(Effect.tapError(() => removeDirectories(movedAssetDirectories)));
+    const movedItemIds = yield* attempt(() =>
+      moveStagedAssets(stageRoot, ctx.assetsDirectory, newItems, movedAssetDirectories),
+    ).pipe(Effect.tapError(() => removeDirectories(movedAssetDirectories)));
+    const assetFilesByItem = new Map(
+      movedItemIds.map((id) => [id, assetFileCounts.get(id) ?? 0] as const),
+    );
 
     const report = yield* sql
       .withTransaction(insertStaged(items, spaces, memberships, assetFilesByItem))
