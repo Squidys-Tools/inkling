@@ -239,10 +239,6 @@ function PdfViewer({ url, title, onClose }: PdfViewerProps) {
                         const next = Number(event.target.value);
                         if (Number.isFinite(next) && next >= 1) setPageNumber(Math.floor(next));
                       }}
-                      onBlur={() => {
-                        if (!Number.isFinite(pageNumber) || pageNumber < 1) setPageNumber(1);
-                        else if (pageNumber > pageCount) setPageNumber(pageCount);
-                      }}
                       aria-label="Page number"
                       className="w-[42px] [appearance:textfield] rounded-[6px] border border-transparent bg-transparent px-[5px] py-1 text-right text-ink focus-visible:outline-offset-0! [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none"
                     />
