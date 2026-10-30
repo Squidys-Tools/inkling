@@ -15,5 +15,11 @@
     "skipLibCheck": true,
     "types": ["@types/bun", "electron"]
   },
-  "include": ["benchmarks", "scripts", "oxlint-plugin-inkling", "electron/napi-canvas.d.ts"]
+  "include": [
+    "benchmarks",
+    "scripts",
+    "oxlint-plugin-inkling",
+    "vite.config.ts",
+    "electron/napi-canvas.d.ts"
+  ]
 }

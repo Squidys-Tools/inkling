@@ -80,7 +80,6 @@ jobs:
               - '.oxfmtrc.json'
               - 'oxlint-plugin-inkling/**'
               - 'tsconfig.json'
-              - 'tsconfig.node.json'
               - '.github/workflows/ci.yml'
 
   frontend:

@@ -77,7 +77,6 @@ jobs:
               - '.bun-version'
               - 'vite.config.ts'
               - 'tsconfig.json'
-              - 'tsconfig.node.json'
               - '.github/workflows/security.yml'
 
   gate:
