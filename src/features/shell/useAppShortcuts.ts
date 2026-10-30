@@ -3,7 +3,7 @@ import {
   type RefObject,
   type SetStateAction,
   useEffect,
-  useRef,
+  useEffectEvent,
   useState,
 } from "react";
 import type { AddMode } from "../capture/AddMenu/AddMenu";
@@ -43,62 +43,43 @@ export function useAppShortcuts({
   setIsSidebarOpen,
 }: AppShortcutsOptions) {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
-  const openCaptureRef = useRef(openCapture);
-  const closeCaptureModalRef = useRef(closeCaptureModal);
-  useEffect(() => {
-    openCaptureRef.current = openCapture;
-    closeCaptureModalRef.current = closeCaptureModal;
+  const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (isShortcutsOpen) return;
+    if (readingItem || selectedItem || pdfViewerItem) return;
+    if (event.key === "Escape") {
+      if (isSettingsOpen) {
+        event.preventDefault();
+        setIsSettingsOpen(false);
+      } else if (isAdding && captureMode) {
+        event.preventDefault();
+        setCaptureMode(null);
+      } else if (isAdding) {
+        event.preventDefault();
+        closeCaptureModal();
+      }
+      return;
+    }
+    if (isSettingsOpen || isAdding) return;
+    const target = event.target;
+    const isEditableTarget =
+      target instanceof HTMLElement &&
+      (target.isContentEditable || target.matches('input, textarea, select, [role="textbox"]'));
+    const shortcut = appKeyboardShortcut(event, isEditableTarget);
+    if (!shortcut) return;
+    event.preventDefault();
+    if (shortcut === "search") searchRef.current?.focus();
+    else if (shortcut === "new-note" && !isCapturing) {
+      // The Add menu lives in the sidebar, so a note started from the keyboard opens it.
+      setIsSidebarOpen(true);
+      openCapture("note");
+    } else if (shortcut === "help") setIsShortcutsOpen(true);
+    else if (shortcut === "sidebar") setIsSidebarOpen((open) => !open);
   });
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (isShortcutsOpen) return;
-      if (readingItem || selectedItem || pdfViewerItem) return;
-      if (event.key === "Escape") {
-        if (isSettingsOpen) {
-          event.preventDefault();
-          setIsSettingsOpen(false);
-        } else if (isAdding && captureMode) {
-          event.preventDefault();
-          setCaptureMode(null);
-        } else if (isAdding) {
-          event.preventDefault();
-          closeCaptureModalRef.current();
-        }
-        return;
-      }
-      if (isSettingsOpen || isAdding) return;
-      const target = event.target;
-      const isEditableTarget =
-        target instanceof HTMLElement &&
-        (target.isContentEditable || target.matches('input, textarea, select, [role="textbox"]'));
-      const shortcut = appKeyboardShortcut(event, isEditableTarget);
-      if (!shortcut) return;
-      event.preventDefault();
-      if (shortcut === "search") searchRef.current?.focus();
-      else if (shortcut === "new-note" && !isCapturing) {
-        // The Add menu lives in the sidebar, so a note started from the keyboard opens it.
-        setIsSidebarOpen(true);
-        openCaptureRef.current("note");
-      }
-      else if (shortcut === "help") setIsShortcutsOpen(true);
-      else if (shortcut === "sidebar") setIsSidebarOpen((open) => !open);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [
-    captureMode,
-    isAdding,
-    isCapturing,
-    isSettingsOpen,
-    isShortcutsOpen,
-    pdfViewerItem,
-    readingItem,
-    selectedItem,
-    setIsSidebarOpen,
-    setIsSettingsOpen,
-    setCaptureMode,
-    searchRef,
-  ]);
+    const listener = (event: KeyboardEvent) => onKeyDown(event);
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
+  }, []);
 
   return { isShortcutsOpen, setIsShortcutsOpen };
 }
