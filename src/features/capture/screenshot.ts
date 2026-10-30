@@ -1,4 +1,3 @@
-// Asks the user for a display and encodes one frame of it as a PNG.
 export async function grabScreenshot() {
   const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
   try {

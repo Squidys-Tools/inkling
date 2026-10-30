@@ -230,8 +230,6 @@ export function useArchive({
       if (itemsToRestore.length === 0) return;
       setCaptureError(null);
       try {
-        // Restore every item first, then fetch all processing summaries in one
-        // batched call instead of one round trip per restored item.
         const results = await Promise.allSettled(
           itemsToRestore.map(async (item) => {
             if (!canUseDesktopBackend) return null;
