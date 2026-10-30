@@ -545,10 +545,8 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
     };
 
     updateEmbedWidth();
-    const resizeObserver =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateEmbedWidth);
-    resizeObserver?.observe(root);
-    window.addEventListener("resize", updateEmbedWidth);
+    const resizeObserver = new ResizeObserver(updateEmbedWidth);
+    resizeObserver.observe(root);
     let cancelled = false;
     loadXWidgets()
       .then(async () => {
@@ -564,8 +562,7 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
 
     return () => {
       cancelled = true;
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", updateEmbedWidth);
+      resizeObserver.disconnect();
       root.replaceChildren();
     };
   }, [embedHtml, shouldLoad]);
