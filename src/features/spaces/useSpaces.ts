@@ -227,17 +227,22 @@ export function useSpaces({
     }
   }
 
+  async function saveSpace(space: StoredSpace, patch: { name: string } | { color: SpaceColor }) {
+    const updated = canUseDesktopBackend
+      ? await updateSpace({ id: space.id, ...patch })
+      : { ...space, ...patch, updatedAt: Date.now() };
+    setSpaces((current) =>
+      current.map((candidate) => (candidate.id === space.id ? updated : candidate)),
+    );
+    return updated;
+  }
+
   async function handleRenameSpace(space: StoredSpace, name: string) {
     const trimmed = name.trim().slice(0, 80);
     setRenamingSpaceId(null);
     if (!trimmed || trimmed === space.name) return;
     try {
-      const updated = canUseDesktopBackend
-        ? await updateSpace({ id: space.id, name: trimmed })
-        : { ...space, name: trimmed, updatedAt: Date.now() };
-      setSpaces((current) =>
-        current.map((candidate) => (candidate.id === space.id ? updated : candidate)),
-      );
+      const updated = await saveSpace(space, { name: trimmed });
       if (activeSpaceId === space.id) setActiveView(updated.name);
     } catch {
       // Reopen the rename input with the draft preserved: the name visibly
@@ -252,12 +257,7 @@ export function useSpaces({
     const next = SPACE_COLORS[(SPACE_COLORS.indexOf(space.color) + 1) % SPACE_COLORS.length];
     if (next === space.color) return;
     try {
-      const updated = canUseDesktopBackend
-        ? await updateSpace({ id: space.id, color: next })
-        : { ...space, color: next, updatedAt: Date.now() };
-      setSpaces((current) =>
-        current.map((candidate) => (candidate.id === space.id ? updated : candidate)),
-      );
+      await saveSpace(space, { color: next });
     } catch {
       setSidebarActionError("Couldn’t change this Space’s color.");
     }
