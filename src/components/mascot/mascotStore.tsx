@@ -125,34 +125,14 @@ function useMascotFrame(): BotFrame {
   return useSyncExternalStore(subscribeMascot, getMascotFrame);
 }
 
-/** Live figure permanently bound to the shared store. Ink/paper default to the dark app theme. */
-export function LiveMascotFigure({
-  size,
-  ink = "var(--color-ink)",
-  paper = "transparent",
-  className,
-}: {
-  size: number;
-  ink?: string;
-  paper?: string;
-  className?: string;
-}) {
+/** Live figure permanently bound to the shared store, drawn for the dark app theme. */
+export function LiveMascotFigure({ size }: { size: number }) {
   const liveFrame = useMascotFrame();
-  return (
-    <MascotFigure frame={liveFrame} size={size} ink={ink} paper={paper} className={className} />
-  );
+  return <MascotFigure frame={liveFrame} size={size} ink="var(--color-ink)" paper="transparent" />;
 }
 
 /** Search-bar fit. Tight crop around the drift gaze so it sits centered in 50px. */
-export function LiveMascotSearchEyes({
-  size,
-  ink = "var(--color-ink)",
-  className,
-}: {
-  size: number;
-  ink?: string;
-  className?: string;
-}) {
+export function LiveMascotSearchEyes({ size, className }: { size: number; className?: string }) {
   const liveFrame = useMascotFrame();
-  return <MascotSearchEyes frame={liveFrame} size={size} ink={ink} className={className} />;
+  return <MascotSearchEyes frame={liveFrame} size={size} className={className} />;
 }

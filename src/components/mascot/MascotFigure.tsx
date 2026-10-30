@@ -4,14 +4,6 @@ import { DEMI_VIEWBOX, RAYON } from "./bot/repere";
 import { mixHex } from "./bot/skins";
 import type { BotFrame } from "./bot/engine";
 
-export interface MascotFigureProps {
-  frame: BotFrame;
-  size: number;
-  ink?: string;
-  /** Eye color. Transparent keeps the old logo's see-through eyes on any theme. */
-  paper?: string;
-  className?: string;
-}
 /**
  * Pure SVG renderer for a sampled bot frame. Same recipe as bloub's
  * BloubBot.vue: eyes are holes cut in a <mask> (never white shapes on top),
@@ -21,10 +13,15 @@ export interface MascotFigureProps {
 export function MascotFigure({
   frame,
   size,
-  ink = "#1a1a1a",
-  paper = "#faf9f6",
-  className,
-}: MascotFigureProps) {
+  ink,
+  paper,
+}: {
+  frame: BotFrame;
+  size: number;
+  ink: string;
+  /** Eye color. Transparent keeps the old logo's see-through eyes on any theme. */
+  paper: string;
+}) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const maskId = `inkling-mask-${uid}`;
   const VB = DEMI_VIEWBOX;
@@ -68,7 +65,6 @@ export function MascotFigure({
       viewBox={`${-VB} ${-VB} ${VB * 2} ${VB * 2}`}
       role="img"
       aria-label="inkling mascot"
-      className={className}
     >
       <defs>
         <mask id={maskId} maskUnits="userSpaceOnUse" x={-VB} y={-VB} width={VB * 2} height={VB * 2}>
@@ -140,7 +136,7 @@ export function MascotFigure({
 }
 
 /**
- * Tight crop for the search field. MascotEyes' tall crop reserves room for every
+ * Tight crop for the search field. MascotFigure's view box reserves room for every
  * state's motion, which in a 50px bar pins the eyes high.
  */
 const SEARCH_EYES_VIEWBOX = "-14 -88 78 80";
@@ -148,12 +144,10 @@ const SEARCH_EYES_VIEWBOX = "-14 -88 78 80";
 export function MascotSearchEyes({
   frame,
   size,
-  ink = "var(--color-ink)",
   className,
 }: {
   frame: BotFrame;
   size: number;
-  ink?: string;
   className?: string;
 }) {
   return (
@@ -167,7 +161,13 @@ export function MascotSearchEyes({
       className={className}
     >
       {frame.eyes.map((eye, i) => (
-        <path key={i} d={eye.d} transform={eye.matrix} opacity={eye.alpha} fill={ink} />
+        <path
+          key={i}
+          d={eye.d}
+          transform={eye.matrix}
+          opacity={eye.alpha}
+          fill="var(--color-ink)"
+        />
       ))}
     </svg>
   );
