@@ -38,7 +38,6 @@
         "@hugeicons/react": "^1.1.10",
         "@huggingface/tokenizers": "0.2.0",
         "@img/sharp-wasm32": "0.35.5",
-        "@inkling/ingestion-shared": "workspace:*",
         "@liquid-dom/core": "0.1.1",
         "@napi-rs/canvas": "1.0.13",
         "@tesseract.js-data/eng": "1.0.0",
