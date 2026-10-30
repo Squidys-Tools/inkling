@@ -56,16 +56,9 @@ It also understands meaning, not just exact words, and can find images that look
 - Background processing: capture is instant; OCR, embeddings, and indexing happen while you look around.
 - No social features, no cloud required, no AI-management chores. AI-derived helpers stay invisible. They just make search better.
 
-## See it in action
-
-Short clips say more than paragraphs. (Placeholders for now, real ones soon.)
-
-- *Coming soon:* save a page, then find it by a word inside it.
-- *Coming soon:* slow scroll through the visual library + opening the reader.
-
 ## Meet the mascot
 
-A small ink blot lives in the sidebar and pops into the search bar while you type. It drifts when idle, perks up when there's background work, looks sad when a save fails, and now takes quiet walks around the library on its own. It's also the app icon.
+A small ink blot lives in the sidebar and pops into the search bar while you type. It drifts when idle, perks up when there's background work, and looks sad when a save fails. It's also the app icon.
 
 <p>
   <img src="docs/assets/mascots/inkling-splash-idle.svg" alt="inkling mascot idling" width="120">
@@ -79,15 +72,15 @@ A small ink blot lives in the sidebar and pops into the search bar while you typ
 Little by little, inkling is growing toward:
 
 - On-device summaries, automatic concept extraction, and structured analysis
-- First-run onboarding, an accessibility audit, and web-version portability
+- An accessibility audit and web-version portability
 - Performance and refactoring work as the feature set settles
-- Possibly cross platform support in the future if I can get money for a macbook and find some time to test it on linux. Likely distros will be Ubuntu, Arch, and Debian for the widest range of support up-front.
+- Maybe macOS, if I can get money for a MacBook to test on. Linux already has `.deb` and AppImage builds.
 
 See [the Roadmap](docs/roadmap.md) for the honest, checkbox-level status, and [open bugs](docs/bugs.md) for what is known to be broken.
 
 ## Status
 
-Early development, but the core already works: capture, storage, keyword search (including OCR text), thumbnails, the reader, video cards, and Smart Spaces. Expect rough edges and missing pieces and please file issues for the ones that bug you. I'm trying to make this into a product that you and I can use day-to-day.
+Early development, but the core already works: capture, storage, search by words and meaning (including text inside images), thumbnails, the reader, video cards, and Smart Spaces. Expect rough edges and missing pieces and please file issues for the ones that bug you. I'm trying to make this into a product that you and I can use day-to-day.
 
 
 ## FAQ
