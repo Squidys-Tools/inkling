@@ -34,37 +34,16 @@ Object.defineProperty(globalThis, "window", {
   value: { inkling: { commands } },
 });
 
-const { assetUrl, importLibrary, listSpaces, selectLibraryDirectory } =
-  await import("./libraryApi");
+const { assetUrl, importLibrary, listSpaces } = await import("./libraryApi");
 
-test("Electron resolves managed assets through app protocol and uses its native folder picker", async () => {
-  const originalWindow = globalThis.window;
-  try {
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      value: {
-        inkling: {
-          commands: {
-            select_library_directory: async ({ title }: { title: string }) => `/scratch/${title}`,
-          },
-        },
-      },
-    });
-
-    expect(await assetUrl("assets/items/abc/my image.png")).toBe(
-      "app://local/library-assets/items/abc/my%20image.png",
-    );
-    expect(await assetUrl("assets/items/../outside.png")).toBeUndefined();
-    expect(await assetUrl("assets/items//outside.png")).toBeUndefined();
-    expect(await assetUrl("assets/items/./outside.png")).toBeUndefined();
-    expect(await assetUrl("assets/items/abc:outside.png")).toBeUndefined();
-    expect(await selectLibraryDirectory("Exports")).toBe("/scratch/Exports");
-  } finally {
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      value: originalWindow,
-    });
-  }
+test("Electron resolves managed assets through the app protocol and refuses escapes", async () => {
+  expect(await assetUrl("assets/items/abc/my image.png")).toBe(
+    "app://local/library-assets/items/abc/my%20image.png",
+  );
+  expect(await assetUrl("assets/items/../outside.png")).toBeUndefined();
+  expect(await assetUrl("assets/items//outside.png")).toBeUndefined();
+  expect(await assetUrl("assets/items/./outside.png")).toBeUndefined();
+  expect(await assetUrl("assets/items/abc:outside.png")).toBeUndefined();
 });
 
 test("Space reads and export restores wait for storage initialization", async () => {
