@@ -20,7 +20,7 @@ Build a local-first Windows desktop application with Electron, React, TypeScript
 | IPC contract | `@inkling/contracts` command list and Effect Schemas | Preload, main process, and renderer share one command list; arguments are decoded before storage sees them |
 | Database | SQLite through `@effect/sql-sqlite-node`, with migrations on `node:sqlite` | Typed queries and transactions over one serialized connection; migrations and FTS5 stay plain SQL |
 | Exact search | SQLite FTS5 | Local full-text search across content, notes, OCR, and summaries |
-| Asset storage | Content-addressed local files | Avoid duplicate assets and make backup/restore predictable |
+| Asset storage | Plain files beside the database, one folder per item under `assets/items/<id>/` | An item's files export, restore and delete together |
 | Background work | Effect workers over a job queue persisted in SQLite | Retryable processing without blocking the UI |
 
 ## Effect in the main process
@@ -43,15 +43,7 @@ Use Defuddle as the initial article extraction engine rather than implementing a
 
 Defuddle was created for Obsidian Web Clipper and provides cleaned HTML or Markdown plus metadata such as title, author, domain, favicon, image, publication date, and schema.org data. It also exposes configurable extraction steps and a Node bundle.
 
-### Integration approach
-
-1. Fetch or receive the original HTML.
-2. Run Defuddle.
-3. Store cleaned HTML, Markdown, and metadata.
-4. Run a post-processing media normalizer.
-5. Cache eligible images locally.
-6. Preserve supported video embeds through an allowlist.
-7. Sanitize all URLs, attributes, and embedded content.
+The URL job fetches the page, runs Defuddle, sanitizes the result, passes embeds through the allowlist in `src/lib/ingestion/safe-embeds.ts`, and stores the cleaned HTML, text and metadata on the item. Article images stay remote URLs; nothing caches them locally yet.
 
 Do not modify Defuddle until real corpus testing shows a repeatable problem. Prefer configuration, site-specific extractors, and a post-processing layer.
 
@@ -66,15 +58,12 @@ The OCR interface should remain replaceable so language packs, preprocessing, or
 AI is a background service, not a frontend concern.
 
 ```text
-Capture
-  -> Normalize
-  -> Extract text and metadata
-  -> OCR / PDF extraction / article parsing
-  -> Generate derived concepts and summaries
-  -> Generate text and image embeddings
-  -> Update search indexes
-  -> Recalculate Smart Space membership
+Capture (writes the item and queues its jobs)
+  -> Article extraction / OCR / PDF text / thumbnails and posters
+  -> Text and image embeddings
 ```
+
+SQLite triggers keep the FTS5 index in step with each write, so no job updates it. Smart Spaces are evaluated when they load, not when an item changes.
 
 ### Runtime choices
 
@@ -123,10 +112,4 @@ The app session adds `Access-Control-Allow-Origin: *` to remote image responses 
 
 ## Update checks
 
-The packaged Windows app checks GitHub Releases once when it opens; it does not poll on a schedule. GitHub receives the request from the device and the app name and installed version in its HTTP user agent, but no library data. An available update appears quietly in the sidebar and is downloaded and installed only after the user selects it; that action checks once more before downloading. Electron updater hashes protect update downloads over HTTPS but do not establish publisher trust. The NSIS installer is not Authenticode-signed, so Windows SmartScreen may warn users when they install it.
-
-## First technical milestone
-
-Implement a vertical slice that accepts an image, URL, and PDF; creates a card immediately; runs Windows OCR on images and scanned PDF pages; extracts an article with Defuddle; stores local assets and extracted content; indexes text with SQLite FTS5; produces one text embedding and one image embedding; supports semantic search and image similarity; and saves a search as a Smart Space.
-
-The model benchmark corpus should be created immediately before this milestone. It will include articles, screenshots, PDFs, images with text, handwriting, video embeds, and visually similar image sets.
+The packaged app checks GitHub Releases only when the user selects Check for updates in Settings; it never checks at launch or on a schedule. GitHub receives the request from the device and the app name and installed version in its HTTP user agent, but no library data. An available update then appears in the sidebar and downloads only when the user selects it; the download checks the feed once more first. The feed's SHA512 hashes protect downloads over HTTPS but do not establish publisher trust. [development.md](operations/development.md#updates-and-releases) covers channels and releases.
