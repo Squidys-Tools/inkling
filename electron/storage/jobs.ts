@@ -245,22 +245,21 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
     return true;
   });
 
-  const requeue = (condition: Fragment) =>
-    Effect.gen(function* () {
-      const rows = yield* sql.withTransaction(
-        Effect.gen(function* () {
-          const rows = yield* sql<JobOwner>`SELECT item_id, kind FROM jobs
-            WHERE status = 'processing' AND ${condition}`;
-          if (rows.length === 0) return rows;
-          yield* sql`UPDATE jobs SET status = 'pending', started_at = NULL, error_message = NULL,
-            worker_id = NULL, lease_until = NULL, progress_current = 0, progress_message = NULL
-            WHERE status = 'processing' AND ${condition}`;
-          return rows;
-        }),
-      );
-      yield* Effect.forEach(rows, announce, { discard: true });
-      return rows.length;
-    });
+  const requeue = Effect.fnUntraced(function* (condition: Fragment) {
+    const rows = yield* sql.withTransaction(
+      Effect.gen(function* () {
+        const rows = yield* sql<JobOwner>`SELECT item_id, kind FROM jobs
+          WHERE status = 'processing' AND ${condition}`;
+        if (rows.length === 0) return rows;
+        yield* sql`UPDATE jobs SET status = 'pending', started_at = NULL, error_message = NULL,
+          worker_id = NULL, lease_until = NULL, progress_current = 0, progress_message = NULL
+          WHERE status = 'processing' AND ${condition}`;
+        return rows;
+      }),
+    );
+    yield* Effect.forEach(rows, announce, { discard: true });
+    return rows.length;
+  });
 
   // The app holds a single-instance lock, so at startup every processing job
   // belongs to a process that is gone and can be handed back right away.
