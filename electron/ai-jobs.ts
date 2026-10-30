@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Duration, Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -6,11 +5,11 @@ import type { StoredLibraryItemDetail } from "@inkling/contracts";
 import { IMAGE_MODEL } from "./embedding-contract.ts";
 import { createEmbeddingEngine } from "./embeddings.ts";
 import { createBackfill } from "./job-backfill.ts";
+import { readAsset, reportProgress, requireItem } from "./job-items.ts";
 import { createTesseractOcr } from "./ocr.ts";
 import type { extractPdfTextByPages } from "./pdf.ts";
 import type { UrlArticle } from "./storage/enrichment.ts";
 import { attempt, storageFailure } from "./storage/errors.ts";
-import type { Job } from "./storage/jobs.ts";
 import {
   IMAGE_PALETTE_JOB,
   IMAGE_THUMBNAIL_JOB,
@@ -85,21 +84,6 @@ export const enqueueStaleImageEmbeddings = Effect.gen(function* () {
   return items.length;
 });
 
-const requireItem = Effect.fnUntraced(function* (id: string, kind?: string) {
-  const library = yield* Library;
-  const item = yield* library.getItem(id);
-  if (!item || (kind && item.kind !== kind))
-    return yield* storageFailure(kind ? `${kind} item not found` : "item not found");
-  return item;
-});
-
-const readAsset = Effect.fnUntraced(function* (assetPath: string | null) {
-  if (!assetPath) return yield* storageFailure("item has no local asset path");
-  const library = yield* Library;
-  const path = yield* library.resolveAssetPath(assetPath);
-  return yield* attempt(() => readFile(path));
-});
-
 type AiJobOptions = {
   modelCacheDirectory: string;
   bundledModelDirectory?: string;
@@ -126,14 +110,6 @@ export function createAiJobProcessors({
 }: AiJobOptions) {
   const backfill = createBackfill();
 
-  const progress = (
-    job: Job,
-    workerId: string,
-    current: number,
-    total: number | null,
-    message: string,
-  ) => JobQueue.use((jobs) => jobs.updateProgress(job.id, workerId, current, total, message));
-
   const processors: Record<string, Processor<Services>> = {
     [URL_ENRICHMENT_JOB]: Effect.fnUntraced(function* (job, workerId) {
       const library = yield* Library;
@@ -148,15 +124,15 @@ export function createAiJobProcessors({
       const library = yield* Library;
       const jobs = yield* JobQueue;
       const item = yield* requireItem(job.itemId);
-      yield* progress(job, workerId, 0, 1, "Reading image");
+      yield* reportProgress(job, workerId, 0, 1, "Reading image");
       const image = yield* readAsset(item.localAssetPath);
       const text = (yield* attempt(() => ocr.recognize(image))).trim();
       if (text) {
         yield* library.storeOcrText(item.id, text, "tesseract.js");
         yield* jobs.enqueue(item.id, "generate_embedding");
-        yield* progress(job, workerId, 1, 1, "Image text indexed");
+        yield* reportProgress(job, workerId, 1, 1, "Image text indexed");
       } else {
-        yield* progress(job, workerId, 1, 1, "No text found");
+        yield* reportProgress(job, workerId, 1, 1, "No text found");
       }
     }),
 
@@ -178,7 +154,7 @@ export function createAiJobProcessors({
               ? undefined
               : (png) => run(library.storePdfThumbnail(item.id, png)),
             onProgress: (current, total, message) =>
-              run(Effect.ignore(progress(job, workerId, current, total, message))),
+              run(Effect.ignore(reportProgress(job, workerId, current, total, message))),
           }),
         );
       });
@@ -193,9 +169,9 @@ export function createAiJobProcessors({
       if (result.text) {
         yield* library.storeOcrText(item.id, result.text, result.engine);
         yield* jobs.enqueue(item.id, "generate_embedding");
-        yield* progress(job, workerId, pageCount, pageCount, "PDF text indexed");
+        yield* reportProgress(job, workerId, pageCount, pageCount, "PDF text indexed");
       } else {
-        yield* progress(job, workerId, pageCount, pageCount, "No text found");
+        yield* reportProgress(job, workerId, pageCount, pageCount, "No text found");
       }
     }),
 
@@ -224,7 +200,7 @@ export function createAiJobProcessors({
       const item = yield* requireItem(job.itemId);
       const text = embeddingText(item);
       const total = Number(Boolean(text)) + Number(item.kind === "image");
-      yield* progress(job, workerId, 0, total, "Loading local Nomic embedding models");
+      yield* reportProgress(job, workerId, 0, total, "Loading local Nomic embedding models");
       let current = 0;
 
       if (text) {
@@ -237,7 +213,7 @@ export function createAiJobProcessors({
           embedding.vector.length,
         );
         current += 1;
-        yield* progress(job, workerId, current, total, "Text search index ready");
+        yield* reportProgress(job, workerId, current, total, "Text search index ready");
       }
 
       if (item.kind === "image") {
@@ -250,7 +226,7 @@ export function createAiJobProcessors({
           embedding.bytes,
           embedding.vector.length,
         );
-        yield* progress(job, workerId, current + 1, total, "Image similarity index ready");
+        yield* reportProgress(job, workerId, current + 1, total, "Image similarity index ready");
       }
     }),
   };
