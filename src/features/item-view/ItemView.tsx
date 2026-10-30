@@ -171,11 +171,12 @@ export function ItemView({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [requestClose]);
 
-  // Selection changes reset the tab even though the selected ID is only a
-  // trigger. The tag draft and Space menu reset by their own keys.
-  useEffect(() => {
+  // Another item resets the tab. The tag draft and Space menu reset by their own keys.
+  const [tabItemId, setTabItemId] = useState(shownItem.id);
+  if (tabItemId !== shownItem.id) {
+    setTabItemId(shownItem.id);
     setInspectorTab("info");
-  }, [shownItem.id]);
+  }
 
   // Looks up similar items when the Similar tab is open. Reloads only when the
   // shown item changes, not on every edit to its record.
