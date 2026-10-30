@@ -16,7 +16,7 @@ import type { ScreenshotImportState } from "@inkling/contracts";
 const MAX_BYTES = 50 * 1024 * 1024;
 const MAX_FILES = 4096;
 const extensions = new Set([".png", ".jpg", ".jpeg", ".webp"]);
-const pause = (ms: number) => new Promise((done) => setTimeout(done, ms));
+const pause = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 const signature = (info: { size: number; mtimeMs: number; ino: number }) =>
   `${info.ino}:${info.size}:${info.mtimeMs}`;
 
@@ -26,11 +26,13 @@ export function createScreenshotImporter({
   defaultDirectory,
   save,
   pollMillis = 2000,
+  stabilize = () => pause(100),
 }: {
   preferencesPath: string;
   defaultDirectory: string;
   save: (input: { fileName: string; kind: "image"; bytes: Buffer }) => Promise<boolean>;
   pollMillis?: number;
+  stabilize?: () => Promise<void>;
 }) {
   let preferences: Preferences = { enabled: false, directory: resolve(defaultDirectory), seen: {} };
   let state: ScreenshotImportState = {
@@ -50,6 +52,37 @@ export function createScreenshotImporter({
   let acceptedRoot: string | undefined;
   const snapshot = () => ({ ...state });
   const persist = async (next: Preferences) => {
+    if (!next.enabled) {
+      // Off must not depend on creating/renaming a sibling file: the parent may
+      // have become unwritable after On. Invalidate the existing record first;
+      // an interrupted write is empty/invalid JSON and startup remains off.
+      const handle = await open(
+        preferencesPath,
+        constants.O_WRONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0),
+      ).catch((error) => {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        // If the file itself is no longer writable but its parent still is,
+        // removing the stale On record also makes restart default to Off.
+        return rm(preferencesPath, { force: true }).then(
+          () => null,
+          () => {
+            throw error;
+          },
+        );
+      });
+      if (!handle) return; // No saved On record exists; absence defaults to Off.
+      try {
+        if (!(await handle.stat()).isFile())
+          throw new Error("Screenshot preferences must be a regular file.");
+        await handle.truncate(0);
+        await handle.sync();
+        await handle.writeFile(JSON.stringify(next) + "\n");
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      return;
+    }
     await mkdir(dirname(preferencesPath), { recursive: true });
     const temporary = `${preferencesPath}.${process.pid}.tmp`;
     try {
@@ -115,7 +148,7 @@ export function createScreenshotImporter({
         if (row.size <= 0 || row.size > MAX_BYTES) continue;
         try {
           const path = join(preferences.directory, row.name);
-          await pause(100);
+          await stabilize();
           if (closed || epoch !== generation || !preferences.enabled) return;
           // A regular file can become a FIFO during stabilization. Never wait
           // for a device/pipe writer before the descriptor's regular-file check.
@@ -262,7 +295,9 @@ export function createScreenshotImporter({
         preferences = before;
         state.enabled = false;
         state.status = "error";
-        state.message = "Could not change screenshot import. Check the folder and try again.";
+        state.message = enabled
+          ? "Could not change screenshot import. Check the folder and try again."
+          : "Screenshot import is off for this session, but Off could not be saved. It may resume after restart; check the preferences file permissions.";
         // Fail closed in this process even if the previous preference was enabled.
         preferences.enabled = false;
         changing = false;
@@ -281,7 +316,10 @@ export function createScreenshotImporter({
     },
     scanNow: async () => {
       await ready;
-      schedule();
+      // Unlike a coalesced watcher notification, an explicit scan must observe
+      // files written while an earlier scan was already queued or running.
+      const epoch = generation;
+      serial = serial.then(() => scan(epoch));
       await serial;
       return snapshot();
     },

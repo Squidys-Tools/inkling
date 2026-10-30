@@ -1,7 +1,16 @@
 import { expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
 import { constants, openSync, closeSync } from "node:fs";
-import { mkdtemp, mkdir, readFile, rm, symlink, truncate, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  symlink,
+  truncate,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createScreenshotImporter } from "./screenshot-import.ts";
@@ -25,6 +34,7 @@ async function fixture() {
     preferencesPath: join(root, "preferences.json"),
     defaultDirectory: directory,
     pollMillis: 25,
+    stabilize: async () => {},
     save: (input: { fileName: string; kind: "image"; bytes: Buffer }) =>
       library.saveScreenshot(input),
   };
@@ -40,10 +50,16 @@ test.skipIf(process.platform === "win32")(
       await mkdir(directory);
       const path = join(directory, "swap.png");
       let saves = 0;
+      const observed = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
       const importer = createScreenshotImporter({
         preferencesPath: join(root, "preferences.json"),
         defaultDirectory: directory,
         pollMillis: 1000000,
+        stabilize: async () => {
+          observed.resolve();
+          await release.promise;
+        },
         save: async () => {
           saves++;
           return true;
@@ -56,16 +72,18 @@ test.skipIf(process.platform === "win32")(
         await importer.scanNow();
         await writeFile(path, "regular candidate before stabilization");
         scan = importer.scanNow();
-        await pause(30);
+        await observed.promise;
         await rm(path);
         execFileSync("mkfifo", [path]);
-        await pause(200);
+        release.resolve();
+        // Prove the FIFO scan itself finishes before Off can generation-fence it.
+        expect(await Promise.race([scan.then(() => true), pause(500).then(() => false)])).toBe(
+          true,
+        );
         operation = action === "off" ? importer.configure(false) : importer.close();
-        const completed = await Promise.race([
-          Promise.all([scan, operation]).then(() => true),
-          pause(500).then(() => false),
-        ]);
-        expect(completed).toBe(true);
+        expect(await Promise.race([operation.then(() => true), pause(500).then(() => false)])).toBe(
+          true,
+        );
         expect(saves).toBe(0);
         if (action === "off") expect((await importer.getState()).enabled).toBe(false);
       } finally {
@@ -99,19 +117,19 @@ test("off by default, enable skips old files, new screenshots save once and Off 
     await writeFile(join(f.directory, "new.png"), "new screenshot pixels");
     await until(async () => (await f.library.listActiveItems()).length === 1);
     await writeFile(join(f.directory, "same-pixels.png"), "new screenshot pixels");
-    await pause(300);
+    await importer.scanNow();
     expect((await f.library.listActiveItems()).length).toBe(1);
     const item = (await f.library.listActiveItems())[0];
     await f.library.archiveItem(item.id);
     await writeFile(join(f.directory, "same-again.png"), "new screenshot pixels");
-    await pause(300);
+    await importer.scanNow();
     expect((await f.library.getItem(item.id))?.archived).toBe(true);
     expect((await f.library.listActiveItems()).length).toBe(0);
     await importer.configure(false);
     await writeFile(join(f.directory, "while-off.png"), "private off period pixels");
     await importer.scanNow();
     await importer.configure(true);
-    await pause(200);
+    await importer.scanNow();
     expect((await f.library.listActiveItems()).length).toBe(0);
     await writeFile(join(f.directory, "after-on.png"), "post reenable pixels");
     await until(async () => (await f.library.listActiveItems()).length === 1);
@@ -215,7 +233,7 @@ test("disable drains a held save, fences a concurrent setting change, and stops 
     await writeFile(join(f.directory, "held.png"), "held screenshot");
     await started;
     const off = importer.configure(false);
-    await pause(10);
+    await importer.getState();
     await expect(importer.configure(true)).rejects.toThrow("already changing");
     release();
     expect((await off).enabled).toBe(false);
@@ -231,6 +249,36 @@ test("disable drains a held save, fences a concurrent setting change, and stops 
     await rm(f.root, { recursive: true, force: true });
   }
 });
+
+test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+  "Off persists when its parent can no longer create or rename files, and restart stays Off",
+  async () => {
+    const f = await fixture();
+    const parent = join(f.root, "preferences");
+    await mkdir(parent);
+    const options = { ...f.options, preferencesPath: join(parent, "screenshots.json") };
+    let importer = createScreenshotImporter(options);
+    try {
+      await importer.configure(true);
+      expect(JSON.parse(await readFile(options.preferencesPath, "utf8")).enabled).toBe(true);
+      await chmod(parent, 0o500);
+      await expect(writeFile(join(parent, "cannot-create"), "probe")).rejects.toThrow();
+      expect((await importer.configure(false)).enabled).toBe(false);
+      expect(JSON.parse(await readFile(options.preferencesPath, "utf8")).enabled).toBe(false);
+      await importer.close();
+      importer = createScreenshotImporter(options);
+      expect((await importer.getState()).enabled).toBe(false);
+      await writeFile(join(f.directory, "after-restart.png"), "must stay private");
+      await importer.scanNow();
+      expect(await f.library.listActiveItems()).toEqual([]);
+    } finally {
+      await chmod(parent, 0o700);
+      await importer.close();
+      await f.library.close();
+      await rm(f.root, { recursive: true, force: true });
+    }
+  },
+);
 
 test("missing folder and corrupted preferences fail closed", async () => {
   const f = await fixture();
