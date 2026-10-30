@@ -127,27 +127,26 @@ export function hasEmbeddableCharacters(value: string) {
   return /[\p{L}\p{N}]/u.test(value);
 }
 
-function imageTensor(bytes: Buffer) {
-  return sharpImageInput(bytes).then(async (input) => {
-    const { width, height } = await sharp(input, { limitInputPixels: 32_000_000 }).metadata();
-    validateImageDimensions(width, height);
-    const { data } = await sharp(input, { limitInputPixels: 32_000_000 })
-      .rotate()
-      .resize(imageEdge, imageEdge, { fit: "cover", kernel: "cubic" })
-      .removeAlpha()
-      .toColourspace("srgb")
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    const planeSize = imageEdge * imageEdge;
-    const values = new Float32Array(3 * planeSize);
-    for (let index = 0; index < planeSize; index += 1) {
-      for (let channel = 0; channel < 3; channel += 1) {
-        const normalized = data[index * 3 + channel] / 255;
-        values[channel * planeSize + index] = (normalized - imageMean[channel]) / imageStd[channel];
-      }
+async function imageTensor(bytes: Buffer) {
+  const input = await sharpImageInput(bytes);
+  const { width, height } = await sharp(input, { limitInputPixels: 32_000_000 }).metadata();
+  validateImageDimensions(width, height);
+  const { data } = await sharp(input, { limitInputPixels: 32_000_000 })
+    .rotate()
+    .resize(imageEdge, imageEdge, { fit: "cover", kernel: "cubic" })
+    .removeAlpha()
+    .toColourspace("srgb")
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const planeSize = imageEdge * imageEdge;
+  const values = new Float32Array(3 * planeSize);
+  for (let index = 0; index < planeSize; index += 1) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      const normalized = data[index * 3 + channel] / 255;
+      values[channel * planeSize + index] = (normalized - imageMean[channel]) / imageStd[channel];
     }
-    return values;
-  });
+  }
+  return values;
 }
 
 type TextRuntime = { tokenizer: TokenizerLike; session: ort.InferenceSession };
