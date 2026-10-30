@@ -113,11 +113,6 @@ export function pushMascotParams({ state, expression }: MascotParams) {
   }
 }
 
-/** Pure re-read for tests and frozen previews: no clock advance, no emit. */
-export function sampleMascotAt(t: number): BotFrame {
-  return engine.sample(t);
-}
-
 function useMascotFrame(): BotFrame {
   return useSyncExternalStore(subscribeMascot, getMascotFrame);
 }
