@@ -17,6 +17,10 @@ test("view switches fade rows in place, retain grid scale and bypass animation f
     document: dom.document,
     HTMLElement: dom.HTMLElement,
     matchMedia: () => ({ matches: reduced }),
+    ResizeObserver: class {
+      observe() {}
+      disconnect() {}
+    },
     requestAnimationFrame: (frame: FrameRequestCallback) => frames.push(frame),
     IS_REACT_ACT_ENVIRONMENT: true,
   })) {
