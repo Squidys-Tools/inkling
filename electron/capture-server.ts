@@ -264,7 +264,6 @@ export async function startCaptureServer({
 
 export const captureServerInternals = Object.freeze({
   bearerToken,
-  corsHeaders,
   createRateLimiter,
   originAllowed,
   tokensEqual,
