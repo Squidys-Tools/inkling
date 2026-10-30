@@ -1,13 +1,39 @@
 import { Search01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
-import { type RefObject, useMemo } from "react";
+import { type RefObject, useMemo, useRef, useLayoutEffect } from "react";
 import GradualBlur, { type GradualBlurProps } from "../../components/GradualBlur/GradualBlur";
 import { LiquidGlass } from "../../components/LiquidGlass";
 import type { LibraryItem } from "../../lib/types";
 import { cx } from "../../ui/cx";
 import { LibraryCard, type LibraryCardContext } from "./LibraryCard";
 import { useLibraryViewport } from "./useLibraryViewport";
+import { markResultCard, useResultMotion } from "./useResultMotion";
+
+type ResultItem = { item: LibraryItem; revision: string };
+function KeyedCard({
+  data,
+  index,
+  context,
+}: {
+  data: ResultItem | undefined;
+  index: number;
+  context: LibraryCardContext;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const revision = data?.revision;
+  useLayoutEffect(() => {
+    if (ref.current && revision !== undefined) return markResultCard(ref.current, revision);
+  }, [revision]);
+  // Masonry may publish a retained positional wrapper while its data changes.
+  // Keep hooks unconditional and never let that transient unmount the app root.
+  if (!data) return null;
+  return (
+    <div ref={ref} data-result-card="">
+      <LibraryCard key={data.item.id} data={data.item} index={index} context={context} />
+    </div>
+  );
+}
 
 // Blurs the grid out at the frame edges instead of hard-clipping it. Rendered in
 // the liquid glass backdrop so the toolbar glass refracts the blur. Values are
@@ -44,10 +70,14 @@ export function LibraryStage({
   emptySpaceName?: string;
   onClearSearch: () => void;
 }) {
-  // Preserve upstream's membership-keyed virtualizer; viewport measurement
-  // does not require the separate enhanced-search/motion implementation.
-  const gridKey = useMemo(() => items.map((item) => String(item.id)).join("|"), [items]);
   useLibraryViewport(scrollRef, chromeRef, dockRef);
+  // Reset membership/layout revisions without losing the stable scroll host
+  // or its painted motion snapshots.
+  useResultMotion(scrollRef, items, listMode);
+  const data = useMemo(() => {
+    const revision = JSON.stringify(items.map((item) => String(item.id)));
+    return items.map((item) => ({ item, revision }));
+  }, [items]);
 
   return (
     <LiquidGlass
@@ -60,15 +90,15 @@ export function LibraryStage({
       >
         {items.length > 0 ? (
           <VirtuosoMasonry
-            key={gridKey}
+            key={`${listMode}:${data[0]?.revision}`}
             className={cx(
               "library-grid min-h-full min-w-0 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
               listMode ? "list-mode gap-0" : "gap-3",
             )}
             columnCount={listMode ? 1 : columnCount}
-            data={items}
+            data={data}
             context={context}
-            ItemContent={LibraryCard}
+            ItemContent={KeyedCard}
             style={{ height: "100%", width: "100%" }}
           />
         ) : (
