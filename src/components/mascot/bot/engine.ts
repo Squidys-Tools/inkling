@@ -95,8 +95,6 @@ function blendPose(a: Pose, b: Pose, t: number): Pose {
   const out = 1 - t;
   return {
     sil: blend(a.sil, b.sil, t),
-    offX: lerp(a.offX, b.offX, t),
-    offY: lerp(a.offY, b.offY, t),
     gaze: {
       yaw: lerp(a.gaze.yaw, b.gaze.yaw, t),
       pitch: lerp(a.gaze.pitch, b.gaze.pitch, t),
@@ -506,8 +504,8 @@ export class BotEngine {
     const forcedLid = forced < 1 ? Math.abs(forced * 2 - 1) : 1;
     const lid = Math.min(life.lid, forcedLid);
 
-    const offX = pose.offX + life.driftX;
-    const offY = pose.offY + life.driftY;
+    const offX = life.driftX;
+    const offY = life.driftY;
 
     // --- corps ------------------------------------------------------------
     const sil: Silhouette = {

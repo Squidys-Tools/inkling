@@ -46,9 +46,6 @@ export interface EyeCfg {
 export interface Pose {
   /** silhouette du corps, en unites de rayon de boule */
   sil: Silhouette;
-  /** decalage global du corps ET des yeux */
-  offX: number;
-  offY: number;
   gaze: HeadGaze;
   /** demi-ecart des yeux sur la sphere, en degres */
   split: number;
@@ -72,8 +69,6 @@ const pair = (w: number, h: number): [EyeCfg, EyeCfg] => [
 function base(over: Partial<Pose> = {}): Pose {
   return {
     sil: circle(1),
-    offX: 0,
-    offY: 0,
     gaze: { ...REST_GAZE },
     split: EYE_SPLIT,
     eyes: pair(EYE_W, EYE_H),
