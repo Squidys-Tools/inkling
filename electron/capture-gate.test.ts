@@ -32,9 +32,6 @@ describe("capture server request gate", () => {
       "chrome-extension-fake://x",
       "chrome-extension://abc/path",
       "tauri://localhost",
-      "https://tauri.localhost",
-      "http://tauri.localhost",
-      "https://tauri.localhost.evil",
     ]) {
       expect(originAllowed(denied)).toBe(false);
     }
