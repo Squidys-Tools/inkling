@@ -16,6 +16,7 @@
   left: 8px;
   width: calc(var(--spacing-sidebar) - 16px);
   padding: 8px 4px;
+  overflow: hidden;
   border: 0;
   border-radius: var(--radius-sidebar);
   transition: width var(--codex-motion);
@@ -72,7 +73,6 @@
 .codex-spaces {
   position: relative;
   min-height: 0;
-  overflow: hidden;
 }
 .codex-spaces-content {
   display: grid;
