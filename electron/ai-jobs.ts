@@ -5,6 +5,7 @@ import { SqlClient } from "effect/sql";
 import type { StoredLibraryItemDetail } from "@inkling/contracts";
 import { IMAGE_MODEL } from "./embedding-contract.ts";
 import { createEmbeddingEngine } from "./embeddings.ts";
+import { createBackfill } from "./job-backfill.ts";
 import { createTesseractOcr } from "./ocr.ts";
 import type { extractPdfTextByPages } from "./pdf.ts";
 import type { UrlArticle } from "./storage/enrichment.ts";
@@ -123,12 +124,7 @@ export function createAiJobProcessors({
   nativeImage,
   videoDecoderPath,
 }: AiJobOptions) {
-  let thumbnailCursor = 0;
-  let thumbnailBackfillDone = false;
-  let paletteCursor = 0;
-  let paletteBackfillDone = false;
-  let posterCursor = 0;
-  let posterBackfillDone = false;
+  const backfill = createBackfill();
 
   const progress = (
     job: Job,
@@ -188,12 +184,7 @@ export function createAiJobProcessors({
       });
       const resetThumbnailBackfill = library.getItem(item.id).pipe(
         Effect.flatMap((stored) =>
-          stored?.thumbnailPath
-            ? Effect.void
-            : Effect.sync(() => {
-                thumbnailCursor = 0;
-                thumbnailBackfillDone = false;
-              }),
+          stored?.thumbnailPath ? Effect.void : Effect.sync(backfill.rescanPdfThumbnails),
         ),
         Effect.ignore,
       );
@@ -290,43 +281,10 @@ export function createAiJobProcessors({
     }),
   };
 
-  // Each idle pass queues at most one backfill job, so a large library catches
-  // up a card at a time without crowding out new captures.
-  const onIdle = Effect.fnUntraced(function* () {
-    const library = yield* Library;
-    const jobs = yield* JobQueue;
-    if (!paletteBackfillDone) {
-      const next = yield* library.nextImagePaletteCandidate(paletteCursor);
-      if (next) {
-        yield* jobs.enqueue(next.id, IMAGE_PALETTE_JOB);
-        paletteCursor = next.rowid;
-        return;
-      }
-      paletteBackfillDone = true;
-    }
-    if (!posterBackfillDone) {
-      const next = yield* library.nextVideoPosterCandidate(posterCursor);
-      if (next) {
-        yield* jobs.enqueue(next.id, VIDEO_POSTER_JOB);
-        posterCursor = next.rowid;
-        return;
-      }
-      posterBackfillDone = true;
-    }
-    if (thumbnailBackfillDone) return;
-    const next = yield* library.nextPdfThumbnailCandidate(thumbnailCursor);
-    if (!next) {
-      thumbnailBackfillDone = true;
-      return;
-    }
-    yield* jobs.enqueue(next.id, PDF_THUMBNAIL_JOB);
-    thumbnailCursor = next.rowid;
-  });
-
   return {
     processors,
     thumbnailProcessors,
-    onIdle,
+    onIdle: backfill.onIdle,
     embedQuery: async (text: string) => (await embeddings.embedQuery(text)).vector,
     close: async () => {
       await ocr.close?.();
