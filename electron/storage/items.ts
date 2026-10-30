@@ -27,8 +27,8 @@ import {
 
 const maxFileBytes = 50 * 1024 * 1024;
 
-const sanitizeFileName = Effect.fnUntraced(function* (value: unknown) {
-  let name = Array.from(String(value ?? "").trim(), (character) =>
+const sanitizeFileName = Effect.fnUntraced(function* (value: string) {
+  let name = Array.from(value.trim(), (character) =>
     /[\\/:*?"<>|]/.test(character) || /\p{Cc}/u.test(character) ? "_" : character,
   ).join("");
   while (name.endsWith(".") || name.endsWith(" ")) name = name.slice(0, -1);
@@ -53,7 +53,7 @@ const fileInputBuffer = Effect.fnUntraced(function* (value: unknown) {
 });
 
 const normalizeFileKind = Effect.fnUntraced(function* (
-  kind: unknown,
+  kind: string | null | undefined,
   mimeType: string | null,
   fileName: string,
 ) {
@@ -124,7 +124,7 @@ export function makeItems(ctx: StorageContext) {
   });
 
   const createNote = Effect.fnUntraced(function* (input: CreateNoteInput) {
-    const body = String(input.body ?? "").trim();
+    const body = input.body.trim();
     if (!body) return yield* invalidInput("note body cannot be empty");
     const id = randomUUID();
     const now = Date.now();
@@ -141,7 +141,7 @@ export function makeItems(ctx: StorageContext) {
   });
 
   const createQuote = Effect.fnUntraced(function* (input: CreateQuoteInput) {
-    const body = String(input.body ?? "").trim();
+    const body = input.body.trim();
     if (!body) return yield* invalidInput("quote text cannot be empty");
     if (body.length > 2000)
       return yield* invalidInput("quote text must be at most 2000 characters");
@@ -178,7 +178,7 @@ export function makeItems(ctx: StorageContext) {
       sourceUrl,
       title,
       metadata: {
-        captureSource: String(input.captureSource ?? ""),
+        captureSource: input.captureSource ?? "",
         pendingUrlCapture: { initialTitle: title, preserveTitle: Boolean(nonEmpty(input.title)) },
       },
     });
@@ -229,8 +229,8 @@ export function makeItems(ctx: StorageContext) {
     return yield* writtenItem(id);
   });
 
-  const resolveAssetPath = Effect.fnUntraced(function* (assetPath: unknown) {
-    const normalized = String(assetPath ?? "").replaceAll("\\", "/");
+  const resolveAssetPath = Effect.fnUntraced(function* (assetPath: string) {
+    const normalized = assetPath.replaceAll("\\", "/");
     if (!normalized.startsWith("assets/"))
       return yield* invalidInput("asset path must be relative to the managed assets directory");
     const parts = normalized.slice("assets/".length).split("/");
@@ -258,7 +258,7 @@ export function makeItems(ctx: StorageContext) {
       };
     }
     if (input.addTag != null) {
-      const tag = String(input.addTag).trim().replace(/^#+/u, "").trim().toLowerCase();
+      const tag = input.addTag.trim().replace(/^#+/u, "").trim().toLowerCase();
       if (!tag) return yield* invalidInput("tag cannot be empty");
       const base = metadata ?? (yield* getItem(input.id))?.metadata;
       if (!base) return yield* itemNotFound(input.id);
@@ -270,11 +270,11 @@ export function makeItems(ctx: StorageContext) {
         tagged.tags = [...tagged.tags, tag];
       metadata = tagged;
     }
-    const body = input.body == null ? null : String(input.body).trim();
+    const body = input.body == null ? null : input.body.trim();
     if (body != null && !body) return yield* invalidInput("body cannot be empty");
     let bodyFormat = body == null ? null : "md";
     if (input.bodyFormat != null) {
-      const requested = String(input.bodyFormat).trim().toLowerCase();
+      const requested = input.bodyFormat.trim().toLowerCase();
       if (requested && requested !== "md") return yield* invalidInput("bodyFormat must be 'md'");
       bodyFormat = "md";
     }
@@ -283,10 +283,10 @@ export function makeItems(ctx: StorageContext) {
         ? body == null
           ? null
           : markdownToPlainText(body)
-        : String(input.description).trim();
+        : input.description.trim();
     const sourceUrl = input.sourceUrl == null ? null : yield* normalizeHttpUrl(input.sourceUrl);
     const updated = yield* sql`UPDATE items SET
-      title = COALESCE(${input.title == null ? null : String(input.title).trim()}, title),
+      title = COALESCE(${input.title == null ? null : input.title.trim()}, title),
       description = COALESCE(${description}, description), body = COALESCE(${body}, body),
       body_format = COALESCE(${bodyFormat}, body_format),
       source_url = COALESCE(${sourceUrl}, source_url),
@@ -313,7 +313,7 @@ export function makeItems(ctx: StorageContext) {
   });
 
   const archiveItem = Effect.fnUntraced(function* (id: string, archived = true) {
-    const updated = yield* sql`UPDATE items SET archived = ${Number(Boolean(archived))},
+    const updated = yield* sql`UPDATE items SET archived = ${Number(archived)},
       updated_at = ${Date.now()} WHERE id = ${id}`.raw;
     if (!changes(updated)) return yield* itemNotFound(id);
     return yield* writtenItem(id);
