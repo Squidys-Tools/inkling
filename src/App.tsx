@@ -24,7 +24,6 @@ import { shouldUseSeedLibrary } from "./lib/previewMode";
 import { AddMenu } from "./features/capture/AddMenu/AddMenu";
 import { CaptureBar } from "./features/capture/CaptureBar";
 import { FileImportStatus } from "./features/capture/FileImportStatus";
-import { ShortcutsDialog } from "./features/capture/ShortcutsDialog";
 import { useCapture } from "./features/capture/useCapture";
 import { useItemDetails, showItemInFolderFromOverlay } from "./features/item-view/useItemDetails";
 import { useItemSelection } from "./features/item-view/useItemSelection";
@@ -41,6 +40,7 @@ import {
 } from "./features/settings/useLibraryTransfer";
 import { SettingsSheet } from "./features/settings/SettingsSheet";
 import { useSettings } from "./features/settings/useSettings";
+import { ShortcutsDialog } from "./features/shell/ShortcutsDialog";
 import { NavRow, navLabelClass, Sidebar, SidebarError } from "./features/shell/Sidebar";
 import { SidebarEdgeGrip, SidebarOpenButton } from "./features/shell/SidebarToggles";
 import { SpacesSection } from "./features/shell/SpacesSection";
