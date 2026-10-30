@@ -1,5 +1,5 @@
 import { parseHTML } from "linkedom";
-import { sanitizeHtml } from "./html-safety";
+import { cleanCapturedHtml } from "./captured-html";
 import { normalizeHttpUrl, normalizePublishedDate, normalizeText } from "./url";
 import type { XPostMetadata } from "./types";
 
@@ -82,7 +82,7 @@ export function normalizeXPostOEmbed(
   const rawHtml = textValue(response.html);
   if (!parsedUrl || !rawHtml) return null;
 
-  const embedHtml = sanitizeHtml(rawHtml, parsedUrl.postUrl);
+  const embedHtml = cleanCapturedHtml(rawHtml, parsedUrl.postUrl);
   if (!/<blockquote\b[^>]*class=["'][^"']*twitter-tweet\b[^"']*["']/iu.test(embedHtml)) return null;
 
   const { document } = parseHTML(`<html><body>${embedHtml}</body></html>`);

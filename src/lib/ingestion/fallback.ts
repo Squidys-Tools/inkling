@@ -120,7 +120,7 @@ const BYLINE_SELECTOR = [
 
 const BYLINE_PREFIXES = /^(?:by|written by|recipe by|words by|story by|text by)\b/i;
 
-const BYLINE_TIME_TEXT_PREFIX = /^(?:on\s+)/i;
+const BYLINE_TIME_TEXT_PREFIX = /^on\s+/i;
 
 export type VisibleByline = { author: string; publishedDate: string | null };
 
@@ -213,8 +213,7 @@ export function extractFallback(document: Document, url: string): RawArticleExtr
     title:
       structured.title ??
       metaContent(document, ["og:title", "twitter:title"]) ??
-      firstMeaningfulText(document, ["h1", "title"]) ??
-      new URL(url).hostname,
+      firstMeaningfulText(document, ["h1", "title"]),
     description: structured.description ?? metaContent(document, META_DESCRIPTION_NAMES) ?? "",
     author: structured.author ?? extractDocumentAuthor(document),
     publishedDate: normalizePublishedDate(structured.publishedDate ?? published),

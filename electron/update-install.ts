@@ -42,5 +42,8 @@ export function updateDisabledReason({
     return "Updates are available only in installed release builds with a configured feed.";
   if (platform === "win32") return null;
   if (platform === "linux" && (appImage || packageType === "deb")) return null;
+  // Squirrel.Mac installs only an update signed by the same Developer ID; macOS builds are ad-hoc signed.
+  if (platform === "darwin")
+    return "Install new macOS versions by downloading them from the inkling releases page.";
   return "Use the Windows installer, Linux AppImage or Debian package to receive updates.";
 }

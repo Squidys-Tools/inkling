@@ -1,5 +1,6 @@
 import { commandChannel, commandNames } from "@inkling/contracts/commands";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
+import { nativeWindowCaptions } from "./window-chrome.ts";
 
 // Never expose a generic IPC or command passthrough: the renderer is untrusted and must not get raw filesystem or shell access.
 const commands = Object.freeze(
@@ -35,6 +36,7 @@ contextBridge.exposeInMainWorld(
       return () => ipcRenderer.removeListener("inkling:job-updated", handler);
     },
     windowControls: Object.freeze({
+      nativeCaptions: nativeWindowCaptions,
       minimize: () => ipcRenderer.invoke("inkling:window:minimize"),
       toggleMaximize: () => ipcRenderer.invoke("inkling:window:toggle-maximize"),
       close: () => ipcRenderer.invoke("inkling:window:close"),

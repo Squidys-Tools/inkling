@@ -52,7 +52,7 @@ jobs:
               - 'bun.lock'
               - '.github/workflows/electron-preview.yml'
               - 'scripts/prepare-electron-models.mjs'
-              - 'scripts/linux-backend-smoke.mjs'
+              - 'scripts/packaged-backend-smoke.mjs'
               - 'scripts/linux-packaging.test.ts'
               - 'patches/**'
 
@@ -185,7 +185,7 @@ jobs:
         run: bun run build:dir
 
       - name: Check packaged Linux OCR, PDF and native models
-        run: bun scripts/linux-backend-smoke.mjs
+        run: bun scripts/packaged-backend-smoke.mjs
 
       - name: Install X11 window probe
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y xdotool
@@ -235,3 +235,67 @@ jobs:
           path: .artifacts/electron/linux-unpacked
           if-no-files-found: error
           retention-days: 3
+
+  build-mac:
+    name: Build and smoke-test macOS Electron app
+    needs: changes
+    if: >-
+      needs.changes.outputs.electron == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: macos-15
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out pull request head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Cache pinned embedding models
+        uses: actions/cache@v6
+        with:
+          path: .artifacts/electron-model-cache/models
+          key: inkling-electron-models-mac-${{ hashFiles('electron/model-manifest.json') }}
+          restore-keys: inkling-electron-models-mac-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Build Electron app bundle
+        run: bun run build:dir
+
+      # An arm64 bundle whose signature broke during packaging will not launch: macOS calls it damaged.
+      - name: Check the ad-hoc signature
+        run: codesign --verify --deep --strict .artifacts/electron/mac-arm64/inkling.app
+
+      - name: Check packaged OCR, PDF and native models
+        run: bun scripts/packaged-backend-smoke.mjs
+
+      - name: Launch the packaged app
+        shell: bash
+        run: |
+          set -euo pipefail
+          data_dir="$(mktemp -d)"
+          log_file="$RUNNER_TEMP/inkling-electron-smoke.log"
+          .artifacts/electron/mac-arm64/inkling.app/Contents/MacOS/inkling \
+            --user-data-dir="$data_dir" --remote-debugging-port=9230 >"$log_file" 2>&1 &
+          app_pid=$!
+          trap 'kill -TERM "$app_pid" 2>/dev/null || true; wait "$app_pid" || true; rm -rf "$data_dir"' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fs http://127.0.0.1:9230/json/list | grep -q 'app://local/index.html'; then
+              echo "Packaged Electron window loaded the app."
+              exit 0
+            fi
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              cat "$log_file"
+              exit 1
+            fi
+            sleep 0.5
+          done
+          cat "$log_file"
+          exit 1

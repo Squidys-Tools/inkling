@@ -1,16 +1,11 @@
 import { parseHTML } from "linkedom";
-import { DefaultDefuddleAdapter } from "./defuddle-adapter";
+import { extractWithDefuddle } from "./defuddle-adapter";
+import { collectSafeEmbeds } from "./embeds";
 import { UrlIngestionError } from "./errors";
-import { extractFallback } from "./fallback";
+import { cleanArticleHeadings, promoteInfoAsides } from "./article-cleanup";
+import { extractFallback, visibleByline } from "./fallback";
 import { downloadPage, fetchJson, runHttp } from "./http";
-import {
-  collectImageUrls,
-  collectSafeEmbeds,
-  hasReadableText,
-  htmlToText,
-  sanitizeHtml,
-} from "./html-safety";
-import { visibleByline } from "./fallback";
+import { cleanCapturedHtml, collectImageUrls, hasReadableText, htmlToText } from "./captured-html";
 import {
   normalizeHttpUrl,
   normalizePublishedDate,
@@ -29,7 +24,6 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
-const DEFAULT_USER_AGENT = "inkling/0.1 (+local article capture)";
 function mergeExtraction(
   primary: RawArticleExtraction,
   fallback: RawArticleExtraction,
@@ -64,91 +58,30 @@ function parseDocument(html: string): Document {
   }
 }
 
-function normalizeHeadingText(value: string | null | undefined): string {
-  return (value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
-}
-
-// Summary boxes ("At a Glance", TL;DR panels) are usually <aside> elements,
-// which readers drop. Ones with a heading plus a list are article content, so
-// promote them to <section> before extraction.
-function promoteInfoAsides(document: Document): void {
-  for (const aside of document.querySelectorAll("aside")) {
-    if (!aside.querySelector("h2, h3, h4") || !aside.querySelector("ul, ol")) continue;
-    const section = document.createElement("section");
-    while (aside.firstChild) section.appendChild(aside.firstChild);
-    for (const attribute of aside.attributes) section.setAttribute(attribute.name, attribute.value);
-    aside.replaceWith(section);
-  }
-}
-
-// The page title and subtitle/deck usually repeat inside the extracted body.
-// Drop a leading heading that duplicates the title and turn a heading that
-// duplicates the description into a lede paragraph.
-function isDuplicateHeading(headingText: string, title: string): boolean {
-  if (!headingText || !title) return false;
-  if (headingText === title) return true;
-  if (headingText.length < 4 || title.length < 4) return false;
-  return title.startsWith(headingText) || headingText.startsWith(title);
-}
-
-function cleanArticleHeadings(document: Document, title: string, description: string): string {
-  const headings = [...document.querySelectorAll("h1, h2, h3")].filter(
-    (heading) => !heading.closest("section, aside"),
-  );
-
-  let index = 0;
-  for (let guard = 0; guard < 2 && index < headings.length; guard += 1) {
-    const heading = headings[index];
-    if (!isDuplicateHeading(normalizeHeadingText(heading.textContent), normalizeHeadingText(title)))
-      break;
-    heading.remove();
-    index += 1;
-  }
-
-  const ledeHeading = headings[index];
-  const ledeText = normalizeHeadingText(ledeHeading?.textContent);
-  const readsLikeSentence = ledeText.length >= 50 && /[.!?]$/u.test(ledeText);
-  if (
-    ledeHeading &&
-    description &&
-    (ledeText === normalizeHeadingText(description) || readsLikeSentence)
-  ) {
-    const lede = document.createElement("p");
-    lede.className = "article-lede";
-    lede.textContent = ledeHeading.textContent;
-    ledeHeading.replaceWith(lede);
-  }
-
-  return document.body?.innerHTML ?? "";
+function trimmedString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 async function ingestVideoLink(
   sourceUrl: string,
   videoLink: VideoLinkEmbed,
-  fetchImpl: typeof globalThis.fetch | undefined,
-  timeoutMs: number,
-  maxResponseBytes: number,
-  userAgent: string,
+  fetch: typeof globalThis.fetch | undefined,
+  request: { timeoutMs: number; maxBytes: number },
 ): Promise<NormalizedArticle> {
-  let title = `${providerLabel(videoLink.provider)} video`;
-  let author = "";
-  let poster = videoLink.posterUrl;
-
   const host = videoLink.provider === "youtube" ? "www.youtube.com" : "vimeo.com";
   const metadata = (await runHttp(
     fetchJson(`https://${host}/oembed.json?url=${encodeURIComponent(videoLink.sourceUrl)}`, {
-      userAgent,
-      timeoutMs: Math.min(timeoutMs, 4_000),
-      maxBytes: maxResponseBytes,
+      ...request,
+      timeoutMs: Math.min(request.timeoutMs, 4_000),
     }),
-    fetchImpl,
+    fetch,
   )) as { title?: unknown; author_name?: unknown; thumbnail_url?: unknown } | null;
-  if (typeof metadata?.title === "string" && metadata.title.trim()) title = metadata.title.trim();
-  if (typeof metadata?.author_name === "string" && metadata.author_name.trim())
-    author = metadata.author_name.trim();
-  if (typeof metadata?.thumbnail_url === "string") {
-    poster = normalizeHttpUrl(metadata.thumbnail_url, sourceUrl) ?? poster;
-  }
+  const title = trimmedString(metadata?.title) || `${providerLabel(videoLink.provider)} video`;
+  const author = trimmedString(metadata?.author_name);
+  const poster =
+    (typeof metadata?.thumbnail_url === "string"
+      ? normalizeHttpUrl(metadata.thumbnail_url, sourceUrl)
+      : null) ?? videoLink.posterUrl;
 
   return {
     sourceUrl,
@@ -184,31 +117,20 @@ export async function ingestUrl(
   const sourceUrl = parseHttpUrl(input, {
     allowPrivateNetwork: options.allowPrivateNetwork,
   }).toString();
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
-  const fetchImpl = options.fetch;
+  const { fetch } = options;
+  const request = {
+    timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    maxBytes: options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
+  };
 
   const videoLink = videoLinkFromSourceUrl(sourceUrl);
-  if (videoLink) {
-    return ingestVideoLink(
-      sourceUrl,
-      videoLink,
-      fetchImpl,
-      timeoutMs,
-      maxResponseBytes,
-      options.userAgent ?? DEFAULT_USER_AGENT,
-    );
-  }
+  if (videoLink) return ingestVideoLink(sourceUrl, videoLink, fetch, request);
 
-  const userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
   let xPost: XPostMetadata | null = null;
   if (parseXPostUrl(sourceUrl)) {
     // X can block or rate-limit the oEmbed request. Without it, the normal page
     // pipeline still has a chance to succeed.
-    const oEmbed = await runHttp(
-      fetchJson(xPostOEmbedUrl(sourceUrl), { userAgent, timeoutMs, maxBytes: maxResponseBytes }),
-      fetchImpl,
-    );
+    const oEmbed = await runHttp(fetchJson(xPostOEmbedUrl(sourceUrl), request), fetch);
     try {
       xPost = oEmbed ? normalizeXPostOEmbed(sourceUrl, oEmbed as Record<string, unknown>) : null;
     } catch {
@@ -237,29 +159,24 @@ export async function ingestUrl(
   }
 
   const { fetchedUrl, html: rawHtml } = await runHttp(
-    downloadPage(sourceUrl, {
-      userAgent,
-      timeoutMs,
-      maxBytes: maxResponseBytes,
-      allowPrivateNetwork: options.allowPrivateNetwork,
-    }),
-    fetchImpl,
+    downloadPage(sourceUrl, { ...request, allowPrivateNetwork: options.allowPrivateNetwork }),
+    fetch,
   );
 
   const sourceDocument = parseDocument(rawHtml);
   const extractionDocument = parseDocument(rawHtml);
   promoteInfoAsides(extractionDocument);
   const fallback = extractFallback(sourceDocument, fetchedUrl);
-  const adapter = options.defuddleAdapter ?? new DefaultDefuddleAdapter();
+  const extractArticle = options.extractArticle ?? extractWithDefuddle;
   let extraction = fallback;
   let extractor: "defuddle" | "fallback" = "fallback";
 
   try {
-    const defuddleExtraction = await adapter.extract(extractionDocument, fetchedUrl);
+    const defuddleExtraction = extractArticle(extractionDocument, fetchedUrl);
     extraction = mergeExtraction(defuddleExtraction, fallback);
     if (hasReadableText(defuddleExtraction.contentHtml)) extractor = "defuddle";
   } catch {
-    extraction = fallback;
+    // A Defuddle failure leaves the fallback extraction in place.
   }
 
   const byline = visibleByline(sourceDocument);
@@ -269,7 +186,7 @@ export async function ingestUrl(
   const title = normalizeText(extraction.title) || new URL(fetchedUrl).hostname;
   const description = normalizeText(extraction.description);
   const contentDocument = parseDocument(
-    `<html><head></head><body>${sanitizeHtml(extraction.contentHtml ?? "", fetchedUrl)}</body></html>`,
+    `<html><head></head><body>${cleanCapturedHtml(extraction.contentHtml ?? "", fetchedUrl)}</body></html>`,
   );
   const html = cleanArticleHeadings(contentDocument, title, description);
   if (!hasReadableText(html)) {

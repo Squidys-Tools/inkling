@@ -10,9 +10,9 @@ import { normalizeHttpUrl, parseHttpUrl } from "./url";
 
 const MAX_REDIRECTS = 5;
 const MAX_JSON_BYTES = 512 * 1024;
+const USER_AGENT = "inkling/0.1 (+local article capture)";
 
 type Request = {
-  userAgent: string;
   timeoutMs: number;
   maxBytes: number;
 };
@@ -93,7 +93,7 @@ export const downloadPage = (sourceUrl: string, request: PageRequest) =>
           HttpClientRequest.get(fetchedUrl, {
             headers: {
               Accept: "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.5",
-              "User-Agent": request.userAgent,
+              "User-Agent": USER_AGENT,
             },
           }),
         )
@@ -168,7 +168,7 @@ export const fetchJson = (url: string, request: Request) =>
     const client = withRetries(yield* HttpClient.HttpClient);
     const response = yield* client.execute(
       HttpClientRequest.get(url, {
-        headers: { Accept: "application/json", "User-Agent": request.userAgent },
+        headers: { Accept: "application/json", "User-Agent": USER_AGENT },
       }),
     );
     if (response.status < 200 || response.status >= 300) return null;

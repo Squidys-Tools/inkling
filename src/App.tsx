@@ -429,6 +429,7 @@ function App() {
         className={`app-shell relative flex h-full min-h-screen overflow-hidden bg-canvas wide:bg-app ${isElectronRuntime() ? "electron-shell" : ""} ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`}
         data-sidebar-style={appearance.sidebarStyle}
         data-sidebar-open={isSidebarOpen}
+        data-native-captions={window.inkling?.windowControls.nativeCaptions || undefined}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

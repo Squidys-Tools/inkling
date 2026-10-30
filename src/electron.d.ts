@@ -6,6 +6,8 @@ type ElectronBridge = {
   onDeepLink: (listener: (captures: DeepLinkCapture[]) => void) => Promise<() => void>;
   onJobUpdated: (listener: (payload: { itemId: string }) => void) => () => void;
   windowControls: {
+    /** The OS draws the caption buttons (macOS traffic lights), so the renderer must not. */
+    nativeCaptions: boolean;
     minimize: () => Promise<void>;
     toggleMaximize: () => Promise<void>;
     close: () => Promise<void>;

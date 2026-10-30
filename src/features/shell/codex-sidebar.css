@@ -20,6 +20,13 @@
   border-radius: var(--radius-sidebar);
   transition: width var(--codex-motion);
 }
+/* macOS traffic lights sit at the left end of the titlebar band, so the brand drops below it. */
+.app-shell[data-native-captions] .codex-sidebar {
+  top: var(--spacing-titlebar);
+}
+.app-shell[data-native-captions] > .titlebar-drag {
+  left: 0;
+}
 .codex-sidebar .codex-brand {
   padding: 0 4px;
   flex: 0 0 44px;

@@ -23,3 +23,7 @@ export function appKeyboardShortcut(
   if (event.key.toLowerCase() === "n") return "new-note";
   return null;
 }
+
+export function modifierKeyLabel() {
+  return typeof navigator !== "undefined" && /Macintosh/.test(navigator.userAgent) ? "⌘" : "Ctrl";
+}

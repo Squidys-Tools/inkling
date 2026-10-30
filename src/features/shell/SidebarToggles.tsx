@@ -1,5 +1,6 @@
 import { ArrowLeft01Icon, ViewSidebarLeftIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { modifierKeyLabel } from "../../lib/keyboardShortcuts";
 import { Button } from "../../ui/Button";
 import { cx } from "../../ui/cx";
 import { Surface } from "../../ui/Surface";
@@ -57,7 +58,7 @@ export function SidebarEdgeGrip({ isOpen, onToggle }: { isOpen: boolean; onToggl
           "pointer-events-none absolute top-1/2 -mt-3.5 grid size-7 place-items-center rounded-full text-ink opacity-0 scale-85 transition-[opacity,scale] duration-180 ease-[ease] group-hover:pointer-events-auto group-hover:opacity-100 group-hover:scale-100 group-focus-visible:pointer-events-auto group-focus-visible:opacity-100 group-focus-visible:scale-100",
           isOpen ? "left-[26px]" : "left-[22px] [&_svg]:rotate-180",
         )}
-        data-tooltip={`${label} · Ctrl+\\`}
+        data-tooltip={`${label} · ${modifierKeyLabel()}+\\`}
       >
         <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
       </Surface>

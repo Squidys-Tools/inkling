@@ -1,10 +1,11 @@
+import { decodeHTMLStrict } from "entities";
+
 export const NOTE_BODY_FORMAT = "md" as const;
 
 export function normalizeNoteBody(value: string): string {
   return value.replace(/\r\n?/gu, "\n").trim();
 }
 
-// Mirrors `is_void_tag` in `markdownToPlainText` (electron/storage/shared.ts).
 const VOID_HTML_TAGS = new Set(["br", "hr", "img", "input"]);
 
 // A void tag ends a line, so `foo<br>bar` must not come back as `foobar`. An
@@ -97,8 +98,7 @@ function stripHtmlTags(value: string): string {
       cursor = opening + comment[0].length;
       continue;
     }
-    // An autolink unwraps to its inner text instead of being deleted, so the
-    // URL written by the user survives the projection the way it does in storage.
+    // An autolink unwraps to its inner text, so the URL the user wrote survives.
     const autolink = rest.match(/^<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^<>\s]*)>/u);
     if (autolink) {
       result += value.slice(cursor, opening) + autolink[1];
@@ -127,134 +127,6 @@ function stripHtmlTags(value: string): string {
   return result;
 }
 
-// Entities are decoded exactly once, with a single pass over the original
-// string, so `&amp;lt;` comes back as `&lt;` and never as `<`. Decoding runs
-// after tag stripping: entity-decoded `<div>` text must survive as text
-// instead of being re-scanned as a tag.
-const NAMED_HTML_ENTITIES: Record<string, string> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-  nbsp: "\u00a0",
-  ensp: "\u2002",
-  emsp: "\u2003",
-  copy: "©",
-  reg: "®",
-  trade: "™",
-  hellip: "…",
-  mdash: "—",
-  ndash: "–",
-  lsquo: "‘",
-  rsquo: "’",
-  ldquo: "“",
-  rdquo: "”",
-  laquo: "«",
-  raquo: "»",
-  times: "×",
-  divide: "÷",
-  plusmn: "±",
-  deg: "°",
-  micro: "µ",
-  para: "¶",
-  sect: "§",
-  middot: "·",
-  bull: "•",
-  dagger: "†",
-  Dagger: "‡",
-  permil: "‰",
-  prime: "′",
-  Prime: "″",
-  euro: "€",
-  pound: "£",
-  yen: "¥",
-  cent: "¢",
-  agrave: "à",
-  Agrave: "À",
-  aacute: "á",
-  Aacute: "Á",
-  acirc: "â",
-  Acirc: "Â",
-  auml: "ä",
-  Auml: "Ä",
-  aelig: "æ",
-  AElig: "Æ",
-  ccedil: "ç",
-  Ccedil: "Ç",
-  egrave: "è",
-  Egrave: "È",
-  eacute: "é",
-  Eacute: "É",
-  ecirc: "ê",
-  Ecirc: "Ê",
-  euml: "ë",
-  Euml: "Ë",
-  iuml: "ï",
-  Iuml: "Ï",
-  iacute: "í",
-  Iacute: "Í",
-  ntilde: "ñ",
-  Ntilde: "Ñ",
-  oacute: "ó",
-  Oacute: "Ó",
-  ocirc: "ô",
-  Ocirc: "Ô",
-  ouml: "ö",
-  Ouml: "Ö",
-  oslash: "ø",
-  Oslash: "Ø",
-  uacute: "ú",
-  Uacute: "Ú",
-  ucirc: "û",
-  Ucirc: "Û",
-  uuml: "ü",
-  Uuml: "Ü",
-  szlig: "ß",
-  aring: "å",
-  Aring: "Å",
-};
-
-// Looked up through a Map so a name like `constructor` cannot reach
-// Object.prototype and project a function body into the note text.
-const ENTITY_TABLE = new Map(Object.entries(NAMED_HTML_ENTITIES));
-
-// HTML defines these six in both cases; every other name is case sensitive, so
-// `&EURO;` is not `&euro;` and must survive as written.
-const UPPERCASE_ENTITY_ALIASES = new Set(["AMP", "COPY", "GT", "LT", "QUOT", "REG"]);
-
-function decodeHtmlEntities(value: string): string {
-  return value.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]+);/giu, (match, body: string) => {
-    if (body.startsWith("#")) {
-      const point =
-        body[1]?.toLowerCase() === "x"
-          ? Number.parseInt(body.slice(2), 16)
-          : Number.parseInt(body.slice(1), 10);
-      if (Number.isFinite(point) && point >= 0 && point <= 0x10ffff) {
-        // U+0000 becomes the replacement character, as HTML specifies. It also
-        // cannot forge the \0N\0 sentinel the code-span pass uses, so a
-        // note cannot smuggle a placeholder in through an entity.
-        if (point === 0) return "\uFFFD";
-        try {
-          return String.fromCodePoint(point);
-        } catch {
-          return match;
-        }
-      }
-      return match;
-    }
-    // Named references are case sensitive, so the table carries both cases and
-    // the exact form is tried before anything else.
-    const exact = ENTITY_TABLE.get(body);
-    if (exact !== undefined) return exact;
-    if (UPPERCASE_ENTITY_ALIASES.has(body)) {
-      const alias = ENTITY_TABLE.get(body.toLowerCase());
-      if (alias !== undefined) return alias;
-    }
-    return match;
-  });
-}
-
 // Intraword `_` is literal in CommonMark in any script (`é_foo_é` is one word),
 // so the guard must recognize non-ASCII letters. Star emphasis has no guard.
 function stripUnderscoreEmphasis(value: string, marker: string): string {
@@ -268,9 +140,8 @@ function stripUnderscoreEmphasis(value: string, marker: string): string {
   );
 }
 
-// `electron/storage/shared.ts` has a second copy; change both together. They
-// differ on purpose: block-level HTML tags count as word boundaries here but not
-// there, and code spans are protected here so markup inside them stays text.
+// Storage saves the projection from its own, simpler copy in electron/storage/shared.ts;
+// the two differ on raw HTML, code spans and entities.
 export function markdownToPlainText(markdown: string): string {
   const code: string[] = [];
   const protect = (value: string) => {
@@ -298,7 +169,9 @@ export function markdownToPlainText(markdown: string): string {
   source = stripUnderscoreEmphasis(source, "___");
   source = stripUnderscoreEmphasis(source, "__");
   source = stripUnderscoreEmphasis(source, "_");
-  source = decodeHtmlEntities(source);
+  // Strict decoding requires the closing semicolon, as CommonMark does, and maps
+  // &#0; to U+FFFD, so an entity cannot forge the \0N\0 code-span placeholder.
+  source = decodeHTMLStrict(source);
   source = source
     .replace(/\s+/gu, " ")
     .trim()
@@ -321,12 +194,8 @@ function splitNoteBody(markdown: string, title: string) {
   return { titleHeading: firstLine, body };
 }
 
-export function noteBodyForPreview(markdown: string, title: string): string {
-  return splitNoteBody(markdown, title).body;
-}
-
 export function noteBodyForEditor(markdown: string | undefined, title: string): string {
-  return markdown === undefined ? "" : noteBodyForPreview(markdown, title);
+  return markdown === undefined ? "" : splitNoteBody(markdown, title).body;
 }
 
 export function noteBodyForStorage(
@@ -347,14 +216,6 @@ export function noteBodyForStorage(
     : normalizeNoteBody(`${titleHeading}\n\n${normalizedBody}`);
 }
 
-// A note link opens in the user's browser, so only real web URLs are storable.
-// Everything else, including `javascript:` and data payloads, is refused here
-// before it can reach the stored Markdown.
-export function isSafeNoteLink(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
-  } catch {
-    return false;
-  }
-}
+// A note link opens in the user's browser, so only real web URLs are storable;
+// `javascript:` and data payloads never reach the stored Markdown.
+export { isWebUrl as isSafeNoteLink } from "./ingestion/url";
