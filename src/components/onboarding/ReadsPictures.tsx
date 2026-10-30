@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { prefersReducedMotion } from "../../ui/reducedMotion";
 import { onboardingPhotos } from "./onboardingMedia";
+import "./ReadsPictures.css";
 
 const QUERY = "lumen";
 
