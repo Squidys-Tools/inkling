@@ -400,27 +400,6 @@ export class BotEngine {
   }
 
   /**
-   * Repart sur `id` SANS etat precedent, comme un moteur neuf pose sur cet etat.
-   *
-   * C'est ce que veut dire « rembobiner » pour ce moteur. `setState` seul ne peut pas le
-   * faire : il garde l'etat quitte pour le fondre, ce qui est exactement son role en
-   * lecture, et exactement ce qu'il ne faut pas quand on revient au debut d'une sequence.
-   * Rejouer l'image 0 apres une passe complete melangeait le premier etat avec le DERNIER,
-   * et l'export GIF s'ouvrait sur une boule sans yeux — la comete a un `eyeAlpha` nul.
-   *
-   * `sample` reste une fonction pure du temps : comme `setState`, ceci est un setter DATE,
-   * appele par le pilote de la sequence, jamais pendant un echantillonnage.
-   */
-  reset(id: StateId, now: number) {
-    this.cur = id;
-    this.prev = null;
-    this.departFige = null;
-    this.tCur = now;
-    this.tPrev = now;
-    this.blinkAt = -10;
-  }
-
-  /**
    * Origine du fondu en cours : la pose figee s'il y en a une, sinon l'etat quitte evalue
    * a son propre temps ecoule — donc encore en train de s'animer, ce qui est voulu.
    */
