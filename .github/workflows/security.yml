@@ -5,9 +5,7 @@ on:
     branches:
       - main
     paths-ignore:
-      # Docs carry no executable code — skip security checks
-      # entirely when a push only touches these (mixed code+docs still runs).
-      # The weekly schedule always runs regardless of paths.
+      # The weekly schedule runs regardless of paths.
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"

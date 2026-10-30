@@ -55,7 +55,6 @@ jobs:
               - 'scripts/linux-backend-smoke.mjs'
               - 'scripts/linux-packaging.test.ts'
               - 'patches/**'
-              - 'electron/model-manifest.json'
 
   build:
     name: Build Windows Electron installer
