@@ -23,7 +23,7 @@ Your library lives on your own computer. The app contacts GitHub only when you c
 
 ### 1. Save in seconds
 
-Paste a URL, drag in a file, paste from your clipboard, take a screenshot, or save from your browser with the companion extension(soon). inkling creates the card immediately and does the heavy lifting quietly in the background.
+Paste a URL, drag in a file, paste from your clipboard, take a screenshot, or save from Chrome with the companion extension (not in the Chrome Web Store yet). inkling creates the card immediately and does the heavy lifting quietly in the background.
 
 ![Opening a saved video — the detail view with preview, source, and tags](docs/assets/screenshots/detail.png)
 
