@@ -72,9 +72,8 @@ test("text matches paint before a held model and late semantic results never ove
   }
   const setSelectedItem = () => {},
     setCaptureError = () => {};
-  let latest: ReturnType<typeof useLibraryData>;
   function Probe({ query }: { query: string }) {
-    latest = useLibraryData({
+    const latest = useLibraryData({
       canUseDesktopBackend: true,
       query,
       activeSpaceId: null,

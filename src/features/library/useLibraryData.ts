@@ -3,6 +3,7 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -50,7 +51,9 @@ export function useLibraryData({
   // of six full reloads (search + N x job status + N x asset URL).
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const requestRef = useRef({ query, activeSpaceId });
-  requestRef.current = { query, activeSpaceId };
+  useLayoutEffect(() => {
+    requestRef.current = { query, activeSpaceId };
+  }, [query, activeSpaceId]);
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query), query.trim() ? 60 : 0);
     return () => window.clearTimeout(timer);
@@ -75,7 +78,8 @@ export function useLibraryData({
     // data that load read afterwards.
     let fullLoadEpoch = 0;
     const current = () =>
-      !cancelled && requestRef.current.query === debouncedQuery &&
+      !cancelled &&
+      requestRef.current.query === debouncedQuery &&
       requestRef.current.activeSpaceId === activeSpaceId;
     // Job events name the item they touched. Only the plain library can patch
     // in place: a query or Space can gain or lose members when a job lands.
@@ -159,7 +163,9 @@ export function useLibraryData({
           ? countActiveJobs().catch(() => null)
           : Promise.resolve(null);
         const [changes, storedItems, activeJobs] = await Promise.all([
-          changesPromise, storedItemsPromise, activeJobsPromise,
+          changesPromise,
+          storedItemsPromise,
+          activeJobsPromise,
         ]);
         if (canUseDesktopBackend) {
           const progress = await getSearchProgress().catch(() => null);

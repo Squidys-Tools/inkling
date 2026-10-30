@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 
 // Multimodal revisions plus persistent Smart Space exclusions. Upstream's
-// separate article-content migration (#210) needs its own combined successor.
+// separate article-content migration needs its own combined successor.
 export const SCHEMA_VERSION = 10;
 
 const searchSchema = `
