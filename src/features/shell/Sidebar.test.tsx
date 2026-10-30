@@ -10,6 +10,17 @@ import { AddMenu } from "../capture/AddMenu/AddMenu";
 const noop = () => {};
 async function mounted(content: ReactNode, check: (doc: Document) => void | Promise<void>) {
   const { window: dom } = parseHTML("<html><body><div id='root'></div></body></html>");
+  // Motion subscribes to reduced-motion changes in a real browser. Do not
+  // inherit another suite's partial MediaQueryList through Linkedom's proxy.
+  Object.defineProperty(dom, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: (media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: noop, removeEventListener: noop,
+      addListener: noop, removeListener: noop, dispatchEvent: () => true,
+    }),
+  });
   for (const [key, value] of Object.entries({
     window: dom,
     document: dom.document,
