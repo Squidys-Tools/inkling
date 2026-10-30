@@ -2,40 +2,28 @@ import { Tabs } from "@base-ui/react/tabs";
 import {
   Archive01Icon,
   Database02Icon,
-  Grid2X2Icon,
-  LicenseThirdPartyIcon,
   Link01Icon,
   PaintBoardIcon,
-  PlayIcon,
   Settings01Icon,
-  SidebarLeftIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { AnimatePresence, motion } from "motion/react";
 import type { ComponentProps, RefObject } from "react";
-import { SegmentedControl } from "../../components/SegmentedControl/SegmentedControl";
 import { ArchivePanel } from "./ArchivePanel";
-import { type Appearance, APPEARANCE_OPTIONS } from "./appearance";
+import { AppearancePanel } from "./AppearancePanel";
+import type { Appearance } from "./appearance";
 import { ExtensionPairing } from "./ExtensionPairing";
 import { LibraryPanel } from "./LibraryPanel";
 import { OpenSourceLicenses } from "./OpenSourceLicenses";
-import {
-  pillButton,
-  SETTINGS_SCROLL,
-  SettingsHeader,
-  SettingsPanel,
-  SettingsRow,
-} from "./SettingsPanel";
+import { GeneralPanel } from "./GeneralPanel";
+import { SETTINGS_SCROLL, SettingsHeader, SettingsPanel } from "./SettingsPanel";
 import type { SettingsTab } from "./useSettings";
-import { UpdateSettings } from "./UpdateSettings";
-import { ScreenshotImportSettings } from "./ScreenshotImportSettings";
+import type { UpdateSettings } from "./UpdateSettings";
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
 const TAB =
   "flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-row border-0 bg-transparent px-2.5 py-0 text-left font-body text-[14px]/[18px] font-normal text-ink-soft transition-[color,scale] duration-180 ease-[ease] hover:text-ink active:scale-98 data-active:font-medium data-active:text-ink motion-reduce:transition-none [&_svg]:shrink-0 [&_svg]:text-muted data-active:[&_svg]:text-ink";
-
-const SEGMENTED = "flex-none border border-[#221f1c] bg-surface";
 
 function RailTab({
   value,
@@ -166,99 +154,19 @@ export function SettingsSheet({
             {tab === "licenses" ? (
               <OpenSourceLicenses onBack={() => onTabChange("general")} onClose={onClose} />
             ) : (
-              <SettingsPanel tab="general" titleId="general-panel-title">
-                <SettingsHeader
-                  titleId="general-panel-title"
-                  title="General"
-                  note="How inkling behaves across the app."
-                  onClose={onClose}
-                />
-                <div className={SETTINGS_SCROLL}>
-                  <UpdateSettings update={update} />
-                  <ScreenshotImportSettings />
-                  <SettingsRow
-                    icon={PlayIcon}
-                    title="Welcome tour"
-                    description="Replay the screens from your first launch: saving things, finding them again, and keeping your library on this computer."
-                    action={
-                      <button type="button" className={pillButton()} onClick={onShowWelcome}>
-                        Show the welcome again
-                      </button>
-                    }
-                  />
-                  <SettingsRow
-                    icon={LicenseThirdPartyIcon}
-                    title="Open source licenses"
-                    description="The projects inkling is built on, and the terms they come with."
-                    action={
-                      <button
-                        type="button"
-                        className={pillButton()}
-                        onClick={() => onTabChange("licenses")}
-                      >
-                        View licenses
-                      </button>
-                    }
-                  />
-                </div>
-              </SettingsPanel>
-            )}
-
-            <SettingsPanel tab="appearance" titleId="appearance-panel-title">
-              <SettingsHeader
-                titleId="appearance-panel-title"
-                title="Appearance"
-                note="Try other looks for parts of the app."
+              <GeneralPanel
+                update={update}
+                onShowWelcome={onShowWelcome}
+                onShowLicenses={() => onTabChange("licenses")}
                 onClose={onClose}
               />
-              <div className={SETTINGS_SCROLL}>
-                <SettingsRow
-                  icon={SidebarLeftIcon}
-                  title="Sidebar style"
-                  description="Classic or an experimental compact navigation."
-                  action={
-                    <SegmentedControl
-                      className={SEGMENTED}
-                      name="appearance-sidebar-style"
-                      label="Sidebar style"
-                      value={appearance.sidebarStyle}
-                      onChange={(value) => onAppearanceChange("sidebarStyle", value)}
-                      options={APPEARANCE_OPTIONS.sidebarStyle}
-                    />
-                  }
-                />
-                <SettingsRow
-                  icon={Grid2X2Icon}
-                  title="Grid and list toggle"
-                  description="The switch at the bottom of the library."
-                  action={
-                    <SegmentedControl
-                      className={SEGMENTED}
-                      name="appearance-view-toggle"
-                      label="Grid and list toggle style"
-                      value={appearance.viewToggle}
-                      onChange={(value) => onAppearanceChange("viewToggle", value)}
-                      options={APPEARANCE_OPTIONS.viewToggle}
-                    />
-                  }
-                />
-                <SettingsRow
-                  icon={SidebarLeftIcon}
-                  title="Sidebar button"
-                  description="How the sidebar opens and closes."
-                  action={
-                    <SegmentedControl
-                      className={SEGMENTED}
-                      name="appearance-sidebar-toggle"
-                      label="Sidebar button style"
-                      value={appearance.sidebarToggle}
-                      onChange={(value) => onAppearanceChange("sidebarToggle", value)}
-                      options={APPEARANCE_OPTIONS.sidebarToggle}
-                    />
-                  }
-                />
-              </div>
-            </SettingsPanel>
+            )}
+
+            <AppearancePanel
+              appearance={appearance}
+              onAppearanceChange={onAppearanceChange}
+              onClose={onClose}
+            />
 
             <ArchivePanel {...archive} onClose={onClose} />
             <LibraryPanel {...library} onClose={onClose} />

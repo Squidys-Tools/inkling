@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { prefersReducedMotion } from "../mascot/mascotStore";
+import { prefersReducedMotion } from "../../ui/reducedMotion";
 import { onboardingPhotos } from "./onboardingMedia";
 
 const QUERY = "lumen";
@@ -181,7 +181,6 @@ export function ReadsPictures() {
     <div className={`reads-pictures is-${phase}`} aria-hidden="true">
       {ORDER.map(([key, aspect], index) => {
         if (key === "receipt") return null;
-        // Once the receipt rises, the rest of the grid dims behind it.
         const spot = spotOf(key);
         return (
           <img
@@ -205,7 +204,7 @@ export function ReadsPictures() {
           <span />
           <span />
         </span>
-        <span className="reads-query">{QUERY.slice(0, typed)}</span>
+        <span>{QUERY.slice(0, typed)}</span>
         {phase === "found" ? null : <span className="reads-caret" />}
       </div>
       <div

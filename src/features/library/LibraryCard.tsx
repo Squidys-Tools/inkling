@@ -2,34 +2,28 @@
 import {
   AlertCircleIcon,
   ArrowUpRight01Icon,
-  CircleCheckIcon,
-  CircleIcon,
-  Delete02Icon,
   Loading01Icon,
   PlayIcon,
   RotateCwIcon,
-  RotateLeft01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { memo } from "react";
-import { canvasImageCrossOrigin } from "../../components/LiquidGlass";
-import {
-  FileArtwork,
-  formatDuration,
-  KindIcon,
-  mediaAspectRatioFor,
-  NoteArtwork,
-  PdfArtwork,
-  PostArtwork,
-  QuoteArtwork,
-} from "../../components/ItemMedia";
-import type { SourceRects } from "../item-view/overlayMotion";
+import { KindIcon, mediaAspectRatioFor } from "../../components/ItemMedia";
+import { cardRects, type SourceRects } from "../item-view/overlayMotion";
 import type { ReaderOrigin } from "../../ReaderView";
 import type { LibraryItem } from "../../lib/types";
 import { RETRY_BUTTON } from "../../ui/Button";
 import { cx } from "../../ui/cx";
-
-type CardLayout = "grid" | "list" | "archive";
+import { ArchiveTileControls } from "./ArchiveTileControls";
+import {
+  CardMedia,
+  cardKindOf,
+  mediaKindOf,
+  quoteAttribution,
+  type CardKind,
+  type CardLayout,
+  type MediaKind,
+} from "./LibraryCardMedia";
 
 export type LibraryCardContext = {
   layout: CardLayout;
@@ -47,49 +41,10 @@ export type LibraryCardContext = {
   ) => void;
 };
 
-// Each type gets its own treatment. Posts, images and videos with no artwork
-// fall back to the typed file layout.
-type CardKind = "note" | "quote" | "pdf" | "article" | "video" | "file" | "media";
-
-function cardKindOf(item: LibraryItem): CardKind {
-  switch (item.kind) {
-    case "Note":
-      return "note";
-    case "Quote":
-      return "quote";
-    case "PDF":
-      return "pdf";
-    case "Article":
-      return "article";
-    case "Video":
-      return item.image ? "video" : "file";
-    case "File":
-      return "file";
-    default:
-      return !item.image && !item.post ? "file" : "media";
-  }
-}
-
-type MediaKind = "x-post" | "video" | "image" | "post" | "paper";
-
-function mediaKindOf(item: LibraryItem): MediaKind {
-  if (item.social?.provider === "x" && item.post) return "x-post";
-  if (item.kind === "Video" && item.image) return "video";
-  if (item.image) return "image";
-  if (item.kind === "Post" && item.post) return "post";
-  return "paper";
-}
-
 const SELECTED_RING =
   "[&.is-selected]:after:pointer-events-none [&.is-selected]:after:absolute [&.is-selected]:after:inset-0 [&.is-selected]:after:z-5 [&.is-selected]:after:rounded-[inherit] [&.is-selected]:after:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_80%,transparent)]";
 
-// Media fills the card in the grid; in a list row it sits in the 155px column
-// and grows with the text.
-const MEDIA_FILL =
-  "pointer-events-none absolute inset-0 size-full min-h-0 aspect-auto object-cover";
-const MEDIA_ROW = "pointer-events-none relative inset-auto h-full w-auto aspect-auto object-cover";
-
-function cardShape(layout: CardLayout, kind: CardKind): string {
+function cardShape(layout: CardLayout, kind: CardKind) {
   if (layout === "list") return "grid grid-cols-[155px_1fr] aspect-auto";
   if (layout === "archive") return "aspect-auto";
   switch (kind) {
@@ -108,7 +63,7 @@ function cardShape(layout: CardLayout, kind: CardKind): string {
   }
 }
 
-function mediaBox(layout: CardLayout, kind: CardKind, media: MediaKind): string {
+function mediaBox(layout: CardLayout, kind: CardKind, media: MediaKind) {
   if (layout === "list") return "static inset-0 min-w-0";
   if (layout === "grid" && kind === "article")
     return media === "paper" ? "hidden" : "relative inset-auto h-[120px] min-w-0 flex-none";
@@ -117,180 +72,6 @@ function mediaBox(layout: CardLayout, kind: CardKind, media: MediaKind): string 
   if (layout === "archive")
     return "relative inset-0 h-[132px] min-w-0 overflow-hidden rounded-[10px]";
   return "absolute inset-0 min-w-0";
-}
-
-function quoteAttribution(description: string): string {
-  const text = description.trim();
-  if (!text) return "";
-  return text.startsWith("—") ? text : `— ${text}`;
-}
-
-// Quotes show in full on the card; the art clamps only very long ones.
-function cardText(value: string | undefined, fallback: string): string {
-  return value?.replace(/\s+/gu, " ").trim() || fallback;
-}
-
-// Captures the card and its media box before selection state changes, so the
-// item view's opening flight starts from the card's exact position.
-function cardRectsFor(card: HTMLElement): SourceRects {
-  const cardRect = card.getBoundingClientRect();
-  const mediaRect = card.querySelector<HTMLElement>(".library-card-media")?.getBoundingClientRect();
-  return {
-    card: {
-      left: cardRect.left,
-      top: cardRect.top,
-      width: cardRect.width,
-      height: cardRect.height,
-    },
-    media: mediaRect
-      ? {
-          left: mediaRect.left,
-          top: mediaRect.top,
-          width: mediaRect.width,
-          height: mediaRect.height,
-        }
-      : { left: cardRect.left, top: cardRect.top, width: cardRect.width, height: 0 },
-  };
-}
-
-// The pill is the only play affordance on a video card; playback happens in
-// the item view, the only place a local video file is loaded.
-function VideoPill({ item }: { item: LibraryItem }) {
-  return (
-    <span
-      className="glass pointer-events-none absolute bottom-2.5 left-2.5 z-1 inline-flex items-center gap-1.5 rounded-full py-[5px] pr-2.5 pl-2 font-mono text-[11px]/[14px] text-ink"
-      aria-hidden="true"
-    >
-      <HugeiconsIcon icon={PlayIcon} size={10} />
-      {item.durationSeconds !== undefined && <span>{formatDuration(item.durationSeconds)}</span>}
-    </span>
-  );
-}
-
-function CardMedia({
-  item,
-  index,
-  layout,
-  kind,
-  media,
-}: {
-  item: LibraryItem;
-  index: number;
-  layout: CardLayout;
-  kind: CardKind;
-  media: MediaKind;
-}) {
-  const list = layout === "list";
-  if (media === "x-post")
-    return (
-      <div
-        className={cx(
-          "overflow-hidden bg-white",
-          list ? cx(MEDIA_ROW, "min-h-[155px]") : MEDIA_FILL,
-        )}
-      >
-        <PostArtwork
-          post={item.post as NonNullable<LibraryItem["post"]>}
-          className={cx(
-            "size-full min-h-0",
-            list ? "static inset-auto aspect-auto" : "aspect-(--card-media-ratio)",
-          )}
-        />
-      </div>
-    );
-  if (media === "post")
-    return (
-      <PostArtwork
-        post={item.post as NonNullable<LibraryItem["post"]>}
-        className={
-          list
-            ? "pointer-events-none static inset-auto h-full min-h-[155px] w-auto aspect-auto object-cover"
-            : "pointer-events-none absolute inset-0 size-full min-h-0 aspect-(--card-media-ratio) object-cover"
-        }
-      />
-    );
-  if (media === "image" || media === "video")
-    return (
-      <div
-        className={cx(
-          "overflow-hidden bg-surface-raised",
-          list ? cx(MEDIA_ROW, "min-h-[120px]") : MEDIA_FILL,
-        )}
-      >
-        <img
-          src={item.image}
-          crossOrigin={canvasImageCrossOrigin(item.image)}
-          alt={item.imageAlt ?? item.title}
-          className={cx("block size-full object-cover", list && "absolute inset-0")}
-          loading="lazy"
-          decoding="async"
-          fetchPriority={index < 6 ? "high" : undefined}
-        />
-        {media === "video" && <VideoPill item={item} />}
-      </div>
-    );
-
-  const place = list ? cx(MEDIA_ROW, "min-h-[155px]") : MEDIA_FILL;
-  if (item.kind === "Quote")
-    return (
-      <QuoteArtwork
-        text={cardText(item.title, "Saved quote")}
-        attribution={quoteAttribution(item.description)}
-        compact={list}
-        className={cx(
-          list
-            ? cx(place, "flex flex-col px-4 py-[14px]")
-            : layout === "grid"
-              ? "pointer-events-none relative inset-auto flex h-auto min-h-0 w-full flex-[1_0_auto] flex-col pt-[22px] pr-[30px] pb-10 pl-[26px] aspect-auto object-cover"
-              : place,
-        )}
-      />
-    );
-  return (
-    <div
-      className={cx(
-        "overflow-hidden",
-        place,
-        kind === "article"
-          ? "bg-transparent"
-          : item.featured
-            ? "bg-accent-soft"
-            : (item.accent ?? "bg-surface"),
-      )}
-      aria-hidden={item.kind !== "Article" || !item.sourceUrl}
-    >
-      {item.kind === "Article" && (
-        <>
-          <span className="absolute top-[36%] left-[11%] block h-px w-1/2 bg-[#4a4842] opacity-65" />
-          <span className="absolute top-[45%] left-[11%] block h-px w-[31%] bg-[#4a4842] opacity-65" />
-          <span className="absolute right-[12%] bottom-[15%] grid size-[58px] place-items-center rounded-full border border-[#a06b4e] font-body text-[26px] leading-[normal] text-[#d98d68] [transform:rotate(-13deg)]">
-            m
-          </span>
-          {item.sourceUrl && (
-            <span
-              className={cx(
-                "pointer-events-none absolute right-[36%] bottom-[12%] left-[11%] grid gap-1 text-ink",
-                list && "hidden",
-              )}
-            >
-              <span className="line-clamp-2 font-body text-[12px]/[1.2] font-medium tracking-[-0.02em]">
-                {item.title}
-              </span>
-              <span className="overflow-hidden font-mono text-[10px]/[1.2] text-ellipsis whitespace-nowrap text-muted">
-                {item.source}
-              </span>
-            </span>
-          )}
-        </>
-      )}
-      {item.kind === "Note" && <NoteArtwork item={item} compact={list} />}
-      {item.kind === "PDF" && <PdfArtwork item={item} compact={list} />}
-      {(item.kind === "File" ||
-        item.kind === "Post" ||
-        item.kind === "Image" ||
-        item.kind === "Video") && <FileArtwork item={item} compact={list} />}
-    </div>
-  );
 }
 
 export const LibraryCard = memo(function LibraryCard({
@@ -320,7 +101,7 @@ export const LibraryCard = memo(function LibraryCard({
       context.onToggleArchivedItem?.(item);
       return;
     }
-    context.onSelectItem(item, cardRectsFor(event.currentTarget));
+    context.onSelectItem(item, cardRects(event.currentTarget));
   };
   const textColor = item.featured
     ? "text-muted"
@@ -386,7 +167,7 @@ export const LibraryCard = memo(function LibraryCard({
           if (archiveSelectionMode) {
             context.onToggleArchivedItem?.(item);
           } else {
-            context.onSelectItem(item, cardRectsFor(event.currentTarget));
+            context.onSelectItem(item, cardRects(event.currentTarget));
           }
         }}
       >
@@ -402,73 +183,11 @@ export const LibraryCard = memo(function LibraryCard({
         >
           <CardMedia item={item} index={index} layout={layout} kind={kind} media={media} />
           {isArchiveTile && (
-            <div
-              className={cx(
-                "absolute right-2 bottom-2 z-2 flex items-center gap-1.5 transition-opacity duration-180 ease-[ease] motion-reduce:transition-none",
-                archiveSelectionMode
-                  ? "opacity-100"
-                  : "opacity-0 group-focus-within/tile:opacity-100 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100",
-              )}
-            >
-              {!archiveSelectionMode && (
-                <button
-                  type="button"
-                  className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border-0 bg-ink px-3 py-0 font-body text-[12px]/4 font-semibold whitespace-nowrap text-surface transition-[scale] duration-160 ease-[ease] active:scale-96 motion-reduce:transition-none"
-                  data-tooltip="Restore to library"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void context.onRestoreArchivedItem?.(item);
-                  }}
-                >
-                  <HugeiconsIcon icon={RotateLeft01Icon} size={12} />
-                  Restore
-                </button>
-              )}
-              <button
-                type="button"
-                className={cx(
-                  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-[rgba(12,12,11,0.72)] p-0 backdrop-blur-[8px] transition-[background-color,color,scale] duration-180 ease-[ease] active:scale-96 motion-reduce:transition-none",
-                  !archiveSelectionMode
-                    ? "text-ink hover:bg-[#3a251d] hover:text-[#f0b095]"
-                    : cx(
-                        "hover:bg-[rgba(12,12,11,0.9)]",
-                        isArchivedItemSelected ? "text-accent" : "text-ink",
-                      ),
-                )}
-                aria-label={
-                  archiveSelectionMode
-                    ? `${isArchivedItemSelected ? "Deselect" : "Select"} ${item.title}`
-                    : `Delete ${item.title}`
-                }
-                aria-pressed={archiveSelectionMode ? isArchivedItemSelected : undefined}
-                data-tooltip={
-                  archiveSelectionMode
-                    ? isArchivedItemSelected
-                      ? "Deselect item"
-                      : "Select item"
-                    : "Delete permanently"
-                }
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (archiveSelectionMode) {
-                    context.onToggleArchivedItem?.(item);
-                  } else {
-                    void context.onDeleteArchivedItem?.(item);
-                  }
-                }}
-              >
-                <HugeiconsIcon
-                  icon={
-                    archiveSelectionMode
-                      ? isArchivedItemSelected
-                        ? CircleCheckIcon
-                        : CircleIcon
-                      : Delete02Icon
-                  }
-                  size={archiveSelectionMode ? 18 : 13}
-                />
-              </button>
-            </div>
+            <ArchiveTileControls
+              item={item}
+              context={context}
+              isArchivedItemSelected={isArchivedItemSelected}
+            />
           )}
         </div>
         {isArchiveTile && (
@@ -631,7 +350,7 @@ export const LibraryCard = memo(function LibraryCard({
                 onClick={(event) => {
                   event.stopPropagation();
                   const card = event.currentTarget.closest<HTMLElement>(".library-card");
-                  context.onSelectItem(item, card ? cardRectsFor(card) : undefined);
+                  context.onSelectItem(item, card ? cardRects(card) : undefined);
                 }}
               >
                 Watch <HugeiconsIcon icon={PlayIcon} size={11} />

@@ -11,7 +11,8 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef } from "react";
+import { AddForm, useAddDrafts } from "./AddForm";
 import "./AddMenu.css";
 
 // The sidebar's Add button opens into the menu in place, after Viora UI's
@@ -72,11 +73,7 @@ export function AddMenu({
   const fileRef = useRef<HTMLInputElement>(null);
   const focusTriggerRef = useRef(false);
   // Drafts live here, not in the panel, so closing the menu keeps them.
-  const [note, setNote] = useState("");
-  const [url, setUrl] = useState("");
-  const [quote, setQuote] = useState("");
-  const [attribution, setAttribution] = useState("");
-  const [sourceUrl, setSourceUrl] = useState("");
+  const drafts = useAddDrafts();
 
   // Closing from inside the menu (Escape, the close button) hands focus back
   // to Add once it is back; an outside click leaves focus where it landed.
@@ -120,15 +117,16 @@ export function AddMenu({
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
+    const { note, url, quote } = drafts;
     if (mode === "note" && note.trim()) {
-      if (await onSaveNote(note.trim())) setNote("");
+      if (await onSaveNote(note.trim())) drafts.setNote("");
     } else if (mode === "url" && url.trim()) {
-      if (await onSaveLink(url.trim())) setUrl("");
+      if (await onSaveLink(url.trim())) drafts.setUrl("");
     } else if (mode === "quote" && quote.trim()) {
-      if (await onSaveQuote(quote, attribution, sourceUrl)) {
-        setQuote("");
-        setAttribution("");
-        setSourceUrl("");
+      if (await onSaveQuote(quote, drafts.attribution, drafts.sourceUrl)) {
+        drafts.setQuote("");
+        drafts.setAttribution("");
+        drafts.setSourceUrl("");
       }
     }
   };
@@ -251,21 +249,7 @@ export function AddMenu({
               </button>
             </div>
             <div className="add-menu-body">
-              <AddForm
-                mode={mode}
-                saving={saving}
-                note={note}
-                url={url}
-                quote={quote}
-                attribution={attribution}
-                sourceUrl={sourceUrl}
-                onNote={setNote}
-                onUrl={setUrl}
-                onQuote={setQuote}
-                onAttribution={setAttribution}
-                onSourceUrl={setSourceUrl}
-                onSubmit={save}
-              />
+              <AddForm mode={mode} saving={saving} drafts={drafts} onSubmit={save} />
               {error && (
                 <p className="add-menu-error" role="alert">
                   Couldn’t save this yet: {error}
@@ -357,21 +341,7 @@ export function AddMenu({
               animate={{ opacity: 1, transition: { delay: 0.08, duration: 0.18 } }}
             >
               {mode ? (
-                <AddForm
-                  mode={mode}
-                  saving={saving}
-                  note={note}
-                  url={url}
-                  quote={quote}
-                  attribution={attribution}
-                  sourceUrl={sourceUrl}
-                  onNote={setNote}
-                  onUrl={setUrl}
-                  onQuote={setQuote}
-                  onAttribution={setAttribution}
-                  onSourceUrl={setSourceUrl}
-                  onSubmit={save}
-                />
+                <AddForm mode={mode} saving={saving} drafts={drafts} onSubmit={save} />
               ) : (
                 <div className="add-menu-grid">
                   <Tile icon={FileTextIcon} label="Note" onSelect={() => onModeChange("note")} />
@@ -465,90 +435,5 @@ function Tile({
       <HugeiconsIcon icon={icon} size={22} strokeWidth={1.5} />
       <span>{label}</span>
     </button>
-  );
-}
-
-type FormProps = {
-  mode: AddMode;
-  saving: boolean;
-  note: string;
-  url: string;
-  quote: string;
-  attribution: string;
-  sourceUrl: string;
-  onNote: (value: string) => void;
-  onUrl: (value: string) => void;
-  onQuote: (value: string) => void;
-  onAttribution: (value: string) => void;
-  onSourceUrl: (value: string) => void;
-  onSubmit: (event: React.FormEvent) => void;
-};
-
-function AddForm(props: FormProps) {
-  const { mode, saving, onSubmit } = props;
-  const formRef = useRef<HTMLFormElement>(null);
-  useLayoutEffect(() => {
-    formRef.current?.querySelector<HTMLElement>("input, textarea")?.focus({ preventScroll: true });
-  }, []);
-  return (
-    <form ref={formRef} className="add-menu-form" onSubmit={onSubmit}>
-      {mode === "note" && (
-        <textarea
-          value={props.note}
-          onChange={(event) => props.onNote(event.target.value)}
-          onKeyDown={(event) => {
-            // Enter saves; Shift+Enter starts a new line. An Enter that confirms
-            // an IME composition only finishes the word.
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }
-          }}
-          placeholder="A thought, a small beginning…"
-          aria-label="New note"
-          rows={3}
-        />
-      )}
-      {mode === "url" && (
-        <input
-          type="text"
-          inputMode="url"
-          value={props.url}
-          onChange={(event) => props.onUrl(event.target.value)}
-          placeholder="Paste a link"
-          aria-label="URL to save"
-        />
-      )}
-      {mode === "quote" && (
-        <>
-          <textarea
-            value={props.quote}
-            onChange={(event) => props.onQuote(event.target.value)}
-            placeholder="“The mind is a place with weather…”"
-            aria-label="Quote text"
-            rows={3}
-            maxLength={2000}
-          />
-          <input
-            value={props.attribution}
-            onChange={(event) => props.onAttribution(event.target.value)}
-            placeholder="Attribution"
-            aria-label="Quote attribution"
-            maxLength={240}
-          />
-          <input
-            type="text"
-            inputMode="url"
-            value={props.sourceUrl}
-            onChange={(event) => props.onSourceUrl(event.target.value)}
-            placeholder="Source URL (optional)"
-            aria-label="Quote source URL"
-          />
-        </>
-      )}
-      <button className="add-menu-save" type="submit" disabled={saving}>
-        {saving ? "Saving…" : "Save to library"}
-      </button>
-    </form>
   );
 }

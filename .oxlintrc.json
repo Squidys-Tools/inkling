@@ -71,8 +71,7 @@
     "**/*.d.ts",
     "benchmarks/corpus",
     "docs/assets",
-    "extension/icons",
-    "src/components/GradualBlur"
+    "extension/icons"
   ],
   "options": {
     "reportUnusedDisableDirectives": "error"

@@ -20,28 +20,30 @@ import {
 } from "../../lib/libraryApi";
 import { markdownToPlainText, NOTE_BODY_FORMAT, normalizeNoteBody } from "../../lib/notes";
 import type { LibraryItem } from "../../lib/types";
-import type { ReaderOrigin } from "../../ReaderView";
+import type { ReaderItem, ReaderOrigin } from "../../ReaderView";
 import {
+  metadataTags,
   rememberNoteBody,
   storedItemToLibraryItem,
   withArticleContent,
 } from "../library/libraryItem";
+import { errorMessage } from "../errorMessage";
 
 // The backend resolves false when the item has nothing on disk to point at.
-export function showItemInFolderFromOverlay(item: LibraryItem) {
+export function revealItemInFolder(item: LibraryItem) {
   void showItemInFolder(String(item.id))
     .then((shown) => {
       if (!shown) toast("Nothing is stored on disk for this item", { closeButton: true });
     })
     .catch((error: unknown) => {
       toast.error("Could not show the item in its folder", {
-        description: error instanceof Error ? error.message : String(error),
+        description: errorMessage(error),
         closeButton: true,
       });
     });
 }
 
-export type ReadingItem = { item: LibraryItem; origin: ReaderOrigin };
+export type ReadingItem = { item: ReaderItem; origin: ReaderOrigin };
 
 type ItemDetailsOptions = {
   canUseDesktopBackend: boolean;
@@ -159,7 +161,7 @@ export function useItemDetails({
         setSelectedItem((current) => (current ? apply(current) : current));
       })
       .catch((error: unknown) => {
-        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+        if (!cancelled) setCaptureError(errorMessage(error));
       })
       .finally(() => {
         noteContentRequestsRef.current.delete(id);
@@ -185,17 +187,10 @@ export function useItemDetails({
       const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
       if (!clean) return;
       try {
-        let tags = canUseDesktopBackend ? [] : [...item.tags, clean];
-        if (canUseDesktopBackend) {
-          const storedItem = await updateItem({ id: String(item.id), addTag: clean });
-          tags = Array.isArray(storedItem.metadata.tags)
-            ? storedItem.metadata.tags.filter((value): value is string => typeof value === "string")
-            : [];
-        }
-        const apply = (current: LibraryItem) => ({
-          ...current,
-          tags,
-        });
+        const tags = canUseDesktopBackend
+          ? metadataTags((await updateItem({ id: String(item.id), addTag: clean })).metadata)
+          : [...item.tags, clean];
+        const apply = (current: LibraryItem) => ({ ...current, tags });
         setItems((current) =>
           current.map((currentItem) =>
             String(currentItem.id) === String(item.id) ? apply(currentItem) : currentItem,
@@ -265,11 +260,22 @@ export function useItemDetails({
           return;
         }
         if (requestId !== readerRequestIdRef.current || !readerItem.articleHtml) return;
-        setReadingItem({ item: readerItem, origin });
+        setReadingItem({
+          item: {
+            id: readerItem.id,
+            title: readerItem.title,
+            author: readerItem.articleAuthor,
+            publishedDate: readerItem.publishedDate,
+            savedDate: readerItem.date,
+            sourceUrl: readerItem.sourceUrl ?? "",
+            html: readerItem.articleHtml,
+          },
+          origin,
+        });
       } catch (error) {
         if (requestId === readerRequestIdRef.current) {
           toast.error("Unable to open reader", {
-            description: error instanceof Error ? error.message : String(error),
+            description: errorMessage(error),
           });
         }
       }

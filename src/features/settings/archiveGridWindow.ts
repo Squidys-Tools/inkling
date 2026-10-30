@@ -6,7 +6,7 @@ export type ArchiveGridWindow = {
 };
 
 // Same column count CSS `repeat(auto-fill, <tile>)` picks for this width.
-export function archiveColumnCount(width: number, tileWidth: number, columnGap: number): number {
+export function archiveColumnCount(width: number, tileWidth: number, columnGap: number) {
   if (!(width > 0)) return 1;
   return Math.max(1, Math.floor((width + columnGap) / (tileWidth + columnGap)));
 }

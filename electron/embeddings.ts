@@ -9,7 +9,7 @@ import { Tokenizer } from "@huggingface/tokenizers";
 import * as ort from "onnxruntime-node";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import { IMAGE_DIMENSION, IMAGE_MODEL, TEXT_DIMENSION, TEXT_MODEL } from "./embedding-contract.ts";
-import defaultManifest from "./model-manifest.json" with { type: "json" };
+import models from "./model-manifest.json" with { type: "json" };
 import { sharpImageInput, validateImageDimensions } from "./thumbnail.ts";
 
 const maxTokens = 8192;
@@ -18,17 +18,12 @@ const imageMean = [0.4814547, 0.4578275, 0.4082107];
 const imageStd = [0.26862954, 0.2613026, 0.2757771];
 
 type ModelAsset = { path: string; url: string; sha256: string };
-type ModelManifest = {
-  text: { name: string; model: ModelAsset; tokenizer: ModelAsset };
-  image: { name: string; model: ModelAsset };
-};
 type TokenizerLike = {
   encode(
     text: string,
     options: { return_token_type_ids: boolean },
   ): { ids: number[]; token_type_ids?: number[] };
 };
-export type Embedding = { vector: Float32Array; model: string; bytes: Buffer };
 
 async function sha256(path: string) {
   const hash = createHash("sha256");
@@ -39,7 +34,7 @@ async function sha256(path: string) {
 async function ensureAsset(
   path: string,
   { url, sha256: expectedHash }: ModelAsset,
-  allowDownload = true,
+  allowDownload: boolean,
   bundledPath?: string,
 ) {
   const cachedAssetExists = await stat(path).then(
@@ -116,17 +111,14 @@ function floatVectorBytes(vector: Float32Array) {
   return bytes;
 }
 
+// Truncation keeps the final special token, which the model expects at the end.
+const truncateTokens = (values: number[]) =>
+  values.length > maxTokens ? [...values.slice(0, maxTokens - 1), values.at(-1) ?? 0] : values;
+
 function textTokens(tokenizer: TokenizerLike, text: string) {
   const encoding = tokenizer.encode(text, { return_token_type_ids: true });
-  const tokenTypeIds = encoding.token_type_ids ?? new Array(encoding.ids.length).fill(0);
-  const ids =
-    encoding.ids.length > maxTokens
-      ? [...encoding.ids.slice(0, maxTokens - 1), encoding.ids.at(-1) ?? 0]
-      : encoding.ids;
-  const typeIds =
-    tokenTypeIds.length > maxTokens
-      ? [...tokenTypeIds.slice(0, maxTokens - 1), tokenTypeIds.at(-1) ?? 0]
-      : tokenTypeIds;
+  const ids = truncateTokens(encoding.ids);
+  const typeIds = truncateTokens(encoding.token_type_ids ?? new Array(encoding.ids.length).fill(0));
   if (ids.length === 0) throw new Error("Nomic tokenizer produced no tokens");
   return { ids, typeIds, mask: ids.map(() => 1) };
 }
@@ -135,36 +127,31 @@ export function hasEmbeddableCharacters(value: string) {
   return /[\p{L}\p{N}]/u.test(value);
 }
 
-function imageTensor(bytes: Buffer) {
-  return sharpImageInput(bytes).then(async (input) => {
-    const { width, height } = await sharp(input, { limitInputPixels: 32_000_000 }).metadata();
-    validateImageDimensions(width, height);
-    const { data } = await sharp(input, { limitInputPixels: 32_000_000 })
-      .rotate()
-      .resize(imageEdge, imageEdge, { fit: "cover", kernel: "cubic" })
-      .removeAlpha()
-      .toColourspace("srgb")
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    const planeSize = imageEdge * imageEdge;
-    const values = new Float32Array(3 * planeSize);
-    for (let index = 0; index < planeSize; index += 1) {
-      for (let channel = 0; channel < 3; channel += 1) {
-        const normalized = data[index * 3 + channel] / 255;
-        values[channel * planeSize + index] = (normalized - imageMean[channel]) / imageStd[channel];
-      }
+async function imageTensor(bytes: Buffer) {
+  const input = await sharpImageInput(bytes);
+  const { width, height } = await sharp(input, { limitInputPixels: 32_000_000 }).metadata();
+  validateImageDimensions(width, height);
+  const { data } = await sharp(input, { limitInputPixels: 32_000_000 })
+    .rotate()
+    .resize(imageEdge, imageEdge, { fit: "cover", kernel: "cubic" })
+    .removeAlpha()
+    .toColourspace("srgb")
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const planeSize = imageEdge * imageEdge;
+  const values = new Float32Array(3 * planeSize);
+  for (let index = 0; index < planeSize; index += 1) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      const normalized = data[index * 3 + channel] / 255;
+      values[channel * planeSize + index] = (normalized - imageMean[channel]) / imageStd[channel];
     }
-    return values;
-  });
+  }
+  return values;
 }
 
 type TextRuntime = { tokenizer: TokenizerLike; session: ort.InferenceSession };
 
-export function createEmbeddingEngine(
-  modelCacheDirectory: string,
-  models: ModelManifest = defaultManifest,
-  bundledModelDirectory?: string,
-) {
+export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelDirectory?: string) {
   const modelCache = resolve(modelCacheDirectory);
   const bundledModels = bundledModelDirectory ? resolve(bundledModelDirectory) : null;
   let textRuntimePromise: Promise<TextRuntime> | undefined;
@@ -172,22 +159,19 @@ export function createEmbeddingEngine(
   let textRuntime: TextRuntime | undefined;
   let imageSessionPromise: Promise<ort.InferenceSession> | undefined;
 
+  const modelAsset = (name: string, asset: ModelAsset, allowDownload: boolean) =>
+    ensureAsset(
+      join(modelCache, name, asset.path),
+      asset,
+      allowDownload,
+      bundledModels ? join(bundledModels, name, asset.path) : undefined,
+    );
+
   async function openTextRuntime(allowDownload: boolean): Promise<TextRuntime> {
-    const definition = models.text;
-    const modelRoot = join(modelCache, definition.name);
+    const { name, model, tokenizer: tokenizerAsset } = models.text;
     const [modelPath, tokenizerPath] = await Promise.all([
-      ensureAsset(
-        join(modelRoot, definition.model.path),
-        definition.model,
-        allowDownload,
-        bundledModels ? join(bundledModels, definition.name, definition.model.path) : undefined,
-      ),
-      ensureAsset(
-        join(modelRoot, definition.tokenizer.path),
-        definition.tokenizer,
-        allowDownload,
-        bundledModels ? join(bundledModels, definition.name, definition.tokenizer.path) : undefined,
-      ),
+      modelAsset(name, model, allowDownload),
+      modelAsset(name, tokenizerAsset, allowDownload),
     ]);
     const tokenizerJson = JSON.parse(await readFile(tokenizerPath, "utf8"));
     const tokenizer = new Tokenizer(tokenizerJson, {});
@@ -195,56 +179,41 @@ export function createEmbeddingEngine(
     return { tokenizer, session };
   }
 
-  async function openImageSession() {
-    const definition = models.image;
-    const modelPath = await ensureAsset(
-      join(modelCache, definition.name, definition.model.path),
-      definition.model,
-      true,
-      bundledModels ? join(bundledModels, definition.name, definition.model.path) : undefined,
-    );
-    return ort.InferenceSession.create(modelPath);
+  const keepTextRuntime = (runtime: TextRuntime) => (textRuntime ??= runtime);
+
+  function loadTextRuntime(allowDownload: boolean) {
+    if (allowDownload) {
+      textRuntimePromise ??= (async () => {
+        const cachedRuntime = textQueryRuntimePromise
+          ? await textQueryRuntimePromise.catch(() => null)
+          : null;
+        return cachedRuntime ?? openTextRuntime(true);
+      })()
+        .then(keepTextRuntime)
+        .finally(() => {
+          textRuntimePromise = undefined;
+        });
+      return textRuntimePromise;
+    }
+    textQueryRuntimePromise ??= openTextRuntime(false)
+      .then(keepTextRuntime)
+      .catch((error) => {
+        textQueryRuntimePromise = undefined;
+        throw error;
+      });
+    return textQueryRuntimePromise;
   }
 
-  async function embedText(
-    text: string,
-    prefix = "search_document:",
-    allowDownload = true,
-  ): Promise<Embedding> {
-    const content = String(text ?? "").trim();
+  async function openImageSession() {
+    const { name, model } = models.image;
+    return ort.InferenceSession.create(await modelAsset(name, model, true));
+  }
+
+  async function embedText(text: string, prefix = "search_document:", allowDownload = true) {
+    const content = text.trim();
     if (!content || !hasEmbeddableCharacters(content))
       throw new Error("text contains no embeddable characters");
-    if (!textRuntime) {
-      if (allowDownload) {
-        textRuntimePromise ??= (async () => {
-          const cachedRuntime = textQueryRuntimePromise
-            ? await textQueryRuntimePromise.catch(() => null)
-            : null;
-          return cachedRuntime ?? openTextRuntime(true);
-        })()
-          .then((runtime) => {
-            textRuntime ??= runtime;
-            return runtime;
-          })
-          .finally(() => {
-            textRuntimePromise = undefined;
-          });
-        await textRuntimePromise;
-      } else {
-        textQueryRuntimePromise ??= openTextRuntime(false)
-          .then((runtime) => {
-            textRuntime ??= runtime;
-            return runtime;
-          })
-          .catch((error) => {
-            textQueryRuntimePromise = undefined;
-            throw error;
-          });
-        await textQueryRuntimePromise;
-      }
-    }
-    if (!textRuntime) throw new Error("Nomic text runtime failed to load");
-    const { tokenizer, session } = textRuntime;
+    const { tokenizer, session } = textRuntime ?? (await loadTextRuntime(allowDownload));
     const { ids, typeIds, mask } = textTokens(tokenizer, `${prefix} ${content}`);
     const tensor = (values: number[]) =>
       new ort.Tensor(
@@ -282,8 +251,8 @@ export function createEmbeddingEngine(
     return { vector, model: TEXT_MODEL, bytes: floatVectorBytes(vector) };
   }
 
-  async function embedImage(bytes: Buffer): Promise<Embedding> {
-    if (!bytes?.length) throw new Error("cannot embed empty image");
+  async function embedImage(bytes: Buffer) {
+    if (!bytes.length) throw new Error("cannot embed empty image");
     imageSessionPromise ??= openImageSession().catch((error) => {
       imageSessionPromise = undefined;
       throw error;

@@ -1,59 +1,27 @@
 import { useEffect, useRef, useState } from "react";
-import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  BoldIcon,
-  CodeIcon,
-  ItalicIcon,
-  Link01Icon,
-  ListIcon,
-  ListOrderedIcon,
-  ListTodoIcon,
-  QuoteIcon,
-  RefreshCcwIcon,
-  RefreshCwIcon,
-} from "@hugeicons/core-free-icons";
+import { EditorContent, useEditor } from "@tiptap/react";
 import { noteEditorExtensions } from "../../lib/noteMarkdown";
 import { isSafeNoteLink, noteBodyForEditor, noteBodyForStorage } from "../../lib/notes";
+import { NoteEditorToolbar, useToolbarState } from "./NoteEditorToolbar";
 import "./RichNoteEditor.css";
+import { errorMessage } from "../errorMessage";
 
 type RichNoteEditorProps = {
   body?: string;
   title: string;
   onSave: (body: string) => void | Promise<void>;
-  onEditingChange?: (editing: boolean) => void;
-  embedded?: boolean;
-  focusMode?: boolean;
-  onFocusModeChange?: (focusMode: boolean) => void;
+  onEditingChange: (editing: boolean) => void;
+  focusMode: boolean;
+  onFocusModeChange: (focusMode: boolean) => void;
 };
 
-const IDLE_TOOLBAR = {
-  h1: false,
-  h2: false,
-  h3: false,
-  bold: false,
-  italic: false,
-  quote: false,
-  code: false,
-  bullet: false,
-  ordered: false,
-  task: false,
-  link: false,
-  hasSelection: false,
-  canUndo: false,
-  canRedo: false,
-};
-
-// Editing only happens inside the expanded overlay, which owns when the editor
-// opens. This component only ever edits; rendering a stored note as sanitized
-// HTML is a separate concern, if the product ever asks for it.
+// The item view owns when the editor opens; this component only ever edits.
 export function RichNoteEditor({
   body,
   title,
   onSave,
   onEditingChange,
-  embedded = false,
-  focusMode = false,
+  focusMode,
   onFocusModeChange,
 }: RichNoteEditorProps) {
   const [isSaving, setIsSaving] = useState(false);
@@ -96,10 +64,10 @@ export function RichNoteEditor({
   }
 
   useEffect(() => {
-    if (!embedded || !editor) return;
+    if (!editor) return;
     editorRootRef.current?.scrollIntoView({ block: "start" });
     editor.commands.focus();
-  }, [editor, embedded]);
+  }, [editor]);
 
   useEffect(() => {
     if (linkDraft === null) return;
@@ -107,30 +75,7 @@ export function RichNoteEditor({
     linkInputRef.current?.select();
   }, [linkDraft]);
 
-  // Tiptap does not re-render on selection changes on its own, so the toolbar
-  // state is subscribed separately or the controls would lie about the caret.
-  const toolbar = useEditorState({
-    editor,
-    selector: ({ editor: instance }) =>
-      instance
-        ? {
-            h1: instance.isActive("heading", { level: 1 }),
-            h2: instance.isActive("heading", { level: 2 }),
-            h3: instance.isActive("heading", { level: 3 }),
-            bold: instance.isActive("bold"),
-            italic: instance.isActive("italic"),
-            quote: instance.isActive("blockquote"),
-            code: instance.isActive("codeBlock"),
-            bullet: instance.isActive("bulletList"),
-            ordered: instance.isActive("orderedList"),
-            task: instance.isActive("taskList"),
-            link: instance.isActive("link"),
-            hasSelection: !instance.state.selection.empty,
-            canUndo: instance.can().undo(),
-            canRedo: instance.can().redo(),
-          }
-        : IDLE_TOOLBAR,
-  });
+  const toolbar = useToolbarState(editor);
 
   if (body === undefined) {
     return (
@@ -184,9 +129,9 @@ export function RichNoteEditor({
     setError(null);
     try {
       await saveRef.current(nextBody);
-      onEditingChange?.(false);
+      onEditingChange(false);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : String(saveError));
+      setError(errorMessage(saveError));
     } finally {
       setIsSaving(false);
     }
@@ -195,16 +140,14 @@ export function RichNoteEditor({
   return (
     <div
       ref={editorRootRef}
-      className={`note-editor is-editing ${embedded ? "note-embedded-editor" : ""} ${focusMode ? "note-focus-editor" : ""}`}
+      className={`note-editor is-editing note-embedded-editor ${focusMode ? "note-focus-editor" : ""}`}
       data-testid="rich-note-editor"
     >
-      {embedded && (
-        <div className={`note-embedded-orientation ${focusMode ? "is-focus-orientation" : ""}`}>
-          <span className="note-embedded-kicker">{focusMode ? "Focus mode" : "Editing"}</span>
-          <span className="note-embedded-divider" />
-          <span className="note-embedded-name">{title}</span>
-        </div>
-      )}
+      <div className={`note-embedded-orientation ${focusMode ? "is-focus-orientation" : ""}`}>
+        <span className="note-embedded-kicker">{focusMode ? "Focus mode" : "Editing"}</span>
+        <span className="note-embedded-divider" />
+        <span className="note-embedded-name">{title}</span>
+      </div>
       <div className="note-embedded-editor-surface">
         <EditorContent editor={editor} />
       </div>
@@ -214,123 +157,7 @@ export function RichNoteEditor({
         </p>
       )}
       <div className="note-editor-actions">
-        <div
-          className="note-editor-toolbar"
-          role="toolbar"
-          aria-label="Note formatting"
-          onMouseDown={(event) => event.preventDefault()}
-        >
-          <span className="note-heading-group">
-            <button
-              type="button"
-              aria-label="Heading 1"
-              aria-pressed={toolbar?.h1}
-              onClick={() => run(() => editor.chain().toggleHeading({ level: 1 }).run())}
-            >
-              H1
-            </button>
-            <button
-              type="button"
-              aria-label="Heading 2"
-              aria-pressed={toolbar?.h2}
-              onClick={() => run(() => editor.chain().toggleHeading({ level: 2 }).run())}
-            >
-              H2
-            </button>
-            <button
-              type="button"
-              aria-label="Heading 3"
-              aria-pressed={toolbar?.h3}
-              onClick={() => run(() => editor.chain().toggleHeading({ level: 3 }).run())}
-            >
-              H3
-            </button>
-          </span>
-          <span className="note-control-divider" />
-          <button
-            type="button"
-            aria-label="Bold"
-            aria-pressed={toolbar?.bold}
-            onClick={() => run(() => editor.chain().toggleBold().run())}
-          >
-            <HugeiconsIcon icon={BoldIcon} size={15} />
-          </button>
-          <button
-            type="button"
-            aria-label="Italic"
-            aria-pressed={toolbar?.italic}
-            onClick={() => run(() => editor.chain().toggleItalic().run())}
-          >
-            <HugeiconsIcon icon={ItalicIcon} size={15} />
-          </button>
-          <span className="note-control-divider" />
-          <button
-            type="button"
-            aria-label="Quote"
-            aria-pressed={toolbar?.quote}
-            onClick={() => run(() => editor.chain().toggleBlockquote().run())}
-          >
-            <HugeiconsIcon icon={QuoteIcon} size={15} />
-          </button>
-          <button
-            type="button"
-            aria-label="Code block"
-            aria-pressed={toolbar?.code}
-            onClick={() => run(() => editor.chain().toggleCodeBlock().run())}
-          >
-            <HugeiconsIcon icon={CodeIcon} size={15} />
-          </button>
-          <button
-            type="button"
-            aria-label="Bulleted list"
-            aria-pressed={toolbar?.bullet}
-            onClick={() => run(() => editor.chain().toggleBulletList().run())}
-          >
-            <HugeiconsIcon icon={ListIcon} size={15} />
-          </button>
-          <button
-            type="button"
-            aria-label="Numbered list"
-            aria-pressed={toolbar?.ordered}
-            onClick={() => run(() => editor.chain().toggleOrderedList().run())}
-          >
-            <HugeiconsIcon icon={ListOrderedIcon} size={15} />
-          </button>
-          <button
-            type="button"
-            aria-label="Todo list"
-            aria-pressed={toolbar?.task}
-            onClick={() => run(() => editor.chain().toggleTaskList().run())}
-          >
-            <HugeiconsIcon icon={ListTodoIcon} size={15} />
-          </button>
-          <button
-            type="button"
-            aria-label="Link"
-            aria-pressed={toolbar?.link}
-            disabled={!toolbar?.hasSelection}
-            onClick={openLinkEditor}
-          >
-            <HugeiconsIcon icon={Link01Icon} size={15} />
-          </button>
-          <span className="note-control-divider" />
-          <button
-            type="button"
-            aria-label="Undo"
-            disabled={!toolbar?.canUndo}
-            onClick={() => run(() => editor.chain().undo().run())}
-          >
-            <HugeiconsIcon icon={RefreshCcwIcon} size={15} />
-          </button>
-          <button
-            type="button"
-            aria-label="Redo"
-            disabled={!toolbar?.canRedo}
-            onClick={() => run(() => editor.chain().redo().run())}
-          >
-            <HugeiconsIcon icon={RefreshCwIcon} size={15} />
-          </button>
-        </div>
+        <NoteEditorToolbar editor={editor} state={toolbar} run={run} onLink={openLinkEditor} />
         <div className="note-editor-save-cluster">
           {isSaving && (
             <span className="note-editor-status" role="status">
@@ -377,16 +204,14 @@ export function RichNoteEditor({
               </button>
             </fieldset>
           )}
-          {embedded && (
-            <button
-              type="button"
-              className="note-editor-focus-toggle"
-              aria-pressed={focusMode}
-              onClick={() => onFocusModeChange?.(!focusMode)}
-            >
-              {focusMode ? "Exit focus" : "Focus mode"}
-            </button>
-          )}
+          <button
+            type="button"
+            className="note-editor-focus-toggle"
+            aria-pressed={focusMode}
+            onClick={() => onFocusModeChange(!focusMode)}
+          >
+            {focusMode ? "Exit focus" : "Focus mode"}
+          </button>
           <button
             type="button"
             className="note-editor-cancel"
@@ -398,7 +223,7 @@ export function RichNoteEditor({
               });
               setError(null);
               setLinkDraft(null);
-              onEditingChange?.(false);
+              onEditingChange(false);
             }}
           >
             Cancel

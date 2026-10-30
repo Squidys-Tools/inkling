@@ -50,9 +50,7 @@ export function useAppearance() {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(appearance));
-    } catch {
-      return;
-    }
+    } catch {}
   }, [appearance]);
   const setOption = useCallback(
     <Key extends keyof Appearance>(key: Key, value: Appearance[Key]) =>

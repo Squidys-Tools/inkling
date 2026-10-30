@@ -1,39 +1,20 @@
-import { afterAll, afterEach, expect, test } from "bun:test";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  truncateSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { expect, test } from "bun:test";
+import { existsSync, readFileSync, realpathSync, truncateSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
-import { createAiJobProcessors } from "./ai-jobs.ts";
-import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.ts";
 import { VIDEO_POSTER_JOB } from "./storage/library.ts";
-import { openTestLibrary, type TestLibrary } from "./storage/test-library.ts";
-import { createImageThumbnail } from "./thumbnail.ts";
+import type { TestLibrary } from "./storage/test-library.ts";
+import {
+  cleanUpJobTests,
+  createAiJobProcessors,
+  temporaryLibrary,
+  unusedModels,
+} from "./test-jobs.ts";
 import { createVideoPoster } from "./video-poster.ts";
 
 type ShellImage = { isEmpty(): boolean; toPNG(): Buffer };
 
-const roots: string[] = [];
-const libraries: TestLibrary[] = [];
-const processors: ReturnType<typeof createAiJobProcessors>[] = [];
-
-afterEach(async () => {
-  for (const ai of processors.splice(0)) await ai.close();
-  for (const library of libraries.splice(0)) await library.close();
-  Bun.gc(true);
-});
-
-afterAll(() => {
-  Bun.gc(true);
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+cleanUpJobTests();
 
 const frame = await sharp({
   create: { width: 640, height: 360, channels: 3, background: "#335577" },
@@ -41,20 +22,6 @@ const frame = await sharp({
   .png()
   .toBuffer();
 const shellFrame = async (): Promise<ShellImage> => ({ isEmpty: () => false, toPNG: () => frame });
-
-const embedding = (model: string) => ({
-  model,
-  vector: new Float32Array(2),
-  bytes: Buffer.alloc(8),
-});
-const models = {
-  ocr: { recognize: async () => "" },
-  embeddings: {
-    embedText: async () => embedding(TEXT_MODEL),
-    embedQuery: async () => embedding(TEXT_MODEL),
-    embedImage: async () => embedding(IMAGE_MODEL),
-  },
-};
 
 // Stands in for Electron's nativeImage; `thumbnail` decides what the shell returns.
 function stubShell(thumbnail: () => Promise<ShellImage>) {
@@ -71,21 +38,16 @@ function stubShell(thumbnail: () => Promise<ShellImage>) {
 }
 
 async function setup(nativeImage: object) {
-  const root = mkdtempSync(join(tmpdir(), "inkling-video-poster-"));
-  roots.push(root);
   const events: string[] = [];
-  const library = await openTestLibrary(join(root, "library.sqlite3"), {
-    media: { createThumbnail: createImageThumbnail },
+  const { root, library } = await temporaryLibrary({
     jobQueue: { onUpdated: (id: string) => events.push(id) },
   });
-  libraries.push(library);
   const ai = createAiJobProcessors({
     modelCacheDirectory: join(root, "models"),
-    ...models,
+    ...unusedModels,
     nativeImage,
     videoDecoderPath: null,
   });
-  processors.push(ai);
   // Only the poster kind is claimed, so a drain never waits on model jobs.
   const worker = await library.worker({
     processors: { [VIDEO_POSTER_JOB]: ai.thumbnailProcessors[VIDEO_POSTER_JOB] },
@@ -255,8 +217,7 @@ test("the poster is the shell thumbnail at card size, or nothing", async () => {
   ).toBeNull();
   expect(await createVideoPoster("clip.mp4", { nativeImage: {}, decoderPath: null })).toBeNull();
 
-  const root = mkdtempSync(join(tmpdir(), "inkling-video-poster-"));
-  roots.push(root);
+  const { root } = await temporaryLibrary();
   const oversized = join(root, "oversized.mp4");
   writeFileSync(oversized, "");
   truncateSync(oversized, 1024 * 1024 * 1024 + 1);

@@ -13,6 +13,7 @@ import type { ReaderOrigin } from "../../ReaderView";
 import { RETRY_BUTTON } from "../../ui/Button";
 import { cx } from "../../ui/cx";
 import { SpaceMark } from "../../ui/SpaceMark";
+import { hostnameForUrl } from "../hostname";
 import { ItemTitle } from "./ItemTitle";
 import type { ItemViewActions, ItemViewSpace } from "./ItemView";
 
@@ -22,15 +23,6 @@ export const NOTE_BOX =
   "m-0 min-h-[72px] rounded-[10px] border border-border bg-surface px-3 py-[11px] text-[13px]/5 text-ink-soft";
 const ACTION_BUTTON =
   "inline-flex h-8 cursor-pointer items-center gap-[7px] rounded-button border border-border bg-surface px-3 text-[12px] text-ink-soft enabled:hover:border-[#3a3531] enabled:hover:text-ink disabled:cursor-default disabled:opacity-50";
-
-export function hostnameForUrl(url: string | undefined): string | null {
-  if (!url) return null;
-  try {
-    return new URL(url).hostname.replace(/^www\./u, "");
-  } catch {
-    return null;
-  }
-}
 
 function clickOrigin(event: React.MouseEvent<HTMLElement>): ReaderOrigin {
   const rect = event.currentTarget.getBoundingClientRect();
