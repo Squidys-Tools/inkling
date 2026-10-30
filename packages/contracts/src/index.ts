@@ -3,11 +3,9 @@ import type { CommandName } from "./commands.ts";
 
 export { type CommandName, commandChannel, commandNames } from "./commands.ts";
 
-type StoredItemKind = "note" | "article" | "image" | "pdf" | "video" | "file" | "embed";
-
 export type StoredLibraryItem = {
   id: string;
-  kind: StoredItemKind | string;
+  kind: string;
   title: string | null;
   description: string | null;
   body?: string | null;
