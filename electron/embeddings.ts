@@ -164,22 +164,19 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
   let textRuntime: TextRuntime | undefined;
   let imageSessionPromise: Promise<ort.InferenceSession> | undefined;
 
+  const modelAsset = (name: string, asset: ModelAsset, allowDownload: boolean) =>
+    ensureAsset(
+      join(modelCache, name, asset.path),
+      asset,
+      allowDownload,
+      bundledModels ? join(bundledModels, name, asset.path) : undefined,
+    );
+
   async function openTextRuntime(allowDownload: boolean): Promise<TextRuntime> {
-    const definition = models.text;
-    const modelRoot = join(modelCache, definition.name);
+    const { name, model, tokenizer: tokenizerAsset } = models.text;
     const [modelPath, tokenizerPath] = await Promise.all([
-      ensureAsset(
-        join(modelRoot, definition.model.path),
-        definition.model,
-        allowDownload,
-        bundledModels ? join(bundledModels, definition.name, definition.model.path) : undefined,
-      ),
-      ensureAsset(
-        join(modelRoot, definition.tokenizer.path),
-        definition.tokenizer,
-        allowDownload,
-        bundledModels ? join(bundledModels, definition.name, definition.tokenizer.path) : undefined,
-      ),
+      modelAsset(name, model, allowDownload),
+      modelAsset(name, tokenizerAsset, allowDownload),
     ]);
     const tokenizerJson = JSON.parse(await readFile(tokenizerPath, "utf8"));
     const tokenizer = new Tokenizer(tokenizerJson, {});
@@ -213,14 +210,8 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
   }
 
   async function openImageSession() {
-    const definition = models.image;
-    const modelPath = await ensureAsset(
-      join(modelCache, definition.name, definition.model.path),
-      definition.model,
-      true,
-      bundledModels ? join(bundledModels, definition.name, definition.model.path) : undefined,
-    );
-    return ort.InferenceSession.create(modelPath);
+    const { name, model } = models.image;
+    return ort.InferenceSession.create(await modelAsset(name, model, true));
   }
 
   async function embedText(
