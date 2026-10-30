@@ -41,7 +41,51 @@ test("UI shots and self-captures are not photographs even when their captions me
   expect(classifyImage({ ...photo, caption: null })).toBe("unknown");
 });
 
-for (const useFts5 of [true, false])
+for (const useFts5 of [true, false]) {
+  test(`subject evidence rejects printed and negated words without losing breeds or physical buttons; FTS=${useFts5}`, async () => {
+    const root = await mkdtemp(join(tmpdir(), "inkling-subject-edges-"));
+    const lib = await openTestLibrary(join(root, "library.sqlite3"), { useFts5 });
+    const ids = async (query: string) => (await lib.searchItems(query)).map((x) => x.id).sort();
+    try {
+      for (const [id, caption] of [
+        ["corgis", "Two corgis playing in a garden."],
+        ["dog", "A dog sitting on grass."],
+        ["poodle", "A poodle sitting on grass."],
+        ["buttons", "A cat standing next to a coat with silver buttons."],
+        ["no-cat", "There is no visible cat in the scene."],
+        ["no-cats", "There are no small striped cats or dogs in the scene."],
+        ["word", "A white shirt with the word cat printed on it."],
+        ["quote", 'A white shirt with the word "cat" printed on it.'],
+        ["print", "A cat printed on a white shirt."],
+        ["actual-cat", "A cat wearing a shirt with a dog printed on it."],
+      ]) {
+        const item = await lib.saveFile({
+          id,
+          fileName: "neutral.png",
+          kind: "image",
+          bytes: new Uint8Array([1]),
+        });
+        await lib.storeSearchAnnotation(id, item.localAssetPath!, caption, []);
+      }
+      expect(visualSubjectQuery("poodle")).toEqual(["poodle"]);
+      expect(visualSubjectQuery("poodles")).toEqual(["poodle"]);
+      expect(await ids("poodle")).toEqual(["poodle"]);
+      expect(await ids("corgis")).toEqual(["corgis"]);
+      expect(await ids("dog")).toEqual(["corgis", "dog", "poodle"]);
+      expect(await ids("cat")).toEqual(["actual-cat", "buttons"]);
+      const combined = await lib.createSpace({ name: "Cat Dog", query: {} });
+      expect((await lib.listSpaceItems(combined.id)).map((x) => x.id).sort()).toEqual([
+        "actual-cat",
+        "buttons",
+        "corgis",
+        "dog",
+        "poodle",
+      ]);
+    } finally {
+      await lib.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   test(`Smart subject Spaces fence every retrieval lane; FTS=${useFts5}`, async () => {
     const root = await mkdtemp(join(tmpdir(), "inkling-subject-space-"));
     const lib = await openTestLibrary(join(root, "library.sqlite3"), { useFts5 });
@@ -74,7 +118,18 @@ for (const useFts5 of [true, false])
           { kind: "text", chunkId: "ocr:fixture", vector },
         ]);
       }
+      const note = await lib.createNote({ title: "cat dog training notes", body: "cat dog" });
       const space = await lib.createSpace({ name: "Cat Dog", kind: "smart", query: {} });
+      const notes = await lib.createSpace({
+        name: "Notes",
+        query: { text: "cat dog training notes" },
+      });
+      expect(ids(await lib.listSpaceItems(notes.id))).toEqual([note.id]);
+      const explicitNotes = await lib.createSpace({
+        name: "Pet notes",
+        query: { text: "cat dog", kind: "note" },
+      });
+      expect(ids(await lib.listSpaceItems(explicitNotes.id))).toEqual([note.id]);
       // Effective intent must not mutate the saved/exported empty legacy query.
       expect((await lib.getSpace(space.id))?.query).toEqual({});
       for (const vectors of [null, { current: vector }, { legacy: vector }]) {
@@ -82,7 +137,9 @@ for (const useFts5 of [true, false])
           "real-cat",
           "real-dog",
         ]);
-        expect(ids(await lib.searchItems("cat", 100, vectors))).toEqual(["real-cat"]);
+        expect(ids(await lib.searchItems("cat", 100, vectors))).toEqual(
+          ["real-cat", note.id].sort(),
+        );
         expect(ids(await lib.searchItems("dogs", 100, vectors))).toEqual(["real-dog"]);
       }
       // Rejected screenshots can't fill the cap ahead of a true picture.
@@ -110,3 +167,4 @@ for (const useFts5 of [true, false])
       await rm(root, { recursive: true, force: true });
     }
   });
+}

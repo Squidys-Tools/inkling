@@ -10,6 +10,7 @@ import type {
 import type { Fragment } from "effect/sql/Statement";
 import { readItem, type StorageContext } from "./context.ts";
 import { invalidInput, itemNotFound, spaceNotFound } from "./errors.ts";
+import { visualSubjectQuery } from "../visual-subject.ts";
 import type { QueryVector } from "./search.ts";
 import type { makeSearch } from "./search.ts";
 import {
@@ -218,6 +219,9 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
           : sql`lower(i.kind) = lower(${kind})`,
       );
     }
+    // A subject-only Smart Space is a collection of pictures, not notes that
+    // mention that noun. Explicit document/chat/screenshot queries stay lexical.
+    if (text && visualSubjectQuery(text) && !kind) clauses.push(sql`i.kind = 'image'`);
     // Every lane is scoped before its cap, including offline lexical search.
     if (text) return yield* search.searchItems(text, cap, queryVector, sql.and(clauses));
     const rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM ${from}
