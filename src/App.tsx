@@ -1,14 +1,11 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { MotionConfig } from "motion/react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Settings01Icon } from "@hugeicons/core-free-icons";
 import { isElectronRuntime, type StoredSpace } from "./lib/libraryApi";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { ContextMenu } from "./components/ContextMenu/ContextMenu";
 import type { ItemViewActions } from "./features/item-view/ItemView";
 import type { LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
-import { AddMenu } from "./features/capture/AddMenu/AddMenu";
 import { CaptureBar } from "./features/capture/CaptureBar";
 import { FileImportStatus } from "./features/capture/FileImportStatus";
 import { useCapture } from "./features/capture/useCapture";
@@ -27,14 +24,13 @@ import {
 } from "./features/settings/useLibraryTransfer";
 import { SettingsSheet } from "./features/settings/SettingsSheet";
 import { useSettings } from "./features/settings/useSettings";
+import { AppSidebar } from "./features/shell/AppSidebar";
 import { ItemLayers } from "./features/shell/ItemLayers";
 import { LibraryFrame } from "./features/shell/LibraryFrame";
 import { ShortcutsDialog } from "./features/shell/ShortcutsDialog";
-import { NavRow, navLabelClass, Sidebar, SidebarError } from "./features/shell/Sidebar";
+import { SidebarError } from "./features/shell/Sidebar";
 import { SidebarEdgeGrip, SidebarOpenButton } from "./features/shell/SidebarToggles";
-import { SpacesSection } from "./features/shell/SpacesSection";
 import { TitleBar } from "./features/shell/TitleBar";
-import { UpdateNavRow } from "./features/shell/UpdateNavRow";
 import { useAppShortcuts } from "./features/shell/useAppShortcuts";
 import { useAppUpdate } from "./features/shell/useAppUpdate";
 import { useFirstRun } from "./features/shell/useFirstRun";
@@ -171,22 +167,7 @@ function App() {
     setActiveView("Everything");
   }
 
-  const {
-    spaces,
-    setSpaces,
-    activeSpace,
-    selectedItemSpaces,
-    localSpaceItems,
-    draft: spaceDraft,
-    draftNameInputRef,
-    openSpaceDraft,
-    renaming,
-    actions: spaceActions,
-    sidebarActionError,
-    setSidebarActionError,
-    beginSaveSearch,
-    handleToggleItemInSpace,
-  } = useSpaces({
+  const spaces = useSpaces({
     canUseDesktopBackend,
     query,
     activeSpaceId,
@@ -208,7 +189,7 @@ function App() {
   } = useLibraryTransfer({
     canUseDesktopBackend,
     setLastCopy,
-    setSpaces,
+    setSpaces: spaces.setSpaces,
     setArchivedItems,
     setIsArchiveLoaded,
     reload,
@@ -239,10 +220,10 @@ function App() {
         canUseDesktopBackend,
         query,
         activeView,
-        activeSpace,
-        localSpaceItems,
+        activeSpace: spaces.activeSpace,
+        localSpaceItems: spaces.localSpaceItems,
       }),
-    [activeSpace, activeView, canUseDesktopBackend, items, localSpaceItems, query],
+    [spaces.activeSpace, activeView, canUseDesktopBackend, items, spaces.localSpaceItems, query],
   );
   useLayoutEffect(() => {
     filteredItemsRef.current = filteredItems;
@@ -252,7 +233,7 @@ function App() {
   const showFilterRow = !isSearchFocused && query.trim() !== "";
   // An empty Space has nothing to search or re-lay out, so it drops the
   // browsing controls.
-  const showBrowseControls = !activeSpace || filteredItems.length > 0 || query.trim() !== "";
+  const showBrowseControls = !spaces.activeSpace || filteredItems.length > 0 || query.trim() !== "";
   const showCaptureError = Boolean(captureError) && !capture.isAdding;
 
   const { cardMenu, closeCardMenu, openCardMenu, cardMenuEntries } = useCardMenu({
@@ -304,7 +285,7 @@ function App() {
       onRetryJob: retryJob,
       onAddTag: addTagToItem,
       onUpdateNote: updateNote,
-      onToggleSpace: (item, spaceId) => void handleToggleItemInSpace(item, spaceId),
+      onToggleSpace: spaces.handleToggleItemInSpace,
     }),
     [
       addTagToItem,
@@ -312,7 +293,7 @@ function App() {
       closeItem,
       deleteArchivedLibraryItem,
       forgetItem,
-      handleToggleItemInSpace,
+      spaces.handleToggleItemInSpace,
       loadSimilarLibraryItems,
       openReader,
       openSimilarItem,
@@ -331,14 +312,6 @@ function App() {
     query,
   });
 
-  const sidebarActionErrorAlert = sidebarActionError ? (
-    <SidebarError
-      message={sidebarActionError}
-      collapsed={!isSidebarOpen}
-      onDismiss={() => setSidebarActionError(null)}
-    />
-  ) : null;
-
   return (
     <MotionConfig reducedMotion="user">
       <div
@@ -351,69 +324,28 @@ function App() {
         onDrop={capture.handleDrop}
       >
         <TitleBar />
-        <Sidebar
-          experimental={codexSidebar}
-          onOpen={() => setIsSidebarOpen(true)}
+        <AppSidebar
+          appearance={appearance}
           isOpen={isSidebarOpen}
-          edgeToggle={appearance.sidebarToggle === "edge"}
+          setIsOpen={setIsSidebarOpen}
           isSearchFocused={isSearchFocused}
           everything={{
             active: activeView === "Everything" && !activeSpaceId,
             count: items.length,
             onSelect: clearToDefaultView,
           }}
-          onClose={() => setIsSidebarOpen(false)}
-          footer={
-            <>
-              <AddMenu
-                collapsible={codexSidebar}
-                compact={codexSidebar && !isSidebarOpen}
-                open={capture.isAdding}
-                mode={capture.captureMode}
-                saving={capture.isCapturing}
-                error={capture.isAdding ? captureError : null}
-                onOpen={() => capture.openCapture()}
-                onClose={capture.closeCaptureModal}
-                onModeChange={capture.changeCaptureMode}
-                onSaveNote={capture.saveNote}
-                onSaveLink={capture.saveLink}
-                onSaveQuote={capture.saveQuote}
-                onPickFile={(files) => capture.captureFiles(files, "file picker")}
-                onScreenshot={capture.startScreenshotCapture}
-                onAddSpace={codexSidebar ? openSpaceDraft : undefined}
-              />
-              <UpdateNavRow update={appUpdate} />
-              <NavRow
-                tone="footer"
-                active={isSettingsOpen}
-                aria-label="Settings"
-                aria-expanded={isSettingsOpen}
-                aria-controls="settings-modal"
-                data-tooltip="Settings"
-                onClick={() => {
-                  setSelectedItem(null);
-                  setIsSettingsOpen(true);
-                }}
-              >
-                <HugeiconsIcon icon={Settings01Icon} size={15} />
-                <span className={navLabelClass}>Settings</span>
-              </NavRow>
-            </>
-          }
-        >
-          <SpacesSection
-            experimental={codexSidebar}
-            collapsed={codexSidebar && !isSidebarOpen}
-            spaces={spaces}
-            activeSpaceId={activeSpaceId}
-            activeCount={filteredItems.length}
-            renaming={renaming}
-            actions={spaceActions}
-            draftNameInputRef={draftNameInputRef}
-            draft={spaceDraft}
-          />
-          {isSidebarOpen && sidebarActionErrorAlert}
-        </Sidebar>
+          capture={capture}
+          captureError={captureError}
+          spaces={spaces}
+          activeSpaceId={activeSpaceId}
+          activeCount={filteredItems.length}
+          update={appUpdate}
+          isSettingsOpen={isSettingsOpen}
+          onOpenSettings={() => {
+            setSelectedItem(null);
+            setIsSettingsOpen(true);
+          }}
+        />
         {/* A closed sidebar's grip would sit over an open item's stage. */}
         {!codexSidebar &&
           appearance.sidebarToggle === "edge" &&
@@ -442,13 +374,19 @@ function App() {
                     edgeToggle={appearance.sidebarToggle === "edge"}
                     onOpen={() => setIsSidebarOpen(true)}
                   />
-                  {sidebarActionErrorAlert}
+                  {spaces.sidebarActionError && (
+                    <SidebarError
+                      message={spaces.sidebarActionError}
+                      collapsed
+                      onDismiss={() => spaces.setSidebarActionError(null)}
+                    />
+                  )}
                 </>
               )
             }
             showSearch={showBrowseControls}
             searchRef={searchRef}
-            view={activeSpace?.name ?? activeView}
+            view={spaces.activeSpace?.name ?? activeView}
             query={query}
             isSearchFocused={isSearchFocused}
             onSearchFocusChange={setIsSearchFocused}
@@ -460,7 +398,7 @@ function App() {
             onClearQuery={() => setQuery("")}
             showFilterRow={showFilterRow}
             resultCount={filteredItems.length}
-            onSaveSearch={beginSaveSearch}
+            onSaveSearch={spaces.beginSaveSearch}
             captureError={showCaptureError ? captureError : null}
           />
 
@@ -485,7 +423,9 @@ function App() {
             columnCount={gridColumnCount}
             context={libraryCardContext}
             hasPinnedQuery={showFilterRow}
-            emptySpaceName={activeSpace?.kind === "regular" ? activeSpace.name : undefined}
+            emptySpaceName={
+              spaces.activeSpace?.kind === "regular" ? spaces.activeSpace.name : undefined
+            }
             onClearSearch={() => {
               setQuery("");
               clearToDefaultView();
@@ -546,7 +486,7 @@ function App() {
           item={selectedItem}
           itemView={{
             actions: expandedOverlayActions,
-            spaces: selectedItemSpaces,
+            spaces: spaces.selectedItemSpaces,
             originRectsRef: selectionRectsRef,
             frameRef: libraryFrameRef,
             historyCloseRequest,
