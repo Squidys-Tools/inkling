@@ -79,13 +79,6 @@ const normalizeFileKind = Effect.fnUntraced(function* (
   return "file";
 });
 
-const ensureArrayMetadata = Effect.fnUntraced(function* (metadata: Metadata, key: string) {
-  if (!(key in metadata)) metadata[key] = [];
-  if (!Array.isArray(metadata[key])) {
-    return yield* invalidInput(`metadata.${key} must be a JSON array`);
-  }
-});
-
 const relativeAssetPath = (path: string) => `assets/${path.split(sep).join("/")}`;
 
 export function makeItems(ctx: StorageContext) {
@@ -96,33 +89,6 @@ export function makeItems(ctx: StorageContext) {
     getItem(id).pipe(
       Effect.flatMap((item) => (item ? Effect.succeed(item) : Effect.fail(itemNotFound(id)))),
     );
-
-  const saveUrl = Effect.fnUntraced(function* (input: {
-    sourceUrl: string;
-    title: string;
-    metadata: Metadata;
-  }) {
-    const sourceUrl = yield* normalizeHttpUrl(input.sourceUrl);
-    const sourceLabel = new URL(sourceUrl).hostname;
-    const metadata = input.metadata;
-    if (!("sourceUrl" in metadata)) metadata.sourceUrl = sourceUrl;
-    if (!("text" in metadata)) metadata.text = "";
-    for (const key of ["imageUrls", "imageDimensions", "safeEmbeds"])
-      yield* ensureArrayMetadata(metadata, key);
-    if (!("html" in metadata)) metadata.html = "";
-    const id = randomUUID();
-    const now = Date.now();
-    yield* sql.withTransaction(
-      Effect.gen(function* () {
-        yield* sql`INSERT INTO items (id, kind, title, description, body, body_format, source_url,
-          source_label, metadata, ocr_text, created_at, updated_at)
-          VALUES (${id}, 'url', ${input.title}, NULL, '', '', ${sourceUrl}, ${sourceLabel},
-          ${JSON.stringify(metadata)}, '', ${now}, ${now})`;
-        yield* jobs.enqueue(id, URL_ENRICHMENT_JOB);
-      }),
-    );
-    return yield* writtenItem(id);
-  });
 
   const createNote = Effect.fnUntraced(function* (input: CreateNoteInput) {
     const body = input.body.trim();
@@ -174,15 +140,30 @@ export function makeItems(ctx: StorageContext) {
 
   const captureUrl = Effect.fnUntraced(function* (input: CaptureUrlInput) {
     const sourceUrl = yield* normalizeHttpUrl(input.sourceUrl);
-    const title = nonEmpty(input.title) ?? new URL(sourceUrl).hostname;
-    return yield* saveUrl({
+    const sourceLabel = new URL(sourceUrl).hostname;
+    const title = nonEmpty(input.title) ?? sourceLabel;
+    const metadata = {
+      captureSource: input.captureSource ?? "",
+      pendingUrlCapture: { initialTitle: title, preserveTitle: Boolean(nonEmpty(input.title)) },
       sourceUrl,
-      title,
-      metadata: {
-        captureSource: input.captureSource ?? "",
-        pendingUrlCapture: { initialTitle: title, preserveTitle: Boolean(nonEmpty(input.title)) },
-      },
-    });
+      text: "",
+      imageUrls: [],
+      imageDimensions: [],
+      safeEmbeds: [],
+      html: "",
+    };
+    const id = randomUUID();
+    const now = Date.now();
+    yield* sql.withTransaction(
+      Effect.gen(function* () {
+        yield* sql`INSERT INTO items (id, kind, title, description, body, body_format, source_url,
+          source_label, metadata, ocr_text, created_at, updated_at)
+          VALUES (${id}, 'url', ${title}, NULL, '', '', ${sourceUrl}, ${sourceLabel},
+          ${JSON.stringify(metadata)}, '', ${now}, ${now})`;
+        yield* jobs.enqueue(id, URL_ENRICHMENT_JOB);
+      }),
+    );
+    return yield* writtenItem(id);
   });
 
   const saveFile = Effect.fnUntraced(function* (input: SaveFileInput) {
