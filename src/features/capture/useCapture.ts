@@ -37,7 +37,6 @@ type CaptureOptions = {
   setItems: Dispatch<SetStateAction<LibraryItem[]>>;
   setSelectedItem: Dispatch<SetStateAction<LibraryItem | null>>;
   setCaptureError: Dispatch<SetStateAction<string | null>>;
-  setIsSidebarOpen: Dispatch<SetStateAction<boolean>>;
 };
 
 export function useCapture({
@@ -45,7 +44,6 @@ export function useCapture({
   setItems,
   setSelectedItem,
   setCaptureError,
-  setIsSidebarOpen,
 }: CaptureOptions) {
   const [isAdding, setIsAdding] = useState(false);
   const [captureMode, setCaptureMode] = useState<AddMode | null>(null);
@@ -358,12 +356,10 @@ export function useCapture({
     setCaptureError(null);
   }
 
-  // Shortcuts/Classic reveal the sidebar; the compact Codex trigger stays put.
-  function openCapture(mode: AddMode | null = null, revealSidebar = true) {
+  function openCapture(mode: AddMode | null = null) {
     setCaptureError(null);
     setCaptureMode(mode);
     setIsAdding(true);
-    if (revealSidebar) setIsSidebarOpen(true);
   }
 
   function closeCaptureModal() {

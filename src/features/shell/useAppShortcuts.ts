@@ -75,7 +75,11 @@ export function useAppShortcuts({
       if (!shortcut) return;
       event.preventDefault();
       if (shortcut === "search") searchRef.current?.focus();
-      else if (shortcut === "new-note" && !isCapturing) openCaptureRef.current("note");
+      else if (shortcut === "new-note" && !isCapturing) {
+        // The Add menu lives in the sidebar, so a note started from the keyboard opens it.
+        setIsSidebarOpen(true);
+        openCaptureRef.current("note");
+      }
       else if (shortcut === "help") setIsShortcutsOpen(true);
       else if (shortcut === "sidebar") setIsSidebarOpen((open) => !open);
     };

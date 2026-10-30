@@ -256,7 +256,6 @@ function App() {
     setItems,
     setSelectedItem,
     setCaptureError,
-    setIsSidebarOpen,
   });
   const { isShortcutsOpen, setIsShortcutsOpen } = useAppShortcuts({
     searchRef,
@@ -437,7 +436,7 @@ function App() {
                 mode={captureMode}
                 saving={isCapturing}
                 error={isAdding ? captureError : null}
-                onOpen={() => openCapture(null, !codexSidebar || isSidebarOpen)}
+                onOpen={() => openCapture()}
                 onClose={closeCaptureModal}
                 onModeChange={changeCaptureMode}
                 onSaveNote={saveNote}
