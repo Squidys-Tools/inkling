@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { JSDOM } from "jsdom";
+import { parseHTML } from "linkedom";
 import { purifyHtml } from "./purifyHtml";
 
 const { window } = new JSDOM("");
@@ -15,7 +16,7 @@ describe("purifyHtml", () => {
           "<ul><li>One</li></ul><blockquote><p>Quoted</p></blockquote>",
       ),
     ).toBe(
-      '<h2>Heading</h2><p>Read <a href="https://example.com/next" target="_blank">on</a> <em>now</em>.</p>' +
+      '<h2>Heading</h2><p>Read <a href="https://example.com/next" target="_blank" rel="noopener noreferrer">on</a> <em>now</em>.</p>' +
         '<figure><img src="https://example.com/articles/photo.jpg" alt="A photo"><figcaption>Caption</figcaption></figure>' +
         "<ul><li>One</li></ul><blockquote><p>Quoted</p></blockquote>",
     );
@@ -86,6 +87,21 @@ describe("purifyHtml", () => {
       "<p>k</p>",
     ],
     [
+      "targets other than a new tab",
+      '<a href="/a" target="f">a</a><a href="/b" target="_top">b</a>',
+      '<a href="https://example.com/a">a</a><a href="https://example.com/b">b</a>',
+    ],
+    [
+      "iframe names and sandbox overrides",
+      '<iframe name="f" sandbox="allow-scripts" src="https://www.youtube.com/watch?v=abc12345678"></iframe>',
+      '<iframe src="https://www.youtube-nocookie.com/embed/abc12345678" loading="lazy" referrerpolicy="no-referrer"></iframe>',
+    ],
+    [
+      "popovers",
+      '<div popover id="p">over</div><button popovertarget="p" popovertargetaction="show">open</button>',
+      '<div id="p">over</div><button>open</button>',
+    ],
+    [
       "objects and embeds",
       '<object data="https://evil.example/x.swf"></object><embed src="https://evil.example/x.swf">',
       "",
@@ -101,8 +117,10 @@ describe("purifyHtml", () => {
     "<math><mtext><table><mglyph><style><img src=x onerror=alert(1)>",
     '<noscript><p title="</noscript><img src=x onerror=alert(1)>"></noscript>',
   ])("leaves nothing executable in %s", (html) => {
+    const output = purify(html);
+    expect(output.toLowerCase()).not.toMatch(/onerror|onbegin|javascript:|<script/);
     const container = window.document.createElement("div");
-    container.innerHTML = purify(html);
+    container.innerHTML = output;
     for (const element of container.querySelectorAll("*")) {
       expect(["script", "set", "animate", "noscript"]).not.toContain(element.localName);
       for (const attribute of element.attributes) {
@@ -111,5 +129,10 @@ describe("purifyHtml", () => {
         expect(attribute.value.toLowerCase()).not.toContain("data:");
       }
     }
+  });
+
+  test("refuses a DOM DOMPurify cannot trust", () => {
+    const { window: linkedomWindow } = parseHTML("<html><body></body></html>");
+    expect(() => purifyHtml(linkedomWindow, "<p>x</p>", pageUrl)).toThrow();
   });
 });

@@ -9,13 +9,23 @@ import { applyEmbedPolicy } from "./ingestion/embeds";
  */
 export function purifyHtml(window: WindowLike, html: string, pageUrl: string): string {
   const purify = createDOMPurify(window);
-  purify.addHook("afterSanitizeAttributes", (node) => applyEmbedPolicy(node, pageUrl));
+  // An unsupported DOM makes sanitize() return its input unchanged.
+  if (!purify.isSupported) throw new Error("purifyHtml needs a spec-compliant DOM");
+  purify.addHook("afterSanitizeAttributes", (node) => {
+    applyEmbedPolicy(node, pageUrl);
+    // The main window opens target=_blank links in the browser and refuses other
+    // navigation. Any other target could name an embedded frame and redirect it.
+    if (node.hasAttribute("target")) {
+      if (node.getAttribute("target") === "_blank") node.setAttribute("rel", "noopener noreferrer");
+      else node.removeAttribute("target");
+    }
+    if (node.localName === "iframe") node.removeAttribute("name");
+  });
   return purify.sanitize(html, {
     ADD_TAGS: ["iframe"],
-    // The main window opens target=_blank links in the browser and refuses other navigation.
     ADD_ATTR: ["target"],
     FORBID_TAGS: ["form", "style", "template"],
     ADD_FORBID_CONTENTS: ["form"],
-    FORBID_ATTR: ["style", "srcset"],
+    FORBID_ATTR: ["style", "srcset", "popover", "popovertarget", "popovertargetaction"],
   });
 }
