@@ -47,6 +47,8 @@ pwsh -File benchmarks/generate-corpus.ps1
 bun benchmarks/fetch-macrumors.ts 6
 ```
 
+The generator overwrites its files and `expected/ocr/*.txt`, and leaves the hand-written fixtures in `articles/`, `videos/` and `notes/` alone.
+
 `fetch-macrumors.ts` re-runs are incremental: it skips articles already in
 the manifest, rewrites only the `article-live-macrumors-*` entries, and
 verifies every fixture through the production ingestion pipeline before
