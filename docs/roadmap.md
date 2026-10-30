@@ -8,7 +8,7 @@ The checked items reflect shipped work. See [changelog.md](changelog.md) for com
 
 Local library with capture, extraction, and text search.
 
-- [x] Project scaffold (Tauri 2, React, TypeScript, Vite, SQLite)
+- [x] Project scaffold (Electron, React, TypeScript, Vite, SQLite)
 - [x] URL capture with Defuddle article extraction + fallback metadata
 - [x] File picker, drag-and-drop, clipboard, screenshot capture
 - [x] Browser-extension deep link (`inkling://capture?url=...`)
