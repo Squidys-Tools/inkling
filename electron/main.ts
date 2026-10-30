@@ -5,7 +5,7 @@ import {
   commandArgs,
 } from "@inkling/contracts";
 import { commandChannel, commandNames } from "@inkling/contracts/commands";
-import { Effect, Layer, ManagedRuntime, Schema } from "effect";
+import { Schema } from "effect";
 import {
   app,
   BrowserWindow,
@@ -20,8 +20,7 @@ import electronUpdater from "electron-updater";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createAiJobProcessors, jobTimeouts } from "./ai-jobs.ts";
-import { enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
+import { createAiJobProcessors } from "./ai-jobs.ts";
 import {
   allowCanvasReadableImages,
   createAppAssetHandler,
@@ -30,6 +29,7 @@ import {
 import { createMainWindow, registerWindowControls } from "./main-window.ts";
 import { startCaptureServer } from "./capture-server.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
+import { type LibraryRuntime, openLibraryRuntime } from "./library-runtime.ts";
 import { createSingleFlightDirectoryPicker } from "./native-dialog.ts";
 import {
   enqueueDeepLink,
@@ -38,16 +38,7 @@ import {
   takePendingDeepLinks,
 } from "./deep-links.ts";
 import { createDisplayCaptureHandler } from "./display-capture.ts";
-import { snapshotDatabase } from "./sqlite-snapshot.ts";
-import {
-  JobQueue,
-  Library,
-  libraryLayer,
-  type Promised,
-  promised,
-  resolveLibraryDataDirectory,
-} from "./storage/library.ts";
-import { makeWorker } from "./storage/worker.ts";
+import { resolveLibraryDataDirectory } from "./storage/library.ts";
 import { createUpdateController, createUpdatePreferences } from "./updater.ts";
 import { installDebianUpdate, updateDisabledReason } from "./update-install.ts";
 
@@ -105,13 +96,8 @@ if (process.platform === "linux")
 let mainWindow: BrowserWindow | undefined;
 let captureServer: Awaited<ReturnType<typeof startCaptureServer>> | undefined;
 let aiJobProcessors: ReturnType<typeof createAiJobProcessors> | undefined;
-type Storage = {
-  runtime: ManagedRuntime.ManagedRuntime<Library | JobQueue, unknown>;
-  library: Promised<Library["Service"]>;
-  jobs: Promised<JobQueue["Service"]>;
-};
-let storage: Storage | undefined;
-let storageReady: Promise<Storage> | undefined;
+let storage: LibraryRuntime | undefined;
+let storageReady: Promise<LibraryRuntime> | undefined;
 const librarySizeCache = createLibrarySizeCache(
   join(libraryDirectory, "library.sqlite3"),
   join(libraryDirectory, "assets"),
@@ -125,62 +111,16 @@ function emitJobUpdated(itemId: string) {
   }
 }
 
-// Opening the library migrates it, hands back jobs a previous run left behind,
-// and starts both workers. Disposing the runtime hands any running job back.
-async function openStorage(): Promise<Storage> {
-  const ai = createAiJobProcessors({
+function initializeLibraryStorage() {
+  aiJobProcessors ??= createAiJobProcessors({
     modelCacheDirectory: join(libraryDirectory, "models"),
     bundledModelDirectory: app.isPackaged ? join(process.resourcesPath, "models") : undefined,
   });
-  aiJobProcessors = ai;
-  const library = libraryLayer({
+  storageReady ??= openLibraryRuntime({
     databasePath: join(libraryDirectory, "library.sqlite3"),
-    jobQueue: { onUpdated: emitJobUpdated },
-    media: {
-      createSnapshot: snapshotDatabase,
-      createThumbnail: (bytes) =>
-        import("./thumbnail.ts").then(({ createImageThumbnail }) => createImageThumbnail(bytes)),
-      inspectImage: (bytes) =>
-        import("./thumbnail.ts").then(({ inspectImage }) => inspectImage(bytes)),
-    },
-  });
-  const workers = Layer.effectDiscard(
-    Effect.gen(function* () {
-      const jobs = yield* JobQueue;
-      // The single-instance lock means no other process can own a processing job.
-      yield* jobs.recoverAfterExclusiveStartup();
-      yield* enqueueStaleImageEmbeddings;
-      const main = yield* makeWorker({
-        processors: ai.processors,
-        onIdle: ai.onIdle,
-        timeouts: jobTimeouts,
-      });
-      // New cards wait on thumbnails, so they never queue behind OCR or embeddings.
-      const thumbnails = yield* makeWorker({
-        processors: ai.thumbnailProcessors,
-        timeouts: jobTimeouts,
-      });
-      yield* Effect.forkScoped(main.run);
-      yield* Effect.forkScoped(thumbnails.run);
-    }),
-  );
-  const runtime = ManagedRuntime.make(workers.pipe(Layer.provideMerge(library)));
-  const run = <A, E>(effect: Effect.Effect<A, E, Library | JobQueue>) => runtime.runPromise(effect);
-  try {
-    const [libraryService, jobService] = await run(
-      Effect.gen(function* () {
-        return [yield* Library, yield* JobQueue] as const;
-      }),
-    );
-    return { runtime, library: promised(libraryService, run), jobs: promised(jobService, run) };
-  } catch (error) {
-    await runtime.dispose();
-    throw error;
-  }
-}
-
-function initializeLibraryStorage() {
-  storageReady ??= openStorage().then(
+    ai: aiJobProcessors,
+    onJobUpdated: emitJobUpdated,
+  }).then(
     (opened) => (storage = opened),
     (error) => {
       storageReady = undefined;
