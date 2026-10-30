@@ -81,17 +81,6 @@ ONNX Runtime is appropriate for Windows CPU/GPU inference. llama.cpp is appropri
 
 `sqlite-vec` is worth evaluating, but should not be a hard dependency before benchmarking because it is pre-1.0 and may introduce breaking changes.
 
-## AI behavior rules
-
-- AI-derived concepts are invisible implementation details.
-- Do not label tags as AI-generated.
-- Do not show confidence scores.
-- Do not expose tag correction or deletion workflows.
-- Do not overwrite user-authored titles, notes, or tags.
-- AI failures should degrade gracefully to ordinary metadata and text search.
-- Processing should happen asynchronously after capture.
-- A user should be able to use the app while processing is incomplete.
-
 ## Model selection policy
 
 Nomic Embed Text v1.5 and Nomic Embed Vision v1.5 are the initial learned embedding pair. They are downloaded as pinned INT8 ONNX artifacts into the app model cache on the first indexing run, with SHA-256 verification before use. Models will still be evaluated using a representative local test corpus, not by reputation alone. Revisit the choice if semantic search relevance, image similarity relevance, CPU time, RAM usage, GPU acceleration, download size, cold-start time, or batch processing time is not acceptable.

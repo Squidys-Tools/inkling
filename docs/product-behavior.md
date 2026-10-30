@@ -18,6 +18,8 @@ The product should feel quiet, immediate, and visual. Organization happens autom
 - Manual tags and Spaces are available for intentional projects, not required maintenance.
 - Local processing is explained during onboarding and settings, not repeatedly in the main interface.
 - User-authored notes and content must never be silently rewritten by AI.
+- When AI processing fails, search falls back to metadata and text.
+- Processing runs after capture, and the app stays usable while it is incomplete.
 - The library should encourage rediscovery, not only storage.
 
 ## Supported content
