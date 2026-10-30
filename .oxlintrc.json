@@ -66,11 +66,7 @@
   },
   "ignorePatterns": [
     "dist",
-    "dist-ssr",
     ".artifacts",
-    ".entire",
-    ".opencode",
-    ".codex",
     "public/seed-demo",
     "**/*.d.ts",
     "benchmarks/corpus",

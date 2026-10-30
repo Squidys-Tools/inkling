@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import type { Plugin as PostcssPlugin } from "postcss";
 import { collectThirdPartyLicenses } from "./scripts/third-party-licenses/collect.mjs";
 
 const LICENSES_FILE = "third-party-licenses.json";
@@ -43,6 +44,22 @@ function excludeSeedFromAppBuild() {
   };
 }
 
+// Fontsource lists a WOFF fallback after each WOFF2 source. Chromium always
+// takes the WOFF2, so drop the fallback before Vite emits its file.
+const woff2Only: PostcssPlugin = {
+  postcssPlugin: "inkling-woff2-only",
+  AtRule: {
+    "font-face"(rule) {
+      rule.walkDecls("src", (declaration) => {
+        declaration.value = declaration.value
+          .split(/,\s*(?=url\()/)
+          .filter((source) => !/format\(["']?woff["']?\)/.test(source))
+          .join(", ");
+      });
+    },
+  },
+};
+
 // The demo seed must be dropped at build time: by the time a runtime `if` runs,
 // Vite has already copied public/ and bundled src/seedPersonal.ts. Gated on
 // `--mode app` because a `VAR=x` script prefix fails in Windows `cmd`.
@@ -61,6 +78,8 @@ export default defineConfig(async ({ mode }) => {
     // than a runtime check, so the false branch is dropped and the seed module
     // is never bundled into a shipped build.
     define: includeSeed ? {} : { "import.meta.env.VITE_INKLING_SEED": JSON.stringify("0") },
+
+    css: { postcss: { plugins: [woff2Only] } },
 
     build: {
       // Electron ships an evergreen Chromium webview, so build for

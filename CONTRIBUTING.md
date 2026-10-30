@@ -1,20 +1,5 @@
 # Contributing
 
-## Developer setup
-
-See the "For developers" section in README.md for install steps and commands. You need the Bun version in `.bun-version`.
-
-The usual commands are:
-
-```powershell
-bun install
-bun run dev      # quick browser preview of the UI
-bun run dev:app  # full Windows desktop app
-bun run check    # same frontend checks CI runs
-```
-
-Start with docs/product-behavior.md for the behavior contract, docs/roadmap.md for status, and docs/changelog.md for recent changes.
-
 ## Read this first
 
 We are not actively accepting contributions right now.
@@ -25,43 +10,28 @@ This project is early and solo built. It is an Electron plus React desktop app, 
 
 ## What we are most likely to accept
 
-Small, focused bug fixes.
-
-Small reliability fixes.
-
-Small performance improvements.
-
-Tightly scoped maintenance work that clearly improves the project without changing its direction.
+- Small, focused bug fixes.
+- Small reliability fixes.
+- Small performance improvements.
+- Tightly scoped maintenance work that clearly improves the project without changing its direction.
 
 ## What we are least likely to accept
 
-Large PRs.
-
-Drive-by feature work.
-
-Opinionated rewrites.
-
-Anything that expands product scope without us asking for it first.
+- Large PRs.
+- Drive-by feature work.
+- Opinionated rewrites.
+- Anything that expands product scope without us asking for it first.
 
 If you open a 1,000+ line PR full of new features, we will probably close it quickly and remember that you ignored the clearly written instructions.
 
 ## If you still want to open a PR
 
-Keep it small.
-
-Explain exactly what changed.
-
-Explain exactly why the change should exist.
-
-Check docs/product-behavior.md before you change behavior. Follow the changelog rules at the top of docs/changelog.md, and keep docs changes minimal per AGENTS.md.
-
-Do not mix unrelated fixes together.
-
-Run the focused checks for what you touched, such as bun test for changed tests or bun run check for frontend changes.
-
-If the PR makes anything resembling a UI change, include clear before and after images.
-
-If the change depends on motion, timing, transitions, or interaction details, include a short video.
+- Keep it small, and do not mix unrelated fixes together.
+- Explain exactly what changed and why the change should exist.
+- Check docs/product-behavior.md before you change behavior, and follow the changelog rules at the top of docs/changelog.md.
+- Run `bun run check:changed` before you push. docs/operations/development.md covers setup and the other checks.
+- If the PR makes anything resembling a UI change, include clear before and after images.
+- If the change depends on motion, timing, transitions, or interaction details, include a short video.
 
 If we have to guess what changed, we are much less likely to review it.
 

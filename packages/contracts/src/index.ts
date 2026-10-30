@@ -1,226 +1,42 @@
 import { Schema } from "effect";
 import type { CommandName } from "./commands.ts";
+import {
+  CaptureUrlInput,
+  CreateNoteInput,
+  CreateQuoteInput,
+  CreateSpaceInput,
+  SaveFileInput,
+  UpdateItemInput,
+  UpdateSpaceInput,
+} from "./inputs.ts";
+import {
+  type AvailableUpdate,
+  type CaptureStatus,
+  type LastExport,
+  type LibraryExportReport,
+  type LibraryImportReport,
+  type LibrarySize,
+  type ProcessingJob,
+  type StorageStatus,
+  type StoredItemContent,
+  type StoredLibraryCard,
+  type StoredLibraryItemDetail,
+  type StoredSpace,
+  UpdateChannel,
+  type UpdateState,
+} from "./models.ts";
 
-export { type CommandName, commandChannel, commandNames } from "./commands.ts";
+export type { CommandName } from "./commands.ts";
+export * from "./inputs.ts";
+export * from "./models.ts";
 
-type StoredItemKind = "note" | "article" | "image" | "pdf" | "video" | "file" | "embed";
-
-export type StoredLibraryItem = {
-  id: string;
-  kind: StoredItemKind | string;
-  title: string | null;
-  description: string | null;
-  body?: string | null;
-  bodyFormat?: string | null;
-  sourceUrl: string | null;
-  sourceLabel: string | null;
-  localAssetPath: string | null;
-  thumbnailPath: string | null;
-  palette?: string[];
-  ocrText: string;
-  metadata: Record<string, unknown>;
-  createdAt: number;
-  updatedAt: number;
-  archived: boolean;
-};
-
-export type StoredLibraryItemDetail = Omit<StoredLibraryItem, "body" | "bodyFormat"> & {
-  body: string;
-  bodyFormat: string;
-};
-
-export type StoredLibraryCard = Omit<
-  StoredLibraryItem,
-  "body" | "bodyFormat" | "metadata" | "ocrText" | "updatedAt"
-> & {
-  ocrText: string;
-  metadata: {
-    tags?: unknown;
-    social?: unknown;
-    imageUrls?: unknown;
-    imageDimensions?: unknown;
-    mediaWidth?: unknown;
-    mediaHeight?: unknown;
-    mediaAspectRatio?: unknown;
-    pdfPageCount?: unknown;
-    durationSeconds?: unknown;
-    fileSizeBytes?: unknown;
-    readingMinutes?: unknown;
-  };
-  hasArticleContent: boolean;
-};
-
-export type StoredItemContent = { id: string; body: string; bodyFormat: string };
-
-export type AvailableUpdate = { version: string };
-export type UpdateChannel = "latest" | "nightly";
-export type UpdateState = {
-  channel: UpdateChannel;
-  currentVersion: string;
-  status:
-    | "disabled"
-    | "idle"
-    | "checking"
-    | "up-to-date"
-    | "available"
-    | "downloading"
-    | "downloaded"
-    | "installing"
-    | "cancelled"
-    | "error";
-  availableVersion: string | null;
-  downloadedVersion: string | null;
-  progress: number | null;
-  message: string | null;
-  errorContext: "check" | "download" | "install" | null;
-};
-
-export type ProcessingJobKind = "ocr_image" | "ocr_pdf_page" | "generate_embedding" | "enrich_url";
-export type ProcessingJobStatus = "pending" | "processing" | "completed" | "failed";
-
-export type ProcessingJob = {
-  id: string;
-  itemId: string;
-  kind: ProcessingJobKind;
-  status: ProcessingJobStatus;
-  retryCount: number;
-  maxRetries: number;
-  errorMessage: string | null;
-  createdAt: number;
-  startedAt: number | null;
-  completedAt: number | null;
-  progressCurrent: number;
-  progressTotal: number | null;
-  progressMessage: string | null;
-};
-
-export type SmartSpaceQuery = { text?: string | null; kind?: string | null; tag?: string | null };
-
-/** A "smart" Space re-runs its saved query; a "regular" Space holds the items
- *  the user filed into it. Fixed at creation. */
-export type SpaceKind = "smart" | "regular";
-export type SpaceColor = "blue" | "orange" | "green" | "pink" | "purple" | "yellow";
-
-export type StoredSpace = {
-  id: string;
-  name: string;
-  color: SpaceColor;
-  query: SmartSpaceQuery;
-  kind: SpaceKind;
-  position: number;
-  createdAt: number;
-  updatedAt: number;
-  /** How many items the Space holds, when the core reports it. The sidebar shows it when present. */
-  itemCount?: number;
-};
-
-export type StorageStatus = { databasePath: string; fts5Enabled: boolean; schemaVersion: number };
-export type LibrarySize = { bytes: number };
-export type LastExport = { exportedAt: number; items: number };
-
-export type LibraryExportReport = {
-  directory: string;
-  items: number;
-  archivedItems: number;
-  spaces: number;
-  assetFiles: number;
-  skippedAssets: number;
-  databaseBytes: number;
-  assetsBytes: number;
-};
-
-export type LibraryImportReport = {
-  importedItems: number;
-  skippedDuplicateItems: number;
-  importedSpaces: number;
-  skippedDuplicateSpaces: number;
-  assetFiles: number;
-  unverifiedAssetFiles: number;
-};
-
-export type CaptureStatus = { running: boolean; port: number | null; healthUrl: string | null };
-
-// Argument schemas check shape only. Storage keeps the semantic checks (empty
-// text, URL schemes, byte limits) so its messages stay the ones users see.
 const Text = Schema.String;
-const OptionalText = Schema.optional(Schema.String);
-const NullableText = Schema.optional(Schema.NullOr(Schema.String));
 const Limit = Schema.optional(Schema.Number);
-const Metadata = Schema.Record(Schema.String, Schema.Unknown);
-const SpaceQuery = Schema.Struct({ text: NullableText, kind: NullableText, tag: NullableText });
-const SpaceColorSchema = Schema.Literals(["blue", "orange", "green", "pink", "purple", "yellow"]);
-const SpaceKindSchema = Schema.Literals(["smart", "regular"]);
 const None = Schema.Struct({});
 const ById = Schema.Struct({ id: Text });
 const ByItemId = Schema.Struct({ itemId: Text });
 const SimilarTo = Schema.Struct({ itemId: Text, limit: Limit });
 const SpaceMembership = Schema.Struct({ spaceId: Text, itemId: Text });
-
-export const CreateNoteInput = Schema.Struct({
-  title: OptionalText,
-  body: Text,
-  metadata: Schema.optional(Metadata),
-});
-
-export const CreateQuoteInput = Schema.Struct({
-  body: Text,
-  attribution: OptionalText,
-  sourceUrl: OptionalText,
-  metadata: Schema.optional(Metadata),
-});
-
-export const CaptureUrlInput = Schema.Struct({
-  sourceUrl: Text,
-  captureSource: OptionalText,
-  title: OptionalText,
-});
-
-export const SaveFileInput = Schema.Struct({
-  fileName: Text,
-  mimeType: NullableText,
-  kind: NullableText,
-  // Structured clone moves a typed array as one block across IPC; storage
-  // refuses anything else, such as a number array, with its own message.
-  bytes: Schema.Unknown,
-});
-
-export const UpdateItemInput = Schema.Struct({
-  id: Text,
-  title: OptionalText,
-  description: OptionalText,
-  body: OptionalText,
-  bodyFormat: OptionalText,
-  sourceUrl: OptionalText,
-  sourceLabel: OptionalText,
-  localAssetPath: OptionalText,
-  thumbnailPath: OptionalText,
-  metadata: Schema.optional(Metadata),
-  metadataPatch: Schema.optional(Metadata),
-  addTag: OptionalText,
-});
-
-export const CreateSpaceInput = Schema.Struct({
-  name: Text,
-  color: Schema.optional(SpaceColorSchema),
-  query: Schema.optional(SpaceQuery),
-  kind: Schema.optional(SpaceKindSchema),
-});
-
-export const UpdateSpaceInput = Schema.Struct({
-  id: Text,
-  name: OptionalText,
-  color: Schema.optional(SpaceColorSchema),
-  query: Schema.optional(SpaceQuery),
-  position: Schema.optional(Schema.Number),
-});
-
-export type CreateNoteInput = typeof CreateNoteInput.Type;
-export type CreateQuoteInput = typeof CreateQuoteInput.Type;
-export type CaptureUrlInput = typeof CaptureUrlInput.Type;
-export type SaveFileInput = typeof SaveFileInput.Type;
-export type UpdateItemInput = typeof UpdateItemInput.Type;
-export type CreateSpaceInput = typeof CreateSpaceInput.Type;
-export type UpdateSpaceInput = typeof UpdateSpaceInput.Type;
 
 export const commandArgs = {
   check_for_updates: None,
@@ -229,7 +45,7 @@ export const commandArgs = {
   get_screenshot_import_state: None,
   set_screenshot_import_enabled: Schema.Struct({ enabled: Schema.Boolean }),
   choose_screenshot_import_directory: None,
-  set_update_channel: Schema.Struct({ channel: Schema.Literals(["latest", "nightly"]) }),
+  set_update_channel: Schema.Struct({ channel: UpdateChannel }),
   download_update: Schema.Struct({ expectedVersion: Text }),
   cancel_update_download: None,
   initialize_storage: None,

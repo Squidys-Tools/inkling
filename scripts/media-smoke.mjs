@@ -3,11 +3,11 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = resolve(import.meta.dirname, "..");
 const packaged = process.argv[2] && process.argv[2] !== "source" ? resolve(process.argv[2]) : null;
 if (packaged && !process.versions.electron) {
   const child = spawnSync(

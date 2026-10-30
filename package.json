@@ -15,9 +15,8 @@
   "scripts": {
     "dev": "vite",
     "dev:app": "vite build --mode electron-preview && bun run build:electron && electron . --preview",
-    "ui:smoke": "bun scripts/ui-smoke.mjs",
-    "build": "tsc-rs -p benchmarks/harness/tsconfig.json && tsc-rs && vite build",
-    "build:app": "tsc-rs -p benchmarks/harness/tsconfig.json && tsc-rs && vite build --mode app && bun run build:electron && bun scripts/assert-no-demo-seed.ts",
+    "build": "tsc-rs && vite build",
+    "build:app": "tsc-rs && vite build --mode app && bun run build:electron && bun scripts/assert-no-demo-seed.ts",
     "build:electron": "bun scripts/build-electron.ts",
     "build:dir": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --dir",
     "build:installer": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --win nsis",
@@ -27,10 +26,8 @@
     "check:bun-version": "bun -e \"const expected = (await Bun.file('.bun-version').text()).trim(); if (Bun.version !== expected) { console.error('Expected Bun ' + expected + ', found ' + Bun.version); process.exit(1); }\"",
     "check:changed": "bun scripts/check-changed.ts",
     "check:refs": "bun scripts/assert-command-refs.ts",
-    "typecheck": "tsc-rs --noEmit && tsc-rs -p benchmarks/harness/tsconfig.json --noEmit && tsc-rs -p electron/tsconfig.json --noEmit",
-    "typecheck:tsc": "tsc --noEmit && tsc -p benchmarks/harness/tsconfig.json --noEmit && tsc -p electron/tsconfig.json --noEmit",
+    "typecheck": "tsc-rs --noEmit && tsc-rs -p tsconfig.tools.json --noEmit && tsc-rs -p electron/tsconfig.json --noEmit",
     "test": "bun test --timeout 30000",
-    "test:pdf": "bun benchmarks/harness/pdf.smoke.ts",
     "knip": "knip --no-progress",
     "lint": "oxlint && oxfmt --check",
     "lint:fix": "oxlint --fix && oxfmt",
@@ -113,9 +110,9 @@
     "knip": "^6.43.0",
     "oxfmt": "^0.74.0",
     "oxlint": "^1.89.0",
+    "postcss": "^8.5.30",
     "tailwindcss": "^4.3.3",
     "tsc-rs": "0.8.0",
-    "typescript": "^7.0.2",
     "vite": "^8.3.5"
   },
   "build": {
@@ -141,7 +138,15 @@
     ],
     "files": [
       "dist/**/*",
-      "package.json"
+      "package.json",
+      "!**/node_modules/**/*.{map,ts,mts,cts}",
+      "!**/node_modules/{@base-ui,@floating-ui,@fontsource,@fontsource-variable,@hugeicons,@liquid-dom,@tiptap,@virtuoso.dev}/**",
+      "!**/node_modules/{framer-motion,gsap,motion,motion-dom,motion-utils,prosemirror-*,react-dom,sonner}/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v6/!(${os}*)/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v6/*/!(${arch})/**",
+      "!**/node_modules/@img/sharp-{linux,linuxmusl,libvips-linux,libvips-linuxmusl}-*/**",
+      "!**/node_modules/@napi-rs/canvas-linux-*-musl/**",
+      "!**/node_modules/tesseract.js-core/*.wasm.js"
     ],
     "asarUnpack": [
       "**/tesseract.js/**/*",

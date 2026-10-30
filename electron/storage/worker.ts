@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Cause, Duration, Effect, Exit, PubSub } from "effect";
+import { Cause, Duration, Effect, Exit, PubSub, Schedule } from "effect";
 import { errorMessage } from "./errors.ts";
 import { type Job, JOB_LEASE_MILLIS, JobQueue } from "./jobs.ts";
 
@@ -40,7 +40,7 @@ export const makeWorker = Effect.fnUntraced(function* <R>({
   const heartbeat = (job: Job) =>
     jobs
       .renew(job.id, workerId)
-      .pipe(Effect.ignore, Effect.delay(Duration.millis(JOB_LEASE_MILLIS / 2)), Effect.forever);
+      .pipe(Effect.ignore, Effect.schedule(Schedule.spaced(Duration.millis(JOB_LEASE_MILLIS / 2))));
 
   const process = (job: Job) => {
     const duration = timeouts[job.kind] ?? defaultTimeout;
@@ -79,14 +79,15 @@ export const makeWorker = Effect.fnUntraced(function* <R>({
 
   const run = Effect.gen(function* () {
     const wake = yield* PubSub.subscribe(jobs.enqueued);
-    const workQueued = Effect.gen(function* () {
-      while (!(yield* PubSub.takeAll(wake)).some((kind) => kinds.includes(kind))) {}
-    });
+    const workQueued = PubSub.takeAll(wake).pipe(
+      Effect.repeat({ until: (queued) => queued.some((kind) => kinds.includes(kind)) }),
+    );
     yield* jobs.recoverExpired();
-    while (true) {
-      yield* drain.pipe(Effect.catchCause((cause) => Effect.logError("job worker failed", cause)));
-      yield* Effect.raceFirst(workQueued, Effect.sleep(pollInterval));
-    }
+    return yield* drain.pipe(
+      Effect.catchCause((cause) => Effect.logError("job worker failed", cause)),
+      Effect.andThen(Effect.raceFirst(workQueued, Effect.sleep(pollInterval))),
+      Effect.forever,
+    );
   });
 
   return { workerId, drain, run: Effect.scoped(run) };

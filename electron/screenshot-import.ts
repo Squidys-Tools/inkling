@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { constants, watch, type FSWatcher } from "node:fs";
 import {
   lstat,
@@ -30,7 +29,7 @@ export function createScreenshotImporter({
 }: {
   preferencesPath: string;
   defaultDirectory: string;
-  save: (input: { id: string; fileName: string; kind: "image"; bytes: Buffer }) => Promise<boolean>;
+  save: (input: { fileName: string; kind: "image"; bytes: Buffer }) => Promise<boolean>;
   pollMillis?: number;
 }) {
   let preferences: Preferences = { enabled: false, directory: resolve(defaultDirectory), seen: {} };
@@ -145,11 +144,10 @@ export function createScreenshotImporter({
             )
               continue;
             if (closed || epoch !== generation || !preferences.enabled) return;
-            const id = `screenshot-${createHash("sha256").update(bytes).digest("hex")}`;
             if ((await realpath(preferences.directory)) !== acceptedRoot) continue;
-            const added = await save({ id, fileName: row.name, kind: "image", bytes });
-            // Content-derived ids let the storage callback reject duplicate delivery
-            // if the process stops after the item commit but before this checkpoint.
+            const added = await save({ fileName: row.name, kind: "image", bytes });
+            // Storage atomically remembers the content hash with its random-ID item,
+            // so losing this watcher checkpoint cannot duplicate a committed capture.
             const next = { ...preferences, seen: { ...preferences.seen, [row.name]: row.stamp } };
             await persist(next);
             preferences = next;

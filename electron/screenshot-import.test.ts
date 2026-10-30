@@ -25,11 +25,8 @@ async function fixture() {
     preferencesPath: join(root, "preferences.json"),
     defaultDirectory: directory,
     pollMillis: 25,
-    save: async (input: { id: string; fileName: string; kind: "image"; bytes: Buffer }) => {
-      if (await library.getItem(input.id)) return false;
-      await library.saveFile(input);
-      return true;
-    },
+    save: (input: { fileName: string; kind: "image"; bytes: Buffer }) =>
+      library.saveScreenshot(input),
   };
   return { root, directory, library, options };
 }

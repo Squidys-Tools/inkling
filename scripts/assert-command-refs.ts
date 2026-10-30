@@ -9,13 +9,11 @@ const DOC_ROOTS = ["AGENTS.md", "README.md", "CONTRIBUTING.md", "t3.json", "docs
 const EXEMPT_FILES = new Set(["docs/changelog.md"]);
 const COMMAND_REF = /\bbun run (?!--)([\w:-]+)/g;
 
-type Finding = { file: string; line: number; script: string };
-
 export function findBrokenCommandRefs(
   documents: { file: string; text: string }[],
   scripts: Set<string>,
-): Finding[] {
-  const findings: Finding[] = [];
+) {
+  const findings: { file: string; line: number; script: string }[] = [];
   for (const { file, text } of documents) {
     if (EXEMPT_FILES.has(file)) continue;
     text.split("\n").forEach((line, index) => {
@@ -28,12 +26,14 @@ export function findBrokenCommandRefs(
   return findings;
 }
 
-function docsUnder(root: string, path: string): string[] {
+function docsUnder(root: string, path: string) {
   if (!statSync(join(root, path)).isDirectory()) return [path];
-  return readdirSync(join(root, path)).flatMap((entry) => docsUnder(root, `${path}/${entry}`));
+  return readdirSync(join(root, path), { recursive: true, encoding: "utf8" }).map(
+    (entry) => `${path}/${entry.replaceAll("\\", "/")}`,
+  );
 }
 
-function main(): void {
+function main() {
   const root = process.cwd();
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
     scripts: Record<string, string>;

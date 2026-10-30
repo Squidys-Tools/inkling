@@ -28,10 +28,9 @@ export interface Manifest {
   items: ManifestItem[];
 }
 
-/** benchmarks/ directory, resolved from this file. */
 export const benchmarksRoot = resolve(import.meta.dir, "..");
 
-export function corpusPath(relative: string): string {
+export function corpusPath(relative: string) {
   return resolve(benchmarksRoot, relative);
 }
 

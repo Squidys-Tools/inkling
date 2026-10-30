@@ -5,10 +5,6 @@ on:
     branches:
       - main
     paths-ignore:
-      # Docs carry no executable code — skip CI entirely
-      # when a push only touches these (mixed code+docs pushes still run).
-      # Automation config (.entire/) is deliberately NOT ignored: runner
-      # prompts execute in automation, so those changes must run checks.
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
@@ -64,32 +60,24 @@ jobs:
               - 'benchmarks/**'
               - 'electron/**'
               - 'scripts/**'
-              - '.vscode/**'
               - '*.json'
               - '*.jsonc'
-              - 't3.json'
-              # Workspaces the root tsconfig does not cover.
               - 'extension/**'
               - 'packages/**'
-              - '!packages/**/node_modules/**'
               - 'index.html'
-              - 'package.json'
               - 'bun.lock'
               - '.bun-version'
               - 'vite.config.ts'
-              - 'knip.json'
               - '.oxlintrc.json'
               - '.oxfmtrc.json'
               - 'oxlint-plugin-inkling/**'
-              - 'tsconfig.json'
-              - 'tsconfig.node.json'
               - '.github/workflows/ci.yml'
 
   frontend:
     name: Frontend checks
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
-    # inkling ships on Windows only, so the suite runs on the real target OS.
+    # Windows is inkling's main target, so the suite runs there.
     runs-on: windows-latest
     defaults:
       run:
@@ -117,15 +105,6 @@ jobs:
           bun run --cwd packages/ingestion-shared typecheck
           bun run --cwd packages/contracts typecheck
 
-      - name: 'Canary: real tsc typecheck (non-blocking)'
-        if: always()
-        continue-on-error: true
-        run: |
-          bun run typecheck:tsc
-          bun run --cwd extension typecheck:tsc
-          bun run --cwd packages/ingestion-shared typecheck:tsc
-          bun run --cwd packages/contracts typecheck:tsc
-
       - name: Check documented commands exist
         run: bun run check:refs
 
@@ -150,7 +129,5 @@ jobs:
       - name: Run ingestion smoke tests
         run: bun run ingest:smoke
 
-      # Building the Chrome MV3 extension here catches manifest and bundler
-      # regressions long before someone tries to load the unpacked directory.
       - name: Build browser extension
         run: bun run --cwd extension build

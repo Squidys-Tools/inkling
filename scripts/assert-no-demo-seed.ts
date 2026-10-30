@@ -1,76 +1,38 @@
 // Fails `bun run build:app` if the demo seed reaches the app bundle. Checks the
 // built output, not the config, so it holds if the exclusion is rewritten.
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
-/** A path under dist/ that must not exist in a shipped build. */
-const FORBIDDEN_PATHS = ["seed-demo"];
+const SEED_DIRECTORY = "seed-demo";
+// Every demo asset URL in src/seedPersonal.ts is rooted at /seed-demo/ and nothing
+// else in src/ refers to that path, so built code containing it shipped the seed.
+const SEED_CODE_MARKER = `/${SEED_DIRECTORY}/`;
 
-/**
- * A substring that only appears in bundled seed code. Every demo asset URL in
- * src/seedPersonal.ts is rooted at /seed-demo/, and nothing else in src/ refers
- * to that path, so its presence in a JS asset means the seed module shipped.
- */
-const SEED_CODE_MARKER = "/seed-demo/";
-
-type Finding = { path: string; reason: string };
-
-function walk(root: string, base = root): string[] {
-  const files: string[] = [];
-  for (const entry of readdirSync(root)) {
-    const full = join(root, entry);
-    if (statSync(full).isDirectory()) files.push(...walk(full, base));
-    else files.push(relative(base, full).split("\\").join("/"));
+export function findSeedLeaks(files: string[], read: (path: string) => string) {
+  const findings: { path: string; reason: string }[] = [];
+  if (files.some((file) => file === SEED_DIRECTORY || file.startsWith(`${SEED_DIRECTORY}/`))) {
+    findings.push({ path: SEED_DIRECTORY, reason: "seed assets were copied into the build" });
   }
-  return files;
-}
-
-/**
- * Reports every way the seed can still be reachable in a built app. Exported
- * for tests; takes the file list and readers so it needs no real dist.
- */
-export function findSeedLeaks(
-  files: string[],
-  exists: (path: string) => boolean,
-  read: (path: string) => string,
-): Finding[] {
-  const findings: Finding[] = [];
-
-  for (const forbidden of FORBIDDEN_PATHS) {
-    if (exists(forbidden)) {
-      findings.push({ path: forbidden, reason: "seed assets were copied into the build" });
-    }
-  }
-
   for (const file of files) {
     if (!file.endsWith(".js") && !file.endsWith(".css")) continue;
     if (read(file).includes(SEED_CODE_MARKER)) {
       findings.push({ path: file, reason: `bundled code still references ${SEED_CODE_MARKER}` });
     }
   }
-
   return findings;
 }
 
-function main(): void {
+function main() {
   const dist = join(process.cwd(), "dist");
   if (!existsSync(dist)) {
     console.error(`No build output at ${dist}. Run this after \`vite build --mode app\`.`);
     process.exit(1);
   }
-  const files = walk(dist);
-  const findings = findSeedLeaks(
-    files,
-    (path) => {
-      try {
-        return statSync(join(dist, path)).isDirectory();
-      } catch {
-        return false;
-      }
-    },
-    (path) => readFileSync(join(dist, path), "utf8"),
+  const files = readdirSync(dist, { recursive: true, encoding: "utf8" }).map((file) =>
+    file.replaceAll("\\", "/"),
   );
+  const findings = findSeedLeaks(files, (path) => readFileSync(join(dist, path), "utf8"));
 
   if (findings.length > 0) {
     console.error("Demo seed leaked into the app build:");
