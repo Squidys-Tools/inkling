@@ -4,6 +4,7 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
 } from "react";
@@ -96,79 +97,59 @@ export function useHistory({
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- navKey encodes the snapshot
   }, [navKey]);
 
-  const stepHistory = useCallback(
-    (delta: -1 | 1) => {
-      const history = historyRef.current;
-      const target = history.entries[history.index + delta];
-      if (!target) return;
-      // Similar items are not always in the grid's list, so a step back to one
-      // falls back to the copy the Similar lookup kept.
-      const item = target.itemId
-        ? ([...items, ...archivedItems].find(
-            (candidate) => String(candidate.id) === target.itemId,
-          ) ?? similarItemCacheRef.current.get(target.itemId))
-        : undefined;
-      // A vanished item restores as a closed overlay; keep the stack in step so it is not re-pushed.
-      if (target.itemId && !item) target.itemId = null;
-      restoringNavKeyRef.current = JSON.stringify(target);
-      if (!target.itemId && selectedItem) {
-        pendingHistoryCloseRef.current = { target, index: history.index + delta };
-        setActiveSpaceId(target.spaceId);
-        setActiveView(target.view);
-        setQuery(target.query);
-        requestAnimationFrame(() => {
-          void bringHistoryCardIntoView(selectedItem, filteredItemsRef.current).then((rects) => {
-            selectionRectsRef.current = rects;
-            setHistoryCloseRequest((request) => request + 1);
-          });
-        });
-        return;
-      }
-      history.index += delta;
-      selectionScrollRef.current = false;
-      selectionRectsRef.current = null;
+  const stepHistory = useEffectEvent((delta: -1 | 1) => {
+    const history = historyRef.current;
+    const target = history.entries[history.index + delta];
+    if (!target) return;
+    // Similar items are not always in the grid's list, so a step back to one
+    // falls back to the copy the Similar lookup kept.
+    const item = target.itemId
+      ? ([...items, ...archivedItems].find((candidate) => String(candidate.id) === target.itemId) ??
+        similarItemCacheRef.current.get(target.itemId))
+      : undefined;
+    // A vanished item restores as a closed overlay; keep the stack in step so it is not re-pushed.
+    if (target.itemId && !item) target.itemId = null;
+    restoringNavKeyRef.current = JSON.stringify(target);
+    if (!target.itemId && selectedItem) {
+      pendingHistoryCloseRef.current = { target, index: history.index + delta };
       setActiveSpaceId(target.spaceId);
       setActiveView(target.view);
       setQuery(target.query);
-      if (item?.archived) selectArchivedLibraryItem(item);
-      else if (item) {
-        requestAnimationFrame(() => {
-          void bringHistoryCardIntoView(item, filteredItemsRef.current).then((rects) => {
-            selectionRectsRef.current = rects;
-            setSelectedItem(item);
-          });
+      requestAnimationFrame(() => {
+        void bringHistoryCardIntoView(selectedItem, filteredItemsRef.current).then((rects) => {
+          selectionRectsRef.current = rects;
+          setHistoryCloseRequest((request) => request + 1);
         });
-      } else setSelectedItem(null);
-    },
-    [
-      archivedItems,
-      bringHistoryCardIntoView,
-      items,
-      selectArchivedLibraryItem,
-      selectedItem,
-      filteredItemsRef,
-      setActiveSpaceId,
-      setActiveView,
-      selectionScrollRef,
-      similarItemCacheRef,
-      selectionRectsRef,
-      setSelectedItem,
-      setQuery,
-    ],
-  );
-  const stepHistoryRef = useRef(stepHistory);
-  stepHistoryRef.current = stepHistory;
+      });
+      return;
+    }
+    history.index += delta;
+    selectionScrollRef.current = false;
+    selectionRectsRef.current = null;
+    setActiveSpaceId(target.spaceId);
+    setActiveView(target.view);
+    setQuery(target.query);
+    if (item?.archived) selectArchivedLibraryItem(item);
+    else if (item) {
+      requestAnimationFrame(() => {
+        void bringHistoryCardIntoView(item, filteredItemsRef.current).then((rects) => {
+          selectionRectsRef.current = rects;
+          setSelectedItem(item);
+        });
+      });
+    } else setSelectedItem(null);
+  });
   useEffect(() => {
     const onMouseUp = (event: MouseEvent) => {
       if (event.button !== 3 && event.button !== 4) return;
       event.preventDefault();
-      stepHistoryRef.current(event.button === 3 ? -1 : 1);
+      stepHistory(event.button === 3 ? -1 : 1);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
       event.preventDefault();
-      stepHistoryRef.current(event.key === "ArrowLeft" ? -1 : 1);
+      stepHistory(event.key === "ArrowLeft" ? -1 : 1);
     };
     window.addEventListener("mouseup", onMouseUp);
     window.addEventListener("keydown", onKeyDown);
