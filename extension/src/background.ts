@@ -12,9 +12,7 @@ import { CaptureResponseError, buildCaptureDeepLink, postPayloadToLoopback } fro
 const DEFAULT_TITLE = "Save to inkling";
 const MENU_ID = "inkling-save-page";
 
-type LoopbackConfig = { baseUrl: string; token: string };
-
-async function readLoopbackConfig(): Promise<LoopbackConfig | null> {
+async function readLoopbackConfig() {
   const stored = await browser.storage.local.get([BASE_URL_KEY, TOKEN_KEY]);
   const baseUrl = normalizeCaptureServerAddress(stored[BASE_URL_KEY]);
   const token = stored[TOKEN_KEY];
@@ -24,7 +22,7 @@ async function readLoopbackConfig(): Promise<LoopbackConfig | null> {
 
 let successResetTimer: ReturnType<typeof setTimeout> | undefined;
 
-async function showSuccess(title: string): Promise<void> {
+async function showSuccess(title: string) {
   // A second save inside the window must not be cleared by the first save's timer.
   clearTimeout(successResetTimer);
   successResetTimer = setTimeout(() => {
@@ -36,7 +34,7 @@ async function showSuccess(title: string): Promise<void> {
   await browser.action.setTitle({ title });
 }
 
-async function showFailure(message: string): Promise<void> {
+async function showFailure(message: string) {
   // A pending success timer must not clear the failure badge or title.
   clearTimeout(successResetTimer);
   await browser.action.setBadgeBackgroundColor({ color: "#a13b32" });
@@ -44,17 +42,13 @@ async function showFailure(message: string): Promise<void> {
   await browser.action.setTitle({ title: `Couldn't save to inkling: ${message}` });
 }
 
-function captureErrorMessage(error: unknown): string {
-  if (error instanceof CaptureResponseError) {
-    if (error.status === 401)
-      return "check the extension pairing in inkling Settings → Browser extension";
-    if (error.status === 429) return "too many saves; try again in a minute";
-    return `inkling returned HTTP ${error.status}`;
-  }
-  return "open the extension options or check that inkling is installed";
+function captureErrorMessage(status: number) {
+  if (status === 401) return "check the extension pairing in inkling Settings → Browser extension";
+  if (status === 429) return "too many saves; try again in a minute";
+  return `inkling returned HTTP ${status}`;
 }
 
-async function saveUrl(rawUrl: string | undefined, title: string | undefined): Promise<void> {
+async function saveUrl(rawUrl: string | undefined, title: string | undefined) {
   let payload: PageCapturePayloadV1;
   try {
     if (!rawUrl) throw new Error("no page URL");
@@ -72,7 +66,7 @@ async function saveUrl(rawUrl: string | undefined, title: string | undefined): P
       return;
     } catch (error) {
       if (error instanceof CaptureResponseError) {
-        await showFailure(captureErrorMessage(error));
+        await showFailure(captureErrorMessage(error.status));
         return;
       }
     }

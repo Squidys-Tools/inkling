@@ -1,5 +1,4 @@
-import { parseDeepLinkCapture, validateDeepLinkCapture } from "./deepLink";
-import type { DeepLinkCapture } from "./deepLink";
+import { type DeepLinkCapture, validateDeepLinkCapture } from "./deepLink";
 import { summariesFromJobs } from "./processingSummary";
 import type {
   CommandArgs,
@@ -104,7 +103,7 @@ export function installUpdate(expectedVersion: string) {
 let storageInitialization: Promise<StorageStatus | null> | undefined;
 
 export async function initializeStorage() {
-  if (!isDesktopRuntime()) return null;
+  if (!isElectronRuntime()) return null;
   storageInitialization ??= invoke("initialize_storage").catch((error: unknown) => {
     storageInitialization = undefined;
     throw error;
@@ -113,30 +112,30 @@ export async function initializeStorage() {
 }
 
 export async function getAppVersion() {
-  if (!isDesktopRuntime()) return undefined;
+  if (!isElectronRuntime()) return undefined;
   return invoke("get_app_version");
 }
 
 export async function getLibrarySize(refresh = false) {
-  if (!isDesktopRuntime()) return undefined;
+  if (!isElectronRuntime()) return undefined;
   await initializeStorage();
   return invoke("get_library_size", { refresh });
 }
 
 export async function getLastExport() {
-  if (!isDesktopRuntime()) return undefined;
+  if (!isElectronRuntime()) return undefined;
   await initializeStorage();
   return invoke("get_last_export");
 }
 
 export async function showLibraryFolder() {
-  if (!isDesktopRuntime()) return false;
+  if (!isElectronRuntime()) return false;
   await initializeStorage();
   return invoke("show_library_folder");
 }
 
 export async function showItemInFolder(id: string) {
-  if (!isDesktopRuntime()) return false;
+  if (!isElectronRuntime()) return false;
   await initializeStorage();
   return invoke("show_item_in_folder", { id });
 }
@@ -194,7 +193,7 @@ export async function searchSimilarItems(itemId: string, kind: "image" | "text")
 }
 
 export async function listSpaces() {
-  if (!isDesktopRuntime()) return [] satisfies StoredSpace[];
+  if (!isElectronRuntime()) return [] satisfies StoredSpace[];
   return withInitializedStorage(() => invoke("list_spaces"));
 }
 
@@ -279,10 +278,7 @@ export async function deleteItem(id: string) {
   await invoke("delete_item", { id });
 }
 
-// Desktop only: the export needs a native folder picker and storage backend.
 export async function exportLibrary(destination: string) {
-  // The core has no timezone database, so the folder name gets its wall clock
-  // from here: the browser's own offset at export time.
   return invoke("export_library", {
     destination,
     timezoneOffsetMinutes: new Date().getTimezoneOffset(),
@@ -326,7 +322,7 @@ export async function retryProcessingJob(jobId: string) {
 }
 
 export async function getCaptureStatus() {
-  if (!isDesktopRuntime()) return null;
+  if (!isElectronRuntime()) return null;
   return invoke("get_capture_status");
 }
 
@@ -339,13 +335,9 @@ export async function regeneratePairingToken() {
 }
 
 export async function currentDeepLinks() {
-  if (!isDesktopRuntime()) return [] satisfies DeepLinkCapture[];
+  if (!isElectronRuntime()) return [] satisfies DeepLinkCapture[];
   const links = await invoke("plugin:deep-link|get_current");
-  return (links ?? [])
-    .map((link) =>
-      typeof link === "string" ? parseDeepLinkCapture(link) : validateDeepLinkCapture(link),
-    )
-    .filter((link): link is DeepLinkCapture => link !== null);
+  return links.map(validateDeepLinkCapture).filter((link) => link !== null);
 }
 
 export function listenForDeepLinks(handler: (payload: unknown) => void) {

@@ -25,7 +25,7 @@ export function extractWithDefuddle(document: Document, url: string): RawArticle
     title: normalizeText(result.title) || structured.title,
     description: normalizeText(result.description) || structured.description,
     author:
-      normalizeText(structured.author) ||
+      structured.author ||
       normalizeText(extractDocumentAuthor(document)) ||
       normalizeText(result.author),
     publishedDate: normalizePublishedDate(result.published ?? structured.publishedDate ?? null),

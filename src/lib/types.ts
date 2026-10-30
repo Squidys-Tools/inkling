@@ -1,4 +1,4 @@
-import type { ProcessingSummary } from "./libraryApi";
+import type { ProcessingSummary } from "./processingSummary";
 import type { XPostMetadata } from "./ingestion/types";
 import type { VideoLinkEmbed } from "./ingestion/video-links";
 

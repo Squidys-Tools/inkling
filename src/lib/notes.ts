@@ -76,8 +76,8 @@ function htmlTagBoundary(raw: string): string {
 }
 
 // CommonMark recognises a raw tag for inline parsing, and anything else is
-// literal text. A `<` that does not open a tag must survive with the words
-// around it; dropping "prose" between `<` and the next `>` destroyed it.
+// literal text, so a `<` that does not open a tag survives with the words
+// around it.
 function looksLikeTagStart(value: string): boolean {
   return /^<\/?[a-zA-Z]/u.test(value) || /^<![a-zA-Z]/u.test(value) || /^<\?/u.test(value);
 }

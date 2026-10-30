@@ -1,7 +1,9 @@
-import { withHttpsScheme } from "../deepLinkCore.mjs";
 import { UrlIngestionError } from "./errors";
 
 const MAX_URL_LENGTH = 8_192;
+const SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/u;
+const BARE_HOST_RE =
+  /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\.?(:\d+)?(?:\/[^\s]*)?$/u;
 
 export interface HttpUrlOptions {
   allowPrivateNetwork?: boolean;
@@ -100,6 +102,13 @@ function isPrivateNetworkHostname(hostname: string): boolean {
   return isPrivateIpv4(embedded);
 }
 
+// A bare host such as `example.com/path` is saved as https; anything with a
+// scheme or without a dotted host is left for the URL parser to judge.
+function withHttpsScheme(value: string) {
+  const trimmed = value.trim();
+  return SCHEME_RE.test(trimmed) || !BARE_HOST_RE.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 export function parseHttpUrl(input: string, options: HttpUrlOptions = {}): URL {
   const value = withHttpsScheme(input);
 
@@ -142,13 +151,16 @@ export function parseHttpUrl(input: string, options: HttpUrlOptions = {}): URL {
   return parsed;
 }
 
-export function safePublicImageUrl(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
+export function tryParseHttpUrl(input: string, options?: HttpUrlOptions) {
   try {
-    return parseHttpUrl(value).toString();
+    return parseHttpUrl(input, options);
   } catch {
-    return undefined;
+    return null;
   }
+}
+
+export function safePublicImageUrl(value: unknown) {
+  return typeof value === "string" ? tryParseHttpUrl(value)?.toString() : undefined;
 }
 
 export function normalizeHttpUrl(

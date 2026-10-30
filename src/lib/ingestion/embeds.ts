@@ -30,20 +30,19 @@ const SPOTIFY_TYPES = new Set([
 
 const MEDIA_EXTENSION = /\.(?:m3u8|mp3|mp4|ogg|oga|ogv|webm)(?:$|[?#])/i;
 
+function youtubeId(url: URL, pathParts: string[]) {
+  if (url.hostname === "youtu.be") return pathParts.length === 1 ? pathParts[0] : null;
+  if (url.pathname === "/watch") return url.searchParams.get("v");
+  return pathParts.length === 2 && ["shorts", "embed", "live", "v"].includes(pathParts[0])
+    ? pathParts[1]
+    : null;
+}
+
 function providerEmbedUrl(url: URL, provider: SafeEmbedProvider): string | null {
   const pathParts = url.pathname.split("/").filter(Boolean);
 
   if (provider === "youtube") {
-    const id =
-      url.hostname === "youtu.be"
-        ? pathParts.length === 1
-          ? pathParts[0]
-          : null
-        : url.pathname === "/watch"
-          ? url.searchParams.get("v")
-          : ["shorts", "embed", "live", "v"].includes(pathParts[0] ?? "") && pathParts.length === 2
-            ? pathParts[1]
-            : null;
+    const id = youtubeId(url, pathParts);
     return id && /^[a-zA-Z0-9_-]{6,32}$/u.test(id)
       ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}`
       : null;

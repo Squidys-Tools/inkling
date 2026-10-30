@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { createRendererRecovery } from "./renderer-recovery.ts";
-import { parseHttpUrlCore } from "../src/lib/deepLinkCore.mjs";
+import { tryParseHttpUrl } from "../src/lib/ingestion/url.ts";
 import { customWindowChrome } from "./window-chrome.ts";
 
 export function createMainWindow({ preload, query }: { preload: string; query: string }) {
@@ -28,7 +28,7 @@ export function createMainWindow({ preload, query }: { preload: string; query: s
   });
   window.setMenu(null);
   window.webContents.setWindowOpenHandler(({ url }) => {
-    const externalUrl = parseHttpUrlCore(url)?.toString();
+    const externalUrl = tryParseHttpUrl(url, { allowPrivateNetwork: true })?.toString();
     if (externalUrl) void shell.openExternal(externalUrl).catch(() => {});
     return { action: "deny" };
   });

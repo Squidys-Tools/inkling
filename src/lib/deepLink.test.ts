@@ -1,11 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseDeepLinkCaptureCore, parseHttpUrlCore } from "./deepLinkCore.mjs";
-import {
-  DEEP_LINK_ATTRIBUTION_MAX_LENGTH,
-  DEEP_LINK_SELECTION_MAX_LENGTH,
-  parseDeepLinkCapture,
-  validateDeepLinkCapture,
-} from "./deepLink";
+import { parseDeepLinkCapture, validateDeepLinkCapture } from "./deepLink";
 
 describe("parseDeepLinkCapture", () => {
   test("url-only inkling link keeps working", () => {
@@ -14,15 +8,6 @@ describe("parseDeepLinkCapture", () => {
     ).toEqual({
       kind: "url",
       url: "https://example.com/article",
-    });
-  });
-
-  test("ignores the via provenance marker", () => {
-    expect(
-      parseDeepLinkCapture("inkling://capture?url=https%3A%2F%2Fexample.com%2F&via=extension"),
-    ).toEqual({
-      kind: "url",
-      url: "https://example.com/",
     });
   });
 
@@ -100,22 +85,21 @@ describe("parseDeepLinkCapture", () => {
   });
 
   test("selection truncates to the backend-safe limit", () => {
-    const long = "x".repeat(DEEP_LINK_SELECTION_MAX_LENGTH + 500);
+    const long = "x".repeat(2000);
     const parsed = parseDeepLinkCapture(
       `inkling://capture?url=https%3A%2F%2Fexample.com%2F&selection=${long}`,
     );
     expect(parsed?.kind).toBe("quote");
-    if (parsed?.kind === "quote")
-      expect(parsed.selection).toBe("x".repeat(DEEP_LINK_SELECTION_MAX_LENGTH));
+    if (parsed?.kind === "quote") expect(parsed.selection).toBe("x".repeat(1500));
   });
 
   test("attribution truncates to the backend-safe limit", () => {
-    const long = "t".repeat(DEEP_LINK_ATTRIBUTION_MAX_LENGTH + 100);
+    const long = "t".repeat(340);
     const parsed = parseDeepLinkCapture(
       `inkling://capture?url=https%3A%2F%2Fexample.com%2F&title=${long}&selection=keep`,
     );
     if (parsed?.kind === "quote") {
-      expect(parsed.attribution).toBe("t".repeat(DEEP_LINK_ATTRIBUTION_MAX_LENGTH));
+      expect(parsed.attribution).toBe("t".repeat(240));
       expect(parsed.selection).toBe("keep");
     } else {
       throw new Error("expected a quote capture");
@@ -146,21 +130,13 @@ describe("parseDeepLinkCapture", () => {
     expect(parseDeepLinkCapture("not a url")).toBeNull();
   });
 
-  test("accepts the parsed Electron payload only after validating its URLs", () => {
-    const value = "inkling://capture?url=https%3A%2F%2Fexample.com%2F&selection=keep%20this";
-    expect(validateDeepLinkCapture(parseDeepLinkCaptureCore(value))).toEqual(
-      parseDeepLinkCapture(value),
+  test("accepts a capture from the main process only after validating its URLs", () => {
+    const capture = parseDeepLinkCapture(
+      "inkling://capture?url=https%3A%2F%2Fexample.com%2F&selection=keep%20this",
     );
+    expect(validateDeepLinkCapture(capture)).toEqual(capture);
     expect(validateDeepLinkCapture({ kind: "url", url: "file:///etc/passwd" })).toBeNull();
     expect(validateDeepLinkCapture({ kind: "url", url: "https://localhost/private" })).toBeNull();
-  });
-
-  test("shared HTTP URL validation rejects unsafe external targets", () => {
-    expect(parseHttpUrlCore("https://example.com/path")?.toString()).toBe(
-      "https://example.com/path",
-    );
-    expect(parseHttpUrlCore("javascript:alert(1)")).toBeNull();
-    expect(parseHttpUrlCore("file:///etc/passwd")).toBeNull();
-    expect(parseHttpUrlCore("https://user:password@example.com/")).toBeNull();
+    expect(parseDeepLinkCapture("inkling://capture?url=https%3A%2F%2Flocalhost%2F")).toBeNull();
   });
 });
