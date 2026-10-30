@@ -10,7 +10,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { cpus, homedir, loadavg, platform, release } from "node:os";
+import { cpus, loadavg, platform, release, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
 import { parseArgs } from "node:util";
@@ -44,9 +44,7 @@ for (const file of [electron, join(appRoot, "dist/index.html")])
   if (!existsSync(file)) throw new Error(`Missing ${file}. Supply a prebuilt production app.`);
 if (existsSync(output)) throw new Error(`Output already exists: ${output}`);
 mkdirSync(output, { recursive: true });
-const scratchRoot = join(homedir(), ".capy/work");
-mkdirSync(scratchRoot, { recursive: true });
-const library = mkdtempSync(join(scratchRoot, "inkling-grid-bench-"));
+const library = mkdtempSync(join(tmpdir(), "inkling-grid-bench-"));
 const database = join(library, "library.sqlite3");
 
 async function reload(cdp) {
