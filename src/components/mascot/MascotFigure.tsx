@@ -160,11 +160,20 @@ export function MascotFigure({
   );
 }
 
-/**
- * Tight crop for the search field. MascotEyes' tall crop reserves room for every
- * state's motion, which in a 50px bar pins the eyes high.
- */
-const SEARCH_EYES_VIEWBOX = "-14 -88 78 80";
+// Center the painted pair using unblinked bounds, so blinking never pumps the crop.
+export function searchEyesViewBox(frame: BotFrame): string {
+  const bounds = frame.eyes.flatMap((eye) => (eye.bounds ? [eye.bounds] : []));
+  if (!bounds.length) return "-14 -88 78 80";
+  const left = Math.min(...bounds.map((b) => b.left)) - 4;
+  const right = Math.max(...bounds.map((b) => b.right)) + 4;
+  const top = Math.min(...bounds.map((b) => b.top)) - 4;
+  const bottom = Math.max(...bounds.map((b) => b.bottom)) + 4;
+  const width = Math.max(78, right - left, ((bottom - top) * 78) / 80);
+  const height = (width * 80) / 78;
+  const x = (left + right - width) / 2;
+  const y = (top + bottom - height) / 2;
+  return `${x} ${y} ${width} ${height}`;
+}
 
 export function MascotSearchEyes({
   frame,
@@ -181,7 +190,7 @@ export function MascotSearchEyes({
     <svg
       width={size}
       height={(size * 80) / 78}
-      viewBox={SEARCH_EYES_VIEWBOX}
+      viewBox={searchEyesViewBox(frame)}
       preserveAspectRatio="xMidYMid meet"
       role="img"
       aria-label="inkling mascot eyes"

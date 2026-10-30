@@ -18,6 +18,7 @@ interface RenderedEye {
   d: string;
   matrix: string;
   alpha: number;
+  bounds?: { left: number; top: number; right: number; bottom: number };
 }
 
 export interface BotFrame {
@@ -596,7 +597,18 @@ export class BotEngine {
         keepFaceInside(placed, pose.sil, (pose.sil.cx + offX) * R, (pose.sil.cy + offY) * R, R);
       }
       for (const p of placed) {
+        // Unblinked bounds keep a tight search crop from pumping on every blink.
+        const radius = Math.min(p.w, p.h) / 2;
+        const rx =
+          Math.abs(p.ax) * (p.w / 2 - radius) +
+          Math.abs(p.cx) * (p.h / 2 - radius) +
+          radius * Math.hypot(p.ax, p.cx);
+        const ry =
+          Math.abs(p.ay) * (p.w / 2 - radius) +
+          Math.abs(p.cy) * (p.h / 2 - radius) +
+          radius * Math.hypot(p.ay, p.cy);
         eyes.push({
+          bounds: { left: p.x - rx, top: p.y - ry, right: p.x + rx, bottom: p.y + ry },
           d: capsulePath(p.w, p.h),
           matrix: `matrix(${r2(p.ax)},${r2(p.ay * p.k)},${r2(p.cx)},${r2(p.cy * p.k)},${r2(p.x)},${r2(p.y)})`,
           alpha: p.alpha,

@@ -48,10 +48,10 @@ export function SearchField({
       {adornment && (
         <span
           className={cx(
-            "flex h-5 items-center justify-center overflow-hidden text-ink",
+            "flex h-6 flex-none items-center justify-center overflow-hidden text-ink",
             `[&_svg]:block [&_svg]:flex-none [&_svg]:[transition:transform_0.25s_cubic-bezier(0.2,0.8,0.2,1),opacity_0.2s_ease]`,
             expanded
-              ? `w-6 opacity-100 [transition:width_0.25s_cubic-bezier(0.2,0.8,0.2,1),margin-right_0.25s_cubic-bezier(0.2,0.8,0.2,1),opacity_0.2s_ease] [&_svg]:[transform:translateY(1px)] [&_svg]:opacity-100`
+              ? `w-6 opacity-100 [transition:width_0.25s_cubic-bezier(0.2,0.8,0.2,1),margin-right_0.25s_cubic-bezier(0.2,0.8,0.2,1),opacity_0.2s_ease] [&_svg]:opacity-100`
               : `-mr-3 w-0 opacity-0 [transition:width_0.25s_cubic-bezier(0.2,0.8,0.2,1)_0.18s,margin-right_0.25s_cubic-bezier(0.2,0.8,0.2,1)_0.18s,opacity_0.2s_ease_0.18s] [&_svg]:[transform:translateX(-6px)_scale(0.7)] [&_svg]:opacity-0 ${HIDDEN}`,
           )}
           aria-hidden="true"
@@ -61,7 +61,7 @@ export function SearchField({
       )}
       <Input
         className={cx(
-          "min-w-0 flex-1 border-0 bg-transparent text-[14px] text-ink outline-0! placeholder:text-muted",
+          "min-w-0 flex-1 border-0 bg-transparent text-[14px] text-ink outline-0! placeholder:text-muted placeholder:indent-0.5",
           !expanded && HIDDEN,
         )}
         {...inputProps}
