@@ -62,36 +62,30 @@ instead of being cached as immutable. `bun scripts/media-smoke.mjs source <outpu
 records before/after bytes, warm median timings and pixel-error measurements;
 pass the unpacked app directory instead of `source` for packaged-runtime checks.
 
-Settings → General → Updates selects Stable / Beta (`latest`) or experimental
-Nightly (`nightly`). Stable / Beta is the regular beta product, not a third
-prerelease feed. Nightlies require strictly newer dated `-nightly.YYYYMMDD.N`
-versions; switching back never silently downgrades a library. Check, download,
-cancel and install are separate actions. Installation requires explicit native
-confirmation; Debian uses PolicyKit to run its fixed root-owned Python helper.
-After authorization the helper copies the cache archive into private root-owned
-staging, verifies the feed-pinned SHA512 and package/version/architecture there,
-then runs `dpkg --install` only on that copy. Cache rewrites during consent or
-authentication cannot substitute installed bytes. No silent dependency repair
-or authentication bypass is used. A canceled
-prompt or dependency failure remains retryable; a successful new process checks
-the version before treating the update as applied.
-
-The release workflow stages Windows and Linux assets into a **draft** GitHub
-release. A maintainer must review and publish it; unconfigured/unpublished
-channels show a check error, not a fictitious update. GitHub-hosted runners and
-Releases need no new service, but remain subject to account limits. Unsigned
-Windows installers have no Authenticode publisher trust. Never add signing
-secrets or auto-publish as part of local verification. `bun scripts/update-feed-smoke.mjs`
-uses real updater downloads and SHA512 verification from loopback feeds, with
-scratch-only AppImage replacement and Debian metadata checks, never a root
-installation. Pass `.artifacts/electron/linux-unpacked` to use the packaged
-Electron Node runtime instead of source.
-
 `ui:smoke` builds the preview bundle, launches the Electron app with the demo seed
 against a throwaway user-data directory, and drives the core library flows over
 the Chrome DevTools protocol. It writes screenshots to `.artifacts/ui-smoke/`,
 fails on any console error, and exits non-zero with a PASS/FAIL line per check.
 It needs a display; on Linux without one it runs under `xvfb-run`.
+
+## Updates and releases
+
+Settings → General → Updates offers two channels:
+
+- **Stable / Beta** (`latest`) is the regular product. There is no separate beta feed.
+- **Nightly** (`nightly`) accepts only newer `X.Y.Z-nightly.YYYYMMDD.N` versions. Switching back to Stable / Beta never downgrades the app.
+
+Checking, downloading, canceling and installing are separate actions the user takes; nothing downloads or installs on its own. On Debian, PolicyKit runs the root-owned helper `electron/update-helper.py`. It copies the downloaded `.deb` into private staging, verifies the feed's SHA512, package name, version and architecture on that copy, and only then runs `dpkg --install` on it, so a rewrite of the download cache during the authorization prompt cannot change what gets installed. Do not add silent dependency repair or a way around the authorization prompt. After a restart, the app compares its version with the one it tried to install before it reports the update as applied.
+
+To cut a release:
+
+1. Push a `vX.Y.Z` tag, or run the Release workflow with the `stable` channel and a version. Nightlies run daily on a schedule, or run the workflow with the `nightly` channel; their version is the next patch with a `-nightly.YYYYMMDD.<run>` suffix.
+2. The workflow builds the Windows installer and the Linux `.deb` and AppImage, runs the packaged Linux smoke checks, and creates a draft GitHub release.
+3. Review the draft and publish it. Until a channel has a published release, update checks on it show an error.
+
+To test the updater locally, run `bun scripts/update-feed-smoke.mjs`, or pass `.artifacts/electron/linux-unpacked` to run it on the packaged runtime. It downloads from loopback feeds, verifies SHA512, replaces a scratch AppImage and checks Debian metadata, and never installs as root.
+
+Never add signing secrets or publish automatically. The Windows installer is not Authenticode-signed, so SmartScreen warns on install.
 
 ## Checks
 
