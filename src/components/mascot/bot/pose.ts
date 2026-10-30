@@ -58,7 +58,7 @@ export function base(over: Partial<Pose> = {}): Pose {
   };
 }
 
-const lerpEye = (a: EyeCfg, b: EyeCfg, t: number) => ({
+export const lerpEye = (a: EyeCfg, b: EyeCfg, t: number) => ({
   w: lerp(a.w, b.w, t),
   h: lerp(a.h, b.h, t),
   open: lerp(a.open, b.open, t),

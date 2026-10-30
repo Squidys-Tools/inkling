@@ -1,6 +1,6 @@
 import { EYE_H, EYE_SPLIT, EYE_W, REST_GAZE, type HeadGaze } from "./face";
 import { lerp } from "./math";
-import type { EyeCfg } from "./pose";
+import { lerpEye, type EyeCfg } from "./pose";
 
 /**
  * Expression de repos du bot.
@@ -170,13 +170,6 @@ export const EXPRESSIONS: BotExpression[] = [
 export const EXPRESSION_BY_ID = new Map<string, BotExpression>(EXPRESSIONS.map((e) => [e.id, e]));
 export const DEFAULT_EXPRESSION = "neutre";
 
-const lerpEyeCfg = (a: EyeCfg, b: EyeCfg, t: number): EyeCfg => ({
-  w: lerp(a.w, b.w, t),
-  h: lerp(a.h, b.h, t),
-  tilt: lerp(a.tilt ?? 0, b.tilt ?? 0, t),
-  open: lerp(a.open, b.open, t),
-});
-
 /** Interpolation de deux expressions : le changement se fait en glissant. */
 export function blendExpression(a: BotExpression, b: BotExpression, t: number): BotExpression {
   return {
@@ -187,6 +180,6 @@ export function blendExpression(a: BotExpression, b: BotExpression, t: number): 
       roll: lerp(a.gaze.roll, b.gaze.roll, t),
     },
     split: lerp(a.split, b.split, t),
-    eyes: [lerpEyeCfg(a.eyes[0], b.eyes[0], t), lerpEyeCfg(a.eyes[1], b.eyes[1], t)],
+    eyes: [lerpEye(a.eyes[0], b.eyes[0], t), lerpEye(a.eyes[1], b.eyes[1], t)],
   };
 }
