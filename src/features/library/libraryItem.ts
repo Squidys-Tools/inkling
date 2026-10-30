@@ -243,8 +243,8 @@ export function withArticleContent(
 }
 
 // Note bodies are cached so an opened note is not re-fetched and a refresh does
-// not drop a body the list query never carries. Same LRU shape as the asset URL
-// cache: writes re-insert, so the oldest key is the least recently used body.
+// not drop a body the list query never carries. Writes re-insert, so the oldest
+// key is the least recently used body.
 const NOTE_BODY_CACHE_LIMIT = 200;
 export function rememberNoteBody(cache: Map<string, string>, id: string, body: string) {
   cache.delete(id);

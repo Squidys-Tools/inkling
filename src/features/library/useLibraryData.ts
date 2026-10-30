@@ -203,7 +203,7 @@ export function useLibraryData({
     }
 
     void loadItems();
-    // Job events (`inkling:job-updated` in main.mjs) are coalesced, so a burst of
+    // Job events (`inkling:job-updated` in electron/main.ts) are coalesced, so a burst of
     // progress ticks becomes one trailing refresh. The slow fallback survives
     // missed events: a dropped listener must never mean a stale library.
     loadItemsRef.current = loadItems;
