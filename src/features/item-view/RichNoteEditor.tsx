@@ -16,6 +16,7 @@ import {
 import { noteEditorExtensions } from "../../lib/noteMarkdown";
 import { isSafeNoteLink, noteBodyForEditor, noteBodyForStorage } from "../../lib/notes";
 import "./RichNoteEditor.css";
+import { errorMessage } from "../errorMessage";
 
 type RichNoteEditorProps = {
   body?: string;
@@ -186,7 +187,7 @@ export function RichNoteEditor({
       await saveRef.current(nextBody);
       onEditingChange?.(false);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : String(saveError));
+      setError(errorMessage(saveError));
     } finally {
       setIsSaving(false);
     }

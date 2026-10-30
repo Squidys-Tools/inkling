@@ -21,6 +21,7 @@ import {
   readImageDimensions,
   storedItemToLibraryItem,
 } from "../library/libraryItem";
+import { errorMessage } from "../errorMessage";
 
 type CaptureOptions = {
   canUseDesktopBackend: boolean;
@@ -81,7 +82,7 @@ export function useCapture({
   const [fileQueue] = useState(() =>
     createFileImportQueue<File>(setFileImport, (file, error) => {
       setCaptureError(
-        `Couldn’t import ${file.name}: ${error instanceof Error ? error.message : String(error)}. Other files will continue.`,
+        `Couldn’t import ${file.name}: ${errorMessage(error)}. Other files will continue.`,
       );
     }),
   );
@@ -181,7 +182,7 @@ export function useCapture({
       setIsAdding(false);
       setCaptureMode(null);
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      setCaptureError(errorMessage(error));
     } finally {
       setIsCapturing(false);
     }
@@ -193,7 +194,7 @@ export function useCapture({
     try {
       await persistArticle(sourceUrl, "browser extension", title);
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      setCaptureError(errorMessage(error));
     } finally {
       setIsCapturing(false);
     }
@@ -205,7 +206,7 @@ export function useCapture({
     try {
       await persistText(text, captureSource);
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      setCaptureError(errorMessage(error));
     } finally {
       setIsCapturing(false);
     }
@@ -336,9 +337,7 @@ export function useCapture({
       setCaptureError(
         error instanceof DOMException
           ? "Screen capture was canceled or unavailable. You can paste a screenshot from your system tool, or add it with File."
-          : error instanceof Error
-            ? error.message
-            : String(error),
+          : errorMessage(error),
       );
     } finally {
       stream?.getTracks().forEach((track) => {
@@ -449,7 +448,7 @@ export function useCapture({
     }
 
     void connectCaptureEvents().catch((error: unknown) => {
-      if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+      if (!cancelled) setCaptureError(errorMessage(error));
     });
     return () => {
       cancelled = true;
@@ -473,7 +472,7 @@ export function useCapture({
       setCaptureMode(null);
       return true;
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      setCaptureError(errorMessage(error));
       return false;
     } finally {
       addMenuSavingRef.current = false;

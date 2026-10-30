@@ -68,6 +68,7 @@ import { useSpaces } from "./features/spaces/useSpaces";
 import { cx } from "./ui/cx";
 import { Toaster } from "./ui/Toaster";
 import { TooltipLayer } from "./ui/Tooltip";
+import { errorMessage } from "./features/errorMessage";
 
 function App() {
   const canUseDesktopBackend = isDesktopRuntime() && !shouldUseSeedLibrary();
@@ -188,7 +189,7 @@ function App() {
       const retried = await retryProcessingJob(jobId);
       if (!retried) setCaptureError("That processing job is no longer available to retry.");
     } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
+      setCaptureError(errorMessage(error));
     }
   }, []);
 

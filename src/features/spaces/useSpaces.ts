@@ -25,6 +25,7 @@ import {
 import { shouldUseSeedLibrary } from "../../lib/previewMode";
 import type { LibraryItem } from "../../lib/types";
 import { seedSpaceItems, seedSpaces } from "../library/seed";
+import { errorMessage } from "../errorMessage";
 
 const SPACE_COLORS: SpaceColor[] = ["blue", "orange", "green", "pink", "purple", "yellow"];
 
@@ -311,7 +312,7 @@ export function useSpaces({
         if (!cancelled) setSpaces(storedSpaces);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+        if (!cancelled) setCaptureError(errorMessage(error));
       });
     return () => {
       cancelled = true;
@@ -341,7 +342,7 @@ export function useSpaces({
       })
       .catch((error: unknown) => {
         if (superseded()) return;
-        setCaptureError(error instanceof Error ? error.message : String(error));
+        setCaptureError(errorMessage(error));
       });
     return () => {
       cancelled = true;

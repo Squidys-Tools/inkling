@@ -20,6 +20,7 @@ import { shouldUseSeedLibrary } from "../../lib/previewMode";
 import type { LibraryItem } from "../../lib/types";
 import { storedItemToLibraryItem } from "../library/libraryItem";
 import { browserArchivedItems } from "../library/seed";
+import { errorMessage } from "../errorMessage";
 
 // One accepted archive delete: the timer waiting out the undo window, plus the
 // item that timer needs to restore or reconcile if the delete does not land.
@@ -102,7 +103,7 @@ export function useArchive({
         );
       } catch (error) {
         toast.error("Unable to restore this item", { duration: Infinity, closeButton: true });
-        setCaptureError(error instanceof Error ? error.message : String(error));
+        setCaptureError(errorMessage(error));
       }
     },
     [canUseDesktopBackend, cancelPermanentDelete, setCaptureError, setItems, noteBodyCacheRef],
@@ -139,7 +140,7 @@ export function useArchive({
           },
         });
       } catch (error) {
-        setCaptureError(error instanceof Error ? error.message : String(error));
+        setCaptureError(errorMessage(error));
       }
     },
     [canUseDesktopBackend, restoreForgottenItem, setItems, setSelectedItem, setCaptureError],
@@ -168,7 +169,7 @@ export function useArchive({
           setIsArchiveLoaded(true);
         }
       } catch (error) {
-        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+        if (!cancelled) setCaptureError(errorMessage(error));
       }
     }
 
@@ -237,7 +238,7 @@ export function useArchive({
             // would only confuse. An item that is still archived comes back here.
             if (itemsRef.current.some((candidate) => String(candidate.id) === id)) return;
             restoreArchivedItems([item]);
-            setCaptureError(error instanceof Error ? error.message : String(error));
+            setCaptureError(errorMessage(error));
           });
       }, 10000);
       pendingPermanentDeletesRef.current.set(id, pending);
@@ -373,7 +374,7 @@ export function useArchive({
             `${failures} ${failures === 1 ? "item" : "items"} could not be restored. They are still in the archive.`,
           );
       } catch (error) {
-        setCaptureError(error instanceof Error ? error.message : String(error));
+        setCaptureError(errorMessage(error));
       }
     },
     [cancelPermanentDelete, canUseDesktopBackend, setItems, setCaptureError],

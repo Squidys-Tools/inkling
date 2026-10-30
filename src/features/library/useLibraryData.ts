@@ -22,6 +22,7 @@ import { shouldUseSeedLibrary } from "../../lib/previewMode";
 import type { LibraryItem } from "../../lib/types";
 import { storedItemToLibraryItem } from "./libraryItem";
 import { demoSeedItems } from "./seed";
+import { errorMessage } from "../errorMessage";
 
 type LibraryDataOptions = {
   canUseDesktopBackend: boolean;
@@ -150,7 +151,7 @@ export function useLibraryData({
           syncSelectedItem(libraryItems);
         }
       } catch (error) {
-        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+        if (!cancelled) setCaptureError(errorMessage(error));
       } finally {
         loading = false;
         if (queued && !cancelled) {

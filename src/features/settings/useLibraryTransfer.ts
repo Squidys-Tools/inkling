@@ -16,11 +16,12 @@ import {
 import type { LibraryItem } from "../../lib/types";
 import { storedItemToLibraryItem } from "../library/libraryItem";
 import { formatExportSummary, formatImportSummary } from "./format";
+import { errorMessage } from "../errorMessage";
 
 export function showLibraryFolderFromSettings() {
   void showLibraryFolder().catch((error: unknown) => {
     toast.error("Could not open the library folder", {
-      description: error instanceof Error ? error.message : String(error),
+      description: errorMessage(error),
       closeButton: true,
     });
   });
@@ -57,7 +58,7 @@ export function useLibraryTransfer({
       destination = await selectLibraryDirectory("Choose where to save the export");
     } catch (error) {
       toast.error("Could not open the folder picker", {
-        description: error instanceof Error ? error.message : String(error),
+        description: errorMessage(error),
         closeButton: true,
       });
       return;
@@ -87,7 +88,7 @@ export function useLibraryTransfer({
     } catch (error) {
       toast.error("Export failed", {
         id: toastId,
-        description: error instanceof Error ? error.message : String(error),
+        description: errorMessage(error),
         duration: Infinity,
         closeButton: true,
       });
@@ -103,7 +104,7 @@ export function useLibraryTransfer({
       exportDirectory = await selectLibraryDirectory("Choose an Inkling export to restore");
     } catch (error) {
       toast.error("Could not open the export picker", {
-        description: error instanceof Error ? error.message : String(error),
+        description: errorMessage(error),
         closeButton: true,
       });
       return;
@@ -132,12 +133,12 @@ export function useLibraryTransfer({
         setIsArchiveLoaded(true);
         reload();
       } catch (error) {
-        setCaptureError(error instanceof Error ? error.message : String(error));
+        setCaptureError(errorMessage(error));
       }
     } catch (error) {
       toast.error("Import failed", {
         id: toastId,
-        description: error instanceof Error ? error.message : String(error),
+        description: errorMessage(error),
         duration: Infinity,
         closeButton: true,
       });

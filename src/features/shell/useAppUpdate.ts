@@ -10,6 +10,7 @@ import {
   installUpdate,
   setUpdateChannel,
 } from "../../lib/libraryApi";
+import { errorMessage } from "../errorMessage";
 
 type UpdateAction = "check" | "channel" | "download" | "cancel" | "install";
 
@@ -52,7 +53,7 @@ export function useAppUpdate(canUseDesktopBackend: boolean) {
         publish({
           ...PREVIEW_STATE,
           status: "error",
-          message: error instanceof Error ? error.message : String(error),
+          message: errorMessage(error),
           errorContext: "check",
         });
       }
@@ -79,7 +80,7 @@ export function useAppUpdate(canUseDesktopBackend: boolean) {
             publish({
               ...PREVIEW_STATE,
               status: "error",
-              message: error instanceof Error ? error.message : String(error),
+              message: errorMessage(error),
               errorContext: "check",
             });
           }
@@ -143,7 +144,7 @@ export function useAppUpdate(canUseDesktopBackend: boolean) {
           publish({
             ...(snapshot.current ?? PREVIEW_STATE),
             status: "error",
-            message: error instanceof Error ? error.message : String(error),
+            message: errorMessage(error),
             errorContext:
               action === "install"
                 ? "install"

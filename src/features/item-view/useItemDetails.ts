@@ -26,6 +26,7 @@ import {
   storedItemToLibraryItem,
   withArticleContent,
 } from "../library/libraryItem";
+import { errorMessage } from "../errorMessage";
 
 // The backend resolves false when the item has nothing on disk to point at.
 export function showItemInFolderFromOverlay(item: LibraryItem) {
@@ -35,7 +36,7 @@ export function showItemInFolderFromOverlay(item: LibraryItem) {
     })
     .catch((error: unknown) => {
       toast.error("Could not show the item in its folder", {
-        description: error instanceof Error ? error.message : String(error),
+        description: errorMessage(error),
         closeButton: true,
       });
     });
@@ -159,7 +160,7 @@ export function useItemDetails({
         setSelectedItem((current) => (current ? apply(current) : current));
       })
       .catch((error: unknown) => {
-        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+        if (!cancelled) setCaptureError(errorMessage(error));
       })
       .finally(() => {
         noteContentRequestsRef.current.delete(id);
@@ -269,7 +270,7 @@ export function useItemDetails({
       } catch (error) {
         if (requestId === readerRequestIdRef.current) {
           toast.error("Unable to open reader", {
-            description: error instanceof Error ? error.message : String(error),
+            description: errorMessage(error),
           });
         }
       }
