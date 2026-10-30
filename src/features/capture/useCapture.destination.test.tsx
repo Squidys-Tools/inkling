@@ -58,7 +58,7 @@ test("external URL, quote and image deep links enter Everything while in-app cap
           schemaVersion: 9,
         }),
         "plugin:deep-link|get_current": async () => [
-          "inkling://capture?url=https%3A%2F%2Fexample.com%2Finitial",
+          { kind: "url", url: "https://example.com/initial" },
         ],
         capture_url: async ({ input }: { input: Record<string, unknown> }) => item("url", input),
         create_quote: async ({ input }: { input: Record<string, unknown> }) => item("quote", input),

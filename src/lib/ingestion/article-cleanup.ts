@@ -17,9 +17,6 @@ export function promoteInfoAsides(document: Document): void {
   }
 }
 
-// The page title and subtitle/deck usually repeat inside the extracted body.
-// Drop a leading heading that duplicates the title and turn a heading that
-// duplicates the description into a lede paragraph.
 function isDuplicateHeading(headingText: string, title: string): boolean {
   if (!headingText || !title) return false;
   if (headingText === title) return true;
@@ -27,6 +24,9 @@ function isDuplicateHeading(headingText: string, title: string): boolean {
   return title.startsWith(headingText) || headingText.startsWith(title);
 }
 
+// The page title and subtitle/deck usually repeat inside the extracted body.
+// Drop a leading heading that duplicates the title and turn a heading that
+// duplicates the description into a lede paragraph.
 export function cleanArticleHeadings(
   document: Document,
   title: string,

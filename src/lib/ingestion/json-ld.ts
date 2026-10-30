@@ -97,9 +97,9 @@ function mergeMetadata(
   incoming: JsonLdArticleMetadata,
 ): JsonLdArticleMetadata {
   return {
-    title: normalizeText(target.title) || incoming.title,
-    description: normalizeText(target.description) || incoming.description,
-    author: normalizeText(target.author) || incoming.author,
+    title: target.title || incoming.title,
+    description: target.description || incoming.description,
+    author: target.author || incoming.author,
     publishedDate: target.publishedDate || incoming.publishedDate,
     imageUrls: uniqueStrings([...(target.imageUrls ?? []), ...(incoming.imageUrls ?? [])]),
   };

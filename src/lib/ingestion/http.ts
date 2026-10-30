@@ -12,12 +12,12 @@ const MAX_REDIRECTS = 5;
 const MAX_JSON_BYTES = 512 * 1024;
 const USER_AGENT = "inkling/0.1 (+local article capture)";
 
-type Request = {
+export type RequestLimits = {
   timeoutMs: number;
   maxBytes: number;
 };
 
-type PageRequest = Request & { allowPrivateNetwork?: boolean };
+type PageRequest = RequestLimits & { allowPrivateNetwork?: boolean };
 
 // Rate limits, gateway errors, and dropped connections get two more tries inside
 // the caller's time budget. A Retry-After header sets the shortest wait before the next.
@@ -163,7 +163,7 @@ export const downloadPage = (sourceUrl: string, request: PageRequest) =>
 
 // Provider metadata is enrichment only: any failure, including a slow or
 // rate-limited provider, yields null and the capture carries on without it.
-export const fetchJson = (url: string, request: Request) =>
+export const fetchJson = (url: string, request: RequestLimits) =>
   Effect.gen(function* () {
     const client = withRetries(yield* HttpClient.HttpClient);
     const response = yield* client.execute(

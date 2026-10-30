@@ -35,17 +35,10 @@ export function cleanCapturedHtml(html: string, pageUrl: string): string {
     while (element.firstChild) parent.insertBefore(element.firstChild, element);
     element.remove();
   }
-  for (const selector of [
-    "script",
-    "template",
-    "style",
-    "link",
-    "meta",
-    "object",
-    "embed",
-    "form",
-  ]) {
-    for (const element of document.querySelectorAll(selector)) element.remove();
+  for (const element of document.querySelectorAll(
+    "script, template, style, link, meta, object, embed, form",
+  )) {
+    element.remove();
   }
   for (const element of document.querySelectorAll("*")) sanitizeElement(element, pageUrl);
   return document.body?.innerHTML ?? "";
@@ -56,10 +49,8 @@ export function htmlToText(html: string): string {
   return normalizeText(document.body?.textContent);
 }
 
-/** True when the HTML contains any readable text after tags/whitespace are removed. */
-export function hasReadableText(html: string | undefined | null): boolean {
-  if (!html) return false;
-  return htmlToText(html).length > 0;
+export function hasReadableText(html: string | undefined) {
+  return !!html && htmlToText(html).length > 0;
 }
 
 export function collectImageUrls(document: Document, pageUrl: string): string[] {

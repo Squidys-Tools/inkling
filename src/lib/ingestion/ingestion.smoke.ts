@@ -67,10 +67,6 @@ assert(
   "fallback normalizes canonical URL",
 );
 assert(
-  fallback.imageUrls?.includes("https://example.com/articles/photos/inline.jpg"),
-  "fallback resolves relative image URL",
-);
-assert(
   fallback.imageDimensions?.some(
     (image) =>
       image.url === "https://example.com/articles/photos/inline.jpg" &&

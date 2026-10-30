@@ -7,7 +7,7 @@ export class CaptureResponseError extends Error {
   }
 }
 
-export function buildCaptureDeepLink(payload: Pick<PageCapturePayloadV1, "url" | "title">): string {
+export function buildCaptureDeepLink(payload: Pick<PageCapturePayloadV1, "url" | "title">) {
   const params = new URLSearchParams({
     url: payload.url,
     title: payload.title,
@@ -20,7 +20,7 @@ export async function postPayloadToLoopback(
   baseUrl: string,
   token: string,
   payload: PageCapturePayloadV1,
-): Promise<void> {
+) {
   const response = await fetch(`${baseUrl}/v1/captures`, {
     method: "POST",
     headers: {

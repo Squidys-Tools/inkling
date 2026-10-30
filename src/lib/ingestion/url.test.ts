@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isWebUrl, safePublicImageUrl } from "./url";
+import { isWebUrl, safePublicImageUrl, tryParseHttpUrl } from "./url";
 
 describe("URL helpers", () => {
   test("normalizes public HTTP images and rejects private hosts", () => {
@@ -16,6 +16,21 @@ describe("URL helpers", () => {
       "https://user:password@example.com/image.jpg",
     ]) {
       expect(safePublicImageUrl(value)).toBeUndefined();
+    }
+  });
+
+  test("tryParseHttpUrl saves a bare host as https and refuses unsafe targets", () => {
+    expect(tryParseHttpUrl("example.com/path")?.toString()).toBe("https://example.com/path");
+    expect(tryParseHttpUrl("http://localhost/", { allowPrivateNetwork: true })?.toString()).toBe(
+      "http://localhost/",
+    );
+    for (const value of [
+      "javascript:alert(1)",
+      "file:///etc/passwd",
+      "https://user:password@example.com/",
+      "http://localhost/",
+    ]) {
+      expect(tryParseHttpUrl(value)).toBeNull();
     }
   });
 
