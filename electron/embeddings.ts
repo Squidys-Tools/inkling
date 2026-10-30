@@ -1,15 +1,11 @@
-import { createWriteStream } from "node:fs";
-import { mkdir, readFile, rename, rm } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
+import { readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import sharp from "sharp";
 import { Tokenizer } from "@huggingface/tokenizers";
 import * as ort from "onnxruntime-node";
-import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import { IMAGE_DIMENSION, IMAGE_MODEL, TEXT_DIMENSION, TEXT_MODEL } from "./embedding-contract.ts";
+import { downloadModelAsset, hasSha256, type ModelAsset } from "./model-assets.ts";
 import models from "./model-manifest.json" with { type: "json" };
-import { sha256File } from "./storage/shared.ts";
 import { sharpImageInput, validateImageDimensions } from "./thumbnail.ts";
 
 const maxTokens = 8192;
@@ -17,7 +13,6 @@ const imageEdge = 224;
 const imageMean = [0.4814547, 0.4578275, 0.4082107];
 const imageStd = [0.26862954, 0.2613026, 0.2757771];
 
-type ModelAsset = { path: string; url: string; sha256: string };
 type TokenizerLike = {
   encode(
     text: string,
@@ -25,43 +20,16 @@ type TokenizerLike = {
   ): { ids: number[]; token_type_ids?: number[] };
 };
 
-const hasSha256 = (path: string, expected: string) =>
-  sha256File(path).then(
-    (hash) => hash === expected,
-    () => false,
-  );
-
 async function ensureAsset(
   path: string,
-  { url, sha256: expectedHash }: ModelAsset,
+  asset: ModelAsset,
   allowDownload: boolean,
   bundledPath?: string,
 ) {
-  if (await hasSha256(path, expectedHash)) return path;
-  if (bundledPath && (await hasSha256(bundledPath, expectedHash))) return bundledPath;
-
+  if (await hasSha256(path, asset.sha256)) return path;
+  if (bundledPath && (await hasSha256(bundledPath, asset.sha256))) return bundledPath;
   if (!allowDownload) throw new Error("model assets are unavailable for search");
-  await rm(path, { force: true });
-  await mkdir(dirname(path), { recursive: true });
-  const partialPath = `${path}.${process.pid}.part`;
-  try {
-    const response = await fetch(url);
-    if (!response.ok || !response.body) {
-      throw new Error(`model download failed with HTTP ${response.status}`);
-    }
-    await pipeline(
-      Readable.fromWeb(response.body as WebReadableStream<Uint8Array>),
-      createWriteStream(partialPath, { flags: "wx" }),
-    );
-    if ((await sha256File(partialPath)) !== expectedHash) {
-      throw new Error("model asset failed its SHA-256 check");
-    }
-    await rename(partialPath, path);
-    return path;
-  } catch (error) {
-    await rm(partialPath, { force: true });
-    throw error;
-  }
+  return downloadModelAsset(path, asset);
 }
 
 function layerNormalize(vector: Float32Array) {
