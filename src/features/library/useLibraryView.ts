@@ -53,7 +53,7 @@ export function useLibraryView(libraryScrollRef: RefObject<HTMLDivElement | null
           };
           libraryViewAnimationRef.current = gsap.fromTo(
             cards,
-            list ? { opacity: 0, y: -6 } : { opacity: 0, scale: 0.96 },
+            list ? { opacity: 0 } : { opacity: 0, scale: 0.96 },
             {
               opacity: 1,
               y: 0,
