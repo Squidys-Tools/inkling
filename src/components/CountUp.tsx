@@ -13,8 +13,6 @@ import {
   type CSSProperties,
 } from "react";
 
-type Easing = "easeOut" | "linear" | "expo" | "spring";
-
 interface CountUpProps {
   to: number;
   from?: number;
@@ -27,7 +25,6 @@ interface CountUpProps {
   separator?: string;
   prefix?: string;
   suffix?: string;
-  easing?: Easing;
   decimals?: number;
   format?: "standard" | "compact";
   trigger?: "view" | "load";
@@ -59,7 +56,6 @@ type Live = {
   onStart?: () => void;
   onEnd?: () => void;
   model: Roll;
-  easing: Easing;
   duration: number;
   delay: number;
 };
@@ -98,25 +94,7 @@ const smooth = (edge0: number, edge1: number, value: number) => {
 };
 const mod10 = (value: number) => ((value % 10) + 10) % 10;
 
-const makeSpring = (overshoot: number) => {
-  const log = Math.log(Math.min(0.5, Math.max(0.001, overshoot)));
-  const zeta = -log / Math.sqrt(Math.PI * Math.PI + log * log);
-  const damped = Math.PI / 0.52;
-  const natural = damped / Math.sqrt(1 - zeta * zeta);
-  const raw = (t: number) =>
-    1 -
-    Math.exp(-zeta * natural * t) *
-      (Math.cos(damped * t) + ((zeta * natural) / damped) * Math.sin(damped * t));
-  const residual = 1 - raw(1);
-  return (t: number) => (t >= 1 ? 1 : raw(t) + residual * t * t * t);
-};
-
-const EASINGS: Record<Easing, (t: number) => number> = {
-  linear: (t) => t,
-  easeOut: cubicBezier(0.33, 1, 0.68, 1),
-  expo: (t) => (t >= 1 ? 1 : (1 - 2 ** (-10 * t)) / (1 - 2 ** -10)),
-  spring: makeSpring(0.06),
-};
+const ease = cubicBezier(0.33, 1, 0.68, 1);
 
 const getDecimalPlaces = (num: number): number => {
   const str = num.toString();
@@ -226,7 +204,6 @@ export default function CountUp({
   separator = "",
   prefix = "",
   suffix = "",
-  easing = "easeOut",
   decimals,
   format = "standard",
   trigger = "view",
@@ -272,7 +249,6 @@ export default function CountUp({
       onStart,
       onEnd,
       model,
-      easing,
       duration: Math.max(0, duration),
       delay,
     };
@@ -297,7 +273,6 @@ export default function CountUp({
   useEffect(() => {
     const live = latestRef.current;
     if (!play || !live || !ref.current) return undefined;
-    const ease = EASINGS[live.easing] || EASINGS.easeOut;
     const total = live.duration;
     const progress = (t: number) => (total > 0 ? clamp01(t / total) : 1);
 
@@ -318,10 +293,6 @@ export default function CountUp({
           ? Array.from(strip.childNodes, (node) => node.firstChild)
           : ([] as (ChildNode | null)[]),
         width: box ? box.scrollWidth : 0,
-        ease:
-          live.easing === "spring"
-            ? makeSpring(Math.min(0.12, Math.max(0.01, 0.35 / Math.max(1, Math.abs(column.delta)))))
-            : ease,
         base: Math.floor(column.from),
         sigma: 0,
         presence: column.enter ? 0 : 1,
@@ -352,7 +323,7 @@ export default function CountUp({
       columns.forEach((column, index) => {
         if (!column.strip) return;
         const u = clamp01((t - index * stagger) / span);
-        const pos = column.from + column.delta * column.ease(u);
+        const pos = column.from + column.delta * ease(u);
         const base = Math.floor(pos);
         if (base !== column.base) {
           column.base = base;
@@ -365,11 +336,7 @@ export default function CountUp({
         const u0 = Math.max(0, u - 0.004);
         const u1 = Math.min(1, u + 0.004);
         const speed =
-          u1 > u0
-            ? (Math.abs(column.delta) * Math.abs(column.ease(u1) - column.ease(u0))) /
-              (u1 - u0) /
-              span
-            : 0;
+          u1 > u0 ? (Math.abs(column.delta) * Math.abs(ease(u1) - ease(u0))) / (u1 - u0) / span : 0;
         const sigma = u > 0 && u < 1 ? Math.min(cell * 0.05, (speed * cell) / 600) : 0;
         if (Math.abs(sigma - column.sigma) > 0.05 || (sigma === 0 && column.sigma !== 0)) {
           column.sigma = sigma;
