@@ -12,7 +12,7 @@ const TASK_LINK_PATTERN = /#\d+|https?:\/\//u;
 // `owner/repo#123` names an external tracker; a bare `#123` is our own history.
 const BARE_ISSUE_REF_PATTERN = /(?<![\w/&#-])#[1-9]\d{2,4}(?![\w-])/u;
 const CODE_SPAN_PATTERN = /`[^`]*`/gu;
-// Comments grew back as long why-blocks; past this, the reason needs cutting, not more context.
+// AGENTS.md caps a comment at four lines; past that it carries background, not the reason.
 const MAX_COMMENT_LINES = 4;
 const LICENSE_PATTERN = /^!|@license|\bcopyright\b|\bSPDX-License-Identifier\b/iu;
 const JSDOC_TYPE_PATTERN = /^@(?:param|returns?|type|typedef)\s+\{/u;
