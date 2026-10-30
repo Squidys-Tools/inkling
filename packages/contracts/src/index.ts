@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 import type { CommandName } from "./commands.ts";
 
-export { type CommandName, commandChannel, commandNames } from "./commands.ts";
+export type { CommandName } from "./commands.ts";
 
 export type StoredLibraryItem = {
   id: string;
