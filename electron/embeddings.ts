@@ -24,7 +24,6 @@ type TokenizerLike = {
     options: { return_token_type_ids: boolean },
   ): { ids: number[]; token_type_ids?: number[] };
 };
-export type Embedding = { vector: Float32Array; model: string; bytes: Buffer };
 
 async function sha256(path: string) {
   const hash = createHash("sha256");
@@ -211,12 +210,8 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     return ort.InferenceSession.create(await modelAsset(name, model, true));
   }
 
-  async function embedText(
-    text: string,
-    prefix = "search_document:",
-    allowDownload = true,
-  ): Promise<Embedding> {
-    const content = String(text ?? "").trim();
+  async function embedText(text: string, prefix = "search_document:", allowDownload = true) {
+    const content = text.trim();
     if (!content || !hasEmbeddableCharacters(content))
       throw new Error("text contains no embeddable characters");
     const { tokenizer, session } = textRuntime ?? (await loadTextRuntime(allowDownload));
@@ -257,8 +252,8 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     return { vector, model: TEXT_MODEL, bytes: floatVectorBytes(vector) };
   }
 
-  async function embedImage(bytes: Buffer): Promise<Embedding> {
-    if (!bytes?.length) throw new Error("cannot embed empty image");
+  async function embedImage(bytes: Buffer) {
+    if (!bytes.length) throw new Error("cannot embed empty image");
     imageSessionPromise ??= openImageSession().catch((error) => {
       imageSessionPromise = undefined;
       throw error;
