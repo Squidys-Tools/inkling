@@ -100,7 +100,7 @@ test("off by default, enable skips old files, new screenshots save once and Off 
     expect((await f.library.listActiveItems()).length).toBe(0);
     await importer.configure(true);
     await writeFile(join(f.directory, "new.png"), "new screenshot pixels");
-    await until(async () => ((await f.library.listActiveItems()).length) === 1);
+    await until(async () => (await f.library.listActiveItems()).length === 1);
     await writeFile(join(f.directory, "same-pixels.png"), "new screenshot pixels");
     await pause(300);
     expect((await f.library.listActiveItems()).length).toBe(1);
@@ -117,7 +117,7 @@ test("off by default, enable skips old files, new screenshots save once and Off 
     await pause(200);
     expect((await f.library.listActiveItems()).length).toBe(0);
     await writeFile(join(f.directory, "after-on.png"), "post reenable pixels");
-    await until(async () => ((await f.library.listActiveItems()).length) === 1);
+    await until(async () => (await f.library.listActiveItems()).length === 1);
     expect(JSON.parse(await readFile(f.options.preferencesPath, "utf8")).enabled).toBe(true);
   } finally {
     await importer.close();
@@ -132,12 +132,12 @@ test("enabled restart imports offline arrivals without reimporting committed fil
   try {
     await importer.configure(true);
     await writeFile(join(f.directory, "one.png"), "one");
-    await until(async () => ((await f.library.listActiveItems()).length) === 1);
+    await until(async () => (await f.library.listActiveItems()).length === 1);
     await importer.close();
     await writeFile(join(f.directory, "two.png"), "two");
     importer = createScreenshotImporter(f.options);
     expect((await importer.getState()).enabled).toBe(true);
-    await until(async () => ((await f.library.listActiveItems()).length) === 2);
+    await until(async () => (await f.library.listActiveItems()).length === 2);
     expect((await f.library.listActiveItems()).map((x) => x.title).sort()).toEqual([
       "one.png",
       "two.png",
@@ -176,7 +176,7 @@ test("links, oversize, hidden and non-image files are ignored; a rejected image 
     await writeFile(join(f.directory, "note.txt"), "not an image");
     await writeFile(join(f.directory, "bad.png"), "rejected");
     await writeFile(join(f.directory, "good.png"), "valid accepted pixels");
-    await until(async () => ((await f.library.listActiveItems()).length) === 1);
+    await until(async () => (await f.library.listActiveItems()).length === 1);
     expect((await f.library.listActiveItems())[0].title).toBe("good.png");
     // The SQLite commit precedes the scan's checkpoint/status publication.
     await importer.scanNow();
