@@ -1,7 +1,9 @@
 import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { Effect } from "effect";
-import { readItem, type StorageContext } from "./context.ts";
+import { Effect, Predicate } from "effect";
+import type { StorageContext } from "./context.ts";
+import { readItem } from "./rows.ts";
+import { changes, nonEmpty, normalizeHttpUrl, parseJson } from "./shared.ts";
 import { attempt, invalidInput, itemNotFound, storageFailure } from "./errors.ts";
 import {
   IMAGE_PALETTE_JOB,
@@ -9,7 +11,6 @@ import {
   URL_ENRICHMENT_JOB,
   VIDEO_POSTER_JOB,
 } from "./jobs.ts";
-import { changes, isMetadata, nonEmpty, normalizeHttpUrl, parseJson } from "./shared.ts";
 
 export type UrlArticle = {
   canonicalUrl?: unknown;
@@ -28,16 +29,14 @@ export type UrlArticle = {
 
 type Candidate = { rowid: number; id: string };
 
-// Exported so a test can check the query plan walks the kind index without sorting.
-export const pdfThumbnailCandidateSql = `SELECT rowid, id FROM items
-  WHERE kind = 'pdf' AND rowid > ? AND thumbnail_path IS NULL AND local_asset_path != ''
+const missingThumbnailCandidateSql = (kind: "pdf" | "video") => `SELECT rowid, id FROM items
+  WHERE kind = '${kind}' AND rowid > ? AND thumbnail_path IS NULL AND local_asset_path != ''
   AND NOT EXISTS (SELECT 1 FROM jobs WHERE item_id = items.id AND kind = ? AND status = 'failed')
   ORDER BY rowid LIMIT 1`;
 
-const videoPosterCandidateSql = `SELECT rowid, id FROM items
-  WHERE kind = 'video' AND rowid > ? AND thumbnail_path IS NULL AND local_asset_path != ''
-  AND NOT EXISTS (SELECT 1 FROM jobs WHERE item_id = items.id AND kind = ? AND status = 'failed')
-  ORDER BY rowid LIMIT 1`;
+// Exported so a test can check the query plan walks the kind index without sorting.
+export const pdfThumbnailCandidateSql = missingThumbnailCandidateSql("pdf");
+const videoPosterCandidateSql = missingThumbnailCandidateSql("video");
 
 const imagePaletteCandidateSql = `SELECT rowid, id FROM items
   WHERE kind = 'image' AND thumbnail_path IS NOT NULL AND rowid > ?
@@ -59,20 +58,20 @@ export function makeEnrichment(ctx: StorageContext) {
     const [row] = yield* sql<{ metadata: string }>`SELECT metadata FROM items WHERE id = ${id}`;
     if (!row) return yield* itemNotFound(id);
     const parsed = parseJson<unknown>(row.metadata, {});
-    const metadata = isMetadata(parsed) ? parsed : {};
+    const metadata = Predicate.isObject(parsed) ? parsed : {};
     delete metadata.ocrText;
-    metadata.ocrEngine = String(engine);
+    metadata.ocrEngine = engine;
     metadata.ocrCompletedAt = Date.now();
     // Leaves updated_at alone: the library sorts by it, and background OCR
     // finishing should not move a card the user did not touch.
-    yield* sql`UPDATE items SET ocr_text = ${String(text)}, metadata = ${JSON.stringify(metadata)}
+    yield* sql`UPDATE items SET ocr_text = ${text}, metadata = ${JSON.stringify(metadata)}
       WHERE id = ${id} AND (${Number(assetPath === undefined)} = 1 OR local_asset_path = ${assetPath ?? null})`;
   });
 
   const applyUrlEnrichment = Effect.fnUntraced(function* (
     jobId: string,
     workerId: string,
-    article: UrlArticle = {},
+    article: UrlArticle,
   ) {
     const canonicalUrl = yield* normalizeHttpUrl(article.canonicalUrl ?? "");
     const articleTitle = nonEmpty(article.title);
@@ -95,7 +94,7 @@ export function makeEnrichment(ctx: StorageContext) {
         const metadata = { ...item.metadata };
         const pending = metadata.pendingUrlCapture;
         const shouldUseArticleTitle =
-          isMetadata(pending) &&
+          Predicate.isObject(pending) &&
           pending.preserveTitle !== true &&
           item.title === pending.initialTitle;
         delete metadata.pendingUrlCapture;

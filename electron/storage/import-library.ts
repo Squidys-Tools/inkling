@@ -1,32 +1,21 @@
-import {
-  copyFile,
-  lstat,
-  mkdir,
-  mkdtemp,
-  readdir,
-  readFile,
-  realpath,
-  rename,
-  rm,
-  stat,
-} from "node:fs/promises";
+import { copyFile, lstat, mkdir, mkdtemp, realpath, rename, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { Effect } from "effect";
+import { Effect, Predicate } from "effect";
 import type { LibraryImportReport } from "@inkling/contracts";
 import type { StorageContext } from "./context.ts";
+import { withDatabaseFile } from "./database-file.ts";
 import { attempt, invalidInput, storageFailure } from "./errors.ts";
-import { IMAGE_THUMBNAIL_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
-import { openDatabase, SCHEMA_VERSION } from "./schema.ts";
 import {
-  isInside,
-  isMissing,
-  isSafeItemId,
-  isMetadata,
-  isWebUrl,
-  parseJson,
-  sha256File,
-} from "./shared.ts";
+  collectAssetFiles,
+  type Manifest,
+  readManifest,
+  reject,
+  stageExportAssets,
+  verifyExportAssets,
+} from "./export-folder.ts";
+import { IMAGE_THUMBNAIL_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
+import { openDatabase } from "./schema.ts";
+import { isInside, isMissing, isSafeItemId, isWebUrl, parseJson } from "./shared.ts";
 import { normalizeSpaceColor, validateSmartQuery } from "./spaces.ts";
 
 type ImportedItem = {
@@ -70,19 +59,6 @@ type ImportedAnnotation = {
 
 type Exclusion = { space_id: string; item_id: string; excluded_at: number };
 
-type Manifest = {
-  format?: unknown;
-  formatVersion?: unknown;
-  schemaVersion?: unknown;
-  counts?: { items?: unknown; spaces?: unknown; assetFiles?: unknown; skippedAssets?: unknown };
-  skippedAssets?: unknown[];
-  assetFiles?: { path?: unknown; byteLength?: unknown; sha256?: unknown }[];
-};
-
-const reject = (detail: string): never => {
-  throw new Error(`invalid storage input: ${detail}`);
-};
-
 const validateImportedSpace = Effect.fnUntraced(function* (space: ImportedSpace) {
   if (!isSafeItemId(space.id))
     return yield* invalidInput("the export contains an invalid Space id");
@@ -91,200 +67,45 @@ const validateImportedSpace = Effect.fnUntraced(function* (space: ImportedSpace)
   if (space.kind !== "smart" && space.kind !== "regular")
     return yield* invalidInput("the export contains an unsupported Space kind");
   const query = parseJson<unknown>(space.query, null);
-  if (!isMetadata(query)) return yield* invalidInput("the export contains an invalid Space query");
+  if (!Predicate.isObject(query))
+    return yield* invalidInput("the export contains an invalid Space query");
   // Older exports can carry a pin filter; it is accepted and dropped with pins.
   if (Object.keys(query).some((field) => !["text", "kind", "tag", "favorite"].includes(field)))
     return yield* invalidInput("the export contains an unsupported Space query field");
   return { ...space, query: JSON.stringify(yield* validateSmartQuery(query)) };
 });
 
-function readImportStage(databasePath: string) {
-  // Opening migrates the staged copy to the current schema before it is read.
-  const stage = openDatabase(databasePath);
-  try {
-    return {
-      items: stage.db
-        .prepare(`SELECT id, kind, title, description, body, body_format, source_url,
-        source_label, local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
-        archived, favorite FROM items ORDER BY created_at, id`)
-        .all() as ImportedItem[],
-      spaces: stage.db
-        .prepare("SELECT * FROM spaces ORDER BY position, created_at, id")
-        .all() as ImportedSpace[],
-      annotations: stage.db
-        .prepare("SELECT item_id,model,asset_path,caption,tags,removed_tags FROM search_ai")
-        .all() as ImportedAnnotation[],
-      memberships: stage.db
-        .prepare(
-          "SELECT space_id, item_id, added_at FROM space_items ORDER BY added_at, space_id, item_id",
-        )
-        .all() as Membership[],
-      exclusions: stage.db
-        .prepare("SELECT space_id, item_id, excluded_at FROM space_exclusions")
-        .all() as Exclusion[],
-    };
-  } finally {
-    stage.db.close();
-  }
-}
-
-function readExportDatabaseHeader(path: string) {
-  const source = new DatabaseSync(path, { readOnly: true });
-  try {
-    return {
-      schemaVersion: source.prepare("PRAGMA user_version").get()?.user_version,
-      integrity: source.prepare("PRAGMA integrity_check").get()?.integrity_check,
-    };
-  } finally {
-    source.close();
-  }
-}
-
-async function collectAssetFiles(
-  root: string,
-  relativeDirectory = "assets/items",
-  results: string[] = [],
+// Records each directory in `moved` as soon as it lands, so a later failure
+// can remove every one already moved into the library.
+async function moveStagedAssets(
+  stageRoot: string,
+  assetsDirectory: string,
+  items: ReadonlyArray<ImportedItem>,
+  moved: string[],
 ) {
-  const rootInfo = await lstat(root).catch((error) =>
-    isMissing(error) ? null : Promise.reject(error),
-  );
-  if (!rootInfo) return results;
-  if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink())
-    reject("the export contains an unsafe asset directory");
-  for (const entry of await readdir(root, { withFileTypes: true })) {
-    const path = join(root, entry.name);
-    const relativePath = `${relativeDirectory}/${entry.name}`;
-    if (entry.isSymbolicLink()) reject("the export contains a symbolic link in its asset files");
-    if (entry.isDirectory()) await collectAssetFiles(path, relativePath, results);
-    else if (entry.isFile()) results.push(relativePath);
-    else reject("the export contains an unsupported asset file");
-  }
-  return results;
-}
-
-async function verifyExportAsset(exportDirectory: string, itemId: string, relativePath: unknown) {
-  const components = String(relativePath).split("/");
-  if (
-    components.length < 4 ||
-    components[0] !== "assets" ||
-    components[1] !== "items" ||
-    components[2] !== itemId ||
-    components.some(
-      (part) => !part || part === "." || part === ".." || part.includes("\\") || part.includes(":"),
-    )
-  ) {
-    reject(`the export contains an unsafe asset path for item ${itemId}`);
-  }
-  let path = join(exportDirectory, "assets", "items", itemId);
-  for (const [index, component] of components.slice(3).entries()) {
-    path = join(path, component);
-    const info = await lstat(path).catch(() =>
-      reject(`the export is missing a referenced asset: ${relativePath}`),
-    );
-    if (
-      info.isSymbolicLink() ||
-      (index === components.length - 4 ? !info.isFile() : !info.isDirectory())
-    ) {
-      reject(`the export contains an unsafe or invalid asset: ${relativePath}`);
-    }
-  }
-  return path;
-}
-
-async function copyAssetDirectory(source: string, destination: string): Promise<number> {
-  const info = await lstat(source).catch((error) =>
-    isMissing(error) ? null : Promise.reject(error),
-  );
-  if (!info) return 0;
-  if (!info.isDirectory() || info.isSymbolicLink())
-    reject("the export contains an unsafe item asset folder");
-  await mkdir(destination, { recursive: true });
-  let count = 0;
-  for (const entry of await readdir(source, { withFileTypes: true })) {
-    if (entry.isSymbolicLink()) reject("the export contains a symbolic link in its asset files");
-    const from = join(source, entry.name);
-    const to = join(destination, entry.name);
-    if (entry.isDirectory()) count += await copyAssetDirectory(from, to);
-    else if (entry.isFile()) {
-      await copyFile(from, to);
-      count += 1;
-    } else reject("the export contains an unsupported asset file");
-  }
-  return count;
-}
-
-async function readManifest(exportRoot: string): Promise<Manifest> {
-  const manifestPath = join(exportRoot, "manifest.json");
-  const manifestInfo = await lstat(manifestPath).catch(() => null);
-  if (!manifestInfo?.isFile() || manifestInfo.isSymbolicLink())
-    reject("the selected folder is missing manifest.json");
-  const manifest: Manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (manifest.format !== "inkling-export" || manifest.formatVersion !== 1)
-    reject("the selected folder is not a supported Inkling export");
-  const schemaVersion = Number(manifest.schemaVersion);
-  if (!(schemaVersion >= 1 && schemaVersion <= SCHEMA_VERSION))
-    reject("the export was created by an unsupported library version");
-  const skipped = Math.max(
-    Number(manifest.counts?.skippedAssets ?? 0),
-    (manifest.skippedAssets ?? []).length,
-  );
-  if (skipped !== 0) {
-    reject(
-      `this export is incomplete: ${skipped} asset files were skipped during export; create a complete export before restoring it`,
-    );
-  }
-  return manifest;
-}
-
-// Checks every asset the export references against the files on disk and the
-// manifest's hashes. Returns how many files had no integrity record to check.
-async function verifyExportAssets(
-  exportRoot: string,
-  manifest: Manifest,
-  items: ImportedItem[],
-  actualPaths: string[],
-) {
-  const itemIds = new Set(items.map((item) => item.id));
+  const movedItemIds: string[] = [];
   for (const item of items) {
-    for (const assetPath of [item.local_asset_path, item.thumbnail_path].filter(Boolean)) {
-      const path = await verifyExportAsset(exportRoot, item.id, assetPath);
-      if (item.local_asset_path !== assetPath) continue;
-      const expected = parseJson<{ byteLength?: unknown }>(item.metadata, {}).byteLength;
-      if (expected != null && (await stat(path)).size !== Number(expected))
-        reject(`the export contains a damaged asset with an unexpected size: ${assetPath}`);
+    const stagedAssets = join(stageRoot, "assets", "items", item.id);
+    const targetAssets = join(assetsDirectory, item.id);
+    const stagedInfo = await lstat(stagedAssets).catch((error) =>
+      isMissing(error) ? null : Promise.reject(error),
+    );
+    if (stagedInfo?.isDirectory()) {
+      const targetExists = await lstat(targetAssets).then(
+        () => true,
+        () => false,
+      );
+      if (targetExists)
+        reject(`asset files already exist for item ${item.id}; refusing to overwrite them`);
+      await mkdir(dirname(targetAssets), { recursive: true });
+      await rename(stagedAssets, targetAssets);
+      moved.push(targetAssets);
+      movedItemIds.push(item.id);
+    } else if (item.local_asset_path || item.thumbnail_path) {
+      reject(`asset files for item ${item.id} could not be staged`);
     }
   }
-  if (Number(manifest.counts?.assetFiles) !== actualPaths.length)
-    reject("the export manifest asset count does not match its files");
-  if (!Array.isArray(manifest.assetFiles)) return actualPaths.length;
-  if (manifest.assetFiles.length !== actualPaths.length)
-    reject("the export manifest asset list does not match its files");
-  const listedPaths = new Set<string>();
-  for (const asset of manifest.assetFiles) {
-    const assetPath = String(asset.path);
-    const assetItemId = assetPath.split("/")[2];
-    const sha256 = typeof asset.sha256 === "string" ? asset.sha256 : "";
-    if (!itemIds.has(assetItemId) || !/^[0-9a-f]{64}$/i.test(sha256))
-      reject("the export manifest contains an invalid asset entry");
-    const path = await verifyExportAsset(exportRoot, assetItemId, assetPath);
-    if (
-      (await stat(path)).size !== Number(asset.byteLength) ||
-      (await sha256File(path)).toLowerCase() !== sha256.toLowerCase()
-    ) {
-      reject(`the export contains a damaged asset: ${assetPath}`);
-    }
-    if (listedPaths.has(assetPath)) reject("the export manifest contains a duplicate asset path");
-    listedPaths.add(assetPath);
-  }
-  if (actualPaths.some((path) => !listedPaths.has(path)))
-    reject("the export manifest asset list does not match its files");
-  for (const item of items) {
-    for (const path of [item.local_asset_path, item.thumbnail_path]) {
-      if (path && !listedPaths.has(path))
-        reject(`the export manifest is missing an integrity record for asset: ${path}`);
-    }
-  }
-  return 0;
+  return movedItemIds;
 }
 
 const removeDirectories = (directories: string[]) =>
@@ -300,12 +121,12 @@ export function makeImport(ctx: StorageContext) {
     );
 
   const insertStaged = Effect.fnUntraced(function* (
-    items: ImportedItem[],
-    spaces: ImportedSpace[],
-    memberships: Membership[],
-    exclusions: Exclusion[],
+    items: ReadonlyArray<ImportedItem>,
+    spaces: ReadonlyArray<ImportedSpace>,
+    memberships: ReadonlyArray<Membership>,
+    exclusions: ReadonlyArray<Exclusion>,
     assetFilesByItem: Map<string, number>,
-    annotations: ImportedAnnotation[],
+    annotations: ReadonlyArray<ImportedAnnotation>,
   ) {
     const currentItemIds = yield* ids("items");
     const currentSpaceIds = yield* ids("spaces");
@@ -401,10 +222,23 @@ export function makeImport(ctx: StorageContext) {
   ) {
     const stageDatabase = join(stageRoot, "library.sqlite3");
     yield* attempt(() => copyFile(join(exportRoot, "library.sqlite3"), stageDatabase));
-    const stage = yield* Effect.try({
-      try: () => readImportStage(stageDatabase),
+    // Opening migrates the staged copy to the current schema before it is read.
+    yield* Effect.try({
+      try: () => openDatabase(stageDatabase).db.close(),
       catch: (cause) => cause,
     });
+    const stage = yield* withDatabaseFile({ filename: stageDatabase, disableWAL: true }, (staged) =>
+      Effect.all({
+        items: staged<ImportedItem>`SELECT id, kind, title, description, body, body_format,
+          source_url, source_label, local_asset_path, thumbnail_path, ocr_text, metadata,
+          created_at, updated_at, archived, favorite FROM items ORDER BY created_at, id`,
+        spaces: staged<ImportedSpace>`SELECT * FROM spaces ORDER BY position, created_at, id`,
+        memberships: staged<Membership>`SELECT space_id, item_id, added_at FROM space_items
+          ORDER BY added_at, space_id, item_id`,
+        annotations: staged<ImportedAnnotation>`SELECT item_id, model, asset_path, caption, tags, removed_tags FROM search_ai`,
+        exclusions: staged<Exclusion>`SELECT space_id, item_id, excluded_at FROM space_exclusions`,
+      }),
+    );
     const { items, memberships, exclusions } = stage;
     const spaces: ImportedSpace[] = [];
     for (const space of stage.spaces) spaces.push(yield* validateImportedSpace(space));
@@ -446,48 +280,25 @@ export function makeImport(ctx: StorageContext) {
       const itemId = path.split("/")[2];
       assetFileCounts.set(itemId, (assetFileCounts.get(itemId) ?? 0) + 1);
     }
-    yield* attempt(async () => {
-      for (const itemId of itemIds) {
-        if (existingItemIds.has(itemId)) continue;
-        const source = join(exportRoot, "assets", "items", itemId);
-        const isDirectory = await lstat(source).then(
-          (info) => info.isDirectory(),
-          () => false,
-        );
-        if (isDirectory)
-          await copyAssetDirectory(source, join(stageRoot, "assets", "items", itemId));
-      }
-    });
+    const newItems = items.filter((item) => !existingItemIds.has(item.id));
+    yield* attempt(() =>
+      stageExportAssets(
+        exportRoot,
+        stageRoot,
+        newItems.map((item) => item.id),
+      ),
+    );
     const unverifiedAssetFiles = yield* attempt(() =>
       verifyExportAssets(exportRoot, manifest, items, actualPaths),
     );
 
     const movedAssetDirectories: string[] = [];
-    const assetFilesByItem = new Map<string, number>();
-    yield* attempt(async () => {
-      for (const item of items) {
-        if (existingItemIds.has(item.id)) continue;
-        const stagedAssets = join(stageRoot, "assets", "items", item.id);
-        const targetAssets = join(ctx.assetsDirectory, item.id);
-        const stagedInfo = await lstat(stagedAssets).catch((error) =>
-          isMissing(error) ? null : Promise.reject(error),
-        );
-        if (stagedInfo?.isDirectory()) {
-          const targetExists = await lstat(targetAssets).then(
-            () => true,
-            () => false,
-          );
-          if (targetExists)
-            reject(`asset files already exist for item ${item.id}; refusing to overwrite them`);
-          await mkdir(dirname(targetAssets), { recursive: true });
-          await rename(stagedAssets, targetAssets);
-          movedAssetDirectories.push(targetAssets);
-          assetFilesByItem.set(item.id, assetFileCounts.get(item.id) ?? 0);
-        } else if (item.local_asset_path || item.thumbnail_path) {
-          reject(`asset files for item ${item.id} could not be staged`);
-        }
-      }
-    }).pipe(Effect.tapError(() => removeDirectories(movedAssetDirectories)));
+    const movedItemIds = yield* attempt(() =>
+      moveStagedAssets(stageRoot, ctx.assetsDirectory, newItems, movedAssetDirectories),
+    ).pipe(Effect.tapError(() => removeDirectories(movedAssetDirectories)));
+    const assetFilesByItem = new Map(
+      movedItemIds.map((id) => [id, assetFileCounts.get(id) ?? 0] as const),
+    );
 
     const report = yield* sql
       .withTransaction(
@@ -497,10 +308,8 @@ export function makeImport(ctx: StorageContext) {
     return { ...report, unverifiedAssetFiles } satisfies LibraryImportReport;
   });
 
-  const importLibrary = Effect.fnUntraced(function* (exportDirectory: unknown) {
-    const exportRoot = yield* attempt(() =>
-      realpath(String(exportDirectory ?? "")).catch(() => null),
-    );
+  const importLibrary = Effect.fnUntraced(function* (exportDirectory: string) {
+    const exportRoot = yield* attempt(() => realpath(exportDirectory).catch(() => null));
     if (!exportRoot) return yield* invalidInput("choose an existing Inkling export folder");
     const exportInfo = yield* attempt(() => stat(exportRoot));
     if (!exportInfo.isDirectory())
@@ -513,10 +322,18 @@ export function makeImport(ctx: StorageContext) {
     const databaseInfo = yield* attempt(() => lstat(sourceDatabasePath).catch(() => null));
     if (!databaseInfo?.isFile() || databaseInfo.isSymbolicLink())
       return yield* invalidInput("library.sqlite3 must be a regular file");
-    const header = yield* Effect.try({
-      try: () => readExportDatabaseHeader(sourceDatabasePath),
-      catch: (cause) => cause,
-    });
+    const header = yield* withDatabaseFile(
+      { filename: sourceDatabasePath, readonly: true },
+      (source) =>
+        Effect.all({
+          schemaVersion: source<{ user_version: number }>`PRAGMA user_version`.pipe(
+            Effect.map(([row]) => row?.user_version),
+          ),
+          integrity: source<{ integrity_check: string }>`PRAGMA integrity_check`.pipe(
+            Effect.map(([row]) => row?.integrity_check),
+          ),
+        }),
+    );
     if (header.schemaVersion !== manifest.schemaVersion)
       return yield* invalidInput("the export manifest does not match its database");
     if (header.integrity !== "ok")

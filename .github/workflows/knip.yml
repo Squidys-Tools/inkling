@@ -2,7 +2,6 @@ name: Knip
 
 on:
   schedule:
-    # Every other day at 04:30 UTC. Tune to daily (`30 4 * * *`) if PRs are small.
     - cron: "30 4 */2 * *"
   workflow_dispatch:
 

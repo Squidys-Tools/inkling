@@ -1,5 +1,6 @@
 import { Effect } from "effect";
-import { readItem, type StorageContext } from "./context.ts";
+import type { StorageContext } from "./context.ts";
+import { readItem } from "./rows.ts";
 import { invalidInput } from "./errors.ts";
 import {
   CAPTION_MODEL,

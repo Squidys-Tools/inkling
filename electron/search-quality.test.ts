@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { openTestLibrary } from "./storage/test-library.ts";
+import { seedSearchFile } from "./search-fixtures.ts";
 import { CAPTION_MODEL, contentHash } from "./search-core.ts";
 import { escapeFtsQuery, searchFloors, sqlLikePattern } from "./storage/search.ts";
 
@@ -28,7 +29,12 @@ test("visual near-misses do not survive fusion; lexical results remain independe
       ["near-miss", 0.668],
       ["second-target", 0.725],
     ] as const) {
-      await lib.saveFile({ id, fileName: `${id}.png`, kind: "image", bytes: new Uint8Array([1]) });
+      await seedSearchFile(lib, root, {
+        id,
+        fileName: `${id}.png`,
+        kind: "image",
+        bytes: new Uint8Array([1]),
+      });
       const input = await lib.searchInput(id);
       await lib.storeSearchIndex(
         id,
@@ -56,7 +62,7 @@ test("recaption and tag edits cannot revive vectors from replaced image bytes", 
   try {
     for (const partial of [false, true]) {
       const id = partial ? "partial" : "failed";
-      await lib.saveFile({
+      await seedSearchFile(lib, root, {
         id,
         fileName: "neutral.png",
         kind: "image",
@@ -69,7 +75,7 @@ test("recaption and tag edits cannot revive vectors from replaced image bytes", 
         [],
         [{ kind: "image", chunkId: "image:old-bytes", vector: vector() }],
       );
-      const replacement = await lib.saveFile({
+      const replacement = await seedSearchFile(lib, root, {
         id,
         fileName: "neutral.png",
         kind: "image",
@@ -105,7 +111,7 @@ test("caption version migrates in the background without invalidating unchanged 
   const lib = await openTestLibrary(join(root, "library.sqlite3"));
   try {
     const bytes = new Uint8Array([1, 2, 3]);
-    const item = await lib.saveFile({ fileName: "neutral.png", kind: "image", bytes });
+    const item = await seedSearchFile(lib, root, { fileName: "neutral.png", kind: "image", bytes });
     await lib.updateItem({ id: item.id, addTag: "personal" });
     await lib.storeOcrText(item.id, "Receipt A314", "fixture");
     let input = await lib.searchInput(item.id);

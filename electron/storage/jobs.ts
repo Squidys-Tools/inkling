@@ -221,10 +221,10 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
   ) {
     const job = yield* owned(jobId, workerId);
     if (!job) return false;
-    const progressCurrent = Math.max(0, Number(current) || 0);
-    const progressTotal = total == null ? null : Math.max(progressCurrent, Number(total) || 0);
+    const progressCurrent = Math.max(0, current || 0);
+    const progressTotal = total == null ? null : Math.max(progressCurrent, total || 0);
     const updated = yield* sql`UPDATE jobs SET progress_current = ${progressCurrent},
-      progress_total = ${progressTotal}, progress_message = ${message == null ? null : String(message)}
+      progress_total = ${progressTotal}, progress_message = ${message}
       WHERE id = ${jobId} AND status = 'processing' AND worker_id = ${workerId}`.raw;
     if (!changes(updated)) return false;
     yield* announce(job);
@@ -245,22 +245,21 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
     return true;
   });
 
-  const requeue = (condition: Fragment) =>
-    Effect.gen(function* () {
-      const rows = yield* sql.withTransaction(
-        Effect.gen(function* () {
-          const rows = yield* sql<JobOwner>`SELECT item_id, kind FROM jobs
-            WHERE status = 'processing' AND ${condition}`;
-          if (rows.length === 0) return rows;
-          yield* sql`UPDATE jobs SET status = 'pending', started_at = NULL, error_message = NULL,
-            worker_id = NULL, lease_until = NULL, progress_current = 0, progress_message = NULL
-            WHERE status = 'processing' AND ${condition}`;
-          return rows;
-        }),
-      );
-      yield* Effect.forEach(rows, announce, { discard: true });
-      return rows.length;
-    });
+  const requeue = Effect.fnUntraced(function* (condition: Fragment) {
+    const rows = yield* sql.withTransaction(
+      Effect.gen(function* () {
+        const rows = yield* sql<JobOwner>`SELECT item_id, kind FROM jobs
+          WHERE status = 'processing' AND ${condition}`;
+        if (rows.length === 0) return rows;
+        yield* sql`UPDATE jobs SET status = 'pending', started_at = NULL, error_message = NULL,
+          worker_id = NULL, lease_until = NULL, progress_current = 0, progress_message = NULL
+          WHERE status = 'processing' AND ${condition}`;
+        return rows;
+      }),
+    );
+    yield* Effect.forEach(rows, announce, { discard: true });
+    return rows.length;
+  });
 
   // The app holds a single-instance lock, so at startup every processing job
   // belongs to a process that is gone and can be handed back right away.

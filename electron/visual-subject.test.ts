@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { classifyImage, matchesVisualSubject, visualSubjectQuery } from "./visual-subject.ts";
 import { openTestLibrary } from "./storage/test-library.ts";
+import { seedSearchFile } from "./search-fixtures.ts";
 
 const photo = { title: "neutral.png", caption: "A cat sitting by a window.", ocrText: "" };
 test("visual intent is a noun list, not an OCR/document instruction or a breed expansion", () => {
@@ -59,7 +60,7 @@ for (const useFts5 of [true, false]) {
         ["print", "A cat printed on a white shirt."],
         ["actual-cat", "A cat wearing a shirt with a dog printed on it."],
       ]) {
-        const item = await lib.saveFile({
+        const item = await seedSearchFile(lib, root, {
           id,
           fileName: "neutral.png",
           kind: "image",
@@ -104,7 +105,7 @@ for (const useFts5 of [true, false]) {
         ["chat", "A black screen has white words and icons.", "cat dog Discord message"],
         ["car", "A red car on the road.", "cat dog"],
       ]) {
-        const item = await lib.saveFile({
+        const item = await seedSearchFile(lib, root, {
           id,
           fileName: id === "car" ? "cat dog.png" : "neutral.png",
           kind: "image",
@@ -155,7 +156,7 @@ for (const useFts5 of [true, false]) {
       await lib.archiveItem("real-dog");
       expect(await lib.listSpaceItems(space.id)).toEqual([]);
       // Same-name replacement must not reuse a prior caption as visual evidence.
-      await lib.saveFile({
+      await seedSearchFile(lib, root, {
         id: "real-cat",
         fileName: "neutral.png",
         kind: "image",

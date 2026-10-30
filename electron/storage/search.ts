@@ -4,9 +4,10 @@ import type { StoredLibraryCard } from "@inkling/contracts";
 import { IMAGE_MODEL, TEXT_MODEL } from "../embedding-contract.ts";
 import { SEARCH_INDEX, cosine, rankFusion } from "../search-core.ts";
 import { matchesVisualSubject, visualSubjectQuery } from "../visual-subject.ts";
-import { selectCards, type StorageContext } from "./context.ts";
+import type { StorageContext } from "./context.ts";
+import { cardItem, itemFromRow, type ItemRow, qualifiedItemColumns, selectCards } from "./rows.ts";
+import { clampLimit } from "./shared.ts";
 import { invalidInput } from "./errors.ts";
-import { cardItem, clampLimit, type ItemRow, itemFromRow, qualifiedItemColumns } from "./shared.ts";
 
 // Absolute safety floor plus a best-hit margin prevents a broad visual neighbourhood
 // (for example dogs near a cat) from becoming an unbounded result lane.
@@ -29,8 +30,8 @@ export function escapeFtsQuery(query: string) {
     .join(" ");
 }
 
-function decodeFloatVector(blob: Uint8Array | null, dimension: number) {
-  if (!blob || blob.byteLength !== dimension * 4) return null;
+function decodeFloatVector(blob: Uint8Array, dimension: number) {
+  if (blob.byteLength !== dimension * 4) return null;
   const bytes = Buffer.from(blob.buffer, blob.byteOffset, blob.byteLength);
   return Array.from({ length: dimension }, (_, index) => bytes.readFloatLE(index * 4));
 }
@@ -58,17 +59,20 @@ export function makeSearch(ctx: StorageContext) {
     const vector = Buffer.from(bytes);
     if (!Number.isInteger(dimension) || dimension < 1 || vector.length !== dimension * 4)
       return yield* invalidInput("embedding vector dimension does not match its bytes");
-    yield* sql`INSERT INTO item_embeddings(item_id,kind,model,dimension,vector,created_at) VALUES(${itemId},${kind},${model},${dimension},${vector},${Date.now()}) ON CONFLICT(item_id,kind) DO UPDATE SET model = excluded.model,dimension = excluded.dimension,vector = excluded.vector,created_at = excluded.created_at`;
+    yield* sql`INSERT INTO item_embeddings (item_id, kind, model, dimension, vector, created_at)
+      VALUES (${itemId}, ${kind}, ${model}, ${dimension}, ${vector}, ${Date.now()})
+      ON CONFLICT(item_id, kind) DO UPDATE SET model = excluded.model,
+      dimension = excluded.dimension, vector = excluded.vector, created_at = excluded.created_at`;
   });
 
   const searchItems = Effect.fnUntraced(function* (
-    query: unknown,
-    limit: unknown = 100,
+    query: string,
+    limit = 100,
     queryVector: QueryVector = null,
     scope: Fragment = sql`1 = 1`,
   ) {
-    const search = String(query ?? "").trim(),
-      cap = clampLimit(limit, 100, 200);
+    const search = query.trim();
+    const cap = clampLimit(limit, 100, 200);
     if (!search) return yield* selectCards(ctx, sql`archived = 0`, cap);
     const subjects = visualSubjectQuery(search);
     let visibleSubjects: string[] = [];
@@ -183,7 +187,7 @@ export function makeSearch(ctx: StorageContext) {
   const searchSimilar = Effect.fnUntraced(function* (
     itemId: string,
     kind: "image" | "text",
-    limit: unknown = 12,
+    limit = 12,
   ) {
     const [current] = yield* sql<{
       dimension: number;

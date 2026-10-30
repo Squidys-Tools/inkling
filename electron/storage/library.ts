@@ -30,19 +30,17 @@ export { markdownToPlainText } from "./shared.ts";
 export function resolveLibraryDataDirectory({
   executablePath,
   appDataDirectory,
-  identifier = "com.inkling.library",
   portable = false,
   overrideDirectory,
 }: {
   executablePath: string;
   appDataDirectory: string;
-  identifier?: string;
   portable?: boolean;
   overrideDirectory?: string | null;
 }) {
   if (portable) return join(dirname(executablePath), "data");
   if (overrideDirectory) return resolve(overrideDirectory);
-  return join(appDataDirectory, identifier);
+  return join(appDataDirectory, "com.inkling.library");
 }
 
 export type LibraryOptions = {

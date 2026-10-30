@@ -1,24 +1,12 @@
-# Logs
-logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
 node_modules
 dist
-dist-ssr
 *.local
 .artifacts/
 
 # Benchmark run artifacts (only results-latest.json and summary.md are tracked)
 benchmarks/results/results-*.json
 !benchmarks/results/results-latest.json
-
-# tesseract.js language data cache (regenerated at runtime in the working dir)
-eng.traineddata
 
 # Agent scratch and implementation plans stay out of the repo
 .plans/

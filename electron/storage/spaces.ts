@@ -1,28 +1,19 @@
 import { randomUUID } from "node:crypto";
-import { Effect } from "effect";
-import type {
-  CreateSpaceInput,
-  SmartSpaceQuery,
+import { Effect, Predicate } from "effect";
+import {
+  type CreateSpaceInput,
+  type SmartSpaceQuery,
   SpaceColor,
-  StoredSpace,
-  UpdateSpaceInput,
+  type StoredSpace,
+  type UpdateSpaceInput,
 } from "@inkling/contracts";
 import type { Fragment } from "effect/sql/Statement";
-import { readItem, type StorageContext } from "./context.ts";
+import type { StorageContext } from "./context.ts";
+import { cardFromRow, type ItemRow, qualifiedItemColumns, readItem } from "./rows.ts";
+import { changes, clampLimit, nonEmpty, parseJson } from "./shared.ts";
 import { invalidInput, itemNotFound, spaceNotFound } from "./errors.ts";
 import { visualSubjectQuery } from "../visual-subject.ts";
-import type { QueryVector } from "./search.ts";
-import type { makeSearch } from "./search.ts";
-import {
-  cardFromRow,
-  changes,
-  clampLimit,
-  type ItemRow,
-  isMetadata,
-  nonEmpty,
-  parseJson,
-  qualifiedItemColumns,
-} from "./shared.ts";
+import type { makeSearch, QueryVector } from "./search.ts";
 
 type SpaceRow = {
   id: string;
@@ -35,8 +26,6 @@ type SpaceRow = {
   updated_at: number;
   item_count?: number | null;
 };
-
-const spaceColors = ["blue", "orange", "green", "pink", "purple", "yellow"] as const;
 
 // Older sidebar-created Smart Spaces saved {} when no search was active,
 // accidentally becoming Everything. Evaluate their name as the missing intent,
@@ -59,14 +48,12 @@ function spaceFromRow(row: SpaceRow): StoredSpace {
     position: row.position,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    ...(row.kind === "regular" && row.item_count != null
-      ? { itemCount: Number(row.item_count) }
-      : {}),
+    ...(row.kind === "regular" && row.item_count != null ? { itemCount: row.item_count } : {}),
   };
 }
 
 export const validateSmartQuery = Effect.fnUntraced(function* (query: unknown = {}) {
-  if (!isMetadata(query)) return yield* invalidInput("Space query must be an object");
+  if (!Predicate.isObject(query)) return yield* invalidInput("Space query must be an object");
   const clean = Effect.fnUntraced(function* (value: unknown, field: string, max: number) {
     if (value == null) return undefined;
     if (typeof value !== "string") return yield* invalidInput(`${field} must be text`);
@@ -82,8 +69,8 @@ export const validateSmartQuery = Effect.fnUntraced(function* (query: unknown = 
   };
 });
 
-const normalizeSpaceName = Effect.fnUntraced(function* (name: unknown) {
-  const normalized = String(name ?? "").trim();
+const normalizeSpaceName = Effect.fnUntraced(function* (name: string) {
+  const normalized = name.trim();
   if (!normalized) return yield* invalidInput("space name cannot be empty");
   if (Buffer.byteLength(normalized) > 80)
     return yield* invalidInput("space name must be at most 80 characters");
@@ -92,7 +79,7 @@ const normalizeSpaceName = Effect.fnUntraced(function* (name: unknown) {
 
 export function normalizeSpaceColor(color: unknown): SpaceColor {
   const normalized = nonEmpty(color)?.toLowerCase();
-  return spaceColors.find((value) => value === normalized) ?? "blue";
+  return SpaceColor.literals.find((value) => value === normalized) ?? "blue";
 }
 
 export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSearch>) {
@@ -120,8 +107,6 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
   const createSpace = Effect.fnUntraced(function* (input: CreateSpaceInput) {
     const name = yield* normalizeSpaceName(input.name);
     const kind = input.kind ?? "smart";
-    if (kind !== "smart" && kind !== "regular")
-      return yield* invalidInput("Space kind must be smart or regular");
     const query = kind === "regular" ? {} : yield* validateSmartQuery(input.query);
     const id = randomUUID();
     const now = Date.now();
@@ -195,7 +180,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
 
   const listSpaceItems = Effect.fnUntraced(function* (
     id: string,
-    limit: unknown = 100,
+    limit = 100,
     queryVector: QueryVector = null,
   ) {
     const space = yield* getSpace(id);

@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { openTestLibrary } from "./storage/test-library.ts";
+import { seedSearchFile } from "./search-fixtures.ts";
 import { floatVectorBytes } from "./embeddings.ts";
 import { TEXT_MODEL } from "./embedding-contract.ts";
 import { SEARCH_INDEX } from "./search-core.ts";
@@ -12,23 +13,24 @@ const unit = () => {
   return v;
 };
 
-test("same-id same-filename replacement cannot resurrect previous caption, PDF pages or OCR", async () => {
+test("replaced asset references cannot resurrect previous caption, PDF pages or OCR", async () => {
   const root = mkdtempSync(join(tmpdir(), "inkling-asset-generation-"));
   const library = await openTestLibrary(join(root, "library.sqlite3"));
   try {
     for (const kind of ["image", "pdf"] as const) {
-      const original = await library.saveFile({
+      const original = await seedSearchFile(library, root, {
         id: kind,
         fileName: "same.bin",
         kind,
         bytes: Buffer.from("original bytes"),
       });
-      const replacement = await library.saveFile({
+      const replacement = await seedSearchFile(library, root, {
         id: kind,
         fileName: "same.bin",
         kind,
         bytes: Buffer.from("replacement bytes"),
       });
+      if (!original.localAssetPath || !replacement.localAssetPath) throw Error("asset missing");
       expect(replacement.localAssetPath).not.toBe(original.localAssetPath);
       expect(readFileSync(await library.resolveAssetPath(original.localAssetPath), "utf8")).toBe(
         "original bytes",

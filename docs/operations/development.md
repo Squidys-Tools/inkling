@@ -20,8 +20,6 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 | Windows NSIS installer | `bun run build:installer` |
 | Linux Debian package and AppImage | `bun run build:linux` |
 | Ingestion smoke | `bun run ingest:smoke` |
-| UI smoke (Electron, scratch profile) | `bun run ui:smoke` |
-| PDF smoke | `bun run test:pdf` |
 | Extraction benchmark | `bun run bench` |
 
 `build` keeps the committed demo seed, because the web preview and `preview` need
@@ -33,11 +31,6 @@ app ships, change `build:app`, not `build`.
 
 Packaged builds bundle the embedding models; [models.md](../models.md) covers how
 development builds fetch them.
-
-`ui:smoke` launches the Electron app with the demo seed against a throwaway
-user-data directory and drives the core library flows over the Chrome DevTools
-protocol. It writes screenshots to `.artifacts/ui-smoke/` and fails on any console
-error. It needs a display; on Linux without one it runs under `xvfb-run`.
 
 ## Linux packages
 
@@ -79,7 +72,7 @@ Never add signing secrets or publish automatically. The Windows installer is not
 |---|---|---|
 | Everything | `bun run check` | Every gate CI runs, in one command |
 | Changed files | `bun run check:changed [ref]` | Lint, format, related tests, Knip and typecheck for what changed since `origin/main` or `ref`. Run it before pushing; it does not replace CI |
-| Typecheck | `bun run typecheck` | App, benchmark harness, and `electron/` |
+| Typecheck | `bun run typecheck` | App, `electron/`, and the benchmarks, scripts and lint plugin |
 | Tests | `bun run test` | |
 | Unused code | `bun run knip` | To clean up, run `bunx knip --fix`, then `bun install` to re-sync the lockfile, then fix any `noUnusedLocals` errors |
 | Lint and format | `bun run lint` (`bun run lint:fix` to apply) | oxlint, with inkling rules in `oxlint-plugin-inkling/`, then oxfmt |
