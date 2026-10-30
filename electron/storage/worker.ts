@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Cause, Duration, Effect, Exit, PubSub } from "effect";
+import { Cause, Duration, Effect, Exit, PubSub, Schedule } from "effect";
 import { errorMessage } from "./errors.ts";
 import { type Job, JOB_LEASE_MILLIS, JobQueue } from "./jobs.ts";
 
@@ -40,7 +40,7 @@ export const makeWorker = Effect.fnUntraced(function* <R>({
   const heartbeat = (job: Job) =>
     jobs
       .renew(job.id, workerId)
-      .pipe(Effect.ignore, Effect.delay(Duration.millis(JOB_LEASE_MILLIS / 2)), Effect.forever);
+      .pipe(Effect.ignore, Effect.schedule(Schedule.spaced(Duration.millis(JOB_LEASE_MILLIS / 2))));
 
   const process = (job: Job) => {
     const duration = timeouts[job.kind] ?? defaultTimeout;
