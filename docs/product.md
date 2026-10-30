@@ -8,7 +8,7 @@ adaptive
 
 ## Stack
 
-delegated: Windows-first Electron desktop application with a React/TypeScript frontend, Node.js main process, and SQLite local storage; keep domain boundaries portable for a future web version.
+delegated: Windows-first Electron desktop application, with Linux packages, a React/TypeScript frontend, a Node.js main process, and SQLite local storage; keep domain boundaries portable for a future web version.
 
 ## Users
 
@@ -32,9 +32,8 @@ The primary experience is a Windows desktop application used during browsing, re
 - Render specialized card types rather than generic bookmarks.
 - Provide exact, OCR, structured, semantic, and visual search over local content.
 - Provide manual and automatically updated Spaces.
-- Provide article reading and Focus Mode over time.
-- Use Tesseract for OCR and Defuddle for article extraction.
-- Prefer local processing on Windows and support CPU-only operation.
+- Provide article reading and Focus Mode.
+- Process locally and support CPU-only operation.
 
 ## Brand Commitments
 
@@ -44,10 +43,10 @@ The primary experience is a Windows desktop application used during browsing, re
 
 ## Evidence on Hand
 
-- Product behavior specification: `product-behavior.md`
-- Technical decisions: `tech-stack.md`
-- Benchmark plan: `benchmarks/README.md`
-- The repository has an established visual system and a complete Electron desktop shell.
+- Product behavior specification: [product-behavior.md](product-behavior.md)
+- Visual system: [design.md](design.md)
+- Technical decisions: [tech-stack.md](tech-stack.md)
+- Benchmark corpus and harness: [benchmarks/README.md](../benchmarks/README.md)
 
 ## Product Principles
 
