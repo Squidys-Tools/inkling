@@ -7,6 +7,7 @@ import {
   type ServerResponse,
 } from "node:http";
 import { dirname, join } from "node:path";
+import { Schema } from "effect";
 
 export const MAX_JSON_BYTES = 5 * 1024 * 1024;
 const MAX_HEAD_BYTES = 64 * 1024;
@@ -43,53 +44,28 @@ function checkLength(value: string | null | undefined, max: number, field: strin
   }
 }
 
-function hasStringField(request: Record<string, unknown>, key: string, optional = false) {
-  if (!Object.hasOwn(request, key)) return optional;
-  return typeof request[key] === "string";
-}
-
-type CapturePayload = {
-  version: number;
-  kind: string;
-  url: string;
-  title?: string;
-  defuddledHtml?: string;
-  text?: string;
-  author?: string | null;
-  publishedDate?: string | null;
-  imageUrls?: string[];
-};
+const CapturePayload = Schema.fromJsonString(
+  Schema.Struct({
+    version: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 255 })),
+    kind: Schema.String,
+    url: Schema.String,
+    title: Schema.optionalKey(Schema.String),
+    defuddledHtml: Schema.optionalKey(Schema.String),
+    text: Schema.optionalKey(Schema.String),
+    author: Schema.optionalKey(Schema.NullOr(Schema.String)),
+    publishedDate: Schema.optionalKey(Schema.NullOr(Schema.String)),
+    imageUrls: Schema.optionalKey(Schema.Array(Schema.String)),
+  }),
+);
+const decodeCapturePayload = Schema.decodeUnknownSync(CapturePayload);
 
 function validateCapturePayload(body: Uint8Array) {
-  let parsed: unknown;
+  let request: typeof CapturePayload.Type;
   try {
-    parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body));
+    request = decodeCapturePayload(new TextDecoder("utf-8", { fatal: true }).decode(body));
   } catch {
     throw new Error("request body must be a JSON capture object");
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("request body must be a JSON capture object");
-  }
-  const fields = parsed as Record<string, unknown>;
-  if (
-    typeof fields.version !== "number" ||
-    !Number.isInteger(fields.version) ||
-    fields.version < 0 ||
-    fields.version > 255 ||
-    !hasStringField(fields, "kind") ||
-    !hasStringField(fields, "url") ||
-    !hasStringField(fields, "title", true) ||
-    !hasStringField(fields, "defuddledHtml", true) ||
-    !hasStringField(fields, "text", true) ||
-    (!hasStringField(fields, "author", true) && fields.author !== null) ||
-    (!hasStringField(fields, "publishedDate", true) && fields.publishedDate !== null) ||
-    (Object.hasOwn(fields, "imageUrls") &&
-      (!Array.isArray(fields.imageUrls) ||
-        !fields.imageUrls.every((value) => typeof value === "string")))
-  ) {
-    throw new Error("request body must be a JSON capture object");
-  }
-  const request = fields as CapturePayload;
   if (request.version !== 1) throw new Error("unsupported payload version");
   if (request.kind !== "page") throw new Error("unsupported payload kind");
 

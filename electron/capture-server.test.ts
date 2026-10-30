@@ -132,6 +132,9 @@ describe("capture server parity", () => {
       { version: 1, kind: "selection", url: "https://example.com/" },
       { version: 1, kind: "page", url: "https://example.com/", author: "a".repeat(241) },
       { version: 1, kind: "page", url: "https://example.com/", imageUrls: [1] },
+      { version: 1.5, kind: "page", url: "https://example.com/" },
+      { version: 1, kind: "page", url: "https://example.com/", title: 5 },
+      [],
       null,
     ]) {
       expect(() =>
