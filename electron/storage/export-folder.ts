@@ -1,6 +1,5 @@
 import { copyFile, lstat, mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { SCHEMA_VERSION } from "./schema.ts";
 import { isMissing, parseJson, sha256File } from "./shared.ts";
 
@@ -23,18 +22,6 @@ type ExportedItem = {
 export const reject = (detail: string): never => {
   throw new Error(`invalid storage input: ${detail}`);
 };
-
-export function readExportDatabaseHeader(path: string) {
-  const source = new DatabaseSync(path, { readOnly: true });
-  try {
-    return {
-      schemaVersion: source.prepare("PRAGMA user_version").get()?.user_version,
-      integrity: source.prepare("PRAGMA integrity_check").get()?.integrity_check,
-    };
-  } finally {
-    source.close();
-  }
-}
 
 export async function collectAssetFiles(
   root: string,
@@ -137,7 +124,7 @@ export async function readManifest(exportRoot: string): Promise<Manifest> {
 export async function verifyExportAssets(
   exportRoot: string,
   manifest: Manifest,
-  items: ExportedItem[],
+  items: ReadonlyArray<ExportedItem>,
   actualPaths: string[],
 ) {
   const itemIds = new Set(items.map((item) => item.id));

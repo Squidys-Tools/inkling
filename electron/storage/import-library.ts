@@ -3,12 +3,12 @@ import { dirname, join } from "node:path";
 import { Effect, Predicate } from "effect";
 import type { LibraryImportReport } from "@inkling/contracts";
 import type { StorageContext } from "./context.ts";
+import { withDatabaseFile } from "./database-file.ts";
 import { attempt, invalidInput, storageFailure } from "./errors.ts";
 import {
   collectAssetFiles,
   copyAssetDirectory,
   type Manifest,
-  readExportDatabaseHeader,
   readManifest,
   reject,
   verifyExportAssets,
@@ -65,30 +65,6 @@ const validateImportedSpace = Effect.fnUntraced(function* (space: ImportedSpace)
   return { ...space, query: JSON.stringify(yield* validateSmartQuery(query)) };
 });
 
-function readImportStage(databasePath: string) {
-  // Opening migrates the staged copy to the current schema before it is read.
-  const stage = openDatabase(databasePath);
-  try {
-    return {
-      items: stage.db
-        .prepare(`SELECT id, kind, title, description, body, body_format, source_url,
-        source_label, local_asset_path, thumbnail_path, ocr_text, metadata, created_at, updated_at,
-        archived, favorite FROM items ORDER BY created_at, id`)
-        .all() as ImportedItem[],
-      spaces: stage.db
-        .prepare("SELECT * FROM spaces ORDER BY position, created_at, id")
-        .all() as ImportedSpace[],
-      memberships: stage.db
-        .prepare(
-          "SELECT space_id, item_id, added_at FROM space_items ORDER BY added_at, space_id, item_id",
-        )
-        .all() as Membership[],
-    };
-  } finally {
-    stage.db.close();
-  }
-}
-
 const removeDirectories = (directories: string[]) =>
   attempt(async () => {
     for (const directory of directories) await rm(directory, { recursive: true, force: true });
@@ -102,9 +78,9 @@ export function makeImport(ctx: StorageContext) {
     );
 
   const insertStaged = Effect.fnUntraced(function* (
-    items: ImportedItem[],
-    spaces: ImportedSpace[],
-    memberships: Membership[],
+    items: ReadonlyArray<ImportedItem>,
+    spaces: ReadonlyArray<ImportedSpace>,
+    memberships: ReadonlyArray<Membership>,
     assetFilesByItem: Map<string, number>,
   ) {
     const currentItemIds = yield* ids("items");
@@ -179,10 +155,21 @@ export function makeImport(ctx: StorageContext) {
   ) {
     const stageDatabase = join(stageRoot, "library.sqlite3");
     yield* attempt(() => copyFile(join(exportRoot, "library.sqlite3"), stageDatabase));
-    const stage = yield* Effect.try({
-      try: () => readImportStage(stageDatabase),
+    // Opening migrates the staged copy to the current schema before it is read.
+    yield* Effect.try({
+      try: () => openDatabase(stageDatabase).db.close(),
       catch: (cause) => cause,
     });
+    const stage = yield* withDatabaseFile({ filename: stageDatabase, disableWAL: true }, (staged) =>
+      Effect.all({
+        items: staged<ImportedItem>`SELECT id, kind, title, description, body, body_format,
+          source_url, source_label, local_asset_path, thumbnail_path, ocr_text, metadata,
+          created_at, updated_at, archived, favorite FROM items ORDER BY created_at, id`,
+        spaces: staged<ImportedSpace>`SELECT * FROM spaces ORDER BY position, created_at, id`,
+        memberships: staged<Membership>`SELECT space_id, item_id, added_at FROM space_items
+          ORDER BY added_at, space_id, item_id`,
+      }),
+    );
     const { items, memberships } = stage;
     const spaces: ImportedSpace[] = [];
     for (const space of stage.spaces) spaces.push(yield* validateImportedSpace(space));
@@ -277,10 +264,18 @@ export function makeImport(ctx: StorageContext) {
     const databaseInfo = yield* attempt(() => lstat(sourceDatabasePath).catch(() => null));
     if (!databaseInfo?.isFile() || databaseInfo.isSymbolicLink())
       return yield* invalidInput("library.sqlite3 must be a regular file");
-    const header = yield* Effect.try({
-      try: () => readExportDatabaseHeader(sourceDatabasePath),
-      catch: (cause) => cause,
-    });
+    const header = yield* withDatabaseFile(
+      { filename: sourceDatabasePath, readonly: true },
+      (source) =>
+        Effect.all({
+          schemaVersion: source<{ user_version: number }>`PRAGMA user_version`.pipe(
+            Effect.map(([row]) => row?.user_version),
+          ),
+          integrity: source<{ integrity_check: string }>`PRAGMA integrity_check`.pipe(
+            Effect.map(([row]) => row?.integrity_check),
+          ),
+        }),
+    );
     if (header.schemaVersion !== manifest.schemaVersion)
       return yield* invalidInput("the export manifest does not match its database");
     if (header.integrity !== "ok")
