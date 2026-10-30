@@ -23,7 +23,7 @@ function job(overrides: Partial<ProcessingJob>): ProcessingJob {
 
 test("groups jobs by item and summarizes each", () => {
   const summaries = summariesFromJobs(
-    ["a", "b"],
+    ["a", "b", "c"],
     [
       job({ id: "1", itemId: "a", kind: "generate_embedding", status: "completed" }),
       job({
@@ -36,6 +36,7 @@ test("groups jobs by item and summarizes each", () => {
         progressMessage: "OCR",
       }),
       job({ id: "3", itemId: "b", status: "failed", errorMessage: "boom" }),
+      job({ id: "4", itemId: "c", kind: "generate_embedding" }),
     ],
   );
   const a = summaries.get("a");
@@ -49,6 +50,7 @@ test("groups jobs by item and summarizes each", () => {
   expect(b?.active).toBe(false);
   expect(b?.failedJob?.errorMessage).toBe("boom");
   expect(b?.hasOcrJob).toBe(true);
+  expect(summaries.get("c")?.hasOcrJob).toBe(false);
 });
 
 test("items without jobs get a quiet default summary", () => {
@@ -58,14 +60,6 @@ test("items without jobs get a quiet default summary", () => {
   expect(summary?.total).toBe(0);
   expect(summary?.hasOcrJob).toBe(false);
   expect(summary?.failedJob).toBe(null);
-});
-
-test("processing summaries distinguish OCR jobs from embedding jobs", () => {
-  const summaries = summariesFromJobs(
-    ["image"],
-    [job({ itemId: "image", kind: "generate_embedding", status: "completed" })],
-  );
-  expect(summaries.get("image")?.hasOcrJob).toBe(false);
 });
 
 test("the newest failed job surfaces for its item", () => {
