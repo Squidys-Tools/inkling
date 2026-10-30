@@ -4,13 +4,11 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
-  useRef,
   useState,
 } from "react";
 import { toast } from "sonner";
 import {
   archiveItem,
-  deleteItem,
   getProcessingSummaries,
   initializeStorage,
   listArchivedItems,
@@ -21,13 +19,7 @@ import type { LibraryItem } from "../../lib/types";
 import { storedItemToLibraryItem } from "../library/libraryItem";
 import { browserArchivedItems } from "../library/seed";
 import { errorMessage } from "../errorMessage";
-
-// One accepted archive delete: the timer waiting out the undo window, plus the
-// item that timer needs to restore or reconcile if the delete does not land.
-type PendingPermanentDelete = {
-  timer: number;
-  item: LibraryItem;
-};
+import { usePermanentDeletes } from "./usePermanentDeletes";
 
 type ArchiveOptions = {
   canUseDesktopBackend: boolean;
@@ -60,24 +52,13 @@ export function useArchive({
   const [isArchiveLoaded, setIsArchiveLoaded] = useState(shouldUseSeedLibrary);
   const [isArchiveSelectionMode, setIsArchiveSelectionMode] = useState(false);
   const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(() => new Set());
-  const pendingPermanentDeletesRef = useRef<Map<string, PendingPermanentDelete>>(new Map());
-
-  const cancelPermanentDelete = useCallback((pending: PendingPermanentDelete) => {
-    const id = String(pending.item.id);
-    // Only the toast that scheduled a deletion may cancel it. Deleting the same
-    // item again stores a new record, and that older Undo has to stay a no-op.
-    if (pendingPermanentDeletesRef.current.get(id) !== pending) return false;
-    window.clearTimeout(pending.timer);
-    pendingPermanentDeletesRef.current.delete(id);
-    return true;
-  }, []);
+  const { schedulePermanentDelete, undoPermanentDelete, cancelPendingDelete } = usePermanentDeletes(
+    { canUseDesktopBackend, itemsRef, setArchivedItems, setCaptureError },
+  );
 
   const restoreForgottenItem = useCallback(
     async (item: LibraryItem) => {
-      // A restore un-archives the row, so any scheduled permanent delete for it
-      // must be cancelled or its timer would still fire and destroy the assets.
-      const pending = pendingPermanentDeletesRef.current.get(String(item.id));
-      if (pending !== undefined) cancelPermanentDelete(pending);
+      cancelPendingDelete(String(item.id));
       try {
         const restoredItem = canUseDesktopBackend
           ? await archiveItem(String(item.id), false).then(async (storedItem) => {
@@ -106,7 +87,7 @@ export function useArchive({
         setCaptureError(errorMessage(error));
       }
     },
-    [canUseDesktopBackend, cancelPermanentDelete, setCaptureError, setItems, noteBodyCacheRef],
+    [canUseDesktopBackend, cancelPendingDelete, setCaptureError, setItems, noteBodyCacheRef],
   );
 
   const forgetItem = useCallback(
@@ -203,73 +184,6 @@ export function useArchive({
     });
   }
 
-  const restoreArchivedItems = useCallback((restoredItems: LibraryItem[]) => {
-    if (restoredItems.length === 0) return;
-    // A settings reload can re-add a row that is still stored, so restore by
-    // presence instead of blind prepending a second copy of the same item.
-    setArchivedItems((current) => {
-      const absent = restoredItems.filter(
-        (item) => !current.some((candidate) => String(candidate.id) === String(item.id)),
-      );
-      return absent.length === 0 ? current : [...absent, ...current];
-    });
-  }, []);
-
-  const schedulePermanentDelete = useCallback(
-    (item: LibraryItem) => {
-      const id = String(item.id);
-      const previous = pendingPermanentDeletesRef.current.get(id);
-      if (previous !== undefined) window.clearTimeout(previous.timer);
-      const pending: PendingPermanentDelete = { timer: 0, item };
-      pending.timer = window.setTimeout(() => {
-        pendingPermanentDeletesRef.current.delete(id);
-        if (!canUseDesktopBackend) return;
-        void deleteItem(id)
-          .then(() => {
-            // The row is still in the database during the undo window, so a reload
-            // can bring the card back; drop it again now the delete has landed.
-            setArchivedItems((current) =>
-              current.filter((candidate) => String(candidate.id) !== id),
-            );
-          })
-          .catch((error) => {
-            // A recovered item is no longer archived, so its delete fails on
-            // purpose: leaving it out is already the desired end state and the error
-            // would only confuse. An item that is still archived comes back here.
-            if (itemsRef.current.some((candidate) => String(candidate.id) === id)) return;
-            restoreArchivedItems([item]);
-            setCaptureError(errorMessage(error));
-          });
-      }, 10000);
-      pendingPermanentDeletesRef.current.set(id, pending);
-      return pending;
-    },
-    [canUseDesktopBackend, restoreArchivedItems, itemsRef, setCaptureError],
-  );
-
-  const undoPermanentDelete = useCallback(
-    (pendingDeletes: PendingPermanentDelete[]) => {
-      const restored = pendingDeletes
-        .filter((pending) => cancelPermanentDelete(pending))
-        .map((pending) => pending.item);
-      restoreArchivedItems(restored);
-    },
-    [cancelPermanentDelete, restoreArchivedItems],
-  );
-
-  useEffect(
-    () => () => {
-      // Unmount must not flush pending deletes: a StrictMode or HMR remount would
-      // run real deletes. Dropping the timers leaves those items archived and
-      // recoverable, and window close never unmounts anyway.
-      for (const pending of pendingPermanentDeletesRef.current.values()) {
-        window.clearTimeout(pending.timer);
-      }
-      pendingPermanentDeletesRef.current.clear();
-    },
-    [],
-  );
-
   const deleteArchivedLibraryItem = useCallback(
     (item: LibraryItem) => {
       setCaptureError(null);
@@ -320,10 +234,7 @@ export function useArchive({
         const results = await Promise.allSettled(
           itemsToRestore.map(async (item) => {
             if (!canUseDesktopBackend) return null;
-            // A restore un-archives the row, so cancel any scheduled permanent
-            // delete for it before the timer can fire and destroy its assets.
-            const pending = pendingPermanentDeletesRef.current.get(String(item.id));
-            if (pending !== undefined) cancelPermanentDelete(pending);
+            cancelPendingDelete(String(item.id));
             return archiveItem(String(item.id), false);
           }),
         );
@@ -370,7 +281,7 @@ export function useArchive({
         setCaptureError(errorMessage(error));
       }
     },
-    [cancelPermanentDelete, canUseDesktopBackend, setItems, setCaptureError],
+    [cancelPendingDelete, canUseDesktopBackend, setItems, setCaptureError],
   );
 
   const restoreSelectedArchivedItems = useCallback(async () => {
