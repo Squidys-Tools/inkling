@@ -15,7 +15,6 @@ import {
   SparklesIcon,
 } from "@hugeicons/core-free-icons";
 import { autoplayEmbedUrl, providerLabel } from "../lib/ingestion/video-links";
-import { normalizeXPostOEmbed, xPostOEmbedUrl } from "../lib/ingestion/x-post";
 import { markdownToPlainText } from "../lib/notes";
 import type { XPostMetadata } from "../lib/ingestion/types";
 import type { ItemKind, LibraryItem } from "../lib/types";
@@ -518,17 +517,16 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
     if (social.embedHtml) return;
     let cancelled = false;
 
-    fetch(xPostOEmbedUrl(social.postUrl), { headers: { Accept: "application/json" } })
-      .then((response) => {
+    // Imported here so linkedom, which x-post parses with, stays out of the startup chunk.
+    import("../lib/ingestion/x-post")
+      .then(async ({ normalizeXPostOEmbed, xPostOEmbedUrl }) => {
+        const response = await fetch(xPostOEmbedUrl(social.postUrl), {
+          headers: { Accept: "application/json" },
+        });
         if (!response.ok) throw new Error(`X oEmbed returned HTTP ${response.status}.`);
-        return response.json() as Promise<unknown>;
-      })
-      .then((payload) => {
+        const payload = (await response.json()) as Parameters<typeof normalizeXPostOEmbed>[1];
         if (cancelled) return;
-        const normalized = normalizeXPostOEmbed(
-          social.postUrl,
-          payload as Parameters<typeof normalizeXPostOEmbed>[1],
-        );
+        const normalized = normalizeXPostOEmbed(social.postUrl, payload);
         if (!normalized?.embedHtml) throw new Error("X did not return embed markup.");
         setEmbedHtml(normalized.embedHtml);
       })
