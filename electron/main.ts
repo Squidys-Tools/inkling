@@ -32,6 +32,7 @@ import { appContentTypes as mimeTypes } from "./app-content-types.ts";
 import { smartSpaceText } from "./storage/spaces.ts";
 import { createRendererRecovery } from "./renderer-recovery.ts";
 import { createLatestQuery } from "./latest-query.ts";
+import { customWindowChrome } from "./window-chrome.ts";
 import { startCaptureServer } from "./capture-server.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
 import { createSingleFlightDirectoryPicker } from "./native-dialog.ts";
@@ -475,9 +476,7 @@ function createWindow() {
     // 320px matches the body min-width in src/index.css. At 240px high the library grid shrinks to 65px; 360px keeps it near 185px.
     minWidth: 320,
     minHeight: 360,
-    frame: false,
-    titleBarStyle: "hidden",
-    titleBarOverlay: { color: "#00000000", symbolColor: "#e5ddd2", height: 32 },
+    ...customWindowChrome,
     autoHideMenuBar: true,
     backgroundColor: "#0c0c0b",
     show: false,
