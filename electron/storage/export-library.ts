@@ -11,12 +11,18 @@ import {
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { Effect } from "effect";
-import type { LastExport, LibraryExportReport } from "@inkling/contracts";
+import { Effect, Option, Schema } from "effect";
+import type { LibraryExportReport } from "@inkling/contracts";
 import type { StorageContext } from "./context.ts";
 import { attempt, invalidInput, storageFailure } from "./errors.ts";
 import { SCHEMA_VERSION } from "./schema.ts";
-import { isInside, isMissing, isSafeItemId, parseJson, sha256File } from "./shared.ts";
+import { isInside, isMissing, isSafeItemId, sha256File } from "./shared.ts";
+
+const LastExportJson = Schema.fromJsonString(
+  Schema.Struct({ exportedAt: Schema.Finite, items: Schema.Int }),
+);
+const decodeLastExport = Schema.decodeUnknownOption(LastExportJson);
+const encodeLastExport = Schema.encodeSync(LastExportJson);
 
 type AssetFile = { path: string; byteLength: number; sha256: string };
 type SkippedAsset = { path: string; error: string };
@@ -99,12 +105,7 @@ export function makeExport(ctx: StorageContext) {
 
   const getLastExport = () =>
     sql<{ value: string }>`SELECT value FROM app_settings WHERE key = 'last_export'`.pipe(
-      Effect.map(([row]): LastExport | null => {
-        const value = parseJson<{ exportedAt?: unknown; items?: unknown } | null>(row?.value, null);
-        if (!value || !Number.isFinite(value.exportedAt) || !Number.isInteger(value.items))
-          return null;
-        return { exportedAt: Number(value.exportedAt), items: Number(value.items) };
-      }),
+      Effect.map(([row]) => Option.getOrNull(decodeLastExport(row?.value))),
     );
 
   const writeExport = Effect.fnUntraced(function* (directory: string, exportedAt: number) {
@@ -172,7 +173,7 @@ export function makeExport(ctx: StorageContext) {
       databaseBytes,
       assetsBytes: copied.assetsBytes,
     };
-    const lastExport = JSON.stringify({ exportedAt, items: report.items });
+    const lastExport = encodeLastExport({ exportedAt, items: report.items });
     yield* sql`INSERT INTO app_settings (key, value) VALUES ('last_export', ${lastExport})
       ON CONFLICT(key) DO UPDATE SET value = excluded.value`;
     return report;

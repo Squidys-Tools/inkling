@@ -51,6 +51,7 @@ test("successful export details persist across reopening the library", async () 
   await library.createNote({ title: "Exported note", body: "A small library copy." });
   const destination = join(root, "exports");
   mkdirSync(destination);
+  expect(await library.getLastExport()).toBeNull();
 
   const report = await library.exportLibrary(destination, 0);
   const lastExport = await library.getLastExport();
