@@ -16,9 +16,7 @@ import { AddForm, useAddDrafts } from "./AddForm";
 import "./AddMenu.css";
 
 // The sidebar's Add button opens into the menu in place, after Viora UI's
-// Create New Disclosure (LICENSE.md). Rebuilt rather than copied: its tiles had
-// no actions, it never closed on Escape or an outside click, and focus was
-// lost when it opened or closed.
+// Create New Disclosure (LICENSE.md).
 
 export type AddMode = "note" | "url" | "quote";
 
@@ -110,7 +108,7 @@ export function AddMenu({
     return () => window.removeEventListener("pointerdown", dismiss, true);
   }, [open, onClose, compact]);
 
-  // Escape is handled by App, which steps back from a form before closing.
+  // Escape is handled by useAppShortcuts, which steps back from a form before closing.
   const onKeyDownCapture = (event: React.KeyboardEvent) => {
     if (event.key === "Escape" && !mode) focusTriggerRef.current = true;
   };
@@ -318,7 +316,7 @@ export function AddMenu({
                   <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
                 </button>
               )}
-              <motion.span className="add-menu-title">{mode ? TITLES[mode] : "Add"}</motion.span>
+              <span className="add-menu-title">{mode ? TITLES[mode] : "Add"}</span>
               <button
                 type="button"
                 className="add-menu-round"
