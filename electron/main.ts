@@ -95,6 +95,8 @@ const updateController = createUpdateController({
   },
 });
 app.setPath("userData", libraryDirectory);
+if (process.platform === "linux")
+  app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
 const deepLinkSubscribers = new Set<WebContents>();
 const pendingDeepLinks: DeepLinkCapture[] = [];
 let mainWindow: BrowserWindow | undefined;
@@ -452,11 +454,8 @@ function createWindow() {
     minWidth: 320,
     minHeight: 360,
     frame: false,
-    titleBarStyle: process.platform === "linux" ? "default" : "hidden",
-    titleBarOverlay:
-      process.platform === "linux"
-        ? false
-        : { color: "#00000000", symbolColor: "#e5ddd2", height: 32 },
+    titleBarStyle: "hidden",
+    titleBarOverlay: { color: "#00000000", symbolColor: "#e5ddd2", height: 32 },
     autoHideMenuBar: true,
     backgroundColor: "#0c0c0b",
     show: false,
