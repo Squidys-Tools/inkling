@@ -66,34 +66,22 @@ function loadXWidgets() {
   return xWidgetsPromise;
 }
 
+// The official iframe appearing is the readiness signal. Its load event can
+// fire before a listener attaches, and a backgrounded preview stalls rAF.
 function waitForXWidget(root: HTMLElement) {
   return new Promise<boolean>((resolve) => {
-    let settled = false;
-    let observer: MutationObserver | null = null;
-    let timeoutId: number | undefined;
-
     const finish = (loaded: boolean) => {
-      if (settled) return;
-      settled = true;
-      observer?.disconnect();
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      observer.disconnect();
+      window.clearTimeout(timeoutId);
       resolve(loaded);
     };
-
     const watchWidget = () => {
-      const iframe = root.querySelector<HTMLIFrameElement>("iframe");
-      if (!iframe) return;
-
-      // The official iframe appearing is the readiness signal: its load event can
-      // fire before a listener attaches. Don't wait for requestAnimationFrame
-      // either, since a backgrounded preview throttles frames.
-      finish(true);
+      if (root.querySelector("iframe")) finish(true);
     };
-
-    observer = new MutationObserver(watchWidget);
+    const observer = new MutationObserver(watchWidget);
+    const timeoutId = window.setTimeout(() => finish(false), 8000);
     observer.observe(root, { childList: true, subtree: true });
     watchWidget();
-    timeoutId = window.setTimeout(() => finish(false), 8000);
   });
 }
 
