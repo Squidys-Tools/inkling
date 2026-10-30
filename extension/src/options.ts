@@ -11,7 +11,7 @@ const tokenInput = document.getElementById("token") as HTMLInputElement;
 const saveButton = document.getElementById("save") as HTMLButtonElement;
 const statusLine = document.getElementById("status") as HTMLSpanElement;
 
-async function load(): Promise<void> {
+async function load() {
   const stored = await browser.storage.local.get([BASE_URL_KEY, TOKEN_KEY]);
   if (typeof stored[BASE_URL_KEY] === "string") baseUrlInput.value = stored[BASE_URL_KEY];
   if (typeof stored[TOKEN_KEY] === "string") tokenInput.value = stored[TOKEN_KEY];
