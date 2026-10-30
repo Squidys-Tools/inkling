@@ -147,7 +147,9 @@
       "!**/node_modules/{@base-ui,@floating-ui,@fontsource,@fontsource-variable,@hugeicons,@liquid-dom,@tiptap,@virtuoso.dev}/**",
       "!**/node_modules/{framer-motion,gsap,motion,motion-dom,motion-utils,prosemirror-*,react-dom,sonner}/**",
       "!**/node_modules/onnxruntime-node/bin/napi-v6/!(${os}*)/**",
-      "!**/node_modules/onnxruntime-node/bin/napi-v6/*/!(${arch})/**"
+      "!**/node_modules/onnxruntime-node/bin/napi-v6/*/!(${arch})/**",
+      "!**/node_modules/@img/sharp-{linux,linuxmusl,libvips-linux,libvips-linuxmusl}-*/**",
+      "!**/node_modules/@napi-rs/canvas-linux-*-musl/**"
     ],
     "asarUnpack": [
       "**/tesseract.js/**/*",
