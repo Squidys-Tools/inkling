@@ -13,7 +13,6 @@ export function AnimatedCount({ value, className }: { value: number; className?:
       className={className}
       format="compact"
       delay={intro ? 0.5 : 0}
-      mode="roll"
       duration={0.5}
       trigger="load"
       replayOnHover
