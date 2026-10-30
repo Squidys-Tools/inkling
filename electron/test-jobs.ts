@@ -57,16 +57,8 @@ export const jobFor = (itemId: string) => ({ id: "direct", itemId }) as Job;
 
 export const pdfFixture = (name: string) => readFileSync(`benchmarks/corpus/pdfs/${name}.pdf`);
 
-export async function savePdf(library: TestLibrary, fileName: string, bytes: Uint8Array) {
-  const item = await library.saveFile({
-    fileName,
-    mimeType: "application/pdf",
-    kind: "pdf",
-    bytes,
-  });
-  if (!item) throw new Error("PDF was not saved");
-  return item;
-}
+export const savePdf = (library: TestLibrary, fileName: string, bytes: Uint8Array) =>
+  library.saveFile({ fileName, mimeType: "application/pdf", kind: "pdf", bytes });
 
 export const unusedModels = {
   ocr: { recognize: async () => "" },
@@ -79,16 +71,8 @@ export const unusedModels = {
 
 export const imageFixture = () => readFileSync("benchmarks/corpus/images/image-columns-01.png");
 
-export async function saveImage(library: TestLibrary, fileName = "photo.png") {
-  const item = await library.saveFile({
-    fileName,
-    mimeType: "image/png",
-    kind: "image",
-    bytes: imageFixture(),
-  });
-  if (!item) throw new Error("image was not saved");
-  return item;
-}
+export const saveImage = (library: TestLibrary, fileName = "photo.png") =>
+  library.saveFile({ fileName, mimeType: "image/png", kind: "image", bytes: imageFixture() });
 
 export const thumbnailLane = (library: TestLibrary, ai: Ai, options: LaneOptions = {}) =>
   library.worker({ processors: ai.thumbnailProcessors, ...options });

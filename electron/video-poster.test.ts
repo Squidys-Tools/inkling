@@ -63,7 +63,6 @@ async function saveVideo(library: TestLibrary, fileName: string) {
     kind: "video",
     bytes: Uint8Array.from([0, 0, 0, 24, 102, 116, 121, 112]),
   });
-  if (!item) throw new Error("video was not saved");
   return item;
 }
 
@@ -158,7 +157,6 @@ test("backfill posters only local videos that have none and have not already fai
     kind: "file",
     bytes: Uint8Array.from([104, 105]),
   });
-  if (!notes) throw new Error("file was not saved");
   library.db.prepare("DELETE FROM jobs").run();
   library.db
     .prepare("UPDATE items SET thumbnail_path = ? WHERE id = ?")

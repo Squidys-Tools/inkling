@@ -19,7 +19,6 @@ test("Smart Spaces apply saved filters to hybrid text-search candidates", async 
     name: "Astronomy",
     query: { text: "quiet telescope", tag: "astronomy" },
   });
-  if (!space) throw new Error("Space was not created");
 
   expect(ids(await library.listSpaceItems(space.id))).toEqual([]);
   expect(ids(await library.listSpaceItems(space.id, 100, Float32Array.from([1, 0])))).toEqual([
@@ -39,12 +38,10 @@ test("Smart Space predicates are applied before the result limit", async () => {
     name: "Tokyo reading",
     query: { text: "Tokyo", tag: "japan", kind: "article" },
   });
-  if (!space) throw new Error("Space was not created");
 
   expect(ids(await library.listSpaceItems(space.id, 1))).toEqual(["older-match"]);
 
   insert.run("unicode-tag", "note", "Cafe notes", '{"tags":["café"]}', 5, 5);
   const unicodeSpace = await library.createSpace({ name: "Cafe", query: { tag: "CAFÉ" } });
-  if (!unicodeSpace) throw new Error("Space was not created");
   expect(ids(await library.listSpaceItems(unicodeSpace.id))).toEqual(["unicode-tag"]);
 });

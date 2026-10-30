@@ -67,7 +67,6 @@ test("exclusive startup hands back every job a previous run left processing", as
     sourceUrl: "https://example.com/article",
     captureSource: "quick link",
   });
-  if (!url) throw new Error("URL was not captured");
   library.db
     .prepare(
       "INSERT INTO items (id, kind, created_at, updated_at) VALUES ('orphan-image', 'image', 1, 1)",

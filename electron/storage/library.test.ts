@@ -75,7 +75,6 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
     title: "Field notes",
     body: "## Evening\n\nWarm light.",
   });
-  if (!note) throw new Error("note was not created");
   expect(note.description).toBe("Evening Warm light.");
   expect(await library.getItemContent(note.id)).toEqual({
     id: note.id,

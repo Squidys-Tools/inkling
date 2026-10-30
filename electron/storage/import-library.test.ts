@@ -85,7 +85,6 @@ test("restore rejects item ids that could escape the managed asset directory", a
 test("restore keeps an item whose stored source URL is not a web link and drops the link", async () => {
   const { root, library } = await temporaryLibrary();
   const note = await library.createNote({ title: "Kept note", body: "Survives import." });
-  if (!note) throw new Error("note was not created");
   library.db
     .prepare("UPDATE items SET source_url = ? WHERE id = ?")
     .run("javascript:alert(1)", note.id);
@@ -156,7 +155,6 @@ test("restore rejects unsupported Smart Space query fields", async () => {
 test("restore keeps stored pins and accepts an older pin filter", async () => {
   const { root, library } = await temporaryLibrary();
   const item = await library.createNote({ title: "Pinned before pins went away", body: "Kept." });
-  if (!item) throw new Error("note was not created");
   library.db.prepare("UPDATE items SET favorite = 1 WHERE id = ?").run(item.id);
   await library.createSpace({ name: "Pinned", query: { tag: "japan" } });
   const destination = join(root, "exports");
@@ -187,7 +185,6 @@ test("restore removes staged assets when the active library rejects its transact
     kind: "other",
     bytes: new TextEncoder().encode("verified local file"),
   });
-  if (!item) throw new Error("file was not saved");
   const destination = join(root, "exports");
   mkdirSync(destination);
   const report = await library.exportLibrary(destination, 0);

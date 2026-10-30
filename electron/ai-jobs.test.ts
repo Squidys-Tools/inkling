@@ -128,7 +128,6 @@ test("URL enrichment updates the captured item before its text is embedded", asy
     sourceUrl: "https://example.com/requested-path",
     captureSource: "quick link",
   });
-  if (!captured) throw new Error("URL was not captured");
   const embeddedTexts: string[] = [];
   const ai = createAiJobProcessors({
     modelCacheDirectory: join(root, "models"),
@@ -192,7 +191,6 @@ test("failed URL enrichment retries while keeping the fallback item available", 
     title: "Saved by extension",
     captureSource: "browser extension",
   });
-  if (!captured) throw new Error("URL was not captured");
   let attempts = 0;
   const ai = createAiJobProcessors({
     modelCacheDirectory: join(root, "models"),

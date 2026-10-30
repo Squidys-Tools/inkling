@@ -15,7 +15,6 @@ test("file capture persists its item and asset before queued processing becomes 
     kind: "other",
     bytes: new TextEncoder().encode("captured immediately"),
   });
-  if (!item) throw new Error("file was not saved");
 
   expect(item).toMatchObject({
     kind: "file",
@@ -36,16 +35,8 @@ test("file bytes arrive as a typed array view or an ArrayBuffer, never a number 
   // A view into a larger buffer, as a pooled Buffer is: only its window is the file.
   const padded = new Uint8Array(text.length + 8);
   padded.set(text, 4);
-  const saved = async (name: string, bytes: unknown) => {
-    const item = await library.saveFile({
-      fileName: name,
-      mimeType: "text/plain",
-      kind: "other",
-      bytes,
-    });
-    if (!item) throw new Error("file was not saved");
-    return item;
-  };
+  const saved = (name: string, bytes: unknown) =>
+    library.saveFile({ fileName: name, mimeType: "text/plain", kind: "other", bytes });
   const read = (id: string, name: string) =>
     readFileSync(join(root, "assets", "items", id, name), "utf8");
 
@@ -77,7 +68,6 @@ test("image capture saves the item and header-read size without resizing", async
     mimeType: "image/png",
     bytes: new TextEncoder().encode("source image"),
   });
-  if (!item) throw new Error("image was not saved");
 
   expect(resized).toBe(0);
   expect(item).toMatchObject({

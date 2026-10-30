@@ -33,7 +33,6 @@ test("list rows keep card fields while full content stays available by item id",
     captureSource: "quick link",
     title: "A saved article",
   });
-  if (!article) throw new Error("article was not captured");
   await enrichUrl(library, article.id, {
     canonicalUrl: "https://example.com/reader",
     title: "An extracted title",
@@ -49,7 +48,6 @@ test("list rows keep card fields while full content stays available by item id",
   });
   await library.updateItem({ id: article.id, addTag: "reading" });
   const note = await library.createNote({ title: "A saved note", body: "Private note body." });
-  if (!note) throw new Error("note was not created");
   library.db
     .prepare("UPDATE items SET ocr_text = ? WHERE id = ?")
     .run("OCR-PRIVATE-".repeat(100), article.id);
@@ -123,7 +121,6 @@ test("URL capture commits the fallback item with a pending enrichment job", asyn
     sourceUrl: "https://example.com/article",
     captureSource: "quick link",
   });
-  if (!item) throw new Error("URL was not captured");
 
   expect(item).toMatchObject({
     kind: "url",
@@ -159,7 +156,6 @@ test("URL capture rolls back the item and its announcement when its job cannot b
 test("update_item refuses a source URL that is not HTTP or HTTPS", async () => {
   const { library } = await temporaryLibrary();
   const note = await library.createNote({ title: "Saved", body: "Body" });
-  if (!note) throw new Error("note was not created");
 
   await expect(
     library.updateItem({ id: note.id, sourceUrl: "javascript:alert(1)" }),

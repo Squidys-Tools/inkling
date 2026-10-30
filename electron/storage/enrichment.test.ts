@@ -22,7 +22,6 @@ test("URL enrichment preserves a title and tags edited while extraction is queue
     title: "Extension title",
     captureSource: "browser extension",
   });
-  if (!item) throw new Error("URL was not captured");
   const workerId = `url-test-${randomUUID()}`;
   const job = await library.jobs.claimNext(workerId);
   if (!job) throw new Error("URL enrichment job was not available");
