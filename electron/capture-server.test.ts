@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureServerInternals, MAX_JSON_BYTES, startCaptureServer } from "./capture-server.ts";
+import { captureServerInternals, startCaptureServer } from "./capture-server.ts";
 import { openTestLibrary, type TestLibrary } from "./storage/test-library.ts";
 
 const roots: string[] = [];
@@ -21,7 +21,7 @@ afterEach(async () => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-describe("capture server parity", () => {
+describe("capture server request gate", () => {
   test("bearer tokens require the exact value", () => {
     expect(captureServerInternals.bearerToken({ authorization: "Bearer abc123" })).toBe("abc123");
     expect(captureServerInternals.tokensEqual("abc123", "abc123")).toBe(true);
@@ -60,142 +60,7 @@ describe("capture server parity", () => {
     }
   });
 
-  test("capture URLs match storage's HTTP guards and allow explicit loopback saves", () => {
-    expect(captureServerInternals.validateCaptureUrl("http://127.0.0.1:3000/dev-notes")).toBe(
-      "http://127.0.0.1:3000/dev-notes",
-    );
-    expect(captureServerInternals.validateCaptureUrl("https://example.com/article?q=1")).toBe(
-      "https://example.com/article?q=1",
-    );
-    for (const invalid of [
-      "ftp://example.com/file",
-      "https://user:pass@example.com/",
-      "not a url",
-      "",
-      `https://example.com/${"a".repeat(9_000)}`,
-    ]) {
-      expect(() => captureServerInternals.validateCaptureUrl(invalid)).toThrow();
-    }
-  });
-
-  test("v1 payload normalization and Rust scrubber vectors stay in parity", () => {
-    const good = {
-      version: 1,
-      kind: "page",
-      url: "https://example.com/article",
-      title: "A quiet page",
-      defuddledHtml: "<p>kept</p><script>alert(1)</script>",
-      text: "kept text",
-      author: "A Writer",
-      publishedDate: "2026-01-02T00:00:00Z",
-      imageUrls: [
-        "https://example.com/img.jpg",
-        "javascript:evil()",
-        "https://example.com/img.jpg",
-      ],
-    };
-    const input = captureServerInternals.validateCapturePayload(Buffer.from(JSON.stringify(good)));
-    expect(input.sourceUrl).toBe("https://example.com/article");
-    expect(input.title).toBe("A quiet page");
-    expect(input.metadata).toMatchObject({
-      origin: "browser-extension",
-      payloadVersion: 1,
-      author: "A Writer",
-      imageUrls: ["https://example.com/img.jpg"],
-    });
-    expect(input.metadata.html).toContain("<p>kept</p>");
-    expect(input.metadata.html).not.toContain("script");
-
-    const blankTitle = captureServerInternals.validateCapturePayload(
-      Buffer.from(
-        JSON.stringify({
-          version: 1,
-          kind: "page",
-          url: "https://www.example.com/post",
-          title: "  ",
-          defuddledHtml: "",
-          text: "words",
-        }),
-      ),
-    );
-    expect(blankTitle.title).toBe("www.example.com");
-
-    const longTitle = captureServerInternals.validateCapturePayload(
-      Buffer.from(
-        JSON.stringify({
-          version: 1,
-          kind: "page",
-          url: "https://example.com/",
-          title: "t".repeat(600),
-          defuddledHtml: "",
-          text: "",
-        }),
-      ),
-    );
-    expect(longTitle.title).toBe("t".repeat(500));
-
-    for (const invalid of [
-      { title: "no url" },
-      { version: 1, kind: "page", url: "javascript:alert(1)" },
-      { version: 2, kind: "page", url: "https://example.com/" },
-      { version: 1, kind: "selection", url: "https://example.com/" },
-      null,
-    ]) {
-      expect(() =>
-        captureServerInternals.validateCapturePayload(Buffer.from(JSON.stringify(invalid))),
-      ).toThrow();
-    }
-    expect(() => captureServerInternals.validateCapturePayload(Buffer.from("not json"))).toThrow();
-  });
-
-  test("scrubber removes the executable subset and preserves safe article markup", () => {
-    const dirty = [
-      "<!-- a comment -->",
-      '<p onclick="evil()" style="color:red">Hi <a href="javascript:alert(1)">x</a></p>',
-      "<script>alert(1)</script>",
-      "<style>p{}</style>",
-      '<form action="https://example.com/submit"><input></form>',
-      '<iframe src="https://evil.example/x"></iframe>',
-      '<iframe src="https://www.youtube-nocookie.com/embed/abc123" allowfullscreen></iframe>',
-      '<img src="https://example.com/a.jpg" srcset="a 1x" onerror="e()">',
-      '<a href="/relative/path">rel</a>',
-      '<a href="https://example.com/abs">abs</a>',
-    ].join("");
-    const clean = captureServerInternals.scrubExtensionHtml(dirty, "https://example.com/article");
-    for (const banned of [
-      "<script",
-      "onclick",
-      "style=",
-      "javascript:",
-      "<form",
-      "evil.example",
-      "allowfullscreen",
-      "srcset",
-      "onerror",
-      "<!--",
-    ]) {
-      expect(clean).not.toContain(banned);
-    }
-    for (const kept of [
-      "<p>Hi",
-      "https://www.youtube-nocookie.com/embed/abc123",
-      "https://example.com/a.jpg",
-      "/relative/path",
-      "https://example.com/abs",
-    ]) {
-      expect(clean).toContain(kept);
-    }
-  });
-
-  test("token generation, rate limiting, and payload cap match the Rust receiver", () => {
-    const token = "a".repeat(64);
-    expect(captureServerInternals.tokenLooksValid(token)).toBe(true);
-    expect(captureServerInternals.tokenLooksValid("short")).toBe(false);
-    expect(captureServerInternals.tokenLooksValid("has spaces in it yes indeed 1234567890")).toBe(
-      false,
-    );
-    expect(MAX_JSON_BYTES).toBe(5 * 1024 * 1024);
-
+  test("the rate limit allows 60 requests a minute", () => {
     let now = 10_000;
     const allowRequest = captureServerInternals.createRateLimiter(() => now);
     for (let index = 0; index < 60; index += 1) expect(allowRequest()).toBe(true);

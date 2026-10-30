@@ -5,10 +5,8 @@ export const OVERLAY_FLIGHT_MS = 600 * 0.85;
 // GSAP's circ.inOut is the classic easeInOutCirc curve.
 export const OVERLAY_EASE = "circ.inOut";
 
-export function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
+export function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 export function rectFrom(rect: DOMRect): FlightRect {
@@ -17,7 +15,7 @@ export function rectFrom(rect: DOMRect): FlightRect {
 
 const CARD_OFFSCREEN_THRESHOLD = 0.25;
 
-export function isCardTooFarOffscreen(card: FlightRect, viewport: FlightRect): boolean {
+export function isCardTooFarOffscreen(card: FlightRect, viewport: FlightRect) {
   if (card.width <= 0 || card.height <= 0) return true;
   const visibleWidth = Math.max(
     0,
@@ -34,7 +32,7 @@ export function isCardTooFarOffscreen(card: FlightRect, viewport: FlightRect): b
   return Math.max(clippedWidth, clippedHeight) > CARD_OFFSCREEN_THRESHOLD;
 }
 
-export function scrollViewport(root: HTMLElement | null): HTMLElement | null {
+export function scrollViewport(root: HTMLElement | null) {
   if (!root) return null;
   return root.querySelector<HTMLElement>('[data-testid="virtuoso-scroller"]') ?? root;
 }
@@ -53,7 +51,10 @@ export function queryCardRects(id: string | number): SourceRects | null {
   const card = document.querySelector<HTMLElement>(
     `.library-card[data-library-item-id="${CSS.escape(String(id))}"]`,
   );
-  if (!card) return null;
+  return card ? cardRects(card) : null;
+}
+
+export function cardRects(card: HTMLElement): SourceRects {
   const cardRect = card.getBoundingClientRect();
   const mediaRect = card.querySelector<HTMLElement>(".library-card-media")?.getBoundingClientRect();
   return {

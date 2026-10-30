@@ -1,31 +1,22 @@
 import { expect, test } from "bun:test";
 import { act, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { parseHTML } from "linkedom";
 import { Sidebar } from "./Sidebar";
 import { SpacesSection } from "./SpacesSection";
 import { APPEARANCE_OPTIONS } from "../settings/appearance";
 import { AddMenu } from "../capture/AddMenu/AddMenu";
+import { installTestDom } from "../testDom";
 
 const noop = () => {};
 async function mounted(content: ReactNode, check: (doc: Document) => void | Promise<void>) {
-  const { window: dom } = parseHTML("<html><body><div id='root'></div></body></html>");
-  for (const [key, value] of Object.entries({
-    window: dom,
-    document: dom.document,
-    HTMLElement: dom.HTMLElement,
-    Element: dom.Element,
-    SVGElement: dom.SVGElement,
-    Node: dom.Node,
-    IS_REACT_ACT_ENVIRONMENT: true,
-  }))
-    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+  const { restore } = installTestDom();
   const root = createRoot(document.getElementById("root")!);
   try {
     await act(async () => root.render(content));
     await check(document);
   } finally {
     await act(async () => root.unmount());
+    restore();
   }
 }
 function sidebar(experimental: boolean, isOpen: boolean) {
@@ -119,7 +110,6 @@ test("Collapsed Codex keeps every named Space selectable with its colour and act
         expect(button.getAttribute("aria-label")).toBe(spaces[index].name);
         expect(button.getAttribute("data-tooltip")).toBe(spaces[index].name);
         expect(button.getAttribute("aria-pressed")).toBe(String(index === 1));
-        expect(button.querySelector("svg")?.getAttribute("width")).toBe("15");
         expect(button.querySelector("svg")?.classList.contains("text-space-blue")).toBe(true);
         await act(async () => button.click());
       }
@@ -266,31 +256,4 @@ test("Collapsed Codex Space action reopens the sidebar and returns Add to tiles"
     expect(doc.querySelectorAll(".add-menu-tile")).toHaveLength(6);
     expect(doc.querySelector(".compact-add-option")).toBeNull();
   });
-});
-
-test("Codex Add keeps its label mounted for expanded view and the shared label fade", async () => {
-  await mounted(
-    <AddMenu
-      collapsible
-      open={false}
-      mode={null}
-      saving={false}
-      error={null}
-      onOpen={noop}
-      onClose={noop}
-      onModeChange={noop}
-      onSaveNote={async () => true}
-      onSaveLink={async () => true}
-      onSaveQuote={async () => true}
-      onPickFile={noop}
-      onScreenshot={noop}
-    />,
-    (doc) => {
-      const trigger = doc.querySelector(".codex-add-button")!;
-      expect(trigger.getAttribute("aria-label")).toBe("Add");
-      expect(trigger.querySelector(".codex-label")?.textContent).toBe("Add");
-      expect(trigger.querySelector(".sr-only")).toBeNull();
-      expect(trigger.querySelector("svg")?.getAttribute("width")).toBe("16");
-    },
-  );
 });

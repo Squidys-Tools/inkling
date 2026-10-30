@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { InklingMascot, isKnownMascotState, type StateId } from "./InklingMascot";
+import { InklingMascot, type StateId } from "./InklingMascot";
 
 const SHAPES = ["inkling-splash", "cercle"];
 const STATES: StateId[] = ["idle", "wink", "wide", "notify", "thinking", "sleep"];
@@ -61,7 +61,7 @@ export function MascotBoard() {
           <button
             key={s}
             type="button"
-            onClick={() => (isKnownMascotState(s) ? setState(s) : undefined)}
+            onClick={() => setState(s)}
             style={{
               padding: "6px 12px",
               borderRadius: 8,

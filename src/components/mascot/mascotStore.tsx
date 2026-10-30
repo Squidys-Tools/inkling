@@ -1,14 +1,15 @@
 import { useSyncExternalStore } from "react";
-import { BotEngine, type BotFrame } from "./bot/engine";
-import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION } from "./bot/expressions";
+import { BotEngine } from "./bot/engine";
+import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION, type BotExpression } from "./bot/expressions";
 import { SHAPE_BY_ID } from "./bot/skins";
 import { RAYON } from "./bot/repere";
 import type { StateId } from "./bot/states";
+import { prefersReducedMotion, reducedMotionQuery } from "../../ui/reducedMotion";
 import { MascotFigure, MascotSearchEyes } from "./MascotFigure";
 
-export interface MascotParams {
+interface MascotParams {
   state: StateId;
-  expression: string;
+  expression: BotExpression["id"];
 }
 
 /**
@@ -24,19 +25,12 @@ const engine = new BotEngine(
 );
 
 let clock = 0;
-let frame: BotFrame = engine.sample(0);
+let frame = engine.sample(0);
 let raf = 0;
+let lastMs = 0;
 let running = false;
 const subs = new Set<() => void>();
 let appliedParams: MascotParams = { state: "inkling-drift", expression: DEFAULT_EXPRESSION };
-
-export function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-}
 
 function emit() {
   for (const fn of subs) fn();
@@ -50,8 +44,6 @@ function tick(ms: number) {
   frame = engine.sample(clock);
   emit();
 }
-
-let lastMs = 0;
 
 function ensureLoop() {
   if (running || typeof requestAnimationFrame !== "function") return;
@@ -77,19 +69,17 @@ if (typeof document !== "undefined") {
 
 // Reduced motion can flip while the app is open, and subscribers stay mounted, so
 // nothing else would restart or freeze the loop to match.
-if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
-  window.matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", (event) => {
-    if (event.matches) {
-      haltLoop();
-      frame = engine.sample(clock);
-      emit();
-    } else if (subs.size > 0) {
-      ensureLoop();
-    }
-  });
-}
+reducedMotionQuery?.addEventListener("change", (event) => {
+  if (event.matches) {
+    haltLoop();
+    frame = engine.sample(clock);
+    emit();
+  } else if (subs.size > 0) {
+    ensureLoop();
+  }
+});
 
-export function subscribeMascot(fn: () => void): () => void {
+export function subscribeMascot(fn: () => void) {
   subs.add(fn);
   ensureLoop();
   return () => {
@@ -98,7 +88,7 @@ export function subscribeMascot(fn: () => void): () => void {
   };
 }
 
-export function getMascotFrame(): BotFrame {
+export function getMascotFrame() {
   return frame;
 }
 
@@ -106,53 +96,25 @@ export function pushMascotParams({ state, expression }: MascotParams) {
   if (state === appliedParams.state && expression === appliedParams.expression) return;
   appliedParams = { state, expression };
   engine.setState(state, clock);
-  engine.setExpression(
-    EXPRESSION_BY_ID.get(expression) ?? EXPRESSION_BY_ID.get(DEFAULT_EXPRESSION) ?? null,
-    clock,
-  );
+  engine.setExpression(EXPRESSION_BY_ID.get(expression) ?? null, clock);
   if (!running) {
     frame = engine.sample(clock);
     emit();
   }
 }
 
-/** Pure re-read for tests and frozen previews: no clock advance, no emit. */
-export function sampleMascotAt(t: number): BotFrame {
-  return engine.sample(t);
-}
-
-function useMascotFrame(): BotFrame {
+function useMascotFrame() {
   return useSyncExternalStore(subscribeMascot, getMascotFrame);
 }
 
-/** Live figure permanently bound to the shared store. Ink/paper default to the dark app theme. */
-export function LiveMascotFigure({
-  size,
-  ink = "var(--color-ink)",
-  paper = "transparent",
-  className,
-}: {
-  size: number;
-  ink?: string;
-  paper?: string;
-  className?: string;
-}) {
+/** Live figure permanently bound to the shared store, drawn for the dark app theme. */
+export function LiveMascotFigure({ size }: { size: number }) {
   const liveFrame = useMascotFrame();
-  return (
-    <MascotFigure frame={liveFrame} size={size} ink={ink} paper={paper} className={className} />
-  );
+  return <MascotFigure frame={liveFrame} size={size} ink="var(--color-ink)" paper="transparent" />;
 }
 
 /** Search-bar fit. Tight crop around the drift gaze so it sits centered in 50px. */
-export function LiveMascotSearchEyes({
-  size,
-  ink = "var(--color-ink)",
-  className,
-}: {
-  size: number;
-  ink?: string;
-  className?: string;
-}) {
+export function LiveMascotSearchEyes({ size, className }: { size: number; className?: string }) {
   const liveFrame = useMascotFrame();
-  return <MascotSearchEyes frame={liveFrame} size={size} ink={ink} className={className} />;
+  return <MascotSearchEyes frame={liveFrame} size={size} className={className} />;
 }

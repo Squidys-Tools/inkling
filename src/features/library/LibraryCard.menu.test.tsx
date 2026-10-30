@@ -1,20 +1,12 @@
 import { expect, test } from "bun:test";
-import { parseHTML } from "linkedom";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { LibraryCard } from "./LibraryCard";
 import type { LibraryItem } from "../../lib/types";
+import { installTestDom } from "../testDom";
 
 test("grid and row cards open details with click and actions with context or keyboard only", async () => {
-  const { window: dom } = parseHTML("<html><body><div id='root'></div></body></html>");
-  for (const [key, value] of Object.entries({
-    window: dom,
-    document: dom.document,
-    HTMLElement: dom.HTMLElement,
-    IS_REACT_ACT_ENVIRONMENT: true,
-  })) {
-    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
-  }
+  const { window: dom, restore } = installTestDom();
   const item = {
     id: "note",
     kind: "Note",
@@ -66,5 +58,6 @@ test("grid and row cards open details with click and actions with context or key
     expect(routes).toEqual(["details", "menu", "menu", "menu", "details", "menu", "menu", "menu"]);
   } finally {
     await act(async () => root.unmount());
+    restore();
   }
 });

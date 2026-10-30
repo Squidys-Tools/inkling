@@ -148,12 +148,11 @@ test("Sharp thumbnails retain BMP, GIF, ICO, JPEG, PNG, TIFF, and WebP inputs", 
     ["webp", await source.clone().webp().toBuffer()],
   ] as const;
 
-  for (const [format, bytes] of inputs) {
+  for (const [, bytes] of inputs) {
     const thumbnail = await createImageThumbnail(bytes);
     const output = await sharp(thumbnail.bytes).metadata();
     expect(thumbnail).toMatchObject({ width: 16, height: 16 });
     expect(output.format).toBe("webp");
-    expect(format).toBeTruthy();
   }
 
   const oversizedPng = Buffer.from(png);

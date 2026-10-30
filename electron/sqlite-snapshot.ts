@@ -13,24 +13,15 @@ export function snapshotDatabase(databasePath: string, snapshotPath: string) {
     const worker = new Worker(workerUrl, {
       workerData: { databasePath, snapshotPath },
     });
-    let result: { ok?: boolean } | undefined;
-    let settled = false;
-    const fail = (error: Error) => {
-      if (settled) return;
-      settled = true;
-      reject(error);
-    };
+    let ok = false;
     worker.once("message", (message: { ok?: boolean; error?: string }) => {
-      if (message.error) fail(new Error(message.error));
-      else result = message;
+      if (message.error) reject(new Error(message.error));
+      else ok = message.ok === true;
     });
-    worker.once("error", fail);
+    worker.once("error", reject);
     worker.once("exit", (code) => {
-      if (settled) return;
-      settled = true;
       if (code !== 0) reject(new Error(`SQLite snapshot worker exited with code ${code}`));
-      else if (result?.ok !== true)
-        reject(new Error("SQLite snapshot worker exited without a result"));
+      else if (!ok) reject(new Error("SQLite snapshot worker exited without a result"));
       else resolve();
     });
   });

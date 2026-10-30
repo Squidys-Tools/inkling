@@ -5,7 +5,6 @@
     "benchmarks/corpus",
     "docs/assets",
     "extension/icons",
-    "src/components/GradualBlur",
     "bun.lock",
     "**/*.md",
     "**/*.yml",

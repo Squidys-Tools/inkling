@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 
 const posterEdge = 512;
 const execute = promisify(execFile);
-type Thumbnailer = {
+export type Thumbnailer = {
   createThumbnailFromPath?: (
     path: string,
     size: { width: number; height: number },

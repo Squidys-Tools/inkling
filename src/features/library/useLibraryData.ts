@@ -18,12 +18,14 @@ import {
   listenForJobUpdates,
   listSpaceItems,
   searchItemsDetailed,
+  retryProcessingJob,
 } from "../../lib/libraryApi";
 import { patchItems } from "../../lib/patchItems";
 import { shouldUseSeedLibrary } from "../../lib/previewMode";
 import type { LibraryItem } from "../../lib/types";
 import { storedItemToLibraryItem } from "./libraryItem";
 import { demoSeedItems } from "./seed";
+import { errorMessage } from "../errorMessage";
 
 type LibraryDataOptions = {
   canUseDesktopBackend: boolean;
@@ -188,7 +190,7 @@ export function useLibraryData({
             });
         }
       } catch (error) {
-        if (canPublish()) setCaptureError(error instanceof Error ? error.message : String(error));
+        if (canPublish()) setCaptureError(errorMessage(error));
       } finally {
         loading = false;
         if (queued && !cancelled) {
@@ -287,6 +289,19 @@ export function useLibraryData({
 
   const reload = useCallback(() => loadItemsRef.current(), []);
 
+  const retryJob = useCallback(
+    async (jobId: string) => {
+      setCaptureError(null);
+      try {
+        const retried = await retryProcessingJob(jobId);
+        if (!retried) setCaptureError("That processing job is no longer available to retry.");
+      } catch (error) {
+        setCaptureError(errorMessage(error));
+      }
+    },
+    [setCaptureError],
+  );
+
   return {
     items,
     setItems,
@@ -297,5 +312,6 @@ export function useLibraryData({
     debouncedQuery,
     noteBodyCacheRef,
     reload,
+    retryJob,
   };
 }

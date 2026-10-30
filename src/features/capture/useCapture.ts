@@ -4,7 +4,6 @@ import { createFileImportQueue, type FileImportProgress } from "./fileImport";
 import { parseDeepLinkCapture, validateDeepLinkCapture } from "../../lib/deepLink";
 import { classifyFile } from "../../lib/ingestion/file-classification";
 import { parseHttpUrl } from "../../lib/ingestion/url";
-import { videoLinkFromSourceUrl } from "../../lib/ingestion/video-links";
 import {
   captureUrlItem,
   createNote,
@@ -13,14 +12,25 @@ import {
   listenForDeepLinks,
   saveFile,
 } from "../../lib/libraryApi";
-import { markdownToPlainText, normalizeNoteBody } from "../../lib/notes";
 import { shouldUseSeedLibrary } from "../../lib/previewMode";
 import type { LibraryItem } from "../../lib/types";
+import { storedItemToLibraryItem } from "../library/libraryItem";
+import { errorMessage } from "../errorMessage";
 import {
-  postFallbackFromMetadata,
-  readImageDimensions,
-  storedItemToLibraryItem,
-} from "../library/libraryItem";
+  previewArticleEnrichment,
+  previewArticleItem,
+  previewFileItem,
+  previewNoteItem,
+  previewQuoteItem,
+} from "./previewItems";
+import { grabScreenshot } from "./screenshot";
+
+const BARE_DOMAIN =
+  /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u;
+
+function looksLikeUrl(value: string) {
+  return /^https?:\/\//iu.test(value) || BARE_DOMAIN.test(value);
+}
 
 type CaptureOptions = {
   canUseDesktopBackend: boolean;
@@ -57,31 +67,33 @@ export function useCapture({
       return;
     }
 
-    const image = kind === "image" ? URL.createObjectURL(file) : undefined;
-    const mediaDimensions = image ? await readImageDimensions(image) : undefined;
-
-    const item: LibraryItem = {
-      id: crypto.randomUUID(),
-      kind:
-        kind === "image" ? "Image" : kind === "pdf" ? "PDF" : kind === "video" ? "Video" : "File",
-      title: file.name,
-      description: `Saved from ${captureSource}.`,
-      source: captureSource,
-      date: "Just now",
-      tags: [],
-      image,
-      fileUrl: kind === "video" ? URL.createObjectURL(file) : undefined,
-      mediaWidth: mediaDimensions?.width,
-      mediaHeight: mediaDimensions?.height,
-    };
+    const item = await previewFileItem(file, kind, captureSource);
     setItems((current) => [item, ...current]);
+  }
+
+  async function runCapture(capture: () => Promise<unknown>, closeMenu: boolean) {
+    setCaptureError(null);
+    setIsCapturing(true);
+    try {
+      await capture();
+      if (closeMenu) {
+        setIsAdding(false);
+        setCaptureMode(null);
+      }
+      return true;
+    } catch (error) {
+      setCaptureError(errorMessage(error));
+      return false;
+    } finally {
+      setIsCapturing(false);
+    }
   }
 
   const [fileImport, setFileImport] = useState<FileImportProgress | null>(null);
   const [fileQueue] = useState(() =>
     createFileImportQueue<File>(setFileImport, (file, error) => {
       setCaptureError(
-        `Couldn’t import ${file.name}: ${error instanceof Error ? error.message : String(error)}. Other files will continue.`,
+        `Couldn’t import ${file.name}: ${errorMessage(error)}. Other files will continue.`,
       );
     }),
   );
@@ -114,112 +126,24 @@ export function useCapture({
       return;
     }
 
-    const fallbackItem: LibraryItem = {
-      id: Date.now(),
-      kind: "Article",
-      title: fallbackTitle,
-      description: "",
-      source: parsedUrl.hostname,
-      sourceUrl: normalizedUrl,
-      date: "Just now",
-      tags: [],
-    };
+    const fallbackItem = previewArticleItem(parsedUrl, fallbackTitle);
     setItems((current) => [fallbackItem, ...current]);
-    void import("../../lib/ingestion")
-      .then(({ ingestUrl }) => ingestUrl(normalizedUrl))
-      .then((article) => {
-        const social = article.social;
-        const embeddedVideoLink = social ? null : videoLinkFromSourceUrl(article.canonicalUrl);
-        const firstImageDimensions = article.imageDimensions.find(
-          (value) => value.url === article.imageUrls[0],
-        );
-        const enrichedItem: LibraryItem = {
-          ...fallbackItem,
-          kind: social ? "Post" : embeddedVideoLink ? "Video" : "Article",
-          title: article.title || fallbackTitle,
-          description: article.description || article.text.slice(0, 180),
-          source: social
-            ? `X${social.authorHandle ? ` · @${social.authorHandle.replace(/^@/u, "")}` : ""}`
-            : new URL(article.canonicalUrl).hostname,
-          sourceUrl: article.canonicalUrl,
-          author: article.author,
-          image: article.imageUrls[0],
-          mediaWidth: firstImageDimensions?.width,
-          mediaHeight: firstImageDimensions?.height,
-          mediaAspectRatio: firstImageDimensions
-            ? firstImageDimensions.width / firstImageDimensions.height
-            : undefined,
-          articleAuthor: article.author || undefined,
-          publishedDate: article.publishedDate ?? undefined,
-          articleHtml: article.html || undefined,
-          hasArticleContent: Boolean(article.html.trim()),
-          social,
-          post: social ? postFallbackFromMetadata(social) : undefined,
-          video: embeddedVideoLink ?? undefined,
-        };
-        const applyEnrichment = (item: LibraryItem) =>
-          String(item.id) === String(fallbackItem.id)
-            ? {
-                ...enrichedItem,
-                title:
-                  preservedTitle || item.title !== fallbackTitle
-                    ? item.title
-                    : article.title || item.title,
-              }
-            : item;
+    void previewArticleEnrichment(normalizedUrl, fallbackItem, preservedTitle)
+      .then((applyEnrichment) => {
         setItems((current) => current.map(applyEnrichment));
         setSelectedItem((current) => (current ? applyEnrichment(current) : current));
       })
       .catch(() => {});
   }
 
-  async function captureArticle(sourceUrl: string, captureSource: string, extensionTitle?: string) {
-    setCaptureError(null);
-    setIsCapturing(true);
-    try {
-      await persistArticle(sourceUrl, captureSource, extensionTitle);
-      setIsAdding(false);
-      setCaptureMode(null);
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsCapturing(false);
-    }
-  }
-
-  async function captureDeepLinkUrl(sourceUrl: string, title: string | undefined) {
-    setCaptureError(null);
-    setIsCapturing(true);
-    try {
-      await persistArticle(sourceUrl, "browser extension", title);
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsCapturing(false);
-    }
-  }
-
-  async function captureText(text: string, captureSource: string) {
-    setCaptureError(null);
-    setIsCapturing(true);
-    try {
-      await persistText(text, captureSource);
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsCapturing(false);
-    }
+  function captureText(text: string, captureSource: string) {
+    return runCapture(() => persistText(text, captureSource), false);
   }
 
   async function persistText(text: string, captureSource: string) {
     const value = text.trim();
     if (!value) return;
-    if (
-      /^https?:\/\//iu.test(value) ||
-      /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u.test(
-        value,
-      )
-    ) {
+    if (looksLikeUrl(value)) {
       await persistArticle(value, captureSource);
       return;
     }
@@ -234,17 +158,7 @@ export function useCapture({
       return;
     }
 
-    const item: LibraryItem = {
-      id: Date.now(),
-      kind: "Note",
-      title: value,
-      description: markdownToPlainText(value),
-      noteBody: normalizeNoteBody(value),
-      source: captureSource,
-      date: "Just now",
-      tags: [],
-      accent: "bg-blue-soft",
-    };
+    const item = previewNoteItem(value, captureSource);
     setItems((current) => [item, ...current]);
   }
 
@@ -278,28 +192,7 @@ export function useCapture({
       return;
     }
 
-    let sourceLabel = "Quote";
-    if (trimmedSource) {
-      try {
-        sourceLabel = new URL(trimmedSource).hostname.replace(/^www\./u, "");
-      } catch {
-        sourceLabel = trimmedSource;
-      }
-    } else if (trimmedAttribution) {
-      sourceLabel = trimmedAttribution.split(",")[0]?.trim() || "Quote";
-    }
-
-    const item: LibraryItem = {
-      id: Date.now(),
-      kind: "Quote",
-      title: body,
-      description: trimmedAttribution,
-      source: sourceLabel,
-      date: "Just now",
-      tags: [],
-      accent: "bg-yellow-soft",
-      sourceUrl: trimmedSource || undefined,
-    };
+    const item = previewQuoteItem(body, trimmedAttribution, trimmedSource);
     setItems((current) => [item, ...current]);
   }
 
@@ -313,37 +206,17 @@ export function useCapture({
 
     setCaptureError(null);
     setIsCapturing(true);
-    let stream: MediaStream | null = null;
     try {
-      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      await video.play();
-      const width = video.videoWidth;
-      const height = video.videoHeight;
-      if (width === 0 || height === 0)
-        throw new Error("The selected display has no capturable frame.");
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      canvas.getContext("2d")?.drawImage(video, 0, 0, width, height);
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-      if (!blob) throw new Error("The screenshot could not be encoded.");
-      const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" });
+      const file = await grabScreenshot();
       await persistFile(file, "screenshot");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setCaptureError(
         error instanceof DOMException
           ? "Screen capture was canceled or unavailable. You can paste a screenshot from your system tool, or add it with File."
-          : error instanceof Error
-            ? error.message
-            : String(error),
+          : errorMessage(error),
       );
     } finally {
-      stream?.getTracks().forEach((track) => {
-        track.stop();
-      });
       setIsCapturing(false);
     }
   }
@@ -386,7 +259,10 @@ export function useCapture({
       } else if (capture.kind === "image") {
         await captureImageUrl(capture.pageUrl, capture.imageUrl, "browser extension");
       } else {
-        await captureDeepLinkUrl(capture.url, capture.title);
+        await runCapture(
+          () => persistArticle(capture.url, "browser extension", capture.title),
+          false,
+        );
       }
     }
   }
@@ -449,7 +325,7 @@ export function useCapture({
     }
 
     void connectCaptureEvents().catch((error: unknown) => {
-      if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+      if (!cancelled) setCaptureError(errorMessage(error));
     });
     return () => {
       cancelled = true;
@@ -465,20 +341,21 @@ export function useCapture({
   async function saveFromAddMenu(save: () => Promise<unknown>) {
     if (addMenuSavingRef.current) return false;
     addMenuSavingRef.current = true;
-    setCaptureError(null);
-    setIsCapturing(true);
     try {
-      await save();
-      setIsAdding(false);
-      setCaptureMode(null);
-      return true;
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-      return false;
+      return await runCapture(save, true);
     } finally {
       addMenuSavingRef.current = false;
-      setIsCapturing(false);
     }
+  }
+
+  const saveNote = (text: string) => saveFromAddMenu(() => persistText(text, "quick note"));
+  const saveLink = (url: string) => saveFromAddMenu(() => persistArticle(url, "quick link"));
+  const saveQuote = (text: string, attribution: string, sourceUrl: string) =>
+    saveFromAddMenu(() => persistQuote(text, attribution, sourceUrl, "quick quote"));
+
+  function changeCaptureMode(mode: AddMode | null) {
+    setCaptureMode(mode);
+    setCaptureError(null);
   }
 
   // Shortcuts/Classic reveal the sidebar; the compact Codex trigger stays put.
@@ -527,13 +404,8 @@ export function useCapture({
       .map((value) => value.trim())
       .find(Boolean);
     if (!droppedText) return;
-    if (
-      /^https?:\/\//iu.test(droppedText) ||
-      /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u.test(
-        droppedText,
-      )
-    ) {
-      void captureArticle(droppedText, "drag and drop");
+    if (looksLikeUrl(droppedText)) {
+      void runCapture(() => persistArticle(droppedText, "drag and drop"), true);
     } else {
       void captureText(droppedText, "drag and drop");
     }
@@ -549,10 +421,10 @@ export function useCapture({
     isDragActive,
     openCapture,
     closeCaptureModal,
-    saveFromAddMenu,
-    persistText,
-    persistArticle,
-    persistQuote,
+    changeCaptureMode,
+    saveNote,
+    saveLink,
+    saveQuote,
     captureFiles,
     startScreenshotCapture,
     handleDragOver,

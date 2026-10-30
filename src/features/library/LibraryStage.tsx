@@ -2,11 +2,28 @@ import { Search01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
 import { type RefObject, useMemo } from "react";
+import GradualBlur, { type GradualBlurProps } from "../../components/GradualBlur/GradualBlur";
 import { LiquidGlass } from "../../components/LiquidGlass";
 import type { LibraryItem } from "../../lib/types";
 import { cx } from "../../ui/cx";
 import { LibraryCard, type LibraryCardContext } from "./LibraryCard";
-import { LibraryEdgeFade } from "./LibraryEdgeFade";
+
+// Blurs the grid out at the frame edges instead of hard-clipping it. Rendered in
+// the liquid glass backdrop so the toolbar glass refracts the blur. Values are
+// React Bits' "Peek" preset; tint #120f17 at 0.15.
+const EDGE_BLUR: GradualBlurProps = {
+  height: "6rem",
+  strength: 1,
+  layers: 5,
+  curve: "ease-in",
+  exponential: true,
+  opacity: 1,
+  saturation: 1,
+  tint: "rgba(18, 15, 23, 0.15)",
+  autoHide: false,
+  zIndex: 1,
+  className: "library-edge-blur",
+};
 
 // The stage covers the frame under the toolbar; with liquid glass it is also
 // the canvas that draws the toolbar's glass over the cards. The scroller is
@@ -46,7 +63,7 @@ export function LibraryStage({
       targetRoots={glassTargets}
     >
       {/* Reaches past the toolbar and bottom padding, nearly to the frame's
-          edges, where LibraryEdgeFade blurs the cards out. The grid's padding
+          edges, where the edge blur fades the cards out. The grid's padding
           puts the rows back where they rest. scripts/bench-library-grid.mjs
           measures `library-scroll`. */}
       <div
@@ -96,7 +113,12 @@ export function LibraryStage({
           </div>
         )}
       </div>
-      {items.length > 0 && <LibraryEdgeFade />}
+      {items.length > 0 && (
+        <>
+          <GradualBlur {...EDGE_BLUR} position="top" />
+          <GradualBlur {...EDGE_BLUR} position="bottom" />
+        </>
+      )}
     </LiquidGlass>
   );
 }

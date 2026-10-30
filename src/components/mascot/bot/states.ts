@@ -720,20 +720,3 @@ export const STATES: StateDef[] = [
 ];
 
 export const STATE_BY_ID = new Map(STATES.map((s) => [s.id, s]));
-
-export const SEQUENCE: StateId[] = [
-  "idle",
-  "thinking",
-  "wink",
-  "wide",
-  "alert",
-  "notify",
-  "exclaim",
-  "sleep",
-  "egg",
-  "hexagon",
-  "play",
-  "orbit",
-  "burst",
-  "comet",
-];

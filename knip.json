@@ -11,7 +11,7 @@
         "electron/**/*.test.ts"
       ],
       "project": ["src/**/*", "benchmarks/harness/**/*", "electron/**/*"],
-      "ignore": ["src/bun-test.d.ts", "src/components/GradualBlur/**"],
+      "ignore": ["src/bun-test.d.ts"],
       "ignoreDependencies": ["@img/sharp-wasm32"],
       "ignoreBinaries": ["dpkg-deb"]
     },

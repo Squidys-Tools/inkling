@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { LibraryItem } from "../../lib/types";
 import { cx } from "../../ui/cx";
 import { ItemTitle } from "./ItemTitle";
@@ -15,7 +16,7 @@ const TEXT_TILE = cx(
 );
 const SMALL_CAPS = "font-mono text-[9px]/3 text-muted uppercase";
 
-function similarTileHeight(item: LibraryItem): number {
+function similarTileHeight(item: LibraryItem) {
   if (item.image) {
     const ratio = item.mediaWidth && item.mediaHeight ? item.mediaHeight / item.mediaWidth : 1.25;
     return Math.round(Math.min(200, Math.max(100, SIMILAR_TILE_WIDTH * ratio)));
@@ -37,7 +38,7 @@ function splitIntoColumns(items: LibraryItem[]): [LibraryItem[], LibraryItem[]] 
   return columns;
 }
 
-function wordCount(text: string): number {
+function wordCount(text: string) {
   return text.trim().split(/\s+/u).filter(Boolean).length;
 }
 
@@ -154,4 +155,37 @@ export function SimilarPanel({
       )}
     </>
   );
+}
+
+// Looks up similar items while the Similar tab is open. Reloads only when the
+// shown item changes, not on every edit to its record.
+export function useSimilarItems(
+  item: LibraryItem,
+  open: boolean,
+  load: (item: LibraryItem) => Promise<LibraryItem[]>,
+) {
+  // Tied to the item's id so a stale list never shows for another item.
+  const [similar, setSimilar] = useState<{ itemId: string; items: LibraryItem[] } | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const itemId = String(item.id);
+    let cancelled = false;
+    load(item).then(
+      (items) => {
+        if (!cancelled)
+          setSimilar({
+            itemId,
+            items: items.filter((candidate) => String(candidate.id) !== itemId),
+          });
+      },
+      () => {
+        if (!cancelled) setSimilar({ itemId, items: [] });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Keyed on the item ID; the lookup reads the item it was started for.
+  }, [open, item.id]);
+  return similar?.itemId === String(item.id) ? similar.items : null;
 }
