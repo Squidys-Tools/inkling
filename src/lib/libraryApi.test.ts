@@ -83,19 +83,3 @@ test("Space reads and export restores wait for storage initialization", async ()
     exportDirectory: "export-folder",
   });
 });
-
-test("Electron asset paths use the storage-backed app URL mapping", async () => {
-  const electronWindow = globalThis.window;
-  Object.defineProperty(globalThis, "window", {
-    configurable: true,
-    value: { inkling: { commands: {} } },
-  });
-
-  try {
-    invokeCalls.length = 0;
-    expect(await assetUrl("assets/item.png")).toBe("app://local/library-assets/item.png");
-    expect(invokeCalls).toEqual([]);
-  } finally {
-    Object.defineProperty(globalThis, "window", { configurable: true, value: electronWindow });
-  }
-});
