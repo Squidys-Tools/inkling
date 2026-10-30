@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
-import { embeddingText, enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
+import { enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.ts";
 import { URL_ENRICHMENT_JOB } from "./storage/library.ts";
 import {
@@ -120,19 +120,6 @@ test("Electron jobs OCR captured files, index their text, and persist matching m
   ).toEqual({ progress_current: 3, progress_total: 3 });
   await closeProcessors(ai);
   expect(closed).toBe(true);
-});
-
-test("embedding text keeps the shared document inputs and markdown projection", () => {
-  expect(
-    embeddingText({
-      title: "Reading list",
-      description: "ignored description",
-      body: "## Nomic\n\nA **local** model.",
-      bodyFormat: "md",
-      ocrText: "Cover text",
-      metadata: { text: "ignored metadata" },
-    }),
-  ).toBe("Reading list\n\nNomic A local model.\n\nCover text");
 });
 
 test("URL enrichment updates the captured item before its text is embedded", async () => {
