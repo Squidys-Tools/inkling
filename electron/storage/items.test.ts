@@ -2,8 +2,8 @@ import { afterAll, afterEach, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { TEXT_MODEL } from "./embedding-contract.ts";
-import { IMAGE_THUMBNAIL_JOB, URL_ENRICHMENT_JOB } from "./storage/library.ts";
+import { TEXT_MODEL } from "../embedding-contract.ts";
+import { IMAGE_THUMBNAIL_JOB, URL_ENRICHMENT_JOB } from "./jobs.ts";
 import {
   closeAll,
   count,
@@ -12,8 +12,8 @@ import {
   temporaryLibrary,
   trackedLibrary,
   vector,
-} from "./storage/test-helpers.ts";
-import type { TestLibrary } from "./storage/test-library.ts";
+} from "./test-helpers.ts";
+import type { TestLibrary } from "./test-library.ts";
 
 async function enrichUrl(library: TestLibrary, itemId: string, article: object) {
   const workerId = `url-test-${randomUUID()}`;
