@@ -5,10 +5,8 @@ export const OVERLAY_FLIGHT_MS = 600 * 0.85;
 // GSAP's circ.inOut is the classic easeInOutCirc curve.
 export const OVERLAY_EASE = "circ.inOut";
 
-export function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
+export function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 export function rectFrom(rect: DOMRect): FlightRect {
