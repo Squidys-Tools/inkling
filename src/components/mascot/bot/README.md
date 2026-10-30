@@ -19,8 +19,7 @@ re-implemented in React as `../InklingMascot.tsx`.
   (marked `INKLING EXTENSION`). Adding a shape there also registers it in the
   `eyefit.ts` correction table built at import.
 - New animations go in `states.ts` as new `StateDef` entries; never rewrite
-  measured states. A state holds or cuts time (see `minDuration` in `states.ts`),
-  never scales it.
+  measured states.
 - The engine (`engine.ts`) may gain small declarative, default-off state flags
   (like `steadyFace`); never per-frame behavior changes that could disturb the
   measured states.

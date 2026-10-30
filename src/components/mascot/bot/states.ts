@@ -226,13 +226,6 @@ export interface StateDef {
   id: StateId;
   /** duree de maintien quand la sequence complete est jouee */
   duration: number;
-  /**
-   * duree en dessous de laquelle l'animation est coupee avant d'aboutir : le
-   * "!" ne revient pas, le corps reste eclate. Elle se lit dans les constantes
-   * de `pose` ci-dessous, elle ne se choisit pas. Absente = l'etat ignore le
-   * temps ou boucle, n'importe quelle duree lui va (voir `MIN_BLOCK`).
-   */
-  minDuration?: number;
   /** duree du morph d'entree */
   morph: number;
   /** true = l'entree est masquee par un clignement, comme dans la video */
@@ -345,8 +338,6 @@ export const STATES: StateDef[] = [
   {
     id: "alert",
     duration: 2.4,
-    // le "!" revient en place a 1.6 + 0.4
-    minDuration: 2,
     morph: 0.45,
     baseFace: false,
     baseBody: false,
@@ -498,8 +489,6 @@ export const STATES: StateDef[] = [
   {
     id: "orbit",
     duration: 3.4,
-    // le corps a fini de se relacher du triangle vers la boule a 1.6 + 0.9
-    minDuration: 2.5,
     morph: 0.6,
     baseFace: false,
     baseBody: false,
@@ -563,10 +552,7 @@ export const STATES: StateDef[] = [
      * catalogue, c'est une transition d'interface.
      */
     id: "swirl",
-    // un peu plus que le tour du regard (`TURN_TIME`, 1,1 s) : les yeux doivent
-    // etre poses a gauche avant que les anneaux ne s'effacent
     duration: 1.3,
-    minDuration: 1.3,
     morph: 0.3,
     baseFace: true,
     baseBody: true,
@@ -590,8 +576,6 @@ export const STATES: StateDef[] = [
   {
     id: "burst",
     duration: 2.6,
-    // le corps est recompose a 1.7 + 0.7
-    minDuration: 2.4,
     morph: 0.4,
     baseFace: false,
     baseBody: false,
@@ -612,10 +596,6 @@ export const STATES: StateDef[] = [
   {
     id: "comet",
     duration: 2.4,
-    // le point se recompose a 1.85 + 0.6 = 2.45, soit 0.05 s apres la coupe de
-    // la video : ce reliquat se termine pendant le fondu suivant, comme dans la
-    // reference. On ne descend donc pas sous la duree mesuree.
-    minDuration: 2.4,
     morph: 0.45,
     baseFace: false,
     baseBody: false,
@@ -635,9 +615,9 @@ export const STATES: StateDef[] = [
     },
   },
 
-  // INKLING EXTENSION — see StateId above. Both loop (no minDuration, like
-  // `idle`), keep the chosen shape (baseBody) and the rest expression
-  // (baseFace) so error/attention faces keep working on top of the motion.
+  // INKLING EXTENSION — see StateId above. Sway and jelly loop like `idle`,
+  // keep the chosen shape (baseBody) and the rest expression (baseFace) so
+  // error/attention faces keep working on top of the motion.
   {
     // Slow rotation + breath. Visible only on non-circular skins, which is
     // exactly what the inkling splash is: ±6deg over 6s, ±1.5% vertical breath.
