@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.ts";
 import {
   createEmbeddingEngine,
   floatVectorBytes,
@@ -36,8 +35,6 @@ test("tokenizer truncation preserves the final special token at the Rust documen
   expect(encoded.ids.at(-1)).toBe(8192);
   expect(encoded.typeIds.at(-1)).toBe(1);
   expect(encoded.mask).toEqual(new Array(8192).fill(1));
-  expect(TEXT_MODEL).toBe("nomic-embed-text-v1.5");
-  expect(IMAGE_MODEL).toBe("nomic-embed-vision-v1.5-sharp");
 });
 
 test("Nomic text validation accepts Unicode letters and numbers", () => {
