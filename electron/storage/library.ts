@@ -7,6 +7,7 @@ import type { StorageStatus } from "@inkling/contracts";
 import type { StorageContext, StorageMedia } from "./context.ts";
 import { makeEnrichment } from "./enrichment.ts";
 import { makeExport } from "./export-library.ts";
+import { makeFiles } from "./files.ts";
 import { makeImport } from "./import-library.ts";
 import { makeItems } from "./items.ts";
 import { JobQueue, type JobQueueOptions, makeJobQueue } from "./jobs.ts";
@@ -85,6 +86,7 @@ const makeLibrary = Effect.fnUntraced(function* (
         Effect.as(undefined),
       ),
     ...makeItems(ctx),
+    ...makeFiles(ctx),
     ...makeEnrichment(ctx),
     ...search,
     ...makeSpaces(ctx, search),

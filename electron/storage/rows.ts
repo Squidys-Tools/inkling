@@ -2,6 +2,7 @@ import { Effect, Predicate } from "effect";
 import type { Fragment } from "effect/sql/Statement";
 import type { StoredLibraryCard, StoredLibraryItemDetail } from "@inkling/contracts";
 import type { StorageContext } from "./context.ts";
+import { itemNotFound } from "./errors.ts";
 import { type Metadata, parseJson } from "./shared.ts";
 
 export type ItemRow = {
@@ -104,4 +105,10 @@ export const selectCards = (
 export const readItem = ({ sql }: StorageContext, id: string) =>
   sql<ItemRow>`SELECT ${sql.literal(detailColumns)} FROM items WHERE id = ${id}`.pipe(
     Effect.map(([row]) => (row ? itemFromRow(row) : null)),
+  );
+
+// A write reads its row back; losing it in between is a failure, not an empty result.
+export const writtenItem = (ctx: StorageContext, id: string) =>
+  readItem(ctx, id).pipe(
+    Effect.flatMap((item) => (item ? Effect.succeed(item) : Effect.fail(itemNotFound(id)))),
   );
