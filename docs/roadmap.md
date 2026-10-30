@@ -2,7 +2,7 @@
 
 The checked items reflect shipped work. See [changelog.md](changelog.md) for completed work and [bugs.md](bugs.md) for defects that are still open.
 
-## Milestone 0 -- Capture and Storage
+## Milestone 0 -- Capture and storage
 
 **Status: Complete**
 
@@ -18,7 +18,7 @@ Local library with capture, extraction, and text search.
 - [x] Safe embed allowlists (YouTube, Vimeo, direct media)
 - [x] HTML sanitization and security
 
-## Milestone 1 -- Vision and Semantics
+## Milestone 1 -- Vision and semantics
 
 **Status: Complete**
 
@@ -34,7 +34,7 @@ Vertical slice from capture through semantic understanding and search.
 - [x] Image similarity search
 - [x] Smart Spaces (auto-updating saved searches)
 
-## Milestone 2 -- Reading and Writing
+## Milestone 2 -- Reading and writing
 
 **Status: Complete**
 
@@ -60,7 +60,7 @@ Surfacing forgotten material through browsing and curation.
 - [x] Export and backup (database snapshot + referenced assets + manifest)
 - [x] Import and restore from an export (SQU-119)
 
-## Milestone 4 -- Local Intelligence
+## Milestone 4 -- Local intelligence
 
 **Status: Not Started**
 
@@ -71,7 +71,7 @@ On-device AI for summaries and deeper understanding.
 - [ ] Structured analysis of saved content
 - [ ] Model selection across CPU, standard, and GPU modes
 
-## Milestone 5 -- Polish and Distribution
+## Milestone 5 -- Polish and distribution
 
 **Status: In Progress**
 
