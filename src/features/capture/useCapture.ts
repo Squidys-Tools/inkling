@@ -24,6 +24,13 @@ import {
 import { errorMessage } from "../errorMessage";
 import { hostnameForUrl } from "../hostname";
 
+const BARE_DOMAIN =
+  /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u;
+
+function looksLikeUrl(value: string) {
+  return /^https?:\/\//iu.test(value) || BARE_DOMAIN.test(value);
+}
+
 type CaptureOptions = {
   canUseDesktopBackend: boolean;
   setItems: Dispatch<SetStateAction<LibraryItem[]>>;
@@ -77,6 +84,24 @@ export function useCapture({
       mediaHeight: mediaDimensions?.height,
     };
     setItems((current) => [item, ...current]);
+  }
+
+  async function runCapture(capture: () => Promise<unknown>, closeMenu: boolean) {
+    setCaptureError(null);
+    setIsCapturing(true);
+    try {
+      await capture();
+      if (closeMenu) {
+        setIsAdding(false);
+        setCaptureMode(null);
+      }
+      return true;
+    } catch (error) {
+      setCaptureError(errorMessage(error));
+      return false;
+    } finally {
+      setIsCapturing(false);
+    }
   }
 
   const [fileImport, setFileImport] = useState<FileImportProgress | null>(null);
@@ -175,53 +200,14 @@ export function useCapture({
       .catch(() => {});
   }
 
-  async function captureArticle(sourceUrl: string, captureSource: string, extensionTitle?: string) {
-    setCaptureError(null);
-    setIsCapturing(true);
-    try {
-      await persistArticle(sourceUrl, captureSource, extensionTitle);
-      setIsAdding(false);
-      setCaptureMode(null);
-    } catch (error) {
-      setCaptureError(errorMessage(error));
-    } finally {
-      setIsCapturing(false);
-    }
-  }
-
-  async function captureDeepLinkUrl(sourceUrl: string, title: string | undefined) {
-    setCaptureError(null);
-    setIsCapturing(true);
-    try {
-      await persistArticle(sourceUrl, "browser extension", title);
-    } catch (error) {
-      setCaptureError(errorMessage(error));
-    } finally {
-      setIsCapturing(false);
-    }
-  }
-
-  async function captureText(text: string, captureSource: string) {
-    setCaptureError(null);
-    setIsCapturing(true);
-    try {
-      await persistText(text, captureSource);
-    } catch (error) {
-      setCaptureError(errorMessage(error));
-    } finally {
-      setIsCapturing(false);
-    }
+  function captureText(text: string, captureSource: string) {
+    return runCapture(() => persistText(text, captureSource), false);
   }
 
   async function persistText(text: string, captureSource: string) {
     const value = text.trim();
     if (!value) return;
-    if (
-      /^https?:\/\//iu.test(value) ||
-      /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u.test(
-        value,
-      )
-    ) {
+    if (looksLikeUrl(value)) {
       await persistArticle(value, captureSource);
       return;
     }
@@ -379,7 +365,10 @@ export function useCapture({
       } else if (capture.kind === "image") {
         await captureImageUrl(capture.pageUrl, capture.imageUrl, "browser extension");
       } else {
-        await captureDeepLinkUrl(capture.url, capture.title);
+        await runCapture(
+          () => persistArticle(capture.url, "browser extension", capture.title),
+          false,
+        );
       }
     }
   }
@@ -458,19 +447,10 @@ export function useCapture({
   async function saveFromAddMenu(save: () => Promise<unknown>) {
     if (addMenuSavingRef.current) return false;
     addMenuSavingRef.current = true;
-    setCaptureError(null);
-    setIsCapturing(true);
     try {
-      await save();
-      setIsAdding(false);
-      setCaptureMode(null);
-      return true;
-    } catch (error) {
-      setCaptureError(errorMessage(error));
-      return false;
+      return await runCapture(save, true);
     } finally {
       addMenuSavingRef.current = false;
-      setIsCapturing(false);
     }
   }
 
@@ -530,13 +510,8 @@ export function useCapture({
       .map((value) => value.trim())
       .find(Boolean);
     if (!droppedText) return;
-    if (
-      /^https?:\/\//iu.test(droppedText) ||
-      /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s]*)?$/u.test(
-        droppedText,
-      )
-    ) {
-      void captureArticle(droppedText, "drag and drop");
+    if (looksLikeUrl(droppedText)) {
+      void runCapture(() => persistArticle(droppedText, "drag and drop"), true);
     } else {
       void captureText(droppedText, "drag and drop");
     }
