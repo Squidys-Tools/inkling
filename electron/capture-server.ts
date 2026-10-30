@@ -9,7 +9,7 @@ import {
 import { dirname, join } from "node:path";
 import { Schema } from "effect";
 
-export const MAX_JSON_BYTES = 5 * 1024 * 1024;
+const MAX_JSON_BYTES = 5 * 1024 * 1024;
 const MAX_HEAD_BYTES = 64 * 1024;
 const MAX_DEFUDDLED_HTML_BYTES = 2 * 1024 * 1024;
 const RATE_LIMIT_MAX = 60;
@@ -338,11 +338,6 @@ export async function startCaptureServer({
   libraryDirectory: string;
   captureUrl: CaptureUrl;
 }) {
-  if (!libraryDirectory || typeof captureUrl !== "function") {
-    throw new TypeError(
-      "capture server requires a library directory and storage captureUrl function",
-    );
-  }
   const tokenPath = join(libraryDirectory, TOKEN_FILE_NAME);
   let token = await loadOrGenerateToken(tokenPath);
   const allowRequest = createRateLimiter();

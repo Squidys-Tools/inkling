@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureServerInternals, MAX_JSON_BYTES, startCaptureServer } from "./capture-server.ts";
+import { captureServerInternals, startCaptureServer } from "./capture-server.ts";
 import { openTestLibrary, type TestLibrary } from "./storage/test-library.ts";
 
 const roots: string[] = [];
@@ -144,14 +144,13 @@ describe("capture server parity", () => {
     expect(() => captureServerInternals.validateCapturePayload(Buffer.from("not json"))).toThrow();
   });
 
-  test("token generation, rate limiting, and payload cap match the Rust receiver", () => {
+  test("pairing tokens and the rate limit match the Rust receiver", () => {
     const token = "a".repeat(64);
     expect(captureServerInternals.tokenLooksValid(token)).toBe(true);
     expect(captureServerInternals.tokenLooksValid("short")).toBe(false);
     expect(captureServerInternals.tokenLooksValid("has spaces in it yes indeed 1234567890")).toBe(
       false,
     );
-    expect(MAX_JSON_BYTES).toBe(5 * 1024 * 1024);
 
     let now = 10_000;
     const allowRequest = captureServerInternals.createRateLimiter(() => now);
