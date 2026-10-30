@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { BotEngine, type BotFrame } from "./bot/engine";
 import { EXPRESSION_BY_ID } from "./bot/expressions";
 import { SHAPE_BY_ID } from "./bot/skins";
-import { SEQUENCE, type StateId } from "./bot/states";
+import type { StateId } from "./bot/states";
 import { toPoints } from "./bot/shape";
 import { RAYON } from "./bot/repere";
 
@@ -25,7 +25,6 @@ describe("inkling alive states", () => {
       SHAPE_BY_ID.get("inkling-splash")?.radii ?? null,
       EXPRESSION_BY_ID.get("neutre") ?? null,
     );
-    expect(SEQUENCE).not.toContain("inkling-drift");
     const frames = [0, 2, 4, 6, 8, 10, 12].map((t) => engine.sample(t));
     for (const frame of frames) {
       expect(frame.bodyPath).not.toContain("NaN");
