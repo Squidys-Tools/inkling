@@ -40,7 +40,10 @@ export function createMainWindow({ preload, query }: { preload: string; query: s
       event.preventDefault();
       return;
     }
-    if (url.protocol !== "app:" || url.hostname !== "local") event.preventDefault();
+    // Only the app page itself: a stray link in saved HTML must not move the window
+    // to another same-origin path, where the preload bridge would load again.
+    if (url.protocol !== "app:" || url.hostname !== "local" || url.pathname !== "/index.html")
+      event.preventDefault();
   });
   // The renderer calls inkling:window:ready once it knows whether the welcome
   // runs and has painted that first frame, so a first launch never flashes the

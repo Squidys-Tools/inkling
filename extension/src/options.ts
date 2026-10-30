@@ -1,5 +1,10 @@
 import browser from "webextension-polyfill";
-import { isPairingToken, normalizeCaptureServerAddress } from "./connection";
+import {
+  BASE_URL_KEY,
+  isPairingToken,
+  normalizeCaptureServerAddress,
+  TOKEN_KEY,
+} from "./connection";
 
 const baseUrlInput = document.getElementById("base-url") as HTMLInputElement;
 const tokenInput = document.getElementById("token") as HTMLInputElement;
@@ -7,13 +12,9 @@ const saveButton = document.getElementById("save") as HTMLButtonElement;
 const statusLine = document.getElementById("status") as HTMLSpanElement;
 
 async function load(): Promise<void> {
-  const stored = await browser.storage.local.get(["inkling.base-url", "inkling.token"]);
-  if (typeof stored["inkling.base-url"] === "string") {
-    baseUrlInput.value = stored["inkling.base-url"];
-  }
-  if (typeof stored["inkling.token"] === "string") {
-    tokenInput.value = stored["inkling.token"];
-  }
+  const stored = await browser.storage.local.get([BASE_URL_KEY, TOKEN_KEY]);
+  if (typeof stored[BASE_URL_KEY] === "string") baseUrlInput.value = stored[BASE_URL_KEY];
+  if (typeof stored[TOKEN_KEY] === "string") tokenInput.value = stored[TOKEN_KEY];
 }
 
 saveButton.addEventListener("click", () => {
@@ -35,10 +36,7 @@ saveButton.addEventListener("click", () => {
       return;
     }
 
-    await browser.storage.local.set({
-      "inkling.base-url": baseUrl,
-      "inkling.token": token,
-    });
+    await browser.storage.local.set({ [BASE_URL_KEY]: baseUrl, [TOKEN_KEY]: token });
     statusLine.textContent = "Saved.";
   })();
 });

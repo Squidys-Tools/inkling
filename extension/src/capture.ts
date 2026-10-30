@@ -1,17 +1,21 @@
-import { buildPageCapturePayload } from "@inkling/ingestion-shared";
+import type { PageCapturePayloadV1 } from "@inkling/ingestion-shared";
 
-export function buildUrlCapturePayload(url: string, title: string) {
+export function buildUrlCapturePayload(url: string, title: string): PageCapturePayloadV1 {
   const parsedUrl = new URL(url);
-  if (parsedUrl.username || parsedUrl.password) throw new Error("page URL contains credentials");
-  const normalizedUrl = parsedUrl.toString();
-  if (new TextEncoder().encode(normalizedUrl).byteLength > 8_192) {
-    throw new Error("page URL is too long");
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    throw new Error("only HTTP and HTTPS pages can be saved");
   }
-  return buildPageCapturePayload({
+  if (parsedUrl.username || parsedUrl.password) throw new Error("page URL contains credentials");
+  // A serialized URL is ASCII, so its length is its byte count.
+  const normalizedUrl = parsedUrl.toString();
+  if (normalizedUrl.length > 8_192) throw new Error("page URL is too long");
+  return {
+    version: 1,
+    kind: "page",
     url: normalizedUrl,
-    title: title.trim().slice(0, 500),
+    title: title.trim().slice(0, 500).trim() || parsedUrl.hostname,
     defuddledHtml: "",
     text: "",
     imageUrls: [],
-  });
+  };
 }

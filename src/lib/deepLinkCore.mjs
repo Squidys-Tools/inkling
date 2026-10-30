@@ -6,13 +6,15 @@ const SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/u;
 const BARE_HOST_RE =
   /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\.?(:\d+)?(?:\/[^\s]*)?$/u;
 
-export function parseHttpUrlCore(value) {
+// A bare host such as `example.com/path` is saved as https; anything with a
+// scheme or without a dotted host is left for the URL parser to judge.
+export function withHttpsScheme(value) {
   const trimmed = value.trim();
-  const normalized = SCHEME_RE.test(trimmed)
-    ? trimmed
-    : BARE_HOST_RE.test(trimmed)
-      ? `https://${trimmed}`
-      : trimmed;
+  return SCHEME_RE.test(trimmed) || !BARE_HOST_RE.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+export function parseHttpUrlCore(value) {
+  const normalized = withHttpsScheme(value);
   if (!normalized || normalized.length > MAX_URL_LENGTH) return null;
 
   try {

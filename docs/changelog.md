@@ -15,6 +15,7 @@ Rules for entries:
 
 ### Added
 
+- macOS disk images for Apple silicon Macs, with native window buttons, the standard app menu, `inkling://` links that reopen a closed window, screen capture through the system picker, and ⌘ in shortcut hints. They do not update themselves yet.
 - Local-video posters on Debian/Ubuntu through the system decoder, with bounded background WebP compression and thumbnail cache revalidation.
 - Stable / Beta and Nightly update channels, with separate verified download, cancellation and explicit installation on Windows and supported Linux packages.
 - Linux `.deb` and AppImage builds with desktop/protocol integration, consent-based screen capture, and packaged native OCR/PDF/model checks.

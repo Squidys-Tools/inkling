@@ -74,7 +74,7 @@ Little by little, inkling is growing toward:
 - On-device summaries, automatic concept extraction, and structured analysis
 - An accessibility audit and web-version portability
 - Performance and refactoring work as the feature set settles
-- Maybe macOS, if I can get money for a MacBook to test on. Linux already has `.deb` and AppImage builds.
+- A signed macOS build that updates itself. The Apple silicon build does not yet.
 
 See [the Roadmap](docs/roadmap.md) for the honest, checkbox-level status, and [open bugs](docs/bugs.md) for what is known to be broken.
 
@@ -100,7 +100,7 @@ Well no duh. Saving a fresh URL needs internet though, obviously.
 
 ## For developers
 
-inkling runs on Windows, with `.deb` and AppImage builds for Debian and Ubuntu. Install [Bun](https://bun.sh) at the version in `.bun-version`, clone this repo, then:
+inkling runs on Windows, with `.deb` and AppImage builds for Debian and Ubuntu and a disk image for Apple silicon Macs. Install [Bun](https://bun.sh) at the version in `.bun-version`, clone this repo, then:
 
 ```powershell
 bun install

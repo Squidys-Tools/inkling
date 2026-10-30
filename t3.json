@@ -32,6 +32,12 @@
       "runOnWorktreeCreate": false
     },
     {
+      "name": "Build macOS disk image",
+      "command": "bun run build:mac",
+      "icon": "configure",
+      "runOnWorktreeCreate": false
+    },
+    {
       "name": "Build Windows installer",
       "command": "bun run build:installer",
       "icon": "configure",

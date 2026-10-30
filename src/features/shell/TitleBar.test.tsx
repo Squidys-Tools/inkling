@@ -21,11 +21,23 @@ test("custom captions retain the original design without competing native chrome
   expect(markup).toContain("-webkit-app-region:drag");
   expect(markup).toContain("-webkit-app-region:no-drag");
   expect(markup).toContain("right-[138px]");
-  expect(customWindowChrome).toEqual({
-    frame: false,
-    titleBarStyle: process.platform === "linux" ? "default" : "hidden",
-    titleBarOverlay: false,
-  });
+  expect(customWindowChrome).toEqual(
+    process.platform === "darwin"
+      ? { titleBarStyle: "hidden", trafficLightPosition: { x: 12, y: 10 } }
+      : {
+          frame: false,
+          titleBarStyle: process.platform === "linux" ? "default" : "hidden",
+          titleBarOverlay: false,
+        },
+  );
+});
+
+test("macOS traffic lights replace the renderer captions and the drag band spans the window", () => {
+  setWindow({ inkling: { windowControls: { nativeCaptions: true } } });
+  const markup = renderToStaticMarkup(<TitleBar />);
+  expect(markup).not.toContain("<button");
+  expect(markup).toContain("-webkit-app-region:drag");
+  expect(markup).toContain("right-0");
 });
 
 test("ordinary browser preview does not gain desktop captions", () => {

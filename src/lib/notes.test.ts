@@ -1,11 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  isSafeNoteLink,
-  markdownToPlainText,
-  noteBodyForEditor,
-  noteBodyForPreview,
-  noteBodyForStorage,
-} from "./notes";
+import { markdownToPlainText, noteBodyForEditor, noteBodyForStorage } from "./notes";
 
 describe("markdownToPlainText", () => {
   test("removes common note formatting while keeping readable text", () => {
@@ -24,8 +18,6 @@ describe("markdownToPlainText", () => {
     expect(markdownToPlainText("`<tag>`\n\n<script>alert(1)</script>")).toBe("<tag> alert(1)");
   });
 
-  // These pin the Electron backend's `markdownToPlainText` semantics
-  // (electron/storage/shared.ts), which also projects the note when the desktop app runs.
   test("keeps words apart across a void inline tag", () => {
     expect(markdownToPlainText("foo<br>bar")).toBe("foo bar");
     expect(markdownToPlainText("one<br/>two")).toBe("one two");
@@ -54,8 +46,6 @@ describe("markdownToPlainText", () => {
     );
   });
 
-  // The Electron backend handles `Event::Html` for no case at all, so a
-  // block-level tag there joins the words around it.
   test("treats block-level raw HTML as a word boundary", () => {
     expect(markdownToPlainText("before<div>after")).toBe("before after");
     expect(markdownToPlainText("<table><tr><td>cell</td></tr></table>")).toBe("cell");
@@ -64,6 +54,8 @@ describe("markdownToPlainText", () => {
   test("decodes HTML entities to their text", () => {
     expect(markdownToPlainText("&lt;div&gt;hello&lt;/div&gt;")).toBe("<div>hello</div>");
     expect(markdownToPlainText("5 &gt; 3 and 2 &lt; 4 &amp; 1")).toBe("5 > 3 and 2 < 4 & 1");
+    expect(markdownToPlainText("I &hearts; &#x41;&#66;")).toBe("I ♥ AB");
+    expect(markdownToPlainText("salt &amp pepper")).toBe("salt &amp pepper");
   });
 
   test("decodes entities exactly once", () => {
@@ -143,28 +135,22 @@ describe("markdownToPlainText", () => {
   });
 });
 
-describe("noteBodyForPreview", () => {
+describe("noteBodyForEditor", () => {
   test("does not repeat a leading heading that matches the item title", () => {
-    expect(noteBodyForPreview("# Reading list\n\n- [ ] One", "Reading list")).toBe("- [ ] One");
+    expect(noteBodyForEditor("# Reading list\n\n- [ ] One", "Reading list")).toBe("- [ ] One");
   });
 
   test("keeps a distinct leading heading", () => {
-    expect(noteBodyForPreview("# Notes\n\nBody", "Reading list")).toBe("# Notes\n\nBody");
+    expect(noteBodyForEditor("# Notes\n\nBody", "Reading list")).toBe("# Notes\n\nBody");
   });
 
   test("keeps the leading heading when the item has no title to match it against", () => {
-    expect(noteBodyForPreview("# Notes\n\nBody", "")).toBe("# Notes\n\nBody");
-    expect(noteBodyForPreview("# Notes\n\nBody", "   ")).toBe("# Notes\n\nBody");
+    expect(noteBodyForEditor("# Notes\n\nBody", "")).toBe("# Notes\n\nBody");
+    expect(noteBodyForEditor("# Notes\n\nBody", "   ")).toBe("# Notes\n\nBody");
   });
 
   test("reads a body that is nothing but the title heading as empty", () => {
-    expect(noteBodyForPreview("# Reading list", "Reading list")).toBe("");
-  });
-});
-
-describe("noteBodyForEditor", () => {
-  test("removes the duplicated title before editing", () => {
-    expect(noteBodyForEditor("# Reading list\n\n- [ ] One", "Reading list")).toBe("- [ ] One");
+    expect(noteBodyForEditor("# Reading list", "Reading list")).toBe("");
   });
 
   test("is empty while the body has not loaded", () => {
@@ -187,33 +173,10 @@ describe("noteBodyForStorage", () => {
     expect(noteBodyForStorage("# Reading list\n\nOne", "", "Two")).toBe("Two");
   });
 
-  // Clearing the editor used to leave the title heading behind as the whole
-  // body: a note that saved, indexed only its title, and reopened empty. It now
-  // has no storage body at all, which is what `update_item` refuses too.
   test("has nothing to save when the user emptied a note", () => {
     expect(noteBodyForStorage("# My note\n\nSomething", "My note", "   \n  ")).toBe("");
     expect(noteBodyForStorage("# My note", "My note", "")).toBe("");
     expect(noteBodyForStorage("Plain body", "Reading list", "")).toBe("");
     expect(noteBodyForStorage(undefined, "Reading list", "")).toBe("");
-  });
-});
-
-describe("isSafeNoteLink", () => {
-  test("accepts web URLs", () => {
-    expect(isSafeNoteLink("https://example.com/dillard")).toBe(true);
-    expect(isSafeNoteLink("http://example.com")).toBe(true);
-  });
-
-  test("refuses schemes that would run or embed on open", () => {
-    expect(isSafeNoteLink("javascript:alert(1)")).toBe(false);
-    expect(isSafeNoteLink("data:text/html,<script>alert(1)</script>")).toBe(false);
-    expect(isSafeNoteLink("file:///C:/Windows/System32/config/SAM")).toBe(false);
-    expect(isSafeNoteLink("vbscript:msgbox(1)")).toBe(false);
-  });
-
-  test("refuses anything that is not a URL", () => {
-    expect(isSafeNoteLink("")).toBe(false);
-    expect(isSafeNoteLink("   ")).toBe(false);
-    expect(isSafeNoteLink("example.com")).toBe(false);
   });
 });

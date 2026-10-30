@@ -51,7 +51,7 @@ function authorName(value: unknown): string {
     if (name) return name;
     const givenName = textOf(record.givenName).trim();
     const familyName = textOf(record.familyName).trim();
-    if (givenName || familyName) return [givenName, familyName].filter(Boolean).join(" ");
+    return [givenName, familyName].filter(Boolean).join(" ");
   }
   return "";
 }
@@ -83,14 +83,10 @@ function metadataFromNode(
 ): JsonLdArticleMetadata | null {
   if (!isArticleType(node["@type"])) return null;
 
-  const author = Array.isArray(node.author)
-    ? uniqueStrings(node.author.map(authorName)).join(", ")
-    : authorName(node.author);
-
   return {
     title: normalizeText(textOf(node.headline) || textOf(node.name)),
     description: normalizeText(textOf(node.description)),
-    author: normalizeText(author),
+    author: normalizeText(authorName(node.author)),
     publishedDate: textOf(node.datePublished) || textOf(node.dateModified) || undefined,
     imageUrls: imageUrlsOf(node.image, pageUrl),
   };
@@ -120,7 +116,7 @@ function walk(value: unknown, visit: (node: Record<string, unknown>) => void, de
   if (typeof record["@type"] === "string" || Array.isArray(record["@type"])) {
     visit(record);
   }
-  for (const key of ["@graph", "@type", "mainEntityOfPage"]) {
+  for (const key of ["@graph", "mainEntityOfPage"]) {
     walk(record[key], visit, depth + 1);
   }
 }
@@ -142,23 +138,10 @@ export function extractJsonLdMetadata(document: Document, pageUrl: string): Json
     }
 
     let candidate: JsonLdArticleMetadata | null = null;
-    if (Array.isArray(parsed)) {
-      for (const entry of parsed) {
-        walk(entry, (node) => {
-          const extracted = metadataFromNode(node, pageUrl);
-          if (extracted) {
-            candidate = candidate ? mergeMetadata(candidate, extracted) : extracted;
-          }
-        });
-      }
-    } else {
-      walk(parsed, (node) => {
-        const extracted = metadataFromNode(node, pageUrl);
-        if (extracted) {
-          candidate = candidate ? mergeMetadata(candidate, extracted) : extracted;
-        }
-      });
-    }
+    walk(parsed, (node) => {
+      const extracted = metadataFromNode(node, pageUrl);
+      if (extracted) candidate = candidate ? mergeMetadata(candidate, extracted) : extracted;
+    });
 
     if (candidate) {
       metadata = mergeMetadata(metadata, candidate);
