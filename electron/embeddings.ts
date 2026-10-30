@@ -9,7 +9,7 @@ import { Tokenizer } from "@huggingface/tokenizers";
 import * as ort from "onnxruntime-node";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import { IMAGE_DIMENSION, IMAGE_MODEL, TEXT_DIMENSION, TEXT_MODEL } from "./embedding-contract.ts";
-import defaultManifest from "./model-manifest.json" with { type: "json" };
+import models from "./model-manifest.json" with { type: "json" };
 import { sharpImageInput, validateImageDimensions } from "./thumbnail.ts";
 
 const maxTokens = 8192;
@@ -18,10 +18,6 @@ const imageMean = [0.4814547, 0.4578275, 0.4082107];
 const imageStd = [0.26862954, 0.2613026, 0.2757771];
 
 type ModelAsset = { path: string; url: string; sha256: string };
-type ModelManifest = {
-  text: { name: string; model: ModelAsset; tokenizer: ModelAsset };
-  image: { name: string; model: ModelAsset };
-};
 type TokenizerLike = {
   encode(
     text: string,
@@ -39,7 +35,7 @@ async function sha256(path: string) {
 async function ensureAsset(
   path: string,
   { url, sha256: expectedHash }: ModelAsset,
-  allowDownload = true,
+  allowDownload: boolean,
   bundledPath?: string,
 ) {
   const cachedAssetExists = await stat(path).then(
@@ -160,11 +156,7 @@ function imageTensor(bytes: Buffer) {
 
 type TextRuntime = { tokenizer: TokenizerLike; session: ort.InferenceSession };
 
-export function createEmbeddingEngine(
-  modelCacheDirectory: string,
-  models: ModelManifest = defaultManifest,
-  bundledModelDirectory?: string,
-) {
+export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelDirectory?: string) {
   const modelCache = resolve(modelCacheDirectory);
   const bundledModels = bundledModelDirectory ? resolve(bundledModelDirectory) : null;
   let textRuntimePromise: Promise<TextRuntime> | undefined;

@@ -114,7 +114,7 @@ export function createAiJobProcessors({
   modelCacheDirectory,
   bundledModelDirectory,
   ocr = createTesseractOcr({ cacheDirectory: join(modelCacheDirectory, "tesseract") }),
-  embeddings = createEmbeddingEngine(modelCacheDirectory, undefined, bundledModelDirectory),
+  embeddings = createEmbeddingEngine(modelCacheDirectory, bundledModelDirectory),
   extractPdf,
   extractUrl = async (sourceUrl) => {
     const { ingestUrl } = await import("../src/lib/ingestion/url-ingestion.ts");
