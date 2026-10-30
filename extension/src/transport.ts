@@ -21,7 +21,7 @@ export async function postPayloadToLoopback(
   token: string,
   payload: PageCapturePayloadV1,
 ): Promise<void> {
-  const response = await fetch(`${baseUrl.replace(/\/+$/u, "")}/v1/captures`, {
+  const response = await fetch(`${baseUrl}/v1/captures`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
