@@ -58,31 +58,30 @@ function parseDocument(html: string): Document {
   }
 }
 
+function trimmedString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 async function ingestVideoLink(
   sourceUrl: string,
   videoLink: VideoLinkEmbed,
-  fetchImpl: typeof globalThis.fetch | undefined,
-  timeoutMs: number,
-  maxResponseBytes: number,
+  fetch: typeof globalThis.fetch | undefined,
+  request: { timeoutMs: number; maxBytes: number },
 ): Promise<NormalizedArticle> {
-  let title = `${providerLabel(videoLink.provider)} video`;
-  let author = "";
-  let poster = videoLink.posterUrl;
-
   const host = videoLink.provider === "youtube" ? "www.youtube.com" : "vimeo.com";
   const metadata = (await runHttp(
     fetchJson(`https://${host}/oembed.json?url=${encodeURIComponent(videoLink.sourceUrl)}`, {
-      timeoutMs: Math.min(timeoutMs, 4_000),
-      maxBytes: maxResponseBytes,
+      ...request,
+      timeoutMs: Math.min(request.timeoutMs, 4_000),
     }),
-    fetchImpl,
+    fetch,
   )) as { title?: unknown; author_name?: unknown; thumbnail_url?: unknown } | null;
-  if (typeof metadata?.title === "string" && metadata.title.trim()) title = metadata.title.trim();
-  if (typeof metadata?.author_name === "string" && metadata.author_name.trim())
-    author = metadata.author_name.trim();
-  if (typeof metadata?.thumbnail_url === "string") {
-    poster = normalizeHttpUrl(metadata.thumbnail_url, sourceUrl) ?? poster;
-  }
+  const title = trimmedString(metadata?.title) || `${providerLabel(videoLink.provider)} video`;
+  const author = trimmedString(metadata?.author_name);
+  const poster =
+    (typeof metadata?.thumbnail_url === "string"
+      ? normalizeHttpUrl(metadata.thumbnail_url, sourceUrl)
+      : null) ?? videoLink.posterUrl;
 
   return {
     sourceUrl,
@@ -118,23 +117,20 @@ export async function ingestUrl(
   const sourceUrl = parseHttpUrl(input, {
     allowPrivateNetwork: options.allowPrivateNetwork,
   }).toString();
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
-  const fetchImpl = options.fetch;
+  const { fetch } = options;
+  const request = {
+    timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    maxBytes: options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
+  };
 
   const videoLink = videoLinkFromSourceUrl(sourceUrl);
-  if (videoLink) {
-    return ingestVideoLink(sourceUrl, videoLink, fetchImpl, timeoutMs, maxResponseBytes);
-  }
+  if (videoLink) return ingestVideoLink(sourceUrl, videoLink, fetch, request);
 
   let xPost: XPostMetadata | null = null;
   if (parseXPostUrl(sourceUrl)) {
     // X can block or rate-limit the oEmbed request. Without it, the normal page
     // pipeline still has a chance to succeed.
-    const oEmbed = await runHttp(
-      fetchJson(xPostOEmbedUrl(sourceUrl), { timeoutMs, maxBytes: maxResponseBytes }),
-      fetchImpl,
-    );
+    const oEmbed = await runHttp(fetchJson(xPostOEmbedUrl(sourceUrl), request), fetch);
     try {
       xPost = oEmbed ? normalizeXPostOEmbed(sourceUrl, oEmbed as Record<string, unknown>) : null;
     } catch {
@@ -163,12 +159,8 @@ export async function ingestUrl(
   }
 
   const { fetchedUrl, html: rawHtml } = await runHttp(
-    downloadPage(sourceUrl, {
-      timeoutMs,
-      maxBytes: maxResponseBytes,
-      allowPrivateNetwork: options.allowPrivateNetwork,
-    }),
-    fetchImpl,
+    downloadPage(sourceUrl, { ...request, allowPrivateNetwork: options.allowPrivateNetwork }),
+    fetch,
   );
 
   const sourceDocument = parseDocument(rawHtml);
@@ -184,7 +176,7 @@ export async function ingestUrl(
     extraction = mergeExtraction(defuddleExtraction, fallback);
     if (hasReadableText(defuddleExtraction.contentHtml)) extractor = "defuddle";
   } catch {
-    extraction = fallback;
+    // A Defuddle failure leaves the fallback extraction in place.
   }
 
   const byline = visibleByline(sourceDocument);
