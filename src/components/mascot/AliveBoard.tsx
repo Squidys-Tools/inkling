@@ -119,10 +119,7 @@ function WatcherTile() {
   );
 }
 
-/**
- * Dev-only aliveness variations. Open with ?mascot-alive in the URL.
- * Nothing here is wired into the app — pick a direction first.
- */
+/** Dev-only aliveness variations. Open with ?mascot-alive in the URL. */
 export function AliveBoard() {
   return (
     <div

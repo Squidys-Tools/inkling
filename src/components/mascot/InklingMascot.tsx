@@ -3,16 +3,15 @@ import { BotEngine, type BotFrame } from "./bot/engine";
 import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION } from "./bot/expressions";
 import { COLOR_BY_ID, SHAPE_BY_ID, DEFAULT_SHAPE } from "./bot/skins";
 import { RAYON } from "./bot/repere";
-import { STATE_BY_ID, type StateId } from "./bot/states";
+import type { StateId } from "./bot/states";
 import { MascotFigure } from "./MascotFigure";
 
 export type { StateId };
 
-export interface InklingMascotProps {
+interface InklingMascotProps {
   size?: number;
   shape?: string;
-  color?: string;
-  /** Body color as any CSS color, overriding `color` when a skin hex will not do. */
+  /** Body color as any CSS color. */
   ink?: string;
   expression?: string;
   paper?: string;
@@ -46,15 +45,14 @@ const heldLook = (look: { yaw: number; pitch: number }) => ({
 
 /**
  * Self-contained mascot: owns its engine and animation loop. Used by the
- * dev board (?mascot) and frozen-frame renders. The live app slots share one
+ * welcome screens and the dev boards. The live app slots share one
  * engine through mascotStore instead, so the mascot can move between slots
  * without resetting its clock.
  */
 export function InklingMascot({
   size = 80,
   shape = "inkling-splash",
-  color = "inkling",
-  ink: inkOverride,
+  ink = COLOR_BY_ID.get("inkling")?.hex ?? "#1a1a1a",
   expression = DEFAULT_EXPRESSION,
   paper = "#faf9f6",
   frozenAt,
@@ -64,7 +62,6 @@ export function InklingMascot({
   speed = 1,
 }: InklingMascotProps) {
   const shapeRadii = SHAPE_BY_ID.get(shape)?.radii ?? SHAPE_BY_ID.get(DEFAULT_SHAPE)?.radii ?? null;
-  const ink = inkOverride ?? COLOR_BY_ID.get(color)?.hex ?? "#1a1a1a";
   const expr = EXPRESSION_BY_ID.get(expression) ?? null;
 
   const [engine] = useState(() => {
@@ -117,8 +114,4 @@ export function InklingMascot({
   }, [engine, frozenAt, playing, speed]);
 
   return <MascotFigure frame={frame} size={size} ink={ink} paper={paper} />;
-}
-
-export function isKnownMascotState(value: string): value is StateId {
-  return STATE_BY_ID.has(value as StateId);
 }

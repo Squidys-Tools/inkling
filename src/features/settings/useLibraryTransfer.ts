@@ -16,18 +16,19 @@ import {
 import type { LibraryItem } from "../../lib/types";
 import { storedItemToLibraryItem } from "../library/libraryItem";
 import { formatExportSummary, formatImportSummary } from "./format";
+import { errorMessage } from "../errorMessage";
 
 export function showLibraryFolderFromSettings() {
   void showLibraryFolder().catch((error: unknown) => {
     toast.error("Could not open the library folder", {
-      description: error instanceof Error ? error.message : String(error),
+      description: errorMessage(error),
       closeButton: true,
     });
   });
 }
 
 type LibraryTransferOptions = {
-  canUseLibraryFolderPicker: boolean;
+  canUseDesktopBackend: boolean;
   setLastCopy: Dispatch<SetStateAction<LastExport | null>>;
   setSpaces: Dispatch<SetStateAction<StoredSpace[]>>;
   setArchivedItems: Dispatch<SetStateAction<LibraryItem[]>>;
@@ -37,7 +38,7 @@ type LibraryTransferOptions = {
 };
 
 export function useLibraryTransfer({
-  canUseLibraryFolderPicker,
+  canUseDesktopBackend,
   setLastCopy,
   setSpaces,
   setArchivedItems,
@@ -51,13 +52,13 @@ export function useLibraryTransfer({
   const [lastImport, setLastImport] = useState<LibraryImportReport | null>(null);
 
   const exportLibraryToFolder = useCallback(async () => {
-    if (!canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary) return;
+    if (!canUseDesktopBackend || isExportingLibrary || isImportingLibrary) return;
     let destination: string | null = null;
     try {
       destination = await selectLibraryDirectory("Choose where to save the export");
     } catch (error) {
       toast.error("Could not open the folder picker", {
-        description: error instanceof Error ? error.message : String(error),
+        description: errorMessage(error),
         closeButton: true,
       });
       return;
@@ -87,23 +88,23 @@ export function useLibraryTransfer({
     } catch (error) {
       toast.error("Export failed", {
         id: toastId,
-        description: error instanceof Error ? error.message : String(error),
+        description: errorMessage(error),
         duration: Infinity,
         closeButton: true,
       });
     } finally {
       setIsExportingLibrary(false);
     }
-  }, [canUseLibraryFolderPicker, isExportingLibrary, isImportingLibrary, setLastCopy]);
+  }, [canUseDesktopBackend, isExportingLibrary, isImportingLibrary, setLastCopy]);
 
   const importLibraryFromFolder = useCallback(async () => {
-    if (!canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary) return;
+    if (!canUseDesktopBackend || isExportingLibrary || isImportingLibrary) return;
     let exportDirectory: string | null = null;
     try {
       exportDirectory = await selectLibraryDirectory("Choose an Inkling export to restore");
     } catch (error) {
       toast.error("Could not open the export picker", {
-        description: error instanceof Error ? error.message : String(error),
+        description: errorMessage(error),
         closeButton: true,
       });
       return;
@@ -132,12 +133,12 @@ export function useLibraryTransfer({
         setIsArchiveLoaded(true);
         reload();
       } catch (error) {
-        setCaptureError(error instanceof Error ? error.message : String(error));
+        setCaptureError(errorMessage(error));
       }
     } catch (error) {
       toast.error("Import failed", {
         id: toastId,
-        description: error instanceof Error ? error.message : String(error),
+        description: errorMessage(error),
         duration: Infinity,
         closeButton: true,
       });
@@ -145,7 +146,7 @@ export function useLibraryTransfer({
       setIsImportingLibrary(false);
     }
   }, [
-    canUseLibraryFolderPicker,
+    canUseDesktopBackend,
     isExportingLibrary,
     isImportingLibrary,
     setSpaces,

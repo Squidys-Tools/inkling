@@ -13,11 +13,11 @@ const WHEEL_ZOOM_RATE = 0.002;
 export type Size = { width: number; height: number };
 export type Offset = { x: number; y: number };
 
-export function clampZoom(zoom: number, fit: number): number {
+export function clampZoom(zoom: number, fit: number) {
   return Math.min(Math.max(fit, MAX_ZOOM), Math.max(fit, zoom));
 }
 
-export function wheelZoomFactor(deltaY: number): number {
+export function wheelZoomFactor(deltaY: number) {
   return Math.exp(-deltaY * WHEEL_ZOOM_RATE);
 }
 

@@ -98,7 +98,7 @@ export async function inspectImage(bytes: Buffer) {
   return orientedSize(metadata);
 }
 
-export async function sharpImageInput(bytes: Buffer): Promise<Buffer> {
+export async function sharpImageInput(bytes: Buffer) {
   try {
     await sharp(bytes, { limitInputPixels: maxImagePixels }).metadata();
     return bytes;

@@ -11,7 +11,8 @@ import { toast } from "sonner";
 import type { ContextMenuEntry } from "../../components/ContextMenu/ContextMenu";
 import { listItemSpaceExclusions, type StoredSpace } from "../../lib/libraryApi";
 import type { LibraryItem } from "../../lib/types";
-import { showItemInFolderFromOverlay } from "../item-view/useItemDetails";
+import { hostnameForUrl } from "../hostname";
+import { revealItemInFolder } from "../item-view/useItemDetails";
 
 type CardMenuOptions = {
   canUseDesktopBackend: boolean;
@@ -85,13 +86,9 @@ export function useCardMenu({
     if (item.articleHtml || item.hasArticleContent)
       entries.push({ label: "Read", icon: BookOpen01Icon, onSelect: () => void openReader(item) });
     if (sourceUrl) {
-      let host = "original";
-      try {
-        host = new URL(sourceUrl).hostname.replace(/^www\./u, "");
-      } catch {}
       entries.push(
         {
-          label: `Open ${host}`,
+          label: `Open ${hostnameForUrl(sourceUrl) ?? "original"}`,
           icon: LinkSquare02Icon,
           onSelect: () => window.open(sourceUrl, "_blank", "noopener,noreferrer"),
         },
@@ -154,7 +151,7 @@ export function useCardMenu({
       entries.push({
         label: "Show in folder",
         icon: Folder01Icon,
-        onSelect: () => showItemInFolderFromOverlay(item),
+        onSelect: () => revealItemInFolder(item),
       });
     entries.push({ label: "Archive", icon: Archive01Icon, onSelect: () => void forgetItem(item) });
     return entries;

@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { prefersReducedMotion } from "../mascot/mascotStore";
+import { prefersReducedMotion } from "../../ui/reducedMotion";
 import { GridReveal } from "./GridReveal";
 import { onboardingPhotos } from "./onboardingMedia";
 

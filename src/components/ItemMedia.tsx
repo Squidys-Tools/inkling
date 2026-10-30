@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   AtSignIcon,
   Bookmark01Icon,
@@ -22,7 +22,7 @@ import pdfPointillismOptionB from "../assets/pdf-pointillism-option-b.png";
 import { cx } from "../ui/cx";
 import { canvasImageCrossOrigin } from "./LiquidGlass";
 
-export function mediaAspectRatioFor(item: LibraryItem): number {
+export function mediaAspectRatioFor(item: LibraryItem) {
   if (
     item.mediaAspectRatio &&
     Number.isFinite(item.mediaAspectRatio) &&
@@ -45,8 +45,6 @@ export function mediaAspectRatioFor(item: LibraryItem): number {
       return 16 / 10;
     case "Image":
       return 4 / 3;
-    case "Post":
-      return 1.45;
     case "PDF":
       return 4 / 3;
     case "Quote":
@@ -56,25 +54,22 @@ export function mediaAspectRatioFor(item: LibraryItem): number {
   }
 }
 
+const KIND_ICONS: Record<ItemKind, IconSvgElement> = {
+  Article: Link01Icon,
+  Image: Image01Icon,
+  Note: SparklesIcon,
+  PDF: FileTextIcon,
+  Quote: Bookmark01Icon,
+  Video: PlayIcon,
+  Post: AtSignIcon,
+  File: SparklesIcon,
+};
+
 export function KindIcon({ kind }: { kind: ItemKind }) {
-  const icon =
-    kind === "Image"
-      ? Image01Icon
-      : kind === "Article"
-        ? Link01Icon
-        : kind === "PDF"
-          ? FileTextIcon
-          : kind === "Quote"
-            ? Bookmark01Icon
-            : kind === "Post"
-              ? AtSignIcon
-              : kind === "Video"
-                ? PlayIcon
-                : SparklesIcon;
-  return <HugeiconsIcon icon={icon} size={13} />;
+  return <HugeiconsIcon icon={KIND_ICONS[kind]} size={13} />;
 }
 
-export function pdfPreviewTitle(value: string): string {
+export function pdfPreviewTitle(value: string) {
   return value
     .replace(/\uFFFD/gu, "’")
     .replace(/\.[^.]+$/u, "")
@@ -83,23 +78,11 @@ export function pdfPreviewTitle(value: string): string {
     .trim();
 }
 
-/** The PDF and note card art; onboarding draws its sample cards with it too. */
-export function DocumentArtwork({
-  label,
-  title,
-  count,
-}: {
-  label: string;
-  title: string;
-  count: string;
-}) {
-  return <TypedArtwork label={label} title={title} footnote={count} />;
-}
-
 // Every typed card (PDF, note, file) shares one layout: a mono label and ring,
 // the title in DM Sans caps, three dots, and a mono footnote. The shader texture
 // is the same for all of them; only the copy changes. Compact is the list row.
-function TypedArtwork({
+// Onboarding draws its sample note and PDF cards with it too.
+export function TypedArtwork({
   label,
   title,
   footnote,
@@ -179,12 +162,12 @@ export function FileArtwork({ item, compact }: { item: LibraryItem; compact?: bo
   );
 }
 
-function fileExtensionLabel(name: string): string {
+function fileExtensionLabel(name: string) {
   const match = /\.([a-z0-9]{1,5})$/iu.exec(name.trim());
   return match ? match[1].toUpperCase() : "";
 }
 
-function formatFileSize(bytes: number): string {
+function formatFileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];
   let value = bytes / 1024;
@@ -196,7 +179,7 @@ function formatFileSize(bytes: number): string {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-export function formatDuration(totalSeconds: number): string {
+export function formatDuration(totalSeconds: number) {
   const seconds = Math.floor(totalSeconds);
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -207,14 +190,12 @@ export function formatDuration(totalSeconds: number): string {
 // `item.description` is already the plain text the backend projected, so it is
 // counted as it came. Only a raw note body, which is still Markdown, needs the
 // projection first.
-function noteWordCount(value: string | undefined): number {
+function noteWordCount(value: string | undefined) {
   const text = value?.replace(/\s+/gu, " ").trim() ?? "";
   if (!text) return 0;
   return text.split(" ").length;
 }
 
-// Notes share the typed layout with PDFs. The copy is the note's own title and
-// the description's word count in place of the PDF page count.
 export function NoteArtwork({ item, compact }: { item: LibraryItem; compact?: boolean }) {
   const words = noteWordCount(
     item.noteBody === undefined ? item.description : markdownToPlainText(item.noteBody),
@@ -383,7 +364,6 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
   if (item.fileUrl) {
     return (
       <div className={DETAIL_VIDEO}>
-        {/* This local upload has no caption metadata in the item model; do not fabricate an empty track. */}
         {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- Captions are unavailable for this user-supplied file. */}
         <video
           className="block size-full bg-black object-contain"
@@ -420,7 +400,7 @@ let xWidgetsPromise: Promise<void> | null = null;
 const X_WIDGETS_SRC = "https://platform.twitter.com/widgets.js";
 
 function loadXWidgets() {
-  if (typeof window === "undefined" || window.twttr?.widgets) return Promise.resolve();
+  if (window.twttr?.widgets) return Promise.resolve();
   if (xWidgetsPromise) return xWidgetsPromise;
 
   xWidgetsPromise = new Promise<void>((resolve, reject) => {
@@ -468,8 +448,8 @@ function loadXWidgets() {
   return xWidgetsPromise;
 }
 
-function waitForXWidget(root: HTMLElement, timeoutMs = 8000): Promise<boolean> {
-  return new Promise((resolve) => {
+function waitForXWidget(root: HTMLElement) {
+  return new Promise<boolean>((resolve) => {
     let settled = false;
     let observer: MutationObserver | null = null;
     let timeoutId: number | undefined;
@@ -495,14 +475,14 @@ function waitForXWidget(root: HTMLElement, timeoutMs = 8000): Promise<boolean> {
     observer = new MutationObserver(watchWidget);
     observer.observe(root, { childList: true, subtree: true });
     watchWidget();
-    timeoutId = window.setTimeout(() => finish(false), timeoutMs);
+    timeoutId = window.setTimeout(() => finish(false), 8000);
   });
 }
 
 export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallback: ReactNode }) {
   const nativeRef = useRef<HTMLDivElement>(null);
   const [shouldLoad, setShouldLoad] = useState(false);
-  const [embedHtml, setEmbedHtml] = useState<string | undefined>(social.embedHtml);
+  const [embedHtml, setEmbedHtml] = useState(social.embedHtml);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
 
   const [syncedEmbedHtml, setSyncedEmbedHtml] = useState(social.embedHtml);
@@ -562,10 +542,8 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
     };
 
     updateEmbedWidth();
-    const resizeObserver =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateEmbedWidth);
-    resizeObserver?.observe(root);
-    window.addEventListener("resize", updateEmbedWidth);
+    const resizeObserver = new ResizeObserver(updateEmbedWidth);
+    resizeObserver.observe(root);
     let cancelled = false;
     loadXWidgets()
       .then(async () => {
@@ -581,8 +559,7 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
 
     return () => {
       cancelled = true;
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", updateEmbedWidth);
+      resizeObserver.disconnect();
       root.replaceChildren();
     };
   }, [embedHtml, shouldLoad]);

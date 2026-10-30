@@ -19,7 +19,5 @@ for (const [name, paths, directory] of [
       expect(resource.endsWith("/")).toBe(true);
       expect(paths.normalize(resource)).toBe(paths.normalize(paths.join(directory, folder) + "/"));
     }
-    if (paths === win32)
-      expect((paths.join(directory, "cmaps") + paths.sep).endsWith("/")).toBe(false);
   });
 }

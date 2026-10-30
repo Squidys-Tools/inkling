@@ -1,54 +1,29 @@
-import {
-  type CommandArgs,
-  type CommandName,
-  type CommandResults,
-  commandArgs,
-} from "@inkling/contracts";
-import { commandChannel, commandNames } from "@inkling/contracts/commands";
-import { Effect, Layer, ManagedRuntime, Schema } from "effect";
-import {
-  app,
-  BrowserWindow,
-  desktopCapturer,
-  dialog,
-  ipcMain,
-  protocol,
-  session,
-  shell,
-  type WebContents,
-} from "electron";
-import electronUpdater from "electron-updater";
-import { existsSync, readFileSync } from "node:fs";
+import { app, BrowserWindow, desktopCapturer, dialog, protocol, session, shell } from "electron";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createAiJobProcessors } from "./ai-jobs.ts";
+import { createAppUpdates } from "./app-updates.ts";
+import { type CommandHandlers, registerCommandHandlers } from "./ipc-commands.ts";
 import {
-  type DeepLinkCapture,
-  parseDeepLinkCaptureCore,
-  parseHttpUrlCore,
-} from "../src/lib/deepLinkCore.mjs";
-import { createAiJobProcessors, enqueueStaleImageEmbeddings, jobTimeouts } from "./ai-jobs.ts";
-import { serveAssetFile } from "./asset-response.ts";
-import { appContentTypes as mimeTypes } from "./app-content-types.ts";
-import { customWindowChrome } from "./window-chrome.ts";
+  allowCanvasReadableImages,
+  createAppAssetHandler,
+  registerAppScheme,
+} from "./app-protocol.ts";
+import { createMainWindow, registerWindowControls } from "./main-window.ts";
 import { startCaptureServer } from "./capture-server.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
+import { type LibraryRuntime, openLibraryRuntime } from "./library-runtime.ts";
 import { createSingleFlightDirectoryPicker } from "./native-dialog.ts";
-import { createDisplayCaptureHandler } from "./display-capture.ts";
-import { snapshotDatabase } from "./sqlite-snapshot.ts";
 import {
-  JobQueue,
-  Library,
-  libraryLayer,
-  type Promised,
-  promised,
-  resolveLibraryDataDirectory,
-} from "./storage/library.ts";
-import { makeWorker } from "./storage/worker.ts";
-import { createUpdateController, createUpdatePreferences } from "./updater.ts";
-import { installDebianUpdate, updateDisabledReason } from "./update-install.ts";
+  enqueueDeepLink,
+  handleDeepLinkArguments,
+  registerDeepLinkSubscriptions,
+  takePendingDeepLinks,
+} from "./deep-links.ts";
+import { createDisplayCaptureHandler } from "./display-capture.ts";
+import { resolveLibraryDataDirectory } from "./storage/library.ts";
 
 const mainDirectory = dirname(fileURLToPath(import.meta.url));
-const { autoUpdater } = electronUpdater;
 const isPreview = process.argv.includes("--preview");
 const commandLineDataDirectory = app.commandLine.getSwitchValue("user-data-dir");
 const libraryDirectory = resolveLibraryDataDirectory({
@@ -57,136 +32,27 @@ const libraryDirectory = resolveLibraryDataDirectory({
   portable: app.isPackaged && process.env.INKLING_PORTABLE === "1",
   overrideDirectory: commandLineDataDirectory || undefined,
 });
-const packageTypePath = join(process.resourcesPath, "package-type");
-const packageType = existsSync(packageTypePath)
-  ? readFileSync(packageTypePath, "utf8").trim()
-  : undefined;
-const updateController = createUpdateController({
-  autoUpdater,
-  currentVersion: app.getVersion(),
-  disabledReason: updateDisabledReason({
-    isPackaged: app.isPackaged,
-    isPreview,
-    hasFeed: existsSync(join(process.resourcesPath, "app-update.yml")),
-    platform: process.platform,
-    appImage: process.env.APPIMAGE,
-    packageType,
-  }),
-  preferences: createUpdatePreferences(join(libraryDirectory, "updates.json")),
-  install: async (file, version, sha512) => {
-    if (!mainWindow || mainWindow.isDestroyed()) throw new Error("No active app window.");
-    const { response } = await dialog.showMessageBox(mainWindow, {
-      type: "question",
-      title: "Install inkling update",
-      message: `Install inkling ${version}?`,
-      detail:
-        "inkling will restart after installation. Debian may ask for system authorization. Your library stays on this computer.",
-      buttons: ["Cancel", "Install and restart"],
-      defaultId: 0,
-      cancelId: 0,
-    });
-    if (response !== 1) throw new Error("Update installation canceled.");
-    if (process.platform === "linux" && packageType === "deb") {
-      await installDebianUpdate(file, version, sha512);
-      app.relaunch();
-      app.quit();
-    } else {
-      autoUpdater.quitAndInstall(false, true);
-    }
-  },
+const updateController = createAppUpdates({
+  libraryDirectory,
+  isPreview,
+  getWindow: () => mainWindow,
 });
 app.setPath("userData", libraryDirectory);
 if (process.platform === "linux")
   app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
-const deepLinkSubscribers = new Set<WebContents>();
-const pendingDeepLinks: DeepLinkCapture[] = [];
 let mainWindow: BrowserWindow | undefined;
 let captureServer: Awaited<ReturnType<typeof startCaptureServer>> | undefined;
 let aiJobProcessors: ReturnType<typeof createAiJobProcessors> | undefined;
-type Storage = {
-  runtime: ManagedRuntime.ManagedRuntime<Library | JobQueue, unknown>;
-  library: Promised<Library["Service"]>;
-  jobs: Promised<JobQueue["Service"]>;
-};
-let storage: Storage | undefined;
-let storageReady: Promise<Storage> | undefined;
+let storage: LibraryRuntime | undefined;
+let storageReady: Promise<LibraryRuntime> | undefined;
 const librarySizeCache = createLibrarySizeCache(
   join(libraryDirectory, "library.sqlite3"),
   join(libraryDirectory, "assets"),
 );
+registerAppScheme();
 
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  "object-src 'none'",
-  "script-src 'self' https://platform.twitter.com",
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self' data:",
-  "img-src 'self' data: blob: https:",
-  "media-src 'self' data: blob: https:",
-  "connect-src 'self' https:",
-  "worker-src 'self' blob:",
-  "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://platform.twitter.com",
-].join("; ");
-
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: "app",
-    // stream lets <video> and <audio> issue Range requests against the asset handler.
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      corsEnabled: false,
-      stream: true,
-    },
-  },
-]);
-
-// Remote card images load with crossorigin so the liquid glass canvas can draw
-// them (Chromium paints opaque cross-origin images blank). Most hosts send no
-// CORS header, so the app's session adds one to image responses. The requests
-// themselves are unchanged.
-function allowCanvasReadableImages() {
-  session.defaultSession.webRequest.onHeadersReceived(
-    { urls: ["https://*/*"] },
-    ({ resourceType, responseHeaders }, callback) => {
-      if (resourceType !== "image") return callback({});
-      const headers = Object.fromEntries(
-        Object.entries(responseHeaders ?? {}).filter(
-          ([name]) => name.toLowerCase() !== "access-control-allow-origin",
-        ),
-      );
-      callback({ responseHeaders: { ...headers, "Access-Control-Allow-Origin": ["*"] } });
-    },
-  );
-}
-
-function sendDeepLinks(contents: WebContents, links: DeepLinkCapture[]) {
-  if (!contents.isDestroyed() && links.length > 0) {
-    contents.send("inkling:deep-link", links);
-  }
-}
-
-function enqueueDeepLink(value: string) {
-  const capture = parseDeepLinkCaptureCore(value);
-  if (!capture) return;
-
-  const subscribers = [...deepLinkSubscribers].filter((contents) => !contents.isDestroyed());
-  if (subscribers.length === 0) {
-    pendingDeepLinks.push(capture);
-    return;
-  }
-  for (const contents of subscribers) sendDeepLinks(contents, [capture]);
-}
-
-function handleDeepLinkArguments(argumentsList: string[]) {
-  for (const argument of argumentsList) {
-    if (argument.startsWith("inkling:")) enqueueDeepLink(argument);
-  }
-}
+const logFailure = (context: string) => (error: unknown) =>
+  console.error(`${context}: ${error instanceof Error ? error.message : String(error)}`);
 
 function emitJobUpdated(itemId: string) {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -195,62 +61,16 @@ function emitJobUpdated(itemId: string) {
   }
 }
 
-// Opening the library migrates it, hands back jobs a previous run left behind,
-// and starts both workers. Disposing the runtime hands any running job back.
-async function openStorage(): Promise<Storage> {
-  const ai = createAiJobProcessors({
+function initializeLibraryStorage() {
+  aiJobProcessors ??= createAiJobProcessors({
     modelCacheDirectory: join(libraryDirectory, "models"),
     bundledModelDirectory: app.isPackaged ? join(process.resourcesPath, "models") : undefined,
   });
-  aiJobProcessors = ai;
-  const library = libraryLayer({
+  storageReady ??= openLibraryRuntime({
     databasePath: join(libraryDirectory, "library.sqlite3"),
-    jobQueue: { onUpdated: emitJobUpdated },
-    media: {
-      createSnapshot: snapshotDatabase,
-      createThumbnail: (bytes) =>
-        import("./thumbnail.ts").then(({ createImageThumbnail }) => createImageThumbnail(bytes)),
-      inspectImage: (bytes) =>
-        import("./thumbnail.ts").then(({ inspectImage }) => inspectImage(bytes)),
-    },
-  });
-  const workers = Layer.effectDiscard(
-    Effect.gen(function* () {
-      const jobs = yield* JobQueue;
-      // The single-instance lock means no other process can own a processing job.
-      yield* jobs.recoverAfterExclusiveStartup();
-      yield* enqueueStaleImageEmbeddings;
-      const main = yield* makeWorker({
-        processors: ai.processors,
-        onIdle: ai.onIdle,
-        timeouts: jobTimeouts,
-      });
-      // New cards wait on thumbnails, so they never queue behind OCR or embeddings.
-      const thumbnails = yield* makeWorker({
-        processors: ai.thumbnailProcessors,
-        timeouts: jobTimeouts,
-      });
-      yield* Effect.forkScoped(main.run);
-      yield* Effect.forkScoped(thumbnails.run);
-    }),
-  );
-  const runtime = ManagedRuntime.make(workers.pipe(Layer.provideMerge(library)));
-  const run = <A, E>(effect: Effect.Effect<A, E, Library | JobQueue>) => runtime.runPromise(effect);
-  try {
-    const [libraryService, jobService] = await run(
-      Effect.gen(function* () {
-        return [yield* Library, yield* JobQueue] as const;
-      }),
-    );
-    return { runtime, library: promised(libraryService, run), jobs: promised(jobService, run) };
-  } catch (error) {
-    await runtime.dispose();
-    throw error;
-  }
-}
-
-function initializeLibraryStorage() {
-  storageReady ??= openStorage().then(
+    ai: aiJobProcessors,
+    onJobUpdated: emitJobUpdated,
+  }).then(
     (opened) => (storage = opened),
     (error) => {
       storageReady = undefined;
@@ -278,10 +98,6 @@ const chooseLibraryDirectory = createSingleFlightDirectoryPicker({
   getParent: () => mainWindow,
   showOpenDialog: (parent, options) => dialog.showOpenDialog(parent, options),
 });
-
-type CommandHandlers = {
-  [C in CommandName]: (args: CommandArgs<C>) => CommandResults[C] | Promise<CommandResults[C]>;
-};
 
 function registerLibraryCommands() {
   const library = () => requireStorage().library;
@@ -368,140 +184,22 @@ function registerLibraryCommands() {
     cancel_update_download: () => updateController.cancelDownload(),
     check_for_updates: () => updateController.checkForUpdates(),
     install_update: ({ expectedVersion }) => updateController.installUpdate(expectedVersion),
-    "plugin:deep-link|get_current": () => pendingDeepLinks.splice(0),
+    "plugin:deep-link|get_current": takePendingDeepLinks,
   };
 
-  for (const command of commandNames) {
-    const decode = Schema.decodeUnknownSync(commandArgs[command]);
-    const handler = handlers[command] as (args: unknown) => unknown;
-    ipcMain.handle(commandChannel(command), (_event, args: unknown) => {
-      // The renderer is untrusted, so a payload of the wrong shape never reaches a handler.
-      let decoded: unknown;
-      try {
-        decoded = decode(args ?? {});
-      } catch (error) {
-        throw new Error(
-          `invalid storage input: ${error instanceof Error ? error.message : String(error)}`,
-          { cause: error },
-        );
-      }
-      return handler(decoded);
-    });
-  }
-
-  ipcMain.handle("inkling:deep-link:subscribe", (event) => {
-    deepLinkSubscribers.add(event.sender);
-    event.sender.once("destroyed", () => deepLinkSubscribers.delete(event.sender));
-    sendDeepLinks(event.sender, pendingDeepLinks.splice(0));
-  });
-  ipcMain.handle("inkling:deep-link:unsubscribe", (event) => {
-    deepLinkSubscribers.delete(event.sender);
-  });
-
-  ipcMain.handle("inkling:window:minimize", (event) => {
-    BrowserWindow.fromWebContents(event.sender)?.minimize();
-  });
-  ipcMain.handle("inkling:window:toggle-maximize", (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    if (!window) return;
-    if (window.isMaximized()) window.unmaximize();
-    else window.maximize();
-  });
-  ipcMain.handle("inkling:window:close", (event) => {
-    BrowserWindow.fromWebContents(event.sender)?.close();
-  });
-  ipcMain.handle("inkling:window:ready", (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    if (window && !window.isVisible()) window.show();
-  });
-}
-
-async function serveAppAsset(request: Request) {
-  const url = new URL(request.url);
-  if (url.hostname !== "local") return new Response(null, { status: 404 });
-
-  let requestPath: string;
-  try {
-    requestPath = decodeURIComponent(url.pathname);
-  } catch {
-    return new Response(null, { status: 400 });
-  }
-  if (requestPath === "/" || requestPath.endsWith("/")) requestPath += "index.html";
-
-  const libraryAssetPrefix = "/library-assets/";
-  const isLibraryAsset = requestPath.startsWith(libraryAssetPrefix);
-  // The bundled main process runs from dist/electron, beside the renderer build.
-  const assetDirectory = isLibraryAsset
-    ? join(app.getPath("userData"), "assets")
-    : app.isPackaged
-      ? join(app.getAppPath(), "dist")
-      : resolve(mainDirectory, "..");
-  const relativeRequestPath = isLibraryAsset
-    ? `/${requestPath.slice(libraryAssetPrefix.length)}`
-    : requestPath;
-  return serveAssetFile(request, {
-    root: assetDirectory,
-    path: relativeRequestPath,
-    contentTypes: mimeTypes,
-    headers: { "Content-Security-Policy": contentSecurityPolicy },
-  });
+  registerCommandHandlers(handlers);
+  registerDeepLinkSubscriptions();
+  registerWindowControls();
 }
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    title: "inkling",
-    width: 1280,
-    height: 720,
-    // 320px matches the body min-width in src/index.css. At 240px high the library grid shrinks to 65px; 360px keeps it near 185px.
-    minWidth: 320,
-    minHeight: 360,
-    ...customWindowChrome,
-    autoHideMenuBar: true,
-    backgroundColor: "#0c0c0b",
-    show: false,
-    webPreferences: {
-      preload: join(mainDirectory, "preload.cjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webSecurity: true,
-      // HTML-in-Canvas, so liquid glass can refract the live grid. Chromium
-      // ships it behind this flag; without it the renderer keeps the CSS glass.
-      enableBlinkFeatures: "CanvasDrawElement",
-    },
-  });
-  mainWindow.setMenu(null);
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    const externalUrl = parseHttpUrlCore(url)?.toString();
-    if (externalUrl) void shell.openExternal(externalUrl).catch(() => {});
-    return { action: "deny" };
-  });
-  mainWindow.webContents.on("will-navigate", (event, target) => {
-    let url: URL;
-    try {
-      url = new URL(target);
-    } catch {
-      event.preventDefault();
-      return;
-    }
-    if (url.protocol !== "app:" || url.hostname !== "local") event.preventDefault();
-  });
-  // The renderer calls inkling:window:ready once it knows whether the welcome
-  // runs and has painted that first frame, so a first launch never flashes the
-  // library before onboarding. The timer only guards against a renderer that
-  // never says so: the window must always appear.
-  mainWindow.once("ready-to-show", () => {
-    const window = mainWindow;
-    setTimeout(() => {
-      if (window && !window.isDestroyed() && !window.isVisible()) window.show();
-    }, 3000);
+  mainWindow = createMainWindow({
+    preload: join(mainDirectory, "preload.cjs"),
+    query: isPreview ? "?preview=1" : "",
   });
   mainWindow.on("closed", () => {
     mainWindow = undefined;
   });
-
-  const query = isPreview ? "?preview=1" : "";
-  void mainWindow.loadURL(`app://local/index.html${query}`);
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -564,11 +262,15 @@ if (!hasSingleInstanceLock) {
         captureUrl: async (input) => (await initializeLibraryStorage()).library.captureUrl(input),
       });
     } catch (error) {
-      console.error(
-        `capture server unavailable: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      logFailure("capture server unavailable")(error);
     }
-    await protocol.handle("app", serveAppAsset);
+    // The bundled main process runs from dist/electron, beside the renderer build.
+    await protocol.handle(
+      "app",
+      createAppAssetHandler(
+        app.isPackaged ? join(app.getAppPath(), "dist") : resolve(mainDirectory, ".."),
+      ),
+    );
     allowCanvasReadableImages();
     handleDeepLinkArguments(process.argv);
     createWindow();
@@ -587,28 +289,10 @@ if (!hasSingleInstanceLock) {
       if (quitDrainStarted) return;
       quitDrainStarted = true;
       void (async () => {
-        try {
-          await captureServer?.close();
-        } catch (error) {
-          console.error(
-            `capture server shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-        try {
-          // Interrupts both workers, which hand their running jobs back, then closes the database.
-          await storage?.runtime.dispose();
-        } catch (error) {
-          console.error(
-            `library shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-        try {
-          await aiJobProcessors?.close();
-        } catch (error) {
-          console.error(
-            `background jobs shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
+        await captureServer?.close().catch(logFailure("capture server shutdown failed"));
+        // Interrupts both workers, which hand their running jobs back, then closes the database.
+        await storage?.runtime.dispose().catch(logFailure("library shutdown failed"));
+        await aiJobProcessors?.close().catch(logFailure("background jobs shutdown failed"));
         quitDrainComplete = true;
         app.quit();
       })();

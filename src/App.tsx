@@ -1,25 +1,14 @@
-import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Loading01Icon, RotateCwIcon, Settings01Icon } from "@hugeicons/core-free-icons";
-import {
-  retryProcessingJob,
-  isDesktopRuntime,
-  isElectronRuntime,
-  type StoredSpace,
-} from "./lib/libraryApi";
+import { Settings01Icon } from "@hugeicons/core-free-icons";
+import { isDesktopRuntime, isElectronRuntime, type StoredSpace } from "./lib/libraryApi";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { ContextMenu } from "./components/ContextMenu/ContextMenu";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
 // local disk on first open (Suspense fallback null: no spinner, no layout
 // shift — the chunk resolves in milliseconds).
 const PdfViewer = lazy(() => import("./features/item-view/PdfViewer"));
-const MascotBoard = lazy(() =>
-  import("./components/mascot/MascotBoard").then((module) => ({ default: module.MascotBoard })),
-);
-const AliveBoard = lazy(() =>
-  import("./components/mascot/AliveBoard").then((module) => ({ default: module.AliveBoard })),
-);
 
 const ItemView = lazy(() =>
   import("./features/item-view/ItemView").then((module) => ({
@@ -30,14 +19,13 @@ import type { ItemViewActions } from "./features/item-view/ItemView";
 const ReaderView = lazy(() =>
   import("./ReaderView").then((module) => ({ default: module.ReaderView })),
 );
-import type { ReaderItem } from "./ReaderView";
 import type { LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import { AddMenu } from "./features/capture/AddMenu/AddMenu";
 import { CaptureBar } from "./features/capture/CaptureBar";
-import { ShortcutsDialog } from "./features/capture/ShortcutsDialog";
+import { FileImportStatus } from "./features/capture/FileImportStatus";
 import { useCapture } from "./features/capture/useCapture";
-import { useItemDetails, showItemInFolderFromOverlay } from "./features/item-view/useItemDetails";
+import { useItemDetails, revealItemInFolder } from "./features/item-view/useItemDetails";
 import { useItemSelection } from "./features/item-view/useItemSelection";
 import type { LibraryCardContext } from "./features/library/LibraryCard";
 import { LibraryStage } from "./features/library/LibraryStage";
@@ -52,10 +40,12 @@ import {
 } from "./features/settings/useLibraryTransfer";
 import { SettingsSheet } from "./features/settings/SettingsSheet";
 import { useSettings } from "./features/settings/useSettings";
+import { ShortcutsDialog } from "./features/shell/ShortcutsDialog";
 import { NavRow, navLabelClass, Sidebar, SidebarError } from "./features/shell/Sidebar";
 import { SidebarEdgeGrip, SidebarOpenButton } from "./features/shell/SidebarToggles";
 import { SpacesSection } from "./features/shell/SpacesSection";
 import { TitleBar } from "./features/shell/TitleBar";
+import { UpdateNavRow } from "./features/shell/UpdateNavRow";
 import { useAppShortcuts } from "./features/shell/useAppShortcuts";
 import { useAppUpdate } from "./features/shell/useAppUpdate";
 import { useFirstRun } from "./features/shell/useFirstRun";
@@ -63,7 +53,7 @@ import { useHistory } from "./features/shell/useHistory";
 import { useMascotMood } from "./features/shell/useMascotMood";
 import { useSidebarOpen } from "./features/shell/useSidebarOpen";
 import "./features/shell/codex-sidebar.css";
-import { itemMatchesSmartQuery } from "./features/spaces/smartQuery";
+import { visibleLibraryItems } from "./features/spaces/smartQuery";
 import { useSpaces } from "./features/spaces/useSpaces";
 import { cx } from "./ui/cx";
 import { Toaster } from "./ui/Toaster";
@@ -71,7 +61,6 @@ import { TooltipLayer } from "./ui/Tooltip";
 
 function App() {
   const canUseDesktopBackend = isDesktopRuntime() && !shouldUseSeedLibrary();
-  const canUseLibraryFolderPicker = isDesktopRuntime() && !shouldUseSeedLibrary();
   const [query, setQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeView, setActiveView] = useState("Everything");
@@ -83,20 +72,21 @@ function App() {
   const { isFirstRunOpen, setIsFirstRunOpen, finishFirstRun } = useFirstRun(canUseDesktopBackend);
   const appUpdate = useAppUpdate(canUseDesktopBackend);
   const {
-    availableUpdate,
-    isInstallingUpdate,
-    updateInstallFailed,
-    handleInstallUpdate,
-    updateState,
-  } = appUpdate;
-  const { items, setItems, itemsRef, activeJobCount, debouncedQuery, noteBodyCacheRef, reload } =
-    useLibraryData({
-      canUseDesktopBackend,
-      query,
-      activeSpaceId,
-      setSelectedItem,
-      setCaptureError,
-    });
+    items,
+    setItems,
+    itemsRef,
+    activeJobCount,
+    debouncedQuery,
+    noteBodyCacheRef,
+    reload,
+    retryJob,
+  } = useLibraryData({
+    canUseDesktopBackend,
+    query,
+    activeSpaceId,
+    setSelectedItem,
+    setCaptureError,
+  });
   const {
     isSettingsOpen,
     setIsSettingsOpen,
@@ -159,7 +149,6 @@ function App() {
     setCaptureError,
   });
   const searchRef = useRef<HTMLInputElement>(null);
-  const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const captureBarRef = useRef<HTMLElement>(null);
   const viewDockRef = useRef<HTMLDivElement>(null);
@@ -182,16 +171,6 @@ function App() {
     setSelectedItem,
   });
 
-  const retryJob = useCallback(async (jobId: string) => {
-    setCaptureError(null);
-    try {
-      const retried = await retryProcessingJob(jobId);
-      if (!retried) setCaptureError("That processing job is no longer available to retry.");
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : String(error));
-    }
-  }, []);
-
   function selectSpace(space: StoredSpace) {
     setActiveSpaceId(space.id);
     setActiveView(space.name);
@@ -213,22 +192,15 @@ function App() {
     localSpaceExclusions,
     changeSpaceItem,
     recordLocalSpaceCapture,
-    isCreatingSpace,
-    setIsCreatingSpace,
-    newSpaceName,
-    setNewSpaceName,
-    newSpaceKind,
-    setNewSpaceKind,
-    newSpaceNameInputRef,
-    renamingSpaceId,
-    setRenamingSpaceId,
-    renameDraft,
-    setRenameDraft,
-    spaceRenameInputRef,
+    draft: spaceDraft,
+    draftNameInputRef,
+    openSpaceDraft,
+    renaming,
+    startRename,
+    cancelRename,
     sidebarActionError,
     setSidebarActionError,
     beginSaveSearch,
-    handleCreateSpace,
     handleToggleItemInSpace,
     handleDeleteSpace,
     handleRenameSpace,
@@ -253,7 +225,7 @@ function App() {
     exportLibraryToFolder,
     importLibraryFromFolder,
   } = useLibraryTransfer({
-    canUseLibraryFolderPicker,
+    canUseDesktopBackend,
     setLastCopy,
     setSpaces,
     setArchivedItems,
@@ -271,10 +243,10 @@ function App() {
     isDragActive,
     openCapture,
     closeCaptureModal,
-    saveFromAddMenu,
-    persistText,
-    persistArticle,
-    persistQuote,
+    changeCaptureMode,
+    saveNote,
+    saveLink,
+    saveQuote,
     captureFiles,
     fileImport,
     clearFileImport,
@@ -308,52 +280,35 @@ function App() {
     setIsSidebarOpen,
   });
 
-  const filteredItems = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return items.filter((item) => {
-      const matchesQuery = !normalizedQuery
-        ? true
-        : canUseDesktopBackend || activeSpace
-          ? true
-          : [item.title, item.description, item.source, item.kind, ...item.tags]
-              .join(" ")
-              .toLowerCase()
-              .includes(normalizedQuery);
-      const matchesView =
-        activeView === "Everything" ||
-        (activeSpace
-          ? canUseDesktopBackend
-            ? true
-            : activeSpace.kind === "regular"
-              ? // Mirror of the core's membership read for browser (seed) mode.
-                (localSpaceItems.get(activeSpace.id)?.has(String(item.id)) ?? false)
-              : itemMatchesSmartQuery(item, activeSpace.query) &&
-                !localSpaceExclusions.get(activeSpace.id)?.has(String(item.id))
-          : false);
-      return matchesQuery && matchesView;
-    });
-  }, [
-    activeSpace,
-    activeView,
-    canUseDesktopBackend,
-    items,
-    localSpaceItems,
-    localSpaceExclusions,
-    query,
-  ]);
+  const filteredItems = useMemo(
+    () =>
+      visibleLibraryItems(items, {
+        canUseDesktopBackend,
+        query,
+        activeView,
+        activeSpace,
+        localSpaceItems,
+        localSpaceExclusions,
+      }),
+    [
+      activeSpace,
+      activeView,
+      canUseDesktopBackend,
+      items,
+      localSpaceItems,
+      localSpaceExclusions,
+      query,
+    ],
+  );
   useLayoutEffect(() => {
     filteredItemsRef.current = filteredItems;
   }, [filteredItems]);
-  // Both sit under the toolbar in one column, so a capture error and the pinned
-  // query row stack instead of overlapping.
-  const showFilterRow = !isSearchFocused && query.trim() !== "";
   // A pinned query has its own band above the grid, so the grid starts below it.
-  // Only this boolean reaches the DOM, so typing does not restyle the grid.
-  const hasPinnedQuery = showFilterRow;
+  // Only this boolean reaches the grid, so typing does not restyle it.
+  const showFilterRow = !isSearchFocused && query.trim() !== "";
   // An empty Space has nothing to search or re-lay out, so it drops the
   // browsing controls.
-  const isEmptySpace = Boolean(activeSpace) && filteredItems.length === 0 && !query.trim();
-  const showBrowseControls = !isEmptySpace;
+  const showBrowseControls = !activeSpace || filteredItems.length > 0 || query.trim() !== "";
   const showCaptureError = Boolean(captureError) && !isAdding;
 
   const { cardMenu, closeCardMenu, openCardMenu, cardMenuEntries } = useCardMenu({
@@ -427,7 +382,7 @@ function App() {
       onOpenReader: openReader,
       onLoadSimilar: loadSimilarLibraryItems,
       onOpenItem: openSimilarItem,
-      onShowInFolder: canUseDesktopBackend ? showItemInFolderFromOverlay : undefined,
+      onShowInFolder: canUseDesktopBackend ? revealItemInFolder : undefined,
       onDelete: deleteArchivedLibraryItem,
       onForget: forgetItem,
       onRetryJob: retryJob,
@@ -468,26 +423,6 @@ function App() {
     />
   ) : null;
 
-  // Dev-only mascot board (vendored bloub engine + inkling skins). Not linked
-  // from the UI; open with ?mascot. Placed after all hooks.
-  if (
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).has("mascot-alive")
-  ) {
-    return (
-      <Suspense fallback={null}>
-        <AliveBoard />
-      </Suspense>
-    );
-  }
-  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mascot")) {
-    return (
-      <Suspense fallback={null}>
-        <MascotBoard />
-      </Suspense>
-    );
-  }
-
   return (
     <MotionConfig reducedMotion="user">
       <div
@@ -522,68 +457,23 @@ function App() {
                 error={isAdding ? captureError : null}
                 onOpen={() => openCapture(null, !codexSidebar || isSidebarOpen)}
                 onClose={closeCaptureModal}
-                onModeChange={(mode) => {
-                  setCaptureMode(mode);
-                  setCaptureError(null);
-                }}
-                onSaveNote={(text) => saveFromAddMenu(() => persistText(text, "quick note"))}
-                onSaveLink={(url) => saveFromAddMenu(() => persistArticle(url, "quick link"))}
-                onSaveQuote={(text, attribution, sourceUrl) =>
-                  saveFromAddMenu(() => persistQuote(text, attribution, sourceUrl, "quick quote"))
-                }
+                onModeChange={changeCaptureMode}
+                onSaveNote={saveNote}
+                onSaveLink={saveLink}
+                onSaveQuote={saveQuote}
                 onPickFile={(files) => captureFiles(files, "file picker")}
                 onScreenshot={startScreenshotCapture}
                 onAddSpace={
                   codexSidebar
                     ? () => {
                         setIsSidebarOpen(true);
-                        setIsCreatingSpace(true);
-                        setNewSpaceName("");
-                        setNewSpaceKind("smart");
+                        openSpaceDraft();
                       }
                     : undefined
                 }
               />
-              {availableUpdate && (
-                <NavRow
-                  tone="update"
-                  aria-live="polite"
-                  disabled={isInstallingUpdate}
-                  data-tooltip={
-                    updateState?.message ||
-                    (appUpdate.isReadyToInstall
-                      ? `Version ${updateState?.downloadedVersion} is downloaded. Select to restart and install. Linux may ask for system authorization.`
-                      : `Version ${availableUpdate.version} is available. Select to download; installation needs a separate Restart and install action.`)
-                  }
-                  onClick={() =>
-                    void (updateInstallFailed && updateState?.errorContext === "check"
-                      ? appUpdate.handleCheckForUpdates()
-                      : handleInstallUpdate())
-                  }
-                >
-                  <HugeiconsIcon
-                    icon={isInstallingUpdate ? Loading01Icon : RotateCwIcon}
-                    size={15}
-                  />
-                  <span className={navLabelClass}>
-                    {updateState?.status === "installing"
-                      ? "Installing…"
-                      : updateState?.status === "downloading"
-                        ? `Downloading${updateState.progress == null ? "…" : ` ${Math.round(updateState.progress)}%`}`
-                        : isInstallingUpdate
-                          ? "Updating…"
-                          : appUpdate.isReadyToInstall
-                            ? "Restart and install"
-                            : updateInstallFailed
-                              ? updateState?.errorContext === "check"
-                                ? "Check failed · retry"
-                                : "Download failed · retry"
-                              : "Download update"}
-                  </span>
-                </NavRow>
-              )}
+              <UpdateNavRow update={appUpdate} />
               <NavRow
-                ref={settingsButtonRef}
                 tone="footer"
                 active={isSettingsOpen}
                 aria-label="Settings"
@@ -607,44 +497,21 @@ function App() {
             spaces={spaces}
             activeSpaceId={activeSpaceId}
             activeCount={filteredItems.length}
-            renaming={{
-              id: renamingSpaceId,
-              draft: renameDraft,
-              setDraft: setRenameDraft,
-              inputRef: spaceRenameInputRef,
-            }}
+            renaming={renaming}
             actions={{
               select: selectSpace,
               cycleColor: (space) => void handleCycleSpaceColor(space),
               move: (space, direction) => void handleMoveSpace(space, direction),
               startRename: (space) => {
                 if (codexSidebar) setIsSidebarOpen(true);
-                setRenamingSpaceId(space.id);
-                setRenameDraft(space.name);
+                startRename(space);
               },
               rename: (space, name) => void handleRenameSpace(space, name),
-              cancelRename: () => setRenamingSpaceId(null),
+              cancelRename,
               remove: (space) => void handleDeleteSpace(space),
             }}
-            draftNameInputRef={newSpaceNameInputRef}
-            draft={{
-              isOpen: isCreatingSpace,
-              name: newSpaceName,
-              kind: newSpaceKind,
-              query,
-              toggle: () => {
-                setIsCreatingSpace((current) => !current);
-                setNewSpaceName("");
-                setNewSpaceKind("smart");
-              },
-              setName: setNewSpaceName,
-              setKind: setNewSpaceKind,
-              cancel: () => {
-                setIsCreatingSpace(false);
-                setNewSpaceName("");
-              },
-              submit: handleCreateSpace,
-            }}
+            draftNameInputRef={draftNameInputRef}
+            draft={spaceDraft}
           />
           {isSidebarOpen && sidebarActionErrorAlert}
         </Sidebar>
@@ -708,25 +575,7 @@ function App() {
             captureError={showCaptureError ? captureError : null}
           />
 
-          {fileImport && (
-            <div
-              role="status"
-              aria-live="polite"
-              className="fixed right-5 bottom-5 z-50 flex items-center gap-3 rounded-xl border border-border bg-canvas px-4 py-2 text-xs shadow-sm"
-            >
-              <span>
-                {fileImport.active
-                  ? `Importing ${fileImport.completed} of ${fileImport.total} files…`
-                  : `${fileImport.saved} files saved. Processing continues in the background.`}
-                {fileImport.failed > 0 ? ` ${fileImport.failed} failed.` : ""}
-              </span>
-              {!fileImport.active && (
-                <button type="button" aria-label="Dismiss import status" onClick={clearFileImport}>
-                  ×
-                </button>
-              )}
-            </div>
-          )}
+          {fileImport && <FileImportStatus progress={fileImport} onDismiss={clearFileImport} />}
 
           <ViewDock
             ref={viewDockRef}
@@ -744,7 +593,7 @@ function App() {
             listMode={listMode}
             columnCount={gridColumnCount}
             context={libraryCardContext}
-            hasPinnedQuery={hasPinnedQuery}
+            hasPinnedQuery={showFilterRow}
             emptySpaceName={activeSpace?.kind === "regular" ? activeSpace.name : undefined}
             onClearSearch={() => {
               setQuery("");
@@ -784,7 +633,7 @@ function App() {
           library={{
             kinds: wholeLibraryKinds ?? items.map((item) => item.kind),
             sizeBytes: librarySizeBytes,
-            canUseFolderPicker: canUseLibraryFolderPicker,
+            canUseFolderPicker: canUseDesktopBackend,
             onShowFolder: showLibraryFolderFromSettings,
             lastCopy,
             lastExport,
@@ -829,21 +678,10 @@ function App() {
           )}
         </AnimatePresence>
         <AnimatePresence>
-          {readingItem?.item.articleHtml && (
+          {readingItem && (
             <Suspense key={readingItem.item.id} fallback={null}>
               <ReaderView
-                item={
-                  {
-                    id: readingItem.item.id,
-                    title: readingItem.item.title,
-                    author: readingItem.item.articleAuthor,
-                    publishedDate: readingItem.item.publishedDate,
-                    savedDate: readingItem.item.date,
-                    sourceLabel: readingItem.item.source,
-                    sourceUrl: readingItem.item.sourceUrl ?? "",
-                    html: readingItem.item.articleHtml,
-                  } satisfies ReaderItem
-                }
+                item={readingItem.item}
                 origin={readingItem.origin}
                 onRequestClose={closeReader}
               />

@@ -1,20 +1,13 @@
 import { expect, test } from "bun:test";
-import { parseHTML } from "linkedom";
 import { act, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 import type { LibraryItem } from "../../lib/types";
 import type { StoredSpace } from "../../lib/libraryApi";
+import { installTestDom } from "../testDom";
 import { useCardMenu } from "./useCardMenu";
 
 test("keyboard menus anchor to their card while context clicks keep their pointer coordinates", async () => {
-  const { window: dom } = parseHTML("<html><body><div id='root'></div></body></html>");
-  for (const [key, value] of Object.entries({
-    window: dom,
-    document: dom.document,
-    HTMLElement: dom.HTMLElement,
-    IS_REACT_ACT_ENVIRONMENT: true,
-  }))
-    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+  const { window: dom, restore } = installTestDom();
   const item = {
     id: "note",
     kind: "Note",
@@ -92,5 +85,6 @@ test("keyboard menus anchor to their card while context clicks keep their pointe
     expect(menu.cardMenu).toBeNull();
   } finally {
     await act(async () => root.unmount());
+    restore();
   }
 });

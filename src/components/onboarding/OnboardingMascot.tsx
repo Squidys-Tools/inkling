@@ -1,8 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { InklingMascot } from "../mascot/InklingMascot";
-import { prefersReducedMotion } from "../mascot/mascotStore";
+import { prefersReducedMotion } from "../../ui/reducedMotion";
 
-/** How long each face holds before the next one glides in. */
 const FACE_HOLD_MS = 3400;
 
 /**
@@ -14,9 +13,9 @@ export function OnboardingMascot({
   size,
   faces,
   look,
-  speed = 1,
+  speed,
   side,
-  leaving = false,
+  leaving,
   style,
 }: {
   size: number;
@@ -24,18 +23,18 @@ export function OnboardingMascot({
   /** Where the eyes stay pointed (toward the screen's text) through every face. */
   look: { yaw: number; pitch: number };
   /** Playback rate of the animation and the face changes (1 = normal). */
-  speed?: number;
+  speed: number;
   /** Which bottom corner it hangs off; it rises in from, and sinks back toward, that corner. */
   side: "left" | "right";
   /** Set while the screen plays its exit. */
-  leaving?: boolean;
-  style?: CSSProperties;
+  leaving: boolean;
+  style: CSSProperties;
 }) {
   const [reduced] = useState(prefersReducedMotion);
   const [faceIndex, setFaceIndex] = useState(0);
 
   useEffect(() => {
-    if (reduced || faces.length < 2) return;
+    if (reduced) return;
     const timer = window.setInterval(
       () => setFaceIndex((index) => (index + 1) % faces.length),
       FACE_HOLD_MS / speed,

@@ -1,14 +1,14 @@
-import { useLayoutEffect, useRef, type CSSProperties } from "react";
-import { gsap } from "gsap";
-import { SplitText as GsapSplitText } from "gsap/SplitText";
-import { prefersReducedMotion } from "../mascot/mascotStore";
+import { Fragment, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { animate, stagger } from "motion/react";
+import { prefersReducedMotion } from "../../ui/reducedMotion";
 
-gsap.registerPlugin(GsapSplitText);
+// GSAP's power3.out, which the headline was tuned with.
+const easeOutQuart = (t: number) => 1 - (1 - t) ** 4;
 
 /**
  * React Bits' Split Text, trimmed to what onboarding uses: a headline whose
- * letters rise into place once, on mount. GSAP's SplitText keeps an aria-label
- * with the whole string, so screen readers still hear one heading.
+ * letters rise into place once, on mount. While split, the heading carries the
+ * whole string as its label and the letters are hidden from screen readers.
  */
 export function SplitText({
   text,
@@ -23,47 +23,64 @@ export function SplitText({
   delay?: number;
 }) {
   const ref = useRef<HTMLHeadingElement>(null);
+  const [done, setDone] = useState(prefersReducedMotion);
 
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el || prefersReducedMotion()) return;
-    let split: GsapSplitText | null = null;
-    let tween: gsap.core.Tween | null = null;
+    if (!el || done) return;
     let cancelled = false;
-
-    // Splitting measures glyphs, so it waits for the face. Hidden meanwhile,
-    // or the finished headline would flash before its letters drop out.
+    let stop = () => {};
+    // The letters stay invisible until the face has loaded, or they would rise
+    // in the fallback font and swap mid-flight.
     const run = () => {
       if (cancelled) return;
-      split = GsapSplitText.create(el, { type: "words,chars" });
-      el.style.visibility = "";
-      tween = gsap.from(split.chars, {
-        opacity: 0,
-        y: 40,
-        duration: 1.25,
-        ease: "power3.out",
-        stagger: 0.05,
-        delay,
-        onComplete: () => split?.revert(),
+      const controls = animate(
+        el.querySelectorAll("[data-char]"),
+        { opacity: [0, 1], y: [40, 0] },
+        { duration: 1.25, ease: easeOutQuart, delay: stagger(0.05, { startDelay: delay }) },
+      );
+      stop = () => controls.stop();
+      void controls.then(() => {
+        if (!cancelled) setDone(true);
       });
     };
     if (document.fonts.status === "loaded") run();
-    else {
-      el.style.visibility = "hidden";
-      void document.fonts.ready.then(run);
-    }
+    else void document.fonts.ready.then(run);
 
     return () => {
       cancelled = true;
-      tween?.kill();
-      split?.revert();
-      el.style.visibility = "";
+      stop();
     };
-  }, [delay]);
+  }, [delay, done]);
 
+  if (done) {
+    return (
+      <h1 ref={ref} className={className} style={style}>
+        {text}
+      </h1>
+    );
+  }
   return (
-    <h1 ref={ref} className={className} style={style}>
-      {text}
+    <h1 ref={ref} className={className} style={style} aria-label={text}>
+      {text.split(" ").map((word, w) => (
+        // oxlint-disable-next-line react/no-array-index-key -- a fixed string's words, never reordered.
+        <Fragment key={w}>
+          {w > 0 && " "}
+          <span aria-hidden="true" className="relative inline-block">
+            {[...word].map((char, c) => (
+              <span
+                // oxlint-disable-next-line react/no-array-index-key -- a fixed word's letters, never reordered.
+                key={c}
+                data-char=""
+                className="relative inline-block"
+                style={{ opacity: 0 }}
+              >
+                {char}
+              </span>
+            ))}
+          </span>
+        </Fragment>
+      ))}
     </h1>
   );
 }

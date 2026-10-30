@@ -1,5 +1,10 @@
 import type { LastExport, LibraryExportReport, LibraryImportReport } from "../../lib/libraryApi";
 
+// "1 item", "3 items". Every noun counted in Settings takes a plain -s.
+export function countOf(count: number, noun: string) {
+  return `${count} ${count === 1 ? noun : `${noun}s`}`;
+}
+
 export function formatByteSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB"];
@@ -15,8 +20,7 @@ export function formatByteSize(bytes: number) {
 export function formatExportSummary(report: LibraryExportReport) {
   const summary = `${report.items} items · ${report.assetFiles} files · ${formatByteSize(report.databaseBytes + report.assetsBytes)}`;
   if (report.skippedAssets === 0) return summary;
-  const assets = report.skippedAssets === 1 ? "asset" : "assets";
-  return `${summary} · ${report.skippedAssets} ${assets} skipped`;
+  return `${summary} · ${countOf(report.skippedAssets, "asset")} skipped`;
 }
 
 export function formatLastCopy(copy: LastExport) {
@@ -29,8 +33,8 @@ export function formatLastCopy(copy: LastExport) {
 
 export function formatImportSummary(report: LibraryImportReport) {
   const summary = [
-    `${report.importedItems} ${report.importedItems === 1 ? "item" : "items"} restored`,
-    `${report.importedSpaces} ${report.importedSpaces === 1 ? "Space" : "Spaces"} added`,
+    `${countOf(report.importedItems, "item")} restored`,
+    `${countOf(report.importedSpaces, "Space")} added`,
   ];
   if (report.skippedDuplicateItems > 0) {
     summary.push(
@@ -43,11 +47,11 @@ export function formatImportSummary(report: LibraryImportReport) {
     );
   }
   if (report.assetFiles > 0) {
-    summary.push(`${report.assetFiles} ${report.assetFiles === 1 ? "file" : "files"} copied`);
+    summary.push(`${countOf(report.assetFiles, "file")} copied`);
   }
   if (report.unverifiedAssetFiles > 0) {
     summary.push(
-      `${report.unverifiedAssetFiles} ${report.unverifiedAssetFiles === 1 ? "file" : "files"} from an older export could not be verified`,
+      `${countOf(report.unverifiedAssetFiles, "file")} from an older export could not be verified`,
     );
   }
   return summary.join(" · ");

@@ -1,5 +1,6 @@
 import { gsap } from "gsap";
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { prefersReducedMotion } from "../item-view/overlayMotion";
 
 export const LIBRARY_VIEW_TRANSITION_MS = 440;
 
@@ -9,7 +10,7 @@ const GRID_GAP = 12;
 const TARGET_CARD_WIDTH = 286;
 const MAX_GRID_COLUMNS = 12;
 
-function masonryColumnCount(width: number): number {
+function masonryColumnCount(width: number) {
   const columns = Math.round((width + GRID_GAP) / (TARGET_CARD_WIDTH + GRID_GAP));
   return Math.min(Math.max(columns, 1), MAX_GRID_COLUMNS);
 }
@@ -20,9 +21,7 @@ export function useLibraryView(libraryScrollRef: RefObject<HTMLDivElement | null
   const libraryViewAnimationRef = useRef<gsap.core.Animation | null>(null);
   const libraryViewEnteringRef = useRef(false);
   const libraryViewTransitionRunRef = useRef(0);
-  const [libraryViewportWidth, setLibraryViewportWidth] = useState(() =>
-    typeof window === "undefined" ? 960 : window.innerWidth,
-  );
+  const [libraryViewportWidth, setLibraryViewportWidth] = useState(() => window.innerWidth);
 
   // Only cards in view animate; the rest stay hidden until the entrance ends.
   const playLibraryEntrance = useCallback(
@@ -79,7 +78,7 @@ export function useLibraryView(libraryScrollRef: RefObject<HTMLDivElement | null
       libraryViewTransitionRunRef.current += 1;
       libraryViewAnimationRef.current?.kill();
       const grid = libraryScrollRef.current?.querySelector<HTMLElement>(".library-grid");
-      if (!grid || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (!grid || prefersReducedMotion()) {
         if (grid) gsap.set(grid, { clearProps: "opacity" });
         setListMode(nextListMode);
         return;
@@ -124,15 +123,9 @@ export function useLibraryView(libraryScrollRef: RefObject<HTMLDivElement | null
         setLibraryViewportWidth((current) => (current === nextWidth ? current : nextWidth));
     };
     updateWidth();
-
-    if (typeof ResizeObserver !== "undefined") {
-      const observer = new ResizeObserver(updateWidth);
-      observer.observe(element);
-      return () => observer.disconnect();
-    }
-
-    window.addEventListener("resize", updateWidth);
-    return () => window.removeEventListener("resize", updateWidth);
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+    return () => observer.disconnect();
   }, [libraryScrollRef]);
 
   const gridColumnCount = masonryColumnCount(libraryViewportWidth);

@@ -42,8 +42,6 @@ test("Stable and Nightly survive controller restart without automatic checks, do
     const first = create(firstEngine);
     expect((await first.getState()).channel).toBe("latest");
     expect(await first.checkForUpdates()).toBeNull();
-    // Current main represents a stable check that rejects a nightly-only
-    // feed as up-to-date; it does not expose the held detailed checkIssue API.
     expect((await first.getState()).status).toBe("up-to-date");
     expect((await first.getState()).availableVersion).toBeNull();
     await first.setChannel("nightly");

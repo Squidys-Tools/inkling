@@ -45,8 +45,6 @@ const BAND_MARGIN = 64;
 // a step, so a chip sliding in does not reallocate it every frame.
 const BAND_STEP = 128;
 
-export type GlassBand = { top: number; height: number };
-
 /**
  * Device-pixel rows that hold glass, one band per cluster. liquid-dom runs a dozen
  * full-size passes per frame, so only these rows go through it. Bands share one
@@ -56,7 +54,7 @@ export function glassBands(
   shapes: Iterable<{ y: number; height: number }>,
   dpr: number,
   canvasHeight: number,
-): GlassBand[] {
+) {
   const spans = [...shapes]
     .map((shape) => [
       Math.max(0, Math.floor((shape.y - BAND_MARGIN) * dpr)),

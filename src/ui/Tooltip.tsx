@@ -103,7 +103,7 @@ export function TooltipLayer({ ref }: { ref: RefObject<HTMLDivElement | null> })
         {tip && (
           <Tooltip.Portal container={ref}>
             <Tooltip.Positioner
-              anchor={tip?.anchor}
+              anchor={tip.anchor}
               side="bottom"
               sideOffset={8}
               collisionPadding={6}
@@ -113,7 +113,7 @@ export function TooltipLayer({ ref }: { ref: RefObject<HTMLDivElement | null> })
               <Tooltip.Popup
                 className={`${glassClass(liquid)} max-w-[280px] rounded-[9px] px-2.5 py-1.5 font-body text-[12px] leading-4 font-medium text-ink transition-opacity duration-120 ease-out data-starting-style:opacity-0 motion-reduce:transition-none`}
               >
-                {tip?.text}
+                {tip.text}
               </Tooltip.Popup>
             </Tooltip.Positioner>
           </Tooltip.Portal>

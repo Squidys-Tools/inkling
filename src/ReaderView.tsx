@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { hostnameForUrl } from "./features/hostname";
 import { isWebUrl } from "./lib/ingestion/url";
 import "./reader.css";
 
@@ -13,7 +14,6 @@ export type ReaderItem = {
   author?: string;
   publishedDate?: string;
   savedDate: string;
-  sourceLabel: string;
   sourceUrl: string;
   html: string;
 };
@@ -28,7 +28,7 @@ const READER_FONT_SETS = [
   { id: "casual-web", label: "Casual Web" },
 ] as const;
 
-export type ReaderFontSet = (typeof READER_FONT_SETS)[number]["id"];
+type ReaderFontSet = (typeof READER_FONT_SETS)[number]["id"];
 
 const FONT_SET_STORAGE_KEY = "reader-font-set";
 
@@ -36,18 +36,8 @@ function loadFontSet(): ReaderFontSet {
   try {
     const stored = localStorage.getItem(FONT_SET_STORAGE_KEY);
     if (stored && READER_FONT_SETS.some((set) => set.id === stored)) return stored as ReaderFontSet;
-  } catch {
-    return "quiet-classic";
-  }
+  } catch {}
   return "quiet-classic";
-}
-
-function hostnameOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./u, "");
-  } catch {
-    return url;
-  }
 }
 
 type ReaderViewProps = {
@@ -63,9 +53,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
   useEffect(() => {
     try {
       localStorage.setItem(FONT_SET_STORAGE_KEY, fontSet);
-    } catch {
-      return;
-    }
+    } catch {}
   }, [fontSet]);
 
   useEffect(() => {
@@ -80,7 +68,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
   }, [onRequestClose]);
 
   const bylineParts = [item.author, item.publishedDate ?? item.savedDate].filter(Boolean);
-  const host = hostnameOf(item.sourceUrl);
+  const host = hostnameForUrl(item.sourceUrl) ?? item.sourceUrl;
 
   const readerOrigin = "var(--reader-origin-x) var(--reader-origin-y)";
   const readerOpenClip = `circle(150% at ${readerOrigin})`;

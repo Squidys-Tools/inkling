@@ -234,13 +234,11 @@ function dedupe(times: Iterable<number>, gap: number): number[] {
 const EYE_TIMES = eyeTimes();
 const SHAPE_TIMES = shapeTimes();
 
-/** Every track closes on the first frame's value: `liveliness` periods don't
- *  divide 24, so a real sample at t=24 differs from t=0 and twitches the seam. */
-const share = (t: number) => r4((100 * t) / LOOP_SECONDS);
-
-/** A track over `times`, whose final entry repeats the one at t=0. */
+/** A track over `times`, whose final entry repeats the one at t=0: `liveliness`
+ *  periods don't divide 24, so a real sample at t=24 differs from t=0 and twitches
+ *  the seam. */
 function over(times: number[], at: (t: number) => string): string {
-  const frames = times.map((t) => `${share(t)}%{${at(t)}}`);
+  const frames = times.map((t) => `${pct(t)}%{${at(t)}}`);
   frames[frames.length - 1] = `${pct(LOOP_SECONDS)}%{${at(0)}}`;
   return frames.join("");
 }

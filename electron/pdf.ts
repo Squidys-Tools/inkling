@@ -60,7 +60,7 @@ async function renderPage(page: PDFPageProxy) {
 }
 
 async function openDocument(bytes: Uint8Array) {
-  if (!bytes?.length) throw new Error("PDF bytes cannot be empty");
+  if (!bytes.length) throw new Error("PDF bytes cannot be empty");
   const library = await pdfjs();
   const loadingTask = library.getDocument({
     data: new Uint8Array(bytes),
@@ -116,14 +116,7 @@ export async function renderPdfFirstPage(bytes: Uint8Array) {
   }
 }
 
-export type PdfExtraction = {
-  pages: string[];
-  text: string;
-  engine: string;
-  ocrPages: number;
-};
-
-export type PdfExtractOptions = {
+type PdfExtractOptions = {
   recognize?: (image: Buffer) => Promise<string>;
   onProgress?: (current: number, total: number, message: string) => unknown;
   ocrEngineName?: string;
@@ -138,7 +131,7 @@ export async function extractPdfTextByPages(
     ocrEngineName = "tesseract.js",
     onFirstPageThumbnail,
   }: PdfExtractOptions = {},
-): Promise<PdfExtraction> {
+) {
   const { library, loadingTask } = await openDocument(bytes);
   const pages: string[] = [];
   let ocrPages = 0;

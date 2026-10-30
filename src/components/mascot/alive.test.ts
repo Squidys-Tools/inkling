@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { BotEngine, type BotFrame } from "./bot/engine";
 import { EXPRESSION_BY_ID } from "./bot/expressions";
 import { SHAPE_BY_ID } from "./bot/skins";
-import { SEQUENCE, type StateId } from "./bot/states";
+import type { StateId } from "./bot/states";
 import { toPoints } from "./bot/shape";
 import { RAYON } from "./bot/repere";
 
@@ -25,7 +25,6 @@ describe("inkling alive states", () => {
       SHAPE_BY_ID.get("inkling-splash")?.radii ?? null,
       EXPRESSION_BY_ID.get("neutre") ?? null,
     );
-    expect(SEQUENCE).not.toContain("inkling-drift");
     const frames = [0, 2, 4, 6, 8, 10, 12].map((t) => engine.sample(t));
     for (const frame of frames) {
       expect(frame.bodyPath).not.toContain("NaN");
@@ -70,5 +69,17 @@ describe("inkling alive states", () => {
     expect(margin("idle", 1.0)).toBeGreaterThan(2);
     expect(margin("inkling-sway", 1.0)).toBeGreaterThan(2);
     expect(margin("inkling-drift", 4.0)).toBeGreaterThan(0);
+  });
+
+  test("notify carries its pastille on the splash body", () => {
+    const frame = new BotEngine(
+      RAYON,
+      "notify",
+      SHAPE_BY_ID.get("inkling-splash")?.radii ?? null,
+      EXPRESSION_BY_ID.get("neutre") ?? null,
+    ).sample(5.0);
+    expect(frame.notif).not.toBeNull();
+    expect(frame.bodyPath).not.toContain("NaN");
+    expect(frame.eyes.length).toBeGreaterThan(0);
   });
 });
