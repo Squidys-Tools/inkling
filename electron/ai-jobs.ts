@@ -4,6 +4,7 @@ import { type Embeddings, generateEmbedding } from "./embedding-jobs.ts";
 import { createEmbeddingEngine } from "./embeddings.ts";
 import { createBackfill } from "./job-backfill.ts";
 import { readAsset, reportProgress, requireItem } from "./job-items.ts";
+import { imagePalette, imageThumbnail, pdfThumbnail, videoPoster } from "./media-jobs.ts";
 import { createTesseractOcr } from "./ocr.ts";
 import type { extractPdfTextByPages } from "./pdf.ts";
 import type { UrlArticle } from "./storage/enrichment.ts";
@@ -18,12 +19,10 @@ import {
   VIDEO_POSTER_JOB,
 } from "./storage/library.ts";
 import type { Processor } from "./storage/worker.ts";
+import type { Thumbnailer } from "./video-poster.ts";
 
 type Services = Library | JobQueue;
 type Ocr = Pick<ReturnType<typeof createTesseractOcr>, "recognize"> & { close?: () => unknown };
-type NativeImage = NonNullable<
-  Parameters<typeof import("./video-poster.ts").createVideoPoster>[1]
->["nativeImage"];
 
 // Generous ceilings that only a hung decoder, model, or fetch should reach.
 // The first embedding job may also load the models from disk.
@@ -45,7 +44,7 @@ type AiJobOptions = {
   embeddings?: Embeddings;
   extractPdf?: typeof extractPdfTextByPages;
   extractUrl?: (sourceUrl: string) => Promise<UrlArticle>;
-  nativeImage?: NativeImage;
+  nativeImage?: Thumbnailer;
   videoDecoderPath?: string | null;
 };
 
@@ -129,53 +128,16 @@ export function createAiJobProcessors({
       }
     }),
 
-    [PDF_THUMBNAIL_JOB]: Effect.fnUntraced(function* (job) {
-      const library = yield* Library;
-      const item = yield* requireItem(job.itemId);
-      const pdfBytes = yield* readAsset(item.localAssetPath);
-      const { renderPdfFirstPage } = yield* attempt(() => import("./pdf.ts"));
-      yield* library.storePdfThumbnail(item.id, yield* attempt(() => renderPdfFirstPage(pdfBytes)));
-    }),
-
-    [IMAGE_PALETTE_JOB]: Effect.fnUntraced(function* (job) {
-      const library = yield* Library;
-      const item = yield* requireItem(job.itemId, "image");
-      if (!item.thumbnailPath) return yield* storageFailure("image thumbnail is not ready");
-      const thumbnail = yield* readAsset(item.thumbnailPath);
-      const { dominantImageColors } = yield* attempt(() => import("./thumbnail.ts"));
-      yield* library.storeImagePalette(
-        item.id,
-        yield* attempt(() => dominantImageColors(thumbnail)),
-      );
-    }),
-
+    [PDF_THUMBNAIL_JOB]: pdfThumbnail,
+    [IMAGE_PALETTE_JOB]: imagePalette,
     generate_embedding: generateEmbedding(embeddings),
   };
 
   // A separate set because it runs on its own worker: a new card waits on these
   // jobs, and OCR or model loading can hold the main worker for minutes.
   const thumbnailProcessors: Record<string, Processor<Services>> = {
-    [IMAGE_THUMBNAIL_JOB]: Effect.fnUntraced(function* (job) {
-      const library = yield* Library;
-      const jobs = yield* JobQueue;
-      const item = yield* requireItem(job.itemId, "image");
-      const image = yield* readAsset(item.localAssetPath);
-      if (yield* library.storeImageThumbnail(item.id, image))
-        yield* jobs.enqueue(item.id, IMAGE_PALETTE_JOB);
-    }),
-
-    [VIDEO_POSTER_JOB]: Effect.fnUntraced(function* (job) {
-      const library = yield* Library;
-      const item = yield* requireItem(job.itemId, "video");
-      if (!item.localAssetPath) return yield* storageFailure("item has no local asset path");
-      const path = yield* library.resolveAssetPath(item.localAssetPath);
-      const { createVideoPoster } = yield* attempt(() => import("./video-poster.ts"));
-      const poster = yield* attempt(() =>
-        createVideoPoster(path, { nativeImage, decoderPath: videoDecoderPath }),
-      );
-      if (!poster) return yield* storageFailure("no poster available for this video");
-      yield* library.storeVideoPoster(item.id, poster);
-    }),
+    [IMAGE_THUMBNAIL_JOB]: imageThumbnail,
+    [VIDEO_POSTER_JOB]: videoPoster({ nativeImage, decoderPath: videoDecoderPath }),
   };
 
   return {
