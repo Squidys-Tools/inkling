@@ -29,9 +29,8 @@ export type StoredLibraryItemDetail = Omit<StoredLibraryItem, "body" | "bodyForm
 
 export type StoredLibraryCard = Omit<
   StoredLibraryItem,
-  "body" | "bodyFormat" | "metadata" | "ocrText" | "updatedAt"
+  "body" | "bodyFormat" | "metadata" | "updatedAt"
 > & {
-  ocrText: string;
   metadata: {
     tags?: unknown;
     social?: unknown;
