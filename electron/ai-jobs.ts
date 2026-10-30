@@ -99,7 +99,7 @@ const readAsset = Effect.fnUntraced(function* (assetPath: string | null) {
   return yield* attempt(() => readFile(path));
 });
 
-export type AiJobOptions = {
+type AiJobOptions = {
   modelCacheDirectory: string;
   bundledModelDirectory?: string;
   ocr?: Ocr;
