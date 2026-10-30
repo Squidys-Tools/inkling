@@ -4,8 +4,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
-  useLayoutEffect,
-  useRef,
+  useEffectEvent,
   useState,
   type CSSProperties,
   type RefObject,
@@ -83,17 +82,9 @@ export function ItemView({
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("info");
-  const isEditingNoteRef = useRef(false);
-  const isFocusModeRef = useRef(false);
-
-  useLayoutEffect(() => {
-    isEditingNoteRef.current = isEditingNote;
-    isFocusModeRef.current = isFocusMode;
-  }, [isEditingNote, isFocusMode]);
 
   // Leave the editor rather than carry the draft onto another item.
   const leaveEditor = useCallback(() => {
-    if (!isEditingNoteRef.current) return;
     setIsEditingNote(false);
     setIsFocusMode(false);
   }, []);
@@ -134,39 +125,26 @@ export function ItemView({
   }, [isEditingNote, dialogRef]);
 
   const handleOverlayClose = () => {
-    if (isFocusModeRef.current) {
-      setIsFocusMode(false);
-      return;
-    }
-    if (isEditingNoteRef.current) {
-      setIsEditingNote(false);
-      return;
-    }
-    requestClose();
+    if (isFocusMode) setIsFocusMode(false);
+    else if (isEditingNote) setIsEditingNote(false);
+    else requestClose();
   };
+  const closeOnEscape = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    // A field or menu inside the view owns its own Escape: the new-tag input,
+    // the editor's link URL field and the Space menu each cancel just
+    // themselves. This listener runs in the capture phase, before they can.
+    if (event.target instanceof HTMLInputElement) return;
+    if (event.target instanceof Element && event.target.closest("[role=menu]")) return;
+    event.stopPropagation();
+    handleOverlayClose();
+  });
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      // A field or menu inside the view owns its own Escape: the new-tag input,
-      // the editor's link URL field and the Space menu each cancel just
-      // themselves. This listener runs in the capture phase, before they can.
-      if (event.target instanceof HTMLInputElement) return;
-      if (event.target instanceof Element && event.target.closest("[role=menu]")) return;
-      event.stopPropagation();
-      if (isFocusModeRef.current) {
-        setIsFocusMode(false);
-        return;
-      }
-      if (isEditingNoteRef.current) {
-        setIsEditingNote(false);
-        return;
-      }
-      requestClose();
-    };
+    const onKeyDown = (event: KeyboardEvent) => closeOnEscape(event);
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [requestClose]);
+  }, []);
 
   // Another item resets the tab. The tag draft and Space menu reset by their own keys.
   const [tabItemId, setTabItemId] = useState(shownItem.id);
