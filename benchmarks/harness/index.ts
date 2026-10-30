@@ -114,7 +114,7 @@ async function runItem(
 
 async function main() {
   const manifest = loadManifest();
-  const server = await startCorpusServer(corpusPath("."));
+  const server = startCorpusServer(corpusPath("."));
 
   console.log(`Loaded ${manifest.items.length} fixtures; corpus server at ${server.baseUrl}`);
   const ocrEngines: OcrEngine[] = [new TesseractJsEngine()];

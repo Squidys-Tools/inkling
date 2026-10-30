@@ -219,7 +219,7 @@ async function main(): Promise<void> {
   );
   console.log(`Manifest updated: ${kept.length} existing + ${newItems.length} macrumors item(s).`);
 
-  const server = await startCorpusServer(join(benchmarksRoot, "corpus"));
+  const server = startCorpusServer(join(benchmarksRoot, "corpus"));
   console.log(`\nVerifying via production ingestion pipeline (${server.baseUrl}):`);
   for (const item of newItems) {
     const outcome = await extractFixture(server.baseUrl, item.path as string);
