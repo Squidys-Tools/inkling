@@ -37,17 +37,6 @@ const SLOT_STYLE: CSSProperties = {
   height: `${CELL}em`,
   lineHeight: `${CELL}em`,
 };
-const SR_ONLY: CSSProperties = {
-  position: "absolute",
-  width: 1,
-  height: 1,
-  padding: 0,
-  margin: -1,
-  overflow: "hidden",
-  clip: "rect(0, 0, 0, 0)",
-  whiteSpace: "nowrap",
-  border: 0,
-};
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 const smooth = (edge0: number, edge1: number, value: number) => {
@@ -308,7 +297,7 @@ export function AnimatedCount({ value, className }: { value: number; className?:
         })}
         {model.label && <span style={SLOT_STYLE}>{model.label}</span>}
       </span>
-      <span style={SR_ONLY}>{formatValue(play ? play.to : value)}</span>
+      <span className="sr-only">{formatValue(play ? play.to : value)}</span>
       <svg aria-hidden="true" width="0" height="0" style={{ position: "absolute" }}>
         <defs>
           {model.columns.map((column) => (
