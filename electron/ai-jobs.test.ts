@@ -1,85 +1,39 @@
-import { afterAll, afterEach, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { expect, test } from "bun:test";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { Effect } from "effect";
 import sharp from "sharp";
-import { createAiJobProcessors as createProcessors } from "./ai-jobs.ts";
 import { embeddingText, enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.ts";
 import { extractPdfTextByPages } from "./pdf.ts";
-import type { Job } from "./storage/jobs.ts";
 import {
   IMAGE_PALETTE_JOB,
   IMAGE_THUMBNAIL_JOB,
   JOB_LEASE_MILLIS,
   JobQueue,
   Library,
-  type LibraryOptions,
   PDF_THUMBNAIL_JOB,
   URL_ENRICHMENT_JOB,
 } from "./storage/library.ts";
-import { openTestLibrary, type TestLibrary } from "./storage/test-library.ts";
-import type { WorkerOptions } from "./storage/worker.ts";
-import { createImageThumbnail, inspectImage } from "./thumbnail.ts";
+import {
+  cleanUpJobTests,
+  closeLibrary,
+  closeProcessors,
+  createAiJobProcessors,
+  embedding,
+  imageFixture,
+  jobFor,
+  openLibrary,
+  pdfFixture,
+  saveImage,
+  savePdf,
+  temporaryLibrary,
+  thumbnailLane,
+  unusedModels,
+} from "./test-jobs.ts";
+import { createImageThumbnail } from "./thumbnail.ts";
 
-type Ai = ReturnType<typeof createProcessors>;
-type LaneOptions = Omit<WorkerOptions<Library | JobQueue>, "processors">;
-
-const roots: string[] = [];
-const libraries = new Set<TestLibrary>();
-const processors = new Set<Ai>();
-
-function createAiJobProcessors(options: Parameters<typeof createProcessors>[0]) {
-  const ai = createProcessors(options);
-  processors.add(ai);
-  return ai;
-}
-
-async function closeProcessors(ai: Ai) {
-  processors.delete(ai);
-  await ai.close();
-}
-
-async function openLibrary(
-  path: string,
-  { media, ...options }: Omit<LibraryOptions, "databasePath"> = {},
-) {
-  const library = await openTestLibrary(path, {
-    media: { createThumbnail: createImageThumbnail, inspectImage, ...media },
-    ...options,
-  });
-  libraries.add(library);
-  return library;
-}
-
-async function temporaryLibrary(options: Omit<LibraryOptions, "databasePath"> = {}) {
-  const root = mkdtempSync(join(tmpdir(), "inkling-electron-ai-"));
-  roots.push(root);
-  return { root, library: await openLibrary(join(root, "library.sqlite3"), options) };
-}
-
-function embedding(model: string) {
-  const vector = Float32Array.from([1, 0]);
-  const bytes = Buffer.alloc(8);
-  bytes.writeFloatLE(1, 0);
-  return { model, vector, bytes };
-}
-
-const jobFor = (itemId: string) => ({ id: "direct", itemId }) as Job;
-
-afterEach(async () => {
-  for (const ai of processors) await closeProcessors(ai);
-  processors.clear();
-  for (const library of libraries) await library.close();
-  libraries.clear();
-  Bun.gc(true);
-});
-
-afterAll(() => {
-  Bun.gc(true);
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+cleanUpJobTests();
 
 test("Electron jobs OCR captured files, index their text, and persist matching model vectors", async () => {
   const { root, library } = await temporaryLibrary();
@@ -196,28 +150,6 @@ test("embedding text keeps the shared document inputs and markdown projection", 
     }),
   ).toBe("Reading list\n\nNomic A local model.\n\nCover text");
 });
-
-const pdfFixture = (name: string) => readFileSync(`benchmarks/corpus/pdfs/${name}.pdf`);
-
-async function savePdf(library: TestLibrary, fileName: string, bytes: Uint8Array) {
-  const item = await library.saveFile({
-    fileName,
-    mimeType: "application/pdf",
-    kind: "pdf",
-    bytes,
-  });
-  if (!item) throw new Error("PDF was not saved");
-  return item;
-}
-
-const unusedModels = {
-  ocr: { recognize: async () => "" },
-  embeddings: {
-    embedText: async () => embedding(TEXT_MODEL),
-    embedQuery: async () => embedding(TEXT_MODEL),
-    embedImage: async () => embedding(IMAGE_MODEL),
-  },
-};
 
 test("URL enrichment updates the captured item before its text is embedded", async () => {
   const { root, library } = await temporaryLibrary();
@@ -359,22 +291,6 @@ test("PDF capture stays instant and the OCR job publishes the page-one thumbnail
   await closeProcessors(ai);
 });
 
-const imageFixture = () => readFileSync("benchmarks/corpus/images/image-columns-01.png");
-
-async function saveImage(library: TestLibrary, fileName = "photo.png") {
-  const item = await library.saveFile({
-    fileName,
-    mimeType: "image/png",
-    kind: "image",
-    bytes: imageFixture(),
-  });
-  if (!item) throw new Error("image was not saved");
-  return item;
-}
-
-const thumbnailLane = (library: TestLibrary, ai: Ai, options: LaneOptions = {}) =>
-  library.worker({ processors: ai.thumbnailProcessors, ...options });
-
 test("image capture stays instant and the thumbnail job publishes the card image", async () => {
   const events: string[] = [];
   let thumbnailCalls = 0;
@@ -500,8 +416,7 @@ test("the thumbnail lane finishes while the main worker is held inside a long jo
 test("a pending thumbnail job survives closing and reopening the library", async () => {
   const { root, library } = await temporaryLibrary();
   const image = await saveImage(library);
-  libraries.delete(library);
-  await library.close();
+  await closeLibrary(library);
 
   const reopened = await openLibrary(join(root, "library.sqlite3"));
   expect((await reopened.getItem(image.id))?.thumbnailPath).toBeNull();
