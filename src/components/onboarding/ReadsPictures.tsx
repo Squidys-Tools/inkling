@@ -205,7 +205,7 @@ export function ReadsPictures() {
           <span />
           <span />
         </span>
-        <span className="reads-query">{QUERY.slice(0, typed)}</span>
+        <span>{QUERY.slice(0, typed)}</span>
         {phase === "found" ? null : <span className="reads-caret" />}
       </div>
       <div
