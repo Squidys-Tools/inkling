@@ -1,5 +1,5 @@
 import { extractJsonLdMetadata } from "./json-ld";
-import { normalizeHttpUrl, normalizePublishedDate, normalizeText, uniqueStrings } from "./url";
+import { normalizeHttpUrl, normalizePublishedDate, normalizeText } from "./url";
 import type { ImageDimensions, RawArticleExtraction } from "./types";
 
 const META_DESCRIPTION_NAMES = ["description", "og:description", "twitter:description"];
@@ -34,30 +34,6 @@ function firstMeaningfulText(document: Document, selectors: string[]): string {
   }
 
   return "";
-}
-
-function extractImageUrls(document: Document, baseUrl: string): string[] {
-  const values: string[] = [];
-
-  for (const element of document.querySelectorAll("meta[property], meta[name]")) {
-    const key = (
-      element.getAttribute("property") ??
-      element.getAttribute("name") ??
-      ""
-    ).toLowerCase();
-    if (key.includes("image")) {
-      const value = normalizeHttpUrl(element.getAttribute("content"), baseUrl);
-      if (value) values.push(value);
-    }
-  }
-
-  for (const element of document.querySelectorAll("img[src], source[src], video[poster]")) {
-    const raw = element.getAttribute("src") ?? element.getAttribute("poster");
-    const value = normalizeHttpUrl(raw, baseUrl);
-    if (value) values.push(value);
-  }
-
-  return uniqueStrings(values);
 }
 
 function positiveDimension(value: string | null): number | undefined {
@@ -219,7 +195,7 @@ export function extractFallback(document: Document, url: string): RawArticleExtr
     publishedDate: normalizePublishedDate(structured.publishedDate ?? published),
     canonicalUrl: canonical ?? url,
     contentHtml: root?.innerHTML ?? "",
-    imageUrls: uniqueStrings([...(structured.imageUrls ?? []), ...extractImageUrls(document, url)]),
+    imageUrls: structured.imageUrls,
     imageDimensions: extractImageDimensions(document, url),
   };
 }
