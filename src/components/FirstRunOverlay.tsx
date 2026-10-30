@@ -284,7 +284,7 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
               className="first-run-crumb"
               style={{ left: 400, top: 322 }}
             >
-              <ol className="m-0 flex list-none flex-wrap items-center gap-2 p-0 font-body text-[13px]/[1.4] text-muted">
+              <ol className="m-0 flex list-none flex-wrap items-center gap-2 p-0 font-body leading-[1.4] text-muted">
                 <li className="inline-flex items-center gap-1.5">Settings</li>
                 <CrumbSeparator />
                 <li className="inline-flex items-center gap-1.5">Data</li>
