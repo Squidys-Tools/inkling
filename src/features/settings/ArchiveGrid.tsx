@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ComponentType, type UIEvent } from "react";
+import { useLayoutEffect, useRef, useState, type ComponentType } from "react";
 import { archiveColumnCount, archiveGridWindow } from "./archiveGridWindow";
 import { SETTINGS_SCROLL } from "./SettingsPanel";
 
@@ -61,7 +61,7 @@ export function ArchiveGrid<Data extends { id: string | number }, Context>({
     <div
       className={SETTINGS_SCROLL}
       ref={scrollRef}
-      onScroll={(event: UIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop)}
+      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
     >
       <div
         className="grid justify-start gap-x-3.5 gap-y-[22px]"
