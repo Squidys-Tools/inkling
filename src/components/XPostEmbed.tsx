@@ -2,67 +2,49 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { XPostMetadata } from "../lib/ingestion/types";
 import { cx } from "../ui/cx";
 
-type XWidgets = {
-  widgets?: {
-    load: (element?: HTMLElement) => void;
-  };
-};
-
 declare global {
   interface Window {
-    twttr?: XWidgets;
+    twttr?: { widgets?: { load: (element?: HTMLElement) => void } };
   }
 }
 
-let xWidgetsPromise: Promise<void> | null = null;
-const X_WIDGETS_SRC = "https://platform.twitter.com/widgets.js";
+let xWidgetsPromise: Promise<void> | undefined;
 
 function loadXWidgets() {
   if (window.twttr?.widgets) return Promise.resolve();
-  if (xWidgetsPromise) return xWidgetsPromise;
-
-  xWidgetsPromise = new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>("#twitter-wjs");
-    const script = existing ?? document.createElement("script");
-    let pollId: number | undefined;
-    let timeoutId: number | undefined;
-    let settled = false;
-
+  xWidgetsPromise ??= new Promise<void>((resolve, reject) => {
     const finish = (error?: Error) => {
-      if (settled) return;
-      settled = true;
-      if (pollId !== undefined) window.clearInterval(pollId);
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      window.clearInterval(pollId);
+      window.clearTimeout(timeoutId);
       if (error) reject(error);
       else resolve();
     };
-
     const checkReady = () => {
       if (window.twttr?.widgets) finish();
     };
+    // Polled as well: a widgets script already on the page may have loaded
+    // before these listeners attached.
+    const pollId = window.setInterval(checkReady, 100);
+    const timeoutId = window.setTimeout(() => finish(new Error("X widgets timed out.")), 15000);
 
+    const existing = document.querySelector<HTMLScriptElement>("#twitter-wjs");
+    const script = existing ?? document.createElement("script");
     const handleLoad = () => {
       checkReady();
       window.setTimeout(checkReady, 0);
     };
     const handleError = () => finish(new Error("X widgets could not be loaded."));
-
     script.addEventListener("load", handleLoad, { once: true });
     script.addEventListener("error", handleError, { once: true });
-
     if (!existing) {
       script.id = "twitter-wjs";
-      script.src = X_WIDGETS_SRC;
+      script.src = "https://platform.twitter.com/widgets.js";
       script.async = true;
       script.charset = "utf-8";
       document.head.appendChild(script);
     }
-
     checkReady();
-    pollId = window.setInterval(checkReady, 100);
-    timeoutId = window.setTimeout(() => finish(new Error("X widgets timed out.")), 15000);
   });
-
   return xWidgetsPromise;
 }
 
