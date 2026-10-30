@@ -29,6 +29,8 @@ import {
 import { createAiJobProcessors, enqueueStaleImageEmbeddings, jobTimeouts } from "./ai-jobs.ts";
 import { serveAssetFile } from "./asset-response.ts";
 import { appContentTypes as mimeTypes } from "./app-content-types.ts";
+import { createRendererRecovery } from "./renderer-recovery.ts";
+import { createLatestQuery } from "./latest-query.ts";
 import { startCaptureServer } from "./capture-server.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
 import { createSingleFlightDirectoryPicker } from "./native-dialog.ts";
@@ -102,6 +104,11 @@ const pendingDeepLinks: DeepLinkCapture[] = [];
 let mainWindow: BrowserWindow | undefined;
 let captureServer: Awaited<ReturnType<typeof startCaptureServer>> | undefined;
 let aiJobProcessors: ReturnType<typeof createAiJobProcessors> | undefined;
+const emptyQuery = () => ({ vectors: {}, status: "ready" as const, message: null });
+const queryVectors = createLatestQuery(
+  async (text: string) => (aiJobProcessors ? aiJobProcessors.queryVectors(text) : emptyQuery()),
+  emptyQuery,
+);
 type Storage = {
   runtime: ManagedRuntime.ManagedRuntime<Library | JobQueue, unknown>;
   library: Promised<Library["Service"]>;
@@ -314,10 +321,10 @@ function registerLibraryCommands() {
       const queryVector = await embedQueryForSearch(query.trim());
       return library().searchItems(query, limit, queryVector);
     },
-    search_items_detailed: async ({ query, limit }) => {
+    search_items_detailed: async ({ query, limit, lexicalOnly }) => {
       const result =
-        query.trim() && aiJobProcessors
-          ? await aiJobProcessors.queryVectors(query.trim())
+        !lexicalOnly && query.trim() && aiJobProcessors
+          ? await queryVectors(query.trim())
           : { vectors: {}, status: "ready" as const, message: null };
       return {
         items: await library().searchItems(query, limit, result.vectors),
@@ -515,7 +522,36 @@ function createWindow() {
   });
 
   const query = isPreview ? "?preview=1" : "";
-  void mainWindow.loadURL(`app://local/index.html${query}`);
+  const window = mainWindow;
+  const recovery = createRendererRecovery();
+  const recover = async (reason: string) => {
+    if (window.isDestroyed()) return;
+    console.error(`Inkling renderer recovery: ${reason}`);
+    if (recovery.admit()) {
+      await window.loadURL(
+        `app://local/index.html${isPreview ? "?preview=1&" : "?"}safeGraphics=1`,
+      );
+      return;
+    }
+    // A native process failure cannot render a React fallback. Keep a visible
+    // explanation and a native retry choice instead of an empty dark window.
+    await window.loadURL(
+      "data:text/html;charset=utf-8," +
+        encodeURIComponent(
+          "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'\"><style>body{background:#141413;color:#f3f0e8;font:18px system-ui;padding:12vh 10vw}</style><h1>Inkling couldn’t display this view.</h1><p>Your saved library is still on this computer. Reopen Inkling to try again.</p>",
+        ),
+    );
+    window.show();
+  };
+  window.webContents.on("render-process-gone", (_event, details) => {
+    if (details.reason !== "clean-exit") void recover(details.reason).catch(console.error);
+  });
+  const gpuGone = (_event: Electron.Event, details: Electron.Details) => {
+    if (details.type === "GPU") void recover(`GPU ${details.reason}`).catch(console.error);
+  };
+  app.on("child-process-gone", gpuGone);
+  window.once("closed", () => app.off("child-process-gone", gpuGone));
+  void window.loadURL(`app://local/index.html${query}`);
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();

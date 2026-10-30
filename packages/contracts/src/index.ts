@@ -259,7 +259,11 @@ export const commandArgs = {
   get_change_count: None,
   get_item_content: ById,
   search_items: Schema.Struct({ query: Text, limit: Limit }),
-  search_items_detailed: Schema.Struct({ query: Text, limit: Limit }),
+  search_items_detailed: Schema.Struct({
+    query: Text,
+    limit: Limit,
+    lexicalOnly: Schema.optional(Schema.Boolean),
+  }),
   get_search_annotation: ById,
   remove_search_tag: Schema.Struct({ id: Text, tag: Text }),
   get_search_progress: None,

@@ -211,8 +211,8 @@ export async function getChangeCount() {
   return invoke("get_change_count");
 }
 
-export async function searchItemsDetailed(query: string) {
-  return invoke("search_items_detailed", { query, limit: 100 });
+export async function searchItemsDetailed(query: string, lexicalOnly = false) {
+  return invoke("search_items_detailed", { query, limit: 100, lexicalOnly });
 }
 
 export async function getSearchAnnotation(id: string) {

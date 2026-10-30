@@ -49,8 +49,10 @@ export function useLibraryData({
   // backend round trip waits, so typing "design" issues one search instead
   // of six full reloads (search + N x job status + N x asset URL).
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const requestRef = useRef({ query, activeSpaceId });
+  requestRef.current = { query, activeSpaceId };
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQuery(query), 200);
+    const timer = window.setTimeout(() => setDebouncedQuery(query), query.trim() ? 60 : 0);
     return () => window.clearTimeout(timer);
   }, [query]);
   const noteBodyCacheRef = useRef(new Map<string, string>());
@@ -72,6 +74,9 @@ export function useLibraryData({
     // Bumped by every full load, so a patch fetched before one cannot land over
     // data that load read afterwards.
     let fullLoadEpoch = 0;
+    const current = () =>
+      !cancelled && requestRef.current.query === debouncedQuery &&
+      requestRef.current.activeSpaceId === activeSpaceId;
     // Job events name the item they touched. Only the plain library can patch
     // in place: a query or Space can gain or lose members when a job lands.
     const patchesInPlace = !activeSpaceId && !debouncedQuery.trim();
@@ -125,18 +130,28 @@ export function useLibraryData({
         return;
       }
       loading = true;
-      fullLoadEpoch += 1;
+      const epoch = ++fullLoadEpoch;
+      const canPublish = () => current() && epoch === fullLoadEpoch;
+      const publish = async (storedItems: Awaited<ReturnType<typeof listActiveItems>>) => {
+        const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
+        if (!canPublish()) return;
+        const libraryItems = await Promise.all(
+          storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
+        );
+        if (!canPublish()) return;
+        setItems(libraryItems.map(withSessionState));
+        syncSelectedItem(libraryItems);
+      };
       try {
         await initializeStorage();
-        if (!debouncedQuery.trim() && !cancelled) setSearchNotice(null);
-        // Asked before the items: the main process answers in order, so a write
-        // landing between the two reads still moves the count past this value.
+        if (!debouncedQuery.trim() && current()) setSearchNotice(null);
+        // Indexed text paints before model inference, retaining upstream card reads.
         const changesPromise = readChanges();
         const storedItemsPromise = activeSpaceId
           ? listSpaceItems(activeSpaceId)
           : debouncedQuery.trim()
-            ? searchItemsDetailed(debouncedQuery).then((reply) => {
-                if (!cancelled) setSearchNotice(reply.message);
+            ? searchItemsDetailed(debouncedQuery, true).then((reply) => {
+                if (canPublish()) setSearchNotice(reply.message);
                 return reply.items;
               })
             : listActiveItems();
@@ -144,26 +159,30 @@ export function useLibraryData({
           ? countActiveJobs().catch(() => null)
           : Promise.resolve(null);
         const [changes, storedItems, activeJobs] = await Promise.all([
-          changesPromise,
-          storedItemsPromise,
-          activeJobsPromise,
+          changesPromise, storedItemsPromise, activeJobsPromise,
         ]);
         if (canUseDesktopBackend) {
           const progress = await getSearchProgress().catch(() => null);
-          if (!cancelled) setSearchProgress(progress);
+          if (canPublish()) setSearchProgress(progress);
         }
-        const summaries = await getProcessingSummaries(storedItems.map((item) => item.id));
-        const libraryItems = await Promise.all(
-          storedItems.map((item) => storedItemToLibraryItem(item, summaries.get(item.id))),
-        );
-        if (!cancelled) {
-          seenChanges = changes;
-          if (activeJobs !== null) setActiveJobCount(activeJobs);
-          setItems(libraryItems.map(withSessionState));
-          syncSelectedItem(libraryItems);
+        if (!canPublish()) return;
+        seenChanges = changes;
+        if (activeJobs !== null) setActiveJobCount(activeJobs);
+        await publish(storedItems);
+        if (!activeSpaceId && debouncedQuery.trim() && canPublish()) {
+          void searchItemsDetailed(debouncedQuery)
+            .then(async (reply) => {
+              if (!canPublish()) return;
+              setSearchNotice(reply.message);
+              await publish(reply.items);
+            })
+            .catch(() => {
+              if (canPublish())
+                setSearchNotice("Visual search is unavailable; showing text matches.");
+            });
         }
       } catch (error) {
-        if (!cancelled) setCaptureError(error instanceof Error ? error.message : String(error));
+        if (canPublish()) setCaptureError(error instanceof Error ? error.message : String(error));
       } finally {
         loading = false;
         if (queued && !cancelled) {
