@@ -16,9 +16,14 @@ async function mounted(content: ReactNode, check: (doc: Document) => void | Prom
     configurable: true,
     writable: true,
     value: (media: string) => ({
-      matches: false, media, onchange: null,
-      addEventListener: noop, removeEventListener: noop,
-      addListener: noop, removeListener: noop, dispatchEvent: () => true,
+      matches: false,
+      media,
+      onchange: null,
+      addEventListener: noop,
+      removeEventListener: noop,
+      addListener: noop,
+      removeListener: noop,
+      dispatchEvent: () => true,
     }),
   });
   for (const [key, value] of Object.entries({

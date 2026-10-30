@@ -688,7 +688,6 @@ function App() {
               onSaveSearch={beginSaveSearch}
               captureError={showCaptureError ? captureError : null}
             />
-
           </div>
           <ViewDock
             ref={viewDockRef}
