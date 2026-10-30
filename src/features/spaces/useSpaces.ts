@@ -21,6 +21,7 @@ import {
 import { shouldUseSeedLibrary } from "../../lib/previewMode";
 import { seedSpaces } from "../library/seed";
 import type { SpaceDraft } from "../shell/SpaceDraftForm";
+import type { useLibraryScope } from "../shell/useLibraryScope";
 import type { SpaceRowActions } from "../shell/SpacesSection";
 import { errorMessage } from "../errorMessage";
 import { useSpaceMembership } from "./useSpaceMembership";
@@ -51,29 +52,22 @@ function swapWithNeighbor(spaces: StoredSpace[], id: string, direction: -1 | 1) 
 
 type SpacesOptions = {
   canUseDesktopBackend: boolean;
-  query: string;
-  activeSpaceId: string | null;
+  scope: ReturnType<typeof useLibraryScope>;
   selectedItemId: string | null;
   reload: () => void;
-  selectSpace: (space: StoredSpace) => void;
-  clearToDefaultView: () => void;
-  setActiveView: Dispatch<SetStateAction<string>>;
   setCaptureError: Dispatch<SetStateAction<string | null>>;
   setIsSidebarOpen: Dispatch<SetStateAction<boolean>>;
 };
 
 export function useSpaces({
   canUseDesktopBackend,
-  query,
-  activeSpaceId,
+  scope,
   selectedItemId,
   reload,
-  selectSpace,
-  clearToDefaultView,
-  setActiveView,
   setCaptureError,
   setIsSidebarOpen,
 }: SpacesOptions) {
+  const { query, activeSpaceId, selectSpace, clearToDefaultView, setActiveView } = scope;
   const [spaces, setSpaces] = useState<StoredSpace[]>(shouldUseSeedLibrary() ? seedSpaces : []);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { MotionConfig } from "motion/react";
-import { isElectronRuntime, type StoredSpace } from "./lib/libraryApi";
+import { isElectronRuntime } from "./lib/libraryApi";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { ContextMenu } from "./components/ContextMenu/ContextMenu";
 import type { ItemViewActions } from "./features/item-view/ItemView";
@@ -30,6 +30,7 @@ import { useAppShortcuts } from "./features/shell/useAppShortcuts";
 import { useAppUpdate } from "./features/shell/useAppUpdate";
 import { useFirstRun } from "./features/shell/useFirstRun";
 import { useHistory } from "./features/shell/useHistory";
+import { useLibraryScope } from "./features/shell/useLibraryScope";
 import { useMascotMood } from "./features/shell/useMascotMood";
 import { useSidebarOpen } from "./features/shell/useSidebarOpen";
 import "./features/shell/codex-sidebar.css";
@@ -40,11 +41,9 @@ import { TooltipLayer } from "./ui/Tooltip";
 
 function App() {
   const canUseDesktopBackend = isElectronRuntime() && !shouldUseSeedLibrary();
-  const [query, setQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [activeView, setActiveView] = useState("Everything");
-  const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
+  const scope = useLibraryScope(setSelectedItem);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const selectedItemId = selectedItem ? String(selectedItem.id) : null;
   const [isSidebarOpen, setIsSidebarOpen] = useSidebarOpen();
@@ -52,14 +51,14 @@ function App() {
   const appUpdate = useAppUpdate(canUseDesktopBackend);
   const library = useLibraryData({
     canUseDesktopBackend,
-    query,
-    activeSpaceId,
+    query: scope.query,
+    activeSpaceId: scope.activeSpaceId,
     setSelectedItem,
     setCaptureError,
   });
   const settings = useSettings({
     canUseDesktopBackend,
-    activeSpaceId,
+    activeSpaceId: scope.activeSpaceId,
     debouncedQuery: library.debouncedQuery,
   });
   const codexSidebar = settings.appearance.sidebarStyle === "codex";
@@ -99,27 +98,11 @@ function App() {
     setSelectedItem,
   });
 
-  function selectSpace(space: StoredSpace) {
-    setActiveSpaceId(space.id);
-    setActiveView(space.name);
-    setQuery("");
-    setSelectedItem(null);
-  }
-
-  function clearToDefaultView() {
-    setActiveSpaceId(null);
-    setActiveView("Everything");
-  }
-
   const spaces = useSpaces({
     canUseDesktopBackend,
-    query,
-    activeSpaceId,
+    scope,
     selectedItemId,
     reload: library.reload,
-    selectSpace,
-    clearToDefaultView,
-    setActiveView,
     setCaptureError,
     setIsSidebarOpen,
   });
@@ -155,8 +138,8 @@ function App() {
     library.items,
     {
       canUseDesktopBackend,
-      query,
-      activeView,
+      query: scope.query,
+      activeView: scope.activeView,
       activeSpace: spaces.activeSpace,
       localSpaceItems: spaces.localSpaceItems,
     },
@@ -164,10 +147,11 @@ function App() {
   );
   // A pinned query has its own band above the grid, so the grid starts below it.
   // Only this boolean reaches the grid, so typing does not restyle it.
-  const showFilterRow = !isSearchFocused && query.trim() !== "";
+  const showFilterRow = !isSearchFocused && scope.query.trim() !== "";
   // An empty Space has nothing to search or re-lay out, so it drops the
   // browsing controls.
-  const showBrowseControls = !spaces.activeSpace || filteredItems.length > 0 || query.trim() !== "";
+  const showBrowseControls =
+    !spaces.activeSpace || filteredItems.length > 0 || scope.query.trim() !== "";
   const showCaptureError = Boolean(captureError) && !capture.isAdding;
 
   const { cardMenu, closeCardMenu, openCardMenu, cardMenuEntries } = useCardMenu({
@@ -188,9 +172,7 @@ function App() {
   );
 
   const { historyCloseRequest, closeItem } = useHistory({
-    activeView,
-    activeSpaceId,
-    query,
+    scope,
     selectedItem,
     items: library.items,
     archivedItems: archive.archivedItems,
@@ -200,9 +182,6 @@ function App() {
     selectionScrollRef: selection.selectionScrollRef,
     bringHistoryCardIntoView: selection.bringHistoryCardIntoView,
     selectArchivedLibraryItem: selection.selectArchivedLibraryItem,
-    setActiveView,
-    setActiveSpaceId,
-    setQuery,
     setSelectedItem,
   });
 
@@ -243,7 +222,7 @@ function App() {
     items: library.items,
     captureError,
     isSearchFocused,
-    query,
+    query: scope.query,
   });
 
   return (
@@ -264,14 +243,14 @@ function App() {
           setIsOpen={setIsSidebarOpen}
           isSearchFocused={isSearchFocused}
           everything={{
-            active: activeView === "Everything" && !activeSpaceId,
+            active: scope.activeView === "Everything" && !scope.activeSpaceId,
             count: library.items.length,
-            onSelect: clearToDefaultView,
+            onSelect: scope.clearToDefaultView,
           }}
           capture={capture}
           captureError={captureError}
           spaces={spaces}
-          activeSpaceId={activeSpaceId}
+          activeSpaceId={scope.activeSpaceId}
           activeCount={filteredItems.length}
           update={appUpdate}
           isSettingsOpen={settings.isSettingsOpen}
@@ -301,16 +280,12 @@ function App() {
             }
             showSearch={showBrowseControls}
             searchRef={searchRef}
-            view={spaces.activeSpace?.name ?? activeView}
-            query={query}
+            view={spaces.activeSpace?.name ?? scope.activeView}
+            query={scope.query}
             isSearchFocused={isSearchFocused}
             onSearchFocusChange={setIsSearchFocused}
-            onQueryChange={(value) => {
-              setActiveSpaceId(null);
-              setActiveView("Everything");
-              setQuery(value);
-            }}
-            onClearQuery={() => setQuery("")}
+            onQueryChange={scope.searchEverything}
+            onClearQuery={() => scope.setQuery("")}
             showFilterRow={showFilterRow}
             resultCount={filteredItems.length}
             onSaveSearch={spaces.beginSaveSearch}
@@ -341,10 +316,7 @@ function App() {
             emptySpaceName={
               spaces.activeSpace?.kind === "regular" ? spaces.activeSpace.name : undefined
             }
-            onClearSearch={() => {
-              setQuery("");
-              clearToDefaultView();
-            }}
+            onClearSearch={() => scope.searchEverything("")}
           />
         </LibraryFrame>
 

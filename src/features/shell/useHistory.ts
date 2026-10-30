@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { SourceRects } from "../item-view/overlayMotion";
 import type { LibraryItem } from "../../lib/types";
+import type { useLibraryScope } from "./useLibraryScope";
 
 type NavSnapshot = {
   view: string;
@@ -19,9 +20,7 @@ type NavSnapshot = {
 };
 
 type HistoryOptions = {
-  activeView: string;
-  activeSpaceId: string | null;
-  query: string;
+  scope: ReturnType<typeof useLibraryScope>;
   selectedItem: LibraryItem | null;
   items: LibraryItem[];
   archivedItems: LibraryItem[];
@@ -34,16 +33,11 @@ type HistoryOptions = {
     candidates: LibraryItem[],
   ) => Promise<SourceRects | null>;
   selectArchivedLibraryItem: (item: LibraryItem, rects?: SourceRects) => void;
-  setActiveView: Dispatch<SetStateAction<string>>;
-  setActiveSpaceId: Dispatch<SetStateAction<string | null>>;
-  setQuery: Dispatch<SetStateAction<string>>;
   setSelectedItem: Dispatch<SetStateAction<LibraryItem | null>>;
 };
 
 export function useHistory({
-  activeView,
-  activeSpaceId,
-  query,
+  scope,
   selectedItem,
   items,
   archivedItems,
@@ -53,11 +47,9 @@ export function useHistory({
   selectionScrollRef,
   bringHistoryCardIntoView,
   selectArchivedLibraryItem,
-  setActiveView,
-  setActiveSpaceId,
-  setQuery,
   setSelectedItem,
 }: HistoryOptions) {
+  const { activeView, activeSpaceId, query, setActiveView, setActiveSpaceId, setQuery } = scope;
   const selectedItemId = selectedItem ? String(selectedItem.id) : null;
   // In-memory back/forward history over view, search query, and open item.
   // Query changes commit after a pause so typing does not add an entry per key.
