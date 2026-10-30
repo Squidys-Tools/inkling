@@ -305,7 +305,6 @@ export function ItemView({
               >
                 <RichNoteEditor
                   key={`edit-${shownItem.id}`}
-                  embedded
                   body={shownItem.noteBody}
                   title={shownItem.title}
                   onSave={(body) => actions.onUpdateNote(shownItem, body)}

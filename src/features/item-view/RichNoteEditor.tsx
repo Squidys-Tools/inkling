@@ -22,10 +22,9 @@ type RichNoteEditorProps = {
   body?: string;
   title: string;
   onSave: (body: string) => void | Promise<void>;
-  onEditingChange?: (editing: boolean) => void;
-  embedded?: boolean;
-  focusMode?: boolean;
-  onFocusModeChange?: (focusMode: boolean) => void;
+  onEditingChange: (editing: boolean) => void;
+  focusMode: boolean;
+  onFocusModeChange: (focusMode: boolean) => void;
 };
 
 const IDLE_TOOLBAR = {
@@ -45,16 +44,13 @@ const IDLE_TOOLBAR = {
   canRedo: false,
 };
 
-// Editing only happens inside the expanded overlay, which owns when the editor
-// opens. This component only ever edits; rendering a stored note as sanitized
-// HTML is a separate concern, if the product ever asks for it.
+// The item view owns when the editor opens; this component only ever edits.
 export function RichNoteEditor({
   body,
   title,
   onSave,
   onEditingChange,
-  embedded = false,
-  focusMode = false,
+  focusMode,
   onFocusModeChange,
 }: RichNoteEditorProps) {
   const [isSaving, setIsSaving] = useState(false);
@@ -97,10 +93,10 @@ export function RichNoteEditor({
   }
 
   useEffect(() => {
-    if (!embedded || !editor) return;
+    if (!editor) return;
     editorRootRef.current?.scrollIntoView({ block: "start" });
     editor.commands.focus();
-  }, [editor, embedded]);
+  }, [editor]);
 
   useEffect(() => {
     if (linkDraft === null) return;
@@ -185,7 +181,7 @@ export function RichNoteEditor({
     setError(null);
     try {
       await saveRef.current(nextBody);
-      onEditingChange?.(false);
+      onEditingChange(false);
     } catch (saveError) {
       setError(errorMessage(saveError));
     } finally {
@@ -196,16 +192,14 @@ export function RichNoteEditor({
   return (
     <div
       ref={editorRootRef}
-      className={`note-editor is-editing ${embedded ? "note-embedded-editor" : ""} ${focusMode ? "note-focus-editor" : ""}`}
+      className={`note-editor is-editing note-embedded-editor ${focusMode ? "note-focus-editor" : ""}`}
       data-testid="rich-note-editor"
     >
-      {embedded && (
-        <div className={`note-embedded-orientation ${focusMode ? "is-focus-orientation" : ""}`}>
-          <span className="note-embedded-kicker">{focusMode ? "Focus mode" : "Editing"}</span>
-          <span className="note-embedded-divider" />
-          <span className="note-embedded-name">{title}</span>
-        </div>
-      )}
+      <div className={`note-embedded-orientation ${focusMode ? "is-focus-orientation" : ""}`}>
+        <span className="note-embedded-kicker">{focusMode ? "Focus mode" : "Editing"}</span>
+        <span className="note-embedded-divider" />
+        <span className="note-embedded-name">{title}</span>
+      </div>
       <div className="note-embedded-editor-surface">
         <EditorContent editor={editor} />
       </div>
@@ -378,16 +372,14 @@ export function RichNoteEditor({
               </button>
             </fieldset>
           )}
-          {embedded && (
-            <button
-              type="button"
-              className="note-editor-focus-toggle"
-              aria-pressed={focusMode}
-              onClick={() => onFocusModeChange?.(!focusMode)}
-            >
-              {focusMode ? "Exit focus" : "Focus mode"}
-            </button>
-          )}
+          <button
+            type="button"
+            className="note-editor-focus-toggle"
+            aria-pressed={focusMode}
+            onClick={() => onFocusModeChange(!focusMode)}
+          >
+            {focusMode ? "Exit focus" : "Focus mode"}
+          </button>
           <button
             type="button"
             className="note-editor-cancel"
@@ -399,7 +391,7 @@ export function RichNoteEditor({
               });
               setError(null);
               setLinkDraft(null);
-              onEditingChange?.(false);
+              onEditingChange(false);
             }}
           >
             Cancel
