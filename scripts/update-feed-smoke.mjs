@@ -92,7 +92,7 @@ if (packaged && !process.versions.electron) {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const feed = `http://127.0.0.1:${server.address().port}`;
   let sequence = 0;
-  async function setup(Kind, label, installer) {
+  async function setup(Kind, installer) {
     const dir = join(scratch, String(sequence++));
     await mkdir(dir);
     const oldImage = join(dir, "inkling.AppImage");
@@ -133,10 +133,10 @@ if (packaged && !process.versions.electron) {
           assert(updater.install(false, false), "actual AppImage replacement succeeded");
         }),
     });
-    return { controller, dir, updater, oldImage, label };
+    return { controller, updater, oldImage };
   }
   try {
-    const f = await setup(AppImageUpdater, "AppImage");
+    const f = await setup(AppImageUpdater);
     assert.equal((await f.controller.checkForUpdates()).version, version);
     assert.equal((await f.controller.downloadUpdate(version)).status, "downloaded");
     assert.equal((await f.controller.installUpdate(version)).status, "installing");
@@ -145,7 +145,7 @@ if (packaged && !process.versions.electron) {
       "PASS real local feed → SHA512 download → AppImage replacement and harmless fixture execution (scratch only)",
     );
 
-    const deb = await setup(DebUpdater, "Debian", async (file) => {
+    const deb = await setup(DebUpdater, async (file) => {
       assert.deepEqual(await readFile(file), debBytes);
       const result = spawnSync("dpkg-deb", ["--field", file, "Package"], { encoding: "utf8" });
       assert.equal(result.stdout.trim(), "inkling");
@@ -159,7 +159,7 @@ if (packaged && !process.versions.electron) {
     );
 
     mode = "corrupt";
-    const bad = await setup(DebUpdater, "corrupt");
+    const bad = await setup(DebUpdater);
     await bad.controller.checkForUpdates();
     assert.equal((await bad.controller.downloadUpdate(version)).errorContext, "download");
     await assert.rejects(() => bad.controller.installUpdate(version));
@@ -168,7 +168,7 @@ if (packaged && !process.versions.electron) {
     );
 
     mode = "cancel";
-    const canceled = await setup(DebUpdater, "cancel");
+    const canceled = await setup(DebUpdater);
     await canceled.controller.checkForUpdates();
     const started = new Promise((resolve) => {
       onRequested = resolve;
@@ -185,7 +185,7 @@ if (packaged && !process.versions.electron) {
 
     mode = "ok";
     version = "0.2.0-nightly.20261028.1";
-    const nightly = await setup(DebUpdater, "nightly");
+    const nightly = await setup(DebUpdater);
     assert.equal(await nightly.controller.checkForUpdates(), null);
     await nightly.controller.setChannel("nightly");
     assert.equal((await nightly.controller.checkForUpdates()).version, version);
