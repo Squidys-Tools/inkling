@@ -329,16 +329,12 @@ function App() {
   useLayoutEffect(() => {
     filteredItemsRef.current = filteredItems;
   }, [filteredItems]);
-  // Both sit under the toolbar in one column, so a capture error and the pinned
-  // query row stack instead of overlapping.
-  const showFilterRow = !isSearchFocused && query.trim() !== "";
   // A pinned query has its own band above the grid, so the grid starts below it.
-  // Only this boolean reaches the DOM, so typing does not restyle the grid.
-  const hasPinnedQuery = showFilterRow;
+  // Only this boolean reaches the grid, so typing does not restyle it.
+  const showFilterRow = !isSearchFocused && query.trim() !== "";
   // An empty Space has nothing to search or re-lay out, so it drops the
   // browsing controls.
-  const isEmptySpace = Boolean(activeSpace) && filteredItems.length === 0 && !query.trim();
-  const showBrowseControls = !isEmptySpace;
+  const showBrowseControls = !activeSpace || filteredItems.length > 0 || query.trim() !== "";
   const showCaptureError = Boolean(captureError) && !isAdding;
 
   const { cardMenu, closeCardMenu, openCardMenu, cardMenuEntries } = useCardMenu({
@@ -725,7 +721,7 @@ function App() {
             listMode={listMode}
             columnCount={gridColumnCount}
             context={libraryCardContext}
-            hasPinnedQuery={hasPinnedQuery}
+            hasPinnedQuery={showFilterRow}
             emptySpaceName={activeSpace?.kind === "regular" ? activeSpace.name : undefined}
             onClearSearch={() => {
               setQuery("");
