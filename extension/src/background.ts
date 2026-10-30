@@ -44,14 +44,10 @@ async function showFailure(message: string): Promise<void> {
   await browser.action.setTitle({ title: `Couldn't save to inkling: ${message}` });
 }
 
-function captureErrorMessage(error: unknown): string {
-  if (error instanceof CaptureResponseError) {
-    if (error.status === 401)
-      return "check the extension pairing in inkling Settings → Browser extension";
-    if (error.status === 429) return "too many saves; try again in a minute";
-    return `inkling returned HTTP ${error.status}`;
-  }
-  return "open the extension options or check that inkling is installed";
+function captureErrorMessage(status: number) {
+  if (status === 401) return "check the extension pairing in inkling Settings → Browser extension";
+  if (status === 429) return "too many saves; try again in a minute";
+  return `inkling returned HTTP ${status}`;
 }
 
 async function saveUrl(rawUrl: string | undefined, title: string | undefined): Promise<void> {
@@ -72,7 +68,7 @@ async function saveUrl(rawUrl: string | undefined, title: string | undefined): P
       return;
     } catch (error) {
       if (error instanceof CaptureResponseError) {
-        await showFailure(captureErrorMessage(error));
+        await showFailure(captureErrorMessage(error.status));
         return;
       }
     }
