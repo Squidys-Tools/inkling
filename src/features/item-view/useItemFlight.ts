@@ -22,9 +22,9 @@ type Flight =
       from: FlightRect;
       to: FlightRect | null;
       thenOpen: boolean;
-      /** Archiving: shrink and fade where it is, then archive the item. */
-      archive?: boolean;
-    };
+    }
+  /** Shrinks and fades where it is, then archives the item. */
+  | { kind: "archive"; id: number; fromItem: LibraryItem; from: FlightRect; to: FlightRect };
 
 // The settled view's corners match the library frame it covers.
 const FRAME_RADIUS = "16px 0px 0px 16px";
@@ -75,7 +75,7 @@ export function useItemFlight({
   // The item whose content the view shows. During a closing flight that was
   // triggered by switching items, the view flies back displaying the item it
   // was showing, while React's item prop already points at the next one.
-  const shownItem = flight?.kind === "close" ? flight.fromItem : item;
+  const shownItem = flight && flight.kind !== "open" ? flight.fromItem : item;
 
   // The view replaces the library: it takes the whole frame inside its border,
   // and the inspector keeps clear of the window controls itself.
@@ -124,8 +124,9 @@ export function useItemFlight({
 
   const requestClose = useCallback(() => {
     const activeFlight = flightRef.current;
-    if (activeFlight?.kind === "close") {
-      if (activeFlight.thenOpen) cancelPendingOpenRef.current = true;
+    if (activeFlight && activeFlight.kind !== "open") {
+      if (activeFlight.kind === "close" && activeFlight.thenOpen)
+        cancelPendingOpenRef.current = true;
       return;
     }
     const rects = queryCardRects(itemIdRef.current);
@@ -156,7 +157,7 @@ export function useItemFlight({
     const scale = 0.9;
     flightIdRef.current += 1;
     setFlight({
-      kind: "close",
+      kind: "archive",
       id: flightIdRef.current,
       fromItem: closingItem,
       from,
@@ -166,8 +167,6 @@ export function useItemFlight({
         width: from.width * scale,
         height: from.height * scale,
       },
-      thenOpen: false,
-      archive: true,
     });
   }, []);
 
@@ -199,7 +198,7 @@ export function useItemFlight({
     if (!flight) return;
     const dialog = dialogRef.current;
     if (!dialog) {
-      if (flight.kind === "close") actionsRef.current.onClose();
+      if (flight.kind !== "open") actionsRef.current.onClose();
       return;
     }
     const cardRadius = `${getComputedStyle(dialog).getPropertyValue("--radius-sidebar").trim() || "14px"}`;
@@ -233,7 +232,7 @@ export function useItemFlight({
       };
     }
 
-    if (flight.archive && flight.to) {
+    if (flight.kind === "archive") {
       const timeline = gsap.timeline({
         onComplete: () => {
           void Promise.resolve(actionsRef.current.onForget(flight.fromItem)).then(() => {
@@ -328,8 +327,8 @@ export function useItemFlight({
     leaveEditor();
 
     const activeFlight = flightRef.current;
-    if (activeFlight?.kind === "close") return;
-    if (activeFlight?.kind === "open") {
+    if (activeFlight && activeFlight.kind !== "open") return;
+    if (activeFlight) {
       // Retarget the in-progress open from its current visual state.
       const dialog = dialogRef.current;
       if (!dialog) return;
