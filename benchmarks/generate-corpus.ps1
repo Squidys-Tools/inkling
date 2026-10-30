@@ -14,13 +14,9 @@ $Corpus = Join-Path $Root 'corpus'
 $ImgDir = Join-Path $Corpus 'images'
 $ScrDir = Join-Path $Corpus 'screenshots'
 $PdfDir = Join-Path $Corpus 'pdfs'
-$ArtDir = Join-Path $Corpus 'articles'
-$VidDir = Join-Path $Corpus 'videos'
-$NoteDir = Join-Path $Corpus 'notes'
-$ExpDir = Join-Path $Root 'expected'
-$OcrExpDir = Join-Path $ExpDir 'ocr'
+$OcrExpDir = Join-Path $Root 'expected/ocr'
 
-foreach ($dir in @($Corpus, $ImgDir, $ScrDir, $PdfDir, $ArtDir, $VidDir, $NoteDir, $ExpDir, $OcrExpDir)) {
+foreach ($dir in @($ImgDir, $ScrDir, $PdfDir, $OcrExpDir)) {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
 }
 
