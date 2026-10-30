@@ -113,19 +113,11 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
     if (!root || !embedHtml) return;
 
     const updateEmbedWidth = () => {
+      // Changing the rendered iframe's URL reloads the widget and can loop on
+      // resize; at width 100% it already passes the new width to its document.
+      if (root.querySelector("iframe")) return;
       const width = Math.min(550, Math.max(280, Math.floor(root.getBoundingClientRect().width)));
-      const iframe = root.querySelector<HTMLIFrameElement>("iframe");
-
-      if (iframe) {
-        // The iframe itself is width: 100%; changing its URL after X has
-        // rendered causes the widget to reload and can create a resize loop.
-        // Its document receives the new viewport width through the iframe box.
-        return;
-      }
-
-      root
-        .querySelector<HTMLElement>("blockquote.twitter-tweet")
-        ?.setAttribute("data-width", String(width));
+      root.querySelector("blockquote.twitter-tweet")?.setAttribute("data-width", String(width));
     };
 
     const resizeObserver = new ResizeObserver(updateEmbedWidth);
