@@ -72,7 +72,6 @@ import { errorMessage } from "./features/errorMessage";
 
 function App() {
   const canUseDesktopBackend = isDesktopRuntime() && !shouldUseSeedLibrary();
-  const canUseLibraryFolderPicker = isDesktopRuntime() && !shouldUseSeedLibrary();
   const [query, setQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeView, setActiveView] = useState("Everything");
@@ -251,7 +250,7 @@ function App() {
     exportLibraryToFolder,
     importLibraryFromFolder,
   } = useLibraryTransfer({
-    canUseLibraryFolderPicker,
+    canUseDesktopBackend,
     setLastCopy,
     setSpaces,
     setArchivedItems,
@@ -766,7 +765,7 @@ function App() {
           library={{
             kinds: wholeLibraryKinds ?? items.map((item) => item.kind),
             sizeBytes: librarySizeBytes,
-            canUseFolderPicker: canUseLibraryFolderPicker,
+            canUseFolderPicker: canUseDesktopBackend,
             onShowFolder: showLibraryFolderFromSettings,
             lastCopy,
             lastExport,

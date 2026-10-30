@@ -28,7 +28,7 @@ export function showLibraryFolderFromSettings() {
 }
 
 type LibraryTransferOptions = {
-  canUseLibraryFolderPicker: boolean;
+  canUseDesktopBackend: boolean;
   setLastCopy: Dispatch<SetStateAction<LastExport | null>>;
   setSpaces: Dispatch<SetStateAction<StoredSpace[]>>;
   setArchivedItems: Dispatch<SetStateAction<LibraryItem[]>>;
@@ -38,7 +38,7 @@ type LibraryTransferOptions = {
 };
 
 export function useLibraryTransfer({
-  canUseLibraryFolderPicker,
+  canUseDesktopBackend,
   setLastCopy,
   setSpaces,
   setArchivedItems,
@@ -52,7 +52,7 @@ export function useLibraryTransfer({
   const [lastImport, setLastImport] = useState<LibraryImportReport | null>(null);
 
   const exportLibraryToFolder = useCallback(async () => {
-    if (!canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary) return;
+    if (!canUseDesktopBackend || isExportingLibrary || isImportingLibrary) return;
     let destination: string | null = null;
     try {
       destination = await selectLibraryDirectory("Choose where to save the export");
@@ -95,10 +95,10 @@ export function useLibraryTransfer({
     } finally {
       setIsExportingLibrary(false);
     }
-  }, [canUseLibraryFolderPicker, isExportingLibrary, isImportingLibrary, setLastCopy]);
+  }, [canUseDesktopBackend, isExportingLibrary, isImportingLibrary, setLastCopy]);
 
   const importLibraryFromFolder = useCallback(async () => {
-    if (!canUseLibraryFolderPicker || isExportingLibrary || isImportingLibrary) return;
+    if (!canUseDesktopBackend || isExportingLibrary || isImportingLibrary) return;
     let exportDirectory: string | null = null;
     try {
       exportDirectory = await selectLibraryDirectory("Choose an Inkling export to restore");
@@ -146,7 +146,7 @@ export function useLibraryTransfer({
       setIsImportingLibrary(false);
     }
   }, [
-    canUseLibraryFolderPicker,
+    canUseDesktopBackend,
     isExportingLibrary,
     isImportingLibrary,
     setSpaces,
