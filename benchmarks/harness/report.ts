@@ -1,7 +1,7 @@
 import { arch, cpus, platform, release, totalmem } from "node:os";
 import type { ItemResult } from "./score";
 
-export function summarize(results: ItemResult[]) {
+function summarize(results: ItemResult[]) {
   const scorable = results.filter((r) => r.status !== "skip");
   return {
     total: results.length,
@@ -19,7 +19,7 @@ function percentile(values: number[], fraction: number) {
   return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)];
 }
 
-export function machineInfo() {
+function machineInfo() {
   return {
     os: `${platform()} ${release()}`,
     arch: arch(),
@@ -30,13 +30,21 @@ export function machineInfo() {
   };
 }
 
-export function writeSummaryMarkdown(report: {
-  generatedAt: string;
-  machine: ReturnType<typeof machineInfo>;
-  overall: ReturnType<typeof summarize>;
-  byType: Record<string, ReturnType<typeof summarize>>;
-  items: ItemResult[];
-}): string {
+export function buildReport(items: ItemResult[], ocrEngines: string[]) {
+  const types = [...new Set(items.map((r) => r.type))];
+  return {
+    generatedAt: new Date().toISOString(),
+    machine: machineInfo(),
+    engine: { ocr: ocrEngines },
+    overall: summarize(items),
+    byType: Object.fromEntries(
+      types.map((type) => [type, summarize(items.filter((r) => r.type === type))]),
+    ),
+    items,
+  };
+}
+
+export function summaryMarkdown(report: ReturnType<typeof buildReport>) {
   const lines: string[] = [];
   lines.push("# Benchmark results");
   lines.push(`Generated: ${report.generatedAt}`);

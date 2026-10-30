@@ -15,7 +15,7 @@ import {
   type ItemResult,
 } from "./score";
 import type { ExpectedSearch, ManifestItem } from "./manifest";
-import { machineInfo, summarize, writeSummaryMarkdown } from "./report";
+import { buildReport, summaryMarkdown } from "./report";
 
 const EXTRACTION_TYPES = new Set(["article", "recipe", "video"]);
 
@@ -125,7 +125,7 @@ async function runItem(
   return skipResult(item, `unknown item type "${item.type}"`);
 }
 
-async function main(): Promise<void> {
+async function main() {
   const manifest = loadManifest();
   const server = await startCorpusServer(corpusPath("."));
 
@@ -154,27 +154,18 @@ async function main(): Promise<void> {
     await Promise.all(ocrEngines.map((engine) => engine.close?.()));
   }
 
-  const types = [...new Set(items.map((r) => r.type))];
-  const byType = Object.fromEntries(
-    types.map((type) => [type, summarize(items.filter((r) => r.type === type))]),
-  );
-
-  const overall = summarize(items);
-  const report = {
-    generatedAt: new Date().toISOString(),
-    machine: machineInfo(),
-    engine: { ocr: ocrEngines.map((e) => e.name) },
-    overall,
-    byType,
+  const report = buildReport(
     items,
-  };
+    ocrEngines.map((e) => e.name),
+  );
+  const { overall } = report;
 
   const resultsDir = join(benchmarksRoot, "results");
   mkdirSync(resultsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   writeFileSync(join(resultsDir, "results-latest.json"), JSON.stringify(report, null, 2));
   writeFileSync(join(resultsDir, `results-${stamp}.json`), JSON.stringify(report, null, 2));
-  writeFileSync(join(resultsDir, "summary.md"), writeSummaryMarkdown(report));
+  writeFileSync(join(resultsDir, "summary.md"), summaryMarkdown(report));
 
   console.log("");
   console.log(
