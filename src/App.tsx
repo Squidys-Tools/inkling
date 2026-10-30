@@ -14,12 +14,6 @@ import { ContextMenu } from "./components/ContextMenu/ContextMenu";
 // local disk on first open (Suspense fallback null: no spinner, no layout
 // shift — the chunk resolves in milliseconds).
 const PdfViewer = lazy(() => import("./features/item-view/PdfViewer"));
-const MascotBoard = lazy(() =>
-  import("./components/mascot/MascotBoard").then((module) => ({ default: module.MascotBoard })),
-);
-const AliveBoard = lazy(() =>
-  import("./components/mascot/AliveBoard").then((module) => ({ default: module.AliveBoard })),
-);
 
 const ItemView = lazy(() =>
   import("./features/item-view/ItemView").then((module) => ({
@@ -438,26 +432,6 @@ function App() {
       onDismiss={() => setSidebarActionError(null)}
     />
   ) : null;
-
-  // Dev-only mascot board (vendored bloub engine + inkling skins). Not linked
-  // from the UI; open with ?mascot. Placed after all hooks.
-  if (
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).has("mascot-alive")
-  ) {
-    return (
-      <Suspense fallback={null}>
-        <AliveBoard />
-      </Suspense>
-    );
-  }
-  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mascot")) {
-    return (
-      <Suspense fallback={null}>
-        <MascotBoard />
-      </Suspense>
-    );
-  }
 
   return (
     <MotionConfig reducedMotion="user">
