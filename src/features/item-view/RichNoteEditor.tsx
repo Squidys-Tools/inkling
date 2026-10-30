@@ -4,6 +4,7 @@ import { noteEditorExtensions } from "../../lib/noteMarkdown";
 import { isSafeNoteLink, noteBodyForEditor, noteBodyForStorage } from "../../lib/notes";
 import { NoteEditorToolbar, useToolbarState } from "./NoteEditorToolbar";
 import "./RichNoteEditor.css";
+import { NoteLinkPopover } from "./NoteLinkPopover";
 import { errorMessage } from "../errorMessage";
 
 type RichNoteEditorProps = {
@@ -160,44 +161,14 @@ export function RichNoteEditor({
             </span>
           )}
           {linkDraft !== null && (
-            <fieldset className="note-link-popover" aria-label="Link">
-              <input
-                ref={linkInputRef}
-                className="note-link-input"
-                aria-label="Link URL"
-                value={linkDraft}
-                placeholder="https://"
-                onChange={(event) => setLinkDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    applyLink();
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    setLinkDraft(null);
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="note-link-apply"
-                aria-label="Apply link"
-                disabled={!isSafeNoteLink(linkDraft.trim())}
-                onClick={applyLink}
-              >
-                Apply
-              </button>
-              <button
-                type="button"
-                className="note-link-remove"
-                aria-label="Remove link"
-                disabled={!toolbar?.link}
-                onClick={removeLink}
-              >
-                Remove
-              </button>
-            </fieldset>
+            <NoteLinkPopover
+              ref={linkInputRef}
+              draft={linkDraft}
+              canRemove={Boolean(toolbar?.link)}
+              onDraftChange={setLinkDraft}
+              onApply={applyLink}
+              onRemove={removeLink}
+            />
           )}
           <button
             type="button"
