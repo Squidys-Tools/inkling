@@ -1,26 +1,10 @@
-import {
-  type CommandArgs,
-  type CommandName,
-  type CommandResults,
-  commandArgs,
-} from "@inkling/contracts";
-import { commandChannel, commandNames } from "@inkling/contracts/commands";
-import { Schema } from "effect";
-import {
-  app,
-  BrowserWindow,
-  desktopCapturer,
-  dialog,
-  ipcMain,
-  protocol,
-  session,
-  shell,
-} from "electron";
+import { app, BrowserWindow, desktopCapturer, dialog, protocol, session, shell } from "electron";
 import electronUpdater from "electron-updater";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createAiJobProcessors } from "./ai-jobs.ts";
+import { type CommandHandlers, registerCommandHandlers } from "./ipc-commands.ts";
 import {
   allowCanvasReadableImages,
   createAppAssetHandler,
@@ -149,10 +133,6 @@ const chooseLibraryDirectory = createSingleFlightDirectoryPicker({
   showOpenDialog: (parent, options) => dialog.showOpenDialog(parent, options),
 });
 
-type CommandHandlers = {
-  [C in CommandName]: (args: CommandArgs<C>) => CommandResults[C] | Promise<CommandResults[C]>;
-};
-
 function registerLibraryCommands() {
   const library = () => requireStorage().library;
   const jobs = () => requireStorage().jobs;
@@ -240,24 +220,7 @@ function registerLibraryCommands() {
     "plugin:deep-link|get_current": takePendingDeepLinks,
   };
 
-  for (const command of commandNames) {
-    const decode = Schema.decodeUnknownSync(commandArgs[command]);
-    const handler = handlers[command] as (args: unknown) => unknown;
-    ipcMain.handle(commandChannel(command), (_event, args: unknown) => {
-      // The renderer is untrusted, so a payload of the wrong shape never reaches a handler.
-      let decoded: unknown;
-      try {
-        decoded = decode(args ?? {});
-      } catch (error) {
-        throw new Error(
-          `invalid storage input: ${error instanceof Error ? error.message : String(error)}`,
-          { cause: error },
-        );
-      }
-      return handler(decoded);
-    });
-  }
-
+  registerCommandHandlers(handlers);
   registerDeepLinkSubscriptions();
   registerWindowControls();
 }
