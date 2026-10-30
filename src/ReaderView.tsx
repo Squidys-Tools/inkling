@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { hostnameForUrl } from "./features/hostname";
 import { isWebUrl } from "./lib/ingestion/url";
 import "./reader.css";
 
@@ -42,14 +43,6 @@ function loadFontSet(): ReaderFontSet {
   return "quiet-classic";
 }
 
-function hostnameOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./u, "");
-  } catch {
-    return url;
-  }
-}
-
 type ReaderViewProps = {
   item: ReaderItem;
   origin: ReaderOrigin;
@@ -80,7 +73,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
   }, [onRequestClose]);
 
   const bylineParts = [item.author, item.publishedDate ?? item.savedDate].filter(Boolean);
-  const host = hostnameOf(item.sourceUrl);
+  const host = hostnameForUrl(item.sourceUrl) ?? item.sourceUrl;
 
   const readerOrigin = "var(--reader-origin-x) var(--reader-origin-y)";
   const readerOpenClip = `circle(150% at ${readerOrigin})`;

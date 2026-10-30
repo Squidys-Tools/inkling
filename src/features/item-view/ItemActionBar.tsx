@@ -4,7 +4,7 @@ import type { LibraryItem } from "../../lib/types";
 import { cx } from "../../ui/cx";
 import { focusFirstMenuItem } from "../../ui/Menu";
 import { SpaceMark } from "../../ui/SpaceMark";
-import { hostnameForUrl } from "./InfoPanel";
+import { hostnameForUrl } from "../hostname";
 import type { ItemViewActions, ItemViewSpace } from "./ItemView";
 
 const BAR_BUTTON =

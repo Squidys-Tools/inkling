@@ -9,6 +9,7 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { ContextMenuEntry } from "../../components/ContextMenu/ContextMenu";
 import type { LibraryItem } from "../../lib/types";
+import { hostnameForUrl } from "../hostname";
 import { showItemInFolderFromOverlay } from "../item-view/useItemDetails";
 
 type CardMenuOptions = {
@@ -54,13 +55,9 @@ export function useCardMenu({ canUseDesktopBackend, openReader, forgetItem }: Ca
       entries.push({ label: "Read", icon: BookOpen01Icon, onSelect: () => void openReader(item) });
     }
     if (sourceUrl) {
-      let host = "original";
-      try {
-        host = new URL(sourceUrl).hostname.replace(/^www\./u, "");
-      } catch {}
       entries.push(
         {
-          label: `Open ${host}`,
+          label: `Open ${hostnameForUrl(sourceUrl) ?? "original"}`,
           icon: LinkSquare02Icon,
           onSelect: () => window.open(sourceUrl, "_blank", "noopener,noreferrer"),
         },

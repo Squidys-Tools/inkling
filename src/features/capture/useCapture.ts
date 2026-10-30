@@ -22,6 +22,7 @@ import {
   storedItemToLibraryItem,
 } from "../library/libraryItem";
 import { errorMessage } from "../errorMessage";
+import { hostnameForUrl } from "../hostname";
 
 type CaptureOptions = {
   canUseDesktopBackend: boolean;
@@ -279,16 +280,9 @@ export function useCapture({
       return;
     }
 
-    let sourceLabel = "Quote";
-    if (trimmedSource) {
-      try {
-        sourceLabel = new URL(trimmedSource).hostname.replace(/^www\./u, "");
-      } catch {
-        sourceLabel = trimmedSource;
-      }
-    } else if (trimmedAttribution) {
-      sourceLabel = trimmedAttribution.split(",")[0]?.trim() || "Quote";
-    }
+    const sourceLabel = trimmedSource
+      ? (hostnameForUrl(trimmedSource) ?? trimmedSource)
+      : trimmedAttribution.split(",")[0]?.trim() || "Quote";
 
     const item: LibraryItem = {
       id: Date.now(),
