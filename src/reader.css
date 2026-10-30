@@ -122,13 +122,6 @@
 .reader-scroll {
   height: 100%;
   overflow-y: auto;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 120px,
-    #000 calc(100% - 110px),
-    transparent 100%
-  );
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
@@ -206,7 +199,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reader-overlay,
   .reader-overlay::before,
   .reader-close,
   .reader-page {
