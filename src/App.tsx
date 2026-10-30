@@ -3,13 +3,12 @@ import { MotionConfig } from "motion/react";
 import { isElectronRuntime } from "./lib/libraryApi";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { ContextMenu } from "./components/ContextMenu/ContextMenu";
-import type { ItemViewActions } from "./features/item-view/ItemView";
 import type { LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import { CaptureBar } from "./features/capture/CaptureBar";
 import { FileImportStatus } from "./features/capture/FileImportStatus";
 import { useCapture } from "./features/capture/useCapture";
-import { useItemDetails, revealItemInFolder } from "./features/item-view/useItemDetails";
+import { useItemDetails } from "./features/item-view/useItemDetails";
 import { useItemSelection } from "./features/item-view/useItemSelection";
 import type { LibraryCardContext } from "./features/library/LibraryCard";
 import { LibraryStage } from "./features/library/LibraryStage";
@@ -185,37 +184,6 @@ function App() {
     setSelectedItem,
   });
 
-  const expandedOverlayActions = useMemo<ItemViewActions>(
-    () => ({
-      onClose: closeItem,
-      onOpenPdf: details.setPdfViewerItem,
-      onOpenReader: details.openReader,
-      onLoadSimilar: details.loadSimilarLibraryItems,
-      onOpenItem: selection.openSimilarItem,
-      onShowInFolder: canUseDesktopBackend ? revealItemInFolder : undefined,
-      onDelete: archive.deleteArchivedLibraryItem,
-      onForget: archive.forgetItem,
-      onRetryJob: library.retryJob,
-      onAddTag: details.addTagToItem,
-      onUpdateNote: details.updateNote,
-      onToggleSpace: spaces.handleToggleItemInSpace,
-    }),
-    [
-      details.addTagToItem,
-      canUseDesktopBackend,
-      closeItem,
-      archive.deleteArchivedLibraryItem,
-      archive.forgetItem,
-      spaces.handleToggleItemInSpace,
-      details.loadSimilarLibraryItems,
-      details.openReader,
-      selection.openSimilarItem,
-      library.retryJob,
-      details.setPdfViewerItem,
-      details.updateNote,
-    ],
-  );
-
   useMascotMood({
     canUseDesktopBackend,
     activeJobCount: library.activeJobCount,
@@ -342,17 +310,15 @@ function App() {
 
         <ItemLayers
           item={selectedItem}
-          itemView={{
-            actions: expandedOverlayActions,
-            spaces: spaces.selectedItemSpaces,
-            originRectsRef: selection.selectionRectsRef,
-            frameRef: libraryFrameRef,
-            historyCloseRequest,
-          }}
-          pdfViewerItem={details.pdfViewerItem}
-          onClosePdf={() => details.setPdfViewerItem(null)}
-          readingItem={details.readingItem}
-          onCloseReader={details.closeReader}
+          details={details}
+          archive={archive}
+          selection={selection}
+          spaces={spaces}
+          canUseDesktopBackend={canUseDesktopBackend}
+          onClose={closeItem}
+          onRetryJob={library.retryJob}
+          frameRef={libraryFrameRef}
+          historyCloseRequest={historyCloseRequest}
         />
       </div>
       <TooltipLayer ref={tooltipLayerRef} />

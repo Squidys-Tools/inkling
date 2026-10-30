@@ -1,7 +1,10 @@
 import { AnimatePresence, motion } from "motion/react";
-import { type ComponentProps, lazy, Suspense } from "react";
-import type { ItemView as ItemViewComponent } from "../item-view/ItemView";
-import type { ReadingItem } from "../item-view/useItemDetails";
+import { lazy, type RefObject, Suspense, useMemo } from "react";
+import type { ItemViewActions } from "../item-view/ItemView";
+import { revealItemInFolder, type useItemDetails } from "../item-view/useItemDetails";
+import type { useItemSelection } from "../item-view/useItemSelection";
+import type { useArchive } from "../settings/useArchive";
+import type { useSpaces } from "../spaces/useSpaces";
 import type { LibraryItem } from "../../lib/types";
 
 // These load on first open, off the boot bundle. The chunks come from local
@@ -16,24 +19,82 @@ const ReaderView = lazy(() =>
 
 export function ItemLayers({
   item,
-  itemView,
-  pdfViewerItem,
-  onClosePdf,
-  readingItem,
-  onCloseReader,
+  details,
+  archive,
+  selection,
+  spaces,
+  canUseDesktopBackend,
+  onClose,
+  onRetryJob,
+  frameRef,
+  historyCloseRequest,
 }: {
   item: LibraryItem | null;
-  itemView: Omit<ComponentProps<typeof ItemViewComponent>, "item">;
-  pdfViewerItem: LibraryItem | null;
-  onClosePdf: () => void;
-  readingItem: ReadingItem | null;
-  onCloseReader: () => void;
+  details: ReturnType<typeof useItemDetails>;
+  archive: ReturnType<typeof useArchive>;
+  selection: ReturnType<typeof useItemSelection>;
+  spaces: ReturnType<typeof useSpaces>;
+  canUseDesktopBackend: boolean;
+  onClose: () => void;
+  onRetryJob: (jobId: string) => void | Promise<void>;
+  frameRef: RefObject<HTMLElement | null>;
+  historyCloseRequest: number;
 }) {
+  const {
+    pdfViewerItem,
+    setPdfViewerItem,
+    readingItem,
+    closeReader,
+    openReader,
+    loadSimilarLibraryItems,
+    addTagToItem,
+    updateNote,
+  } = details;
+  const { deleteArchivedLibraryItem, forgetItem } = archive;
+  const { openSimilarItem } = selection;
+  const toggleItemInSpace = spaces.handleToggleItemInSpace;
+  const actions = useMemo<ItemViewActions>(
+    () => ({
+      onClose,
+      onOpenPdf: setPdfViewerItem,
+      onOpenReader: openReader,
+      onLoadSimilar: loadSimilarLibraryItems,
+      onOpenItem: openSimilarItem,
+      onShowInFolder: canUseDesktopBackend ? revealItemInFolder : undefined,
+      onDelete: deleteArchivedLibraryItem,
+      onForget: forgetItem,
+      onRetryJob,
+      onAddTag: addTagToItem,
+      onUpdateNote: updateNote,
+      onToggleSpace: toggleItemInSpace,
+    }),
+    [
+      addTagToItem,
+      canUseDesktopBackend,
+      deleteArchivedLibraryItem,
+      forgetItem,
+      loadSimilarLibraryItems,
+      onClose,
+      onRetryJob,
+      openReader,
+      openSimilarItem,
+      setPdfViewerItem,
+      toggleItemInSpace,
+      updateNote,
+    ],
+  );
   return (
     <>
       {item && (
         <Suspense fallback={null}>
-          <ItemView item={item} {...itemView} />
+          <ItemView
+            item={item}
+            actions={actions}
+            spaces={spaces.selectedItemSpaces}
+            originRectsRef={selection.selectionRectsRef}
+            frameRef={frameRef}
+            historyCloseRequest={historyCloseRequest}
+          />
         </Suspense>
       )}
       <AnimatePresence>
@@ -49,7 +110,7 @@ export function ItemLayers({
               <PdfViewer
                 url={pdfViewerItem.fileUrl}
                 title={pdfViewerItem.title}
-                onClose={onClosePdf}
+                onClose={() => setPdfViewerItem(null)}
               />
             </Suspense>
           </motion.div>
@@ -61,7 +122,7 @@ export function ItemLayers({
             <ReaderView
               item={readingItem.item}
               origin={readingItem.origin}
-              onRequestClose={onCloseReader}
+              onRequestClose={closeReader}
             />
           </Suspense>
         )}
