@@ -6,8 +6,6 @@
 
 import { useLayoutEffect, useMemo, useRef, type CSSProperties } from "react";
 
-import "./GradualBlur.css";
-
 type GradualBlurCurve = "linear" | "bezier" | "ease-in" | "ease-out" | "ease-in-out";
 
 export interface GradualBlurProps {
@@ -57,7 +55,7 @@ const GradualBlur = ({
   tint = "transparent",
   autoHide = false,
   zIndex = 1000,
-  className = "",
+  className,
 }: GradualBlurProps) => {
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -149,6 +147,7 @@ const GradualBlur = ({
   const rootStyle: CSSProperties = {
     position: "absolute",
     zIndex,
+    pointerEvents: "none",
     borderTopLeftRadius: corner("top"),
     borderTopRightRadius: corner("top"),
     borderBottomLeftRadius: corner("bottom"),
@@ -161,12 +160,7 @@ const GradualBlur = ({
   };
 
   return (
-    <div
-      ref={rootRef}
-      className={`gradual-blur ${className}`.trim()}
-      style={rootStyle}
-      aria-hidden="true"
-    >
+    <div ref={rootRef} className={className} style={rootStyle} aria-hidden="true">
       {stack.steps.map((layer, index) => (
         // oxlint-disable-next-line react/no-array-index-key -- a fixed stack of layers that never reorders.
         <div key={index} style={layer} />
