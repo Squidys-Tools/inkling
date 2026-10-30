@@ -1,23 +1,5 @@
 import { expect, test } from "bun:test";
-import { validateCapturePayload, validateCaptureUrl } from "./capture-payload.ts";
-
-test("capture URLs match storage's HTTP guards and allow explicit loopback saves", () => {
-  expect(validateCaptureUrl("http://127.0.0.1:3000/dev-notes")).toBe(
-    "http://127.0.0.1:3000/dev-notes",
-  );
-  expect(validateCaptureUrl("https://example.com/article?q=1")).toBe(
-    "https://example.com/article?q=1",
-  );
-  for (const invalid of [
-    "ftp://example.com/file",
-    "https://user:pass@example.com/",
-    "not a url",
-    "",
-    `https://example.com/${"a".repeat(9_000)}`,
-  ]) {
-    expect(() => validateCaptureUrl(invalid)).toThrow();
-  }
-});
+import { validateCapturePayload } from "./capture-payload.ts";
 
 test("v1 payloads normalize to a capture URL and title", () => {
   const good = {
@@ -62,9 +44,21 @@ test("v1 payloads normalize to a capture URL and title", () => {
   );
   expect(longTitle.title).toBe("t".repeat(500));
 
+  const loopback = validateCapturePayload(
+    Buffer.from(
+      JSON.stringify({ version: 1, kind: "page", url: "http://127.0.0.1:3000/dev-notes" }),
+    ),
+  );
+  expect(loopback.sourceUrl).toBe("http://127.0.0.1:3000/dev-notes");
+
   for (const invalid of [
     { title: "no url" },
     { version: 1, kind: "page", url: "javascript:alert(1)" },
+    { version: 1, kind: "page", url: "ftp://example.com/file" },
+    { version: 1, kind: "page", url: "https://user:pass@example.com/" },
+    { version: 1, kind: "page", url: "not a url" },
+    { version: 1, kind: "page", url: "" },
+    { version: 1, kind: "page", url: `https://example.com/${"a".repeat(9_000)}` },
     { version: 2, kind: "page", url: "https://example.com/" },
     { version: 1, kind: "selection", url: "https://example.com/" },
     { version: 1, kind: "page", url: "https://example.com/", author: "a".repeat(241) },

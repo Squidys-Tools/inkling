@@ -2,7 +2,7 @@ import { Schema } from "effect";
 
 const MAX_DEFUDDLED_HTML_BYTES = 2 * 1024 * 1024;
 
-export function validateCaptureUrl(input: string) {
+function validateCaptureUrl(input: string) {
   const trimmed = input.trim();
   if (!trimmed || Buffer.byteLength(trimmed, "utf8") > 8_192) {
     throw new Error("url must be 1-8192 characters");
