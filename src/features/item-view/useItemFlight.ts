@@ -3,6 +3,7 @@ import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import type { LibraryItem } from "../../lib/types";
 import type { ItemViewActions } from "./ItemView";
 import {
+  findCard,
   OVERLAY_EASE,
   OVERLAY_FLIGHT_MS,
   prefersReducedMotion,
@@ -373,10 +374,7 @@ export function useItemFlight({
       const overlayHasFocus =
         focusOwner instanceof HTMLElement && (dialogRef.current?.contains(focusOwner) ?? false);
       if (!overlayHasFocus && focusOwner !== document.body) return;
-      const card = document.querySelector<HTMLElement>(
-        `.library-card[data-library-item-id="${CSS.escape(String(itemIdRef.current))}"]`,
-      );
-      card?.focus({ preventScroll: true });
+      findCard(itemIdRef.current)?.focus({ preventScroll: true });
     },
     [],
   );

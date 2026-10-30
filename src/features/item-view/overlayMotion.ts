@@ -45,12 +45,16 @@ export function scrollViewportRect(scroller: HTMLElement, toolbar: HTMLElement |
   return { ...rect, top, height: Math.max(0, rect.top + rect.height - top) };
 }
 
-// Measures the live grid card for an item, if it is still mounted. Returns
-// viewport coordinates so flights can run inside the fixed overlay layer.
-export function queryCardRects(id: string | number): SourceRects | null {
-  const card = document.querySelector<HTMLElement>(
+// The live grid card for an item, if it is still mounted.
+export function findCard(id: string | number) {
+  return document.querySelector<HTMLElement>(
     `.library-card[data-library-item-id="${CSS.escape(String(id))}"]`,
   );
+}
+
+// Viewport coordinates, so flights can run inside the fixed overlay layer.
+export function queryCardRects(id: string | number): SourceRects | null {
+  const card = findCard(id);
   return card ? cardRects(card) : null;
 }
 

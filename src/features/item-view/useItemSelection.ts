@@ -8,6 +8,7 @@ import {
 } from "react";
 import { gsap } from "gsap";
 import {
+  findCard,
   isCardTooFarOffscreen,
   prefersReducedMotion,
   queryCardRects,
@@ -168,10 +169,7 @@ export function useItemSelection({
     const selectedCards = document.querySelectorAll<HTMLElement>(".library-card.is-selected");
     for (const card of selectedCards) card.classList.remove("is-selected");
     if (!selectedItem) return;
-    const source = document.querySelector<HTMLElement>(
-      `.library-card[data-library-item-id="${CSS.escape(String(selectedItem.id))}"]`,
-    );
-    source?.classList.add("is-selected");
+    findCard(selectedItem.id)?.classList.add("is-selected");
   }, [selectedItem]);
 
   return {
