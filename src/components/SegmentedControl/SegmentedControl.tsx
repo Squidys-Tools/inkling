@@ -6,6 +6,7 @@
 // packages/ui is AGPL.
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { cx } from "../../ui/cx";
 import "./SegmentedControl.css";
 
 type SegmentedControlOption<Value extends string> = {
@@ -47,7 +48,7 @@ export function SegmentedControl<Value extends string>({
   }, [value]);
 
   return (
-    <fieldset ref={rootRef} className={`segmented-control${className ? ` ${className}` : ""}`}>
+    <fieldset ref={rootRef} className={cx("segmented-control", className)}>
       <legend className="sr-only">{label}</legend>
       <span
         className="segmented-control-indicator"
