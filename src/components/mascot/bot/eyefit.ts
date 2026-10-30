@@ -248,9 +248,7 @@ const DICHOTOMIE = 8;
 const BONUS_MARGE_SPLASH = 12;
 
 function bonusPour(radii: number[]): number {
-  if (radii === SHAPE_BY_ID.get("inkling-splash")?.radii) return BONUS_MARGE_SPLASH;
-  if (radii === SHAPE_BY_ID.get("inkling-splash-b")?.radii) return BONUS_MARGE_SPLASH;
-  return 0;
+  return radii === SHAPE_BY_ID.get("inkling-splash")?.radii ? BONUS_MARGE_SPLASH : 0;
 }
 
 function resous(epreuves: Epreuve[], bonus = 0): { x: number; y: number } {

@@ -1,135 +1,41 @@
 import { PROFILE_SAMPLES } from "./profiles";
-import {
-  hullOfCircles,
-  profileFromPolygon,
-  regularPolygonProfile,
-  superellipseProfile,
-  unionOfCirclesProfile,
-} from "./shape";
 
 /**
- * Formes et couleurs proposees par le personnalisateur du bot.
- *
- * A la difference des silhouettes d'animation (`profiles.ts`), celles-ci ne sont
- * PAS relevees sur la video : elles sont construites analytiquement d'apres la
- * grille du personnalisateur d'origine. Deux sources distinctes, donc, et c'est
- * volontaire — les etats animes doivent rester fideles a la video, les formes de
- * base sont un choix d'utilisateur.
+ * Rest bodies a caller can pick. Unlike the animation silhouettes in
+ * `profiles.ts`, these are not measured from the reference video.
  */
 
-/**
- * Les identifiants sont enumeres plutot que deduits du tableau : c'est ce qui
- * permet a la couche i18n de verifier A LA COMPILATION que chaque forme a bien
- * sa traduction dans les trois langues (`t(\`shapes.${id}\`)` ne compile que si
- * la cle existe). Un `as const` sur le tableau aurait le meme effet mais
- * rendrait `radii` en lecture seule, alors que le moteur le passe tel quel.
- */
 type ShapeId =
   | "cercle"
-  | "galet"
-  | "squircle"
-  | "capsule"
-  | "triangle"
-  | "hexagone"
-  | "nuage"
-  | "goutte"
   // INKLING EXTENSION: organic ink-blot shape for the inkling mascot, drawn
   // from the "Inkling mascots" frame in Paper (node 3WH-0 "Organic body shape").
-  // Analytical like the shapes above (not a measured profile): exact Paper-path
-  // extraction via profileFromPolygon is a follow-up. See
-  // src/components/mascot/bot/README.md.
-  | "inkling-splash"
-  // INKLING EXTENSION: phase-shifted twin of the splash, for the slow
-  // shape-drift variation (morphing between the two reads as the blot
-  // stirring). Registered here so the eyefit table covers it too.
-  | "inkling-splash-b";
+  | "inkling-splash";
 
 export interface BotShape {
   id: ShapeId;
   radii: number[];
 }
 
-/** Ramene le rayon maximal a `max` pour que toutes les formes pesent pareil a l'oeil. */
-function normalize(radii: number[], max = 1): number[] {
-  const peak = Math.max(...radii);
-  if (peak <= 0) return radii;
-  const k = max / peak;
-  return radii.map((r) => r * k);
-}
-
-const ANGLES = Array.from(
-  { length: PROFILE_SAMPLES },
-  (_, i) => (i / PROFILE_SAMPLES) * Math.PI * 2,
-);
-
-/** Galet : cercle deforme par deux harmoniques basses, donc irregulier mais lisse. */
-const pebble = normalize(
-  ANGLES.map((a) => 1 + 0.075 * Math.cos(2 * a + 0.5) + 0.035 * Math.cos(3 * a + 2.1)),
-  1.02,
-);
-
-/** Nuage : union de bosses, large en bas, deux lobes en haut. */
-const cloud = normalize(
-  unionOfCirclesProfile([
-    { x: -0.44, y: 0.2, r: 0.54 },
-    { x: 0.46, y: 0.2, r: 0.5 },
-    { x: 0.02, y: 0.3, r: 0.6 },
-    { x: -0.24, y: -0.3, r: 0.48 },
-    { x: 0.3, y: -0.24, r: 0.44 },
-  ]),
-  1.02,
-);
-
-/** Goutte : gros disque en bas, pointe effilee en haut. */
-const droplet = normalize(
-  profileFromPolygon(hullOfCircles(0, 0.28, 0.66, 0, -0.96, 0.05), 0, 0),
-  1.04,
-);
-
-/** Capsule couchee : enveloppe de deux disques cote a cote. */
-const capsule = profileFromPolygon(hullOfCircles(-0.42, 0, 0.62, 0.42, 0, 0.62), 0, 0);
-
-/*
- * INKLING EXTENSION — approximation of the Paper "Inkling mascots" splatter
- * variant (node 3WH-0 "Organic body shape"). Same conventions as above:
- * 64 radial samples, peak-normalized so the shape weighs the same next to
- * the circle. Kept in this list (rather than a side list) so it registers
- * in the eyefit table built at import, giving the eyes the same edge-margin
- * correction as the built-in shapes on baseBody states.
+/**
+ * INKLING EXTENSION — a five-lobed approximation of the Paper splatter, peak
+ * normalized to 1.06 so it weighs the same next to the circle. Listing it in
+ * `SHAPES` registers it in the eyefit table built at import.
  */
-/** Five-lobed splatter wobble, after 3WH-0. True drip spikes are not
- * star-shaped and will need profileFromPolygon extraction — follow-up. */
-const inklingSplash = normalize(
-  ANGLES.map((a) => 1 + 0.09 * Math.cos(5 * a + 0.8) + 0.05 * Math.cos(2 * a + 2.0)),
-  1.06,
-);
-
-/** Phase-shifted twin of the splash, for shape-drift morphing. */
-const inklingSplashB = normalize(
-  ANGLES.map((a) => 1 + 0.09 * Math.cos(5 * a + 0.8 + 2.1) + 0.05 * Math.cos(2 * a + 2.0 + 1.3)),
-  1.06,
-);
+const inklingSplash = (() => {
+  const raw = Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
+    const a = (i / PROFILE_SAMPLES) * Math.PI * 2;
+    return 1 + 0.09 * Math.cos(5 * a + 0.8) + 0.05 * Math.cos(2 * a + 2.0);
+  });
+  const k = 1.06 / Math.max(...raw);
+  return raw.map((r) => r * k);
+})();
 
 export const SHAPES: BotShape[] = [
   { id: "cercle", radii: new Array(PROFILE_SAMPLES).fill(1) },
-  { id: "galet", radii: pebble },
-  // 1.15 et pas 1.02 : sur une superellipse le rayon maximal est la diagonale,
-  // donc normaliser dessus donne une forme qui parait plus petite que le cercle.
-  { id: "squircle", radii: normalize(superellipseProfile(4.2), 1.15) },
-  { id: "capsule", radii: capsule },
-  // -90deg : un sommet vers le haut de l'ecran (y est oriente vers le bas)
-  { id: "triangle", radii: regularPolygonProfile(3, 1.12, 0.34, -90) },
-  // 0deg : sommets a gauche et a droite, donc aretes du haut et du bas plates
-  { id: "hexagone", radii: regularPolygonProfile(6, 1.04, 0.26, 0) },
-  { id: "nuage", radii: cloud },
-  { id: "goutte", radii: droplet },
-  // INKLING EXTENSION — see builders above.
   { id: "inkling-splash", radii: inklingSplash },
-  { id: "inkling-splash-b", radii: inklingSplashB },
 ];
 
-// Map indexee par `string` et non par `ShapeId` : les appelants interrogent avec
-// une valeur relue du localStorage ou d'une prop, donc non validee.
+// Keyed by `string`: callers look up an unvalidated prop.
 export const SHAPE_BY_ID = new Map<string, BotShape>(SHAPES.map((s) => [s.id, s]));
 export const DEFAULT_SHAPE = "cercle";
 
