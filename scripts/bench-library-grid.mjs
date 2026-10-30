@@ -265,8 +265,6 @@ try {
   }
   record.databaseAfter = databaseProof(database, items);
   record.summary = summary(record.results);
-  record.consoleErrors = cdp.errors;
-  record.interceptedRemoteRequests = cdp.remoteRequests;
   assert(cdp.errors.length === 0, `Renderer errors: ${cdp.errors.join(" | ")}`);
 } catch (error) {
   record.failures.push(error.stack ?? String(error));
