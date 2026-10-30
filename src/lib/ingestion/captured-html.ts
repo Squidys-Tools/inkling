@@ -35,17 +35,10 @@ export function cleanCapturedHtml(html: string, pageUrl: string): string {
     while (element.firstChild) parent.insertBefore(element.firstChild, element);
     element.remove();
   }
-  for (const selector of [
-    "script",
-    "template",
-    "style",
-    "link",
-    "meta",
-    "object",
-    "embed",
-    "form",
-  ]) {
-    for (const element of document.querySelectorAll(selector)) element.remove();
+  for (const element of document.querySelectorAll(
+    "script, template, style, link, meta, object, embed, form",
+  )) {
+    element.remove();
   }
   for (const element of document.querySelectorAll("*")) sanitizeElement(element, pageUrl);
   return document.body?.innerHTML ?? "";
