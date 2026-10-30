@@ -50,7 +50,8 @@ export type StoredLibraryCard = Omit<
 export type StoredItemContent = { id: string; body: string; bodyFormat: string };
 
 export type AvailableUpdate = { version: string };
-export type UpdateChannel = "latest" | "nightly";
+export const UpdateChannel = Schema.Literals(["latest", "nightly"]);
+export type UpdateChannel = typeof UpdateChannel.Type;
 export type UpdateState = {
   channel: UpdateChannel;
   currentVersion: string;
@@ -95,8 +96,10 @@ export type SmartSpaceQuery = { text?: string | null; kind?: string | null; tag?
 
 /** A "smart" Space re-runs its saved query; a "regular" Space holds the items
  *  the user filed into it. Fixed at creation. */
-export type SpaceKind = "smart" | "regular";
-export type SpaceColor = "blue" | "orange" | "green" | "pink" | "purple" | "yellow";
+export const SpaceKind = Schema.Literals(["smart", "regular"]);
+export type SpaceKind = typeof SpaceKind.Type;
+export const SpaceColor = Schema.Literals(["blue", "orange", "green", "pink", "purple", "yellow"]);
+export type SpaceColor = typeof SpaceColor.Type;
 
 export type StoredSpace = {
   id: string;
@@ -145,8 +148,6 @@ const NullableText = Schema.optional(Schema.NullOr(Schema.String));
 const Limit = Schema.optional(Schema.Number);
 const Metadata = Schema.Record(Schema.String, Schema.Unknown);
 const SpaceQuery = Schema.Struct({ text: NullableText, kind: NullableText, tag: NullableText });
-const SpaceColorSchema = Schema.Literals(["blue", "orange", "green", "pink", "purple", "yellow"]);
-const SpaceKindSchema = Schema.Literals(["smart", "regular"]);
 const None = Schema.Struct({});
 const ById = Schema.Struct({ id: Text });
 const ByItemId = Schema.Struct({ itemId: Text });
@@ -198,15 +199,15 @@ export const UpdateItemInput = Schema.Struct({
 
 export const CreateSpaceInput = Schema.Struct({
   name: Text,
-  color: Schema.optional(SpaceColorSchema),
+  color: Schema.optional(SpaceColor),
   query: Schema.optional(SpaceQuery),
-  kind: Schema.optional(SpaceKindSchema),
+  kind: Schema.optional(SpaceKind),
 });
 
 export const UpdateSpaceInput = Schema.Struct({
   id: Text,
   name: OptionalText,
-  color: Schema.optional(SpaceColorSchema),
+  color: Schema.optional(SpaceColor),
   query: Schema.optional(SpaceQuery),
   position: Schema.optional(Schema.Number),
 });
@@ -223,7 +224,7 @@ export const commandArgs = {
   check_for_updates: None,
   install_update: Schema.Struct({ expectedVersion: Text }),
   get_update_state: None,
-  set_update_channel: Schema.Struct({ channel: Schema.Literals(["latest", "nightly"]) }),
+  set_update_channel: Schema.Struct({ channel: UpdateChannel }),
   download_update: Schema.Struct({ expectedVersion: Text }),
   cancel_update_download: None,
   initialize_storage: None,
