@@ -112,17 +112,14 @@ function floatVectorBytes(vector: Float32Array) {
   return bytes;
 }
 
+// Truncation keeps the final special token, which the model expects at the end.
+const truncateTokens = (values: number[]) =>
+  values.length > maxTokens ? [...values.slice(0, maxTokens - 1), values.at(-1) ?? 0] : values;
+
 function textTokens(tokenizer: TokenizerLike, text: string) {
   const encoding = tokenizer.encode(text, { return_token_type_ids: true });
-  const tokenTypeIds = encoding.token_type_ids ?? new Array(encoding.ids.length).fill(0);
-  const ids =
-    encoding.ids.length > maxTokens
-      ? [...encoding.ids.slice(0, maxTokens - 1), encoding.ids.at(-1) ?? 0]
-      : encoding.ids;
-  const typeIds =
-    tokenTypeIds.length > maxTokens
-      ? [...tokenTypeIds.slice(0, maxTokens - 1), tokenTypeIds.at(-1) ?? 0]
-      : tokenTypeIds;
+  const ids = truncateTokens(encoding.ids);
+  const typeIds = truncateTokens(encoding.token_type_ids ?? new Array(encoding.ids.length).fill(0));
   if (ids.length === 0) throw new Error("Nomic tokenizer produced no tokens");
   return { ids, typeIds, mask: ids.map(() => 1) };
 }
