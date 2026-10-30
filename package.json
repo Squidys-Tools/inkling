@@ -15,7 +15,6 @@
   "scripts": {
     "dev": "vite",
     "dev:app": "vite build --mode electron-preview && bun run build:electron && electron . --preview",
-    "ui:smoke": "bun scripts/ui-smoke.mjs",
     "build": "tsc-rs && vite build",
     "build:app": "tsc-rs && vite build --mode app && bun run build:electron && bun scripts/assert-no-demo-seed.ts",
     "build:electron": "bun scripts/build-electron.ts",

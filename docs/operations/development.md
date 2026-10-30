@@ -20,7 +20,6 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 | Windows NSIS installer | `bun run build:installer` |
 | Linux Debian package and AppImage | `bun run build:linux` |
 | Ingestion smoke | `bun run ingest:smoke` |
-| UI smoke (Electron, scratch profile) | `bun run ui:smoke` |
 | Extraction benchmark | `bun run bench` |
 
 `build` keeps the committed demo seed, because the web preview and `preview` need
@@ -32,11 +31,6 @@ app ships, change `build:app`, not `build`.
 
 Packaged builds bundle the embedding models; [models.md](../models.md) covers how
 development builds fetch them.
-
-`ui:smoke` launches the Electron app with the demo seed against a throwaway
-user-data directory and drives the core library flows over the Chrome DevTools
-protocol. It writes screenshots to `.artifacts/ui-smoke/` and fails on any console
-error. It needs a display; on Linux without one it runs under `xvfb-run`.
 
 ## Linux packages
 
