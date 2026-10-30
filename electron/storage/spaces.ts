@@ -12,8 +12,7 @@ import type { StorageContext } from "./context.ts";
 import { cardFromRow, type ItemRow, qualifiedItemColumns, readItem } from "./rows.ts";
 import { changes, clampLimit, nonEmpty, parseJson } from "./shared.ts";
 import { invalidInput, itemNotFound, spaceNotFound } from "./errors.ts";
-import type { QueryVector } from "./search.ts";
-import { escapeFtsQuery, type makeSearch, sqlLikePattern } from "./search.ts";
+import { escapeFtsQuery, type makeSearch, type QueryVector, sqlLikePattern } from "./search.ts";
 
 type SpaceRow = {
   id: string;
@@ -37,9 +36,7 @@ function spaceFromRow(row: SpaceRow): StoredSpace {
     position: row.position,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    ...(row.kind === "regular" && row.item_count != null
-      ? { itemCount: Number(row.item_count) }
-      : {}),
+    ...(row.kind === "regular" && row.item_count != null ? { itemCount: row.item_count } : {}),
   };
 }
 
