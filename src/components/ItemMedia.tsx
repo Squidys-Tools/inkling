@@ -524,7 +524,6 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
     const root = nativeRef.current;
     if (!root || !embedHtml) return;
 
-    root.innerHTML = embedHtml;
     const updateEmbedWidth = () => {
       const width = Math.min(550, Math.max(280, Math.floor(root.getBoundingClientRect().width)));
       const iframe = root.querySelector<HTMLIFrameElement>("iframe");
@@ -541,11 +540,17 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
         ?.setAttribute("data-width", String(width));
     };
 
-    updateEmbedWidth();
     const resizeObserver = new ResizeObserver(updateEmbedWidth);
     resizeObserver.observe(root);
     let cancelled = false;
-    loadXWidgets()
+    // Imported here so DOMPurify stays out of the startup chunk.
+    import("../lib/purifyHtml")
+      .then(({ purifyHtml }) => {
+        if (cancelled) return;
+        root.innerHTML = purifyHtml(window, embedHtml, social.postUrl);
+        updateEmbedWidth();
+        return loadXWidgets();
+      })
       .then(async () => {
         if (cancelled) return;
         const widgetLoad = waitForXWidget(root);
@@ -562,7 +567,7 @@ export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallba
       resizeObserver.disconnect();
       root.replaceChildren();
     };
-  }, [embedHtml, shouldLoad]);
+  }, [embedHtml, shouldLoad, social.postUrl]);
 
   return (
     <div className="relative size-full p-0" data-x-status={status}>

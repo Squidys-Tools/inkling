@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { hostnameForUrl } from "./features/hostname";
 import { isWebUrl } from "./lib/ingestion/url";
+import { purifyHtml } from "./lib/purifyHtml";
 import "./reader.css";
 
 export type ReaderOrigin = { x: number; y: number };
@@ -67,6 +68,10 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [onRequestClose]);
 
+  const html = useMemo(
+    () => purifyHtml(window, item.html, item.sourceUrl),
+    [item.html, item.sourceUrl],
+  );
   const bylineParts = [item.author, item.publishedDate ?? item.savedDate].filter(Boolean);
   const host = hostnameForUrl(item.sourceUrl) ?? item.sourceUrl;
 
@@ -116,7 +121,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
             )}
           </header>
 
-          <div className="reader-content" dangerouslySetInnerHTML={{ __html: item.html }} />
+          <div className="reader-content" dangerouslySetInnerHTML={{ __html: html }} />
 
           {/* The source link becomes an href, so a stored javascript: or data: value must not reach it. */}
           {isWebUrl(item.sourceUrl) && (
