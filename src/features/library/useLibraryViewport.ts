@@ -15,7 +15,9 @@ export function useLibraryViewport(
       const box = parent.getBoundingClientRect();
       // Clip the scrolling cards, not just the first row, outside the live chrome.
       scroll.style.top = `${Math.max(0, chrome.getBoundingClientRect().bottom - box.top + 12)}px`;
-      scroll.style.bottom = `${Math.max(16, box.bottom - dock.getBoundingClientRect().top + 12)}px`;
+      // An empty dock (toggle hidden) reserves nothing.
+      const dockInset = dock.offsetHeight ? box.bottom - dock.getBoundingClientRect().top + 12 : 0;
+      scroll.style.bottom = `${Math.max(16, dockInset)}px`;
     };
     const observer = new ResizeObserver(update);
     for (const node of [chrome, dock, parent]) observer.observe(node);
