@@ -1,5 +1,5 @@
 import { parseHTML } from "linkedom";
-import { DefaultDefuddleAdapter } from "./defuddle-adapter";
+import { extractWithDefuddle } from "./defuddle-adapter";
 import { extractFallback } from "./fallback";
 import { collectSafeEmbeds } from "./embeds";
 import { cleanCapturedHtml } from "./captured-html";
@@ -36,7 +36,7 @@ const html = `
   </body></html>`;
 
 const { document } = parseHTML(html);
-const defuddle = new DefaultDefuddleAdapter().extract(document, pageUrl);
+const defuddle = extractWithDefuddle(document, pageUrl);
 assert(defuddle.contentHtml?.includes("meaningful text"), "Defuddle extracts article content");
 assert(
   defuddle.canonicalUrl === "https://example.com/articles/canonical",
@@ -142,11 +142,8 @@ assert(
 
 const fallbackFetched = await ingestUrl(pageUrl, {
   fetch: async () => new Response(html, { headers: { "content-type": "text/html" } }),
-  defuddleAdapter: {
-    name: "failing-test-adapter",
-    extract: () => {
-      throw new Error("expected test failure");
-    },
+  extractArticle: () => {
+    throw new Error("expected test failure");
   },
 });
 assert(fallbackFetched.extractor === "fallback", "ingestion falls back when Defuddle fails");

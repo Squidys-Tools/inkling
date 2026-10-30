@@ -1,5 +1,5 @@
 import { parseHTML } from "linkedom";
-import { DefaultDefuddleAdapter } from "./defuddle-adapter";
+import { extractWithDefuddle } from "./defuddle-adapter";
 import { collectSafeEmbeds } from "./embeds";
 import { UrlIngestionError } from "./errors";
 import { extractFallback } from "./fallback";
@@ -233,12 +233,12 @@ export async function ingestUrl(
   const extractionDocument = parseDocument(rawHtml);
   promoteInfoAsides(extractionDocument);
   const fallback = extractFallback(sourceDocument, fetchedUrl);
-  const adapter = options.defuddleAdapter ?? new DefaultDefuddleAdapter();
+  const extractArticle = options.extractArticle ?? extractWithDefuddle;
   let extraction = fallback;
   let extractor: "defuddle" | "fallback" = "fallback";
 
   try {
-    const defuddleExtraction = await adapter.extract(extractionDocument, fetchedUrl);
+    const defuddleExtraction = extractArticle(extractionDocument, fetchedUrl);
     extraction = mergeExtraction(defuddleExtraction, fallback);
     if (hasReadableText(defuddleExtraction.contentHtml)) extractor = "defuddle";
   } catch {
