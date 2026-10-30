@@ -29,14 +29,9 @@ function textValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function authorHandleFromUrl(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    const segment = new URL(value).pathname.split("/").filter(Boolean)[0];
-    return segment && segment !== "i" ? segment : undefined;
-  } catch {
-    return undefined;
-  }
+function authorHandleFromUrl(value: string | undefined) {
+  const segment = value ? new URL(value).pathname.split("/").filter(Boolean)[0] : undefined;
+  return segment && segment !== "i" ? segment : undefined;
 }
 
 export function parseXPostUrl(input: string): XPostUrl | null {
@@ -106,7 +101,7 @@ export function normalizeXPostOEmbed(
     authorUrl,
     authorHandle: authorHandleFromUrl(authorUrl) ?? parsedUrl.authorHandle,
     text,
-    publishedDate: normalizePublishedDate(normalizeText(dateLink?.textContent)) ?? null,
+    publishedDate: normalizePublishedDate(normalizeText(dateLink?.textContent)),
     width,
   };
 }
