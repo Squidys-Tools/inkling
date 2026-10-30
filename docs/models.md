@@ -1,40 +1,35 @@
 # Embedding models
 
-The initial learned embedding pair is:
+inkling embeds items with two models:
 
 - Nomic Embed Text v1.5
 - Nomic Embed Vision v1.5
 
-Both models produce normalized 768-dimensional vectors in the same embedding
-space. This lets a natural-language query match text items and image items.
+Both produce normalized 768-dimensional vectors in the same embedding space, so
+a natural-language query can match text items and image items.
 
 ## Runtime behavior
 
-The Electron embedding runtime uses ONNX Runtime with the published INT8 ONNX
-artifacts pinned to known Hugging Face revisions and verifies their SHA-256
-hashes. Development builds download model files into:
+The Electron main process runs the published INT8 ONNX artifacts through ONNX
+Runtime. `electron/model-manifest.json` pins each file to a Hugging Face
+revision and a SHA-256 hash, and the app checks the hash before it loads a file.
 
-```text
-<library data directory>\models\nomic-embed-text-v1.5\
-<library data directory>\models\nomic-embed-vision-v1.5\
-```
+Packaged builds (the Windows installer, the `.deb` and the AppImage) bundle the
+model files in their resources directory, so they work offline. Development
+builds download the files into `<library data directory>/models/<model name>/`
+when an embedding job first needs them.
 
-The Windows installer bundles the pinned model files in the Electron resources
-directory for offline use. Development builds download verified files to the
-library data directory when an embedding job first needs them.
-
-Text documents use the `search_document:` prefix. User queries use the
-`search_query:` prefix. Vision preprocessing follows the model's 224px RGB
+Stored text uses the `search_document:` prefix and queries use
+`search_query:`. Vision preprocessing follows the model's 224px RGB
 normalization and uses the CLS token from the vision output.
 
-FTS5 and OCR remain active for exact terms, filenames, and numbers. Learned
-embeddings are used for semantic text search, text-to-image search, and image
-similarity. If the model bundle is unavailable, ordinary lexical search still
-works; indexing reports the model error and can be retried.
+FTS5 and OCR still handle exact terms, filenames and numbers. The embeddings
+drive semantic text search, text-to-image search and image similarity. If the
+models are unavailable, lexical search still works, and the embedding job
+records the error so it can be retried.
 
 The database stores the model identifier and vector dimension with every
-embedding. Re-running an item's embedding job replaces an older vector for
-that item and kind, which keeps model migrations recoverable through
-regeneration. Changing the model revision requires regenerating existing
-embeddings before the new revision can be used for meaningful similarity
-comparisons.
+embedding. Re-running an item's embedding job replaces its older vector of the
+same kind, so a model change is recovered by regenerating embeddings. After a
+model revision changes, regenerate existing embeddings before comparing
+similarity across items.
