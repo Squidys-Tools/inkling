@@ -3,7 +3,8 @@ import { extractWithDefuddle } from "./defuddle-adapter";
 import { collectSafeEmbeds } from "./embeds";
 import { UrlIngestionError } from "./errors";
 import { cleanArticleHeadings, promoteInfoAsides } from "./article-cleanup";
-import { extractFallback, visibleByline } from "./fallback";
+import { visibleByline } from "./byline";
+import { extractFallback } from "./fallback";
 import { downloadPage, fetchJson, runHttp } from "./http";
 import { cleanCapturedHtml, collectImageUrls, hasReadableText, htmlToText } from "./captured-html";
 import {
