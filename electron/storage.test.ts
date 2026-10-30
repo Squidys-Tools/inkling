@@ -28,6 +28,7 @@ import {
   URL_ENRICHMENT_JOB,
 } from "./storage/library.ts";
 import { openTestLibrary, type TestLibrary } from "./storage/test-library.ts";
+import { SCHEMA_VERSION } from "./storage/schema.ts";
 
 type Options = Omit<LibraryOptions, "databasePath">;
 
@@ -518,7 +519,7 @@ test("LIKE fallback treats percent and underscore as literal search characters",
   expect(ids(await library.searchItems("file_name"))).toEqual(["literal-underscore"]);
 });
 
-test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", async () => {
+test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to the current schema", async () => {
   const root = mkdtempSync(join(tmpdir(), "inkling-electron-storage-"));
   roots.push(root);
   const databasePath = join(root, "v7.sqlite3");
@@ -549,7 +550,7 @@ test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", 
   closeDatabase(db);
 
   const migrated = await trackedLibrary(databasePath);
-  expect(migrated.status().schemaVersion).toBe(8);
+  expect(migrated.status().schemaVersion).toBe(SCHEMA_VERSION);
   expect(await migrated.getItemContent("legacy-note")).toEqual({
     id: "legacy-note",
     body: "Old body",
