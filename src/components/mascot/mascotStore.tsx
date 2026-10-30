@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { BotEngine, type BotFrame } from "./bot/engine";
+import { BotEngine } from "./bot/engine";
 import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION, type BotExpression } from "./bot/expressions";
 import { SHAPE_BY_ID } from "./bot/skins";
 import { RAYON } from "./bot/repere";
@@ -24,18 +24,20 @@ const engine = new BotEngine(
 );
 
 let clock = 0;
-let frame: BotFrame = engine.sample(0);
+let frame = engine.sample(0);
 let raf = 0;
+let lastMs = 0;
 let running = false;
 const subs = new Set<() => void>();
 let appliedParams: MascotParams = { state: "inkling-drift", expression: DEFAULT_EXPRESSION };
 
-export function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
+const reducedMotion =
+  typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia("(prefers-reduced-motion: reduce)")
+    : null;
+
+export function prefersReducedMotion() {
+  return reducedMotion?.matches ?? false;
 }
 
 function emit() {
@@ -50,8 +52,6 @@ function tick(ms: number) {
   frame = engine.sample(clock);
   emit();
 }
-
-let lastMs = 0;
 
 function ensureLoop() {
   if (running || typeof requestAnimationFrame !== "function") return;
@@ -77,19 +77,17 @@ if (typeof document !== "undefined") {
 
 // Reduced motion can flip while the app is open, and subscribers stay mounted, so
 // nothing else would restart or freeze the loop to match.
-if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
-  window.matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", (event) => {
-    if (event.matches) {
-      haltLoop();
-      frame = engine.sample(clock);
-      emit();
-    } else if (subs.size > 0) {
-      ensureLoop();
-    }
-  });
-}
+reducedMotion?.addEventListener("change", (event) => {
+  if (event.matches) {
+    haltLoop();
+    frame = engine.sample(clock);
+    emit();
+  } else if (subs.size > 0) {
+    ensureLoop();
+  }
+});
 
-export function subscribeMascot(fn: () => void): () => void {
+export function subscribeMascot(fn: () => void) {
   subs.add(fn);
   ensureLoop();
   return () => {
@@ -98,7 +96,7 @@ export function subscribeMascot(fn: () => void): () => void {
   };
 }
 
-export function getMascotFrame(): BotFrame {
+export function getMascotFrame() {
   return frame;
 }
 
@@ -113,7 +111,7 @@ export function pushMascotParams({ state, expression }: MascotParams) {
   }
 }
 
-function useMascotFrame(): BotFrame {
+function useMascotFrame() {
   return useSyncExternalStore(subscribeMascot, getMascotFrame);
 }
 
