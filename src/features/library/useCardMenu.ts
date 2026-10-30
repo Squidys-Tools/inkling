@@ -8,6 +8,7 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { ContextMenuEntry } from "../../components/ContextMenu/ContextMenu";
+import { isWebUrl } from "../../lib/ingestion/url";
 import type { LibraryItem } from "../../lib/types";
 import { hostnameForUrl } from "../hostname";
 import { revealItemInFolder } from "../item-view/useItemDetails";
@@ -49,7 +50,7 @@ export function useCardMenu({ canUseDesktopBackend, openReader, forgetItem }: Ca
     if (!cardMenu) return [];
     const { item } = cardMenu;
     // Only web links: seeded and file items carry local paths here.
-    const sourceUrl = item.sourceUrl?.match(/^https?:\/\//u) ? item.sourceUrl : undefined;
+    const sourceUrl = item.sourceUrl && isWebUrl(item.sourceUrl) ? item.sourceUrl : undefined;
     const entries: ContextMenuEntry[] = [];
     if (item.articleHtml || item.hasArticleContent) {
       entries.push({ label: "Read", icon: BookOpen01Icon, onSelect: () => void openReader(item) });
