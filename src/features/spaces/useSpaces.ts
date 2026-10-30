@@ -20,7 +20,7 @@ import {
 } from "../../lib/libraryApi";
 import { shouldUseSeedLibrary } from "../../lib/previewMode";
 import { seedSpaces } from "../library/seed";
-import type { SpaceDraft } from "../shell/SpacesSection";
+import type { SpaceDraft } from "../shell/SpaceDraftForm";
 import { errorMessage } from "../errorMessage";
 import { useSpaceMembership } from "./useSpaceMembership";
 
