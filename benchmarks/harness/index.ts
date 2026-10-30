@@ -327,16 +327,7 @@ async function runItem(
   return skipResult(item, `unknown item type "${item.type}"`);
 }
 
-interface Summary {
-  total: number;
-  pass: number;
-  partial: number;
-  fail: number;
-  skip: number;
-  avgScore: number;
-}
-
-function summarize(results: ItemResult[]): Summary {
+function summarize(results: ItemResult[]) {
   const scorable = results.filter((r) => r.status !== "skip");
   return {
     total: results.length,
@@ -368,8 +359,8 @@ function machineInfo() {
 function writeSummaryMarkdown(report: {
   generatedAt: string;
   machine: ReturnType<typeof machineInfo>;
-  overall: Summary;
-  byType: Record<string, Summary>;
+  overall: ReturnType<typeof summarize>;
+  byType: Record<string, ReturnType<typeof summarize>>;
   items: ItemResult[];
 }): string {
   const lines: string[] = [];
@@ -463,19 +454,10 @@ async function main(): Promise<void> {
     await Promise.all(ocrEngines.map((engine) => engine.close?.()));
   }
 
-  const byType: Record<string, Summary> = {};
-  for (const item of manifest.items) {
-    if (!byType[item.type])
-      byType[item.type] = { total: 0, pass: 0, partial: 0, fail: 0, skip: 0, avgScore: 0 };
-  }
-  for (const r of items) {
-    const s = byType[r.type];
-    s.total++;
-    s[r.status]++;
-    if (r.status !== "skip") {
-      s.avgScore = (s.avgScore * (s.total - 1 - s.skip) + r.score) / Math.max(1, s.total - s.skip);
-    }
-  }
+  const types = [...new Set(items.map((r) => r.type))];
+  const byType = Object.fromEntries(
+    types.map((type) => [type, summarize(items.filter((r) => r.type === type))]),
+  );
 
   const overall = summarize(items);
   const report = {
