@@ -4,6 +4,7 @@ import { PlayIcon } from "@hugeicons/core-free-icons";
 import { QuoteArtwork, TypedArtwork } from "../ItemMedia";
 import { prefersReducedMotion } from "../../ui/reducedMotion";
 import { onboardingPhotos } from "./onboardingMedia";
+import "./KeptFloating.css";
 
 type Layer = "far" | "mid" | "near";
 /** Mini versions of inkling's own card types, so the backdrop reads as a library. */

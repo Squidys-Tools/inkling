@@ -1,0 +1,119 @@
+.kept-floating {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+}
+.kept-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  will-change: transform;
+  animation: kept-card-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.kept-card.is-far {
+  border-radius: 9px;
+  opacity: 0.6;
+  filter: blur(1.5px);
+}
+.kept-card.is-mid {
+  border-radius: 10px;
+  opacity: 0.85;
+}
+.kept-card.is-near {
+  box-shadow: 0 18px 40px rgb(0 0 0 / 0.55);
+}
+/* KeptFloating owns transform, so the cards grow in with scale. */
+@keyframes kept-card-in {
+  from {
+    opacity: 0;
+    scale: 0.88;
+  }
+}
+.kept-card.is-photo,
+.kept-card.is-video {
+  border: 0;
+}
+.kept-fill {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.kept-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(12 12 10 / 0.02) 40%, rgb(12 12 10 / 0.5));
+}
+.kept-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(18 18 16 / 0.78);
+  color: #f2ede2;
+  box-shadow:
+    0 8px 24px rgb(0 0 0 / 0.45),
+    inset 0 0 0 1px rgb(255 255 255 / 0.22);
+}
+.kept-badge {
+  position: absolute;
+  left: 9px;
+  bottom: 9px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgb(14 14 12 / 0.72);
+  color: #d8d2c6;
+  font: 500 10px var(--font-body);
+  letter-spacing: 0.03em;
+}
+.kept-kicker {
+  color: var(--color-muted);
+  font: 9px var(--font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+}
+.kept-domain {
+  overflow: hidden;
+  color: var(--color-muted);
+  font: 9px var(--font-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kept-card strong {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.kept-article-image {
+  display: block;
+  width: 100%;
+  height: 52%;
+  object-fit: cover;
+}
+.kept-article-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 11px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kept-card {
+    animation: none;
+  }
+}
