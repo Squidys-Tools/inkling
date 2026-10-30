@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Loading01Icon, RotateCwIcon, Settings01Icon } from "@hugeicons/core-free-icons";
+import { Settings01Icon } from "@hugeicons/core-free-icons";
 import {
   retryProcessingJob,
   isDesktopRuntime,
@@ -56,6 +56,7 @@ import { NavRow, navLabelClass, Sidebar, SidebarError } from "./features/shell/S
 import { SidebarEdgeGrip, SidebarOpenButton } from "./features/shell/SidebarToggles";
 import { SpacesSection } from "./features/shell/SpacesSection";
 import { TitleBar } from "./features/shell/TitleBar";
+import { UpdateNavRow } from "./features/shell/UpdateNavRow";
 import { useAppShortcuts } from "./features/shell/useAppShortcuts";
 import { useAppUpdate } from "./features/shell/useAppUpdate";
 import { useFirstRun } from "./features/shell/useFirstRun";
@@ -82,13 +83,6 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useSidebarOpen();
   const { isFirstRunOpen, setIsFirstRunOpen, finishFirstRun } = useFirstRun(canUseDesktopBackend);
   const appUpdate = useAppUpdate(canUseDesktopBackend);
-  const {
-    availableUpdate,
-    isInstallingUpdate,
-    updateInstallFailed,
-    handleInstallUpdate,
-    updateState,
-  } = appUpdate;
   const { items, setItems, itemsRef, activeJobCount, debouncedQuery, noteBodyCacheRef, reload } =
     useLibraryData({
       canUseDesktopBackend,
@@ -521,44 +515,7 @@ function App() {
                     : undefined
                 }
               />
-              {availableUpdate && (
-                <NavRow
-                  tone="update"
-                  aria-live="polite"
-                  disabled={isInstallingUpdate}
-                  data-tooltip={
-                    updateState?.message ||
-                    (appUpdate.isReadyToInstall
-                      ? `Version ${updateState?.downloadedVersion} is downloaded. Select to restart and install. Linux may ask for system authorization.`
-                      : `Version ${availableUpdate.version} is available. Select to download; installation needs a separate Restart and install action.`)
-                  }
-                  onClick={() =>
-                    void (updateInstallFailed && updateState?.errorContext === "check"
-                      ? appUpdate.handleCheckForUpdates()
-                      : handleInstallUpdate())
-                  }
-                >
-                  <HugeiconsIcon
-                    icon={isInstallingUpdate ? Loading01Icon : RotateCwIcon}
-                    size={15}
-                  />
-                  <span className={navLabelClass}>
-                    {updateState?.status === "installing"
-                      ? "Installing…"
-                      : updateState?.status === "downloading"
-                        ? `Downloading${updateState.progress == null ? "…" : ` ${Math.round(updateState.progress)}%`}`
-                        : isInstallingUpdate
-                          ? "Updating…"
-                          : appUpdate.isReadyToInstall
-                            ? "Restart and install"
-                            : updateInstallFailed
-                              ? updateState?.errorContext === "check"
-                                ? "Check failed · retry"
-                                : "Download failed · retry"
-                              : "Download update"}
-                  </span>
-                </NavRow>
-              )}
+              <UpdateNavRow update={appUpdate} />
               <NavRow
                 ref={settingsButtonRef}
                 tone="footer"

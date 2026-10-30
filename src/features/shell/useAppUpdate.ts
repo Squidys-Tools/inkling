@@ -229,8 +229,6 @@ export function useAppUpdate(canUseDesktopBackend: boolean) {
 
   return {
     availableUpdate,
-    isInstallingUpdate: isBusy,
-    updateInstallFailed: status === "error",
     handleInstallUpdate,
     updateState,
     isLoading: canUseDesktopBackend && !state,
