@@ -24,8 +24,6 @@ describe("markdownToPlainText", () => {
     expect(markdownToPlainText("`<tag>`\n\n<script>alert(1)</script>")).toBe("<tag> alert(1)");
   });
 
-  // These pin the Electron backend's `markdownToPlainText` semantics
-  // (electron/storage/shared.ts), which also projects the note when the desktop app runs.
   test("keeps words apart across a void inline tag", () => {
     expect(markdownToPlainText("foo<br>bar")).toBe("foo bar");
     expect(markdownToPlainText("one<br/>two")).toBe("one two");
@@ -54,8 +52,6 @@ describe("markdownToPlainText", () => {
     );
   });
 
-  // The Electron backend handles `Event::Html` for no case at all, so a
-  // block-level tag there joins the words around it.
   test("treats block-level raw HTML as a word boundary", () => {
     expect(markdownToPlainText("before<div>after")).toBe("before after");
     expect(markdownToPlainText("<table><tr><td>cell</td></tr></table>")).toBe("cell");
@@ -189,9 +185,6 @@ describe("noteBodyForStorage", () => {
     expect(noteBodyForStorage("# Reading list\n\nOne", "", "Two")).toBe("Two");
   });
 
-  // Clearing the editor used to leave the title heading behind as the whole
-  // body: a note that saved, indexed only its title, and reopened empty. It now
-  // has no storage body at all, which is what `update_item` refuses too.
   test("has nothing to save when the user emptied a note", () => {
     expect(noteBodyForStorage("# My note\n\nSomething", "My note", "   \n  ")).toBe("");
     expect(noteBodyForStorage("# My note", "My note", "")).toBe("");

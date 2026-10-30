@@ -6,7 +6,6 @@ export function normalizeNoteBody(value: string): string {
   return value.replace(/\r\n?/gu, "\n").trim();
 }
 
-// Mirrors `is_void_tag` in `markdownToPlainText` (electron/storage/shared.ts).
 const VOID_HTML_TAGS = new Set(["br", "hr", "img", "input"]);
 
 // A void tag ends a line, so `foo<br>bar` must not come back as `foobar`. An
@@ -99,8 +98,7 @@ function stripHtmlTags(value: string): string {
       cursor = opening + comment[0].length;
       continue;
     }
-    // An autolink unwraps to its inner text instead of being deleted, so the
-    // URL written by the user survives the projection the way it does in storage.
+    // An autolink unwraps to its inner text, so the URL the user wrote survives.
     const autolink = rest.match(/^<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^<>\s]*)>/u);
     if (autolink) {
       result += value.slice(cursor, opening) + autolink[1];
@@ -142,9 +140,8 @@ function stripUnderscoreEmphasis(value: string, marker: string): string {
   );
 }
 
-// `electron/storage/shared.ts` has a second copy; change both together. They
-// differ on purpose: block-level HTML tags count as word boundaries here but not
-// there, and code spans are protected here so markup inside them stays text.
+// Storage saves the projection from its own, simpler copy in electron/storage/shared.ts;
+// the two differ on raw HTML, code spans and entities.
 export function markdownToPlainText(markdown: string): string {
   const code: string[] = [];
   const protect = (value: string) => {
