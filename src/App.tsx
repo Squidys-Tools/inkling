@@ -23,6 +23,7 @@ import type { LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import { AddMenu } from "./features/capture/AddMenu/AddMenu";
 import { CaptureBar } from "./features/capture/CaptureBar";
+import { FileImportStatus } from "./features/capture/FileImportStatus";
 import { ShortcutsDialog } from "./features/capture/ShortcutsDialog";
 import { useCapture } from "./features/capture/useCapture";
 import { useItemDetails, showItemInFolderFromOverlay } from "./features/item-view/useItemDetails";
@@ -557,25 +558,7 @@ function App() {
             captureError={showCaptureError ? captureError : null}
           />
 
-          {fileImport && (
-            <div
-              role="status"
-              aria-live="polite"
-              className="fixed right-5 bottom-5 z-50 flex items-center gap-3 rounded-xl border border-border bg-canvas px-4 py-2 text-xs shadow-sm"
-            >
-              <span>
-                {fileImport.active
-                  ? `Importing ${fileImport.completed} of ${fileImport.total} files…`
-                  : `${fileImport.saved} files saved. Processing continues in the background.`}
-                {fileImport.failed > 0 ? ` ${fileImport.failed} failed.` : ""}
-              </span>
-              {!fileImport.active && (
-                <button type="button" aria-label="Dismiss import status" onClick={clearFileImport}>
-                  ×
-                </button>
-              )}
-            </div>
-          )}
+          {fileImport && <FileImportStatus progress={fileImport} onDismiss={clearFileImport} />}
 
           <ViewDock
             ref={viewDockRef}
