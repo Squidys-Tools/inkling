@@ -29,7 +29,7 @@ const READER_FONT_SETS = [
   { id: "casual-web", label: "Casual Web" },
 ] as const;
 
-export type ReaderFontSet = (typeof READER_FONT_SETS)[number]["id"];
+type ReaderFontSet = (typeof READER_FONT_SETS)[number]["id"];
 
 const FONT_SET_STORAGE_KEY = "reader-font-set";
 
@@ -37,9 +37,7 @@ function loadFontSet(): ReaderFontSet {
   try {
     const stored = localStorage.getItem(FONT_SET_STORAGE_KEY);
     if (stored && READER_FONT_SETS.some((set) => set.id === stored)) return stored as ReaderFontSet;
-  } catch {
-    return "quiet-classic";
-  }
+  } catch {}
   return "quiet-classic";
 }
 
@@ -56,9 +54,7 @@ export function ReaderView({ item, origin, onRequestClose }: ReaderViewProps) {
   useEffect(() => {
     try {
       localStorage.setItem(FONT_SET_STORAGE_KEY, fontSet);
-    } catch {
-      return;
-    }
+    } catch {}
   }, [fontSet]);
 
   useEffect(() => {
