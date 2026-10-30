@@ -8,16 +8,19 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { AnimatePresence, motion } from "motion/react";
-import type { ComponentProps, RefObject } from "react";
+import type { ComponentProps } from "react";
+import type { LibraryItem } from "../../lib/types";
+import type { LibraryCardContext } from "../library/LibraryCard";
 import { ArchivePanel } from "./ArchivePanel";
 import { AppearancePanel } from "./AppearancePanel";
-import type { Appearance } from "./appearance";
 import { ExtensionPairing } from "./ExtensionPairing";
 import { LibraryPanel } from "./LibraryPanel";
 import { OpenSourceLicenses } from "./OpenSourceLicenses";
 import { GeneralPanel } from "./GeneralPanel";
 import { SETTINGS_SCROLL, SettingsHeader, SettingsPanel } from "./SettingsPanel";
-import type { SettingsTab } from "./useSettings";
+import type { useArchive } from "./useArchive";
+import { showLibraryFolderFromSettings, type useLibraryTransfer } from "./useLibraryTransfer";
+import type { SettingsTab, useSettings } from "./useSettings";
 import type { UpdateSettings } from "./UpdateSettings";
 
 const EASE = [0.23, 1, 0.32, 1] as const;
@@ -50,35 +53,44 @@ function RailTab({
 }
 
 export function SettingsSheet({
-  open,
-  dialogRef,
-  tab,
-  onTabChange,
-  onClose,
-  appVersion,
-  appearance,
-  onAppearanceChange,
+  settings: {
+    isSettingsOpen,
+    setIsSettingsOpen,
+    settingsDialogRef,
+    settingsTab: tab,
+    setSettingsTab: onTabChange,
+    appearance,
+    setAppearanceOption,
+    appVersion,
+    wholeLibraryKinds,
+    librarySizeBytes,
+    lastCopy,
+  },
+  update,
   onShowWelcome,
   archive,
-  library,
-  update,
+  transfer,
+  items,
+  canUseDesktopBackend,
+  onSelectArchivedItem,
+  onOpenReader,
+  onRetryJob,
 }: {
-  open: boolean;
-  dialogRef: RefObject<HTMLElement | null>;
-  tab: SettingsTab;
-  onTabChange: (tab: SettingsTab) => void;
-  onClose: () => void;
-  appVersion: string | null;
-  appearance: Appearance;
-  onAppearanceChange: <Key extends keyof Appearance>(key: Key, value: Appearance[Key]) => void;
-  onShowWelcome: () => void;
-  archive: Omit<ComponentProps<typeof ArchivePanel>, "onClose">;
-  library: Omit<ComponentProps<typeof LibraryPanel>, "onClose">;
+  settings: ReturnType<typeof useSettings>;
   update: ComponentProps<typeof UpdateSettings>["update"];
+  onShowWelcome: () => void;
+  archive: ReturnType<typeof useArchive>;
+  transfer: ReturnType<typeof useLibraryTransfer>;
+  items: LibraryItem[];
+  canUseDesktopBackend: boolean;
+  onSelectArchivedItem: LibraryCardContext["onSelectItem"];
+  onOpenReader: LibraryCardContext["onOpenReader"];
+  onRetryJob: LibraryCardContext["onRetryJob"];
 }) {
+  const onClose = () => setIsSettingsOpen(false);
   return (
     <AnimatePresence>
-      {open && (
+      {isSettingsOpen && (
         <motion.div
           key="settings-modal-backdrop"
           className="fixed inset-0 z-110 grid place-items-center bg-[rgba(8,8,7,0.74)] px-[clamp(var(--spacing-component),3vw,48px)] py-[clamp(var(--spacing-component),4vh,40px)] max-[700px]:p-3"
@@ -96,7 +108,7 @@ export function SettingsSheet({
             orientation="vertical"
             render={
               <motion.section
-                ref={dialogRef}
+                ref={settingsDialogRef}
                 id="settings-modal"
                 role="dialog"
                 aria-modal="true"
@@ -138,7 +150,7 @@ export function SettingsSheet({
                   value="archive"
                   icon={Archive01Icon}
                   label="Archive"
-                  count={archive.isLoaded ? archive.items.length : undefined}
+                  count={archive.isArchiveLoaded ? archive.archivedItems.length : undefined}
                 />
                 <RailTab value="extension" icon={Link01Icon} label="Browser extension" />
               </Tabs.List>
@@ -164,12 +176,41 @@ export function SettingsSheet({
 
             <AppearancePanel
               appearance={appearance}
-              onAppearanceChange={onAppearanceChange}
+              onAppearanceChange={setAppearanceOption}
               onClose={onClose}
             />
 
-            <ArchivePanel {...archive} onClose={onClose} />
-            <LibraryPanel {...library} onClose={onClose} />
+            <ArchivePanel
+              items={archive.archivedItems}
+              isLoaded={archive.isArchiveLoaded}
+              selectionMode={archive.isArchiveSelectionMode}
+              selectedCount={archive.selectedArchivedIds.size}
+              onSelectItem={onSelectArchivedItem}
+              onOpenReader={onOpenReader}
+              onRetryJob={onRetryJob}
+              onDeleteItem={archive.deleteArchivedLibraryItem}
+              onRestoreItem={archive.restoreArchivedLibraryItem}
+              isItemSelected={archive.isArchivedLibraryItemSelected}
+              onToggleItem={archive.toggleArchivedLibraryItem}
+              onToggleSelectionMode={archive.toggleArchiveSelectionMode}
+              onRestoreSelected={() => void archive.restoreSelectedArchivedItems()}
+              onDeleteSelected={() => void archive.deleteSelectedArchivedItems()}
+              onClose={onClose}
+            />
+            <LibraryPanel
+              kinds={wholeLibraryKinds ?? items.map((item) => item.kind)}
+              sizeBytes={librarySizeBytes}
+              canUseFolderPicker={canUseDesktopBackend}
+              onShowFolder={showLibraryFolderFromSettings}
+              lastCopy={lastCopy}
+              lastExport={transfer.lastExport}
+              lastImport={transfer.lastImport}
+              isExporting={transfer.isExportingLibrary}
+              isImporting={transfer.isImportingLibrary}
+              onExport={() => void transfer.exportLibraryToFolder()}
+              onImport={() => void transfer.importLibraryFromFolder()}
+              onClose={onClose}
+            />
 
             <SettingsPanel tab="extension" titleId="extension-panel-title">
               <SettingsHeader

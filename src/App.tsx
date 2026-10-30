@@ -18,10 +18,7 @@ import { useLibraryData } from "./features/library/useLibraryData";
 import { useLibraryView } from "./features/library/useLibraryView";
 import { ViewDock } from "./features/library/ViewDock";
 import { useArchive } from "./features/settings/useArchive";
-import {
-  showLibraryFolderFromSettings,
-  useLibraryTransfer,
-} from "./features/settings/useLibraryTransfer";
+import { useLibraryTransfer } from "./features/settings/useLibraryTransfer";
 import { SettingsSheet } from "./features/settings/SettingsSheet";
 import { useSettings } from "./features/settings/useSettings";
 import { AppSidebar } from "./features/shell/AppSidebar";
@@ -387,48 +384,19 @@ function App() {
         <ShortcutsDialog open={isShortcutsOpen} onOpenChange={setIsShortcutsOpen} />
 
         <SettingsSheet
-          open={settings.isSettingsOpen}
-          dialogRef={settings.settingsDialogRef}
-          tab={settings.settingsTab}
-          onTabChange={settings.setSettingsTab}
-          onClose={() => settings.setIsSettingsOpen(false)}
-          appVersion={settings.appVersion}
+          settings={settings}
           update={appUpdate}
-          appearance={settings.appearance}
-          onAppearanceChange={settings.setAppearanceOption}
           onShowWelcome={() => {
             settings.setIsSettingsOpen(false);
             setIsFirstRunOpen(true);
           }}
-          archive={{
-            items: archive.archivedItems,
-            isLoaded: archive.isArchiveLoaded,
-            selectionMode: archive.isArchiveSelectionMode,
-            selectedCount: archive.selectedArchivedIds.size,
-            onSelectItem: selection.selectArchivedLibraryItem,
-            onOpenReader: details.openReader,
-            onRetryJob: library.retryJob,
-            onDeleteItem: archive.deleteArchivedLibraryItem,
-            onRestoreItem: archive.restoreArchivedLibraryItem,
-            isItemSelected: archive.isArchivedLibraryItemSelected,
-            onToggleItem: archive.toggleArchivedLibraryItem,
-            onToggleSelectionMode: archive.toggleArchiveSelectionMode,
-            onRestoreSelected: () => void archive.restoreSelectedArchivedItems(),
-            onDeleteSelected: () => void archive.deleteSelectedArchivedItems(),
-          }}
-          library={{
-            kinds: settings.wholeLibraryKinds ?? library.items.map((item) => item.kind),
-            sizeBytes: settings.librarySizeBytes,
-            canUseFolderPicker: canUseDesktopBackend,
-            onShowFolder: showLibraryFolderFromSettings,
-            lastCopy: settings.lastCopy,
-            lastExport: transfer.lastExport,
-            lastImport: transfer.lastImport,
-            isExporting: transfer.isExportingLibrary,
-            isImporting: transfer.isImportingLibrary,
-            onExport: () => void transfer.exportLibraryToFolder(),
-            onImport: () => void transfer.importLibraryFromFolder(),
-          }}
+          archive={archive}
+          transfer={transfer}
+          items={library.items}
+          canUseDesktopBackend={canUseDesktopBackend}
+          onSelectArchivedItem={selection.selectArchivedLibraryItem}
+          onOpenReader={details.openReader}
+          onRetryJob={library.retryJob}
         />
 
         <ItemLayers
