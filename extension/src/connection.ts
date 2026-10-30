@@ -1,3 +1,6 @@
+export const BASE_URL_KEY = "inkling.base-url";
+export const TOKEN_KEY = "inkling.token";
+
 export function normalizeCaptureServerAddress(value: unknown): string | null {
   if (typeof value !== "string") return null;
   try {

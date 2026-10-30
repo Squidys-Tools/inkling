@@ -1,11 +1,14 @@
 import browser from "webextension-polyfill";
 import { buildUrlCapturePayload } from "./capture";
 import type { PageCapturePayloadV1 } from "@inkling/ingestion-shared";
-import { isPairingToken, normalizeCaptureServerAddress } from "./connection";
+import {
+  BASE_URL_KEY,
+  isPairingToken,
+  normalizeCaptureServerAddress,
+  TOKEN_KEY,
+} from "./connection";
 import { CaptureResponseError, buildCaptureDeepLink, postPayloadToLoopback } from "./transport";
 
-const BASE_URL_KEY = "inkling.base-url";
-const TOKEN_KEY = "inkling.token";
 const DEFAULT_TITLE = "Save to inkling";
 const MENU_ID = "inkling-save-page";
 
