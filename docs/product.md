@@ -35,8 +35,6 @@ The primary experience is a Windows desktop application used during browsing, re
 - Provide article reading and Focus Mode over time.
 - Use Tesseract for OCR and Defuddle for article extraction.
 - Prefer local processing on Windows and support CPU-only operation.
-- AI-derived concepts are invisible implementation details; do not expose correction, deletion, confidence, or AI-management workflows.
-- Explain local-first behavior during onboarding and settings without making it dominant in the main interface.
 
 ## Brand Commitments
 
@@ -53,11 +51,7 @@ The primary experience is a Windows desktop application used during browsing, re
 
 ## Product Principles
 
-- Capture must be faster than deciding where something belongs.
-- Search is the primary organizing system.
-- Content should receive a visual treatment appropriate to its type.
-- AI should improve retrieval quietly in the background.
-- The library should encourage rediscovery, not only storage.
+[product-behavior.md](product-behavior.md#product-principles) lists them, including the rules for AI and local-first messaging.
 
 ## Accessibility & Inclusion
 
