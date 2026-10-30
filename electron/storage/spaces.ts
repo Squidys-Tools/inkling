@@ -104,8 +104,6 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
   const createSpace = Effect.fnUntraced(function* (input: CreateSpaceInput) {
     const name = yield* normalizeSpaceName(input.name);
     const kind = input.kind ?? "smart";
-    if (kind !== "smart" && kind !== "regular")
-      return yield* invalidInput("Space kind must be smart or regular");
     const query = kind === "regular" ? {} : yield* validateSmartQuery(input.query);
     const id = randomUUID();
     const now = Date.now();
