@@ -59,6 +59,7 @@ type ImportedSpace = {
 };
 
 type Membership = { space_id: string; item_id: string; added_at: number };
+type Exclusion = { space_id: string; item_id: string; excluded_at: number };
 
 type Manifest = {
   format?: unknown;
@@ -106,6 +107,9 @@ function readImportStage(databasePath: string) {
           "SELECT space_id, item_id, added_at FROM space_items ORDER BY added_at, space_id, item_id",
         )
         .all() as Membership[],
+      exclusions: stage.db
+        .prepare("SELECT space_id, item_id, excluded_at FROM space_exclusions")
+        .all() as Exclusion[],
     };
   } finally {
     stage.db.close();
@@ -287,6 +291,7 @@ export function makeImport(ctx: StorageContext) {
     items: ImportedItem[],
     spaces: ImportedSpace[],
     memberships: Membership[],
+    exclusions: Exclusion[],
     assetFilesByItem: Map<string, number>,
   ) {
     const currentItemIds = yield* ids("items");
@@ -345,6 +350,15 @@ export function makeImport(ctx: StorageContext) {
           VALUES (${membership.space_id}, ${membership.item_id}, ${membership.added_at})`;
       }
     }
+    for (const exclusion of exclusions) {
+      if (
+        importedSpaceIds.has(exclusion.space_id) &&
+        (importedItemIds.has(exclusion.item_id) || currentItemIds.has(exclusion.item_id))
+      ) {
+        yield* sql`INSERT OR IGNORE INTO space_exclusions (space_id, item_id, excluded_at)
+          VALUES (${exclusion.space_id}, ${exclusion.item_id}, ${exclusion.excluded_at})`;
+      }
+    }
     return {
       importedItems: importedItemIds.size,
       skippedDuplicateItems,
@@ -365,7 +379,7 @@ export function makeImport(ctx: StorageContext) {
       try: () => readImportStage(stageDatabase),
       catch: (cause) => cause,
     });
-    const { items, memberships } = stage;
+    const { items, memberships, exclusions } = stage;
     const spaces: ImportedSpace[] = [];
     for (const space of stage.spaces) spaces.push(yield* validateImportedSpace(space));
     if (
@@ -386,6 +400,16 @@ export function makeImport(ctx: StorageContext) {
     const spaceIds = new Set(spaces.map((space) => space.id));
     if (memberships.some((m) => !spaceIds.has(m.space_id) || !itemIds.has(m.item_id)))
       return yield* invalidInput("the export contains incomplete Space memberships");
+    if (
+      exclusions.some(
+        (e) =>
+          !spaceIds.has(e.space_id) ||
+          !itemIds.has(e.item_id) ||
+          spaces.find((s) => s.id === e.space_id)?.kind !== "smart" ||
+          !Number.isFinite(e.excluded_at),
+      )
+    )
+      return yield* invalidInput("the export contains invalid Space exclusions");
     const existingItemIds = yield* ids("items");
 
     const actualPaths = yield* attempt(() =>
@@ -440,7 +464,7 @@ export function makeImport(ctx: StorageContext) {
     }).pipe(Effect.tapError(() => removeDirectories(movedAssetDirectories)));
 
     const report = yield* sql
-      .withTransaction(insertStaged(items, spaces, memberships, assetFilesByItem))
+      .withTransaction(insertStaged(items, spaces, memberships, exclusions, assetFilesByItem))
       .pipe(Effect.tapError(() => removeDirectories(movedAssetDirectories)));
     return { ...report, unverifiedAssetFiles } satisfies LibraryImportReport;
   });

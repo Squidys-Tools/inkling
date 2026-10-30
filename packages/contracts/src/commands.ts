@@ -30,6 +30,7 @@ export const commandNames = [
   "add_space_item",
   "remove_space_item",
   "list_item_spaces",
+  "list_item_space_exclusions",
   "create_note",
   "create_quote",
   "capture_url",

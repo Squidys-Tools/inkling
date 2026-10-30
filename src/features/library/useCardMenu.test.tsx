@@ -3,6 +3,7 @@ import { parseHTML } from "linkedom";
 import { act, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 import type { LibraryItem } from "../../lib/types";
+import type { StoredSpace } from "../../lib/libraryApi";
 import { useCardMenu } from "./useCardMenu";
 
 test("keyboard menus anchor to their card while context clicks keep their pointer coordinates", async () => {
@@ -21,11 +22,29 @@ test("keyboard menus anchor to their card while context clicks keep their pointe
     tags: [],
   } as unknown as LibraryItem;
   let menu!: ReturnType<typeof useCardMenu>;
+  let activeSpace: StoredSpace | null = null;
+  const spaces = ["Coding", "Other coding"].map((name, index) => ({
+    id: `space-${index}`,
+    name,
+    kind: "smart" as const,
+    query: {},
+    color: "blue" as const,
+    position: index,
+    createdAt: 0,
+    updatedAt: 0,
+  }));
+  const changes: string[] = [];
   function Probe() {
     const controller = useCardMenu({
       canUseDesktopBackend: false,
       openReader: async () => {},
       forgetItem: async () => {},
+      activeSpace,
+      spaces,
+      localSpaceExclusions: new Map([[spaces[1].id, new Set([String(item.id)])]]),
+      changeSpaceItem: async (space, itemId, restore) => {
+        changes.push(`${space.id}:${itemId}:${restore}`);
+      },
     });
     useLayoutEffect(() => {
       menu = controller;
@@ -58,6 +77,17 @@ test("keyboard menus anchor to their card while context clicks keep their pointe
       card.dispatchEvent(pointer);
     });
     expect([menu.cardMenu?.x, menu.cardMenu?.y]).toEqual([310, 270]);
+    activeSpace = spaces[0];
+    await act(async () => root.render(<Probe />));
+    expect(menu.cardMenuEntries.map((entry) => entry.label)).toContain("Remove from Coding");
+    expect(menu.cardMenuEntries.map((entry) => entry.label)).toContain("Allow in Other coding");
+    await act(async () =>
+      menu.cardMenuEntries.find((e) => e.label === "Remove from Coding")!.onSelect(),
+    );
+    await act(async () =>
+      menu.cardMenuEntries.find((e) => e.label === "Allow in Other coding")!.onSelect(),
+    );
+    expect(changes).toEqual(["space-0:note:false", "space-1:note:true"]);
     await act(async () => menu.closeCardMenu());
     expect(menu.cardMenu).toBeNull();
   } finally {

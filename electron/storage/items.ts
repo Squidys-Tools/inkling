@@ -354,6 +354,7 @@ export function makeItems(ctx: StorageContext) {
           const deleted = yield* sql`DELETE FROM items WHERE id = ${id} AND archived = 1`.raw;
           if (!changes(deleted)) return yield* itemNotFound(id);
           yield* sql`DELETE FROM space_items WHERE item_id = ${id}`;
+          yield* sql`DELETE FROM space_exclusions WHERE item_id = ${id}`;
         }),
       )
       .pipe(

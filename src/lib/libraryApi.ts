@@ -261,6 +261,10 @@ export async function listItemSpaces(itemId: string) {
   return withInitializedStorage(() => invoke("list_item_spaces", { itemId }));
 }
 
+export async function listItemSpaceExclusions(itemId: string) {
+  return withInitializedStorage(() => invoke("list_item_space_exclusions", { itemId }));
+}
+
 export async function createNote(input: CreateNoteInput) {
   return withInitializedStorage(() => invoke("create_note", { input }));
 }

@@ -52,14 +52,46 @@ export function useSpaces({
   setCaptureError,
 }: SpacesOptions) {
   const [spaces, setSpaces] = useState<StoredSpace[]>(shouldUseSeedLibrary() ? seedSpaces : []);
-  const [isCreatingSpace, setIsCreatingSpace] = useState(false);
-  const [newSpaceName, setNewSpaceName] = useState("");
-  const [newSpaceKind, setNewSpaceKind] = useState<SpaceKind>("smart");
-  // Manual membership, keyed by space id then item id. Only read in preview and
-  // seed mode; the desktop backend owns membership through the space item commands.
+  const [localSpaceExclusions, setLocalSpaceExclusions] = useState<Map<string, Set<string>>>(
+    () => new Map(),
+  );
+  // Preview keeps membership locally; desktop membership is persisted through IPC.
   const [localSpaceItems, setLocalSpaceItems] = useState<Map<string, Set<string>>>(
     () => new Map(Object.entries(seedSpaceItems).map(([spaceId, ids]) => [spaceId, new Set(ids)])),
   );
+  const changeSpaceItem = useCallback(
+    async (space: StoredSpace, itemId: string, restore: boolean) => {
+      if (canUseDesktopBackend) {
+        if (restore) await addSpaceItem(space.id, itemId);
+        else await removeSpaceItem(space.id, itemId);
+        setSpaces(await listSpaces());
+        reload();
+        return;
+      }
+      if (space.kind === "smart")
+        setLocalSpaceExclusions((current) => {
+          const next = new Map(current),
+            excluded = new Set(next.get(space.id) ?? []);
+          if (restore) excluded.delete(itemId);
+          else excluded.add(itemId);
+          next.set(space.id, excluded);
+          return next;
+        });
+      else
+        setLocalSpaceItems((current) => {
+          const next = new Map(current),
+            members = new Set(next.get(space.id) ?? []);
+          if (restore) members.add(itemId);
+          else members.delete(itemId);
+          next.set(space.id, members);
+          return next;
+        });
+    },
+    [canUseDesktopBackend, reload],
+  );
+  const [isCreatingSpace, setIsCreatingSpace] = useState(false);
+  const [newSpaceName, setNewSpaceName] = useState("");
+  const [newSpaceKind, setNewSpaceKind] = useState<SpaceKind>("smart");
   // Which Regular Spaces hold the item open in the overlay, so its chips can
   // render in the right state. Cleared whenever the overlay closes.
   const [fetchedItemSpaceIds, setItemSpaceIds] = useState<string[]>([]);
@@ -368,6 +400,14 @@ export function useSpaces({
     activeSpace,
     selectedItemSpaces,
     localSpaceItems,
+    localSpaceExclusions,
+    changeSpaceItem,
+    recordLocalSpaceCapture: (spaceId: string, itemId: string) =>
+      setLocalSpaceItems((current) => {
+        const next = new Map(current);
+        next.set(spaceId, new Set([...(next.get(spaceId) ?? []), itemId]));
+        return next;
+      }),
     isCreatingSpace,
     setIsCreatingSpace,
     newSpaceName,

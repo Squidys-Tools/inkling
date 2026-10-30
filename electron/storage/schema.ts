@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 const itemsSchema = `
 CREATE TABLE IF NOT EXISTS items (
@@ -81,6 +81,13 @@ CREATE TABLE IF NOT EXISTS space_items (
   PRIMARY KEY (space_id, item_id)
 );
 CREATE INDEX IF NOT EXISTS idx_space_items_item ON space_items (item_id);
+CREATE TABLE IF NOT EXISTS space_exclusions (
+  space_id TEXT NOT NULL,
+  item_id TEXT NOT NULL,
+  excluded_at INTEGER NOT NULL,
+  PRIMARY KEY (space_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_space_exclusions_item ON space_exclusions (item_id);
 `;
 
 const appSettingsSchema = `

@@ -6,6 +6,7 @@ import { parseHttpUrl } from "../../lib/ingestion/url";
 import { videoLinkFromSourceUrl } from "../../lib/ingestion/video-links";
 import {
   captureUrlItem,
+  addSpaceItem,
   createNote,
   createQuote,
   currentDeepLinks,
@@ -15,6 +16,7 @@ import {
 import { markdownToPlainText, normalizeNoteBody } from "../../lib/notes";
 import { shouldUseSeedLibrary } from "../../lib/previewMode";
 import type { LibraryItem } from "../../lib/types";
+import { finishSpaceCapture, type CaptureSpace } from "./captureSpace";
 import {
   postFallbackFromMetadata,
   readImageDimensions,
@@ -23,6 +25,9 @@ import {
 
 type CaptureOptions = {
   canUseDesktopBackend: boolean;
+  activeSpace: CaptureSpace;
+  reload: () => void;
+  onLocalSpaceCapture: (spaceId: string, itemId: string) => void;
   setItems: Dispatch<SetStateAction<LibraryItem[]>>;
   setSelectedItem: Dispatch<SetStateAction<LibraryItem | null>>;
   setCaptureError: Dispatch<SetStateAction<string | null>>;
@@ -31,17 +36,42 @@ type CaptureOptions = {
 
 export function useCapture({
   canUseDesktopBackend,
+  activeSpace,
+  reload,
+  onLocalSpaceCapture,
   setItems,
   setSelectedItem,
   setCaptureError,
   setIsSidebarOpen,
 }: CaptureOptions) {
+  const currentSpace = useRef(activeSpace);
+  currentSpace.current = activeSpace;
+  async function publishCaptured(item: LibraryItem, destination: CaptureSpace) {
+    await finishSpaceCapture(String(item.id), destination, {
+      addRegular: canUseDesktopBackend
+        ? addSpaceItem
+        : async (spaceId, itemId) => onLocalSpaceCapture(spaceId, itemId),
+      currentSpaceId: () => currentSpace.current?.id ?? null,
+      append: () => {
+        setItems((current) => [
+          item,
+          ...current.filter((saved) => String(saved.id) !== String(item.id)),
+        ]);
+        if (canUseDesktopBackend) reload();
+      },
+      reload: () => {
+        if (!canUseDesktopBackend) setItems((current) => [item, ...current]);
+        else reload();
+      },
+    });
+  }
   const [isAdding, setIsAdding] = useState(false);
   const [captureMode, setCaptureMode] = useState<AddMode | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
 
   async function persistFile(file: File, captureSource: string) {
+    const destination = activeSpace;
     const kind = classifyFile(file);
     if (canUseDesktopBackend) {
       const storedItem = await saveFile({
@@ -51,7 +81,7 @@ export function useCapture({
         bytes: new Uint8Array(await file.arrayBuffer()),
       });
       const libraryItem = await storedItemToLibraryItem(storedItem);
-      setItems((current) => [libraryItem, ...current]);
+      await publishCaptured(libraryItem, destination);
       return;
     }
 
@@ -72,7 +102,7 @@ export function useCapture({
       mediaWidth: mediaDimensions?.width,
       mediaHeight: mediaDimensions?.height,
     };
-    setItems((current) => [item, ...current]);
+    await publishCaptured(item, destination);
   }
 
   async function captureFile(file: File, captureSource: string) {
@@ -90,6 +120,7 @@ export function useCapture({
   }
 
   async function persistArticle(sourceUrl: string, captureSource: string, extensionTitle?: string) {
+    const destination = activeSpace;
     const parsedUrl = parseHttpUrl(sourceUrl);
     const normalizedUrl = parsedUrl.toString();
     const preservedTitle = extensionTitle?.trim();
@@ -101,11 +132,7 @@ export function useCapture({
         ...(preservedTitle ? { title: preservedTitle } : {}),
       });
       const libraryItem = await storedItemToLibraryItem(storedItem);
-      setItems((current) =>
-        current.some((item) => String(item.id) === String(libraryItem.id))
-          ? current.map((item) => (String(item.id) === String(libraryItem.id) ? libraryItem : item))
-          : [libraryItem, ...current],
-      );
+      await publishCaptured(libraryItem, destination);
       return;
     }
 
@@ -119,7 +146,7 @@ export function useCapture({
       date: "Just now",
       tags: [],
     };
-    setItems((current) => [fallbackItem, ...current]);
+    await publishCaptured(fallbackItem, destination);
     void import("../../lib/ingestion")
       .then(({ ingestUrl }) => ingestUrl(normalizedUrl))
       .then((article) => {
@@ -207,6 +234,7 @@ export function useCapture({
   }
 
   async function persistText(text: string, captureSource: string) {
+    const destination = activeSpace;
     const value = text.trim();
     if (!value) return;
     if (
@@ -225,7 +253,7 @@ export function useCapture({
         metadata: { captureSource },
       });
       const libraryItem = await storedItemToLibraryItem(storedItem);
-      setItems((current) => [libraryItem, ...current]);
+      await publishCaptured(libraryItem, destination);
       return;
     }
 
@@ -240,7 +268,7 @@ export function useCapture({
       tags: [],
       accent: "bg-blue-soft",
     };
-    setItems((current) => [item, ...current]);
+    await publishCaptured(item, destination);
   }
 
   async function persistQuote(
@@ -249,6 +277,7 @@ export function useCapture({
     sourceUrl: string,
     captureSource: string,
   ) {
+    const destination = activeSpace;
     const body = quoteText.trim();
     if (!body) throw new Error("Quote text cannot be empty.");
     const trimmedAttribution = attribution.trim();
@@ -269,7 +298,7 @@ export function useCapture({
         metadata: { captureSource },
       });
       const libraryItem = await storedItemToLibraryItem(storedItem);
-      setItems((current) => [libraryItem, ...current]);
+      await publishCaptured(libraryItem, destination);
       return;
     }
 
@@ -295,7 +324,7 @@ export function useCapture({
       accent: "bg-yellow-soft",
       sourceUrl: trimmedSource || undefined,
     };
-    setItems((current) => [item, ...current]);
+    await publishCaptured(item, destination);
   }
 
   async function captureScreenshot() {

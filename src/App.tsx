@@ -210,6 +210,9 @@ function App() {
     activeSpace,
     selectedItemSpaces,
     localSpaceItems,
+    localSpaceExclusions,
+    changeSpaceItem,
+    recordLocalSpaceCapture,
     isCreatingSpace,
     setIsCreatingSpace,
     newSpaceName,
@@ -279,6 +282,9 @@ function App() {
     handleDrop,
   } = useCapture({
     canUseDesktopBackend,
+    activeSpace,
+    reload,
+    onLocalSpaceCapture: recordLocalSpaceCapture,
     setItems,
     setSelectedItem,
     setCaptureError,
@@ -319,11 +325,20 @@ function App() {
             : activeSpace.kind === "regular"
               ? // Mirror of the core's membership read for browser (seed) mode.
                 (localSpaceItems.get(activeSpace.id)?.has(String(item.id)) ?? false)
-              : itemMatchesSmartQuery(item, activeSpace.query)
+              : itemMatchesSmartQuery(item, activeSpace.query) &&
+                !localSpaceExclusions.get(activeSpace.id)?.has(String(item.id))
           : false);
       return matchesQuery && matchesView;
     });
-  }, [activeSpace, activeView, canUseDesktopBackend, items, localSpaceItems, query]);
+  }, [
+    activeSpace,
+    activeView,
+    canUseDesktopBackend,
+    items,
+    localSpaceItems,
+    localSpaceExclusions,
+    query,
+  ]);
   useLayoutEffect(() => {
     filteredItemsRef.current = filteredItems;
   }, [filteredItems]);
@@ -343,6 +358,10 @@ function App() {
     canUseDesktopBackend,
     openReader,
     forgetItem,
+    activeSpace,
+    spaces,
+    localSpaceExclusions,
+    changeSpaceItem,
   });
 
   const libraryCardContext = useMemo<LibraryCardContext>(

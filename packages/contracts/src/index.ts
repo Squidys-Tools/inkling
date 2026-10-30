@@ -253,6 +253,7 @@ export const commandArgs = {
   add_space_item: SpaceMembership,
   remove_space_item: SpaceMembership,
   list_item_spaces: ByItemId,
+  list_item_space_exclusions: ByItemId,
   create_note: Schema.Struct({ input: CreateNoteInput }),
   create_quote: Schema.Struct({ input: CreateQuoteInput }),
   capture_url: Schema.Struct({ input: CaptureUrlInput }),
@@ -312,6 +313,7 @@ export type CommandResults = {
   add_space_item: undefined;
   remove_space_item: undefined;
   list_item_spaces: string[];
+  list_item_space_exclusions: string[];
   create_note: StoredLibraryItemDetail;
   create_quote: StoredLibraryItemDetail;
   capture_url: StoredLibraryItemDetail;

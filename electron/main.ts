@@ -331,6 +331,7 @@ function registerLibraryCommands() {
     add_space_item: ({ spaceId, itemId }) => library().addSpaceItem(spaceId, itemId),
     remove_space_item: ({ spaceId, itemId }) => library().removeSpaceItem(spaceId, itemId),
     list_item_spaces: ({ itemId }) => library().listItemSpaces(itemId),
+    list_item_space_exclusions: ({ itemId }) => library().listItemSpaceExclusions(itemId),
     create_note: ({ input }) => library().createNote(input),
     create_quote: ({ input }) => library().createQuote(input),
     capture_url: ({ input }) => library().captureUrl(input),
