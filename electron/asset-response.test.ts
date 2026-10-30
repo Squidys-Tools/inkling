@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serveAssetFile } from "./asset-response.ts";
+import { appContentTypes } from "./app-content-types.ts";
 
 const contentTypes = { ".mp4": "video/mp4", ".webp": "image/webp" };
 const bytes = Buffer.from(Array.from({ length: 1000 }, (_, index) => index % 251));
@@ -39,6 +40,18 @@ async function body(response: Response) {
   return Buffer.from(await response.arrayBuffer());
 }
 
+test("packaged module workers have JavaScript MIME rather than an octet-stream response", async () => {
+  await writeFile(join(root, "pdf.worker.mjs"), "export const ready = true;");
+  const response = await serveAssetFile(new Request("app://local/pdf.worker.mjs"), {
+    root,
+    path: "/pdf.worker.mjs",
+    contentTypes: appContentTypes,
+  });
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+  expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+});
+
 test("a full GET streams the file with its headers", async () => {
   const response = await serve(clip);
   expect(response.status).toBe(200);
@@ -51,6 +64,19 @@ test("a full GET streams the file with its headers", async () => {
   expect(response.headers.get("Last-Modified")).toBeTruthy();
   expect(response.headers.get("Cache-Control")).toBeNull();
   expect(await body(response)).toEqual(bytes);
+});
+
+test("rewritten thumbnails always revalidate and return current bytes", async () => {
+  const path = "/items/a/thumbnail.webp";
+  await writeFile(join(root, "items", "a", "thumbnail.webp"), "before");
+  const before = await serve(path);
+  expect(before.headers.get("Cache-Control")).toBe("no-cache");
+  expect((await body(before)).toString()).toBe("before");
+  await writeFile(join(root, "items", "a", "thumbnail.webp"), "after!");
+  const after = await serve(path, { headers: { "If-None-Match": before.headers.get("ETag")! } });
+  expect(after.status).toBe(200);
+  expect(after.headers.get("Cache-Control")).toBe("no-cache");
+  expect((await body(after)).toString()).toBe("after!");
 });
 
 test("a large file arrives in chunks instead of one read", async () => {

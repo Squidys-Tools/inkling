@@ -1,0 +1,56 @@
+diff --git a/dist/sharp.cjs b/dist/sharp.cjs
+index bea6c6afb571715e3489640477e3c36231b1da27..0680a1f58f0f91b026c977d20201c8d0ad6ac1ba 100644
+--- a/dist/sharp.cjs
++++ b/dist/sharp.cjs
+@@ -19,12 +19,18 @@ const runtimePlatform = runtimePlatformArch();
+ 
+ /* node:coverage disable */
+ 
+-let sharp;
++// Electron on Linux leaks GLib symbols; its native libvips can segfault on use.
++// Use the supported WASM backend there, without changing other runtimes.
++let sharp = process.platform === 'linux' && process.versions.electron
++  ? require('@img/sharp-wasm32/sharp.node')
++  : undefined;
+ const errors = [];
+-try {
+-  sharp = require(`../src/build/Release/sharp-${runtimePlatform}-${version}.node`);
+-} catch (err) {
+-  errors.push(err);
++if (!sharp) {
++  try {
++    sharp = require(`../src/build/Release/sharp-${runtimePlatform}-${version}.node`);
++  } catch (err) {
++    errors.push(err);
++  }
+ }
+ if (!sharp) {
+   try {
+diff --git a/dist/sharp.mjs b/dist/sharp.mjs
+index df4acb42ba5c4406eb57955f620244d8519c71a9..d71e22ddfe06403de1810dc06fdf75baaa32b012 100644
+--- a/dist/sharp.mjs
++++ b/dist/sharp.mjs
+@@ -19,12 +19,18 @@ const runtimePlatform = runtimePlatformArch();
+ 
+ /* node:coverage disable */
+ 
+-let sharp;
++// Electron on Linux leaks GLib symbols; its native libvips can segfault on use.
++// Use the supported WASM backend there, without changing other runtimes.
++let sharp = process.platform === 'linux' && process.versions.electron
++  ? require('@img/sharp-wasm32/sharp.node')
++  : undefined;
+ const errors = [];
+-try {
+-  sharp = require(`../src/build/Release/sharp-${runtimePlatform}-${version}.node`);
+-} catch (err) {
+-  errors.push(err);
++if (!sharp) {
++  try {
++    sharp = require(`../src/build/Release/sharp-${runtimePlatform}-${version}.node`);
++  } catch (err) {
++    errors.push(err);
++  }
+ }
+ if (!sharp) {
+   try {

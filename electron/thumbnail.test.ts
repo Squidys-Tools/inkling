@@ -15,6 +15,25 @@ test("image thumbnails resize asynchronously and preserve source dimensions", as
   expect(output).toMatchObject({ width: 512, height: 384, format: "webp" });
 });
 
+test("compression preserves transparent pixels without enlarging or mutating originals", async () => {
+  const source = await sharp({
+    create: { width: 24, height: 12, channels: 4, background: { r: 50, g: 100, b: 150, alpha: 0 } },
+  })
+    .png()
+    .toBuffer();
+  const original = Buffer.from(source);
+  const thumbnail = await createImageThumbnail(source);
+  const decoded = await sharp(thumbnail.bytes)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  expect(decoded.info).toMatchObject({ width: 24, height: 12, channels: 4 });
+  expect(
+    [...decoded.data].filter((_, index) => index % 4 === 3).every((alpha) => alpha === 0),
+  ).toBe(true);
+  expect(source).toEqual(original);
+});
+
 test("image thumbnails apply EXIF orientation before resizing", async () => {
   const source = await sharp({
     create: { width: 1024, height: 768, channels: 3, background: "#335577" },

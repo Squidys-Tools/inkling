@@ -107,6 +107,7 @@ export type AiJobOptions = {
   extractPdf?: typeof extractPdfTextByPages;
   extractUrl?: (sourceUrl: string) => Promise<UrlArticle>;
   nativeImage?: NativeImage;
+  videoDecoderPath?: string | null;
 };
 
 export function createAiJobProcessors({
@@ -120,6 +121,7 @@ export function createAiJobProcessors({
     return ingestUrl(sourceUrl);
   },
   nativeImage,
+  videoDecoderPath,
 }: AiJobOptions) {
   let thumbnailCursor = 0;
   let thumbnailBackfillDone = false;
@@ -280,7 +282,9 @@ export function createAiJobProcessors({
       if (!item.localAssetPath) return yield* storageFailure("item has no local asset path");
       const path = yield* library.resolveAssetPath(item.localAssetPath);
       const { createVideoPoster } = yield* attempt(() => import("./video-poster.ts"));
-      const poster = yield* attempt(() => createVideoPoster(path, { nativeImage }));
+      const poster = yield* attempt(() =>
+        createVideoPoster(path, { nativeImage, decoderPath: videoDecoderPath }),
+      );
       if (!poster) return yield* storageFailure("no poster available for this video");
       yield* library.storeVideoPoster(item.id, poster);
     }),

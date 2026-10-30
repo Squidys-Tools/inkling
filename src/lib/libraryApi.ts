@@ -11,6 +11,7 @@ import type {
   ProcessingJobKind,
   StorageStatus,
   StoredSpace,
+  UpdateChannel,
   UpdateItemInput,
   UpdateSpaceInput,
 } from "@inkling/contracts";
@@ -33,6 +34,8 @@ export type {
   StoredLibraryItem,
   StoredLibraryItemDetail,
   StoredSpace,
+  UpdateChannel,
+  UpdateState,
   UpdateSpaceInput,
 } from "@inkling/contracts";
 
@@ -115,8 +118,24 @@ function invoke<C extends CommandName>(command: C, args?: CommandArgs<C>) {
   return handler(args);
 }
 
+export function getUpdateState() {
+  return invoke("get_update_state", {});
+}
+
+export function setUpdateChannel(channel: UpdateChannel) {
+  return invoke("set_update_channel", { channel });
+}
+
 export function checkForUpdates() {
-  return invoke("check_for_updates");
+  return invoke("check_for_updates", {});
+}
+
+export function downloadUpdate(expectedVersion: string) {
+  return invoke("download_update", { expectedVersion });
+}
+
+export function cancelUpdateDownload() {
+  return invoke("cancel_update_download", {});
 }
 
 export function installUpdate(expectedVersion: string) {

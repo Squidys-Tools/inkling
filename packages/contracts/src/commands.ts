@@ -2,6 +2,10 @@
 export const commandNames = [
   "check_for_updates",
   "install_update",
+  "get_update_state",
+  "set_update_channel",
+  "download_update",
+  "cancel_update_download",
   "initialize_storage",
   "get_app_version",
   "get_library_size",
