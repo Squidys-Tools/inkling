@@ -56,10 +56,8 @@ export function htmlToText(html: string): string {
   return normalizeText(document.body?.textContent);
 }
 
-/** True when the HTML contains any readable text after tags/whitespace are removed. */
-export function hasReadableText(html: string | undefined | null): boolean {
-  if (!html) return false;
-  return htmlToText(html).length > 0;
+export function hasReadableText(html: string | undefined) {
+  return !!html && htmlToText(html).length > 0;
 }
 
 export function collectImageUrls(document: Document, pageUrl: string): string[] {
