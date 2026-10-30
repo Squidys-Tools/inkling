@@ -36,7 +36,7 @@ function TagList({
 }: {
   item: LibraryItem;
   memberSpaces: ItemViewSpace[];
-  onAddTag?: ItemViewActions["onAddTag"];
+  onAddTag: ItemViewActions["onAddTag"];
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -48,7 +48,7 @@ function TagList({
   function submit() {
     const clean = draft.trim().replace(/^#+/u, "").toLowerCase();
     if (clean && !item.tags.some((tag) => tag.toLowerCase() === clean)) {
-      void onAddTag?.(item, clean);
+      void onAddTag(item, clean);
     }
     setDraft("");
     setIsAdding(false);

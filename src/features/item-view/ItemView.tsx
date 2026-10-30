@@ -31,17 +31,17 @@ export type ItemViewActions = {
   onOpenReader: (item: LibraryItem, origin: ReaderOrigin) => void;
   onForget: (item: LibraryItem) => void | Promise<void>;
   onRetryJob: (jobId: string) => void | Promise<void>;
-  onAddTag?: (item: LibraryItem, tag: string) => void | Promise<void>;
+  onAddTag: (item: LibraryItem, tag: string) => void | Promise<void>;
   onUpdateNote: (item: LibraryItem, body: string) => void | Promise<void>;
-  onToggleSpace?: (item: LibraryItem, spaceId: string) => void | Promise<void>;
+  onToggleSpace: (item: LibraryItem, spaceId: string) => void | Promise<void>;
   /** Items similar to this one, for the Similar tab. */
   onLoadSimilar: (item: LibraryItem) => Promise<LibraryItem[]>;
   /** Opens another item from the Similar tab as a new history step. */
   onOpenItem: (item: LibraryItem) => void;
   /** Hidden when absent. */
   onShowInFolder?: (item: LibraryItem) => void;
-  /** Permanent delete. Only offered for archived items. Hidden when absent. */
-  onDelete?: (item: LibraryItem) => void;
+  /** Permanent delete. Only offered for archived items. */
+  onDelete: (item: LibraryItem) => void;
 };
 
 /** A Regular Space in the Space menu: filing an item in and taking it back out
@@ -64,7 +64,7 @@ type ItemViewProps = {
   item: LibraryItem;
   actions: ItemViewActions;
   /** Regular Spaces available to file this item in. Empty hides the Space control. */
-  spaces?: ItemViewSpace[];
+  spaces: ItemViewSpace[];
   originRectsRef: RefObject<SourceRects | null>;
   /** The library frame the item view covers once it settles. */
   frameRef: RefObject<HTMLElement | null>;
@@ -171,7 +171,7 @@ export function ItemView({
 
   const isEditingNoteView = isEditingNote && shownItem.kind === "Note";
   const isFocusModeView = isFocusMode && isEditingNoteView;
-  const memberSpaces = spaces?.filter((space) => space.member) ?? [];
+  const memberSpaces = spaces.filter((space) => space.member);
 
   // Classes that override each other are picked here rather than stacked as
   // variants, because media-query variants sort after the state ones.

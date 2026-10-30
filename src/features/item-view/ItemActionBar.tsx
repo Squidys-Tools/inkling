@@ -36,7 +36,7 @@ function SpaceMenu({
 }: {
   item: LibraryItem;
   spaces: ItemViewSpace[];
-  onToggleSpace?: ItemViewActions["onToggleSpace"];
+  onToggleSpace: ItemViewActions["onToggleSpace"];
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLSpanElement>(null);
@@ -78,7 +78,7 @@ function SpaceMenu({
                 <Menu.CheckboxItem
                   key={space.id}
                   checked={space.member}
-                  onCheckedChange={() => void onToggleSpace?.(item, space.id)}
+                  onCheckedChange={() => void onToggleSpace(item, space.id)}
                   data-tooltip={space.member ? `Remove from ${space.name}` : `Add to ${space.name}`}
                   className="group flex h-8 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[8px] px-2 text-left font-body text-[13px] leading-[normal] text-ink-soft data-checked:text-ink data-highlighted:bg-glass-active data-highlighted:text-ink"
                 >
@@ -116,14 +116,14 @@ export function ItemActionBar({
 }: {
   item: LibraryItem;
   actions: ItemViewActions;
-  spaces?: ItemViewSpace[];
+  spaces: ItemViewSpace[];
   onArchive: () => void;
 }) {
   const sourceHost = hostnameForUrl(item.sourceUrl);
   const openLabel = `Open ${sourceHost ?? "original"}`;
   return (
     <footer className="relative mt-3 flex h-11 flex-none items-center gap-1 border-t border-border">
-      {spaces && spaces.length > 0 && (
+      {spaces.length > 0 && (
         <SpaceMenu
           key={item.id}
           item={item}
@@ -170,11 +170,11 @@ export function ItemActionBar({
           <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M10 12h4" />
         </BarGlyph>
       </button>
-      {actions.onDelete && item.archived && (
+      {item.archived && (
         <button
           type="button"
           className={cx(BAR_BUTTON, "ml-auto")}
-          onClick={() => actions.onDelete?.(item)}
+          onClick={() => actions.onDelete(item)}
           aria-label="Delete permanently"
           data-tooltip="Delete permanently"
         >
