@@ -54,8 +54,13 @@ export type SaveFileInput = {
   bytes: Uint8Array;
 };
 
+// Bun tests load this module without a window.
+function bridge() {
+  return typeof window === "undefined" ? undefined : window.inkling;
+}
+
 export function isElectronRuntime() {
-  return typeof window !== "undefined" && Boolean(window.inkling);
+  return Boolean(bridge());
 }
 
 export function isDesktopRuntime() {
@@ -63,8 +68,7 @@ export function isDesktopRuntime() {
 }
 
 function invoke<C extends CommandName>(command: C, args?: CommandArgs<C>) {
-  const commands = typeof window === "undefined" ? undefined : window.inkling?.commands;
-  const handler = commands?.[command] as
+  const handler = bridge()?.commands?.[command] as
     | ((args?: CommandArgs<C>) => Promise<CommandResults[C]>)
     | undefined;
   if (typeof handler !== "function") {
@@ -333,15 +337,9 @@ export async function currentDeepLinks() {
 }
 
 export function listenForDeepLinks(handler: (payload: unknown) => void) {
-  if (typeof window !== "undefined" && window.inkling) {
-    return window.inkling.onDeepLink(handler);
-  }
-  return Promise.resolve(() => {});
+  return bridge()?.onDeepLink(handler) ?? Promise.resolve(() => {});
 }
 
 export function listenForJobUpdates(handler: (payload: { itemId: string }) => void) {
-  if (typeof window !== "undefined" && window.inkling) {
-    return Promise.resolve(window.inkling.onJobUpdated(handler));
-  }
-  return Promise.resolve(() => {});
+  return Promise.resolve(bridge()?.onJobUpdated(handler) ?? (() => {}));
 }
