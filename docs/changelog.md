@@ -77,6 +77,7 @@ Guardrails:
 
 ### Fixed
 
+- The desktop window stays frameless with rounded corners on Linux and relies on the in-app minimize/maximize/close controls instead of a competing native caption overlay (#212)
 - Card clicks, right-clicks and the keyboard menu key reach cards again on runtimes where the experimental liquid-glass canvas swallows input: those runtimes keep the DOM/CSS glass (#205)
 - The item details open and close as one motion: the item, its patterned background and the right panel move together instead of flying then settling separately (#205)
 - Linux Electron image processing uses the supported sharp WASM backend, and PDF rendering loads bundled fonts without the native system-font scan that can crash the app.
