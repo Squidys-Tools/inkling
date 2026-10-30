@@ -21,12 +21,10 @@ import { useArchive } from "./features/settings/useArchive";
 import { useLibraryTransfer } from "./features/settings/useLibraryTransfer";
 import { SettingsSheet } from "./features/settings/SettingsSheet";
 import { useSettings } from "./features/settings/useSettings";
-import { AppSidebar } from "./features/shell/AppSidebar";
+import { AppSidebar, ClosedSidebarControls } from "./features/shell/AppSidebar";
 import { ItemLayers } from "./features/shell/ItemLayers";
 import { LibraryFrame } from "./features/shell/LibraryFrame";
 import { ShortcutsDialog } from "./features/shell/ShortcutsDialog";
-import { SidebarError } from "./features/shell/Sidebar";
-import { SidebarEdgeGrip, SidebarOpenButton } from "./features/shell/SidebarToggles";
 import { TitleBar } from "./features/shell/TitleBar";
 import { useAppShortcuts } from "./features/shell/useAppShortcuts";
 import { useAppUpdate } from "./features/shell/useAppUpdate";
@@ -291,17 +289,8 @@ function App() {
             setSelectedItem(null);
             settings.setIsSettingsOpen(true);
           }}
+          hasOpenItem={selectedItem != null}
         />
-        {/* A closed sidebar's grip would sit over an open item's stage. */}
-        {!codexSidebar &&
-          settings.appearance.sidebarToggle === "edge" &&
-          (isSidebarOpen || !selectedItem) && (
-            <SidebarEdgeGrip
-              isOpen={isSidebarOpen}
-              onToggle={() => setIsSidebarOpen((open) => !open)}
-            />
-          )}
-
         <LibraryFrame
           ref={libraryFrameRef}
           codexSidebar={codexSidebar}
@@ -313,22 +302,12 @@ function App() {
           <CaptureBar
             ref={captureBarRef}
             leading={
-              !codexSidebar &&
-              !isSidebarOpen && (
-                <>
-                  <SidebarOpenButton
-                    edgeToggle={settings.appearance.sidebarToggle === "edge"}
-                    onOpen={() => setIsSidebarOpen(true)}
-                  />
-                  {spaces.sidebarActionError && (
-                    <SidebarError
-                      message={spaces.sidebarActionError}
-                      collapsed
-                      onDismiss={() => spaces.setSidebarActionError(null)}
-                    />
-                  )}
-                </>
-              )
+              <ClosedSidebarControls
+                appearance={settings.appearance}
+                isOpen={isSidebarOpen}
+                setIsOpen={setIsSidebarOpen}
+                spaces={spaces}
+              />
             }
             showSearch={showBrowseControls}
             searchRef={searchRef}

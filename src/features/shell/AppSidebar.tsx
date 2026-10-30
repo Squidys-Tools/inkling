@@ -6,6 +6,7 @@ import type { useCapture } from "../capture/useCapture";
 import type { Appearance } from "../settings/appearance";
 import type { useSpaces } from "../spaces/useSpaces";
 import { NavRow, navLabelClass, Sidebar, SidebarError } from "./Sidebar";
+import { SidebarEdgeGrip, SidebarOpenButton } from "./SidebarToggles";
 import { SpacesSection } from "./SpacesSection";
 import { UpdateNavRow } from "./UpdateNavRow";
 import type { useAppUpdate } from "./useAppUpdate";
@@ -24,6 +25,7 @@ export function AppSidebar({
   update,
   isSettingsOpen,
   onOpenSettings,
+  hasOpenItem,
 }: {
   appearance: Appearance;
   isOpen: boolean;
@@ -38,70 +40,108 @@ export function AppSidebar({
   update: ReturnType<typeof useAppUpdate>;
   isSettingsOpen: boolean;
   onOpenSettings: () => void;
+  hasOpenItem: boolean;
 }) {
   const codexSidebar = appearance.sidebarStyle === "codex";
   return (
-    <Sidebar
-      experimental={codexSidebar}
-      onOpen={() => setIsOpen(true)}
-      isOpen={isOpen}
-      edgeToggle={appearance.sidebarToggle === "edge"}
-      isSearchFocused={isSearchFocused}
-      everything={everything}
-      onClose={() => setIsOpen(false)}
-      footer={
-        <>
-          <AddMenu
-            collapsible={codexSidebar}
-            compact={codexSidebar && !isOpen}
-            open={capture.isAdding}
-            mode={capture.captureMode}
-            saving={capture.isCapturing}
-            error={capture.isAdding ? captureError : null}
-            onOpen={() => capture.openCapture()}
-            onClose={capture.closeCaptureModal}
-            onModeChange={capture.changeCaptureMode}
-            onSaveNote={capture.saveNote}
-            onSaveLink={capture.saveLink}
-            onSaveQuote={capture.saveQuote}
-            onPickFile={(files) => capture.captureFiles(files, "file picker")}
-            onScreenshot={capture.startScreenshotCapture}
-            onAddSpace={codexSidebar ? spaces.openSpaceDraft : undefined}
-          />
-          <UpdateNavRow update={update} />
-          <NavRow
-            tone="footer"
-            active={isSettingsOpen}
-            aria-label="Settings"
-            aria-expanded={isSettingsOpen}
-            aria-controls="settings-modal"
-            data-tooltip="Settings"
-            onClick={onOpenSettings}
-          >
-            <HugeiconsIcon icon={Settings01Icon} size={15} />
-            <span className={navLabelClass}>Settings</span>
-          </NavRow>
-        </>
-      }
-    >
-      <SpacesSection
+    <>
+      <Sidebar
         experimental={codexSidebar}
-        collapsed={codexSidebar && !isOpen}
-        spaces={spaces.spaces}
-        activeSpaceId={activeSpaceId}
-        activeCount={activeCount}
-        renaming={spaces.renaming}
-        actions={spaces.actions}
-        draftNameInputRef={spaces.draftNameInputRef}
-        draft={spaces.draft}
+        onOpen={() => setIsOpen(true)}
+        isOpen={isOpen}
+        edgeToggle={appearance.sidebarToggle === "edge"}
+        isSearchFocused={isSearchFocused}
+        everything={everything}
+        onClose={() => setIsOpen(false)}
+        footer={
+          <>
+            <AddMenu
+              collapsible={codexSidebar}
+              compact={codexSidebar && !isOpen}
+              open={capture.isAdding}
+              mode={capture.captureMode}
+              saving={capture.isCapturing}
+              error={capture.isAdding ? captureError : null}
+              onOpen={() => capture.openCapture()}
+              onClose={capture.closeCaptureModal}
+              onModeChange={capture.changeCaptureMode}
+              onSaveNote={capture.saveNote}
+              onSaveLink={capture.saveLink}
+              onSaveQuote={capture.saveQuote}
+              onPickFile={(files) => capture.captureFiles(files, "file picker")}
+              onScreenshot={capture.startScreenshotCapture}
+              onAddSpace={codexSidebar ? spaces.openSpaceDraft : undefined}
+            />
+            <UpdateNavRow update={update} />
+            <NavRow
+              tone="footer"
+              active={isSettingsOpen}
+              aria-label="Settings"
+              aria-expanded={isSettingsOpen}
+              aria-controls="settings-modal"
+              data-tooltip="Settings"
+              onClick={onOpenSettings}
+            >
+              <HugeiconsIcon icon={Settings01Icon} size={15} />
+              <span className={navLabelClass}>Settings</span>
+            </NavRow>
+          </>
+        }
+      >
+        <SpacesSection
+          experimental={codexSidebar}
+          collapsed={codexSidebar && !isOpen}
+          spaces={spaces.spaces}
+          activeSpaceId={activeSpaceId}
+          activeCount={activeCount}
+          renaming={spaces.renaming}
+          actions={spaces.actions}
+          draftNameInputRef={spaces.draftNameInputRef}
+          draft={spaces.draft}
+        />
+        {isOpen && spaces.sidebarActionError && (
+          <SidebarError
+            message={spaces.sidebarActionError}
+            collapsed={false}
+            onDismiss={() => spaces.setSidebarActionError(null)}
+          />
+        )}
+      </Sidebar>
+      {/* A closed sidebar's grip would sit over an open item's stage. */}
+      {!codexSidebar && appearance.sidebarToggle === "edge" && (isOpen || !hasOpenItem) && (
+        <SidebarEdgeGrip isOpen={isOpen} onToggle={() => setIsOpen((open) => !open)} />
+      )}
+    </>
+  );
+}
+
+// Classic closes to the window edge, so its way back, and any Space error,
+// sit at the start of the capture bar.
+export function ClosedSidebarControls({
+  appearance,
+  isOpen,
+  setIsOpen,
+  spaces,
+}: {
+  appearance: Appearance;
+  isOpen: boolean;
+  setIsOpen: Dispatch<SetStateAction<boolean>>;
+  spaces: ReturnType<typeof useSpaces>;
+}) {
+  if (appearance.sidebarStyle === "codex" || isOpen) return null;
+  return (
+    <>
+      <SidebarOpenButton
+        edgeToggle={appearance.sidebarToggle === "edge"}
+        onOpen={() => setIsOpen(true)}
       />
-      {isOpen && spaces.sidebarActionError && (
+      {spaces.sidebarActionError && (
         <SidebarError
           message={spaces.sidebarActionError}
-          collapsed={false}
+          collapsed
           onDismiss={() => spaces.setSidebarActionError(null)}
         />
       )}
-    </Sidebar>
+    </>
   );
 }
