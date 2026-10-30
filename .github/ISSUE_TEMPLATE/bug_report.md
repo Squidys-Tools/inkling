@@ -17,7 +17,7 @@ labels: bug
 ## Environment
 
 - inkling version/commit:
-- Windows build / toolchain (MSVC or GNU):
+- OS and version:
 - Bun version (`bun --version`):
 
 ## Logs / screenshots
