@@ -6,8 +6,6 @@ inkling is a quiet little home for everything you want to keep: articles, images
 
 Your library lives on your own computer. The app checks GitHub for updates once when it opens; GitHub sees the app version, but no library data is sent.
 
-The interface uses [Paper Mono](https://github.com/paper-design/paper-mono) by Paper Design, bundled locally under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL). Paper Mono is based on Geist Mono by Vercel and basement.studio; the font's copyright and license notice is included in [public/fonts/OFL.txt](public/fonts/OFL.txt).
-
 <img src="docs/assets/mascots/inkling-splash-loop.svg" alt="inkling mascot, a small ink blot that drifts, blinks and changes expression" width="160">
 
 ![Your inkling library — a visual grid of saved articles, images, quotes, and videos](docs/assets/screenshots/library.png)
