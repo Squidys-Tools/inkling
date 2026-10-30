@@ -86,13 +86,6 @@ The common defect here is a change that works on the path tested and is missing 
 - Stop what you started, by the handle you tracked. See rule 1.
 - Never `Start-Sleep` (or any blocking wait) after launching a server. Start it detached, do other work, then poll its log or port. A sleep blocks you from doing anything else while you wait.
 
-## Remote compute
-
-- Use the `inkling-agent-workbench` Instabox snapshot for compute-heavy builds and checks when the Instabox CLI is available and authenticated. Start a box from that snapshot, then run commands there over SSH; keep source changes in the current checkout and transfer only the intended worktree or patch. Do not copy local agent sign-ins, credentials, or the live library into the box.
-- The box is Linux with a desktop. It can run builds, focused tests, and the `verify-inkling` UI flow under Xvfb. Linux verification does not cover Windows-only behavior such as Windows.Media OCR or WebView2. Use a Windows full app run when the change depends on those APIs.
-- Follow the same scratch-library and process-ownership rules in `verify-inkling`; remote execution does not make the live library safe to use.
-- Keep preview servers and app processes on the box. Do not publish a port unless the task needs an externally reachable preview.
-
 ## Test data
 
 An empty library is a bad test. Seed your run with a copy of real data instead of pointing at live state.
