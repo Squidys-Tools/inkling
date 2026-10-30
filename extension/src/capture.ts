@@ -6,10 +6,9 @@ export function buildUrlCapturePayload(url: string, title: string): PageCaptureP
     throw new Error("only HTTP and HTTPS pages can be saved");
   }
   if (parsedUrl.username || parsedUrl.password) throw new Error("page URL contains credentials");
+  // A serialized URL is ASCII, so its length is its byte count.
   const normalizedUrl = parsedUrl.toString();
-  if (new TextEncoder().encode(normalizedUrl).byteLength > 8_192) {
-    throw new Error("page URL is too long");
-  }
+  if (normalizedUrl.length > 8_192) throw new Error("page URL is too long");
   return {
     version: 1,
     kind: "page",
