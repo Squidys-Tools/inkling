@@ -10,13 +10,9 @@ type GradualBlurCurve = "linear" | "bezier" | "ease-in" | "ease-out" | "ease-in-
 
 export interface GradualBlurProps {
   position?: "top" | "bottom";
-  height?: string | number;
   strength?: number;
   layers?: number;
   curve?: GradualBlurCurve;
-  exponential?: boolean;
-  opacity?: number;
-  saturation?: number;
   tint?: string;
   zIndex?: number;
   className?: string;
@@ -34,13 +30,9 @@ const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
 
 const GradualBlur = ({
   position = "bottom",
-  height = "6rem",
   strength = 2,
   layers = 8,
   curve = "linear",
-  exponential = true,
-  opacity = 1,
-  saturation = 1,
   tint = "transparent",
   zIndex = 1000,
   className,
@@ -50,28 +42,20 @@ const GradualBlur = ({
     const maxBlur = strength * 12;
     const level = (u: number) => {
       const t = shape(clamp01(u));
-      return maxBlur * (exponential ? (Math.pow(2, 4 * t) - 1) / 15 : t);
+      return maxBlur * ((Math.pow(2, 4 * t) - 1) / 15);
     };
-    const boost = Math.pow(saturation, 1 / layers);
     const direction = `to ${position}`;
     const steps: CSSProperties[] = [];
     for (let i = 0; i < layers; i++) {
       const from = level(i / layers);
       const to = level((i + 1) / layers);
       const radius = Math.sqrt(Math.max(to * to - from * from, 0));
-      const filter = [
-        `blur(${radius.toFixed(3)}px)`,
-        boost !== 1 ? `saturate(calc(1 + ${(boost - 1).toFixed(4)}))` : "",
-      ]
-        .filter(Boolean)
-        .join(" ");
       steps.push({
         position: "absolute",
         inset: 0,
         borderRadius: "inherit",
-        backdropFilter: filter,
+        backdropFilter: `blur(${radius.toFixed(3)}px)`,
         maskImage: `linear-gradient(${direction}, transparent ${((i / layers) * 100).toFixed(2)}%, #000 ${(((i + 1) / layers) * 100).toFixed(2)}%)`,
-        opacity,
       });
     }
     const stops = Array.from({ length: 9 }, (_, k) => {
@@ -91,7 +75,7 @@ const GradualBlur = ({
           }
         : null;
     return { steps, wash };
-  }, [layers, curve, strength, exponential, saturation, position, opacity, tint]);
+  }, [layers, curve, strength, position, tint]);
 
   const corner = (edge: "top" | "bottom") => (position === edge ? "inherit" : undefined);
   const rootStyle: CSSProperties = {
@@ -106,7 +90,7 @@ const GradualBlur = ({
     bottom: position === "bottom" ? 0 : undefined,
     left: 0,
     right: 0,
-    height: typeof height === "number" ? `${height}px` : height,
+    height: "6rem",
   };
 
   return (
