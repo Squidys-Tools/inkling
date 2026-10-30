@@ -1,13 +1,8 @@
-import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Settings01Icon } from "@hugeicons/core-free-icons";
-import {
-  retryProcessingJob,
-  isDesktopRuntime,
-  isElectronRuntime,
-  type StoredSpace,
-} from "./lib/libraryApi";
+import { isDesktopRuntime, isElectronRuntime, type StoredSpace } from "./lib/libraryApi";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { ContextMenu } from "./components/ContextMenu/ContextMenu";
 // Below-the-fold / on-demand surfaces stay off the boot bundle and load from
@@ -62,7 +57,6 @@ import { useSpaces } from "./features/spaces/useSpaces";
 import { cx } from "./ui/cx";
 import { Toaster } from "./ui/Toaster";
 import { TooltipLayer } from "./ui/Tooltip";
-import { errorMessage } from "./features/errorMessage";
 
 function App() {
   const canUseDesktopBackend = isDesktopRuntime() && !shouldUseSeedLibrary();
@@ -76,14 +70,22 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useSidebarOpen();
   const { isFirstRunOpen, setIsFirstRunOpen, finishFirstRun } = useFirstRun(canUseDesktopBackend);
   const appUpdate = useAppUpdate(canUseDesktopBackend);
-  const { items, setItems, itemsRef, activeJobCount, debouncedQuery, noteBodyCacheRef, reload } =
-    useLibraryData({
-      canUseDesktopBackend,
-      query,
-      activeSpaceId,
-      setSelectedItem,
-      setCaptureError,
-    });
+  const {
+    items,
+    setItems,
+    itemsRef,
+    activeJobCount,
+    debouncedQuery,
+    noteBodyCacheRef,
+    reload,
+    retryJob,
+  } = useLibraryData({
+    canUseDesktopBackend,
+    query,
+    activeSpaceId,
+    setSelectedItem,
+    setCaptureError,
+  });
   const {
     isSettingsOpen,
     setIsSettingsOpen,
@@ -168,16 +170,6 @@ function App() {
     selectedItem,
     setSelectedItem,
   });
-
-  const retryJob = useCallback(async (jobId: string) => {
-    setCaptureError(null);
-    try {
-      const retried = await retryProcessingJob(jobId);
-      if (!retried) setCaptureError("That processing job is no longer available to retry.");
-    } catch (error) {
-      setCaptureError(errorMessage(error));
-    }
-  }, []);
 
   function selectSpace(space: StoredSpace) {
     setActiveSpaceId(space.id);

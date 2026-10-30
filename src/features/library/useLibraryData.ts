@@ -15,6 +15,7 @@ import {
   listActiveItems,
   listenForJobUpdates,
   listSpaceItems,
+  retryProcessingJob,
   searchItems,
 } from "../../lib/libraryApi";
 import { patchItems } from "../../lib/patchItems";
@@ -250,5 +251,27 @@ export function useLibraryData({
 
   const reload = useCallback(() => loadItemsRef.current(), []);
 
-  return { items, setItems, itemsRef, activeJobCount, debouncedQuery, noteBodyCacheRef, reload };
+  const retryJob = useCallback(
+    async (jobId: string) => {
+      setCaptureError(null);
+      try {
+        const retried = await retryProcessingJob(jobId);
+        if (!retried) setCaptureError("That processing job is no longer available to retry.");
+      } catch (error) {
+        setCaptureError(errorMessage(error));
+      }
+    },
+    [setCaptureError],
+  );
+
+  return {
+    items,
+    setItems,
+    itemsRef,
+    activeJobCount,
+    debouncedQuery,
+    noteBodyCacheRef,
+    reload,
+    retryJob,
+  };
 }
