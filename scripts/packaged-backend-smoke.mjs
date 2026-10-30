@@ -7,11 +7,16 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(import.meta.dirname, "..");
-const appDirectory = resolve(process.argv[2] ?? join(root, ".artifacts/electron/linux-unpacked"));
+const mac = process.platform === "darwin";
+const appDirectory = resolve(
+  process.argv[2] ?? join(root, ".artifacts/electron", mac ? "mac-arm64" : "linux-unpacked"),
+);
+const contents = mac ? join(appDirectory, "inkling.app/Contents") : appDirectory;
+const resources = join(contents, mac ? "Resources" : "resources");
 
 if (!process.versions.electron) {
   const result = spawnSync(
-    join(appDirectory, "inkling"),
+    join(contents, mac ? "MacOS/inkling" : "inkling"),
     [fileURLToPath(import.meta.url), appDirectory],
     {
       env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
@@ -26,8 +31,8 @@ if (!process.versions.electron) {
   );
 } else {
   // Node-only native/module checks: no renderer, user library or sandbox override.
-  const archive = join(appDirectory, "resources/app.asar");
-  const unpacked = join(appDirectory, "resources/app.asar.unpacked");
+  const archive = join(resources, "app.asar");
+  const unpacked = join(resources, "app.asar.unpacked");
   const require = createRequire(join(archive, "package.json"));
   const scratch = await mkdtemp(join(tmpdir(), "inkling-backend-smoke-"));
   const originalFontScan = process.env.DISABLE_SYSTEM_FONTS_LOAD;
@@ -84,15 +89,19 @@ if (!process.versions.electron) {
       await import(pathToFileURL(require.resolve("sharp").replace(/index\.cjs$/, "index.mjs")).href)
     ).default;
     for (const backend of [sharp, sharpEsm]) {
-      assert(backend.versions.emscripten, "Linux Electron selects the WASM backend");
+      assert.equal(
+        Boolean(backend.versions.emscripten),
+        process.platform === "linux",
+        "only Linux Electron selects the WASM backend",
+      );
       const webp = await backend(thumbnail).resize(128, 128).webp().toBuffer();
       assert.equal((await backend(webp).metadata()).width, 128);
     }
-    console.log("PASS packaged sharp CJS/ESM WASM resize and WebP decode");
+    console.log("PASS packaged sharp CJS/ESM resize and WebP decode");
 
     const ort = require("onnxruntime-node");
     const manifest = JSON.parse(await readFile(join(root, "electron/model-manifest.json"), "utf8"));
-    const modelRoot = join(appDirectory, "resources/models");
+    const modelRoot = join(resources, "models");
     const { Tokenizer } = await import(
       pathToFileURL(require.resolve("@huggingface/tokenizers").replace(/\.cjs$/, ".mjs")).href
     );

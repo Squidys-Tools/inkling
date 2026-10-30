@@ -21,6 +21,7 @@
     "build:dir": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --dir",
     "build:installer": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --win nsis",
     "build:linux": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --linux deb AppImage",
+    "build:mac": "bun run build:app && bun scripts/prepare-electron-models.mjs && electron-builder --publish never --mac dmg",
     "preview": "vite preview",
     "check": "bun run check:bun-version && bun install --frozen-lockfile --ignore-scripts && bun run typecheck && bun run --cwd extension typecheck && bun run --cwd packages/ingestion-shared typecheck && bun run --cwd packages/contracts typecheck && bun run check:refs && bun run test && bun run knip && bun run lint && bun run build && bun run build:app && bun run ingest:smoke && bun run --cwd extension build",
     "check:bun-version": "bun -e \"const expected = (await Bun.file('.bun-version').text()).trim(); if (Bun.version !== expected) { console.error('Expected Bun ' + expected + ', found ' + Bun.version); process.exit(1); }\"",
@@ -118,6 +119,9 @@
     "tsc-rs": "0.8.0",
     "vite": "^8.3.5"
   },
+  "overrides": {
+    "isbinaryfile": "5.0.7"
+  },
   "build": {
     "appId": "com.inkling.library",
     "productName": "inkling",
@@ -145,7 +149,6 @@
       "!**/node_modules/**/*.{map,ts,mts,cts}",
       "!**/node_modules/{@base-ui,@floating-ui,@fontsource,@fontsource-variable,@hugeicons,@liquid-dom,@tiptap,@virtuoso.dev}/**",
       "!**/node_modules/{framer-motion,gsap,motion,motion-dom,motion-utils,prosemirror-*,react-dom,sonner}/**",
-      "!**/node_modules/onnxruntime-node/bin/napi-v6/!(${os}*)/**",
       "!**/node_modules/onnxruntime-node/bin/napi-v6/*/!(${arch})/**",
       "!**/node_modules/@img/sharp-{linux,linuxmusl,libvips-linux,libvips-linuxmusl}-*/**",
       "!**/node_modules/@napi-rs/canvas-linux-*-musl/**",
@@ -170,6 +173,22 @@
       "icon": "build/icon.ico",
       "target": [
         "nsis"
+      ],
+      "files": [
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/!(win32)/**"
+      ]
+    },
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg"
+      ],
+      "identity": "-",
+      "hardenedRuntime": false,
+      "artifactName": "${name}-${version}-mac-${arch}.${ext}",
+      "files": [
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/!(darwin)/**"
       ]
     },
     "linux": {
@@ -181,6 +200,9 @@
         "AppImage"
       ],
       "artifactName": "${name}-${version}-linux-${arch}.${ext}",
+      "files": [
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/!(linux)/**"
+      ],
       "desktop": {
         "entry": {
           "StartupWMClass": "inkling",

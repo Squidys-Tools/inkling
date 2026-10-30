@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
 test("Linux packaging preserves Windows NSIS and standard sandbox maintainer scripts", () => {
-  expect(pkg.build.win).toEqual({ icon: "build/icon.ico", target: ["nsis"] });
+  expect(pkg.build.win).toMatchObject({ icon: "build/icon.ico", target: ["nsis"] });
   expect(pkg.build.linux.target).toEqual(["deb", "AppImage"]);
   expect(pkg.build.deb.afterInstall).toBeUndefined();
   expect(pkg.build.deb.afterRemove).toBeUndefined();

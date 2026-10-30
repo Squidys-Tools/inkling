@@ -1,5 +1,6 @@
 import { isElectronRuntime } from "../../lib/libraryApi";
 import { Button } from "../../ui/Button";
+import { cx } from "../../ui/cx";
 
 const control =
   "grid h-titlebar w-[46px] place-items-center text-[15px] text-muted cursor-default [-webkit-app-region:no-drag]";
@@ -7,10 +8,16 @@ const control =
 export function TitleBar() {
   if (!isElectronRuntime()) return null;
   const controls = window.inkling?.windowControls;
+  const nativeCaptions = controls?.nativeCaptions;
   return (
     <>
-      <div className="titlebar-drag fixed top-0 right-[138px] left-0 z-180 h-titlebar [-webkit-app-region:drag]" />
-      {controls && (
+      <div
+        className={cx(
+          "titlebar-drag fixed top-0 left-0 z-180 h-titlebar [-webkit-app-region:drag]",
+          nativeCaptions ? "right-0" : "right-[138px]",
+        )}
+      />
+      {controls && !nativeCaptions && (
         <div className="fixed top-0 right-0 z-200 flex h-titlebar [-webkit-app-region:no-drag]">
           <Button
             className={`${control} hover:bg-white/8 hover:text-ink`}
