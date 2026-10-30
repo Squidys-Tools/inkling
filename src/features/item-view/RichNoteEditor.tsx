@@ -135,7 +135,7 @@ export function RichNoteEditor({
   return (
     <div
       ref={editorRootRef}
-      className={`note-editor note-embedded-editor ${focusMode ? "note-focus-editor" : ""}`}
+      className={`note-embedded-editor ${focusMode ? "note-focus-editor" : ""}`}
       data-testid="rich-note-editor"
     >
       <div className="note-embedded-orientation">

@@ -1,6 +1,3 @@
-.note-editor {
-  margin-top: 4px;
-}
 .note-editor-content ul[data-type="taskList"] input {
   margin-top: 3px;
 }
@@ -12,41 +9,44 @@
 }
 .note-editor-toolbar {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
-  margin: 14px 0 8px;
+  gap: 1px;
 }
 .note-editor-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
   min-width: 30px;
-  height: 28px;
-  padding: 0 7px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface-raised);
-  color: var(--color-muted);
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #b8b1a7;
   cursor: pointer;
   font: 11px var(--font-body);
 }
-.note-editor-toolbar button:hover,
-.note-editor-toolbar button[aria-pressed="true"] {
-  border-color: #5a5750;
-  background: #292622;
+.note-editor-toolbar button:hover:not(:disabled) {
+  background: #1f1d1b;
   color: var(--color-ink);
+}
+.note-editor-toolbar button[aria-pressed="true"] {
+  background: #24211e;
+  color: var(--color-ink);
+}
+.note-editor-toolbar button:disabled {
+  color: #4a453f;
+  cursor: default;
 }
 .note-editor-content {
-  min-height: 190px;
-  padding: 12px 13px;
-  border: 1px solid #35443c;
-  border-radius: var(--radius-button);
+  min-height: 100%;
+  padding: 22px 20px 26px;
   outline: none;
-  background: #111b16;
   color: var(--color-ink);
-  font-size: 13px;
-  line-height: 1.6;
-}
-.note-editor-content:focus {
-  border-color: var(--color-green);
-  box-shadow: 0 0 0 2px rgba(127, 160, 141, 0.12);
+  font-size: 14.5px;
+  line-height: 1.66;
 }
 .note-editor-content > :first-child {
   margin-top: 0;
@@ -54,20 +54,8 @@
 .note-editor-content > :last-child {
   margin-bottom: 0;
 }
-.note-editor-content h1,
-.note-editor-content h2,
-.note-editor-content h3 {
-  margin: 15px 0 6px;
-  font-family: Georgia, "Times New Roman", serif;
-  font-weight: 400;
-  line-height: 1.2;
-}
-.note-editor-content p {
-  margin: 8px 0;
-}
 .note-editor-content ul,
 .note-editor-content ol {
-  margin: 8px 0;
   padding-left: 22px;
 }
 .note-editor-content ul[data-type="taskList"] {
@@ -90,15 +78,8 @@
   text-decoration: line-through;
 }
 .note-editor-content a {
-  color: var(--color-accent);
   text-decoration: underline;
   text-underline-offset: 3px;
-}
-.note-editor-content blockquote {
-  margin: 10px 0;
-  padding-left: 11px;
-  border-left: 2px solid var(--color-accent);
-  color: var(--color-muted);
 }
 .note-editor-content code {
   padding: 2px 4px;
@@ -108,12 +89,7 @@
   font: 11px var(--font-body);
 }
 .note-editor-content pre {
-  overflow-x: auto;
-  margin: 10px 0;
-  padding: 10px;
   border: 1px solid var(--color-border);
-  border-radius: 7px;
-  background: var(--color-canvas);
 }
 .note-editor-content pre code {
   padding: 0;
@@ -126,51 +102,59 @@
   pointer-events: none;
 }
 .note-editor-error {
-  margin: 8px 0 0;
-  color: #d07055;
-  font-size: 11px;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 9px 20px;
+  border-top: 1px solid var(--color-border);
+  color: #d8a08c;
+  font-size: 12px;
   line-height: 1.45;
 }
 .note-editor-actions {
+  position: relative;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 7px;
-  margin-top: 9px;
+  gap: 12px;
+  padding: 9px var(--spacing-component) 9px 20px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 .note-editor-status {
   margin-right: auto;
   color: var(--color-muted);
   font: 10px var(--font-body);
 }
-.note-editor-cancel,
-.note-editor-save {
-  border-radius: 7px;
-  cursor: pointer;
-  font-size: 11px;
-  padding: 7px 10px;
-}
 .note-editor-cancel {
-  border: 1px solid var(--color-border);
+  padding: 9px 12px;
+  border: 0;
+  border-radius: var(--radius-button);
   background: transparent;
   color: var(--color-muted);
+  cursor: pointer;
+  font: 500 12.5px var(--font-body);
 }
 .note-editor-cancel:hover {
-  border-color: #5a5750;
+  background: #1f1d1b;
   color: var(--color-ink);
 }
 .note-editor-save {
-  border: 1px solid #4a6a58;
-  background: var(--color-green-soft);
-  color: #b5d0bd;
+  padding: 9px var(--spacing-component);
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--color-accent);
+  color: #f6ece0;
+  cursor: pointer;
+  font: 500 12.5px var(--font-body);
 }
 .note-editor-save:hover:not(:disabled) {
   border-color: var(--color-green);
   background: #2b382f;
 }
 .note-editor-save:disabled {
-  cursor: wait;
-  opacity: 0.55;
+  opacity: 0.6;
+  cursor: default;
 }
 
 .note-embedded-editor {
@@ -178,7 +162,6 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  margin: 0;
 }
 .note-embedded-orientation {
   flex: 0 0 auto;
@@ -227,7 +210,6 @@
   padding-top: clamp(76px, 12vh, 126px);
 }
 .note-focus-editor .note-embedded-editor-surface {
-  overflow: auto;
   background: transparent;
 }
 .note-focus-editor .note-embedded-editor-surface::-webkit-scrollbar {
@@ -318,19 +300,6 @@
   border-color: #8a6147;
   background: #29221c;
 }
-.note-embedded-editor .note-editor-content {
-  min-height: 100%;
-  padding: 22px 20px 26px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-ink);
-  font-size: 14.5px;
-  line-height: 1.66;
-}
-.note-embedded-editor .note-editor-content:focus {
-  box-shadow: none;
-}
 .note-embedded-editor .note-editor-content p {
   margin: 0 0 10px;
 }
@@ -371,35 +340,6 @@
   color: #d7a887;
   text-decoration-color: #6a4c39;
 }
-.note-embedded-editor .note-editor-error {
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 9px 20px;
-  border-top: 1px solid var(--color-border);
-  color: #d8a08c;
-  font-size: 12px;
-}
-.note-embedded-editor .note-editor-actions {
-  position: relative;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 0;
-  padding: 9px var(--spacing-component) 9px 20px;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
-.note-embedded-editor .note-editor-toolbar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1px;
-  margin: 0;
-  padding: 0;
-  background: none;
-  border: 0;
-}
 .note-heading-group {
   display: flex;
   align-items: center;
@@ -410,44 +350,11 @@
   border-radius: 6px;
   background: #24211e;
 }
-.note-embedded-editor .note-heading-group button {
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  color: #6f6a62;
+.note-heading-group button {
   font:
     400 12px / 1 "Libre Baskerville",
     Georgia,
     serif;
-}
-.note-embedded-editor .note-heading-group button[aria-pressed="true"] {
-  background: transparent;
-  color: var(--color-ink);
-}
-.note-embedded-editor .note-editor-toolbar button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: #b8b1a7;
-  cursor: pointer;
-}
-.note-embedded-editor .note-editor-toolbar button:hover:not(:disabled) {
-  background: #1f1d1b;
-  color: var(--color-ink);
-}
-.note-embedded-editor .note-editor-toolbar button[aria-pressed="true"] {
-  background: #24211e;
-  color: var(--color-ink);
-}
-.note-embedded-editor .note-editor-toolbar button:disabled {
-  color: #4a453f;
-  cursor: default;
 }
 .note-control-divider {
   width: 1px;
@@ -461,38 +368,6 @@
   align-items: center;
   gap: 8px;
   margin-left: auto;
-}
-.note-embedded-editor .note-editor-status {
-  color: var(--color-muted);
-  font: 10px var(--font-body);
-}
-.note-embedded-editor .note-editor-cancel,
-.note-embedded-editor .note-editor-save {
-  font: 500 12.5px var(--font-body);
-}
-.note-embedded-editor .note-editor-cancel {
-  padding: 9px 12px;
-  border: 0;
-  border-radius: var(--radius-button);
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-}
-.note-embedded-editor .note-editor-cancel:hover {
-  background: #1f1d1b;
-  color: var(--color-ink);
-}
-.note-embedded-editor .note-editor-save {
-  padding: 9px var(--spacing-component);
-  border: 0;
-  border-radius: var(--radius-button);
-  background: var(--color-accent);
-  color: #f6ece0;
-  cursor: pointer;
-}
-.note-embedded-editor .note-editor-save:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 .note-link-popover {
   position: absolute;
@@ -546,14 +421,9 @@
 }
 @media (max-width: 680px) {
   .note-embedded-orientation,
-  .note-embedded-editor .note-editor-content {
+  .note-editor-content,
+  .note-editor-actions {
     padding-inline: 18px;
-  }
-  .note-embedded-editor .note-editor-actions {
-    padding-inline: 18px;
-  }
-  .note-editor-toolbar {
-    flex-wrap: wrap;
   }
   .note-focus-editor {
     padding-top: 76px;
