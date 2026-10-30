@@ -139,7 +139,7 @@ export function AddMenu({
       { label: "Link", icon: Link01Icon },
       { label: "Quote", icon: Bookmark01Icon },
       { label: "File", icon: Image01Icon },
-      { label: "Screen", icon: Camera01Icon },
+      { label: "Screenshot", icon: Camera01Icon },
       ...(onAddSpace ? [{ label: "Space", icon: Folder01Icon }] : []),
     ];
     const selectOption = (label: string) => {
@@ -149,7 +149,7 @@ export function AddMenu({
       else if (label === "File") {
         closeFromControl();
         fileRef.current?.click();
-      } else if (label === "Screen") {
+      } else if (label === "Screenshot") {
         focusTriggerRef.current = true;
         onScreenshot();
       } else {
@@ -212,8 +212,8 @@ export function AddMenu({
               type="button"
               className="compact-add-option"
               style={{ "--add-index": index } as React.CSSProperties}
-              aria-label={option.label === "Screen" ? "Screenshot" : option.label}
-              data-tooltip={option.label === "Screen" ? "Screenshot" : option.label}
+              aria-label={option.label}
+              data-tooltip={option.label}
               disabled={saving}
               onClick={() => selectOption(option.label)}
             >
