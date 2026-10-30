@@ -30,6 +30,28 @@ import { errorMessage } from "../errorMessage";
 
 const SPACE_COLORS: SpaceColor[] = ["blue", "orange", "green", "pink", "purple", "yellow"];
 
+// Swaps a Space's position with its neighbor in display order, or returns null
+// when it is already at that end.
+function swapWithNeighbor(spaces: StoredSpace[], id: string, direction: -1 | 1) {
+  const ordered = [...spaces].sort((a, b) => a.position - b.position);
+  const index = ordered.findIndex((candidate) => candidate.id === id);
+  const neighbor = ordered[index + direction];
+  if (index < 0 || !neighbor) return null;
+  const position = ordered[index].position;
+  return {
+    neighborId: neighbor.id,
+    spaces: ordered
+      .map((candidate) =>
+        candidate.id === id
+          ? { ...candidate, position: neighbor.position }
+          : candidate.id === neighbor.id
+            ? { ...candidate, position }
+            : candidate,
+      )
+      .sort((a, b) => a.position - b.position),
+  };
+}
+
 type SpacesOptions = {
   canUseDesktopBackend: boolean;
   query: string;
@@ -242,26 +264,15 @@ export function useSpaces({
   }
 
   async function handleMoveSpace(space: StoredSpace, direction: -1 | 1) {
-    const ordered = [...spaces].sort((a, b) => a.position - b.position);
-    const index = ordered.findIndex((candidate) => candidate.id === space.id);
-    const other = ordered[index + direction];
-    if (index < 0 || !other) return;
-    // Optimistic swap so rapid clicks chain off fresh rendered state instead
-    // of recomputing the same neighbor pair from a stale render.
-    const locallySwapped = ordered
-      .map((candidate) =>
-        candidate.id === space.id
-          ? { ...candidate, position: other.position }
-          : candidate.id === other.id
-            ? { ...candidate, position: space.position }
-            : candidate,
-      )
-      .sort((a, b) => a.position - b.position);
+    const swap = swapWithNeighbor(spaces, space.id, direction);
+    if (!swap) return;
     if (canUseDesktopBackend) {
+      // Optimistic swap so rapid clicks chain off fresh rendered state instead
+      // of recomputing the same neighbor pair from a stale render.
       const seq = ++spaceMoveSeqRef.current;
-      setSpaces(locallySwapped);
+      setSpaces(swap.spaces);
       try {
-        const confirmed = await swapSpacePositions(space.id, other.id);
+        const confirmed = await swapSpacePositions(space.id, swap.neighborId);
         if (spaceMoveSeqRef.current === seq) {
           setSpaces(confirmed);
         } else {
@@ -286,22 +297,7 @@ export function useSpaces({
     }
     // Seed path: derive the swap from fresh state inside the updater so a
     // concurrent space operation cannot leave stale positions behind.
-    setSpaces((current) => {
-      const fresh = [...current].sort((a, b) => a.position - b.position);
-      const at = fresh.findIndex((candidate) => candidate.id === space.id);
-      const neighbor = fresh[at + direction];
-      if (at < 0 || !neighbor) return current;
-      const freshPosition = fresh[at].position;
-      return fresh
-        .map((candidate) =>
-          candidate.id === space.id
-            ? { ...candidate, position: neighbor.position }
-            : candidate.id === neighbor.id
-              ? { ...candidate, position: freshPosition }
-              : candidate,
-        )
-        .sort((a, b) => a.position - b.position);
-    });
+    setSpaces((current) => swapWithNeighbor(current, space.id, direction)?.spaces ?? current);
   }
 
   useLayoutEffect(() => {
