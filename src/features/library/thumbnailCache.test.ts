@@ -55,7 +55,7 @@ test("thumbnail warming stays local, bounds decoding and reuses successful decod
       ]),
     );
     expect(images).toHaveLength(25);
-    expect(images.at(-1)?.src).toBe("http://local.test:80/new-local.webp");
+    expect(images[images.length - 1]?.src).toBe("http://local.test:80/new-local.webp");
     pending.shift()!.fail();
     await settle();
     warmThumbnails(items(["http://local.test:80/new-local.webp"]));
