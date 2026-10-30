@@ -180,8 +180,6 @@ export function createUpdateController({
     checkForUpdates: () => run(check),
     setChannel: (channel: UpdateChannel) =>
       run(async () => {
-        if (channel !== "latest" && channel !== "nightly")
-          throw new Error("Unsupported update channel.");
         await preferences.write({ channel, install: installRecord });
         download = undefined;
         state = {
