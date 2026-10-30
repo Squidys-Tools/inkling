@@ -43,6 +43,21 @@ function skipResult(item: ManifestItem, reason: string): ItemResult {
   };
 }
 
+function scoreTerms(text: string, exp: ExpectedSearch) {
+  const parts: number[] = [];
+  const messages: string[] = [];
+  if (exp.search_terms?.length) {
+    const matches = termMatches(text, exp.search_terms);
+    parts.push(matches.filter((m) => m.found).length / matches.length);
+    for (const m of matches.filter((m) => !m.found))
+      messages.push(`search term not found: "${m.term}"`);
+  }
+  const banned = bannedTermHits(text, exp.must_not_match ?? []);
+  for (const term of banned) messages.push(`banned term found: "${term}"`);
+  if (banned.length) parts.push(0);
+  return { parts, messages };
+}
+
 function scoreExtraction(item: ManifestItem, outcome: ExtractionOutcome): ItemResult {
   const exp = item.expected ?? {};
   const messages: string[] = [];
@@ -72,15 +87,9 @@ function scoreExtraction(item: ManifestItem, outcome: ExtractionOutcome): ItemRe
     if (value < 1)
       messages.push(`author mismatch: expected "${exp.author}", got "${outcome.author}"`);
   }
-  if (exp.search_terms?.length) {
-    const matches = termMatches(searchable, exp.search_terms);
-    parts.push(matches.filter((m) => m.found).length / matches.length);
-    for (const m of matches.filter((m) => !m.found))
-      messages.push(`search term not found: "${m.term}"`);
-  }
-  const banned = bannedTermHits(searchable, exp.must_not_match ?? []);
-  for (const term of banned) messages.push(`banned term found in extracted text: "${term}"`);
-  if (banned.length) parts.push(0);
+  const terms = scoreTerms(searchable, exp);
+  parts.push(...terms.parts);
+  messages.push(...terms.messages);
 
   if (exp.image_urls_min != null) {
     const value = Math.min(1, outcome.imageUrls.length / exp.image_urls_min);
@@ -124,19 +133,7 @@ function scoreExtraction(item: ManifestItem, outcome: ExtractionOutcome): ItemRe
 }
 
 function scorePlainText(item: ManifestItem, text: string, engine: string): ItemResult {
-  const exp = item.expected ?? {};
-  const messages: string[] = [];
-  const parts: number[] = [];
-  if (exp.search_terms?.length) {
-    const matches = termMatches(text, exp.search_terms);
-    parts.push(matches.filter((m) => m.found).length / matches.length);
-    for (const m of matches.filter((m) => !m.found))
-      messages.push(`search term not found: "${m.term}"`);
-  }
-  const banned = bannedTermHits(text, exp.must_not_match ?? []);
-  for (const term of banned) messages.push(`banned term found: "${term}"`);
-  if (banned.length) parts.push(0);
-
+  const { parts, messages } = scoreTerms(text, item.expected ?? {});
   const score = average(parts);
   return {
     id: item.id,
@@ -157,19 +154,8 @@ function scorePdf(
   ocrLatencyMs: number,
 ): ItemResult {
   const exp = item.expected ?? {};
-  const messages: string[] = [];
-  const parts: number[] = [];
   const text = extraction.text;
-
-  if (exp.search_terms?.length) {
-    const matches = termMatches(text, exp.search_terms);
-    parts.push(matches.filter((m) => m.found).length / matches.length);
-    for (const m of matches.filter((m) => !m.found))
-      messages.push(`search term not found: "${m.term}"`);
-  }
-  const banned = bannedTermHits(text, exp.must_not_match ?? []);
-  for (const term of banned) messages.push(`banned term found: "${term}"`);
-  if (banned.length) parts.push(0);
+  const { parts, messages } = scoreTerms(text, exp);
 
   if (exp.ocr_text_file) {
     const expectedText = readFileSync(corpusPath(exp.ocr_text_file), "utf8");
@@ -218,9 +204,8 @@ function scoreOcr(
   const score = (stats.recall + stats.precision) / 2;
   const messages: string[] = [];
   if (stats.recall < 1) {
-    const missing = [...new Set(tokenize(expectedText))].filter(
-      (t) => !tokenize(actualText).includes(t),
-    );
+    const actual = new Set(tokenize(actualText));
+    const missing = [...new Set(tokenize(expectedText))].filter((t) => !actual.has(t));
     messages.push(`OCR recall ${stats.recall.toFixed(2)} (${stats.expectedCount} expected tokens)`);
     messages.push(`missing tokens (sample): ${missing.slice(0, 8).join(", ")}`);
   }
