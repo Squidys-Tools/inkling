@@ -75,7 +75,6 @@ export interface UrlIngestionOptions {
   fetch?: typeof globalThis.fetch;
   timeoutMs?: number;
   maxResponseBytes?: number;
-  userAgent?: string;
   defuddleAdapter?: DefuddleAdapter;
   /** Only enable this for trusted local fixture servers, never for user input. */
   allowPrivateNetwork?: boolean;

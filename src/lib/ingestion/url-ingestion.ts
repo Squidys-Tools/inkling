@@ -24,7 +24,6 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
-const DEFAULT_USER_AGENT = "inkling/0.1 (+local article capture)";
 function mergeExtraction(
   primary: RawArticleExtraction,
   fallback: RawArticleExtraction,
@@ -123,7 +122,6 @@ async function ingestVideoLink(
   fetchImpl: typeof globalThis.fetch | undefined,
   timeoutMs: number,
   maxResponseBytes: number,
-  userAgent: string,
 ): Promise<NormalizedArticle> {
   let title = `${providerLabel(videoLink.provider)} video`;
   let author = "";
@@ -132,7 +130,6 @@ async function ingestVideoLink(
   const host = videoLink.provider === "youtube" ? "www.youtube.com" : "vimeo.com";
   const metadata = (await runHttp(
     fetchJson(`https://${host}/oembed.json?url=${encodeURIComponent(videoLink.sourceUrl)}`, {
-      userAgent,
       timeoutMs: Math.min(timeoutMs, 4_000),
       maxBytes: maxResponseBytes,
     }),
@@ -185,23 +182,15 @@ export async function ingestUrl(
 
   const videoLink = videoLinkFromSourceUrl(sourceUrl);
   if (videoLink) {
-    return ingestVideoLink(
-      sourceUrl,
-      videoLink,
-      fetchImpl,
-      timeoutMs,
-      maxResponseBytes,
-      options.userAgent ?? DEFAULT_USER_AGENT,
-    );
+    return ingestVideoLink(sourceUrl, videoLink, fetchImpl, timeoutMs, maxResponseBytes);
   }
 
-  const userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
   let xPost: XPostMetadata | null = null;
   if (parseXPostUrl(sourceUrl)) {
     // X can block or rate-limit the oEmbed request. Without it, the normal page
     // pipeline still has a chance to succeed.
     const oEmbed = await runHttp(
-      fetchJson(xPostOEmbedUrl(sourceUrl), { userAgent, timeoutMs, maxBytes: maxResponseBytes }),
+      fetchJson(xPostOEmbedUrl(sourceUrl), { timeoutMs, maxBytes: maxResponseBytes }),
       fetchImpl,
     );
     try {
@@ -233,7 +222,6 @@ export async function ingestUrl(
 
   const { fetchedUrl, html: rawHtml } = await runHttp(
     downloadPage(sourceUrl, {
-      userAgent,
       timeoutMs,
       maxBytes: maxResponseBytes,
       allowPrivateNetwork: options.allowPrivateNetwork,
