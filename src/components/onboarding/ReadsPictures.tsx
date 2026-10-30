@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { prefersReducedMotion } from "../mascot/mascotStore";
+import { prefersReducedMotion } from "../../ui/reducedMotion";
 import { onboardingPhotos } from "./onboardingMedia";
 
 const QUERY = "lumen";

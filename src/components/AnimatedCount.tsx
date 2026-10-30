@@ -3,6 +3,7 @@
 // text is in GradualBlur/LICENSE.md, which comes from the same project.
 import { animate, cubicBezier } from "motion/react";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import { prefersReducedMotion } from "../ui/reducedMotion";
 
 type Column = {
   slot: number;
@@ -226,7 +227,7 @@ export function AnimatedCount({ value, className }: { value: number; className?:
       if (play.to > 0) introRef.current = false;
     };
 
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    if (prefersReducedMotion()) {
       finish();
       return undefined;
     }

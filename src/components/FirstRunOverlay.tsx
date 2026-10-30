@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState, type CSSProperties } from "react";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { prefersReducedMotion } from "./mascot/mascotStore";
+import { prefersReducedMotion } from "../ui/reducedMotion";
 import { KeptFloating } from "./onboarding/KeptFloating";
 import { MemoryMatch } from "./onboarding/MemoryMatch";
 import { OnboardingMascot } from "./onboarding/OnboardingMascot";

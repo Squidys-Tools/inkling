@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { gsap } from "gsap";
 import { SplitText as GsapSplitText } from "gsap/SplitText";
-import { prefersReducedMotion } from "../mascot/mascotStore";
+import { prefersReducedMotion } from "../../ui/reducedMotion";
 
 gsap.registerPlugin(GsapSplitText);
 

@@ -4,6 +4,7 @@ import { EXPRESSION_BY_ID, DEFAULT_EXPRESSION, type BotExpression } from "./bot/
 import { SHAPE_BY_ID } from "./bot/skins";
 import { RAYON } from "./bot/repere";
 import type { StateId } from "./bot/states";
+import { prefersReducedMotion, reducedMotionQuery } from "../../ui/reducedMotion";
 import { MascotFigure, MascotSearchEyes } from "./MascotFigure";
 
 interface MascotParams {
@@ -30,15 +31,6 @@ let lastMs = 0;
 let running = false;
 const subs = new Set<() => void>();
 let appliedParams: MascotParams = { state: "inkling-drift", expression: DEFAULT_EXPRESSION };
-
-const reducedMotion =
-  typeof window !== "undefined" && typeof window.matchMedia === "function"
-    ? window.matchMedia("(prefers-reduced-motion: reduce)")
-    : null;
-
-export function prefersReducedMotion() {
-  return reducedMotion?.matches ?? false;
-}
 
 function emit() {
   for (const fn of subs) fn();
@@ -77,7 +69,7 @@ if (typeof document !== "undefined") {
 
 // Reduced motion can flip while the app is open, and subscribers stay mounted, so
 // nothing else would restart or freeze the loop to match.
-reducedMotion?.addEventListener("change", (event) => {
+reducedMotionQuery?.addEventListener("change", (event) => {
   if (event.matches) {
     haltLoop();
     frame = engine.sample(clock);

@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PlayIcon } from "@hugeicons/core-free-icons";
 import { QuoteArtwork, TypedArtwork } from "../ItemMedia";
-import { prefersReducedMotion } from "../mascot/mascotStore";
+import { prefersReducedMotion } from "../../ui/reducedMotion";
 import { onboardingPhotos } from "./onboardingMedia";
 
 type Layer = "far" | "mid" | "near";

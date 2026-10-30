@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { prefersReducedMotion } from "../mascot/mascotStore";
+import { prefersReducedMotion } from "../../ui/reducedMotion";
 
 // Rare UI's Grid Reveal, trimmed for the welcome screen: no captions, always
 // dark, self-paced. While `src` is null the card waits as a quiet grey grid;

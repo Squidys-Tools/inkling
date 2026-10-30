@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { InklingMascot } from "../mascot/InklingMascot";
-import { prefersReducedMotion } from "../mascot/mascotStore";
+import { prefersReducedMotion } from "../../ui/reducedMotion";
 
 /** How long each face holds before the next one glides in. */
 const FACE_HOLD_MS = 3400;
