@@ -182,15 +182,7 @@ export function RichNoteEditor({
             type="button"
             className="note-editor-cancel"
             aria-label="Cancel note editing"
-            onClick={() => {
-              editor.commands.setContent(noteBodyForEditor(body, title), {
-                contentType: "markdown",
-                emitUpdate: false,
-              });
-              setError(null);
-              setLinkDraft(null);
-              onEditingChange(false);
-            }}
+            onClick={() => onEditingChange(false)}
           >
             Cancel
           </button>
