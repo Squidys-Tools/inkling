@@ -1,31 +1,22 @@
 import { expect, test } from "bun:test";
 import { act, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { parseHTML } from "linkedom";
 import { Sidebar } from "./Sidebar";
 import { SpacesSection } from "./SpacesSection";
 import { APPEARANCE_OPTIONS } from "../settings/appearance";
 import { AddMenu } from "../capture/AddMenu/AddMenu";
+import { installTestDom } from "../testDom";
 
 const noop = () => {};
 async function mounted(content: ReactNode, check: (doc: Document) => void | Promise<void>) {
-  const { window: dom } = parseHTML("<html><body><div id='root'></div></body></html>");
-  for (const [key, value] of Object.entries({
-    window: dom,
-    document: dom.document,
-    HTMLElement: dom.HTMLElement,
-    Element: dom.Element,
-    SVGElement: dom.SVGElement,
-    Node: dom.Node,
-    IS_REACT_ACT_ENVIRONMENT: true,
-  }))
-    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+  const { restore } = installTestDom();
   const root = createRoot(document.getElementById("root")!);
   try {
     await act(async () => root.render(content));
     await check(document);
   } finally {
     await act(async () => root.unmount());
+    restore();
   }
 }
 function sidebar(experimental: boolean, isOpen: boolean) {

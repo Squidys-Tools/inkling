@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { parseHTML } from "linkedom";
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { UpdateState } from "../../lib/libraryApi";
+import { installTestDom } from "../testDom";
 import { useAppUpdate } from "./useAppUpdate";
 
 const initial: UpdateState = {
@@ -33,7 +33,7 @@ let installs: string[];
 let checks: number;
 let readCount: number;
 let downloads: string[];
-const globals = new Map<string, PropertyDescriptor | undefined>();
+let restoreDom: () => void;
 
 function Probe({ enabled }: { enabled: boolean }) {
   const controller = useAppUpdate(enabled);
@@ -44,18 +44,7 @@ function Probe({ enabled }: { enabled: boolean }) {
 }
 
 beforeEach(() => {
-  const { window: domWindow } = parseHTML(
-    "<!doctype html><html><body><div id='root'></div></body></html>",
-  );
-  for (const [name, value] of Object.entries({
-    window: domWindow,
-    document: domWindow.document,
-    HTMLElement: domWindow.HTMLElement,
-    IS_REACT_ACT_ENVIRONMENT: true,
-  })) {
-    globals.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
-    Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
-  }
+  restoreDom = installTestDom().restore;
   backend = { ...initial };
   reads = async () => backend;
   download = async () =>
@@ -109,11 +98,7 @@ afterEach(async () => {
   try {
     await act(() => root?.unmount());
   } finally {
-    for (const [name, descriptor] of globals) {
-      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
-      else Reflect.deleteProperty(globalThis, name);
-    }
-    globals.clear();
+    restoreDom();
   }
 });
 
