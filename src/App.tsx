@@ -149,7 +149,6 @@ function App() {
     setCaptureError,
   });
   const searchRef = useRef<HTMLInputElement>(null);
-  const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const captureBarRef = useRef<HTMLElement>(null);
   const viewDockRef = useRef<HTMLDivElement>(null);
@@ -456,7 +455,6 @@ function App() {
               />
               <UpdateNavRow update={appUpdate} />
               <NavRow
-                ref={settingsButtonRef}
                 tone="footer"
                 active={isSettingsOpen}
                 aria-label="Settings"
