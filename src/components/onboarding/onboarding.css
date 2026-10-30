@@ -28,8 +28,8 @@
   white-space: normal;
 }
 /* SplitText's inline-block words would otherwise sit on the baseline and
-   open up taller lines mid-animation than the reverted text has. */
-.first-run-headline div {
+   open up taller lines mid-animation than the plain text has. */
+.first-run-headline span {
   vertical-align: top;
 }
 .first-run-headline.is-centered,
