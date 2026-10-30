@@ -78,7 +78,7 @@ Never add signing secrets or publish automatically. The Windows installer is not
 |---|---|---|
 | Everything | `bun run check` | Every gate CI runs, in one command |
 | Changed files | `bun run check:changed [ref]` | Lint, format, related tests, Knip and typecheck for what changed since `origin/main` or `ref`. Run it before pushing; it does not replace CI |
-| Typecheck | `bun run typecheck` | App, benchmark harness, and `electron/` |
+| Typecheck | `bun run typecheck` | App, `electron/`, and the benchmarks, scripts and lint plugin |
 | Tests | `bun run test` | |
 | Unused code | `bun run knip` | To clean up, run `bunx knip --fix`, then `bun install` to re-sync the lockfile, then fix any `noUnusedLocals` errors |
 | Lint and format | `bun run lint` (`bun run lint:fix` to apply) | oxlint, with inkling rules in `oxlint-plugin-inkling/`, then oxfmt |
