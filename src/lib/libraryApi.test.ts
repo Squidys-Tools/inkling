@@ -35,8 +35,10 @@ Object.defineProperty(globalThis, "window", {
   value: { inkling: { commands } },
 });
 
+// Keep this suite's lazy storage initialization separate from mounted hook fixtures.
+const apiModule = "./libraryApi?library-api-tests";
 const { assetUrl, importLibrary, listSpaces, selectLibraryDirectory, summariesFromJobs } =
-  await import("./libraryApi");
+  (await import(apiModule)) as typeof import("./libraryApi");
 
 function job(overrides: Partial<ProcessingJob>): ProcessingJob {
   return {
