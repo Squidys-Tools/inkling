@@ -29,6 +29,7 @@ import {
 import { createAiJobProcessors, enqueueStaleImageEmbeddings, jobTimeouts } from "./ai-jobs.ts";
 import { serveAssetFile } from "./asset-response.ts";
 import { appContentTypes as mimeTypes } from "./app-content-types.ts";
+import { smartSpaceText } from "./storage/spaces.ts";
 import { createRendererRecovery } from "./renderer-recovery.ts";
 import { createLatestQuery } from "./latest-query.ts";
 import { startCaptureServer } from "./capture-server.ts";
@@ -345,7 +346,7 @@ function registerLibraryCommands() {
       library().swapSpacePositions(firstId, secondId),
     list_space_items: async ({ id, limit }) => {
       const space = await library().getSpace(id);
-      const text = space?.kind === "smart" ? String(space.query.text ?? "").trim() : "";
+      const text = space ? smartSpaceText(space) : "";
       return library().listSpaceItems(id, limit, await embedQueryForSearch(text));
     },
     add_space_item: ({ spaceId, itemId }) => library().addSpaceItem(spaceId, itemId),

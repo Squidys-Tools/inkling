@@ -37,6 +37,17 @@ type SpaceRow = {
 
 const spaceColors = ["blue", "orange", "green", "pink", "purple", "yellow"] as const;
 
+// Older sidebar-created Smart Spaces saved {} when no search was active,
+// accidentally becoming Everything. Evaluate their name as the missing intent,
+// without rewriting stored/exported filters or changing kind/tag-only Spaces.
+export function smartSpaceText(space: Pick<StoredSpace, "kind" | "name" | "query">) {
+  if (space.kind !== "smart") return "";
+  return (
+    nonEmpty(space.query.text) ??
+    (!nonEmpty(space.query.kind) && !nonEmpty(space.query.tag) ? space.name.trim() : "")
+  );
+}
+
 function spaceFromRow(row: SpaceRow): StoredSpace {
   return {
     id: row.id,
@@ -194,7 +205,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
       return rows.map(cardFromRow);
     }
     const query = space.query;
-    const text = nonEmpty(query.text);
+    const text = smartSpaceText(space);
     const clauses: Fragment[] = [sql`i.archived = 0`];
     const from = sql.literal("items i");
     const tag = nonEmpty(query.tag);

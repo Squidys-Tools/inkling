@@ -3,6 +3,7 @@ import type { Fragment } from "effect/sql/Statement";
 import type { StoredLibraryCard } from "@inkling/contracts";
 import { IMAGE_MODEL, TEXT_MODEL } from "../embedding-contract.ts";
 import { SEARCH_INDEX, cosine, rankFusion } from "../search-core.ts";
+import { matchesVisualSubject, visualSubjectQuery } from "../visual-subject.ts";
 import { selectCards, type StorageContext } from "./context.ts";
 import { invalidInput } from "./errors.ts";
 import { cardItem, clampLimit, type ItemRow, itemFromRow, qualifiedItemColumns } from "./shared.ts";
@@ -69,6 +70,40 @@ export function makeSearch(ctx: StorageContext) {
     const search = String(query ?? "").trim(),
       cap = clampLimit(limit, 100, 200);
     if (!search) return yield* selectCards(ctx, sql`archived = 0`, cap);
+    const subjects = visualSubjectQuery(search);
+    let visibleSubjects: string[] = [];
+    if (subjects) {
+      const images = yield* sql<{
+        id: string;
+        title: string;
+        ocr_text: string;
+        caption: string | null;
+        metadata: string;
+      }>`SELECT i.id,i.title,i.ocr_text,i.metadata,a.caption FROM items i
+        LEFT JOIN search_ai a ON a.item_id = i.id AND a.asset_path = i.local_asset_path
+        WHERE i.kind = 'image' AND i.archived = 0 AND ${scope}
+        ORDER BY i.updated_at DESC,i.id`;
+      visibleSubjects = images
+        .filter((row) => {
+          let tags: string[] = [];
+          try {
+            const value: unknown = JSON.parse(row.metadata);
+            if (value && typeof value === "object" && "tags" in value && Array.isArray(value.tags))
+              tags = value.tags.filter((tag): tag is string => typeof tag === "string");
+          } catch {
+            /* Malformed user metadata cannot supply visual evidence. */
+          }
+          return matchesVisualSubject(
+            { caption: row.caption, title: row.title, ocrText: row.ocr_text, tags },
+            subjects,
+          );
+        })
+        .map((row) => row.id);
+      // Fence ALL lanes before their cap: OCR, filenames, text vectors and even
+      // a high whole-screen image similarity cannot re-admit a rejected UI shot.
+      scope = sql`(${scope}) AND (i.kind != 'image' OR i.id IN
+        (SELECT value FROM json_each(${JSON.stringify(visibleSubjects)})))`;
+    }
     let rows: ReadonlyArray<ItemRow> = [],
       chunkRows: ReadonlyArray<ItemRow> = [];
     if (ctx.fts5Enabled) {
@@ -89,7 +124,10 @@ export function makeSearch(ctx: StorageContext) {
     const lexical = [...items.keys()];
     const vectors: SearchVectors =
       queryVector && "length" in queryVector ? { legacy: queryVector } : (queryVector ?? {});
-    const lanes = [{ ids: lexical, weight: 2 }];
+    const lanes = [
+      { ids: lexical, weight: 2 },
+      { ids: visibleSubjects, weight: 1.2 },
+    ];
     const appendLane = (
       candidates: ReadonlyArray<EmbeddingRow>,
       vector: ArrayLike<number>,

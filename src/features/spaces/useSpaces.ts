@@ -95,7 +95,7 @@ export function useSpaces({
     // A Regular Space is filled by hand, so the search behind the sidebar "+"
     // does not become its query.
     const spaceQuery: SmartSpaceQuery =
-      newSpaceKind === "smart" && query.trim() ? { text: query.trim() } : {};
+      newSpaceKind === "smart" ? { text: query.trim() || name } : {};
     const color = SPACE_COLORS[spaces.length % SPACE_COLORS.length];
     try {
       const created = canUseDesktopBackend
