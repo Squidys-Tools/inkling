@@ -113,3 +113,28 @@ test("export/import preserves exclusions and does not overwrite an existing libr
   await legacy.importLibrary(report.directory);
   expect(ids(await legacy.listSpaceItems(space.id))).toEqual([item.id]);
 });
+
+test("permanent delete removes only its exclusions and keeps exports restorable", async () => {
+  const f = await setup();
+  const deleted = await f.library.createNote({ body: "coding deleted" });
+  const kept = await f.library.createNote({ body: "coding kept" });
+  const space = await f.library.createSpace({ name: "Coding", query: { text: "coding" } });
+  await f.library.removeSpaceItem(space.id, deleted.id);
+  await f.library.removeSpaceItem(space.id, kept.id);
+  await f.library.archiveItem(deleted.id);
+  await f.library.deleteItem(deleted.id);
+  expect(await f.library.getItem(deleted.id)).toBeNull();
+  expect(await f.library.listItemSpaceExclusions(deleted.id)).toEqual([]);
+  expect(await f.library.listItemSpaceExclusions(kept.id)).toEqual([space.id]);
+  const destination = join(f.root, "delete-exports");
+  await mkdir(destination);
+  const exported = await f.library.exportLibrary(destination, 0);
+  const restored = await openTestLibrary(join(f.root, "delete-restored", "library.sqlite3"));
+  libraries.push(restored);
+  const report = await restored.importLibrary(exported.directory);
+  expect(report.importedItems).toBe(1);
+  expect(await restored.getItem(deleted.id)).toBeNull();
+  expect(await restored.listItemSpaceExclusions(deleted.id)).toEqual([]);
+  expect(await restored.listItemSpaceExclusions(kept.id)).toEqual([space.id]);
+  expect(await restored.listSpaceItems(space.id)).toEqual([]);
+});
