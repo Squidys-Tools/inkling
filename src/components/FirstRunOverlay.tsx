@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "./Breadcrumb";
+import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { prefersReducedMotion } from "./mascot/mascotStore";
 import { KeptFloating } from "./onboarding/KeptFloating";
 import { MemoryMatch } from "./onboarding/MemoryMatch";
@@ -46,6 +41,14 @@ const HEADLINE_DELAY = [0.15, 0.2, 0.45, 0.45, 0.15];
 
 const welcomeFaces = ["neutre", "curieux", "heureux", "attentif"] as const;
 const farewellFaces = ["heureux", "neutre", "fier", "timide"] as const;
+
+function CrumbSeparator() {
+  return (
+    <li aria-hidden="true" className="inline-flex opacity-80" role="presentation">
+      <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
+    </li>
+  );
+}
 
 function stageScale() {
   return Math.min(
@@ -277,17 +280,23 @@ export function FirstRunOverlay({ onFinish }: { onFinish: () => void }) {
               <br />
               inkling only goes online to fetch the links you save.
             </p>
-            <Breadcrumb className="first-run-crumb" style={{ left: 400, top: 322 }}>
-              <BreadcrumbList>
-                <BreadcrumbItem>Settings</BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>Data</BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Export a copy</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
+            <nav
+              aria-label="breadcrumb"
+              className="first-run-crumb"
+              style={{ left: 400, top: 322 }}
+            >
+              <ol className="m-0 flex list-none flex-wrap items-center gap-2 p-0 font-body text-[13px]/[1.4] text-muted">
+                <li className="inline-flex items-center gap-1.5">Settings</li>
+                <CrumbSeparator />
+                <li className="inline-flex items-center gap-1.5">Data</li>
+                <CrumbSeparator />
+                <li className="inline-flex items-center gap-1.5">
+                  <span aria-current="page" className="text-accent">
+                    Export a copy
+                  </span>
+                </li>
+              </ol>
+            </nav>
             {actions({ left: 400, top: 378 })}
           </>
         ) : null}
