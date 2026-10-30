@@ -211,6 +211,21 @@ export function SettingsSheet({
               />
               <div className={SETTINGS_SCROLL}>
                 <SettingsRow
+                  icon={SidebarLeftIcon}
+                  title="Sidebar style"
+                  description="Classic or an experimental compact navigation."
+                  action={
+                    <SegmentedControl
+                      className={SEGMENTED}
+                      name="appearance-sidebar-style"
+                      label="Sidebar style"
+                      value={appearance.sidebarStyle}
+                      onChange={(value) => onAppearanceChange("sidebarStyle", value)}
+                      options={APPEARANCE_OPTIONS.sidebarStyle}
+                    />
+                  }
+                />
+                <SettingsRow
                   icon={Grid2X2Icon}
                   title="Grid and list toggle"
                   description="The switch at the bottom of the library."

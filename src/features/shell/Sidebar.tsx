@@ -57,6 +57,8 @@ function NavDotGridIcon() {
 // Narrow windows slide the sidebar in over a scrim. Wide ones keep it still
 // underneath while the library frame (App's <main>) slides over it.
 export function Sidebar({
+  experimental = false,
+  onOpen,
   isOpen,
   edgeToggle,
   isSearchFocused,
@@ -65,6 +67,8 @@ export function Sidebar({
   children,
   footer,
 }: {
+  experimental?: boolean;
+  onOpen: () => void;
   isOpen: boolean;
   edgeToggle: boolean;
   isSearchFocused: boolean;
@@ -92,18 +96,40 @@ export function Sidebar({
       </AnimatePresence>
       <aside
         id="library-navigation"
-        className={cx(
-          "group fixed inset-y-0 left-0 z-30 flex h-screen min-h-0 shrink-0 flex-col gap-[22px] overflow-hidden border-r bg-canvas pt-6 pb-2.5 shadow-[16px_0_40px_rgba(0,0,0,0.45)] transition-transform duration-240 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-          "wide:absolute wide:z-auto wide:w-sidebar wide:translate-x-0 wide:border-transparent wide:bg-transparent wide:px-2.5 wide:pt-[26px] wide:pb-1.5 wide:opacity-100 wide:shadow-none wide:transition-[visibility] wide:duration-0",
-          isOpen
-            ? "w-[min(248px,calc(100vw-42px))] translate-x-0 border-border px-2.5"
-            : // Hidden once covered on wide windows, so its controls leave the tab order.
-              "w-0 min-w-0 -translate-x-[102%] border-transparent px-0 opacity-0 wide:invisible wide:delay-300",
-        )}
+        inert={!experimental && !isOpen}
+        data-collapsed={experimental && !isOpen}
+        className={
+          experimental
+            ? "codex-sidebar group fixed z-30 flex min-h-0 flex-col gap-6 bg-canvas wide:absolute wide:z-auto"
+            : cx(
+                "group fixed inset-y-0 left-0 z-30 flex h-screen min-h-0 shrink-0 flex-col gap-[22px] overflow-hidden border-r bg-canvas pt-6 pb-2.5 shadow-[16px_0_40px_rgba(0,0,0,0.45)] transition-transform duration-240 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+                "wide:absolute wide:z-auto wide:w-sidebar wide:translate-x-0 wide:border-transparent wide:bg-transparent wide:px-2.5 wide:pt-[26px] wide:pb-1.5 wide:opacity-100 wide:shadow-none wide:transition-[visibility] wide:duration-0",
+                isOpen
+                  ? "w-[min(248px,calc(100vw-42px))] translate-x-0 border-border px-2.5"
+                  : // Hidden once covered on wide windows, so its controls leave the tab order.
+                    "w-0 min-w-0 -translate-x-[102%] border-transparent px-0 opacity-0 wide:invisible wide:delay-300",
+              )
+        }
       >
-        <div className="-mb-2 flex h-11 items-center pr-1 pl-1.5">
-          <MascotHomeSlot isSearchFocused={isSearchFocused} />
-          <span className="ml-2 font-quote text-[20px] leading-none font-normal tracking-[-0.04em] whitespace-nowrap text-ink select-none">
+        <div
+          className={cx("-mb-2 flex h-11 items-center pr-1 pl-1.5", experimental && "codex-brand")}
+        >
+          {experimental && !isOpen ? (
+            <button
+              type="button"
+              className="sidebar-toggle codex-mascot-open"
+              aria-label="Open sidebar"
+              aria-expanded={false}
+              aria-controls="library-navigation"
+              data-tooltip="Open sidebar"
+              onClick={onOpen}
+            >
+              <MascotHomeSlot isSearchFocused={false} />
+            </button>
+          ) : (
+            <MascotHomeSlot isSearchFocused={experimental ? false : isSearchFocused} />
+          )}
+          <span className="codex-label ml-2 font-quote text-[20px] leading-none font-normal tracking-[-0.04em] whitespace-nowrap text-ink select-none">
             inkling
           </span>
           <Button
@@ -113,10 +139,11 @@ export function Sidebar({
               isOpen
                 ? "wide:group-[:not(:hover,:focus-within)]:opacity-0"
                 : "pointer-events-none -translate-x-5 opacity-0",
-              edgeToggle && "wide:hidden",
+              edgeToggle && !experimental && "wide:hidden",
             )}
+            hidden={experimental && !isOpen}
             aria-label="Close sidebar"
-            aria-expanded={true}
+            aria-expanded={isOpen}
             aria-controls="library-navigation"
             data-tooltip="Close sidebar"
             onClick={onClose}
@@ -126,7 +153,12 @@ export function Sidebar({
         </div>
 
         <nav className="grid gap-0.5" aria-label="Main navigation">
-          <NavRow active={everything.active} onClick={everything.onSelect}>
+          <NavRow
+            active={everything.active}
+            onClick={everything.onSelect}
+            aria-label={experimental && !isOpen ? "Everything" : undefined}
+            data-tooltip={experimental && !isOpen ? "Everything" : undefined}
+          >
             <span
               className={cx(
                 "grid w-4 flex-none place-items-center",

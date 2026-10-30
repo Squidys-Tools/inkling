@@ -9,7 +9,7 @@ export function TitleBar() {
   const controls = window.inkling?.windowControls;
   return (
     <>
-      <div className="fixed top-0 right-[138px] left-0 z-180 h-titlebar [-webkit-app-region:drag]" />
+      <div className="titlebar-drag fixed top-0 right-[138px] left-0 z-180 h-titlebar [-webkit-app-region:drag]" />
       {controls && (
         <div className="fixed top-0 right-0 z-200 flex h-titlebar [-webkit-app-region:no-drag]">
           <Button

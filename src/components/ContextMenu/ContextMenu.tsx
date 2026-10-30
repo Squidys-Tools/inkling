@@ -4,7 +4,12 @@ import { type RefObject, useEffect, useMemo, useRef } from "react";
 import { cx } from "../../ui/cx";
 import { focusFirstMenuItem, MENU_ITEM, MENU_POPUP_MOTION } from "../../ui/Menu";
 
-export type ContextMenuEntry = { label: string; icon: IconSvgElement; onSelect: () => void };
+export type ContextMenuEntry = {
+  label: string;
+  icon: IconSvgElement;
+  onSelect: () => void;
+  disabled?: boolean;
+};
 
 type Props = {
   x: number;
@@ -85,9 +90,10 @@ export function ContextMenu({ x, y, label, entries, returnFocus, container, onCl
                 key={entry.label}
                 className={cx(
                   MENU_ITEM,
-                  "whitespace-nowrap text-ink-soft [&_svg]:flex-none [&_svg]:text-muted data-highlighted:[&_svg]:text-ink",
+                  "whitespace-nowrap text-ink-soft [&_svg]:flex-none [&_svg]:text-muted data-highlighted:[&_svg]:text-ink data-disabled:opacity-35 data-disabled:cursor-default",
                 )}
-                onClick={entry.onSelect}
+                disabled={entry.disabled}
+                onClick={entry.disabled ? undefined : entry.onSelect}
               >
                 <HugeiconsIcon icon={entry.icon} size={15} />
                 {entry.label}

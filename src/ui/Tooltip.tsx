@@ -99,22 +99,25 @@ export function TooltipLayer({ ref }: { ref: RefObject<HTMLDivElement | null> })
   return (
     <div ref={ref} className="pointer-events-none fixed inset-0 z-2000" aria-hidden="true">
       <Tooltip.Root open={tip != null} onOpenChange={(open) => open || setTip(null)}>
-        <Tooltip.Portal container={ref}>
-          <Tooltip.Positioner
-            anchor={tip?.anchor}
-            side="bottom"
-            sideOffset={8}
-            collisionPadding={6}
-            collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
-            positionMethod="fixed"
-          >
-            <Tooltip.Popup
-              className={`${glassClass(liquid)} max-w-[280px] rounded-[9px] px-2.5 py-1.5 font-body text-[12px] leading-4 font-medium text-ink transition-opacity duration-120 ease-out data-starting-style:opacity-0 motion-reduce:transition-none`}
+        {/* Never leave an empty painted popup while an anchor moves/unmounts. */}
+        {tip && (
+          <Tooltip.Portal container={ref}>
+            <Tooltip.Positioner
+              anchor={tip?.anchor}
+              side="bottom"
+              sideOffset={8}
+              collisionPadding={6}
+              collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
+              positionMethod="fixed"
             >
-              {tip?.text}
-            </Tooltip.Popup>
-          </Tooltip.Positioner>
-        </Tooltip.Portal>
+              <Tooltip.Popup
+                className={`${glassClass(liquid)} max-w-[280px] rounded-[9px] px-2.5 py-1.5 font-body text-[12px] leading-4 font-medium text-ink transition-opacity duration-120 ease-out data-starting-style:opacity-0 motion-reduce:transition-none`}
+              >
+                {tip?.text}
+              </Tooltip.Popup>
+            </Tooltip.Positioner>
+          </Tooltip.Portal>
+        )}
       </Tooltip.Root>
     </div>
   );

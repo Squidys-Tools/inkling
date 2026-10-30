@@ -62,6 +62,7 @@ import { useFirstRun } from "./features/shell/useFirstRun";
 import { useHistory } from "./features/shell/useHistory";
 import { useMascotMood } from "./features/shell/useMascotMood";
 import { useSidebarOpen } from "./features/shell/useSidebarOpen";
+import "./features/shell/codex-sidebar.css";
 import { itemMatchesSmartQuery } from "./features/spaces/smartQuery";
 import { useSpaces } from "./features/spaces/useSpaces";
 import { cx } from "./ui/cx";
@@ -111,6 +112,7 @@ function App() {
     setLastCopy,
     settingsDialogRef,
   } = useSettings({ canUseDesktopBackend, activeSpaceId, debouncedQuery });
+  const codexSidebar = appearance.sidebarStyle === "codex";
   const {
     archivedItems,
     setArchivedItems,
@@ -469,12 +471,16 @@ function App() {
     <MotionConfig reducedMotion="user">
       <div
         className={`app-shell relative flex h-full min-h-screen overflow-hidden bg-canvas wide:bg-app ${isElectronRuntime() ? "electron-shell" : ""} ${isDragActive ? "drag-active" : ""} ${isSettingsOpen ? "settings-open" : ""}`}
+        data-sidebar-style={appearance.sidebarStyle}
+        data-sidebar-open={isSidebarOpen}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
         <TitleBar />
         <Sidebar
+          experimental={codexSidebar}
+          onOpen={() => setIsSidebarOpen(true)}
           isOpen={isSidebarOpen}
           edgeToggle={appearance.sidebarToggle === "edge"}
           isSearchFocused={isSearchFocused}
@@ -487,11 +493,13 @@ function App() {
           footer={
             <>
               <AddMenu
+                collapsible={codexSidebar}
+                compact={codexSidebar && !isSidebarOpen}
                 open={isAdding}
                 mode={captureMode}
                 saving={isCapturing}
                 error={isAdding ? captureError : null}
-                onOpen={() => openCapture()}
+                onOpen={() => openCapture(null, !codexSidebar || isSidebarOpen)}
                 onClose={closeCaptureModal}
                 onModeChange={(mode) => {
                   setCaptureMode(mode);
@@ -504,6 +512,16 @@ function App() {
                 }
                 onPickFile={(file) => void captureFile(file, "file picker")}
                 onScreenshot={startScreenshotCapture}
+                onAddSpace={
+                  codexSidebar
+                    ? () => {
+                        setIsSidebarOpen(true);
+                        setIsCreatingSpace(true);
+                        setNewSpaceName("");
+                        setNewSpaceKind("smart");
+                      }
+                    : undefined
+                }
               />
               {availableUpdate && (
                 <NavRow
@@ -563,6 +581,8 @@ function App() {
           }
         >
           <SpacesSection
+            experimental={codexSidebar}
+            collapsed={codexSidebar && !isSidebarOpen}
             spaces={spaces}
             activeSpaceId={activeSpaceId}
             activeCount={filteredItems.length}
@@ -577,6 +597,7 @@ function App() {
               cycleColor: (space) => void handleCycleSpaceColor(space),
               move: (space, direction) => void handleMoveSpace(space, direction),
               startRename: (space) => {
+                if (codexSidebar) setIsSidebarOpen(true);
                 setRenamingSpaceId(space.id);
                 setRenameDraft(space.name);
               },
@@ -607,12 +628,14 @@ function App() {
           {isSidebarOpen && sidebarActionErrorAlert}
         </Sidebar>
         {/* A closed sidebar's grip would sit over an open item's stage. */}
-        {appearance.sidebarToggle === "edge" && (isSidebarOpen || !selectedItem) && (
-          <SidebarEdgeGrip
-            isOpen={isSidebarOpen}
-            onToggle={() => setIsSidebarOpen((open) => !open)}
-          />
-        )}
+        {!codexSidebar &&
+          appearance.sidebarToggle === "edge" &&
+          (isSidebarOpen || !selectedItem) && (
+            <SidebarEdgeGrip
+              isOpen={isSidebarOpen}
+              onToggle={() => setIsSidebarOpen((open) => !open)}
+            />
+          )}
 
         {/* An open item replaces the library, which stays mounted underneath so
             the item can fly back into its card. */}
@@ -620,8 +643,9 @@ function App() {
           className={cx(
             "relative flex h-screen min-h-0 w-auto min-w-0 flex-auto flex-col overflow-hidden pt-(--main-pad-top) pr-(--main-pad-x) pb-(--main-pad-bottom) pl-(--main-pad-x) transition-[padding] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] [--library-top:var(--main-pad-top)] [--main-pad-bottom:30px] [--main-pad-top:calc(4px_+_var(--spacing-titlebar))] [--main-pad-x:14px] [--stage-background:var(--color-canvas)]",
             "wide:border-y wide:border-r-0 wide:border-border wide:bg-frame wide:transition-[margin-left,padding,border-radius] wide:[--stage-background:var(--color-frame)]",
-            // Closed, the frame meets the window's left edge, so its corners and left edge go flush.
-            isSidebarOpen
+            codexSidebar && "motion-reduce:transition-none",
+            // Codex retains a rail when compact; Classic closes to the window edge.
+            codexSidebar || isSidebarOpen
               ? "wide:ml-(--spacing-sidebar) wide:rounded-l-frame wide:border-l"
               : "wide:ml-0 wide:rounded-none",
             "max-[1120px]:w-[calc(100vw_-_var(--spacing-sidebar))] max-[780px]:w-full max-[780px]:transition-none max-[780px]:[--library-top:42px] max-[780px]:[--main-pad-bottom:24px] max-[780px]:[--main-pad-top:12px] max-[780px]:[--main-pad-x:18px]",
@@ -634,6 +658,7 @@ function App() {
           <CaptureBar
             ref={captureBarRef}
             leading={
+              !codexSidebar &&
               !isSidebarOpen && (
                 <>
                   <SidebarOpenButton
