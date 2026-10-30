@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureServerInternals, startCaptureServer } from "./capture-server.ts";
+import { startCaptureServer } from "./capture-server.ts";
 import { openTestLibrary, type TestLibrary } from "./storage/test-library.ts";
 
 const roots: string[] = [];
@@ -19,55 +19,6 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => server.close()));
   for (const library of libraries.splice(0)) await library.close();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
-
-describe("capture server request gate", () => {
-  test("bearer tokens require the exact value", () => {
-    expect(captureServerInternals.bearerToken({ authorization: "Bearer abc123" })).toBe("abc123");
-    expect(captureServerInternals.tokensEqual("abc123", "abc123")).toBe(true);
-    expect(captureServerInternals.tokensEqual("abc123", "abc124")).toBe(false);
-    expect(captureServerInternals.tokensEqual("abc123", "abc1234")).toBe(false);
-    expect(captureServerInternals.bearerToken({ authorization: "Basic abc" })).toBeNull();
-    expect(captureServerInternals.bearerToken({})).toBeNull();
-  });
-
-  test("only extension, null, and Electron origins pass", () => {
-    for (const allowed of [
-      undefined,
-      "null",
-      "chrome-extension://abcdef",
-      "moz-extension://1234-uuid",
-      "safari-web-extension://com.example.clip",
-      "app://local",
-      "inkling://capture?url=https://example.com",
-    ]) {
-      expect(captureServerInternals.originAllowed(allowed)).toBe(true);
-    }
-    for (const denied of [
-      "https://example.com",
-      "http://localhost:3000",
-      "http://127.0.0.1:1420",
-      "file://",
-      "nullified",
-      "chrome-extension-fake://x",
-      "chrome-extension://abc/path",
-      "tauri://localhost",
-      "https://tauri.localhost",
-      "http://tauri.localhost",
-      "https://tauri.localhost.evil",
-    ]) {
-      expect(captureServerInternals.originAllowed(denied)).toBe(false);
-    }
-  });
-
-  test("the rate limit allows 60 requests a minute", () => {
-    let now = 10_000;
-    const allowRequest = captureServerInternals.createRateLimiter(() => now);
-    for (let index = 0; index < 60; index += 1) expect(allowRequest()).toBe(true);
-    expect(allowRequest()).toBe(false);
-    now += 60_000;
-    expect(allowRequest()).toBe(true);
-  });
 });
 
 test("loopback capture uses a persisted bearer token and creates a pending storage item", async () => {

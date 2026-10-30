@@ -1,72 +1,21 @@
-import { timingSafeEqual } from "node:crypto";
 import { once } from "node:events";
-import {
-  createServer,
-  type IncomingHttpHeaders,
-  type IncomingMessage,
-  type ServerResponse,
-} from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { join } from "node:path";
+import {
+  bearerToken,
+  corsHeaders,
+  createRateLimiter,
+  originAllowed,
+  tokensEqual,
+} from "./capture-gate.ts";
 import { validateCapturePayload } from "./capture-payload.ts";
 import { openPairingToken } from "./pairing-token.ts";
 
 const MAX_JSON_BYTES = 5 * 1024 * 1024;
 const MAX_HEAD_BYTES = 64 * 1024;
-const RATE_LIMIT_MAX = 60;
-const RATE_LIMIT_WINDOW = 60_000;
 const READ_TIMEOUT = 10_000;
 const HEALTH_PATH = "/v1/health";
 const CAPTURES_PATH = "/v1/captures";
-
-function originAllowed(origin: string | undefined) {
-  const trimmed = origin?.trim();
-  if (!trimmed || trimmed === "null") return true;
-  if (trimmed === "app://local" || trimmed.startsWith("inkling://")) {
-    return true;
-  }
-  for (const scheme of ["chrome-extension", "moz-extension", "safari-web-extension"]) {
-    const prefix = `${scheme}://`;
-    if (!trimmed.startsWith(prefix)) continue;
-    const host = trimmed.slice(prefix.length);
-    if (host && /^[a-z\d._-]+$/iu.test(host)) return true;
-  }
-  return false;
-}
-
-function bearerToken(headers: IncomingHttpHeaders) {
-  const value = headers.authorization;
-  return typeof value === "string" && value.startsWith("Bearer ") && value.length > 7
-    ? value.slice(7)
-    : null;
-}
-
-function tokensEqual(left: string, right: string) {
-  const leftBytes = Buffer.from(left, "utf8");
-  const rightBytes = Buffer.from(right, "utf8");
-  return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
-}
-
-function createRateLimiter(now = Date.now) {
-  const requestTimes: number[] = [];
-  return () => {
-    const current = now();
-    while (requestTimes.length && current - requestTimes[0] >= RATE_LIMIT_WINDOW) {
-      requestTimes.shift();
-    }
-    if (requestTimes.length >= RATE_LIMIT_MAX) return false;
-    requestTimes.push(current);
-    return true;
-  };
-}
-
-function corsHeaders(origin: string | undefined) {
-  const trimmed = origin?.trim();
-  const headers: Record<string, string> = { Vary: "Origin" };
-  if (trimmed && trimmed !== "null" && originAllowed(trimmed)) {
-    headers["Access-Control-Allow-Origin"] = trimmed;
-  }
-  return headers;
-}
 
 function send(
   response: ServerResponse,
@@ -261,10 +210,3 @@ export async function startCaptureServer({
     },
   };
 }
-
-export const captureServerInternals = Object.freeze({
-  bearerToken,
-  createRateLimiter,
-  originAllowed,
-  tokensEqual,
-});
