@@ -1,4 +1,5 @@
 import { Archive01Icon } from "@hugeicons/core-free-icons";
+import { useMemo } from "react";
 import type { LibraryItem } from "../../lib/types";
 import { LibraryCard, type LibraryCardContext } from "../library/LibraryCard";
 import { ArchiveGrid } from "./ArchiveGrid";
@@ -16,7 +17,13 @@ export function ArchivePanel({
   isLoaded,
   selectionMode,
   selectedCount,
-  context,
+  onSelectItem,
+  onOpenReader,
+  onRetryJob,
+  onDeleteItem,
+  onRestoreItem,
+  isItemSelected,
+  onToggleItem,
   onToggleSelectionMode,
   onRestoreSelected,
   onDeleteSelected,
@@ -26,12 +33,41 @@ export function ArchivePanel({
   isLoaded: boolean;
   selectionMode: boolean;
   selectedCount: number;
-  context: LibraryCardContext;
+  onSelectItem: LibraryCardContext["onSelectItem"];
+  onOpenReader: LibraryCardContext["onOpenReader"];
+  onRetryJob: LibraryCardContext["onRetryJob"];
+  onDeleteItem: (item: LibraryItem) => void;
+  onRestoreItem: (item: LibraryItem) => Promise<void>;
+  isItemSelected: (item: LibraryItem) => boolean;
+  onToggleItem: (item: LibraryItem) => void;
   onToggleSelectionMode: () => void;
   onRestoreSelected: () => void;
   onDeleteSelected: () => void;
   onClose: () => void;
 }) {
+  const context = useMemo<LibraryCardContext>(
+    () => ({
+      layout: "archive",
+      onSelectItem,
+      onOpenReader,
+      onRetryJob,
+      onDeleteArchivedItem: onDeleteItem,
+      onRestoreArchivedItem: onRestoreItem,
+      archiveSelectionMode: selectionMode,
+      isArchivedItemSelected: isItemSelected,
+      onToggleArchivedItem: onToggleItem,
+    }),
+    [
+      isItemSelected,
+      onDeleteItem,
+      onOpenReader,
+      onRestoreItem,
+      onRetryJob,
+      onSelectItem,
+      onToggleItem,
+      selectionMode,
+    ],
+  );
   const one = items.length === 1;
   return (
     <SettingsPanel tab="archive" titleId="archive-panel-title">

@@ -308,30 +308,6 @@ function App() {
     [listMode, openCardMenu, openReader, retryJob, selectLibraryItem],
   );
 
-  const archivedCardContext = useMemo<LibraryCardContext>(
-    () => ({
-      layout: "archive",
-      onSelectItem: selectArchivedLibraryItem,
-      onOpenReader: openReader,
-      onRetryJob: retryJob,
-      onDeleteArchivedItem: deleteArchivedLibraryItem,
-      onRestoreArchivedItem: restoreArchivedLibraryItem,
-      archiveSelectionMode: isArchiveSelectionMode,
-      isArchivedItemSelected: isArchivedLibraryItemSelected,
-      onToggleArchivedItem: toggleArchivedLibraryItem,
-    }),
-    [
-      deleteArchivedLibraryItem,
-      isArchiveSelectionMode,
-      isArchivedLibraryItemSelected,
-      openReader,
-      restoreArchivedLibraryItem,
-      retryJob,
-      selectArchivedLibraryItem,
-      toggleArchivedLibraryItem,
-    ],
-  );
-
   const { historyCloseRequest, closeItem } = useHistory({
     activeView,
     activeSpaceId,
@@ -584,7 +560,13 @@ function App() {
             isLoaded: isArchiveLoaded,
             selectionMode: isArchiveSelectionMode,
             selectedCount: selectedArchivedIds.size,
-            context: archivedCardContext,
+            onSelectItem: selectArchivedLibraryItem,
+            onOpenReader: openReader,
+            onRetryJob: retryJob,
+            onDeleteItem: deleteArchivedLibraryItem,
+            onRestoreItem: restoreArchivedLibraryItem,
+            isItemSelected: isArchivedLibraryItemSelected,
+            onToggleItem: toggleArchivedLibraryItem,
             onToggleSelectionMode: toggleArchiveSelectionMode,
             onRestoreSelected: () => void restoreSelectedArchivedItems(),
             onDeleteSelected: () => void deleteSelectedArchivedItems(),
