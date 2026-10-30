@@ -193,16 +193,11 @@ function App() {
     draftNameInputRef,
     openSpaceDraft,
     renaming,
-    startRename,
-    cancelRename,
+    actions: spaceActions,
     sidebarActionError,
     setSidebarActionError,
     beginSaveSearch,
     handleToggleItemInSpace,
-    handleDeleteSpace,
-    handleRenameSpace,
-    handleCycleSpaceColor,
-    handleMoveSpace,
   } = useSpaces({
     canUseDesktopBackend,
     query,
@@ -213,6 +208,7 @@ function App() {
     clearToDefaultView,
     setActiveView,
     setCaptureError,
+    setIsSidebarOpen,
   });
   const {
     isExportingLibrary,
@@ -444,14 +440,7 @@ function App() {
                 onSaveQuote={saveQuote}
                 onPickFile={(files) => captureFiles(files, "file picker")}
                 onScreenshot={startScreenshotCapture}
-                onAddSpace={
-                  codexSidebar
-                    ? () => {
-                        setIsSidebarOpen(true);
-                        openSpaceDraft();
-                      }
-                    : undefined
-                }
+                onAddSpace={codexSidebar ? openSpaceDraft : undefined}
               />
               <UpdateNavRow update={appUpdate} />
               <NavRow
@@ -479,18 +468,7 @@ function App() {
             activeSpaceId={activeSpaceId}
             activeCount={filteredItems.length}
             renaming={renaming}
-            actions={{
-              select: selectSpace,
-              cycleColor: (space) => void handleCycleSpaceColor(space),
-              move: (space, direction) => void handleMoveSpace(space, direction),
-              startRename: (space) => {
-                if (codexSidebar) setIsSidebarOpen(true);
-                startRename(space);
-              },
-              rename: (space, name) => void handleRenameSpace(space, name),
-              cancelRename,
-              remove: (space) => void handleDeleteSpace(space),
-            }}
+            actions={spaceActions}
             draftNameInputRef={draftNameInputRef}
             draft={spaceDraft}
           />

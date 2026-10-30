@@ -21,6 +21,7 @@ import {
 import { shouldUseSeedLibrary } from "../../lib/previewMode";
 import { seedSpaces } from "../library/seed";
 import type { SpaceDraft } from "../shell/SpaceDraftForm";
+import type { SpaceRowActions } from "../shell/SpacesSection";
 import { errorMessage } from "../errorMessage";
 import { useSpaceMembership } from "./useSpaceMembership";
 
@@ -58,6 +59,7 @@ type SpacesOptions = {
   clearToDefaultView: () => void;
   setActiveView: Dispatch<SetStateAction<string>>;
   setCaptureError: Dispatch<SetStateAction<string | null>>;
+  setIsSidebarOpen: Dispatch<SetStateAction<boolean>>;
 };
 
 export function useSpaces({
@@ -70,6 +72,7 @@ export function useSpaces({
   clearToDefaultView,
   setActiveView,
   setCaptureError,
+  setIsSidebarOpen,
 }: SpacesOptions) {
   const [spaces, setSpaces] = useState<StoredSpace[]>(shouldUseSeedLibrary() ? seedSpaces : []);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
@@ -93,7 +96,10 @@ export function useSpaces({
     setSidebarActionError,
   });
 
+  // A new Space and a rename are both typed in the sidebar, so starting either
+  // from the collapsed Codex rail opens it.
   function openSpaceDraft() {
+    setIsSidebarOpen(true);
     setIsCreatingSpace(true);
     setNewSpaceName("");
     setNewSpaceKind("smart");
@@ -275,6 +281,7 @@ export function useSpaces({
   };
 
   function startRename(space: StoredSpace) {
+    setIsSidebarOpen(true);
     setRenamingSpaceId(space.id);
     setRenameDraft(space.name);
   }
@@ -289,15 +296,18 @@ export function useSpaces({
     draftNameInputRef: newSpaceNameInputRef,
     openSpaceDraft,
     renaming,
-    startRename,
-    cancelRename: () => setRenamingSpaceId(null),
+    actions: {
+      select: selectSpace,
+      cycleColor: (space) => void handleCycleSpaceColor(space),
+      move: (space, direction) => void handleMoveSpace(space, direction),
+      startRename,
+      rename: (space, name) => void handleRenameSpace(space, name),
+      cancelRename: () => setRenamingSpaceId(null),
+      remove: (space) => void handleDeleteSpace(space),
+    } satisfies SpaceRowActions,
     sidebarActionError,
     setSidebarActionError,
     beginSaveSearch,
     handleToggleItemInSpace: membership.toggleItemInSpace,
-    handleDeleteSpace,
-    handleRenameSpace,
-    handleCycleSpaceColor,
-    handleMoveSpace,
   };
 }
