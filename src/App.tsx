@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from "react";
 import { MotionConfig } from "motion/react";
 import { isElectronRuntime } from "./lib/libraryApi";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
-import { ContextMenu } from "./components/ContextMenu/ContextMenu";
 import type { LibraryItem } from "./lib/types";
 import { shouldUseSeedLibrary } from "./lib/previewMode";
 import { CaptureBar } from "./features/capture/CaptureBar";
@@ -21,6 +20,7 @@ import { useLibraryTransfer } from "./features/settings/useLibraryTransfer";
 import { SettingsSheet } from "./features/settings/SettingsSheet";
 import { useSettings } from "./features/settings/useSettings";
 import { AppSidebar, ClosedSidebarControls } from "./features/shell/AppSidebar";
+import { CardMenuLayer } from "./features/shell/CardMenuLayer";
 import { ItemLayers } from "./features/shell/ItemLayers";
 import { LibraryFrame } from "./features/shell/LibraryFrame";
 import { ShortcutsDialog } from "./features/shell/ShortcutsDialog";
@@ -153,7 +153,7 @@ function App() {
     !spaces.activeSpace || filteredItems.length > 0 || scope.query.trim() !== "";
   const showCaptureError = Boolean(captureError) && !capture.isAdding;
 
-  const { cardMenu, closeCardMenu, openCardMenu, cardMenuEntries } = useCardMenu({
+  const cardMenu = useCardMenu({
     canUseDesktopBackend,
     openReader: details.openReader,
     forgetItem: archive.forgetItem,
@@ -165,9 +165,15 @@ function App() {
       onSelectItem: selection.selectLibraryItem,
       onOpenReader: details.openReader,
       onRetryJob: library.retryJob,
-      onOpenMenu: openCardMenu,
+      onOpenMenu: cardMenu.openCardMenu,
     }),
-    [listMode, openCardMenu, details.openReader, library.retryJob, selection.selectLibraryItem],
+    [
+      listMode,
+      cardMenu.openCardMenu,
+      details.openReader,
+      library.retryJob,
+      selection.selectLibraryItem,
+    ],
   );
 
   const { historyCloseRequest, closeItem } = useHistory({
@@ -322,20 +328,7 @@ function App() {
         />
       </div>
       <TooltipLayer ref={tooltipLayerRef} />
-      <div ref={cardMenuLayerRef}>
-        {cardMenu && (
-          <ContextMenu
-            key={`${cardMenu.item.id}:${cardMenu.x},${cardMenu.y}`}
-            x={cardMenu.x}
-            y={cardMenu.y}
-            label={cardMenu.item.title}
-            entries={cardMenuEntries}
-            returnFocus={cardMenu.card}
-            container={cardMenuLayerRef}
-            onClose={closeCardMenu}
-          />
-        )}
-      </div>
+      <CardMenuLayer ref={cardMenuLayerRef} menu={cardMenu} />
       <Toaster />
     </MotionConfig>
   );
