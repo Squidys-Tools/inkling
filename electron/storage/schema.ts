@@ -209,13 +209,6 @@ export function openDatabase(databasePath: string) {
       DROP TRIGGER IF EXISTS items_fts_after_delete;
       DROP TABLE IF EXISTS items_fts;
     `);
-  } else if (version === 2) {
-    try {
-      db.exec("ALTER TABLE jobs ADD COLUMN worker_id TEXT");
-    } catch {}
-    try {
-      db.exec("ALTER TABLE jobs ADD COLUMN lease_until INTEGER");
-    } catch {}
   }
   db.exec(jobsSchema);
   ensureColumns(db, "jobs", [
