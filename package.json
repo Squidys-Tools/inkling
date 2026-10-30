@@ -149,6 +149,7 @@
       "!**/node_modules/**/*.{map,ts,mts,cts}",
       "!**/node_modules/{@base-ui,@floating-ui,@fontsource,@fontsource-variable,@hugeicons,@liquid-dom,@tiptap,@virtuoso.dev}/**",
       "!**/node_modules/{framer-motion,gsap,motion,motion-dom,motion-utils,prosemirror-*,react-dom,sonner}/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v6/!(${platform})/**",
       "!**/node_modules/onnxruntime-node/bin/napi-v6/*/!(${arch})/**",
       "!**/node_modules/@img/sharp-{linux,linuxmusl,libvips-linux,libvips-linuxmusl}-*/**",
       "!**/node_modules/@napi-rs/canvas-linux-*-musl/**",
@@ -173,9 +174,6 @@
       "icon": "build/icon.ico",
       "target": [
         "nsis"
-      ],
-      "files": [
-        "!**/node_modules/onnxruntime-node/bin/napi-v6/!(win32)/**"
       ]
     },
     "mac": {
@@ -186,10 +184,7 @@
       ],
       "identity": "-",
       "hardenedRuntime": false,
-      "artifactName": "${name}-${version}-mac-${arch}.${ext}",
-      "files": [
-        "!**/node_modules/onnxruntime-node/bin/napi-v6/!(darwin)/**"
-      ]
+      "artifactName": "${name}-${version}-mac-${arch}.${ext}"
     },
     "linux": {
       "icon": "build/icon.png",
@@ -200,9 +195,6 @@
         "AppImage"
       ],
       "artifactName": "${name}-${version}-linux-${arch}.${ext}",
-      "files": [
-        "!**/node_modules/onnxruntime-node/bin/napi-v6/!(linux)/**"
-      ],
       "desktop": {
         "entry": {
           "StartupWMClass": "inkling",
