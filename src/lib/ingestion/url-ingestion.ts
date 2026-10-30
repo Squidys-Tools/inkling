@@ -111,6 +111,41 @@ async function ingestVideoLink(
   };
 }
 
+// X can block or rate-limit the oEmbed request. Without it, the normal page
+// pipeline still has a chance to succeed, so this returns null.
+async function ingestXPost(
+  sourceUrl: string,
+  fetch: typeof globalThis.fetch | undefined,
+  request: { timeoutMs: number; maxBytes: number },
+): Promise<NormalizedArticle | null> {
+  const oEmbed = await runHttp(fetchJson(xPostOEmbedUrl(sourceUrl), request), fetch);
+  let xPost: XPostMetadata | null;
+  try {
+    xPost = oEmbed ? normalizeXPostOEmbed(sourceUrl, oEmbed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+  if (!xPost) return null;
+
+  const text = xPost.text || `${xPost.authorName ?? "X"} post`;
+  return {
+    sourceUrl,
+    fetchedUrl: sourceUrl,
+    canonicalUrl: xPost.postUrl,
+    title: xPost.authorName ? `${xPost.authorName}'s post` : "X post",
+    description: text,
+    author: xPost.authorName ?? "",
+    publishedDate: xPost.publishedDate ?? null,
+    html: xPost.embedHtml ?? "",
+    text,
+    imageUrls: [],
+    imageDimensions: [],
+    safeEmbeds: [],
+    extractor: "fallback",
+    social: xPost,
+  };
+}
+
 export async function ingestUrl(
   input: string,
   options: UrlIngestionOptions = {},
@@ -127,37 +162,8 @@ export async function ingestUrl(
   const videoLink = videoLinkFromSourceUrl(sourceUrl);
   if (videoLink) return ingestVideoLink(sourceUrl, videoLink, fetch, request);
 
-  let xPost: XPostMetadata | null = null;
-  if (parseXPostUrl(sourceUrl)) {
-    // X can block or rate-limit the oEmbed request. Without it, the normal page
-    // pipeline still has a chance to succeed.
-    const oEmbed = await runHttp(fetchJson(xPostOEmbedUrl(sourceUrl), request), fetch);
-    try {
-      xPost = oEmbed ? normalizeXPostOEmbed(sourceUrl, oEmbed as Record<string, unknown>) : null;
-    } catch {
-      xPost = null;
-    }
-  }
-
-  if (xPost) {
-    const text = xPost.text || `${xPost.authorName ?? "X"} post`;
-    return {
-      sourceUrl,
-      fetchedUrl: sourceUrl,
-      canonicalUrl: xPost.postUrl,
-      title: xPost.authorName ? `${xPost.authorName}'s post` : "X post",
-      description: text,
-      author: xPost.authorName ?? "",
-      publishedDate: xPost.publishedDate ?? null,
-      html: xPost.embedHtml ?? "",
-      text,
-      imageUrls: [],
-      imageDimensions: [],
-      safeEmbeds: [],
-      extractor: "fallback",
-      social: xPost,
-    };
-  }
+  const xPost = parseXPostUrl(sourceUrl) ? await ingestXPost(sourceUrl, fetch, request) : null;
+  if (xPost) return xPost;
 
   const { fetchedUrl, html: rawHtml } = await runHttp(
     downloadPage(sourceUrl, { ...request, allowPrivateNetwork: options.allowPrivateNetwork }),
