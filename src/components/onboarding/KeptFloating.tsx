@@ -142,7 +142,6 @@ function CardBody({ content }: { content: Content }): ReactNode {
           </div>
         </>
       );
-    // The library's own note, PDF and quote artwork, so these read as real cards.
     case "note":
       return <TypedArtwork label="NOTE" title={content.title} footnote={content.words} />;
     case "pdf":
@@ -230,7 +229,6 @@ function orbitStyle(card: FloatCard, index: number) {
     width: card.w,
     height: card.h,
     transform: `translate3d(${x}px, ${y}px, 0)`,
-    // They grow in one after another around the lap.
     animationDelay: `${120 + index * 60}ms`,
   };
 }

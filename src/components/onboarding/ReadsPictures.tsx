@@ -181,7 +181,6 @@ export function ReadsPictures() {
     <div className={`reads-pictures is-${phase}`} aria-hidden="true">
       {ORDER.map(([key, aspect], index) => {
         if (key === "receipt") return null;
-        // Once the receipt rises, the rest of the grid dims behind it.
         const spot = spotOf(key);
         return (
           <img

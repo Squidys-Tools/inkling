@@ -196,8 +196,6 @@ function noteWordCount(value: string | undefined) {
   return text.split(" ").length;
 }
 
-// Notes share the typed layout with PDFs. The copy is the note's own title and
-// the description's word count in place of the PDF page count.
 export function NoteArtwork({ item, compact }: { item: LibraryItem; compact?: boolean }) {
   const words = noteWordCount(
     item.noteBody === undefined ? item.description : markdownToPlainText(item.noteBody),
@@ -366,7 +364,6 @@ export function DetailVideoMedia({ item }: { item: LibraryItem }) {
   if (item.fileUrl) {
     return (
       <div className={DETAIL_VIDEO}>
-        {/* This local upload has no caption metadata in the item model; do not fabricate an empty track. */}
         {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- Captions are unavailable for this user-supplied file. */}
         <video
           className="block size-full bg-black object-contain"
