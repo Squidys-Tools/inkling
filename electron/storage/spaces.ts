@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { Effect } from "effect";
-import type {
-  CreateSpaceInput,
-  SmartSpaceQuery,
+import {
+  type CreateSpaceInput,
+  type SmartSpaceQuery,
   SpaceColor,
-  StoredSpace,
-  UpdateSpaceInput,
+  type StoredSpace,
+  type UpdateSpaceInput,
 } from "@inkling/contracts";
 import type { Fragment } from "effect/sql/Statement";
 import { readItem, type StorageContext } from "./context.ts";
@@ -34,8 +34,6 @@ type SpaceRow = {
   updated_at: number;
   item_count?: number | null;
 };
-
-const spaceColors = ["blue", "orange", "green", "pink", "purple", "yellow"] as const;
 
 function spaceFromRow(row: SpaceRow): StoredSpace {
   return {
@@ -80,7 +78,7 @@ const normalizeSpaceName = Effect.fnUntraced(function* (name: unknown) {
 
 export function normalizeSpaceColor(color: unknown): SpaceColor {
   const normalized = nonEmpty(color)?.toLowerCase();
-  return spaceColors.find((value) => value === normalized) ?? "blue";
+  return SpaceColor.literals.find((value) => value === normalized) ?? "blue";
 }
 
 export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSearch>) {
