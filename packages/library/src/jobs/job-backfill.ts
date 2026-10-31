@@ -25,9 +25,18 @@ export function createBackfill() {
     pdfThumbnails,
   ];
 
+  // A PDF job on another lane can ask for a rescan while a scan is mid-query, so
+  // only onIdle moves the cursors and the request waits for its next run.
+  let pdfRescanRequested = false;
+
   const onIdle = Effect.fnUntraced(function* () {
     const library = yield* Library;
     const jobs = yield* JobQueue;
+    if (pdfRescanRequested) {
+      pdfRescanRequested = false;
+      pdfThumbnails.cursor = 0;
+      pdfThumbnails.done = false;
+    }
     for (const pass of scans) {
       if (pass.done) continue;
       const next = yield* pass.next(library, pass.cursor);
@@ -43,8 +52,7 @@ export function createBackfill() {
   return {
     onIdle,
     rescanPdfThumbnails: () => {
-      pdfThumbnails.cursor = 0;
-      pdfThumbnails.done = false;
+      pdfRescanRequested = true;
     },
   };
 }
