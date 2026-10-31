@@ -14,9 +14,10 @@ const tree = `com.inkling.library/
 export function PrivateSection() {
   return (
     <section {...stylex.props(page.column, styles.section)}>
-      <pre aria-label="What your library looks like on disk" {...stylex.props(styles.tree)}>
-        {tree}
-      </pre>
+      <figure {...stylex.props(styles.figure)}>
+        <pre {...stylex.props(styles.tree)}>{tree}</pre>
+        <figcaption {...stylex.props(type.small)}>Your whole library, on disk.</figcaption>
+      </figure>
       <div {...stylex.props(styles.copy)}>
         <h2 {...stylex.props(type.heading)}>Your library is a folder on your computer.</h2>
         <p {...stylex.props(type.body)}>
@@ -42,6 +43,7 @@ const styles = stylex.create({
     alignItems: "center",
   },
   copy: { display: "flex", flexDirection: "column", gap: "20px" },
+  figure: { display: "flex", flexDirection: "column", gap: "12px", margin: 0 },
   tree: {
     margin: 0,
     padding: "28px",

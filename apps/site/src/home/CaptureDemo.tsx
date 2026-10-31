@@ -6,7 +6,7 @@ import { useReducedMotion } from "../../../renderer/src/mascot/motion.ts";
 import { demoViews } from "./demoLibrary.ts";
 
 const link = "paulgraham.com/hundred.html";
-// What the app's background jobs report while a saved link is read, in order.
+// What the background jobs do with a saved link, in order. The app itself shows only the ring.
 const steps = ["Fetching the page", "Pulling out the article", "Indexing it for search"];
 const STEP_MS = 900;
 const article = demoViews.find((view) => view.id === "preview-article");
