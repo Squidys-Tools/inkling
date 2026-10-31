@@ -26,7 +26,7 @@ export function LibraryDemo() {
         <input
           type="search"
           value={query}
-          placeholder="Describe something you saved"
+          placeholder="Describe what you saved"
           aria-label="Search the demo library"
           spellCheck={false}
           autoComplete="off"
@@ -106,7 +106,7 @@ const styles = stylex.create({
     backgroundColor: "transparent",
     color: color.inkStrong,
     fontFamily: font.display,
-    fontSize: "22px",
+    fontSize: { default: "22px", "@media (max-width: 480px)": "18px" },
     letterSpacing: "-0.01em",
     "::placeholder": { color: color.faint },
   },
@@ -134,10 +134,11 @@ const styles = stylex.create({
     outlineOffset: "2px",
   },
   suggestionOn: { borderColor: color.accent, color: color.inkStrong },
+  // Never narrower than a column the app itself draws: post and article cards need the room.
   grid: { columnWidth: "220px", columnGap: "12px" },
   // The resting grid ends in a fade rather than on ragged column bottoms.
   resting: {
-    maxHeight: "980px",
+    maxHeight: { default: "980px", "@media (max-width: 480px)": "720px" },
     overflow: "hidden",
     maskImage: `linear-gradient(to bottom, ${color.ink} 70%, transparent)`,
   },

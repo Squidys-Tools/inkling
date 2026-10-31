@@ -27,7 +27,12 @@ function Keys({ way }: { way: Way }) {
   const platform = usePlatform();
   if (!platform) return null;
   const binding = way.binding ?? (way.command && bindingsFor(way.command, platform)[0]);
-  return binding ? <Kbd>{bindingLabel(binding, platform)}</Kbd> : null;
+  if (!binding) return null;
+  return (
+    <span {...stylex.props(styles.keys)}>
+      <Kbd>{bindingLabel(binding, platform)}</Kbd>
+    </span>
+  );
 }
 
 export function Capture() {
@@ -73,4 +78,5 @@ const styles = stylex.create({
     color: color.ink,
     fontSize: "17px",
   },
+  keys: { flexShrink: 0 },
 });
