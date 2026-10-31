@@ -25,8 +25,8 @@ const mimeType = /^([a-z]+)\/(?:x-)?([a-z0-9.+-]+)$/iu;
 // Subtypes whose raw names read badly as a format label.
 const formatNames: Record<string, string> = {
   quicktime: "MOV",
-  "x-matroska": "MKV",
-  "x-msvideo": "AVI",
+  matroska: "MKV",
+  msvideo: "AVI",
   "svg+xml": "SVG",
   mpeg: "MPEG",
   plain: "Plain",

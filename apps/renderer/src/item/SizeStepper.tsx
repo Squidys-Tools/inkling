@@ -38,6 +38,8 @@ export function SizeStepper({
   useLayoutEffect(() => {
     if (!canShrink && pressed.current === "shrink") growRef.current?.focus();
     if (!canGrow && pressed.current === "grow") shrinkRef.current?.focus();
+    // One press, one handoff: a later wheel or pinch to a limit must not move focus.
+    pressed.current = null;
   }, [canShrink, canGrow]);
 
   const width = Math.max(before.length, after.length);
