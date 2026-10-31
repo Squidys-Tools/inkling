@@ -24,7 +24,7 @@ import {
 // from memory, seeded with the demo library, and pushes the same change events,
 // so every store and screen runs unchanged. Nothing persists across reloads.
 
-type Entry = { card: LibraryCard; body: string };
+export type Entry = { card: LibraryCard; body: string };
 
 const unavailable = (what: string) => Promise.reject(new Error(`${what} needs the desktop app.`));
 
@@ -53,7 +53,7 @@ function haystack(card: LibraryCard, body = "") {
 }
 
 // Plain text, as in the full app: every word must appear, and `kind:` or `tag:` are words too.
-function matchesSearch({ card, body }: Entry, query: string) {
+export function matchesSearch({ card, body }: Entry, query: string) {
   const text = haystack(card, body);
   return query
     .toLowerCase()
