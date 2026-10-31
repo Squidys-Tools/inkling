@@ -40,7 +40,7 @@ jobs:
         env:
           RELEASE_CHANNEL: ${{ github.event_name == 'push' && 'stable' || inputs.channel || 'nightly' }}
           RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
-        run: bun scripts/prepare-release.mjs
+        run: bun tools/release/prepare.mjs
 
   build:
     needs: metadata
@@ -49,7 +49,7 @@ jobs:
       matrix:
         include:
           - os: windows-2025
-            command: build:installer
+            command: build:win
             name: windows
           - os: ubuntu-latest
             command: build:linux
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: .artifacts/electron-model-cache/models
-          key: inkling-models-${{ hashFiles('electron/model-manifest.json') }}
+          key: inkling-models-${{ hashFiles('packages/jobs/src/model-manifest.json') }}
       - name: Stage exact release metadata
         env:
           RELEASE_CHANNEL: stable
@@ -84,18 +84,29 @@ jobs:
         run: |
           umask 022
           bun run "$BUILD_COMMAND"
+      # The .deb depends on FFmpeg for local-video posters; the runner image has none.
+      - name: Install the video decoder the Linux package depends on
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ffmpeg
       - name: Exercise actual packaged Linux processing and local update feeds
         if: runner.os == 'Linux'
         run: |
-          bun scripts/packaged-backend-smoke.mjs
-          bun scripts/update-feed-smoke.mjs .artifacts/electron/linux-unpacked
-          python3 -I -B scripts/update-helper.test.py
-          bun scripts/media-smoke.mjs .artifacts/electron/linux-unpacked .artifacts/media-smoke
+          bun tools/smoke/packaged-backend.mjs
+          bun tools/smoke/update-feed.mjs .artifacts/electron/linux-unpacked
+          python3 -I -B apps/desktop/src/updates/update-helper.test.py
+          bun tools/smoke/media.mjs .artifacts/electron/linux-unpacked .artifacts/media-smoke
+          xvfb-run -a bun tools/smoke/launch.ts .artifacts/electron/linux-unpacked/inkling
       - name: Exercise packaged macOS processing and its ad-hoc signature
         if: runner.os == 'macOS'
         run: |
           codesign --verify --deep --strict .artifacts/electron/mac-arm64/inkling.app
-          bun scripts/packaged-backend-smoke.mjs
+          bun tools/smoke/packaged-backend.mjs
+          bun tools/smoke/launch.ts .artifacts/electron/mac-arm64/inkling.app/Contents/MacOS/inkling
+      - name: Exercise packaged Windows processing
+        if: runner.os == 'Windows'
+        run: |
+          bun tools/smoke/packaged-backend.mjs
+          bun tools/smoke/launch.ts .artifacts/electron/win-unpacked/inkling.exe
       - uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.name }}
@@ -112,6 +123,8 @@ jobs:
 
   draft:
     needs: [metadata, build]
+    # A run dispatched from any other branch only builds and checks the artifacts.
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write

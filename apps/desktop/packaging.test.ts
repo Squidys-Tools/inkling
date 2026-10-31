@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 
-const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+const pkg = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
 
 test("Linux packaging preserves Windows NSIS and standard sandbox maintainer scripts", () => {
   expect(pkg.build.win).toMatchObject({ icon: "build/icon.ico", target: ["nsis"] });
@@ -11,6 +11,17 @@ test("Linux packaging preserves Windows NSIS and standard sandbox maintainer scr
   expect(pkg.build.deb.appArmorProfile).toBeUndefined();
   expect(pkg.build.linux.executableArgs).toBeUndefined();
   expect(pkg.scripts["build:linux"]).toContain("--publish never --linux deb AppImage");
+});
+
+// regression (38f86e7): electron-builder 26 prepends **/* to a files list holding only exclusions,
+// so a platform block's own list packed the whole repository into app.asar.
+test("only the top-level files list decides what is packed", () => {
+  expect(pkg.build.files.slice(0, 3)).toEqual([
+    "dist/desktop/**/*",
+    "dist/renderer/**/*",
+    "package.json",
+  ]);
+  for (const platform of ["win", "mac", "linux"]) expect(pkg.build[platform].files).toBeUndefined();
 });
 
 test("desktop identity and capture scheme agree", () => {
@@ -25,7 +36,7 @@ test("sharp WASM dependency is pinned with the Linux Electron-only patch", async
   expect(pkg.dependencies.sharp).toBe("0.35.5");
   expect(pkg.dependencies["@img/sharp-wasm32"]).toBe(pkg.dependencies.sharp);
   const patch = await readFile(
-    new URL(`../${pkg.patchedDependencies["sharp@0.35.5"]}`, import.meta.url),
+    new URL(`../../${pkg.patchedDependencies["sharp@0.35.5"]}`, import.meta.url),
     "utf8",
   );
   expect(patch).toContain("a/dist/sharp.cjs");

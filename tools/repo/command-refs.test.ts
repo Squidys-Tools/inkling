@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { findBrokenCommandRefs } from "./assert-command-refs";
+import { findBrokenCommandRefs } from "./command-refs.ts";
 
 const scripts = new Set(["check", "typecheck", "dev:app"]);
 

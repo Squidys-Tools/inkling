@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { loadManifest, corpusPath, benchmarksRoot } from "./manifest";
 import { startCorpusServer } from "./server";
 import { extractFixture } from "./extract";
-import { extractPdfTextByPages } from "../../electron/pdf.ts";
+import { extractPdfTextByPages } from "../../packages/jobs/src/pdf.ts";
 import { TesseractJsEngine, WindowsOcrEngine, type OcrEngine } from "./ocr";
 import {
   scoreExtraction,

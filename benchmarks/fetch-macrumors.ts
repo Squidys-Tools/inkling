@@ -2,8 +2,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parseHTML } from "linkedom";
-import { extractJsonLdMetadata } from "../src/lib/ingestion/json-ld";
-import { normalizeText } from "../src/lib/ingestion/url";
+import { extractJsonLdMetadata } from "../packages/ingestion/src/json-ld.ts";
+import { normalizeText } from "../packages/ingestion/src/url.ts";
 import { startCorpusServer } from "./harness/server";
 import { extractFixture } from "./harness/extract";
 import { benchmarksRoot, loadManifest, type ManifestItem } from "./harness/manifest";

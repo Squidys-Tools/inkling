@@ -2,9 +2,10 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["tools/**/*.ts"],
+      "entry": ["tools/**/*.{ts,mjs}", "benchmarks/fetch-macrumors.ts"],
       "ignoreDependencies": ["@img/sharp-wasm32"],
-      "ignoreBinaries": ["dpkg-deb"]
+      "ignoreBinaries": ["dpkg-deb"],
+      "ignore": [".agents/**", ".claude/**"]
     },
     "apps/desktop": {
       "entry": ["src/main.ts", "src/preload.ts", "build.ts", "after-pack.cjs"]
@@ -18,6 +19,9 @@
     "packages/*": {},
     "tools/*": {
       "entry": ["*.{ts,mjs}"]
+    },
+    "extension": {
+      "entry": ["src/options.ts", "src/background.ts"]
     }
   }
 }

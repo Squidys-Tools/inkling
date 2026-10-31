@@ -110,7 +110,7 @@ bun run dev      # browser-only preview of the UI with sample data
 
 The Chrome extension lives in `extension/`; [extension/README.md](extension/README.md) covers loading and pairing it.
 
-The stack is Electron, React, TypeScript and Vite, with Node.js and SQLite (FTS5) in the main process, Defuddle for articles, Tesseract for OCR, and local Nomic text and image embeddings through ONNX Runtime. [docs/tech-stack.md](docs/tech-stack.md) gives the reasons.
+The stack is Electron, React, TypeScript, StyleX and Vite. A library process owns SQLite (FTS5) and the job queue, and a worker process runs Defuddle for articles, Tesseract for OCR, and local Nomic text and image embeddings through ONNX Runtime. [docs/tech-stack.md](docs/tech-stack.md) gives the reasons.
 
 Start with [docs/README.md](docs/README.md), the index of project docs. [docs/operations/development.md](docs/operations/development.md) lists every command and check, and [CONTRIBUTING.md](CONTRIBUTING.md) says what contributions we take.
 

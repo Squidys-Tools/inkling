@@ -1,6 +1,6 @@
 # inkling
 
-inkling is a private visual library: a Windows Electron app with a React, TypeScript and Vite renderer and a Node.js main process on SQLite. Users save articles, images, screenshots, PDFs, notes, quotes and video links, and find them later by describing them. Search is the only organizer; there are no folders.
+inkling is a private visual library: a Windows Electron app with a React, TypeScript, StyleX and Vite renderer, and Node.js processes on SQLite. Users save articles, images, screenshots, PDFs, notes, quotes and video links, and find them later by describing them. Search is the only organizer; there are no folders.
 
 ## Product rules
 
@@ -10,7 +10,7 @@ Users keep things here they do not want to lose. A change that breaks one of the
 2. **Performance.** Send summaries and thumbnails over IPC, not full content. Keep the card grid virtualized. Load a thumbnail where one will do. FTS, vector search and Smart Space evaluation do not run on every keystroke. Nothing repaints continuously except the mascot.
 3. **Local first.** The library is a SQLite file plus assets under `assets/items/<id>/`. The network is used only for URLs the user saves, the one-time model download, update checks, and video embeds the user plays. No accounts, analytics or uploads.
 4. **Quiet intelligence.** AI improves search and stays out of the interface: no confidence scores, AI labels, tag correction flows or model management. Never rewrite a user's title, note or tag. When AI fails, fall back to metadata and text search. The ink-blot mascot never talks: calm at rest, subtly alive while jobs run, sad only when capture fails.
-5. **Visual by type.** Each `ItemKind` in `src/lib/types.ts` has its own card and thumbnail treatment. Keep that when adding a kind.
+5. **Visual by type.** Each `ItemKind` in `apps/renderer/src/library/cardModel.ts` has its own card and thumbnail treatment. Keep that when adding a kind.
 
 Find the real constraint, then build the smallest thing that makes the correct behavior unsurprising. Remove complexity that does not earn its place and add none for show. If a rule here fights the task, say so and get a maintainer's sign-off.
 
@@ -19,10 +19,10 @@ Find the real constraint, then build the smallest thing that makes the correct b
 - **we** and **maintainers** are the people you work for. The **user** is the person using inkling.
 - An **item** is one saved thing, as data. A **card** is how an item looks, as UI.
 - The **library** is the SQLite database plus the asset store.
-- **Capture** is getting something in: the Add button, paste, drag and drop, clipboard, screenshot, or the **deep link** `inkling://capture?url=...`. The Chrome extension in `extension/` uses the deep link or the loopback receiver in `electron/capture-server.ts`.
+- **Capture** is getting something in: the Add button, paste, drag and drop, clipboard, screenshot, or the **deep link** `inkling://capture?url=...`. The Chrome extension in `extension/` uses the deep link or the loopback receiver in `apps/desktop/src/capture/server.ts`.
 - A **job** is one unit of background work on the persisted queue with leases. Jobs retry, leases expire, and interrupted jobs recover on restart.
 - A **Space** is a collection. A Smart Space is a saved search that runs each time it loads; a regular Space holds items the user picked.
-- **Preview** is `bun run dev` or `bun run dev:app`: sample data and no desktop backend. The **full app** is the packaged build from `bun run build:dir`. OCR, embeddings and file access run only in the full app.
+- **Preview** is `bun run dev`, or its static build `bun run build:web`: the demo seed in memory and no desktop backend. The **full app** is `bun run dev:app` (unpackaged) or the packaged build from `bun run build:dir`. OCR, embeddings and file access run only in the full app.
 
 ## Safety
 
@@ -44,23 +44,26 @@ The usual defect works on the tested path and is missing elsewhere. Before calli
 
 ## Code
 
-- `src/` is the renderer; it reaches the main process only through `src/lib/libraryApi.ts` and the IPC contract in `packages/contracts/`. `src/lib/ingestion/` also runs in the main process, imported by `electron/ai-jobs.ts`.
-- The main process in `electron/` owns files, the job queue, the database and models, and is written with Effect 4, whose API differs a lot from the Effect 3 most models remember. Read `node_modules/effect/AGENTS.md` and `node_modules/effect/ai-docs/` before writing Effect code. Effect stops at the IPC edge; the renderer's one use is `src/lib/ingestion/http.ts`. Reusable functions use `Effect.fnUntraced`, inline programs and layers use `Effect.gen`.
+- `apps/renderer` is the React renderer. It reaches the library only through the Effect RPC client in `apps/renderer/src/library/connection.ts`, whose groups live in `packages/contracts`, and the desktop only through the preload bridge typed in `packages/contracts/src/desktop.ts`.
+- `apps/desktop` is the Electron main process and preload: windows, menus, dialogs, the `app://` protocol, capture intake and updates. It never opens the database.
+- `packages/library` runs in the library utility process, the only owner of the SQLite file and the job queue. `packages/jobs` is the stateless worker process it calls for OCR, embeddings, thumbnails, PDF and URL extraction. `packages/ingestion` is shared by the worker and the renderer. `packages/rpc-electron` carries Effect RPC over Electron message ports.
+- The processes are written with Effect 4, whose API differs a lot from the Effect 3 most models remember. Read `node_modules/effect/AGENTS.md` and `node_modules/effect/ai-docs/` before writing Effect code. Effect stops at the UI edge: React code calls the promise client from `packages/rpc-electron/src/promise-client.ts`. Reusable functions use `Effect.fnUntraced`, inline programs and layers use `Effect.gen`.
+- Style with StyleX only. Colors live only in `packages/ui/src/tokens.stylex.ts`, and there are no CSS files; `inkling/no-color-literals` and `inkling/no-css-imports` enforce both.
 - Fetched HTML is untrusted: sanitize it, pass embeds through the allowlist, strip scripts and event handlers. Keep the preload bridge narrow. Dev-only and maintainer tooling can stay simple.
 - Keep partial results when extraction fails. A card with a title and domain beats an error card.
 - Let TypeScript infer types, and never use `any`.
-- Write a comment only where a reader would likely break something without it: an ordering or race guarantee, a security check, a Chromium, Electron, WebGPU or OS quirk, or an invariant another file relies on. One line where you can, four at most. `inkling/no-low-value-comments` enforces part of this, and every `oxlint-disable` needs a `-- reason`.
+- Write a comment only where a reader would likely break something without it: an ordering or race guarantee, a security check, a Chromium, Electron, WebGPU or OS quirk, or an invariant another file relies on. One line where you can, four at most. `inkling/no-low-value-comments` (in `tools/oxlint-plugin/`) enforces part of this, and every `oxlint-disable` needs a `-- reason`.
 - When a package.json script is renamed or removed, or its command changes, update `t3.json` in the same change.
 
 ## Tests and checks
 
 - While iterating, run `bun test <files>`. Before pushing, run `bun run check:changed`. Leave `bun run check`, a full `bun test` and a full `tsc` to CI unless asked. If module resolution looks broken, run `bun run check:bun-version`.
-- Test what breaks quietly: extraction and sanitizing, embed allowlists, OCR scoring, queue leases and recovery, migrations, asset path containment and range requests, deep link and external-format parsing, ordering and races, and `liquidGlassShape`. Leave out tests of what the types prove, trivial logic, static renders, mock-call mirrors, smoke tests and timing.
+- Test what breaks quietly: extraction and sanitizing, embed allowlists, OCR scoring, queue leases and recovery, migrations, asset path containment and range requests, deep link and external-format parsing, and ordering and races. Leave out tests of what the types prove, trivial logic, static renders, mock-call mirrors, smoke tests and timing.
 - A logic, data, state or protocol bug gets a test that fails on `main`, then the fix; mark it `// regression: #NNN` if its name does not say so. A visual bug gets before and after screenshots instead. Capture and background changes ship with focused tests.
 - Add a row or assertion to an existing test before writing a new `it`, at the lowest layer that fails.
 - Wait for the real signal of async work: a job drain, a lease state, an event. No sleeps, retries, polling or clock deltas.
 - Check a UI change once in the running app with the `verify-inkling` skill, preview for layout and the full app for native behavior, and include a screenshot. Subagents leave this to the primary agent.
-- The demo seed in `public/seed-demo/` and `src/seedPersonal.ts` is the default data for UI work.
+- The demo seed in `apps/renderer/src/library/preview/seed.ts` and `seed-demo/` beside it is the default data for UI work.
 
 ## Docs
 

@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { createTesseractOcr } from "../../electron/ocr.ts";
+import { createTesseractOcr } from "../../packages/jobs/src/ocr.ts";
 
 export interface OcrEngine {
   name: string;

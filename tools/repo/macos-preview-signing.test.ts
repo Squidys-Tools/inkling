@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
 const workflow = readFileSync(
-  new URL("../.github/workflows/electron-preview.yml", import.meta.url),
+  new URL("../../.github/workflows/electron-preview.yml", import.meta.url),
   "utf8",
 );
 const macJob = workflow.slice(workflow.indexOf("  build-mac:"));
@@ -11,7 +11,7 @@ test("PR macOS signing is ad-hoc only and keeps strict verification, native smok
   expect(macJob).toContain("github.event.pull_request.head.repo.full_name == github.repository");
   const sign = macJob.indexOf("codesign --force --deep --sign - --timestamp=none");
   const verify = macJob.indexOf("codesign --verify --deep --strict");
-  const smoke = macJob.indexOf("bun scripts/packaged-backend-smoke.mjs");
+  const smoke = macJob.indexOf("bun tools/smoke/packaged-backend.mjs");
   const launch = macJob.indexOf("- name: Launch the packaged app");
   expect(sign).toBeGreaterThan(macJob.indexOf("run: bun run build:dir"));
   expect(verify).toBeGreaterThan(sign);

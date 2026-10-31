@@ -73,8 +73,8 @@ const appPageListed = async () => {
 };
 
 async function launch() {
-  if (!existsSync(join(repo, "dist", "index.html"))) {
-    console.error("dist/ missing: run bun run build:app first");
+  if (!existsSync(join(repo, "dist", "renderer", "index.html"))) {
+    console.error("dist/renderer missing: run bun run build:app first");
     process.exit(1);
   }
   if (!existsSync(electronBin)) {
@@ -155,7 +155,7 @@ async function doctor() {
   check("CDP port owned by our pid", pid > 0 && portOwner() === pid);
   check("app page loaded over CDP", await appPageListed());
   check("library database exists", existsSync(join(library, "library.sqlite3")));
-  check("renderer build present", existsSync(join(repo, "dist", "index.html")));
+  check("renderer build present", existsSync(join(repo, "dist", "renderer", "index.html")));
   process.exit(failed ? 1 : 0);
 }
 

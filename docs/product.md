@@ -8,7 +8,7 @@ adaptive
 
 ## Stack
 
-delegated: Windows-first Electron desktop application, with Linux packages, a React/TypeScript frontend, a Node.js main process, and SQLite local storage; keep domain boundaries portable for a future web version.
+delegated: Windows-first Electron desktop application, with Linux packages, a React/TypeScript frontend, Node.js main, library and worker processes, and SQLite local storage; keep domain boundaries portable for a future web version.
 
 ## Users
 

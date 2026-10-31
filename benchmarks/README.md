@@ -13,7 +13,7 @@ Commit only files and URLs we may use for local testing, and no private or copyr
 1. Add the file to `corpus/`.
 2. Record it in `manifest.json` with a stable `id`, its `path`, `type` and `language`, an optional `similarity_group`, `notes` on known edge cases, and the `expected` values the harness scores: title, author, search terms that must and must not match, an OCR text file, and image and embed counts. `harness/manifest.ts` defines the shape.
 3. Put expected OCR text in `expected/ocr/`.
-4. Run `bun run bench`.
+4. Run `bun run bench:quality`.
 
 ## What it measures
 
@@ -21,11 +21,11 @@ The harness scores extraction against the expected values and OCR by token recal
 
 ## Running the harness
 
-From the repository root, run `bun run bench`. It serves `corpus/` over a local HTTP server so fixture pages are fetched like live pages, then:
+From the repository root, run `bun run bench:quality`. It serves `corpus/` over a local HTTP server so fixture pages are fetched like live pages, then:
 
 - runs article, recipe and video items through the production URL pipeline (`ingestUrl`, Defuddle, sanitizing);
-- runs PDFs through the app's PDF.js extraction and scanned-page OCR in `electron/pdf.ts`;
-- runs image and screenshot OCR through every available engine and keeps the best-scoring result. Tesseract.js, with the app's settings from `electron/ocr.ts`, runs everywhere; Windows also runs the built-in `Windows.Media.Ocr` through `harness/win-ocr.ps1`.
+- runs PDFs through the app's PDF.js extraction and scanned-page OCR in `packages/jobs/src/pdf.ts`;
+- runs image and screenshot OCR through every available engine and keeps the best-scoring result. Tesseract.js, with the app's settings from `packages/jobs/src/ocr.ts`, runs everywhere; Windows also runs the built-in `Windows.Media.Ocr` through `harness/win-ocr.ps1`.
 
 Search terms match against the extracted title, description and text with whitespace normalized, the way a saved item is searched. OCR is scored by token recall and precision against `expected/ocr/`. Each run writes `results/results-latest.json` and `results/summary.md`, which are tracked, and a timestamped JSON copy, which git ignores.
 

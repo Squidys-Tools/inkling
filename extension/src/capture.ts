@@ -1,4 +1,4 @@
-import type { PageCapturePayloadV1 } from "@inkling/ingestion-shared";
+import type { PageCapturePayloadV1 } from "@inkling/contracts/capture";
 
 export function buildUrlCapturePayload(url: string, title: string): PageCapturePayloadV1 {
   const parsedUrl = new URL(url);

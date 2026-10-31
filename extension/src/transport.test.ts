@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
-import { parseDeepLinkCapture } from "../../src/lib/deepLink";
+import { parseDeepLink } from "../../apps/desktop/src/capture/deep-link.ts";
 import { buildUrlCapturePayload } from "./capture";
 import { CaptureResponseError, buildCaptureDeepLink, postPayloadToLoopback } from "./transport";
 
 describe("capture delivery", () => {
   test("deep-link fallback is accepted by the app's capture parser", () => {
     const payload = buildUrlCapturePayload("https://example.com/article", "Saved page");
-    expect(parseDeepLinkCapture(buildCaptureDeepLink(payload))).toEqual({
+    expect(parseDeepLink(buildCaptureDeepLink(payload))).toEqual({
       kind: "url",
       url: "https://example.com/article",
       title: "Saved page",

@@ -9,7 +9,7 @@
     "typecheck": "tsc-rs --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@inkling/ingestion-shared": "workspace:*",
+    "@inkling/contracts": "workspace:*",
     "webextension-polyfill": "^0.12.0"
   },
   "devDependencies": {

@@ -2,40 +2,43 @@
 
 ## Decision summary
 
-inkling is a local-first desktop app built with Electron, React, TypeScript, Node.js and SQLite. The Electron main process owns local storage, background processing, assets and models; the frontend stays portable enough for a future web version.
+inkling is a local-first desktop app built with Electron, React, TypeScript, Node.js and SQLite. The main process owns windows and the operating system; a library process owns the database, search and the job queue; a worker process runs OCR, embeddings and extraction. The renderer stays portable enough for a future web version.
 
 ## Application stack
 
 | Area | Decision | Reason |
 |---|---|---|
-| Desktop shell | Electron | Desktop packaging with a reusable web frontend and a narrow preload bridge |
-| UI | React + TypeScript + Vite | Mature component ecosystem and future web portability |
-| Styling | Tailwind CSS v4 utilities, Base UI headless primitives, and a WebGPU liquid glass layer | Fast iteration without locking the product to a heavy component theme |
-| UI state | React hooks per feature, composed in `App` | The renderer's state is small and local; library rows are patched by item id instead of cached and invalidated |
-| Application core | Electron main process and Node.js, in TypeScript on Effect | File, job queue, database, and model-process orchestration |
-| IPC contract | `@inkling/contracts` command list and Effect Schemas | Preload, main process, and renderer share one command list; arguments are decoded before storage sees them |
+| Desktop shell | Electron | The same Chromium on Windows, macOS and Linux, so one design renders the same everywhere, with a narrow preload bridge |
+| UI | React + TypeScript + Vite, with the React Compiler | Mature component ecosystem and future web portability; components re-render only when their inputs change |
+| Styling | StyleX tokens and atomic CSS, Base UI headless primitives | One token set, no hand-written stylesheets, no theme to fight |
+| UI state | Small external stores read through `useSyncExternalStore` | The library store keeps cards by id and applies change events from the library process, so one finished job re-renders one card |
+| Routing | TanStack Router with hash history | Typed routes that work on `app://` and in the web preview |
+| Processes | Main, plus a library and a worker `utilityProcess` | A long OCR or embedding run cannot slow a search, and queries never wait behind window events |
+| IPC contract | Effect RPC groups in `packages/contracts`, over Electron message ports (`packages/rpc-electron`) | One typed, Schema-checked contract for every call and push event; the renderer gets a promise client |
 | Database | SQLite through `@effect/sql-sqlite-node`, with migrations on `node:sqlite` | Typed queries and transactions over one serialized connection; migrations and FTS5 stay plain SQL |
 | Exact search | SQLite FTS5 | Local full-text search across titles, descriptions, note bodies, OCR text and metadata |
 | Asset storage | Plain files beside the database, one folder per item under `assets/items/<id>/` | An item's files export, restore and delete together |
-| Background work | Effect workers over a job queue persisted in SQLite | Retryable processing without blocking the UI |
+| Background work | A job queue persisted in SQLite with leases, run by the library process | Retryable processing without blocking the UI |
 
-## Effect in the main process
+## Processes and Effect
 
-The main process is built on [Effect](https://effect.website) so leases, timeouts, retries, and shutdown come from one tested runtime instead of hand-rolled timers and flags. `electron/main.ts` builds a single `ManagedRuntime` holding the library, the job queue, and two workers; quitting disposes it, which interrupts running jobs and hands them back as pending. Each job kind has a timeout in `electron/ai-jobs.ts`, so a hung model or decoder fails its job instead of stalling the queue. Effect stops at the IPC edge: handlers call storage through a Promise facade, and the renderer never imports Effect at runtime.
+Main owns only what Electron requires: windows, the native menu, dialogs, context menus, the `app://` protocol, deep links, the capture receiver and updates. It never opens the database. At startup it spawns the library and worker processes and hands each the message ports it needs: the renderer talks to the library process directly, and the library process calls the worker. Both restart on a crash, and the queue's leases recover the jobs a crash interrupted.
+
+The library and worker processes are built on [Effect](https://effect.website) so leases, timeouts, retries, and shutdown come from one tested runtime instead of hand-rolled timers and flags. Each job kind has a timeout, so a hung model or decoder fails its job instead of stalling the queue. Effect stops at the UI edge: the renderer calls the library through a promise client generated from the RPC groups.
 
 URL ingestion downloads through Effect's HTTP client, which retries rate limits, gateway errors, and dropped connections, waits at least as long as a `Retry-After` header asks, and stays inside the 15-second capture budget. Redirects stay manual so each hop passes the private-network check before it is followed.
 
 ## Styling
 
-Components style themselves with Tailwind utilities against the tokens in `src/index.css`. Base UI supplies behavior and accessibility for dialogs, tabs, menus and buttons, with no theme of its own. Plain CSS files exist only where utilities can't reach, such as HTML a component doesn't render itself (the reader's `readerContent.css`, the note editor), keyframe animations, vendored components, and Sonner's data attributes. Each sits next to the component that owns it.
+Components style themselves with `stylex.create` against the tokens in `packages/ui/src/tokens.stylex.ts`, the only file with color values. There are no hand-written stylesheets: global resets go on `<html>` and `<body>` through `stylex.props`, the reader turns sanitized article HTML into React elements with a StyleX style per tag, TipTap nodes get StyleX class names through their extensions, and fonts register through the `FontFace` API. The lint rules `inkling/no-color-literals` and `inkling/no-css-imports` keep it that way, so the only CSS shipped is what StyleX generates. Base UI supplies behavior and accessibility for dialogs, menus and buttons, with no theme of its own.
 
-Floating controls over the library are glass. In the desktop app, `LiquidGlass` renders the library inside a `<canvas layoutsubtree>`, Chromium's HTML-in-Canvas copies it into a WebGPU texture, and refracting glass is drawn under every `.glass` element. `.glass` and `.css-glass` both start as a blurred CSS glass. `LiquidGlass` marks a `.glass` element with `data-liquid` once its canvas draws it, which clears the CSS glass. `.css-glass` is for surfaces outside a canvas, and always stays CSS. The web preview, machines without WebGPU, and a lost GPU device keep the CSS glass. Each liquid surface costs GPU time, so glass stays on a few floating controls and never on card surfaces.
+Floating controls over the library are glass: one `Glass` component in `packages/ui`, a CSS `backdrop-filter`. At most three glass surfaces are on screen, none resizing while it animates, and card surfaces never are.
 
 ## Article extraction
 
 inkling extracts articles with Defuddle, the extractor behind Obsidian Web Clipper, instead of writing or forking a readability parser. Defuddle returns cleaned HTML plus metadata such as title, author, domain, image, publication date and schema.org data, and runs in Node.
 
-The URL job fetches the page, runs Defuddle, sanitizes the result, passes embeds through the allowlist in `src/lib/ingestion/safe-embeds.ts`, and stores the cleaned HTML, text and metadata on the item. Article images stay remote URLs; nothing caches them locally yet.
+The URL job fetches the page, runs Defuddle, sanitizes the result, passes embeds through the allowlist in `packages/ingestion/src/embeds.ts`, and stores the cleaned HTML, text and metadata on the item. Article images stay remote URLs; nothing caches them locally yet.
 
 Do not modify Defuddle until real corpus testing shows a repeatable problem. Prefer configuration, site-specific extractors, and a post-processing layer.
 
@@ -87,8 +90,6 @@ The planned model selection supports three modes:
 An export is a SQLite snapshot, the asset files its items reference, and a manifest, so it carries source URLs, cleaned article content, notes, tags and Spaces. A restore queues OCR, thumbnail and embedding jobs again for the items it imports instead of trusting the derived data in the snapshot.
 
 Treat all fetched HTML as untrusted. Sanitize article HTML before rendering, allowlist iframe providers, strip scripts/event handlers/unsafe URLs/untrusted `srcdoc`, keep remote content isolated from Electron's privileged main process, and do not expose arbitrary filesystem or shell commands through the preload bridge.
-
-The app session adds `Access-Control-Allow-Origin: *` to remote image responses so library cards, loaded with `crossorigin`, can be drawn into the liquid glass canvas. That lets the renderer read pixels of images it already displays and nothing more; it changes no request and applies to no other resource type.
 
 ## Update checks
 

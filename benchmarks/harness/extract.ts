@@ -1,5 +1,5 @@
-import { ingestUrl } from "../../src/lib/ingestion";
-import { isUrlIngestionError } from "../../src/lib/ingestion/errors";
+import { ingestUrl } from "../../packages/ingestion/src/index.ts";
+import { isUrlIngestionError } from "../../packages/ingestion/src/errors.ts";
 
 export interface ExtractionOutcome {
   engine: "production:ingestUrl";

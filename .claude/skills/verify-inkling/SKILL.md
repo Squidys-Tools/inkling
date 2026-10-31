@@ -21,7 +21,7 @@ Use the Bun version in `.bun-version`; `bun run check:bun-version` says if it is
 
 ```sh
 bun install
-bun run build:app      # produces dist/; prints "No demo seed in N built files"
+bun run build:app      # produces dist/renderer and dist/desktop; prints "No demo seed in N built files"
 ```
 
 Bun skips Electron's download script, so a fresh install has no `node_modules/electron/dist`. Run `node node_modules/electron/install.js` once from the repo root before the first launch.
@@ -70,7 +70,7 @@ Each step may set `label`, and `timeoutMs` (default 8000). `clickText` does not 
 bun .claude/skills/verify-inkling/scripts/drive.mjs 9333 <steps.json> .artifacts/verify-inkling/<run-name>
 ```
 
-Selectors come from `src/App.tsx` and `src/features/item-view/`. Prefer the aria-label, title, and class names listed in each feature file over coordinates. Every feature file carries a step list that was driven end to end on Windows. Compose them in order when a feature needs state: capture-note creates the cards the others use.
+Selectors come from `apps/renderer/src` (`shell/`, `libraryView/`, `item/`, `pages/`). StyleX emits no semantic class names, so prefer aria-labels, roles and titles over classes and coordinates. The step lists in the feature files were written for the app before the rebuild; [features/README.md](features/README.md) says which still need re-driving. Every feature file carries a step list that was driven end to end on Windows. Compose them in order when a feature needs state: capture-note creates the cards the others use.
 
 ## Evidence
 

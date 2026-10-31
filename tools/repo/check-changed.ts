@@ -27,10 +27,9 @@ const [diff, untracked] = await Promise.all([
   git("diff", "--name-only", "--no-renames", mergeBase.out),
   git("ls-files", "--others", "--exclude-standard"),
 ]);
-// next/ is its own workspace with its own checks (`bun run check` inside it).
-const touched = [...new Set([...lines(diff.out), ...lines(untracked.out)])]
-  .map((file) => file.replaceAll("\\", "/"))
-  .filter((file) => !file.startsWith("next/"));
+const touched = [...new Set([...lines(diff.out), ...lines(untracked.out)])].map((file) =>
+  file.replaceAll("\\", "/"),
+);
 const changed = touched.filter((file) => existsSync(file));
 
 if (touched.length === 0) {
@@ -40,6 +39,7 @@ if (touched.length === 0) {
 
 const code = changed.filter((file) => CODE.test(file));
 // A deleted module can break its importers, so deletions still trigger knip and typecheck.
+// The root typecheck covers every workspace, the extension and the benchmarks.
 const codeTouched = touched.some((file) => CODE.test(file));
 const tests = new Set<string>();
 for (const file of code) {
@@ -54,7 +54,6 @@ for (const file of code) {
 const touches = (...names: string[]) =>
   touched.some((file) => names.includes(file) || TSCONFIG.test(file));
 const LINT_CONFIG = [".oxlintrc.json", ".oxfmtrc.json"];
-const WORKSPACES = ["extension", "packages/contracts", "packages/ingestion-shared"];
 
 const steps: { name: string; cmd: string[] }[] = [];
 const lintAll = touched.some((file) => LINT_CONFIG.includes(file));
@@ -67,7 +66,7 @@ else if (code.length) {
       "bun",
       "x",
       "oxlint",
-      "--disable-nested-config",
+      "--report-unused-disable-directives",
       "--no-error-on-unmatched-pattern",
       ...code,
     ],
@@ -88,18 +87,6 @@ if (codeTouched || touches("package.json", "knip.json")) {
 if (codeTouched || touches("package.json")) {
   steps.push({ name: "typecheck", cmd: ["bun", "run", "typecheck"] });
 }
-for (const dir of WORKSPACES) {
-  if (
-    touched.some(
-      (file) =>
-        file.startsWith(`${dir}/`) &&
-        (CODE.test(file) || TSCONFIG.test(file) || file.endsWith("/package.json")),
-    )
-  ) {
-    steps.push({ name: `typecheck ${dir}`, cmd: ["bun", "run", "--cwd", dir, "typecheck"] });
-  }
-}
-
 if (steps.length === 0) console.log("No checks apply to these files.");
 
 const results = await Promise.all(

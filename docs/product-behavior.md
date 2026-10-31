@@ -67,7 +67,7 @@ Quoted text should be stored with its source URL when available and displayed as
 
 ## Card types
 
-The card kinds are the `ItemKind` values in `src/lib/types.ts`:
+The card kinds are the `ItemKind` values in `apps/renderer/src/library/cardModel.ts`:
 
 - Article, which also covers general web pages
 - Image, which also covers screenshots

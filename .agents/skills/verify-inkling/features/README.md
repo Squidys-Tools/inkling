@@ -2,6 +2,8 @@
 
 One file per user-facing feature. Each file names the entry points, the driving steps, and the observable end state. Drive one feature per run.
 
+Every step list below was driven on the app before the rebuild in `apps/`. Its class selectors (`.add-menu-tile`, `.result-count` and the like) no longer exist, because StyleX emits atomic class names; re-drive each file against `apps/renderer/src` and move its selectors to aria-labels, roles and titles before trusting it.
+
 - [Capture a note from the Add menu](capture-note.md)
 - [Capture a quote from the Add menu](capture-quote.md)
 - [Search your library](search.md)

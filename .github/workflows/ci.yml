@@ -13,6 +13,7 @@ on:
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,7 +30,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      frontend: ${{ steps.filter.outputs.frontend }}
+      code: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.code }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -41,6 +42,7 @@ jobs:
 
       - name: Filter changed paths
         id: filter
+        if: github.event_name != 'workflow_dispatch'
         # Pinned to the v4 tag commit: this job gates security checks, so a
         # hijacked floating tag must not be able to falsify filter outputs.
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -52,33 +54,33 @@ jobs:
           base: ${{ github.event.before || github.event.pull_request.base.sha }}
           predicate-quantifier: some-with-excludes
           filters: |
-            frontend:
-              - 'src/**'
-              - 'public/**'
-              - '!src/seedPersonal.ts'
-              - '!public/seed-demo/**'
+            code:
+              - 'apps/**'
+              - '!apps/renderer/src/library/preview/seed-demo/**'
+              - '!apps/renderer/src/library/preview/seed.ts'
+              - 'packages/**'
+              - 'tools/**'
+              - 'extension/**'
               - 'benchmarks/**'
-              - 'electron/**'
-              - 'scripts/**'
+              - 'patches/**'
+              - 'build/**'
               - '*.json'
               - '*.jsonc'
-              - 'extension/**'
-              - 'packages/**'
-              - 'index.html'
               - 'bun.lock'
               - '.bun-version'
-              - 'vite.config.ts'
+              - 'bunfig.toml'
+              - 'tsconfig.base.json'
               - '.oxlintrc.json'
               - '.oxfmtrc.json'
-              - 'oxlint-plugin-inkling/**'
               - '.github/workflows/ci.yml'
 
-  frontend:
-    name: Frontend checks
+  check:
+    name: Typecheck, lint, test and build
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    if: needs.changes.outputs.code == 'true'
     # Windows is inkling's main target, so the suite runs there.
     runs-on: windows-latest
+    timeout-minutes: 30
     defaults:
       run:
         # pwsh only fails a multi-line step on its last command; bash stops at the first failure.
@@ -96,14 +98,8 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # Root tsconfig only includes src, so the extension and shared packages
-      # are invisible to `bun run typecheck`. Check each workspace explicitly.
-      - name: Typecheck workspaces
-        run: |
-          bun run typecheck
-          bun run --cwd extension typecheck
-          bun run --cwd packages/ingestion-shared typecheck
-          bun run --cwd packages/contracts typecheck
+      - name: Typecheck every workspace
+        run: bun run typecheck
 
       - name: Check documented commands exist
         run: bun run check:refs
@@ -114,20 +110,42 @@ jobs:
       - name: Check for unused code
         run: bun run knip
 
-      - name: Lint and format frontend
+      - name: Lint and format
         run: bun run lint
 
-      - name: Build frontend
-        run: bun run build
-
-      # Runs the app-mode build, whose guard fails if the committed demo seed
-      # has leaked back into a shipped bundle. Without this the exclusion is
-      # only checked at release time.
-      - name: Build frontend for the app
+      # Its guard fails if the web preview's demo seed reaches a shipped bundle.
+      - name: Build the app
         run: bun run build:app
+
+      - name: Build the web preview
+        run: bun run build:web
 
       - name: Run ingestion smoke tests
         run: bun run ingest:smoke
 
       - name: Build browser extension
         run: bun run --cwd extension build
+
+  launch:
+    name: Build and launch on ${{ matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - run: bun run build:app
+      - name: Launch and reach the library process
+        if: runner.os == 'Linux'
+        run: xvfb-run -a bun tools/smoke/launch.ts
+      - name: Launch and reach the library process
+        if: runner.os != 'Linux'
+        run: bun tools/smoke/launch.ts

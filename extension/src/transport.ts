@@ -1,4 +1,4 @@
-import type { PageCapturePayloadV1 } from "@inkling/ingestion-shared";
+import type { PageCapturePayloadV1 } from "@inkling/contracts/capture";
 
 export class CaptureResponseError extends Error {
   constructor(readonly status: number) {

@@ -7,8 +7,8 @@ on:
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
-      - "public/seed-demo/**"
-      - "src/seedPersonal.ts"
+      - "apps/renderer/src/library/preview/seed-demo/**"
+      - "apps/renderer/src/library/preview/seed.ts"
 
 permissions:
   contents: read
@@ -49,8 +49,8 @@ jobs:
               - '!**/*.md'
               - '!docs/**'
               - '!AGENTS.md'
-              - '!public/seed-demo/**'
-              - '!src/seedPersonal.ts'
+              - '!apps/renderer/src/library/preview/seed-demo/**'
+              - '!apps/renderer/src/library/preview/seed.ts'
 
   deploy:
     name: Deploy web preview

@@ -1,6 +1,6 @@
 import browser from "webextension-polyfill";
 import { buildUrlCapturePayload } from "./capture";
-import type { PageCapturePayloadV1 } from "@inkling/ingestion-shared";
+import type { PageCapturePayloadV1 } from "@inkling/contracts/capture";
 import {
   BASE_URL_KEY,
   isPairingToken,

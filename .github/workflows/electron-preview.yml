@@ -7,8 +7,8 @@ on:
       - "**/*.md"
       - "docs/**"
       - "AGENTS.md"
-      - "public/seed-demo/**"
-      - "src/seedPersonal.ts"
+      - "apps/renderer/src/library/preview/seed-demo/**"
+      - "apps/renderer/src/library/preview/seed.ts"
 
 permissions:
   contents: read
@@ -45,16 +45,15 @@ jobs:
           predicate-quantifier: some-with-excludes
           filters: |
             electron:
-              - 'electron/**'
-              - 'src/**'
-              - 'public/**'
+              - 'apps/**'
+              - 'packages/**'
+              - 'tools/smoke/**'
+              - 'tools/models/**'
               - 'package.json'
               - 'bun.lock'
-              - '.github/workflows/electron-preview.yml'
-              - 'scripts/prepare-electron-models.mjs'
-              - 'scripts/packaged-backend-smoke.mjs'
-              - 'scripts/linux-packaging.test.ts'
               - 'patches/**'
+              - 'build/**'
+              - '.github/workflows/electron-preview.yml'
 
   build:
     name: Build Windows Electron installer
@@ -77,7 +76,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .artifacts/electron-model-cache/models
-          key: inkling-electron-models-win-${{ hashFiles('electron/model-manifest.json') }}
+          key: inkling-electron-models-win-${{ hashFiles('packages/jobs/src/model-manifest.json') }}
           restore-keys: inkling-electron-models-win-
 
       - name: Set up Bun
@@ -89,7 +88,10 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Build Electron NSIS installer
-        run: bun run build:installer
+        run: bun run build:win
+
+      - name: Launch the packaged app and reach the library process
+        run: bun tools/smoke/launch.ts .artifacts/electron/win-unpacked/inkling.exe
 
       - name: Upload Electron installer
         id: installer
@@ -140,61 +142,23 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .artifacts/electron-model-cache/models
-          key: inkling-electron-models-linux-${{ hashFiles('electron/model-manifest.json') }}
+          key: inkling-electron-models-linux-${{ hashFiles('packages/jobs/src/model-manifest.json') }}
           restore-keys: inkling-electron-models-linux-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Check the updater and packaging logic
-        run: bun test electron/updater.test.ts
+        run: bun test apps/desktop/src/updates apps/desktop/packaging.test.ts
 
       - name: Build Electron directory
         run: bun run build:dir
 
       - name: Check packaged Linux OCR, PDF and native models
-        run: bun scripts/packaged-backend-smoke.mjs
+        run: bun tools/smoke/packaged-backend.mjs
 
-      - name: Install X11 window probe
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y xdotool
-
-      - name: Launch the packaged app under Xvfb
-        shell: bash
-        run: |
-          set -euo pipefail
-          app="$GITHUB_WORKSPACE/.artifacts/electron/linux-unpacked/inkling"
-          data_dir="$(mktemp -d)"
-          log_file="$RUNNER_TEMP/inkling-electron-smoke.log"
-          xvfb-run -a bash -c '
-            set -euo pipefail
-            app="$1"
-            data_dir="$2"
-            log_file="$3"
-            "$app" --no-sandbox --disable-gpu --user-data-dir "$data_dir" >"$log_file" 2>&1 &
-            app_pid=$!
-            cleanup() {
-              if kill -0 "$app_pid" 2>/dev/null; then
-                kill -TERM "$app_pid"
-                wait "$app_pid" || true
-              fi
-              rm -rf "$data_dir"
-            }
-            trap cleanup EXIT
-            for attempt in $(seq 1 60); do
-              window_id="$(xdotool search --onlyvisible --name "^inkling$" 2>/dev/null | head -n 1 || true)"
-              if [ -n "$window_id" ]; then
-                echo "Packaged Electron window opened under Xvfb."
-                exit 0
-              fi
-              if ! kill -0 "$app_pid" 2>/dev/null; then
-                cat "$log_file"
-                exit 1
-              fi
-              sleep 0.5
-            done
-            cat "$log_file"
-            exit 1
-          ' _ "$app" "$data_dir" "$log_file"
+      - name: Launch the packaged app under Xvfb and reach the library process
+        run: xvfb-run -a bun tools/smoke/launch.ts .artifacts/electron/linux-unpacked/inkling
 
       - name: Upload Linux Electron directory
         uses: actions/upload-artifact@v7
@@ -228,7 +192,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .artifacts/electron-model-cache/models
-          key: inkling-electron-models-mac-${{ hashFiles('electron/model-manifest.json') }}
+          key: inkling-electron-models-mac-${{ hashFiles('packages/jobs/src/model-manifest.json') }}
           restore-keys: inkling-electron-models-mac-
 
       - name: Install dependencies
@@ -252,28 +216,7 @@ jobs:
         run: codesign --verify --deep --strict .artifacts/electron/mac-arm64/inkling.app
 
       - name: Check packaged OCR, PDF and native models
-        run: bun scripts/packaged-backend-smoke.mjs
+        run: bun tools/smoke/packaged-backend.mjs
 
       - name: Launch the packaged app
-        shell: bash
-        run: |
-          set -euo pipefail
-          data_dir="$(mktemp -d)"
-          log_file="$RUNNER_TEMP/inkling-electron-smoke.log"
-          .artifacts/electron/mac-arm64/inkling.app/Contents/MacOS/inkling \
-            --user-data-dir="$data_dir" --remote-debugging-port=9230 >"$log_file" 2>&1 &
-          app_pid=$!
-          trap 'kill -TERM "$app_pid" 2>/dev/null || true; wait "$app_pid" || true; rm -rf "$data_dir"' EXIT
-          for attempt in $(seq 1 60); do
-            if curl -fs http://127.0.0.1:9230/json/list | grep -q 'app://local/index.html'; then
-              echo "Packaged Electron window loaded the app."
-              exit 0
-            fi
-            if ! kill -0 "$app_pid" 2>/dev/null; then
-              cat "$log_file"
-              exit 1
-            fi
-            sleep 0.5
-          done
-          cat "$log_file"
-          exit 1
+        run: bun tools/smoke/launch.ts .artifacts/electron/mac-arm64/inkling.app/Contents/MacOS/inkling

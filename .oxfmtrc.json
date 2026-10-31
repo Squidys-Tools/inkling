@@ -1,4 +1,12 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": ["bun.lock", "**/*.md", "**/*.yml", "**/*.yaml"]
+  "ignorePatterns": [
+    "benchmarks/corpus",
+    "docs/assets",
+    "extension/icons",
+    "bun.lock",
+    "**/*.md",
+    "**/*.yml",
+    "**/*.yaml"
+  ]
 }

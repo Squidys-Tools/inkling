@@ -26,6 +26,12 @@
       "runOnWorktreeCreate": false
     },
     {
+      "name": "Build web preview",
+      "command": "bun run build:web",
+      "icon": "configure",
+      "runOnWorktreeCreate": false
+    },
+    {
       "name": "Build Linux packages (.deb and AppImage)",
       "command": "bun run build:linux",
       "icon": "configure",
@@ -39,7 +45,7 @@
     },
     {
       "name": "Build Windows installer",
-      "command": "bun run build:installer",
+      "command": "bun run build:win",
       "icon": "configure",
       "runOnWorktreeCreate": false
     },
@@ -80,8 +86,20 @@
       "runOnWorktreeCreate": false
     },
     {
-      "name": "Run benchmarks",
+      "name": "Run frame benchmark",
       "command": "bun run bench",
+      "icon": "debug",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Generate benchmark library",
+      "command": "bun run bench:library",
+      "icon": "debug",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Score extraction and OCR",
+      "command": "bun run bench:quality",
       "icon": "debug",
       "runOnWorktreeCreate": false
     },
@@ -105,7 +123,7 @@
     },
     {
       "name": "Clean project JS dependencies",
-      "command": "bun -e \"import { rmSync } from 'node:fs'; for (const path of ['node_modules', 'extension/node_modules']) rmSync(path, { recursive: true, force: true })\"",
+      "command": "bun -e \"import { readdirSync, rmSync } from 'node:fs'; for (const dir of ['.', 'extension', ...['apps', 'packages', 'tools'].flatMap((root) => readdirSync(root).map((name) => root + '/' + name))]) rmSync(dir + '/node_modules', { recursive: true, force: true })\"",
       "icon": "debug",
       "runOnWorktreeCreate": false
     }

@@ -169,6 +169,8 @@ Rules for entries:
 - The desktop backend is TypeScript built on Effect: storage runs on Effect's SQLite client, background jobs on Effect workers, URL downloads on Effect's HTTP client, and every IPC command is checked against one shared schema before it reaches storage
 - Restarting the app hands back every job the previous run left in progress, instead of waiting out its five-minute lease
 - The desktop shell runs on Electron 45 (Chromium 156, Node 24.22) instead of Electron 44 (#186)
+- The app is rebuilt as three processes: the main process keeps windows, menus, dialogs, capture and updates, a library process owns the SQLite file, search and the job queue, and a worker process runs OCR, embeddings, thumbnails and extraction, so a long job no longer slows a search. The renderer talks to the library over Effect RPC, routes with TanStack Router and is styled with StyleX. The library file and asset layout are unchanged
+- Developer commands: `build:win` replaces `build:installer`, `build:web` builds the web preview into `dist/web`, `bench` measures frame time and `bench:quality` runs the extraction and OCR benchmark `bench` ran before, and `build` and `preview` are gone
 
 ### Removed
 
@@ -178,6 +180,7 @@ Rules for entries:
 - Dead `note-art` / `note-pin` / `note-scribble` card styles left over from the note thumbnail reuse
 - WiX MSI installer target. Windows releases build the NSIS installer only, which is the one Tauri's updater can replace in place (SQU-80).
 - Entire session-tracking setup: `.entire/` config, agent hooks for Claude Code, Codex and OpenCode, and the Git hooks it installed.
+- Settings → Appearance and its alternative looks, and the WebGPU liquid glass with the CORS header it added to remote images; floating controls use the CSS glass
 
 ### Security
 

@@ -10,8 +10,8 @@ a natural-language query can match text items and image items.
 
 ## Runtime behavior
 
-The Electron main process runs the published INT8 ONNX artifacts through ONNX
-Runtime. `electron/model-manifest.json` pins each file to a Hugging Face
+The worker process runs the published INT8 ONNX artifacts through ONNX
+Runtime. `packages/jobs/src/model-manifest.json` pins each file to a Hugging Face
 revision and a SHA-256 hash, and the app checks the hash before it loads a file.
 
 Packaged builds (the Windows installer, the `.deb` and the AppImage) bundle the

@@ -9,7 +9,8 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "tools/*"
+    "tools/*",
+    "extension"
   ],
   "type": "module",
   "main": "dist/desktop/main.mjs",
@@ -24,17 +25,20 @@
     "build:win": "bun run build:app && bun tools/models/prepare.ts && electron-builder --publish never --win nsis",
     "build:linux": "bun run build:app && bun tools/models/prepare.ts && electron-builder --publish never --linux deb AppImage",
     "build:mac": "bun run build:app && bun tools/models/prepare.ts && electron-builder --publish never --mac dmg",
-    "typecheck": "tsc-rs -p apps/renderer --noEmit && tsc-rs -p apps/desktop --noEmit && tsc-rs -p packages/library --noEmit && tsc-rs -p packages/jobs --noEmit && tsc-rs -p packages/ingestion --noEmit && tsc-rs -p tools --noEmit",
+    "typecheck": "tsc-rs -p apps/renderer --noEmit && tsc-rs -p apps/desktop --noEmit && tsc-rs -p packages/library --noEmit && tsc-rs -p packages/jobs --noEmit && tsc-rs -p packages/ingestion --noEmit && tsc-rs -p tools --noEmit && tsc-rs -p extension --noEmit && tsc-rs -p benchmarks --noEmit",
     "test": "bun test --timeout 30000",
     "lint": "oxlint --report-unused-disable-directives && oxfmt --check",
     "lint:fix": "oxlint --report-unused-disable-directives --fix && oxfmt",
     "knip": "knip --no-progress",
-    "check": "bun run check:bun-version && bun run typecheck && bun run lint && bun run test && bun run knip && bun run build:app && bun run build:web && bun run ingest:smoke",
+    "check": "bun run check:bun-version && bun run typecheck && bun run check:refs && bun run lint && bun run test && bun run knip && bun run build:app && bun run build:web && bun run ingest:smoke && bun run --cwd extension build",
+    "check:changed": "bun tools/repo/check-changed.ts",
+    "check:refs": "bun tools/repo/command-refs.ts",
     "check:bun-version": "bun -e \"const expected = (await Bun.file('.bun-version').text()).trim(); if (Bun.version !== expected) { console.error('Expected Bun ' + expected + ', found ' + Bun.version); process.exit(1); }\"",
     "ingest:smoke": "bun packages/ingestion/src/ingestion.smoke.ts",
     "bench": "bun tools/bench/frames.ts",
     "bench:library": "bun tools/bench/generate.ts",
-    "bench:first-page": "bun tools/bench/first-page.ts"
+    "bench:first-page": "bun tools/bench/first-page.ts",
+    "bench:quality": "bun benchmarks/harness/index.ts"
   },
   "dependencies": {
     "@effect/sql-sqlite-node": "4.0.6",
