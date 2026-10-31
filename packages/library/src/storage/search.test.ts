@@ -25,6 +25,8 @@ test("free-text search hybrid-ranks lexical and Nomic semantic matches", async (
     vector([0.9, Math.sqrt(0.19)]),
     2,
   );
+  // Its OCR text vector must not lift it above lexical matches as if it matched both.
+  await library.storeEmbedding("semantic-image", "text", TEXT_MODEL, vector([0.6, 0.8]), 2);
   await library.storeEmbedding("negative-match", "text", TEXT_MODEL, vector([-1, 0]), 2);
   await library.storeEmbedding(
     "legacy-image",
@@ -102,4 +104,90 @@ test("LIKE fallback treats percent and underscore as literal search characters",
 
   expect(ids(await library.searchItems("100%"))).toEqual(["literal-percent"]);
   expect(ids(await library.searchItems("file_name"))).toEqual(["literal-underscore"]);
+});
+
+test("semantic search follows re-embedded, deleted and archived items after vectors are cached", async () => {
+  const { library } = await temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items
+    (id, kind, title, metadata, created_at, updated_at) VALUES (?, ?, ?, '{}', ?, ?)`);
+  for (const [index, id] of ["moved", "deleted", "archived", "kept"].entries()) {
+    insert.run(id, "note", `${id} note`, index, index);
+  }
+  await library.storeEmbedding("moved", "text", TEXT_MODEL, vector([1, 0]), 2);
+  await library.storeEmbedding("deleted", "text", TEXT_MODEL, vector([0.9, Math.sqrt(0.19)]), 2);
+  await library.storeEmbedding("archived", "text", TEXT_MODEL, vector([0.8, 0.6]), 2);
+  await library.storeEmbedding("kept", "text", TEXT_MODEL, vector([0.6, 0.8]), 2);
+  const east = Float32Array.from([1, 0]);
+  expect(ids(await library.searchItems("unrelated", 20, east))).toEqual([
+    "moved",
+    "deleted",
+    "archived",
+    "kept",
+  ]);
+
+  await library.storeEmbedding("moved", "text", TEXT_MODEL, vector([0, 1]), 2);
+  expect(ids(await library.searchItems("unrelated", 20, east))).toEqual([
+    "deleted",
+    "archived",
+    "kept",
+  ]);
+  library.db.exec("DELETE FROM items WHERE id = 'deleted'");
+  await library.archiveItem("archived");
+  expect(ids(await library.searchItems("unrelated", 20, east))).toEqual(["kept"]);
+  expect(ids(await library.searchSimilar("kept", "text", 12))).toEqual(["moved"]);
+
+  await library.archiveItem("archived", false);
+  expect(ids(await library.searchItems("unrelated", 20, east))).toEqual(["archived", "kept"]);
+});
+
+// One transaction for all rows: a commit per row through storeEmbedding times these tests out.
+function seedNotes(
+  library: Awaited<ReturnType<typeof temporaryLibrary>>["library"],
+  notes: { id: string; at: number; embedding: number[]; archived?: boolean }[],
+) {
+  const item = library.db.prepare(`INSERT INTO items
+    (id, kind, title, metadata, archived, created_at, updated_at) VALUES (?, 'note', ?, '{}', ?, ?, ?)`);
+  const embedding = library.db.prepare(`INSERT INTO item_embeddings
+    (item_id, kind, model, dimension, vector, created_at) VALUES (?, 'text', ?, ?, ?, 0)`);
+  library.db.exec("BEGIN");
+  for (const note of notes) {
+    item.run(note.id, note.id, note.archived ? 1 : 0, note.at, note.at);
+    embedding.run(note.id, TEXT_MODEL, note.embedding.length, vector(note.embedding));
+  }
+  library.db.exec("COMMIT");
+}
+
+test("archived items that outscore every visible match do not hide it", async () => {
+  const { library } = await temporaryLibrary();
+  seedNotes(library, [
+    ...Array.from({ length: 80 }, (_, index) => ({
+      id: `archived-${index}`,
+      at: index,
+      embedding: [0.9, 0],
+      archived: true,
+    })),
+    { id: "probe", at: 100, embedding: [1, 0] },
+    { id: "visible", at: 101, embedding: [0.6, 0.8] },
+  ]);
+  expect(ids(await library.searchItems("unrelated", 20, Float32Array.from([1, 0])))).toEqual([
+    "probe",
+    "visible",
+  ]);
+  expect(ids(await library.searchSimilar("probe", "text", 12))).toEqual(["visible"]);
+});
+
+test("exact-score ties across the result cap keep the newest items first", async () => {
+  const { library } = await temporaryLibrary();
+  seedNotes(
+    library,
+    Array.from({ length: 60 }, (_, index) => ({
+      id: `dup-${String(index).padStart(2, "0")}`,
+      at: index,
+      embedding: [1, 0],
+    })),
+  );
+  expect(ids(await library.searchItems("unrelated", 20, Float32Array.from([1, 0])))).toEqual(
+    Array.from({ length: 20 }, (_, index) => `dup-${59 - index}`),
+  );
+  expect(await library.searchSimilar("dup-00", "text", 12)).toHaveLength(12);
 });
