@@ -104,8 +104,6 @@ export function useCapture({
   }
 
   async function captureImageUrl(pageUrl: string, imageUrl: string, captureSource: string) {
-    setCaptureError(null);
-    setIsCapturing(true);
     try {
       const response = await fetch(imageUrl);
       if (!response.ok) throw new Error(`The image returned HTTP ${response.status}.`);
@@ -118,28 +116,25 @@ export function useCapture({
       // A direct download can fail on hotlink protection or CORS; the page
       // itself is still worth keeping.
       await persistArticle(pageUrl, captureSource);
-    } finally {
-      setIsCapturing(false);
     }
   }
 
   async function captureDeepLinks(captures: DeepLinkCapture[]) {
     for (const capture of captures) {
-      if (capture.kind === "quote") {
-        await persistQuote(
-          capture.selection,
-          capture.attribution,
-          capture.url,
-          "browser extension",
-        );
-      } else if (capture.kind === "image") {
-        await captureImageUrl(capture.pageUrl, capture.imageUrl, "browser extension");
-      } else {
-        await runCapture(
-          () => persistArticle(capture.url, "browser extension", capture.title),
-          false,
-        );
-      }
+      await runCapture(() => {
+        if (capture.kind === "quote") {
+          return persistQuote(
+            capture.selection,
+            capture.attribution,
+            capture.url,
+            "browser extension",
+          );
+        }
+        if (capture.kind === "image") {
+          return captureImageUrl(capture.pageUrl, capture.imageUrl, "browser extension");
+        }
+        return persistArticle(capture.url, "browser extension", capture.title);
+      }, false);
     }
   }
 
