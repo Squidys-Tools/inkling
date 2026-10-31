@@ -1,8 +1,10 @@
 import * as stylex from "@stylexjs/stylex";
-import { color, font } from "@inkling/ui/tokens.stylex";
+import { color, font, siteColor } from "@inkling/ui/tokens.stylex";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { Footer } from "../layout/Footer.tsx";
 import { Header } from "../layout/Header.tsx";
+import { NotFound } from "../layout/NotFound.tsx";
+import { shareImage } from "../layout/seo.ts";
 import { registerFonts } from "@inkling/ui";
 import dmSans from "@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2?url";
 import { type ReactNode, useEffect } from "react";
@@ -15,22 +17,25 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "inkling — a private library for everything worth keeping" },
-      {
-        name: "description",
-        content:
-          "Save articles, images, screenshots, PDFs, notes, quotes and videos. Find them later by describing them. Everything stays on your computer.",
-      },
+      { name: "theme-color", content: siteColor.browserChrome },
+      { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "inkling" },
+      { property: "og:image", content: shareImage },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       { rel: "stylesheet", href: stylesheet },
       // The same URL registerFonts loads, so headings do not wait for hydration to fetch their face.
       { rel: "preload", href: dmSans, as: "font", type: "font/woff2", crossOrigin: "anonymous" },
       { rel: "icon", href: "/icon.png" },
+      { rel: "apple-touch-icon", href: "/icon.png" },
     ],
   }),
   shellComponent: Shell,
   component: Layout,
+  notFoundComponent: NotFound,
 });
 
 function Layout() {

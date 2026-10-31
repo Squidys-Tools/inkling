@@ -7,11 +7,18 @@ import { Shortcuts } from "../features/Shortcuts.tsx";
 import { Spaces } from "../features/Spaces.tsx";
 import { DownloadBand } from "../home/DownloadBand.tsx";
 import { page } from "../layout/page.ts";
+import { seo } from "../layout/seo.ts";
 import { Stage } from "../parts/Stage.tsx";
 import { type } from "../parts/type.ts";
 
 export const Route = createFileRoute("/features")({
-  head: () => ({ meta: [{ title: "Features · inkling" }] }),
+  head: () =>
+    seo({
+      title: "Features · inkling",
+      description:
+        "A card for every kind of thing you save, search that reads your pictures and goes by meaning, Smart Spaces that fill themselves, and a shortcut for everything.",
+      path: "/features",
+    }),
   component: Features,
 });
 

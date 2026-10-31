@@ -4,11 +4,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import release from "virtual:latest-release";
 import { extensionGuide, latestRelease } from "../layout/links.ts";
 import { page } from "../layout/page.ts";
+import { seo } from "../layout/seo.ts";
 import { usePlatform } from "../parts/platform.ts";
 import { action, type } from "../parts/type.ts";
 
 export const Route = createFileRoute("/download")({
-  head: () => ({ meta: [{ title: "Download inkling" }] }),
+  head: () =>
+    seo({
+      title: "Download inkling",
+      description:
+        "Download inkling for Windows, Linux or an Apple silicon Mac. Free, with nothing to sign up for.",
+      path: "/download",
+    }),
   component: Download,
 });
 

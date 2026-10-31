@@ -2,10 +2,17 @@ import * as stylex from "@stylexjs/stylex";
 import { color, font, radius } from "@inkling/ui/tokens.stylex";
 import { createFileRoute } from "@tanstack/react-router";
 import { page } from "../layout/page.ts";
+import { seo } from "../layout/seo.ts";
 import { type } from "../parts/type.ts";
 
 export const Route = createFileRoute("/privacy")({
-  head: () => ({ meta: [{ title: "Privacy · inkling" }] }),
+  head: () =>
+    seo({
+      title: "Privacy · inkling",
+      description:
+        "inkling has no account, no server and no analytics. Your library is one folder on your computer. Here is every time the app goes online.",
+      path: "/privacy",
+    }),
   component: Privacy,
 });
 

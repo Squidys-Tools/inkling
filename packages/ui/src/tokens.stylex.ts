@@ -42,6 +42,11 @@ export const color = stylex.defineVars({
   shadow: "rgba(0, 0, 0, 0.55)",
 });
 
+// The marketing site's <meta name="theme-color">, which takes a concrete color: color.window.
+export const siteColor = stylex.defineConsts({
+  browserChrome: "#0c0c0b",
+});
+
 export const spaceColor = stylex.defineVars({
   orange: "#b0714f",
   green: "#7f9a8c",

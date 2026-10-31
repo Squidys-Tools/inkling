@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as R404RouteImport } from './routes/404'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -17,6 +18,11 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const R404Route = R404RouteImport.update({
+  id: '/404',
+  path: '/404',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DownloadRoute = DownloadRouteImport.update({
@@ -37,12 +43,14 @@ const PrivacyRoute = PrivacyRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/404': typeof R404Route
   '/download': typeof DownloadRoute
   '/features': typeof FeaturesRoute
   '/privacy': typeof PrivacyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/404': typeof R404Route
   '/download': typeof DownloadRoute
   '/features': typeof FeaturesRoute
   '/privacy': typeof PrivacyRoute
@@ -50,20 +58,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/404': typeof R404Route
   '/download': typeof DownloadRoute
   '/features': typeof FeaturesRoute
   '/privacy': typeof PrivacyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/download' | '/features' | '/privacy'
+  fullPaths: '/' | '/404' | '/download' | '/features' | '/privacy'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/download' | '/features' | '/privacy'
-  id: '__root__' | '/' | '/download' | '/features' | '/privacy'
+  to: '/' | '/404' | '/download' | '/features' | '/privacy'
+  id: '__root__' | '/' | '/404' | '/download' | '/features' | '/privacy'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  R404Route: typeof R404Route
   DownloadRoute: typeof DownloadRoute
   FeaturesRoute: typeof FeaturesRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -76,6 +86,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/404': {
+      id: '/404'
+      path: '/404'
+      fullPath: '/404'
+      preLoaderRoute: typeof R404RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/download': {
@@ -104,6 +121,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  R404Route: R404Route,
   DownloadRoute: DownloadRoute,
   FeaturesRoute: FeaturesRoute,
   PrivacyRoute: PrivacyRoute,
