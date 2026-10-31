@@ -78,8 +78,11 @@ export function createSearch({
     try {
       const text = await run(query, false);
       if (mine !== generation) return;
-      land(text, "searching");
-      shown = true;
+      // An empty text answer would show "Nothing surfaced" until the semantic matches land.
+      if (text.length) {
+        land(text, "searching");
+        shown = true;
+      }
     } catch {
       // The semantic answer below still lands, or reports the failure.
     }

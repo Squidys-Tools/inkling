@@ -114,6 +114,17 @@ describe("search", () => {
     expect(search.store.get()).toMatchObject({ results: ["semantic", "lexical"], status: "ready" });
   });
 
+  it("shows no empty answer while only the semantic pass can find matches", async () => {
+    const { search, firePause, answer } = harness({ text: async () => [] });
+    search.setQuery("dog");
+    firePause();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(search.store.get()).toMatchObject({ results: null, status: "searching" });
+    await answer("dog", ["corgi"]);
+    expect(search.store.get()).toMatchObject({ results: ["corgi"], status: "ready" });
+  });
+
   it("keeps the text matches when the semantic pass fails", async () => {
     const { search, firePause, pending } = harness({ text: async () => [card("lexical")] });
     search.setQuery("corgi");
