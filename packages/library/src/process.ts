@@ -17,7 +17,7 @@ import { createLibrarySizeCache } from "./library-size.ts";
 import { errorMessage } from "./storage/errors.ts";
 import { JobQueue, Library, libraryLayer } from "./storage/library.ts";
 import { cardItem } from "./storage/rows.ts";
-import { smartSpaceSubjects, smartSpaceText } from "./storage/spaces.ts";
+import { smartSpaceSubjects } from "./storage/spaces.ts";
 import { snapshotDatabase } from "./storage/sqlite-snapshot.ts";
 import {
   interfaceLabel,
@@ -130,7 +130,9 @@ const handlers = LibraryRpcs.toLayer(
                   const prompts = yield* loadSubjectVectors;
                   return yield* library.spaceCardsPage(scope.spaceId, cursor, limit, null, prompts);
                 }
-                const vector = yield* queryVector(space ? smartSpaceText(space) : "");
+                const vector = yield* queryVector(
+                  space?.kind === "smart" ? (space.query.text ?? "") : "",
+                );
                 return yield* library.spaceCardsPage(scope.spaceId, cursor, limit, vector);
               }),
             );

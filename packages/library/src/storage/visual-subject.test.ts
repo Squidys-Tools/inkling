@@ -1,7 +1,7 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
 import { IMAGE_MODEL, TEXT_MODEL } from "@inkling/contracts/jobs";
 import { closeAll, ids, removeTemporaryRoots, temporaryLibrary, vector } from "./test-helpers.ts";
-import { smartSpaceText } from "./spaces.ts";
+import { smartSpaceSubjects } from "./spaces.ts";
 import {
   interfaceLabel,
   labelImage,
@@ -31,12 +31,15 @@ test("a subject query is a list of photographable nouns, not any text that menti
   expect(labelImage([1, 0], prompts)).toBeNull();
 });
 
-test("an unfiltered Smart Space searches for its name without rewriting its saved query", () => {
+test("only a subject name or subject text makes a Smart Space a photo collection", () => {
   const space = { kind: "smart" as const, name: " Cats ", query: {} };
-  expect(smartSpaceText(space)).toBe("Cats");
-  expect(smartSpaceText({ ...space, query: { text: "tabby" } })).toBe("tabby");
-  expect(smartSpaceText({ ...space, query: { tag: "pets" } })).toBe("");
-  expect(smartSpaceText({ ...space, kind: "regular" })).toBe("");
+  expect(smartSpaceSubjects(space)).toEqual(["cat"]);
+  expect(smartSpaceSubjects({ ...space, name: "Everything" })).toBeNull();
+  expect(smartSpaceSubjects({ ...space, name: "Inbox", query: { text: "dogs" } })).toEqual(["dog"]);
+  expect(smartSpaceSubjects({ ...space, query: { text: "tabby notes" } })).toBeNull();
+  expect(smartSpaceSubjects({ ...space, query: { tag: "pets" } })).toBeNull();
+  expect(smartSpaceSubjects({ ...space, query: { kind: "note" } })).toBeNull();
+  expect(smartSpaceSubjects({ ...space, kind: "regular" })).toBeNull();
 });
 
 test("a Space named Cats holds analyzed cat photos only, never screenshots, notes or pending images", async () => {
@@ -114,7 +117,21 @@ test("a Space named Cats holds analyzed cat photos only, never screenshots, note
     query: { text: "cat", kind: "note" },
   });
   expect(ids(await library.listSpaceItems(notes.id, 100, null, prompts))).toEqual(["cat-note"]);
+  // An unfiltered Space with any other name still lists every unarchived item.
+  const everything = await library.createSpace({ name: "Everything" });
+  expect(ids(await library.listSpaceItems(everything.id, 100, null, prompts)).sort()).toEqual([
+    "cat-note",
+    "chat-shot",
+    "kitten",
+    "old-model-cat",
+    "pending-cat",
+    "puppy",
+    "tabby",
+  ]);
   // Text that is more than a subject list stays an ordinary search.
-  const training = await library.createSpace({ name: "My cat training" });
+  const training = await library.createSpace({
+    name: "Training",
+    query: { text: "cat training" },
+  });
   expect(ids(await library.listSpaceItems(training.id, 100, null, prompts))).not.toContain("tabby");
 });

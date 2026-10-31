@@ -79,6 +79,9 @@ export function labelImage(image: ArrayLike<number>, prompts: SubjectVectors) {
 
 export function decodeVector(blob: Uint8Array, dimension: number) {
   if (blob.byteLength !== dimension * 4) return null;
-  const bytes = Buffer.from(blob.buffer, blob.byteOffset, blob.byteLength);
-  return Array.from({ length: dimension }, (_, index) => bytes.readFloatLE(index * 4));
+  const view = new DataView(blob.buffer, blob.byteOffset, blob.byteLength);
+  const vector = new Float32Array(dimension);
+  for (let index = 0; index < dimension; index += 1)
+    vector[index] = view.getFloat32(index * 4, true);
+  return vector;
 }

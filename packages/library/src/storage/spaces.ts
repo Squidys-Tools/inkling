@@ -49,19 +49,14 @@ function spaceFromRow(row: SpaceRow): Space {
   };
 }
 
-/** The text a Smart Space searches for. One with no filters at all searches for its
- *  own name, so a Space called "Cats" means cats; the saved query stays as it is. */
-export function smartSpaceText(space: Pick<Space, "kind" | "name" | "query">) {
-  if (space.kind !== "smart") return "";
-  const { text, kind, tag } = space.query;
-  return nonEmpty(text) ?? (!nonEmpty(kind) && !nonEmpty(tag) ? space.name.trim() : "");
-}
-
 /** The photo subjects a Smart Space collects, or null when it is an ordinary search.
- *  A kind filter ("note", say) keeps the search textual, so notes appear only when asked for. */
+ *  Its text names them, or, with no filters at all, its name ("Cats"); any other
+ *  unfiltered Space still lists everything. A kind filter keeps the search textual,
+ *  so notes appear only when asked for. The saved query is never rewritten. */
 export function smartSpaceSubjects(space: Pick<Space, "kind" | "name" | "query">) {
-  if (space.kind !== "smart" || nonEmpty(space.query.kind)) return null;
-  return visualSubjectQuery(smartSpaceText(space));
+  const { text, kind, tag } = space.query;
+  if (space.kind !== "smart" || nonEmpty(kind)) return null;
+  return visualSubjectQuery(nonEmpty(text) ?? (nonEmpty(tag) ? "" : space.name));
 }
 
 export const validateSmartQuery = Effect.fnUntraced(function* (query: unknown = {}) {
@@ -270,7 +265,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     const query = space.query;
     const subjects = smartSpaceSubjects(space);
     if (subjects) return yield* subjectMatches(subjects, nonEmpty(query.tag), cap, subjectVectors);
-    const text = nonEmpty(smartSpaceText(space));
+    const text = nonEmpty(query.text);
     const clauses: Fragment[] = [sql`i.archived = 0`];
     let from = sql.literal("items i");
     let rankedCandidates: ReturnType<typeof cardFromRow>[] | null = null;
