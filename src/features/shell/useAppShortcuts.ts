@@ -16,6 +16,7 @@ type AppShortcutsOptions = {
   readingItem: ReadingItem | null;
   selectedItem: LibraryItem | null;
   pdfViewerItem: LibraryItem | null;
+  isWelcomeOpen: boolean;
   isSettingsOpen: boolean;
   setIsSettingsOpen: Dispatch<SetStateAction<boolean>>;
   capture: Pick<
@@ -35,6 +36,7 @@ export function useAppShortcuts({
   readingItem,
   selectedItem,
   pdfViewerItem,
+  isWelcomeOpen,
   isSettingsOpen,
   setIsSettingsOpen,
   capture,
@@ -44,7 +46,7 @@ export function useAppShortcuts({
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
     const { isAdding, isCapturing, captureMode, setCaptureMode, openCapture, closeCaptureModal } =
       capture;
-    if (isShortcutsOpen) return;
+    if (isShortcutsOpen || isWelcomeOpen) return;
     if (readingItem || selectedItem || pdfViewerItem) return;
     if (event.key === "Escape") {
       if (isSettingsOpen) {

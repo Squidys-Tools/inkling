@@ -127,6 +127,7 @@ function App() {
     readingItem: details.readingItem,
     selectedItem,
     pdfViewerItem: details.pdfViewerItem,
+    isWelcomeOpen: isFirstRunOpen,
     isSettingsOpen: settings.isSettingsOpen,
     setIsSettingsOpen: settings.setIsSettingsOpen,
     capture,
