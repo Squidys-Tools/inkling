@@ -116,8 +116,7 @@
   font: 500 12.5px var(--font-body);
 }
 .note-editor-save:hover:not(:disabled) {
-  border-color: var(--color-green);
-  background: #2b382f;
+  background: #d28a60;
 }
 .note-editor-save:disabled {
   opacity: 0.6;
