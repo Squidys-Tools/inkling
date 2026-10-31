@@ -15,6 +15,7 @@ const card = (fields: Partial<LibraryCard> = {}): LibraryCard => ({
   thumbnailPath: null,
   ocrText: "",
   createdAt: 0,
+  updatedAt: 0,
   archived: false,
   metadata: {},
   hasArticleContent: false,

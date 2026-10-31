@@ -207,15 +207,12 @@ export function makeItems(ctx: StorageContext) {
     listArchivedItems: () => selectCards(ctx, sql`archived = 1`),
     cardsPage: (archived: boolean, cursor: string | null, limit: number) =>
       pageCards(ctx, sql`archived = ${archived ? 1 : 0}`, cursor, limit),
-    // Active items only, so an archived or deleted id is simply absent from the
-    // result. The ids go in as one JSON value to stay under SQLite's parameter limit.
+    // Archived items too, so their cards update in place; a deleted id is absent.
+    // The ids go in as one JSON value to stay under SQLite's parameter limit.
     getItemCards: (ids: ReadonlyArray<string>) =>
       ids.length === 0
         ? Effect.succeed([])
-        : selectCards(
-            ctx,
-            sql`archived = 0 AND id IN (SELECT value FROM json_each(${JSON.stringify(ids)}))`,
-          ),
+        : selectCards(ctx, sql`id IN (SELECT value FROM json_each(${JSON.stringify(ids)}))`),
     getItem,
     getItemContent: Effect.fnUntraced(function* (id: string) {
       const [row] = yield* sql<{ id: string; body: string; body_format: string }>`SELECT id, body,

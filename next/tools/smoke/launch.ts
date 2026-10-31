@@ -22,16 +22,25 @@ const app = Bun.spawn(
 
 try {
   const page = await connect(await pageTarget(port));
-  const deadline = Date.now() + 30_000;
-  let text = "";
-  while (Date.now() < deadline) {
-    text = await page.evaluate<string>(`document.body?.innerText ?? ""`);
-    if (/\d+ items/.test(text)) break;
-    await Bun.sleep(200);
-  }
+  const until = async (expression: string, what: string) => {
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      if (await page.evaluate<boolean>(expression)) return;
+      await Bun.sleep(200);
+    }
+    const text = await page.evaluate<string>(`document.body?.innerText ?? ""`);
+    throw new Error(`${what} never happened:\n${text}`);
+  };
+  // A scratch library has not seen the welcome, so the library process's answer opens it.
+  await until(
+    `document.querySelector('[aria-label="Welcome to inkling"]') !== null`,
+    "the welcome opening",
+  );
+  await until(`document.visibilityState === "visible"`, "the window showing");
+  await page.evaluate(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
+  await until(`/\\d+ items/.test(document.body?.innerText ?? "")`, "the library loading");
   page.close();
-  if (!/\d+ items/.test(text)) throw new Error(`the library page never loaded:\n${text}`);
-  console.log("smoke: the page reached the library process");
+  console.log("smoke: the page reached the library process and left the welcome for the library");
 } finally {
   app.kill();
   await app.exited;

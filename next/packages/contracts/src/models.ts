@@ -41,6 +41,8 @@ export const LibraryCard = Schema.Struct({
   ...itemFields,
   metadata: CardMetadata,
   hasArticleContent: Schema.Boolean,
+  // The library pages cards by it, so the renderer places a changed card by it too.
+  updatedAt: Millis,
 });
 export type LibraryCard = typeof LibraryCard.Type;
 
@@ -151,5 +153,7 @@ export const LibraryChange = Schema.Union([
   Schema.TaggedStruct("ItemsRemoved", { ids: Schema.Array(Text) }),
   Schema.TaggedStruct("SpacesChanged", {}),
   Schema.TaggedStruct("JobsChanged", { itemIds: Schema.Array(Text) }),
+  // A restore wrote items, Spaces and jobs at once; every window reads everything again.
+  Schema.TaggedStruct("LibraryReplaced", {}),
 ]);
 export type LibraryChange = typeof LibraryChange.Type;

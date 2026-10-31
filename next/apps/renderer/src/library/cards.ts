@@ -6,10 +6,9 @@ import {
   emptyIndex,
   failLoad,
   type IndexState,
-  prependCards,
+  placeCards,
   receivePage,
   removeIds,
-  scopeHas,
   startLoad,
   updateCards,
 } from "./indexState.ts";
@@ -20,6 +19,9 @@ import { createStore, useStore } from "./store.ts";
 const pageSize = 100;
 const active = scopeKey(activeScope);
 const archived = scopeKey(archivedScope);
+// The scopes the library pages by its order; a card belongs to one by its `archived` flag.
+const paged = [active, archived];
+const home = (card: LibraryCard) => (card.archived ? archived : active);
 
 export const libraryIndex = createStore<IndexState>(emptyIndex);
 /** The scope the grid shows, which the library reloads when its membership may have moved. */
@@ -50,7 +52,7 @@ export function ensureScope(scope: CardScope) {
 
 /** Puts cards the window just wrote at the top of the library, before the change event lands. */
 export function showNewCards(cards: readonly LibraryCard[]) {
-  libraryIndex.set((state) => prependCards(state, cards, [active]));
+  libraryIndex.set((state) => placeCards(state, cards, paged, home));
 }
 
 export function storeCards(cards: readonly LibraryCard[]) {
@@ -58,25 +60,24 @@ export function storeCards(cards: readonly LibraryCard[]) {
 }
 
 /**
- * Applies the library's answer for items it said changed. `cards` holds only
- * active items, so a requested id missing from it was archived or deleted.
+ * Applies the library's answer for items it said changed. Archived items come
+ * back too, so a card moves between the library and the archive in place; an
+ * id missing from `cards` was deleted. Returns the ids that left the library.
  */
 export function reconcileItems(ids: readonly string[], cards: readonly LibraryCard[]) {
-  const state = libraryIndex.get();
   const found = new Set(cards.map((card) => card.id));
-  const gone = ids.filter((id) => !found.has(id));
-  const arrived = cards.filter((card) => !scopeHas(state, active, card.id));
-  let next = updateCards(state, cards);
-  next = prependCards(next, arrived, [active]);
-  next = removeIds(next, [...found], [archived]);
+  const deleted = ids.filter((id) => !found.has(id));
+  const archivedIds = cards.filter((card) => card.archived).map((card) => card.id);
+  let next = placeCards(libraryIndex.get(), cards, paged, home);
+  next = removeIds(next, deleted, "everywhere");
+  // Spaces hold active items only.
   next = removeIds(
     next,
-    gone,
-    [...next.scopes.keys()].filter((key) => key !== archived),
+    archivedIds,
+    [...next.scopes.keys()].filter((key) => !paged.includes(key)),
   );
   libraryIndex.set(next);
-  if (gone.length > 0 && next.scopes.has(archived)) void loadScope(archivedScope);
-  return gone;
+  return [...deleted, ...archivedIds];
 }
 
 export function removeItems(ids: readonly string[]) {

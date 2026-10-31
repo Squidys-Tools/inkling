@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, itemColor, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { hostname, webUrl } from "../library/assets.ts";
 import { useStepBack } from "../item/navigation.ts";
 import { useItem } from "../item/queries.ts";
@@ -10,6 +11,7 @@ import { useEscape } from "../item/useEscape.ts";
 import { ArticleContent } from "./ArticleContent.tsx";
 import { articleTree } from "./articleTree.ts";
 import { FontPicker } from "./FontPicker.tsx";
+import { registerFontSet } from "./fonts.ts";
 import { fontSetTheme, uprightQuotes, useFontSet } from "./fontSets.ts";
 import { reader } from "./readerTheme.stylex.ts";
 
@@ -31,6 +33,7 @@ export function ReaderView({ id }: { id: string }) {
   const navigate = useNavigate();
   const stepBack = useStepBack();
   const [fontSet, setFontSet] = useFontSet();
+  useEffect(() => registerFontSet(fontSet), [fontSet]);
   const query = useItem(id);
   const detail = query.value;
   const close = () =>

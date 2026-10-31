@@ -27,6 +27,7 @@ export type ConfirmOptions = {
 };
 
 export type UpdateChannel = "latest" | "nightly";
+export type UpdateErrorContext = "check" | "download" | "install";
 export type UpdateState = {
   channel: UpdateChannel;
   currentVersion: string;
@@ -42,8 +43,12 @@ export type UpdateState = {
     | "cancelled"
     | "error";
   availableVersion: string | null;
+  /** The verified download that Restart and install would apply. */
+  downloadedVersion: string | null;
   progress: number | null;
   message: string | null;
+  /** Which step an `error` status belongs to. */
+  errorContext: UpdateErrorContext | null;
 };
 
 export type CaptureReceiver = { running: boolean; port: number | null };
@@ -81,6 +86,8 @@ export type DesktopBridge = {
     check: () => Promise<UpdateState>;
     download: () => Promise<UpdateState>;
     install: () => Promise<UpdateState>;
+    /** Stops a download in progress; the download call then answers `cancelled`. */
+    cancel: () => Promise<UpdateState>;
     setChannel: (channel: UpdateChannel) => Promise<UpdateState>;
     onState: (listener: (state: UpdateState) => void) => () => void;
   };
@@ -88,6 +95,8 @@ export type DesktopBridge = {
     receiver: () => Promise<CaptureReceiver>;
     pairingToken: () => Promise<string>;
     regeneratePairingToken: () => Promise<string>;
+    /** Main asks the receiver's health URL itself: the page's CSP blocks loopback requests. */
+    testReceiver: () => Promise<boolean>;
   };
 };
 

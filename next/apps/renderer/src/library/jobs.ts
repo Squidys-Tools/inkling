@@ -28,10 +28,20 @@ export async function retryJob(jobId: string) {
 
 export const useProcessing = (id: string) => useStore(jobsStore, (jobs) => jobs.get(id));
 
-/** How many items have work running, for the mascot's notification dot. */
-export const useActiveJobCount = () =>
-  useStore(jobsStore, (jobs) => {
-    let count = 0;
-    for (const processing of jobs.values()) if (processing.active) count += 1;
-    return count;
-  });
+const activeJobs = createStore(0);
+let countRequests = 0;
+
+// Counts the library's queued and running jobs, those from before launch too.
+// Reads overlap during bursts of job changes, so only the newest answer lands.
+export async function refreshActiveJobCount() {
+  const request = ++countRequests;
+  try {
+    const count = await (await libraryClient()).activeJobs({});
+    if (request === countRequests) activeJobs.set(count);
+  } catch {
+    // The dot keeps its last count until the next job change reads it again.
+  }
+}
+
+/** How many jobs are queued or running, for the mascot's notification dot. */
+export const useActiveJobCount = () => useStore(activeJobs, (count) => count);

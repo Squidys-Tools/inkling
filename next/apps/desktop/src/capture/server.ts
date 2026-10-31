@@ -187,15 +187,30 @@ export async function startCaptureServer({
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
 
+  const status = (): CaptureReceiver => {
+    const address = server.address();
+    if (!server.listening || !address || typeof address === "string")
+      return { running: false, port: null };
+    return { running: true, port: address.port };
+  };
+
   return {
-    status(): CaptureReceiver {
-      const address = server.address();
-      if (!server.listening || !address || typeof address === "string")
-        return { running: false, port: null };
-      return { running: true, port: address.port };
-    },
+    status,
     getPairingToken: pairing.current,
     regeneratePairingToken: pairing.regenerate,
+    async answersHealthCheck() {
+      const { port } = status();
+      if (port === null) return false;
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}${HEALTH_PATH}`, {
+          headers: { Authorization: `Bearer ${pairing.current()}` },
+          signal: AbortSignal.timeout(READ_TIMEOUT),
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    },
     close() {
       if (!server.listening) return Promise.resolve();
       return new Promise<void>((resolve, reject) => {

@@ -1,4 +1,9 @@
-import type { DesktopBridge, UpdateChannel, UpdateState } from "@inkling/contracts/desktop";
+import type {
+  DesktopBridge,
+  UpdateChannel,
+  UpdateErrorContext,
+  UpdateState,
+} from "@inkling/contracts/desktop";
 import { errorMessage } from "../library/errors.ts";
 
 export type UpdateAction = "check" | "channel" | "download" | "install";
@@ -7,8 +12,8 @@ export type UpdateSnapshot = {
   /** Null until the desktop app first answers. */
   state: UpdateState | null;
   pending: UpdateAction | null;
-  /** The last action started, which an `error` status belongs to. */
-  lastAction: UpdateAction | null;
+  /** Cancel runs beside the download it stops, which stays the pending action. */
+  cancelling: boolean;
 };
 
 type UpdateBridge = DesktopBridge["updates"];
@@ -18,8 +23,10 @@ export const previewUpdateState: UpdateState = {
   currentVersion: "",
   status: "disabled",
   availableVersion: null,
+  downloadedVersion: null,
   progress: null,
   message: "Updates are available in the installed desktop app, not the preview.",
+  errorContext: null,
 };
 
 const inFlight = (status: UpdateState["status"]) =>
@@ -32,8 +39,22 @@ const startedStatus = {
   install: "installing",
 } as const;
 
-export function isReadyToInstall({ state, lastAction }: UpdateSnapshot) {
-  return state?.status === "downloaded" || (state?.status === "error" && lastAction === "install");
+// A call the bridge itself rejects is reported against the step it was taking,
+// as main reports its own failures; a failed channel change reads as a failed check.
+const failedStep: Record<UpdateAction | "cancel", UpdateErrorContext> = {
+  check: "check",
+  channel: "check",
+  download: "download",
+  cancel: "download",
+  install: "install",
+};
+
+export function isReadyToInstall({ state }: UpdateSnapshot) {
+  return Boolean(
+    state?.downloadedVersion &&
+    (state.status === "downloaded" ||
+      (state.status === "error" && state.errorContext === "install")),
+  );
 }
 
 /**
@@ -46,7 +67,7 @@ export function createUpdateStore(bridge: UpdateBridge | undefined) {
   let snapshot: UpdateSnapshot = {
     state: bridge ? null : previewUpdateState,
     pending: null,
-    lastAction: null,
+    cancelling: false,
   };
   const listeners = new Set<() => void>();
   let started = false;
@@ -65,11 +86,31 @@ export function createUpdateStore(bridge: UpdateBridge | undefined) {
       (error: unknown) => {
         if (snapshot.state) return;
         set({
-          state: { ...previewUpdateState, status: "error", message: errorMessage(error) },
-          lastAction: "check",
+          state: {
+            ...previewUpdateState,
+            status: "error",
+            message: errorMessage(error),
+            errorContext: "check",
+          },
         });
       },
     );
+  };
+
+  const settle = async (action: UpdateAction | "cancel", reply: Promise<UpdateState>) => {
+    try {
+      set({ state: await reply });
+    } catch (error) {
+      const state = snapshot.state ?? previewUpdateState;
+      set({
+        state: {
+          ...state,
+          status: "error",
+          message: errorMessage(error),
+          errorContext: failedStep[action],
+        },
+      });
+    }
   };
 
   const run = async (
@@ -81,27 +122,37 @@ export function createUpdateStore(bridge: UpdateBridge | undefined) {
     if (current.status === "disabled" || inFlight(current.status)) return;
     set({
       pending: action,
-      lastAction: action,
-      state: { ...current, status: startedStatus[action] ?? current.status, message: null },
+      state: {
+        ...current,
+        status: startedStatus[action] ?? current.status,
+        message: null,
+        errorContext: null,
+      },
     });
-    try {
-      set({ state: await call(bridge) });
-    } catch (error) {
-      set({
-        state: { ...(snapshot.state ?? current), status: "error", message: errorMessage(error) },
-      });
-    } finally {
-      set({ pending: null });
-    }
+    await settle(action, call(bridge));
+    set({ pending: null });
+  };
+
+  const observe = (listener: () => void) => {
+    listeners.add(listener);
+    return () => void listeners.delete(listener);
+  };
+
+  const cancel = async () => {
+    if (!bridge || snapshot.cancelling || snapshot.state?.status !== "downloading") return;
+    set({ cancelling: true });
+    await settle("cancel", bridge.cancel());
+    set({ cancelling: false });
   };
 
   return {
     get: () => snapshot,
     subscribe: (listener: () => void) => {
       start();
-      listeners.add(listener);
-      return () => void listeners.delete(listener);
+      return observe(listener);
     },
+    /** Follows the state without asking main for it, which would load the updater there. */
+    observe,
     check: () => run("check", (updates) => updates.check()),
     setChannel: (channel: UpdateChannel) =>
       run("channel", (updates) => updates.setChannel(channel)),
@@ -113,29 +164,30 @@ export function createUpdateStore(bridge: UpdateBridge | undefined) {
       if (!isReadyToInstall(snapshot)) return;
       await run("install", (updates) => updates.install());
     },
+    cancel,
   };
 }
 
 export function updateView(snapshot: UpdateSnapshot) {
-  const { state, pending } = snapshot;
+  const { state, pending, cancelling } = snapshot;
   const status = state?.status;
   const ready = isReadyToInstall(snapshot);
-  const availableVersion = status === "disabled" ? null : (state?.availableVersion ?? null);
+  const availableVersion =
+    status === "disabled"
+      ? null
+      : (state?.availableVersion ??
+        (ready || status === "installing" ? state?.downloadedVersion : null) ??
+        null);
   return {
     state,
     pending,
+    cancelling,
     isLoading: state === null,
     isBusy: pending !== null || (status !== undefined && inFlight(status)),
     isReadyToInstall: ready,
     availableVersion,
     canDownload: Boolean(availableVersion) && !ready && status !== undefined && !inFlight(status),
-    // A failed channel change, like the old app's, reads as a failed check.
-    failedAction:
-      status !== "error"
-        ? null
-        : snapshot.lastAction === "download" || snapshot.lastAction === "install"
-          ? snapshot.lastAction
-          : "check",
+    failedAction: status === "error" ? (state?.errorContext ?? "check") : null,
   };
 }
 
@@ -167,7 +219,7 @@ export function updateNavRow({
   const description =
     state.message ||
     (ready
-      ? `Version ${availableVersion} is downloaded. Select to restart and install. Linux may ask for system authorization.`
+      ? `Version ${state.downloadedVersion ?? availableVersion} is downloaded. Select to restart and install. Linux may ask for system authorization.`
       : `Version ${availableVersion} is available. Select to download; installation needs a separate Restart and install action.`);
   const action: Exclude<UpdateAction, "channel"> =
     failedAction === "check" ? "check" : ready ? "install" : "download";

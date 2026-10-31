@@ -4,6 +4,7 @@ import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useRef, useState } from "react";
 import { errorMessage } from "../library/errors.ts";
+import { registerWritingFont } from "../reader/fonts.ts";
 import { LinkPopover } from "./LinkPopover.tsx";
 import { type NoteClasses, noteExtensions } from "./noteMarkdown.ts";
 import { isSafeNoteLink, normalizeNoteBody } from "./notes.ts";
@@ -17,6 +18,9 @@ export type NoteDraft = { markdown: string; text: string };
  * Nothing is written until Save; `onChange` reports each edit so the page can
  * keep or guard the draft.
  */
+// This module loads with the first editor, so the writing face loads with it.
+registerWritingFont();
+
 export function NoteEditor({
   kicker,
   name,

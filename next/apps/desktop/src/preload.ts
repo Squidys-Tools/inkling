@@ -44,6 +44,7 @@ const bridge: DesktopBridge = {
     check: () => invoke(channels.updateCheck),
     download: () => invoke(channels.updateDownload),
     install: () => invoke(channels.updateInstall),
+    cancel: () => invoke(channels.updateCancel),
     setChannel: (channel) => invoke(channels.updateSetChannel, channel),
     onState: (listener) => subscribe(channels.updateChanged, listener),
   },
@@ -51,6 +52,7 @@ const bridge: DesktopBridge = {
     receiver: () => invoke(channels.captureReceiver),
     pairingToken: () => invoke(channels.capturePairingToken),
     regeneratePairingToken: () => invoke(channels.captureRegenerateToken),
+    testReceiver: () => invoke(channels.captureTestReceiver),
   },
 };
 

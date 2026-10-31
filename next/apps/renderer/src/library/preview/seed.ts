@@ -329,6 +329,7 @@ const card = (
   thumbnailPath: null,
   ocrText: "",
   createdAt: base - Math.floor(index / 2) * day,
+  updatedAt: base - Math.floor(index / 2) * day,
   archived: false,
   hasArticleContent: false,
   ...fields,

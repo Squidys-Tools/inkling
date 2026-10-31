@@ -27,6 +27,7 @@ export const color = stylex.defineVars({
   danger: "#d07055",
   dangerSoft: "rgba(208, 112, 85, 0.14)",
   success: "#7fa08d",
+  successStrong: "#a5c3b1",
   successSoft: "#26332c",
 
   paperBlue: "#243136",

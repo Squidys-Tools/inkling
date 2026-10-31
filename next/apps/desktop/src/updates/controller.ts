@@ -1,4 +1,4 @@
-import type { UpdateChannel, UpdateState } from "@inkling/contracts/desktop";
+import type { UpdateChannel, UpdateErrorContext, UpdateState } from "@inkling/contracts/desktop";
 import { CancellationToken } from "builder-util-runtime";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
@@ -17,12 +17,6 @@ type UpdaterLike = {
   downloadUpdate(token?: CancellationToken): Promise<string[]>;
   on(event: "download-progress", listener: (progress: { percent: number }) => void): unknown;
   on(event: "error", listener: (error: Error) => void): unknown;
-};
-type ErrorContext = "check" | "download" | "install";
-/** The renderer's state plus what main needs to pin a download and an install to one version. */
-export type ControllerState = UpdateState & {
-  downloadedVersion: string | null;
-  errorContext: ErrorContext | null;
 };
 
 async function updateFileHash(path: string) {
@@ -84,11 +78,11 @@ export function createUpdateController({
   disabledReason?: string | null;
   preferences: ReturnType<typeof createUpdatePreferences>;
   install: (file: string, version: string, sha512: string) => Promise<void>;
-  onChange?: (state: ControllerState) => void;
+  onChange?: (state: UpdateState) => void;
 }) {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
-  let state: ControllerState = {
+  let state: UpdateState = {
     channel: prerelease(currentVersion)?.[0] === "nightly" ? "nightly" : "latest",
     currentVersion,
     status: disabledReason ? "disabled" : "idle",
@@ -99,7 +93,7 @@ export function createUpdateController({
     errorContext: null,
   };
   const snapshot = () => ({ ...state });
-  const set = (patch: Partial<ControllerState>) => {
+  const set = (patch: Partial<UpdateState>) => {
     state = { ...state, ...patch };
     onChange(snapshot());
   };
@@ -130,7 +124,7 @@ export function createUpdateController({
         "Update preferences could not be read. Check file permissions and restart inkling.";
       state = { ...state, status: "disabled", message: disabledReason };
     });
-  const fail = (context: ErrorContext, message: string) =>
+  const fail = (context: UpdateErrorContext, message: string) =>
     set({ status: "error", message, errorContext: context, progress: null });
   autoUpdater.on("download-progress", ({ percent }) => {
     if (state.status === "downloading" && Number.isFinite(percent))

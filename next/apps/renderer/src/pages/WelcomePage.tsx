@@ -1,10 +1,13 @@
 import { useRouter } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { desktop } from "../desktop.ts";
 import { libraryClient } from "../library/connection.ts";
 import { Welcome } from "../onboarding/Welcome.tsx";
+import { firstScreenRendered } from "../shell/firstScreen.ts";
 
 export function WelcomePage() {
   const router = useRouter();
+  useEffect(firstScreenRendered, []);
   const finish = () => {
     if (desktop) {
       libraryClient()

@@ -26,7 +26,7 @@ function statusText({ state, pending }: AppUpdate) {
     case "downloading":
       return "Downloading the update. You can keep using inkling.";
     case "downloaded":
-      return `Version ${state.availableVersion} is downloaded. Restart when you’re ready.`;
+      return `Version ${state.downloadedVersion ?? state.availableVersion} is downloaded. Restart when you’re ready.`;
     case "installing":
       return "Installing the update and restarting inkling…";
     case "cancelled":
@@ -124,6 +124,11 @@ export function UpdatesPanel({ onClose }: { onClose: () => void }) {
                     : ready
                       ? "Restart and install"
                       : "Download update"}
+                </Pill>
+              )}
+              {state?.status === "downloading" && (
+                <Pill disabled={update.cancelling} onClick={() => void update.cancel()}>
+                  {update.cancelling ? "Cancelling…" : "Cancel download"}
                 </Pill>
               )}
             </div>

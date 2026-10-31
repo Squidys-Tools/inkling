@@ -7,8 +7,9 @@ type Settled<T> = { key: string; value: T } | { key: string; error: string };
 
 /**
  * Loads `load(client)` for `key`, and again whenever a library change passes
- * `affects` or the library process restarts. Only the newest request's answer
- * is kept, so a slow earlier answer never replaces a later one.
+ * `affects`, a restore replaces the library, or the library process restarts.
+ * Only the newest request's answer is kept, so a slow earlier answer never
+ * replaces a later one.
  */
 export function useLibraryQuery<T>(
   key: string,
@@ -37,7 +38,7 @@ export function useLibraryQuery<T>(
     const follow = (client: LibraryClient) => {
       stopChanges?.();
       stopChanges = client.changes((change) => {
-        if (isAffected(change)) refresh(client);
+        if (change._tag === "LibraryReplaced" || isAffected(change)) refresh(client);
       });
       refresh(client);
     };

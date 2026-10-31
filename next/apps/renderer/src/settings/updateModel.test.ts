@@ -7,19 +7,25 @@ const idle: UpdateState = {
   currentVersion: "1.0.0",
   status: "idle",
   availableVersion: null,
+  downloadedVersion: null,
   progress: null,
   message: null,
+  errorContext: null,
 };
 const available: UpdateState = { ...idle, status: "available", availableVersion: "1.1.0" };
+const downloaded: UpdateState = { ...available, status: "downloaded", downloadedVersion: "1.1.0" };
 
 function fakeBridge(initial: UpdateState) {
   const calls: string[] = [];
   let push: (state: UpdateState) => void = () => {};
-  let settle: { resolve: (state: UpdateState) => void; reject: (error: Error) => void } | undefined;
+  type Settle = { resolve: (state: UpdateState) => void; reject: (error: Error) => void };
+  const settles = new Map<string, Settle>();
+  let last = "";
   const call = (name: string) => () => {
     calls.push(name);
+    last = name;
     return new Promise<UpdateState>((resolve, reject) => {
-      settle = { resolve, reject };
+      settles.set(name, { resolve, reject });
     });
   };
   const bridge = {
@@ -27,13 +33,19 @@ function fakeBridge(initial: UpdateState) {
     check: call("check"),
     download: call("download"),
     install: call("install"),
+    cancel: call("cancel"),
     setChannel: call("channel"),
     onState: (listener: (state: UpdateState) => void) => {
       push = listener;
       return () => {};
     },
   };
-  return { bridge, calls, push: (state: UpdateState) => push(state), settle: () => settle! };
+  return {
+    bridge,
+    calls,
+    push: (state: UpdateState) => push(state),
+    settle: (name = last) => settles.get(name)!,
+  };
 }
 
 async function started(initial: UpdateState) {
@@ -64,7 +76,7 @@ describe("update store", () => {
     await store.install();
     expect(calls).toEqual([]);
 
-    push({ ...available, status: "downloaded" });
+    push(downloaded);
     const install = store.install();
     settle().reject(new Error("authorization refused"));
     await install;
@@ -99,6 +111,39 @@ describe("update store", () => {
     expect(updateNavRow(updateView(store.get()))?.action).toBe("check");
   });
 
+  test("a failure main reports is read from its context, not from this window's last action", async () => {
+    const { store, push } = await started(available);
+    push({ ...available, status: "error", errorContext: "download", message: "disk full" });
+    expect(updateNavRow(updateView(store.get()))).toMatchObject({
+      label: "Download failed · retry",
+      action: "download",
+    });
+    push({ ...downloaded, status: "error", errorContext: "install", availableVersion: null });
+    expect(updateNavRow(updateView(store.get()))).toMatchObject({
+      label: "Restart and install",
+      action: "install",
+    });
+  });
+
+  test("cancels a download while it is the pending action", async () => {
+    const { store, calls, settle } = await started(available);
+    const download = store.download();
+    const cancel = store.cancel();
+    expect(calls).toEqual(["download", "cancel"]);
+    expect(updateView(store.get())).toMatchObject({ pending: "download", cancelling: true });
+
+    settle("cancel").resolve({ ...available, status: "downloading", progress: 12 });
+    await cancel;
+    settle("download").resolve({ ...available, status: "cancelled" });
+    await download;
+    expect(updateView(store.get())).toMatchObject({
+      pending: null,
+      cancelling: false,
+      canDownload: true,
+      state: { status: "cancelled" },
+    });
+  });
+
   test("the preview shows updates as disabled and never offers one", () => {
     const store = createUpdateStore(undefined);
     const view = updateView(store.get());
@@ -111,11 +156,15 @@ test.each([
   [{ status: "available" }, "Download update"],
   [{ status: "downloading", progress: 42.4 }, "Downloading 42%"],
   [{ status: "downloading", progress: null }, "Downloading…"],
-  [{ status: "downloaded" }, "Restart and install"],
+  [{ status: "downloaded", downloadedVersion: "1.1.0" }, "Restart and install"],
   [{ status: "installing" }, "Installing…"],
   [{ status: "disabled" }, null],
   [{ status: "up-to-date", availableVersion: null }, null],
 ] as const)("the sidebar row for %o reads %p", (change, label) => {
-  const view = updateView({ state: { ...available, ...change }, pending: null, lastAction: null });
+  const view = updateView({
+    state: { ...available, ...change },
+    pending: null,
+    cancelling: false,
+  });
   expect(updateNavRow(view)?.label ?? null).toBe(label);
 });

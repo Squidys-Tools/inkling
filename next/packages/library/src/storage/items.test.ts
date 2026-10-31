@@ -67,7 +67,7 @@ test("list rows keep card fields while full content stays available by item id",
   });
   expect(articleCard).not.toHaveProperty("body");
   expect(articleCard).not.toHaveProperty("bodyFormat");
-  expect(articleCard).not.toHaveProperty("updatedAt");
+  expect(articleCard?.updatedAt).toBe((await library.getItem(article.id))?.updatedAt);
   expect(articleCard?.ocrText).toHaveLength(180);
   for (const field of ["html", "text", "extractedText", "author", "publishedDate"]) {
     expect(articleCard?.metadata).not.toHaveProperty(field);
@@ -100,6 +100,9 @@ test("list rows keep card fields while full content stays available by item id",
   const archivedCard = (await library.listArchivedItems()).find((item) => item.id === article.id);
   expect(archivedCard?.metadata).not.toHaveProperty("html");
   expect(archivedCard?.hasArticleContent).toBe(true);
+  expect(await library.getItemCards([article.id, "missing-item"])).toMatchObject([
+    { id: article.id, archived: true },
+  ]);
   expect(await library.getItem(article.id)).toMatchObject({
     metadata: {
       html: "<article><p>indexhtmlneedle</p></article>",

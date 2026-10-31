@@ -110,6 +110,7 @@ export type CardScope = typeof CardScope.Type;
 export const LibraryRpcs = RpcGroup.make(
   call("status", {}, LibraryStatus),
   call("cards", { scope: CardScope, cursor: Schema.NullOr(Text), limit: Schema.Number }, CardPage),
+  // Archived cards too: each card says which scope it belongs to. Deleted ids are absent.
   call("cardsById", Ids, Schema.Array(LibraryCard)),
   call("item", ById, Schema.NullOr(ItemDetail)),
   call("itemContent", ById, ItemContent),
@@ -139,6 +140,7 @@ export const LibraryRpcs = RpcGroup.make(
   call("itemSpaces", { itemId: Text }, Schema.Array(Text)),
 
   call("jobsFor", { itemIds: Schema.Array(Text) }, Schema.Array(Job)),
+  call("activeJobs", {}, Schema.Number),
   call("retryJob", { jobId: Text }, Schema.Boolean),
   call("runOcr", { itemId: Text }, Text),
 

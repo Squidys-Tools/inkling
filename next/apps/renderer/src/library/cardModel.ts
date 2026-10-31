@@ -277,6 +277,7 @@ export function cardFromDetail(detail: ItemDetail): LibraryCard {
     palette: detail.palette,
     ocrText: detail.ocrText,
     createdAt: detail.createdAt,
+    updatedAt: detail.updatedAt,
     archived: detail.archived,
     metadata,
     hasArticleContent: typeof html === "string" && html.trim() !== "",

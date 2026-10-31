@@ -92,11 +92,13 @@ test("loopback capture uses a persisted bearer token and saves through the libra
 
   const nextToken = await server.regeneratePairingToken();
   expect(nextToken).not.toBe(originalToken);
+  expect(await server.answersHealthCheck()).toBe(true);
   expect(
     (await fetch(healthUrl, { headers: { Authorization: `Bearer ${originalToken}` } })).status,
   ).toBe(401);
   await server.close();
   expect(server.status()).toEqual({ running: false, port: null });
+  expect(await server.answersHealthCheck()).toBe(false);
   server = await startCaptureServer({ libraryDirectory: directory, captureUrl });
   servers.push(server);
   expect(server.getPairingToken()).toBe(nextToken);

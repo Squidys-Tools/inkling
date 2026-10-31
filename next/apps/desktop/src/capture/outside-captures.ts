@@ -60,6 +60,10 @@ export function outsideCaptures({
       ipcMain.handle(channels.captureRegenerateToken, () =>
         runningServer().regeneratePairingToken(),
       );
+      ipcMain.handle(
+        channels.captureTestReceiver,
+        async () => (await server?.answersHealthCheck()) ?? false,
+      );
       try {
         server = await startCaptureServer({
           libraryDirectory,

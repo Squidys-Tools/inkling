@@ -3,7 +3,7 @@ import { Link, type LinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 
-type RowLook = { active?: boolean; tone?: "nav" | "footer" };
+type RowLook = { active?: boolean; tone?: "nav" | "footer" | "update" };
 
 /** A sidebar row that goes somewhere: Everything, the archive, a page. */
 export function NavLink({
@@ -39,11 +39,22 @@ export function NavButton({
   tone = "footer",
   icon,
   label,
+  description,
+  disabled = false,
   onClick,
-}: RowLook & { icon: ReactNode; label: string; onClick: () => void }) {
+}: RowLook & {
+  icon: ReactNode;
+  label: string;
+  description?: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
+      title={description}
+      disabled={disabled}
+      aria-live={tone === "update" ? "polite" : undefined}
       onClick={onClick}
       {...stylex.props(styles.row, styles.button, styles[tone])}
     >
@@ -85,6 +96,12 @@ const styles = stylex.create({
   footer: {
     fontSize: "13px",
     color: { default: color.muted, ":hover": color.ink },
+  },
+  update: {
+    fontSize: "13px",
+    color: { default: color.success, ":hover": color.successStrong, ":disabled": color.success },
+    cursor: { default: "pointer", ":disabled": "progress" },
+    opacity: { default: 1, ":disabled": 0.7 },
   },
   active: {
     fontWeight: 600,

@@ -8,6 +8,7 @@ import { startLibrarySync } from "../library/sync.ts";
 import { LibraryHost } from "../libraryView/LibraryHost.tsx";
 import { toggleSidebar, useViewState } from "../libraryView/viewState.ts";
 import { ContextMenuLayer } from "../menu/contextMenu.tsx";
+import { useFirstRun } from "../onboarding/useFirstRun.ts";
 import { handleCommand } from "./commands.ts";
 import { ShortcutsDialog } from "./ShortcutsDialog.tsx";
 import { Sidebar } from "./Sidebar.tsx";
@@ -26,12 +27,15 @@ function useMedia(query: string) {
 }
 
 export function AppShell() {
+  useFirstRun();
   useCommands();
   useEffect(() => startLibrarySync(), []);
   useEffect(() => handleCommand("toggleSidebar", toggleSidebar), []);
 
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const covered = scopeFromPath(pathname) === null;
+  // The welcome covers the whole window, sidebar included.
+  const welcome = pathname === "/welcome";
   const dragging = useCaptureEvents(!covered);
   const narrow = useMedia("(max-width: 780px)");
   const instant = useMedia("(prefers-reduced-motion: reduce)");
@@ -46,34 +50,41 @@ export function AppShell() {
   return (
     <div {...stylex.props(styles.shell)}>
       <TitleBar />
-      <Sidebar open={open} narrow={narrow} />
-      <main
-        {...stylex.props(
-          styles.stage,
-          shifted && styles.shifted,
-          (shifted || narrowed) && styles.rounded,
-        )}
-        onTransitionEnd={(event) => {
-          if (event.target === event.currentTarget && event.propertyName === "transform")
-            setSettled(shifted);
-        }}
-      >
-        <div {...stylex.props(styles.content, narrowed && styles.narrowed)}>
-          <LibraryHost covered={covered} sidebarCollapsed={!open} />
-          {covered ? (
-            <div {...stylex.props(styles.page)}>
+      <div inert={welcome} {...stylex.props(styles.under)}>
+        <Sidebar open={open} narrow={narrow} />
+        <main
+          {...stylex.props(
+            styles.stage,
+            shifted && styles.shifted,
+            (shifted || narrowed) && styles.rounded,
+          )}
+          onTransitionEnd={(event) => {
+            if (event.target === event.currentTarget && event.propertyName === "transform")
+              setSettled(shifted);
+          }}
+        >
+          <div {...stylex.props(styles.content, narrowed && styles.narrowed)}>
+            <LibraryHost covered={covered} sidebarCollapsed={!open} />
+            {welcome ? null : covered ? (
+              <div {...stylex.props(styles.page)}>
+                <Outlet />
+              </div>
+            ) : (
               <Outlet />
-            </div>
-          ) : (
-            <Outlet />
-          )}
-          {dragging && (
-            <div {...stylex.props(styles.drop)} aria-hidden="true">
-              Drop to save
-            </div>
-          )}
+            )}
+            {dragging && (
+              <div {...stylex.props(styles.drop)} aria-hidden="true">
+                Drop to save
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+      {welcome && (
+        <div {...stylex.props(styles.welcome)}>
+          <Outlet />
         </div>
-      </main>
+      )}
       <ShortcutsDialog />
       <ContextMenuLayer />
     </div>
@@ -87,6 +98,13 @@ const styles = stylex.create({
     overflow: "hidden",
     backgroundColor: color.window,
     color: color.ink,
+  },
+  under: { display: "contents" },
+  welcome: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 35,
+    backgroundColor: color.window,
   },
   stage: {
     position: "absolute",

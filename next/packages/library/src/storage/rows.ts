@@ -85,6 +85,7 @@ export function cardItem(item: ItemDetail): LibraryCard {
       .slice(0, 180),
     metadata: cardMetadata,
     createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
     archived: item.archived,
     hasArticleContent: typeof metadata.html === "string" && Boolean(metadata.html.trim()),
   };

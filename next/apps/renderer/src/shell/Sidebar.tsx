@@ -1,4 +1,10 @@
-import { Archive01Icon, Settings01Icon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
+import {
+  Archive01Icon,
+  Loading01Icon,
+  RotateCwIcon,
+  Settings01Icon,
+  SidebarLeftIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, layout, motion } from "@inkling/ui/tokens.stylex";
@@ -11,8 +17,9 @@ import { setSidebarOpen, useViewState } from "../libraryView/viewState.ts";
 import { sidebarMarker } from "../markers.stylex.ts";
 import { Mascot } from "../mascot/Mascot.tsx";
 import { useMascotMood } from "../mascot/useMascotMood.ts";
+import { useAppUpdate } from "../settings/useAppUpdate.ts";
 import { AddMenu } from "./AddMenu.tsx";
-import { NavLink } from "./NavRow.tsx";
+import { NavButton, NavLink } from "./NavRow.tsx";
 import { SpacesSection } from "./SpacesSection.tsx";
 
 // The Everything glyph: a 3x3 dot grid, which the icon set does not have.
@@ -38,6 +45,24 @@ function SidebarMascot({ open }: { open: boolean }) {
     <span {...stylex.props(styles.mascotSlot, searchFocused && styles.mascotAway)}>
       <Mascot mood={mood} size={44} visible={open && !searchFocused} />
     </span>
+  );
+}
+
+/** Offers a new version once one is found: download it, then restart and install. */
+function UpdateRow() {
+  // Main loads electron-updater on the first update call, and nothing checks
+  // until Settings asks, so the row follows what Settings loaded.
+  const { navRow, runNavRow } = useAppUpdate({ start: false });
+  if (!navRow) return null;
+  return (
+    <NavButton
+      tone="update"
+      icon={<HugeiconsIcon icon={navRow.busy ? Loading01Icon : RotateCwIcon} size={15} />}
+      label={navRow.label}
+      description={navRow.description}
+      disabled={navRow.busy}
+      onClick={() => void runNavRow()}
+    />
   );
 }
 
@@ -105,6 +130,7 @@ export function Sidebar({ open, narrow }: { open: boolean; narrow: boolean }) {
 
         <div {...stylex.props(styles.footer)}>
           <AddMenu />
+          <UpdateRow />
           <NavLink
             to="/archive"
             tone="footer"

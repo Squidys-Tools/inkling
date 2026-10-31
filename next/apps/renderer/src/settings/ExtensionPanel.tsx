@@ -31,6 +31,7 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
   const [receiver, setReceiver] = useState<CaptureReceiver | "unknown" | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [confirmingRenew, setConfirmingRenew] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [notice, setNotice] = useState<{ text: string; failed: boolean } | null>(null);
 
   useEffect(() => {
@@ -58,6 +59,20 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
       () => setNotice({ text: "Copy failed. Reveal the token and copy it by hand.", failed: true }),
     );
   };
+  const test = () => {
+    setTesting(true);
+    capture
+      .testReceiver()
+      .catch(() => false)
+      .then((reachable) => {
+        setTesting(false);
+        setNotice(
+          reachable
+            ? { text: "Extension receiver is reachable.", failed: false }
+            : { text: "No answer from the receiver. Restart inkling and try again.", failed: true },
+        );
+      });
+  };
   const renew = () => {
     setConfirmingRenew(false);
     capture.regeneratePairingToken().then(
@@ -75,13 +90,21 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
         Paste this token into the browser extension once. Saves go straight to this library over a
         local connection; nothing leaves the machine.
       </p>
-      <p role="status" {...stylex.props(settingsText.hint)}>
-        {receiver === null
-          ? "Checking receiver…"
-          : receiver === "unknown" || !receiver.running
-            ? "Receiver not running"
-            : `Listening on 127.0.0.1:${receiver.port}`}
-      </p>
+      <div {...stylex.props(styles.row)}>
+        <p role="status" {...stylex.props(settingsText.hint)}>
+          {receiver === null
+            ? "Checking receiver…"
+            : receiver === "unknown" || !receiver.running
+              ? "Receiver not running"
+              : `Listening on 127.0.0.1:${receiver.port}`}
+        </p>
+        <Pill
+          disabled={receiver === null || receiver === "unknown" || !receiver.running || testing}
+          onClick={test}
+        >
+          {testing ? "Testing…" : "Test connection"}
+        </Pill>
+      </div>
       <div {...stylex.props(styles.row)}>
         <span {...stylex.props(styles.visuallyHidden)}>
           {token ? "Pairing token" : "Pairing token hidden"}

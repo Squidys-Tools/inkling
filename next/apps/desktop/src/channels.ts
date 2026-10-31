@@ -20,9 +20,11 @@ export const channels = {
   updateCheck: "inkling:update:check",
   updateDownload: "inkling:update:download",
   updateInstall: "inkling:update:install",
+  updateCancel: "inkling:update:cancel",
   updateSetChannel: "inkling:update:set-channel",
   updateChanged: "inkling:update:changed",
   captureReceiver: "inkling:capture:receiver",
   capturePairingToken: "inkling:capture:pairing-token",
   captureRegenerateToken: "inkling:capture:regenerate-token",
+  captureTestReceiver: "inkling:capture:test-receiver",
 } as const;

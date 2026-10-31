@@ -130,13 +130,14 @@ const handlers = LibraryRpcs.toLayer(
         ),
       itemSpaces: ({ itemId }) => answer(library.listItemSpaces(itemId)),
       jobsFor: ({ itemIds }) => answer(jobs.getForItems(itemIds)),
+      activeJobs: () => answer(jobs.countActive()),
       retryJob: ({ jobId }) => answer(jobs.retry(jobId)),
       runOcr: ({ itemId }) => answer(jobs.enqueueOcr(itemId)),
       exportLibrary: ({ destination, timezoneOffsetMinutes }) =>
         answer(library.exportLibrary(destination, timezoneOffsetMinutes)),
       importLibrary: ({ exportDirectory }) =>
         answer(library.importLibrary(exportDirectory)).pipe(
-          Effect.tap(() => publish({ _tag: "SpacesChanged" })),
+          Effect.tap(() => publish({ _tag: "LibraryReplaced" })),
         ),
       lastExport: () => answer(library.getLastExport()),
       librarySize: ({ refresh }) =>

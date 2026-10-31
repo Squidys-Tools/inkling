@@ -1,7 +1,6 @@
 import type { ExportReport, ImportReport, LastExport } from "@inkling/contracts";
 import { useEffect, useState } from "react";
 import { desktop } from "../desktop.ts";
-import { reloadAll } from "../library/cards.ts";
 import { libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
 import { createStore, useStore } from "../library/store.ts";
@@ -46,8 +45,6 @@ async function transfer(action: "export" | "import") {
     } else {
       const report = await client.importLibrary({ exportDirectory: folder });
       outcome = { action, report };
-      // The library announces only that Spaces changed, so every list reads again.
-      reloadAll();
     }
   } catch (error) {
     outcome = { action, error: errorMessage(error) };

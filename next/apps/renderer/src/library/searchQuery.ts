@@ -48,12 +48,12 @@ export function createSearch({
     timer = null;
   };
 
-  async function execute() {
+  async function execute(again = false) {
     cancelTimer();
     const query = store.get().query.trim();
     if (!query) return;
     const current = store.get();
-    if (current.ran === query && current.status === "ready") return;
+    if (!again && current.ran === query && current.status === "ready") return;
     const mine = ++generation;
     store.set({ ...current, status: "searching", error: null });
     try {
@@ -86,6 +86,8 @@ export function createSearch({
     },
     /** Enter: search now instead of after the pause. */
     submit: () => execute(),
+    /** Searches the current query again, after a restore replaced what it ran against. */
+    rerun: () => execute(true),
     clear() {
       cancelTimer();
       generation += 1;

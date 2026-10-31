@@ -1,12 +1,8 @@
-import type { UpdateChannel } from "@inkling/contracts/desktop";
+import type { UpdateChannel, UpdateState } from "@inkling/contracts/desktop";
 import { app, type BrowserWindow, dialog } from "electron";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  type ControllerState,
-  createUpdateController,
-  createUpdatePreferences,
-} from "./controller.ts";
+import { createUpdateController, createUpdatePreferences } from "./controller.ts";
 import { installDebianUpdate, updateDisabledReason } from "./install.ts";
 
 /**
@@ -21,7 +17,7 @@ export function appUpdates({
 }: {
   libraryDirectory: string;
   getWindow: () => BrowserWindow | undefined;
-  onChange: (state: ControllerState) => void;
+  onChange: (state: UpdateState) => void;
 }) {
   let controller: Promise<ReturnType<typeof createUpdateController>> | undefined;
   const open = async () => {
@@ -89,6 +85,7 @@ export function appUpdates({
       if (!downloadedVersion) throw new Error("Download this update before installing it.");
       return current.installUpdate(downloadedVersion);
     },
+    cancel: async () => (await updates()).cancelDownload(),
     setChannel: async (channel: UpdateChannel) => (await updates()).setChannel(channel),
   };
 }

@@ -22,7 +22,7 @@ import {
 // from memory, seeded with the demo library, and pushes the same change events,
 // so every store and screen runs unchanged. Nothing persists across reloads.
 
-type Entry = { card: LibraryCard; body: string; updatedAt: number };
+type Entry = { card: LibraryCard; body: string };
 
 const unavailable = (what: string) => Promise.reject(new Error(`${what} needs the desktop app.`));
 
@@ -96,7 +96,7 @@ function job(itemId: string, status: Job["status"]): Job {
 export function createPreviewClient(): LibraryClient {
   const items = new Map<string, Entry>();
   for (const card of [...seedCards, ...seedArchived])
-    items.set(card.id, { card, body: seedBodies[card.id] ?? "", updatedAt: card.createdAt });
+    items.set(card.id, { card, body: seedBodies[card.id] ?? "" });
   let spaces: Space[] = seedSpaces.map((space) => ({ ...space }));
   const membership = new Map(Object.entries(seedMembership).map(([id, ids]) => [id, new Set(ids)]));
   const jobs = new Map<string, Job>([
@@ -114,14 +114,13 @@ export function createPreviewClient(): LibraryClient {
   const ordered = (archived: boolean) =>
     [...items.values()]
       .filter((entry) => entry.card.archived === archived)
-      .sort((a, b) => b.updatedAt - a.updatedAt || b.card.createdAt - a.card.createdAt);
+      .sort((a, b) => b.card.updatedAt - a.card.updatedAt || b.card.createdAt - a.card.createdAt);
 
-  const detail = ({ card, body, updatedAt }: Entry): ItemDetail => ({
+  const detail = ({ card, body }: Entry): ItemDetail => ({
     ...card,
     body,
     bodyFormat: "md",
     metadata: { ...card.metadata },
-    updatedAt,
   });
 
   const spaceMembers = (spaceId: string) => {
@@ -143,7 +142,7 @@ export function createPreviewClient(): LibraryClient {
     );
 
   const write = (card: LibraryCard, body = "") => {
-    const entry = { card, body, updatedAt: Date.now() };
+    const entry = { card: { ...card, updatedAt: Date.now() }, body };
     items.set(card.id, entry);
     emit({ _tag: "ItemsChanged", ids: [card.id] });
     return detail(entry);
@@ -165,6 +164,7 @@ export function createPreviewClient(): LibraryClient {
       thumbnailPath: null,
       ocrText: "",
       createdAt: Date.now(),
+      updatedAt: Date.now(),
       archived: false,
       hasArticleContent: false,
       ...fields,
@@ -213,7 +213,7 @@ export function createPreviewClient(): LibraryClient {
     cardsById: async ({ ids }) =>
       ids.flatMap((id) => {
         const found = items.get(id);
-        return found && !found.card.archived ? [found.card] : [];
+        return found ? [found.card] : [];
       }),
     item: async ({ id }) => {
       const found = items.get(id);
@@ -384,6 +384,9 @@ export function createPreviewClient(): LibraryClient {
         const found = jobs.get(id);
         return found ? [found] : [];
       }),
+    activeJobs: async () =>
+      [...jobs.values()].filter((job) => job.status === "pending" || job.status === "processing")
+        .length,
     retryJob: async ({ jobId }) => {
       const found = [...jobs.values()].find((candidate) => candidate.id === jobId);
       if (!found) return false;

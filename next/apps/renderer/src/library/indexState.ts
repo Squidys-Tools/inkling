@@ -1,10 +1,22 @@
 import type { CardPage, LibraryCard } from "@inkling/contracts";
 import type { ScopeKey } from "./scope.ts";
 
+// The library's order, newest first: updated_at, then created_at, then id.
+type SortKey = readonly [updatedAt: number, createdAt: number, id: string];
+const keyOf = (card: LibraryCard): SortKey => [card.updatedAt, card.createdAt, card.id];
+const sortsBefore = (a: SortKey, b: SortKey) =>
+  a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2];
+
 export type ScopeState = {
   ids: readonly string[];
   next: string | null;
+  // The last card of the pages read so far. A card that sorts after it comes
+  // with a later page; one that sorts before it never will, so it is placed now.
+  floor: SortKey | null;
   total: number;
+  // When the first page was asked for. Its total counts every item created
+  // before then, so only a card created later adds to it when it arrives.
+  since: number;
   status: "loading" | "ready" | "error";
   error: string | null;
   /** The request whose answer this scope waits for; older answers are dropped. */
@@ -32,11 +44,35 @@ function withScope(state: IndexState, key: ScopeKey, scope: ScopeState): IndexSt
   return { ...state, scopes };
 }
 
-function withCards(cards: ReadonlyMap<string, LibraryCard>, incoming: readonly LibraryCard[]) {
+function withCards(
+  cards: ReadonlyMap<string, LibraryCard>,
+  incoming: readonly LibraryCard[],
+  keepNewer = false,
+) {
   if (incoming.length === 0) return cards;
   const next = new Map(cards);
-  for (const card of incoming) next.set(card.id, card);
+  for (const card of incoming) {
+    const held = next.get(card.id);
+    if (keepNewer && held && held.updatedAt > card.updatedAt) continue;
+    next.set(card.id, card);
+  }
   return next;
+}
+
+/** `ids` with the card where the library's order puts it, or null when a later page brings it. */
+function placed(
+  ids: readonly string[],
+  cards: ReadonlyMap<string, LibraryCard>,
+  card: LibraryCard,
+  { floor, next }: { floor: SortKey | null; next: string | null },
+) {
+  const key = keyOf(card);
+  if (next !== null && floor && !sortsBefore(key, floor)) return null;
+  const at = ids.findIndex((id) => {
+    const other = cards.get(id);
+    return other !== undefined && sortsBefore(key, keyOf(other));
+  });
+  return at < 0 ? [...ids, card.id] : [...ids.slice(0, at), card.id, ...ids.slice(at)];
 }
 
 /** Starts reading a scope from its first page, or its next page after what it holds. */
@@ -45,6 +81,7 @@ export function startLoad(
   key: ScopeKey,
   mode: "first" | "more",
   request: number,
+  now = Date.now(),
 ): IndexState | null {
   const scope = state.scopes.get(key);
   if (mode === "more" && (!scope || scope.loading || scope.status !== "ready" || !scope.next))
@@ -52,7 +89,9 @@ export function startLoad(
   return withScope(state, key, {
     ids: scope?.ids ?? noIds,
     next: scope?.next ?? null,
+    floor: scope?.floor ?? null,
     total: scope?.total ?? 0,
+    since: mode === "first" ? now : (scope?.since ?? now),
     status: scope?.status === "ready" ? "ready" : "loading",
     error: null,
     request,
@@ -70,25 +109,39 @@ export function receivePage(
 ): IndexState {
   const scope = state.scopes.get(key);
   if (!scope || scope.request !== request || !scope.loading) return state;
+  // A page may have been read before a change this window already applied.
+  const cards = withCards(state.cards, page.cards, true);
   const pageIds = page.cards.map((card) => card.id).filter((id) => !scope.removed.has(id));
   const dropped = page.cards.length - pageIds.length;
-  let ids: string[];
+  const last = page.cards.at(-1);
+  const floor = last ? keyOf(last) : scope.loading === "first" ? null : scope.floor;
+  let ids: readonly string[];
   let total: number;
   if (scope.loading === "first") {
-    const fresh = scope.inserted.filter((id) => !pageIds.includes(id));
-    ids = [...fresh, ...pageIds];
-    total = page.total - dropped + fresh.length;
+    ids = pageIds;
+    let fresh = 0;
+    for (const id of scope.inserted) {
+      const card = cards.get(id);
+      if (!card || ids.includes(id)) continue;
+      const withCard = placed(ids, cards, card, { floor, next: page.next });
+      if (!withCard) continue;
+      ids = withCard;
+      if (card.createdAt >= scope.since) fresh += 1;
+    }
+    total = page.total - dropped + fresh;
   } else {
     const known = new Set(scope.ids);
     ids = [...scope.ids, ...pageIds.filter((id) => !known.has(id))];
     total = Math.max(page.total - dropped, ids.length);
   }
   return {
-    cards: withCards(state.cards, page.cards),
+    cards,
     scopes: new Map(state.scopes).set(key, {
       ids,
       next: page.next,
+      floor,
       total,
+      since: scope.since,
       status: "ready",
       error: null,
       request,
@@ -122,24 +175,50 @@ export function updateCards(state: IndexState, cards: readonly LibraryCard[]): I
   return { ...state, cards: withCards(state.cards, cards) };
 }
 
-/** Puts new cards at the top of the scopes that should show them, newest first. */
-export function prependCards(
+/**
+ * Applies cards the library sent again, each to the paged scope `home` names
+ * for it. A card leaves the other paged scopes; where it is already shown it
+ * keeps its place, and elsewhere it goes where the library's order puts it.
+ */
+export function placeCards(
   state: IndexState,
   cards: readonly LibraryCard[],
-  keys: readonly ScopeKey[],
+  paged: readonly ScopeKey[],
+  home: (card: LibraryCard) => ScopeKey,
 ): IndexState {
   let next = updateCards(state, cards);
-  for (const key of keys) {
-    const scope = next.scopes.get(key);
-    if (!scope) continue;
-    const present = new Set(scope.ids);
-    const fresh = cards.map((card) => card.id).filter((id) => !present.has(id));
-    if (fresh.length === 0) continue;
-    next = withScope(next, key, {
+  for (const card of cards) {
+    const previous = state.cards.get(card.id);
+    const target = home(card);
+    for (const key of paged) {
+      const scope = next.scopes.get(key);
+      if (key === target || !scope) continue;
+      const held = scope.ids.includes(card.id);
+      // A known card was counted in this scope's total even when its page is not loaded.
+      const counted = held || (previous !== undefined && home(previous) === key);
+      if (!counted && !scope.loading) continue;
+      next = withScope(next, key, {
+        ...scope,
+        ids: held ? scope.ids.filter((id) => id !== card.id) : scope.ids,
+        total: counted ? Math.max(0, scope.total - 1) : scope.total,
+        inserted: scope.inserted.filter((id) => id !== card.id),
+        removed: scope.loading ? new Set([...scope.removed, card.id]) : scope.removed,
+      });
+    }
+    const scope = next.scopes.get(target);
+    if (!scope || scope.ids.includes(card.id)) continue;
+    const ids = placed(scope.ids, next.cards, card, scope);
+    if (!ids) continue;
+    const removed = new Set(scope.removed);
+    removed.delete(card.id);
+    const arrived =
+      previous === undefined ? card.createdAt >= scope.since : home(previous) !== target;
+    next = withScope(next, target, {
       ...scope,
-      ids: [...fresh, ...scope.ids],
-      total: scope.total + fresh.length,
-      inserted: scope.loading ? [...fresh, ...scope.inserted] : scope.inserted,
+      ids,
+      total: scope.total + (arrived ? 1 : 0),
+      inserted: scope.loading ? [card.id, ...scope.inserted] : scope.inserted,
+      removed: removed.size === scope.removed.size ? scope.removed : removed,
     });
   }
   return next;
@@ -185,6 +264,3 @@ export function dropScope(state: IndexState, key: ScopeKey): IndexState {
   scopes.delete(key);
   return { ...state, scopes };
 }
-
-export const scopeHas = (state: IndexState, key: ScopeKey, id: string) =>
-  state.scopes.get(key)?.ids.includes(id) ?? false;

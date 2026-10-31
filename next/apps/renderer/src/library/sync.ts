@@ -8,7 +8,7 @@ import {
   removeItems,
 } from "./cards.ts";
 import { type LibraryClient, libraryClient, onReconnect } from "./connection.ts";
-import { forgetJobs, refreshJobs } from "./jobs.ts";
+import { forgetJobs, refreshActiveJobCount, refreshJobs } from "./jobs.ts";
 import { activeScope } from "./scope.ts";
 import { search } from "./search.ts";
 import { selection } from "./selection.ts";
@@ -35,14 +35,22 @@ async function flush() {
   if (ids.length > 0) {
     try {
       const cards = await (await libraryClient()).cardsById({ ids });
-      const gone = reconcileItems(ids, cards);
-      search.remove(gone);
+      search.remove(reconcileItems(ids, cards));
       if (items.length > 0) reloadSpaceScopes();
     } catch {
       // The next change, or a reconnect, reads these again.
     }
   }
   void refreshJobs([...new Set([...items, ...jobs])]);
+  if (jobs.length > 0) void refreshActiveJobCount();
+}
+
+/** Reads every store again: after the library process restarts, or a restore replaced its contents. */
+function reloadEverything() {
+  reloadAll();
+  void reloadSpaces();
+  void refreshActiveJobCount();
+  void search.rerun();
 }
 
 export function applyChange(change: LibraryChange) {
@@ -65,6 +73,9 @@ export function applyChange(change: LibraryChange) {
       void reloadSpaces();
       reloadSpaceScopes();
       return;
+    case "LibraryReplaced":
+      reloadEverything();
+      return;
   }
 }
 
@@ -84,9 +95,9 @@ export function startLibrarySync() {
   // The sidebar counts everything, whichever scope the window opened on.
   ensureScope(activeScope);
   void reloadSpaces();
+  void refreshActiveJobCount();
   onReconnect((client) => {
     attach(client);
-    reloadAll();
-    void reloadSpaces();
+    reloadEverything();
   });
 }

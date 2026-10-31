@@ -66,6 +66,7 @@ export function registerNativeHandlers({
   ipcMain.handle(channels.updateCheck, () => updates.check());
   ipcMain.handle(channels.updateDownload, () => updates.download());
   ipcMain.handle(channels.updateInstall, () => updates.install());
+  ipcMain.handle(channels.updateCancel, () => updates.cancel());
   ipcMain.handle(channels.updateSetChannel, (_event, channel: unknown) =>
     updates.setChannel(updateChannel(channel)),
   );
