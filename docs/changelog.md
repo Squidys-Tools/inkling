@@ -172,6 +172,7 @@ Rules for entries:
 - The desktop shell runs on Electron 45 (Chromium 156, Node 24.22) instead of Electron 44 (#186)
 - The app is rebuilt as three processes: the main process keeps windows, menus, dialogs, capture and updates, a library process owns the SQLite file, search and the job queue, and a worker process runs OCR, embeddings, thumbnails and extraction, so a long job no longer slows a search. The renderer talks to the library over Effect RPC, routes with TanStack Router and is styled with StyleX. The library file and asset layout are unchanged
 - Developer commands: `build:win` replaces `build:installer`, `build:web` builds the web preview into `dist/web`, `bench` measures frame time and `bench:quality` runs the extraction and OCR benchmark `bench` ran before, and `build` and `preview` are gone
+- Images become searchable about three times faster: four background jobs run at once, each item's own jobs still in order, and they share a pool of two to four OCR workers that shuts down after 30 idle seconds. Indexing uses a few hundred megabytes more memory while it runs (#224)
 
 ### Removed
 

@@ -134,7 +134,12 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
     const kindFilter = kinds ? sql`AND kind IN ${sql.in(kinds)}` : sql.literal("");
     const claimed = yield* sql.withTransaction(
       Effect.gen(function* () {
+        // An item's jobs on one set of lanes run one at a time, in the order queued,
+        // so its embedding still waits for its OCR text when several lanes claim.
+        const busyFilter = kinds ? sql`AND busy.kind IN ${sql.in(kinds)}` : sql.literal("");
         const [row] = yield* sql<JobRow>`SELECT * FROM jobs WHERE status = 'pending' ${kindFilter}
+          AND NOT EXISTS (SELECT 1 FROM jobs busy WHERE busy.item_id = jobs.item_id
+            AND busy.status = 'processing' ${busyFilter})
           ORDER BY created_at ASC LIMIT 1`;
         if (!row) return null;
         const startedAt = now();
@@ -171,6 +176,8 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
       WHERE id = ${jobId} AND status = 'processing' AND worker_id = ${workerId}`.raw;
     if (!changes(updated)) return false;
     yield* announce(job);
+    // Wakes idle lanes: the item's next job may have been waiting on this one.
+    yield* PubSub.publish(enqueued, job.kind);
     return true;
   });
 
