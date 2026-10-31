@@ -2,22 +2,7 @@ import { app, protocol, session } from "electron";
 import { join } from "node:path";
 import { appContentTypes } from "./app-content-types.ts";
 import { serveAssetFile } from "./asset-response.ts";
-
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  "object-src 'none'",
-  "script-src 'self' https://platform.twitter.com",
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self' data:",
-  "img-src 'self' data: blob: https:",
-  "media-src 'self' data: blob: https:",
-  "connect-src 'self' https:",
-  "worker-src 'self' blob:",
-  "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://platform.twitter.com",
-].join("; ");
+import { contentSecurityPolicy } from "./content-security-policy.ts";
 
 export function registerAppScheme() {
   protocol.registerSchemesAsPrivileged([

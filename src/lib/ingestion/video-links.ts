@@ -1,3 +1,5 @@
+import { FRAME_ORIGINS } from "./frame-origins";
+
 export type VideoLinkProvider = "youtube" | "vimeo";
 
 export type VideoLinkEmbed = {
@@ -73,7 +75,7 @@ export function videoLinkFromSourceUrl(
     return id
       ? {
           provider: "youtube",
-          embedUrl: `https://www.youtube-nocookie.com/embed/${id}`,
+          embedUrl: `${FRAME_ORIGINS.youtube}/embed/${id}`,
           sourceUrl: trimmed,
           posterUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
         }
@@ -82,7 +84,7 @@ export function videoLinkFromSourceUrl(
   if (VIMEO_HOSTS.has(host)) {
     const id = vimeoVideoId(url);
     return id
-      ? { provider: "vimeo", embedUrl: `https://player.vimeo.com/video/${id}`, sourceUrl: trimmed }
+      ? { provider: "vimeo", embedUrl: `${FRAME_ORIGINS.vimeo}/video/${id}`, sourceUrl: trimmed }
       : null;
   }
   return null;

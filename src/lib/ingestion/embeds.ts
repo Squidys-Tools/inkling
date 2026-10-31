@@ -1,3 +1,4 @@
+import { FRAME_ORIGINS } from "./frame-origins";
 import { normalizeHttpUrl, normalizeText } from "./url";
 import type { SafeEmbedCandidate, SafeEmbedKind, SafeEmbedProvider } from "./types";
 
@@ -44,21 +45,21 @@ function providerEmbedUrl(url: URL, provider: SafeEmbedProvider): string | null 
   if (provider === "youtube") {
     const id = youtubeId(url, pathParts);
     return id && /^[a-zA-Z0-9_-]{6,32}$/u.test(id)
-      ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}`
+      ? `${FRAME_ORIGINS.youtube}/embed/${encodeURIComponent(id)}`
       : null;
   }
 
   if (provider === "vimeo") {
     const id = pathParts[pathParts.length - 1];
     return id && /^\d{1,20}$/u.test(id)
-      ? `https://player.vimeo.com/video/${encodeURIComponent(id)}`
+      ? `${FRAME_ORIGINS.vimeo}/video/${encodeURIComponent(id)}`
       : null;
   }
 
   if (provider === "loom") {
     const id = pathParts[pathParts.length - 1];
     return pathParts.length === 2 && ["share", "embed"].includes(pathParts[0] ?? "") && id
-      ? `https://www.loom.com/embed/${encodeURIComponent(id)}`
+      ? `${FRAME_ORIGINS.loom}/embed/${encodeURIComponent(id)}`
       : null;
   }
 
@@ -69,18 +70,20 @@ function providerEmbedUrl(url: URL, provider: SafeEmbedProvider): string | null 
       pathParts.length === 2 &&
       SPOTIFY_TYPES.has(type) &&
       /^[a-zA-Z0-9]+$/u.test(id)
-      ? `https://open.spotify.com/embed/${encodeURIComponent(type)}/${encodeURIComponent(id)}`
+      ? `${FRAME_ORIGINS.spotify}/embed/${encodeURIComponent(type)}/${encodeURIComponent(id)}`
       : null;
   }
 
   if (provider === "soundcloud") {
     return url.hostname === "w.soundcloud.com" && url.pathname === "/player/"
-      ? url.toString()
+      ? `${FRAME_ORIGINS.soundcloud}/player/${url.search}`
       : null;
   }
 
   if (provider === "twitch") {
-    return url.searchParams.has("channel") || url.searchParams.has("video") ? url.toString() : null;
+    return url.searchParams.has("channel") || url.searchParams.has("video")
+      ? `${FRAME_ORIGINS.twitch}${url.pathname}${url.search}`
+      : null;
   }
 
   return null;
