@@ -1,14 +1,8 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
 import { IMAGE_MODEL, TEXT_MODEL } from "@inkling/contracts/jobs";
 import { closeAll, ids, removeTemporaryRoots, temporaryLibrary, vector } from "./test-helpers.ts";
-import { smartSpaceSubjects } from "./spaces.ts";
-import {
-  interfaceLabel,
-  labelImage,
-  otherSubjects,
-  visualSubjectQuery,
-  visualSubjects,
-} from "./visual-subject.ts";
+import { visualSubjectQuery, visualSubjects } from "@inkling/ingestion/photo-subjects";
+import { interfaceLabel, labelImage, otherSubjects } from "./visual-subject.ts";
 
 afterEach(closeAll);
 afterAll(removeTemporaryRoots);
@@ -24,11 +18,7 @@ const axis = (label: string, weight = 1, ...also: [string, number][]) => {
 };
 const prompts = new Map(labels.map((label) => [label, axis(label)]));
 
-test("a subject query is a list of photographable nouns, not any text that mentions one", () => {
-  expect(visualSubjectQuery("Cats")).toEqual(["cat"]);
-  expect(visualSubjectQuery("photos of kittens and dogs")).toEqual(["cat", "dog"]);
-  for (const text of ["cat training notes", "screenshot of a cat", "category", "Discord", ""])
-    expect(visualSubjectQuery(text)).toBeNull();
+test("an image is labelled by its nearest prompt of the same dimension", () => {
   expect(labelImage(axis("cat", 0.09), prompts)?.label).toBe("cat");
   expect(labelImage([1, 0], prompts)).toBeNull();
 });
@@ -41,18 +31,7 @@ test("an unlisted subject is labelled as itself, never snapped to the nearest li
   expect(new Set(otherSubjects).size).toBe(otherSubjects.length);
 });
 
-test("only a subject name or subject text makes a Smart Space a photo collection", () => {
-  const space = { kind: "smart" as const, name: " Cats ", query: {} };
-  expect(smartSpaceSubjects(space)).toEqual(["cat"]);
-  expect(smartSpaceSubjects({ ...space, name: "Everything" })).toBeNull();
-  expect(smartSpaceSubjects({ ...space, name: "Inbox", query: { text: "dogs" } })).toEqual(["dog"]);
-  expect(smartSpaceSubjects({ ...space, query: { text: "tabby notes" } })).toBeNull();
-  expect(smartSpaceSubjects({ ...space, query: { tag: "pets" } })).toBeNull();
-  expect(smartSpaceSubjects({ ...space, query: { kind: "note" } })).toBeNull();
-  expect(smartSpaceSubjects({ ...space, kind: "regular" })).toBeNull();
-});
-
-test("a Space named Cats holds analyzed cat photos only, never screenshots, notes or pending images", async () => {
+test("a Space named Cats holds cat photos by their pixels, or by their text until they can be judged", async () => {
   const { library } = await temporaryLibrary();
   const insert = library.db.prepare(`INSERT INTO items
     (id, kind, title, ocr_text, metadata, created_at, updated_at, archived)
@@ -111,27 +90,30 @@ test("a Space named Cats holds analyzed cat photos only, never screenshots, note
     labels.length,
   );
 
+  insert.run("unnamed-pending", "image", "IMG_0001.jpg", "", "{}", 1, 1, 0);
+
   const cats = await library.createSpace({ name: "Cats" });
   expect(cats.query).toEqual({});
-  // Best match first; the Space shows nothing until the subject prompts exist.
-  expect(ids(await library.listSpaceItems(cats.id, 100, null, prompts))).toEqual([
-    "tabby",
-    "kitten",
-  ]);
-  expect(ids(await library.listSpaceItems(cats.id))).toEqual([]);
-  expect(
-    ids(await library.listSpaceItems(cats.id, 100, null, new Map([["cat", axis("cat")]]))),
-  ).toEqual([]);
-  // The unlisted subjects must be loaded too; otherwise nothing is confirmed.
-  const listedOnly = new Map([...prompts].filter(([label]) => !otherSubjects.includes(label)));
-  expect(ids(await library.listSpaceItems(cats.id, 100, null, listedOnly))).toEqual([]);
+  // Pixels decide for analyzed images, best match first; images without a current
+  // vector follow, matched by the words on them.
+  const withPrompts = ids(await library.listSpaceItems(cats.id, 100, null, prompts));
+  expect(withPrompts.slice(0, 2)).toEqual(["tabby", "kitten"]);
+  expect(withPrompts.slice(2).sort()).toEqual(["old-model-cat", "pending-cat"]);
   const page = await library.spaceCardsPage(cats.id, null, 100, null, prompts);
-  expect(page).toMatchObject({ next: null, total: 2 });
+  expect(page).toMatchObject({ next: null, total: 4 });
   expect(ids(await library.listSpaceItems(cats.id, 1, null, prompts))).toEqual(["tabby"]);
+  // With no model, or a partial set of prompts, every image falls back to its text,
+  // so the screenshot whose OCR says cat comes in and nothing is labelled.
+  const byText = ["chat-shot", "old-model-cat", "pending-cat"];
+  expect(ids(await library.listSpaceItems(cats.id)).sort()).toEqual(byText);
+  const listedOnly = new Map([...prompts].filter(([label]) => !otherSubjects.includes(label)));
+  expect(ids(await library.listSpaceItems(cats.id, 100, null, listedOnly)).sort()).toEqual(byText);
 
   const pets = await library.createSpace({ name: "Cats and dogs" });
   expect(ids(await library.listSpaceItems(pets.id, 100, null, prompts)).sort()).toEqual([
     "kitten",
+    "old-model-cat",
+    "pending-cat",
     "puppy",
     "tabby",
   ]);
@@ -158,6 +140,7 @@ test("a Space named Cats holds analyzed cat photos only, never screenshots, note
     "pending-cat",
     "puppy",
     "tabby",
+    "unnamed-pending",
     "wolf",
   ]);
   // Text that is more than a subject list stays an ordinary search.

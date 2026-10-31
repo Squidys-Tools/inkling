@@ -6,6 +6,7 @@ import {
   LibraryRpcs,
   type LibraryChange,
 } from "@inkling/contracts";
+import { smartSpaceSubjects, visualSubjects } from "@inkling/ingestion/photo-subjects";
 import { layerProtocol, type PortSource } from "@inkling/rpc-electron/server";
 import { Effect, Fiber, Layer, PubSub, Stream } from "effect";
 import { RpcServer } from "effect/rpc";
@@ -17,7 +18,6 @@ import { createLibrarySizeCache } from "./library-size.ts";
 import { errorMessage } from "./storage/errors.ts";
 import { JobQueue, Library, libraryLayer } from "./storage/library.ts";
 import { cardItem } from "./storage/rows.ts";
-import { smartSpaceSubjects } from "./storage/spaces.ts";
 import { snapshotDatabase } from "./storage/sqlite-snapshot.ts";
 import {
   interfaceLabel,
@@ -25,7 +25,6 @@ import {
   otherSubjects,
   subjectPrompt,
   type SubjectVectors,
-  visualSubjects,
 } from "./storage/visual-subject.ts";
 
 // The library process: the only owner of the SQLite file. Main starts it with
@@ -66,7 +65,8 @@ const changes = Effect.runSync(PubSub.unbounded<LibraryChange>());
 const publish = (change: LibraryChange) => PubSub.publish(changes, change);
 
 // The subject prompts never change, so their vectors are embedded once, after the
-// worker can answer; until then a photo Space has nothing it can confirm.
+// worker can answer; until then a photo Space matches by text. The first prompt
+// the worker cannot embed stops the rest, so a busy worker costs one wait, not 103.
 let subjectVectors: SubjectVectors | null = null;
 const loadSubjectVectors = Effect.suspend(() => {
   if (subjectVectors) return Effect.succeed(subjectVectors);
@@ -77,13 +77,14 @@ const loadSubjectVectors = Effect.suspend(() => {
     [interfaceLabel, interfacePrompt] as const,
   ];
   return Effect.forEach(prompts, ([label, prompt]) =>
-    Effect.map(queryVector(prompt), (vector) => [label, vector] as const),
+    queryVector(prompt).pipe(
+      Effect.flatMap((vector) =>
+        vector?.length ? Effect.succeed([label, vector] as const) : Effect.fail(label),
+      ),
+    ),
   ).pipe(
-    Effect.map((vectors) => {
-      if (vectors.some(([, vector]) => !vector?.length)) return null;
-      subjectVectors = new Map(vectors.map(([label, vector]) => [label, vector!]));
-      return subjectVectors;
-    }),
+    Effect.map((vectors) => (subjectVectors = new Map(vectors))),
+    Effect.orElseSucceed(() => null),
   );
 });
 
