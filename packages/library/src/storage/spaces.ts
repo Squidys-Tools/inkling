@@ -18,6 +18,7 @@ import {
   decodeVector,
   interfaceLabel,
   labelImage,
+  otherSubjects,
   type SubjectVectors,
   visualSubjectQuery,
   visualSubjects,
@@ -227,9 +228,9 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     cap: number,
     prompts: SubjectVectors | null,
   ) {
-    // Every label must compete, or a screenshot could win "cat" by default. With no
-    // worker or models yet nothing can be confirmed, so the Space is empty for now.
-    const labels = [...visualSubjects, interfaceLabel];
+    // Every label must compete, or a screenshot or a fox could win "cat" by default.
+    // With no worker or models yet nothing can be confirmed, so the Space is empty.
+    const labels = [...visualSubjects, interfaceLabel, ...otherSubjects];
     if (!prompts || !labels.every((label) => prompts.get(label)?.length))
       return { cards: [], total: 0 };
     const rows = yield* sql<

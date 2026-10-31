@@ -22,6 +22,7 @@ import { snapshotDatabase } from "./storage/sqlite-snapshot.ts";
 import {
   interfaceLabel,
   interfacePrompt,
+  otherSubjects,
   subjectPrompt,
   type SubjectVectors,
   visualSubjects,
@@ -70,7 +71,9 @@ let subjectVectors: SubjectVectors | null = null;
 const loadSubjectVectors = Effect.suspend(() => {
   if (subjectVectors) return Effect.succeed(subjectVectors);
   const prompts = [
-    ...visualSubjects.map((subject) => [subject, subjectPrompt(subject)] as const),
+    ...[...visualSubjects, ...otherSubjects].map(
+      (subject) => [subject, subjectPrompt(subject)] as const,
+    ),
     [interfaceLabel, interfacePrompt] as const,
   ];
   return Effect.forEach(prompts, ([label, prompt]) =>

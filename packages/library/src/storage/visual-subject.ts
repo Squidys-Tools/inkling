@@ -1,7 +1,7 @@
 // Nomic text-to-image similarity is too small (about 0.05 to 0.09) for a fixed
 // floor to tell a cat from a screenshot, so a Space named "Cats" labels each
-// photo by its nearest subject prompt, a screenshot prompt competing, and keeps
-// the photos labelled with a wanted subject.
+// photo by its nearest prompt, a screenshot prompt and many unrelated subjects
+// competing, and keeps the photos labelled with a wanted subject.
 
 const subjectWords: Record<string, string[]> = {
   cat: ["cat", "cats", "kitten", "kittens", "kitty", "kitties", "feline", "felines"],
@@ -22,6 +22,105 @@ export const visualSubjects = Object.keys(subjectWords);
 export const subjectPrompt = (subject: string) => `a photo of a ${subject}`;
 export const interfacePrompt = "a screenshot of a computer screen with text";
 export const interfaceLabel = "interface";
+
+/** Unlisted subjects that compete with the list, so a fox or a pizza is labelled
+ *  as something else instead of being snapped into the nearest listed subject.
+ *  Picked on real Nomic vectors: none of them outscores a listed subject on its
+ *  own photos. Words that did (fox, truck, field, painting...) are left out. */
+export const otherSubjects = [
+  "person",
+  "people",
+  "baby",
+  "child",
+  "face",
+  "selfie",
+  "wedding",
+  "food",
+  "meal",
+  "dish",
+  "drink",
+  "bread",
+  "salad",
+  "sushi",
+  "soup",
+  "bridge",
+  "kitchen",
+  "bedroom",
+  "parking lot",
+  "boat",
+  "ship",
+  "airplane",
+  "helicopter",
+  "bus",
+  "motorcycle",
+  "rocket",
+  "lake",
+  "waterfall",
+  "ocean",
+  "sky",
+  "cloud",
+  "sunset",
+  "desert",
+  "ice",
+  "cave",
+  "forest",
+  "jungle",
+  "bear",
+  "lion",
+  "tiger",
+  "leopard",
+  "giraffe",
+  "zebra",
+  "monkey",
+  "gorilla",
+  "deer",
+  "cow",
+  "sheep",
+  "goat",
+  "rabbit",
+  "squirrel",
+  "mouse",
+  "hamster",
+  "bat",
+  "fish",
+  "shark",
+  "whale",
+  "dolphin",
+  "frog",
+  "snake",
+  "lizard",
+  "insect",
+  "butterfly",
+  "bee",
+  "spider",
+  "crab",
+  "object",
+  "machine",
+  "computer",
+  "phone",
+  "keyboard",
+  "book",
+  "toy",
+  "doll",
+  "furniture",
+  "chair",
+  "table",
+  "sofa",
+  "bed",
+  "lamp",
+  "bottle",
+  "shoe",
+  "bag",
+  "clothing",
+  "instrument",
+  "guitar",
+  "chart",
+  "diagram",
+  "sign",
+  "logo",
+  "pattern",
+  "texture",
+];
 
 const framing = new Set([
   "a",
@@ -56,7 +155,8 @@ export function visualSubjectQuery(text: string) {
   return [...new Set(words.map((word) => alias.get(word)!))];
 }
 
-/** Prompt vectors keyed by subject label, plus `interface` for the screenshot prompt. */
+/** Prompt vectors keyed by label: the subjects, `interface` for the screenshot
+ *  prompt, and every other subject. */
 export type SubjectVectors = ReadonlyMap<string, ArrayLike<number>>;
 
 function dot(left: ArrayLike<number>, right: ArrayLike<number>) {

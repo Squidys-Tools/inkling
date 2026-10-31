@@ -5,6 +5,7 @@ import { smartSpaceSubjects } from "./spaces.ts";
 import {
   interfaceLabel,
   labelImage,
+  otherSubjects,
   visualSubjectQuery,
   visualSubjects,
 } from "./visual-subject.ts";
@@ -14,10 +15,11 @@ afterAll(removeTemporaryRoots);
 
 // One axis per label: a subject prompt points along its own axis, and an image is
 // nearest the label it leans toward, as Nomic's real vectors do at a smaller scale.
-const labels = [...visualSubjects, interfaceLabel];
-const axis = (label: string, weight = 1) => {
+const labels = [...visualSubjects, interfaceLabel, ...otherSubjects];
+const axis = (label: string, weight = 1, ...also: [string, number][]) => {
   const values = new Array(labels.length).fill(0.01);
   values[labels.indexOf(label)] = weight;
+  for (const [other, value] of also) values[labels.indexOf(other)] = value;
   return values;
 };
 const prompts = new Map(labels.map((label) => [label, axis(label)]));
@@ -29,6 +31,14 @@ test("a subject query is a list of photographable nouns, not any text that menti
     expect(visualSubjectQuery(text)).toBeNull();
   expect(labelImage(axis("cat", 0.09), prompts)?.label).toBe("cat");
   expect(labelImage([1, 0], prompts)).toBeNull();
+});
+
+test("an unlisted subject is labelled as itself, never snapped to the nearest listed one", () => {
+  // A lion photo that also looks a bit like a cat, and a cat that looks a bit like a lion.
+  expect(labelImage(axis("lion", 0.09, ["cat", 0.08]), prompts)?.label).toBe("lion");
+  expect(labelImage(axis("cat", 0.09, ["lion", 0.08]), prompts)?.label).toBe("cat");
+  expect(otherSubjects.filter((word) => visualSubjectQuery(word))).toEqual([]);
+  expect(new Set(otherSubjects).size).toBe(otherSubjects.length);
 });
 
 test("only a subject name or subject text makes a Smart Space a photo collection", () => {
@@ -60,6 +70,23 @@ test("a Space named Cats holds analyzed cat photos only, never screenshots, note
   await image("tabby", "cat", 0.09);
   await image("kitten", "cat", 0.05);
   await image("puppy", "dog", 0.08);
+  // Off-list: nearer a listed subject than to any other listed one, but nearest its own.
+  insert.run("lion", "image", "neutral.png", "", '{"tags":["pets"]}', 1, 1, 0);
+  await library.storeEmbedding(
+    "lion",
+    "image",
+    IMAGE_MODEL,
+    vector(axis("lion", 0.09, ["cat", 0.08])),
+    labels.length,
+  );
+  insert.run("wolf", "image", "neutral.png", "", "{}", 1, 1, 0);
+  await library.storeEmbedding(
+    "wolf",
+    "image",
+    IMAGE_MODEL,
+    vector(axis("bear", 0.07, ["dog", 0.06])),
+    labels.length,
+  );
   // A screenshot of a chat about cats: its OCR and filename say cat, its pixels say screen.
   await image("chat-shot", interfaceLabel, 0.08);
   library.db
@@ -95,6 +122,9 @@ test("a Space named Cats holds analyzed cat photos only, never screenshots, note
   expect(
     ids(await library.listSpaceItems(cats.id, 100, null, new Map([["cat", axis("cat")]]))),
   ).toEqual([]);
+  // The unlisted subjects must be loaded too; otherwise nothing is confirmed.
+  const listedOnly = new Map([...prompts].filter(([label]) => !otherSubjects.includes(label)));
+  expect(ids(await library.listSpaceItems(cats.id, 100, null, listedOnly))).toEqual([]);
   const page = await library.spaceCardsPage(cats.id, null, 100, null, prompts);
   expect(page).toMatchObject({ next: null, total: 2 });
   expect(ids(await library.listSpaceItems(cats.id, 1, null, prompts))).toEqual(["tabby"]);
@@ -123,10 +153,12 @@ test("a Space named Cats holds analyzed cat photos only, never screenshots, note
     "cat-note",
     "chat-shot",
     "kitten",
+    "lion",
     "old-model-cat",
     "pending-cat",
     "puppy",
     "tabby",
+    "wolf",
   ]);
   // Text that is more than a subject list stays an ordinary search.
   const training = await library.createSpace({
