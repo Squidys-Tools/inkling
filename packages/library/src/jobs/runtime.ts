@@ -7,6 +7,9 @@ import { JobsWorker } from "./worker-client.ts";
 
 type Services = Library | JobQueue | JobsWorker;
 
+/** Main-lane jobs that run at once. Each item's own jobs still run one at a time, in order. */
+const MAIN_LANES = 4;
+
 /**
  * Hands back jobs a previous run left behind, then runs both lanes until the
  * layer closes. Closing it interrupts each lane, which hands its job back.
@@ -30,18 +33,23 @@ export const jobLanesLayer = (onItemChanged: (itemId: string) => Effect.Effect<u
       const { processors, thumbnailProcessors, onIdle } = createJobProcessors();
       // Every job needs the worker process, so neither lane claims while it is gone.
       const ready = JobsWorker.use((worker) => worker.connected);
-      const main = yield* makeWorker<Services>({
-        processors: announced(processors),
-        onIdle,
-        timeouts: jobTimeouts,
-        ready,
-      });
+      // Only the first lane runs the backfill, so it never queues the same work twice at once.
+      const main = yield* Effect.forEach(
+        Array.from({ length: MAIN_LANES }, (_, lane) => lane),
+        (lane) =>
+          makeWorker<Services>({
+            processors: announced(processors),
+            onIdle: lane === 0 ? onIdle : undefined,
+            timeouts: jobTimeouts,
+            ready,
+          }),
+      );
       const thumbnails = yield* makeWorker<Services>({
         processors: announced(thumbnailProcessors),
         timeouts: jobTimeouts,
         ready,
       });
-      yield* Effect.forkScoped(main.run);
+      for (const lane of main) yield* Effect.forkScoped(lane.run);
       yield* Effect.forkScoped(thumbnails.run);
     }),
   );
