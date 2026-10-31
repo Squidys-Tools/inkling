@@ -123,46 +123,52 @@ test("files and passes share a bounded worker pool and ties resolve in the seria
 });
 
 test("a large image reads two passes at a time and replaces each worker it grew", async () => {
-  const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-large-"));
-  roots.push(cacheDirectory);
-  const stats = { created: 0, terminated: 0, active: 0, peak: 0, calls: 0 };
-  const ocr = createTesseractOcr({
-    cacheDirectory,
-    workers: 4,
-    workerFactory: async () => {
-      stats.created++;
-      return {
-        setParameters: async () => {},
-        recognize: async () => {
-          stats.calls++;
-          stats.peak = Math.max(stats.peak, ++stats.active);
-          await new Promise((resolve) => setTimeout(resolve, 5));
-          stats.active--;
-          return { data: { text: "faint", confidence: 50 } };
-        },
-        terminate: async () => {
-          stats.terminated++;
-        },
-      };
-    },
-  });
-  // 3000 x 2000 pixels, just over the large-image threshold.
-  const large = await sharp({
-    create: { width: 3000, height: 2000, channels: 3, background: "#ffffff" },
-  })
-    .png()
-    .toBuffer();
-  try {
-    expect(await ocr.recognize(large)).toBe("faint");
-  } finally {
-    await ocr.close();
+  // 3000 x 2000 is just over the large-image threshold. 2800 x 2000 is under it,
+  // but each rotated copy's canvas is over it, so only the 6 rotations count as large.
+  for (const [width, height, peak, retired] of [
+    [3000, 2000, 2, 10],
+    [2800, 2000, 3, 6],
+  ]) {
+    const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-large-"));
+    roots.push(cacheDirectory);
+    const stats = { created: 0, terminated: 0, active: 0, peak: 0, calls: 0 };
+    const ocr = createTesseractOcr({
+      cacheDirectory,
+      workers: 4,
+      workerFactory: async () => {
+        stats.created++;
+        return {
+          setParameters: async () => {},
+          recognize: async () => {
+            stats.calls++;
+            stats.peak = Math.max(stats.peak, ++stats.active);
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            stats.active--;
+            return { data: { text: "faint", confidence: 50 } };
+          },
+          terminate: async () => {
+            stats.terminated++;
+          },
+        };
+      },
+    });
+    const image = await sharp({ create: { width, height, channels: 3, background: "#ffffff" } })
+      .png()
+      .toBuffer();
+    let retiredBeforeClose = 0;
+    try {
+      expect(await ocr.recognize(image)).toBe("faint");
+      retiredBeforeClose = stats.terminated;
+    } finally {
+      await ocr.close();
+    }
+    // 3 page modes, contrast and 6 rotations. Large passes run two at once, and
+    // every worker that read one was shut down rather than kept.
+    expect(stats.calls).toBe(10);
+    expect(stats.peak).toBe(peak);
+    expect(retiredBeforeClose).toBe(retired);
+    expect(stats.terminated).toBe(stats.created);
   }
-  // 3 page modes, contrast and 6 rotations, never more than two at once, and
-  // every worker that read the large image was shut down rather than kept.
-  expect(stats.calls).toBe(10);
-  expect(stats.peak).toBe(2);
-  expect(stats.created).toBe(10);
-  expect(stats.terminated).toBe(10);
 });
 
 test("an idle pool shuts its workers down and the next file starts fresh ones", async () => {

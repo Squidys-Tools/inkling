@@ -168,6 +168,12 @@ export function createTesseractOcr({
       .toBuffer();
     const { width = 0, height = 0 } = await sharp(image).metadata();
     const large = width * height >= LARGE_OCR_PIXELS;
+    // A rotated copy is read on its bounding canvas, about 1.5 times the pixels at 15 degrees.
+    const largeAt = (angle: number) => {
+      const radians = (Math.abs(angle) * Math.PI) / 180;
+      const [cos, sin] = [Math.cos(radians), Math.sin(radians)];
+      return (width * cos + height * sin) * (width * sin + height * cos) >= LARGE_OCR_PIXELS;
+    };
     let bestText = "";
     let bestQuality = -1;
     let bestWordCount = 0;
@@ -196,7 +202,7 @@ export function createTesseractOcr({
         pass(
           () => sharp(image).rotate(angle, { background: "#ffffff" }).png().toBuffer(),
           6,
-          large,
+          largeAt(angle),
         ),
       );
       for (const result of await passes(rotations)) consider(result);
