@@ -41,35 +41,56 @@ export function glassShape(
 // The drop shadow (8px down, 24px blur) and refraction reach this far past a
 // shape, in CSS pixels.
 const BAND_MARGIN = 64;
-// Device pixels. The band's texture is only reallocated when its height crosses
-// a step, so a chip sliding in does not reallocate it every frame.
+// Device pixels. The band's texture is only reallocated when a side crosses a
+// step, so a chip sliding in does not reallocate it every frame.
 const BAND_STEP = 128;
 
+export type GlassBand = { left: number; top: number; width: number; height: number };
+
 /**
- * Device-pixel rows that hold glass, one band per cluster. liquid-dom runs a dozen
- * full-size passes per frame, so only these rows go through it. Bands share one
- * height so liquid-dom keeps its render targets between them.
+ * Device-pixel rects that hold glass, one band per cluster. liquid-dom runs a
+ * dozen passes over each band per frame, so bands cover only the shape extents
+ * plus margin, not the whole canvas. Bands share one size so liquid-dom keeps
+ * its render targets between them.
  */
 export function glassBands(
-  shapes: Iterable<{ y: number; height: number }>,
+  shapes: Iterable<{ x: number; y: number; width: number; height: number }>,
   dpr: number,
+  canvasWidth: number,
   canvasHeight: number,
-) {
+): GlassBand[] {
   const spans = [...shapes]
-    .map((shape) => [
-      Math.max(0, Math.floor((shape.y - BAND_MARGIN) * dpr)),
-      Math.ceil((shape.y + shape.height + BAND_MARGIN) * dpr),
-    ])
-    .sort((a, b) => a[0] - b[0]);
-  const merged: number[][] = [];
-  for (const [top, bottom] of spans) {
+    .map((shape) => ({
+      left: Math.max(0, Math.floor((shape.x - BAND_MARGIN) * dpr)),
+      right: Math.min(canvasWidth, Math.ceil((shape.x + shape.width + BAND_MARGIN) * dpr)),
+      top: Math.max(0, Math.floor((shape.y - BAND_MARGIN) * dpr)),
+      bottom: Math.min(canvasHeight, Math.ceil((shape.y + shape.height + BAND_MARGIN) * dpr)),
+    }))
+    .sort((a, b) => a.top - b.top);
+  const merged: typeof spans = [];
+  for (const span of spans) {
     const last = merged[merged.length - 1];
-    if (last && top <= last[1]) last[1] = Math.max(last[1], bottom);
-    else merged.push([top, bottom]);
+    if (last && span.top <= last.bottom) {
+      last.top = Math.min(last.top, span.top);
+      last.bottom = Math.max(last.bottom, span.bottom);
+      last.left = Math.min(last.left, span.left);
+      last.right = Math.max(last.right, span.right);
+    } else {
+      merged.push({ ...span });
+    }
   }
-  if (merged.length === 0 || canvasHeight <= 0) return [];
-  const rows = Math.max(...merged.map(([top, bottom]) => bottom - top));
+  if (merged.length === 0 || canvasHeight <= 0 || canvasWidth <= 0) return [];
+  const rows = Math.max(...merged.map((span) => span.bottom - span.top));
+  const cols = Math.max(...merged.map((span) => span.right - span.left));
   const height = Math.min(canvasHeight, Math.ceil(rows / BAND_STEP) * BAND_STEP);
-  if (height * merged.length >= canvasHeight) return [{ top: 0, height: canvasHeight }];
-  return merged.map(([top]) => ({ top: Math.min(top, canvasHeight - height), height }));
+  const width = Math.min(canvasWidth, Math.ceil(cols / BAND_STEP) * BAND_STEP);
+  if (width * height * merged.length >= canvasWidth * canvasHeight) {
+    return [{ left: 0, top: 0, width: canvasWidth, height: canvasHeight }];
+  }
+  return merged.map((span) => ({
+    left: Math.min(span.left, canvasWidth - width),
+    top: Math.min(span.top, canvasHeight - height),
+    width,
+    height,
+  }));
 }

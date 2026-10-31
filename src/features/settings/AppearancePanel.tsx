@@ -1,4 +1,4 @@
-import { Grid2X2Icon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
+import { DropletIcon, Grid2X2Icon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
 import { SegmentedControl } from "../../components/SegmentedControl/SegmentedControl";
 import { type Appearance, APPEARANCE_OPTIONS } from "./appearance";
 import { SETTINGS_SCROLL, SettingsHeader, SettingsPanel, SettingsRow } from "./SettingsPanel";
@@ -65,6 +65,21 @@ export function AppearancePanel({
               value={appearance.sidebarToggle}
               onChange={(value) => onAppearanceChange("sidebarToggle", value)}
               options={APPEARANCE_OPTIONS.sidebarToggle}
+            />
+          }
+        />
+        <SettingsRow
+          icon={DropletIcon}
+          title="liquid glass"
+          description="Refracting glass on the floating controls."
+          action={
+            <SegmentedControl
+              className={SEGMENTED}
+              name="appearance-liquid-glass"
+              label="liquid glass"
+              value={appearance.liquidGlass}
+              onChange={(value) => onAppearanceChange("liquidGlass", value)}
+              options={APPEARANCE_OPTIONS.liquidGlass}
             />
           }
         />

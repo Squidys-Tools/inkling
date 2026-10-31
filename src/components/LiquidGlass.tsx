@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { liquidGlassSupport, type LiquidGpu } from "./liquidGlassSupport";
+import { liquidGlassSupport, type LiquidGpu, useLiquidGlassEnabled } from "./liquidGlassSupport";
 import { type GlassShape, glassShape, type ShapeBox } from "./liquidGlassShape";
 import { LiquidSurface } from "./liquidSurface";
 
@@ -26,6 +26,8 @@ export function canvasImageCrossOrigin(src: string | undefined) {
 // Transitions and keyframes on the targets move them without resizing them,
 // so shapes follow by polling rects for a little longer than the longest one.
 const SETTLE_MS = 600;
+// The backdrop returns to the canvas this long after the last scroll event.
+const SCROLL_IDLE_MS = 180;
 
 function boxOf(element: HTMLElement, origin: DOMRect): ShapeBox | null {
   const style = getComputedStyle(element);
@@ -96,6 +98,7 @@ export function LiquidGlass({
     return element;
   });
   const [gpu, setGpu] = useState<LiquidGpu | null>(null);
+  const enabled = useLiquidGlassEnabled();
   const rootsRef = useRef(targetRoots);
   useLayoutEffect(() => {
     rootsRef.current = targetRoots;
@@ -104,21 +107,24 @@ export function LiquidGlass({
   useLayoutEffect(() => {
     wrapRef.current?.append(content);
     let live = true;
-    void liquidGlassSupport().then((found) => {
-      if (live && found) setGpu(found);
-    });
+    if (enabled) {
+      void liquidGlassSupport().then((found) => {
+        if (live && found) setGpu(found);
+      });
+    }
     return () => {
       live = false;
       content.remove();
     };
-  }, [content]);
+  }, [content, enabled]);
 
   useEffect(() => {
     const wrap = wrapRef.current;
     const canvas = canvasRef.current;
-    if (!gpu || !wrap || !canvas) return;
+    if (!gpu || !enabled || !wrap || !canvas) return;
     let live = true;
-    let shown = false;
+    let scrollMode = false;
+    let scrollIdle = 0;
     const marked = new Set<HTMLElement>();
     // The content lays out at the wrapper's size. The canvas can be larger (see
     // LibraryStage), so the content no longer fills its parent.
@@ -135,10 +141,9 @@ export function LiquidGlass({
           gpu,
           canvas,
           content,
+          wrap,
           () => {
-            if (shown) return;
-            shown = true;
-            // The first frame is up, so the CSS glass can step aside.
+            // A painted frame is up, so the CSS glass can step aside.
             for (const element of marked) element.dataset.liquid = "";
           },
           shadow,
@@ -158,7 +163,7 @@ export function LiquidGlass({
         shapes.set(element, shape);
         if (!marked.has(element)) {
           marked.add(element);
-          if (shown) element.dataset.liquid = "";
+          if (!scrollMode) element.dataset.liquid = "";
         }
       }
       for (const element of marked) {
@@ -183,6 +188,40 @@ export function LiquidGlass({
       settleUntil = performance.now() + SETTLE_MS;
       scheduleSync();
     };
+
+    // The host rides out a scroll gesture in the wrapper (native render, CSS
+    // glass) and moves back SCROLL_IDLE_MS after the last event. Reparenting
+    // emits its own scroll events, so onScroll ignores events while moving.
+    let moving = false;
+    let movingClear = 0;
+    const setScrollMode = (mode: boolean) => {
+      if (mode === scrollMode) return;
+      scrollMode = mode;
+      if (mode) for (const element of marked) delete element.dataset.liquid;
+      moving = true;
+      keepingScroll(content, () => surface.setScrolling(mode));
+      window.clearTimeout(movingClear);
+      movingClear = window.setTimeout(() => {
+        moving = false;
+      }, 60);
+      if (!mode) syncShapes();
+    };
+    // Virtuoso emits scroll events ~10x a second without the position moving;
+    // only a real offset change means the user is scrolling.
+    const lastScroll = new WeakMap<EventTarget, { top: number; left: number }>();
+    const onScroll = (event: Event) => {
+      if (moving) return;
+      const el = event.target;
+      if (!(el instanceof HTMLElement)) return;
+      const last = lastScroll.get(el);
+      const moved = el.scrollTop !== last?.top || el.scrollLeft !== last?.left;
+      lastScroll.set(el, { top: el.scrollTop, left: el.scrollLeft });
+      if (!moved) return;
+      setScrollMode(true);
+      window.clearTimeout(scrollIdle);
+      scrollIdle = window.setTimeout(() => setScrollMode(false), SCROLL_IDLE_MS);
+    };
+    content.addEventListener("scroll", onScroll, { capture: true, passive: true });
 
     const sizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -228,6 +267,9 @@ export function LiquidGlass({
 
     return () => {
       live = false;
+      window.clearTimeout(scrollIdle);
+      window.clearTimeout(movingClear);
+      content.removeEventListener("scroll", onScroll, { capture: true });
       cancelAnimationFrame(frame);
       sizeObserver.disconnect();
       mutationObserver.disconnect();
@@ -243,11 +285,11 @@ export function LiquidGlass({
       content.style.height = "";
       keepingScroll(content, () => wrap.append(content));
     };
-  }, [gpu, content, shadow]);
+  }, [gpu, content, shadow, enabled]);
 
   return (
     <div ref={wrapRef} className={className}>
-      {gpu && (
+      {gpu && enabled && (
         <canvas
           ref={canvasRef}
           className="liquid-glass-canvas absolute top-0 left-0 block size-full"

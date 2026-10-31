@@ -35,14 +35,17 @@ export class LiquidSurface {
   private readonly context: GPUCanvasContext;
   private readonly glasses = new Map<HTMLElement, Glass>();
   private bandTexture: GPUTexture | null = null;
+  private bandLeft = 0;
   private bandTop = 0;
   private dpr = 1;
+  private scrolling = false;
 
   constructor(
     private readonly gpu: LiquidGpu,
     private readonly canvas: HTMLCanvasElement,
     content: HTMLElement,
-    private readonly onFirstFrame: () => void,
+    private readonly fallbackParent: HTMLElement,
+    private readonly onFrameReady: () => void,
     shadow: boolean,
   ) {
     const { lib, device, format } = gpu;
@@ -93,8 +96,8 @@ export class LiquidSurface {
           ...entry,
           inverseTransform: {
             ...inverse,
-            e: inverse.e + inverse.c * this.bandTop,
-            f: inverse.f + inverse.d * this.bandTop,
+            e: inverse.e + inverse.a * this.bandLeft + inverse.c * this.bandTop,
+            f: inverse.f + inverse.b * this.bandLeft + inverse.d * this.bandTop,
           },
         };
       },
@@ -154,6 +157,23 @@ export class LiquidSurface {
     this.context.unconfigure();
   }
 
+  // Copying the whole stage to a texture is too slow per scroll frame, so the
+  // host rides out the gesture in the fallback parent (native render and input)
+  // and returns to the canvas once scrolling settles.
+  setScrolling(scrolling: boolean) {
+    if (scrolling === this.scrolling) return;
+    this.scrolling = scrolling;
+    const host = this.backdrop.host;
+    if (scrolling) {
+      this.canvas.hidden = true;
+      this.fallbackParent.append(host);
+    } else {
+      this.canvas.append(host);
+      this.canvas.hidden = false;
+      this.canvas.requestPaint();
+    }
+  }
+
   private bandTarget(width: number, height: number) {
     if (this.bandTexture?.width !== width || this.bandTexture.height !== height) {
       this.bandTexture?.destroy();
@@ -166,18 +186,20 @@ export class LiquidSurface {
     return this.bandTexture;
   }
 
-  // Draws only on paint events: when the backdrop DOM changes (scroll, hover,
-  // new cards) or after requestPaint. Nothing redraws while the page is idle.
-  // Glass sits in bands of rows (the toolbar, the view dock), so liquid-dom
-  // renders just those and the rest of the frame is a copy of the content texture.
+  // Draws only on paint events (DOM changes or requestPaint); idle frames cost
+  // nothing. liquid-dom renders only the band rects holding glass; the rest of
+  // the frame is a copy of the content texture.
   private readonly draw = () => {
+    // While scrolling the host renders natively in the fallback parent; a sync
+    // here would pull it back into the canvas.
+    if (this.scrolling) return;
     const { width, height } = this.canvas;
-    const bands = glassBands(this.glasses.values(), this.dpr, height);
+    const bands = glassBands(this.glasses.values(), this.dpr, width, height);
     this.source.sync();
     const output = this.context.getCurrentTexture();
     const content = this.source.getSceneHtmlEntry(this.backdrop);
-    if (bands.length === 1 && bands[0].height === height) {
-      this.renderBand(0, width, height, output);
+    if (bands.length === 1 && bands[0].height === height && bands[0].width === width) {
+      this.renderBand(0, 0, width, height, output);
     } else {
       const encoder = this.gpu.device.createCommandEncoder();
       if (content?.texture && content.copiedDeviceWidth > 0) {
@@ -192,26 +214,41 @@ export class LiquidSurface {
       }
       this.gpu.device.queue.submit([encoder.finish()]);
       // Each band renders and copies before the next reuses the band texture;
-      // the queue keeps them in order.
+      // a copy recorded into one encoder would read the last band's render.
       for (const band of bands) {
-        const target = this.bandTarget(width, band.height);
-        this.renderBand(band.top, width, band.height, target);
+        const target = this.bandTarget(band.width, band.height);
+        this.renderBand(band.left, band.top, band.width, band.height, target);
         const copy = this.gpu.device.createCommandEncoder();
         copy.copyTextureToTexture(
           { texture: target },
-          { texture: output, origin: { x: 0, y: band.top } },
-          { width, height: band.height },
+          { texture: output, origin: { x: band.left, y: band.top } },
+          { width: band.width, height: band.height },
         );
         this.gpu.device.queue.submit([copy.finish()]);
       }
     }
-    if (content?.copiedDeviceWidth) this.onFirstFrame();
+    // The browser hit-tests the canvas's children only where they are drawn.
+    // The host (the direct canvas child) lands 1:1 at the origin, and
+    // preserveHitTestOrder keeps the UI chrome above it in the hit order.
+    this.canvas.updateElementGeometry(this.backdrop.host, {
+      canvasTransform: new DOMMatrix(),
+      preserveHitTestOrder: true,
+    });
+    if (content?.copiedDeviceWidth) this.onFrameReady();
   };
 
   // Layers carry transforms baked when they are listed, so each band hands
   // liquid-dom the scene and gets the glass shifted by its own offset.
-  private renderBand(top: number, width: number, height: number, outputTexture: GPUTexture) {
+  private renderBand(
+    left: number,
+    top: number,
+    width: number,
+    height: number,
+    outputTexture: GPUTexture,
+  ) {
+    this.bandLeft = left;
     this.bandTop = top;
+    this.container.x = -left / this.dpr;
     this.container.y = -top / this.dpr;
     this.core.render({
       scene: this.scene,

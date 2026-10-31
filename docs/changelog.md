@@ -57,6 +57,7 @@ Rules for entries:
 - The README mascot is a creature rather than a pose: a looping SVG whose turn and lobe drift come from the sidebar's own drift state, whose eyes track and blink on the engine's own irregular calendar, and which moves through curious, happy, sleepy and attentive expressions, with a `prefers-reduced-motion` fallback that leaves the still
 - Fixed the README mascot drifting off the page and disappearing mid-turn on some browsers: the turn is now baked into the path keyframes instead of a CSS `rotate()` on an ambiguous `transform-box: view-box` origin, and the loop point repeats the first outline so the seam stays invisible (#93)
 - "Find similar" now works for text items, not just images: notes, quotes, articles, and saved links rank by their text embeddings across kinds, with the button offered in the expanded item view and a dedicated empty state while indexing finishes (#55)
+- Settings → Appearance → `liquid glass` switches the refracting WebGPU glass on the floating controls on or off; off keeps the plain CSS glass
 - Regular Spaces: manual collections alongside saved searches. The Space create form chooses Smart or Regular, a Regular Space holds only the items you file into it from the expanded item view, and the chips there show current membership and take an item back out. Deleting a Space still leaves its items alone (SQU-4)
 - The item count above the library rolls up when it first appears and replays when hovered, using the React Bits CountUp in compact format
 - Liquid glass in the desktop app: the library toolbar, search chip and image zoom control refract what is behind them through WebGPU and Chromium's HTML-in-Canvas, and fall back to the CSS glass when either is unavailable (#170)
@@ -65,6 +66,8 @@ Rules for entries:
 ### Fixed
 
 - The desktop window stays frameless with rounded corners on Linux and relies on the in-app minimize/maximize/close controls instead of a competing native caption overlay (#212)
+- Liquid glass actually activates again on Electron: the backdrop now registers where it is drawn into the canvas each paint, so the input probe passes and clicks, hover and context menus reach the DOM behind the glass
+- Scrolling the library no longer pays the full stage-to-texture copy: while a scroll runs, the backdrop renders as normal DOM (native input, CSS glass) and returns to the liquid-glass canvas when scrolling settles
 - Card clicks, right-clicks and the keyboard menu key reach cards again on runtimes where the experimental liquid-glass canvas swallows input: those runtimes keep the DOM/CSS glass (#205)
 - The item details open and close as one motion: the item, its patterned background and the right panel move together instead of flying then settling separately (#205)
 - Linux Electron image processing uses the supported sharp WASM backend, and PDF rendering loads bundled fonts without the native system-font scan that can crash the app.

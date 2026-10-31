@@ -1,14 +1,41 @@
+import { useSyncExternalStore } from "react";
 import { canvasAllowsDomInput } from "./canvasInput";
 
 declare global {
   interface HTMLCanvasElement {
     /** HTML-in-Canvas: fires a `paint` event in the next rendering update. */
     requestPaint(): void;
+    /** HTML-in-Canvas: registers where a drawn child sits for hit testing. */
+    updateElementGeometry(
+      element: Element,
+      options?: { canvasTransform?: DOMMatrix; preserveHitTestOrder?: boolean },
+    ): void;
   }
 }
 
 type LiquidDom = typeof import("@liquid-dom/core");
 export type LiquidGpu = { lib: LiquidDom; device: GPUDevice; format: GPUTextureFormat };
+
+// The Liquid glass setting reaches surfaces deep in the tree through a store
+// rather than props, so every LiquidGlass honors it at runtime.
+const enabledListeners = new Set<() => void>();
+let liquidGlassOn = true;
+
+export function useLiquidGlassEnabled() {
+  return useSyncExternalStore(
+    (listener) => {
+      enabledListeners.add(listener);
+      return () => enabledListeners.delete(listener);
+    },
+    () => liquidGlassOn,
+  );
+}
+
+export function setLiquidGlassEnabled(enabled: boolean) {
+  if (enabled === liquidGlassOn) return;
+  liquidGlassOn = enabled;
+  for (const listener of enabledListeners) listener();
+}
 
 let support: Promise<LiquidGpu | null> | undefined;
 

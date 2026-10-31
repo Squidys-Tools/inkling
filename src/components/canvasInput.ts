@@ -13,6 +13,15 @@ export function canvasAllowsDomInput(document: Document) {
   canvas.append(content);
   try {
     document.body.append(canvas);
+    // A WebGPU canvas draws children wherever the GPU puts them, so the browser
+    // hit-tests them only where updateElementGeometry says they landed. The
+    // probe draws 1:1 at the origin, like LiquidSurface's backdrop.
+    if ("updateElementGeometry" in canvas) {
+      canvas.updateElementGeometry(content, {
+        canvasTransform: new DOMMatrix(),
+        preserveHitTestOrder: true,
+      });
+    }
     const hit = document.elementFromPoint(1, 1);
     return hit === content || (hit !== null && content.contains(hit));
   } finally {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { setLiquidGlassEnabled } from "../../components/liquidGlassSupport";
 
 // Settings → Appearance: alternative looks for components, kept side by side
 // while we compare them. The first option of each is the default. When one
@@ -15,6 +16,10 @@ export const APPEARANCE_OPTIONS = {
   sidebarToggle: [
     { value: "buttons", label: "Buttons" },
     { value: "edge", label: "Edge grip" },
+  ],
+  liquidGlass: [
+    { value: "on", label: "On" },
+    { value: "off", label: "Off" },
   ],
 } as const;
 
@@ -42,12 +47,14 @@ function loadAppearance(): Appearance {
     viewToggle: pick("viewToggle"),
     sidebarToggle: pick("sidebarToggle"),
     sidebarStyle: pick("sidebarStyle"),
+    liquidGlass: pick("liquidGlass"),
   };
 }
 
 export function useAppearance() {
   const [appearance, setAppearance] = useState(loadAppearance);
   useEffect(() => {
+    setLiquidGlassEnabled(appearance.liquidGlass === "on");
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(appearance));
     } catch {}
