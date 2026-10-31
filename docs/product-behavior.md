@@ -120,6 +120,8 @@ Spaces are saved searches presented as visual collections.
 
 Smart Spaces update automatically whenever an item matches their query. They can use type, date, tag, domain, search terms, OCR text, image concepts, colors, or semantic criteria.
 
+A Smart Space with no type filter whose search text names only photo subjects, or with no filters at all whose name does ("Cats", "Photos of dogs and horses"), shows images of those subjects instead of everything. The subjects are cat, dog, bird, horse, car, bicycle, flower, tree, mountain and beach, in English, with their plurals and a few synonyms (kitten, puppy, bike, pony). Each analyzed image is labelled by the nearest of these, a screenshot, or about ninety other common subjects, so a fox or a screenshot of a chat about cats stays out. An image that is not analyzed yet, or every image while the image model is missing, counts when its title, description, OCR text or tags name a subject; the preview, which has no image model, always works this way. Any other name leaves an unfiltered Smart Space listing everything, and the saved query never changes.
+
 ### Regular Spaces
 
 Regular Spaces hold items the user adds by hand. Opening an item shows its Regular Spaces as chips; choosing one files the item in, and choosing it again takes the item back out. Whether a Space is Smart or Regular is chosen when it is created and does not change afterwards.
