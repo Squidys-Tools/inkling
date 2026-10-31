@@ -10,12 +10,13 @@ Start in Everything. Use words with spaces so the input is saved as a note. Curr
 
 ```json
 [
+  {"label":"count notes","expect":"(window.notesBefore = document.querySelectorAll(\"article[aria-label='Note: Untitled note']\").length, true)"},
   {"label":"open Add","clickText":{"selector":"button","text":"Add"}},
   {"label":"choose Note","clickText":{"selector":"[role=menuitem]","text":"Note"}},
   {"label":"editor","wait":"[role=textbox][aria-label='Note']"},
   {"label":"type note","fill":"[role=textbox][aria-label='Note']","text":"alpha probe"},
   {"label":"save","clickText":{"selector":"button","text":"Save to library"}},
-  {"label":"note card appears","expect":"document.querySelectorAll(\"article[aria-label='Note: Untitled note']\").length > 0","timeoutMs":10000},
+  {"label":"note card appears","expect":"document.querySelectorAll(\"article[aria-label='Note: Untitled note']\").length > window.notesBefore","timeoutMs":10000},
   {"label":"shot","shot":"note-saved.png"}
 ]
 ```

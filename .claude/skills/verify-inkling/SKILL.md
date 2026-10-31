@@ -89,7 +89,7 @@ Every run writes to `.artifacts/verify-inkling/<run-name>/` (gitignored):
 - `steps.log`: one PASS or FAIL line per step.
 - `console.log`: renderer console, exceptions, and log entries captured during the run.
 - Numbered screenshots from `shot` steps, plus `failure.png` on a failed step.
-- Database proof: read the scratch `library.sqlite3` with bun's `bun:sqlite` in readonly mode, for example `items` rows with `kind`, `body`, `archived`. Include the query output in the run notes.
+- Database proof: read the scratch `library.sqlite3` with bun's `bun:sqlite` in readonly mode, for example `items` rows with `kind`, `body`, `archived`. Set `PRAGMA busy_timeout = 5000` first, or a read that lands on an app write fails with `database is locked`. Include the query output in the run notes.
 
 A proof must show the user action, the visible result, and the stored side effect. A card on screen with no row in `items` is not a pass, and neither is a row with no card.
 
