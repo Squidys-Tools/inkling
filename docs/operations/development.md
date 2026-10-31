@@ -130,7 +130,7 @@ Pushes and PRs that change only Markdown, `docs/` or `AGENTS.md` skip CI and the
 - The `preview:web` label deploys the web preview to Vercel and comments its URL (`web-preview.yml`). `vercel.json` makes Vercel run `bun run build:web` and serve `dist/web`.
 - `pr-size.yml` labels each PR by the size of its diff.
 - `knip.yml` runs `knip --fix` every other day and opens a cleanup PR. It strips unused exports and prunes dependencies but never deletes files; if its PRs get noisy, tune the patterns in `knip.json` rather than disabling it.
-- `links.yml` checks Markdown links weekly and opens an issue on failures. Add custom schemes such as `inkling://` and local hosts to `.lycheeignore`.
+- `links.yml` checks Markdown links weekly and fails the workflow when links are broken. Add custom schemes such as `inkling://` and local hosts to `.lycheeignore`.
 - `release.yml` builds releases; see [Updates and releases](#updates-and-releases).
 
 ## Troubleshooting
