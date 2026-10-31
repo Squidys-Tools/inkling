@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { availableParallelism } from "node:os";
+import { availableParallelism, totalmem } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -26,9 +26,13 @@ type OcrWorkerFactory = (
 ) => Promise<OcrWorker>;
 
 // Each Tesseract worker reads on one core, so a few of them read several images,
-// and the page modes and rotations of one image, at once. Capped for memory.
+// and the page modes and rotations of one image, at once. Each can hold hundreds of
+// megabytes: one per three cores and per 4 GB of memory, but at least two and at most four.
 export const defaultOcrWorkers = () =>
-  Math.min(4, Math.max(2, Math.floor(availableParallelism() / 3)));
+  Math.min(
+    4,
+    Math.max(2, Math.min(Math.floor(availableParallelism() / 3), Math.floor(totalmem() / 4e9))),
+  );
 
 // Tesseract's heap grows to the largest image a worker has read and never
 // shrinks, so passes over a large image are limited to two at a time and the
