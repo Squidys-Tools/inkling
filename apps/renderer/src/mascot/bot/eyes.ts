@@ -8,6 +8,8 @@ export interface RenderedEye {
   d: string;
   matrix: string;
   alpha: number;
+  /** INKLING EXTENSION. The eye's box before the blink squash, in viewBox units. */
+  bounds: { left: number; top: number; right: number; bottom: number };
 }
 
 /** One eye about to be drawn: its capsule, tangent frame, lid squash and centre, in viewBox units. */
@@ -130,9 +132,20 @@ export function renderEyes({
   if (steadyFace) {
     keepFaceInside(placed, pose.sil, (pose.sil.cx + drift.x) * R, (pose.sil.cy + drift.y) * R, R);
   }
-  return placed.map((p) => ({
-    d: capsulePath(p.w, p.h),
-    matrix: `matrix(${r2(p.ax)},${r2(p.ay * p.k)},${r2(p.cx)},${r2(p.cy * p.k)},${r2(p.x)},${r2(p.y)})`,
-    alpha: p.alpha,
-  }));
+  return placed.map((p) => {
+    // INKLING EXTENSION: the capsule is a rectangle grown by its end radius, so
+    // its box under the eye's axes is the rectangle's plus the disc's. The box
+    // leaves out the blink, so a crop fitted to it holds still while the eyes blink.
+    const r = Math.min(p.w, p.h) / 2;
+    const rx =
+      Math.abs(p.ax) * (p.w / 2 - r) + Math.abs(p.cx) * (p.h / 2 - r) + r * Math.hypot(p.ax, p.cx);
+    const ry =
+      Math.abs(p.ay) * (p.w / 2 - r) + Math.abs(p.cy) * (p.h / 2 - r) + r * Math.hypot(p.ay, p.cy);
+    return {
+      d: capsulePath(p.w, p.h),
+      matrix: `matrix(${r2(p.ax)},${r2(p.ay * p.k)},${r2(p.cx)},${r2(p.cy * p.k)},${r2(p.x)},${r2(p.y)})`,
+      alpha: p.alpha,
+      bounds: { left: p.x - rx, top: p.y - ry, right: p.x + rx, bottom: p.y + ry },
+    };
+  });
 }
