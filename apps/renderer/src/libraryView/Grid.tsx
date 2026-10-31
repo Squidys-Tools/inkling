@@ -1,8 +1,9 @@
 import * as stylex from "@stylexjs/stylex";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GridCell, type GridContext } from "../cards/Card.tsx";
 import type { CardLayout } from "../cards/CardMedia.tsx";
+import { nextGeneration } from "./gridLayout.ts";
 
 const gap = 12;
 const targetWidth: Record<CardLayout, number> = {
@@ -40,6 +41,19 @@ export function Grid({
 }) {
   const frame = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
+  // A list that changes other than at its end gets a fresh masonry (see
+  // gridLayout.ts); the scroll position carries over to it.
+  const [layoutState, setLayoutState] = useState({ ids, generation: 0 });
+  const scrollTop = useRef(0);
+  const nextLayout = nextGeneration(layoutState, ids);
+  if (nextLayout !== layoutState) setLayoutState(nextLayout);
+  const generation = nextLayout.generation;
+
+  useLayoutEffect(() => {
+    if (generation === 0) return;
+    const scroller = frame.current?.querySelector<HTMLElement>("[data-bench='grid']");
+    if (scroller) scroller.scrollTop = scrollTop.current;
+  }, [generation]);
 
   useEffect(() => {
     const element = frame.current;
@@ -67,12 +81,14 @@ export function Grid({
       {...stylex.props(styles.frame)}
       onScrollCapture={(event) => {
         const scroller = event.target as HTMLElement;
+        scrollTop.current = scroller.scrollTop;
         if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < loadAhead)
           onNearEnd();
       }}
     >
       {width > 0 && (
         <VirtuosoMasonry
+          key={generation}
           data-bench="grid"
           columnCount={columnCount(width, layout)}
           data={ids as string[]}
