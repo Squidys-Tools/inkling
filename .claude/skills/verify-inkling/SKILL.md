@@ -38,7 +38,17 @@ It runs `node_modules/electron/dist/electron .` with `--remote-debugging-port=93
 
 It also disables renderer backgrounding and occlusion tracking. An occluded window reports `visibilityState` "hidden" and stops firing animation frames, which strands the item overlay mid-close and hangs motion-gated steps.
 
-Ready means `app://local/index.html` is listed at `http://127.0.0.1:9333/json/list`, which takes about 10 seconds. The first launch against an empty dir shows "0 items in library". Launch refuses when the port already has an owner. Other dev servers on the machine often hold 9333, so set `INKLING_VERIFY_PORT` to a free port and pass it to doctor, drive, and cleanup as well.
+Ready means `app://local/index.html` is listed at `http://127.0.0.1:9333/json/list`, which takes about 10 seconds. Launch refuses when the port has an owner or already responds with an inkling app page. Other dev servers on the machine often hold 9333, so set `INKLING_VERIFY_PORT` to a free port and pass it to doctor, drive, and cleanup as well.
+
+A fresh scratch library opens on the welcome screen, and a recipe driven from there saves its item and then returns to the welcome instead of Everything. Skip it once after launch; that marks onboarding complete in the scratch library:
+
+```json
+[
+  {"label":"welcome","wait":"section[aria-label='Welcome to inkling']"},
+  {"label":"skip welcome","clickText":{"selector":"button","text":"Skip"}},
+  {"label":"Everything","expect":"window.location.hash === '#/' && !document.querySelector(\"section[aria-label='Welcome to inkling']\")","timeoutMs":5000}
+]
+```
 
 Two instances side by side: give each its own name and port, `INKLING_VERIFY_NAME=b INKLING_VERIFY_PORT=9334 bun .claude/skills/verify-inkling/scripts/instance.mjs launch`, then pass the same two variables to doctor, drive, and cleanup.
 
@@ -50,27 +60,28 @@ Read-only. Run it first whenever anything looks off:
 bun .claude/skills/verify-inkling/scripts/instance.mjs doctor
 ```
 
-Every line must read PASS and the exit code must be 0: pidfile present, pid alive, pid runs our scratch dir, CDP port owned by that pid, app page loaded, library database exists, renderer build present. Doctor cannot see a hidden window. If a step stalls on an animation, check `document.visibilityState`; anything but "visible" means relaunch.
+Every line must read PASS and the exit code must be 0: pidfile present, pid alive, pid runs our scratch dir, the endpoint on the CDP port is the one our Electron logged in `electron.log` (`DevTools listening on ...`), app page loaded, library database exists, renderer build present. Launch waits for that same endpoint match before it reports ready. Doctor cannot see a hidden window. If a step stalls on an animation, check `document.visibilityState`; anything but "visible" means relaunch.
 
 ## Drive
 
 `scripts/drive.mjs` runs an ordered list of steps against the page and writes evidence. Steps are JSON objects with one key each:
 
-- `click`: CSS selector, clicks the first match.
-- `clickText`: `{selector, text}`, clicks the first match whose text contains `text`.
+- `click`: CSS selector, waits for a visible match, focuses it, then clicks it.
+- `clickText`: `{selector, text}`, the same for the first visible match whose text contains `text`.
+- `rightClick`: CSS selector; sends a right-button mouse event to the visible element's center. Electron's native menu may open outside CDP.
 - `fill`: CSS selector plus `text`, focuses, selects the field's text (inputs and textareas only), and inserts text. For a contenteditable, first run an `expect` that calls `getSelection().selectAllChildren(el)`, or `fill` inserts at the caret.
 - `key`: `Enter`, `Escape`, or a single character.
 - `wait`: selector that must appear.
 - `expect`: JavaScript expression that must become true.
 - `shot`: PNG filename written into the evidence dir.
 
-Each step may set `label`, and `timeoutMs` (default 8000). `clickText` does not wait; it fails at once if nothing matches yet. A failed step writes `failure.png` and stops the run, and a page that stops answering for 20 seconds fails the step instead of hanging the run.
+Each step may set `label`, and `timeoutMs` (default 8000). A failed step writes `failure.png` and stops the run, and a page that stops answering for 20 seconds fails the step instead of hanging the run.
 
 ```sh
 bun .claude/skills/verify-inkling/scripts/drive.mjs 9333 <steps.json> .artifacts/verify-inkling/<run-name>
 ```
 
-Selectors come from `apps/renderer/src` (`shell/`, `libraryView/`, `item/`, `pages/`). StyleX emits no semantic class names, so prefer aria-labels, roles and titles over classes and coordinates. The step lists in the feature files were written for the app before the rebuild; [features/README.md](features/README.md) says which still need re-driving. Every feature file carries a step list that was driven end to end on Windows. Compose them in order when a feature needs state: capture-note creates the cards the others use.
+Selectors come from `apps/renderer/src` (`shell/`, `libraryView/`, `item/`, `pages/`). StyleX emits no semantic class names, so prefer aria-labels, roles and titles over classes and coordinates. Feature files describe their prerequisites and current Windows flows; [features/README.md](features/README.md) records routes this CDP driver cannot reach. Compose recipes when a feature needs state: capture-note creates the cards the others use.
 
 ## Evidence
 
@@ -79,7 +90,7 @@ Every run writes to `.artifacts/verify-inkling/<run-name>/` (gitignored):
 - `steps.log`: one PASS or FAIL line per step.
 - `console.log`: renderer console, exceptions, and log entries captured during the run.
 - Numbered screenshots from `shot` steps, plus `failure.png` on a failed step.
-- Database proof: read the scratch `library.sqlite3` with bun's `bun:sqlite` in readonly mode, for example `items` rows with `kind`, `body`, `archived`. Include the query output in the run notes.
+- Database proof: read the scratch `library.sqlite3` with bun's `bun:sqlite` in readonly mode, for example `items` rows with `kind`, `body`, `archived`. Set `PRAGMA busy_timeout = 5000` first, or a read that lands on an app write fails with `database is locked`. Include the query output in the run notes.
 
 A proof must show the user action, the visible result, and the stored side effect. A card on screen with no row in `items` is not a pass, and neither is a row with no card.
 

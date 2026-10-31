@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // Runs a list of UI steps against one inkling instance over CDP and records evidence.
 // Usage: bun scripts/drive.mjs <cdpPort> <steps.json> <evidenceDir>
-// Each step is one key: click | clickText | fill | key | wait | expect | shot.
+// Each step is one key: click | clickText | rightClick | fill | key | wait | expect | shot.
 // Writes <evidenceDir>/steps.log and <evidenceDir>/console.log; a failed step also writes failure.png.
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -95,21 +95,42 @@ const KEYS = {
 
 async function run(step) {
   const timeout = step.timeoutMs ?? 8000;
-  if (step.click) {
-    const found = await poll(`!!document.querySelector(${q(step.click)})`, timeout);
-    if (!found) throw new Error(`no element ${step.click}`);
-    await evaluate(`document.querySelector(${q(step.click)}).click()`);
-    return;
-  }
-  if (step.clickText) {
-    const { selector, text } = step.clickText;
-    const clicked = await evaluate(`(() => {
-      const el = [...document.querySelectorAll(${q(selector)})].find((node) => node.textContent.includes(${q(text)}));
-      if (!el) return false;
-      el.click();
-      return true;
-    })()`);
-    if (!clicked) throw new Error(`no ${selector} containing "${text}"`);
+  if (step.click || step.clickText || step.rightClick) {
+    const selector = step.rightClick ?? step.click ?? step.clickText.selector;
+    const text = step.clickText?.text ?? "";
+    const match = `[...document.querySelectorAll(${q(selector)})].find(
+      (node) => node.textContent.includes(${q(text)}) && node.getClientRects().length,
+    )`;
+    if (!(await poll(`!!${match}`, timeout)))
+      throw new Error(`no visible ${selector}${text ? ` containing "${text}"` : ""}`);
+    if (step.rightClick) {
+      const point = await evaluate(`(() => {
+        const rect = ${match}.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      })()`);
+      await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
+      await send("Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        ...point,
+        button: "right",
+        buttons: 2,
+        clickCount: 1,
+      });
+      await send("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        ...point,
+        button: "right",
+        buttons: 0,
+        clickCount: 1,
+      });
+    } else {
+      await evaluate(`(() => {
+        const el = ${match};
+        el.focus({ preventScroll: true });
+        el.click();
+        return true;
+      })()`);
+    }
     return;
   }
   if (step.fill) {

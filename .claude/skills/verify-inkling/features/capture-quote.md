@@ -1,33 +1,30 @@
-# Capture a quote from the Add menu
+# Capture a quote from Add
 
-## Sub-features
+## User flow
 
-- Quote tile in the Add menu, with optional attribution and source URL.
-
-## How to get to it (user POV)
-
-Click Add at the foot of the sidebar and choose Quote. Type the quote, optionally add who said it and a source link, and press Save to library. The new card lands at the top of Everything.
+Choose **Add → Quote**, enter the required quote text, optionally enter an attribution and source URL, then choose **Save to library**. Ctrl+Enter on Windows/Linux or Cmd+Enter on macOS also submits. Saving returns to Everything and selects the new quote card.
 
 ## Driving it with `scripts/drive.mjs`
 
+Leave Source URL empty to keep the drive independent of the network.
+
 ```json
 [
-  {"label": "open Add", "click": "button.add-button"},
-  {"label": "choose Quote", "clickText": {"selector": ".add-menu-tile", "text": "Quote"}},
-  {"label": "quote field", "wait": "textarea[aria-label='Quote text']"},
-  {"label": "type quote", "fill": "textarea[aria-label='Quote text']", "text": "verify quote text"},
-  {"label": "attribution", "fill": "input[aria-label='Quote attribution']", "text": "Ada Probe, Notes"},
-  {"label": "save", "click": "button.add-menu-save"},
-  {"label": "card shows", "expect": "[...document.querySelectorAll('article')].some(a => a.textContent.includes('verify quote text'))", "timeoutMs": 10000},
-  {"label": "dialog closed", "expect": "!document.querySelector('.add-menu-panel')"},
-  {"label": "shot", "shot": "quote-saved.png"}
+  {"label":"open Add","clickText":{"selector":"button","text":"Add"}},
+  {"label":"choose Quote","clickText":{"selector":"[role=menuitem]","text":"Quote"}},
+  {"label":"quote field","wait":"textarea[aria-label='Quote text']"},
+  {"label":"type quote","fill":"textarea[aria-label='Quote text']","text":"Small steps cross oceans"},
+  {"label":"attribution","fill":"input[aria-label='Attribution']","text":"Ada Probe, Notes"},
+  {"label":"save","clickText":{"selector":"button","text":"Save to library"}},
+  {"label":"quote card appears","expect":"document.querySelectorAll(\"article[aria-label^='Quote:']\").length > 0","timeoutMs":10000},
+  {"label":"shot","shot":"quote-saved.png"}
 ]
 ```
 
-End state: the card is in the grid, and `items` has one row with `kind = 'quote'`, `title = 'verify quote text'`, `description = 'Ada Probe, Notes'`, `body = ''`, `source_label = 'Ada Probe'`, `archived = 0`, and `metadata.quoteText` equal to the quote.
+The card is the visible proof. Read the scratch `items` row to prove `kind = 'quote'`, `title` is the quote, `description` is the attribution, `body = ''`, `source_label` is the attribution before its comma when no URL is set, `metadata.quoteText` is the quote, and `archived = 0`.
 
 ## Gotchas
 
-- The quote text is stored in `title` and the attribution in `description`, the reverse of a note, which keeps its text in `body`.
-- Leave the source URL empty. A URL is normalised and becomes the `source_label` host, and the quote can then depend on external state.
-- Same Add-menu rules as `capture-note.md`: the sidebar must be open.
+- Add opens a menu and then a full-page form; there is no `.add-menu-panel` or `.add-menu-save` element.
+- The attribution field is labeled **Attribution**.
+- Quote text is stored in `title` and `metadata.quoteText`; attribution is stored in `description`.
