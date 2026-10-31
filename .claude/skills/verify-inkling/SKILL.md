@@ -67,14 +67,14 @@ Every line must read PASS and the exit code must be 0: pidfile present, pid aliv
 `scripts/drive.mjs` runs an ordered list of steps against the page and writes evidence. Steps are JSON objects with one key each:
 
 - `click`: CSS selector, waits for a visible match, focuses it, then clicks it.
-- `clickText`: `{selector, text}`, focuses and clicks the first visible match whose text contains `text`.
+- `clickText`: `{selector, text}`, the same for the first visible match whose text contains `text`.
 - `fill`: CSS selector plus `text`, focuses, selects the field's text (inputs and textareas only), and inserts text. For a contenteditable, first run an `expect` that calls `getSelection().selectAllChildren(el)`, or `fill` inserts at the caret.
 - `key`: `Enter`, `Escape`, or a single character.
 - `wait`: selector that must appear.
 - `expect`: JavaScript expression that must become true.
 - `shot`: PNG filename written into the evidence dir.
 
-Each step may set `label`, and `timeoutMs` (default 8000). `clickText` does not wait; it fails at once if nothing matches yet. A failed step writes `failure.png` and stops the run, and a page that stops answering for 20 seconds fails the step instead of hanging the run.
+Each step may set `label`, and `timeoutMs` (default 8000). A failed step writes `failure.png` and stops the run, and a page that stops answering for 20 seconds fails the step instead of hanging the run.
 
 ```sh
 bun .claude/skills/verify-inkling/scripts/drive.mjs 9333 <steps.json> .artifacts/verify-inkling/<run-name>

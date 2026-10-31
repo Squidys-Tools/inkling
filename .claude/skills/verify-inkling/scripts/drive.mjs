@@ -95,30 +95,20 @@ const KEYS = {
 
 async function run(step) {
   const timeout = step.timeoutMs ?? 8000;
-  if (step.click) {
-    const visible = `[...document.querySelectorAll(${q(step.click)})].find((node) => node.getClientRects().length)`;
-    const found = await poll(`!!${visible}`, timeout);
-    if (!found) throw new Error(`no visible element ${step.click}`);
+  if (step.click || step.clickText) {
+    const selector = step.click ?? step.clickText.selector;
+    const text = step.clickText?.text ?? "";
+    const match = `[...document.querySelectorAll(${q(selector)})].find(
+      (node) => node.textContent.includes(${q(text)}) && node.getClientRects().length,
+    )`;
+    if (!(await poll(`!!${match}`, timeout)))
+      throw new Error(`no visible ${selector}${text ? ` containing "${text}"` : ""}`);
     await evaluate(`(() => {
-      const el = ${visible};
+      const el = ${match};
       el.focus({ preventScroll: true });
       el.click();
       return true;
     })()`);
-    return;
-  }
-  if (step.clickText) {
-    const { selector, text } = step.clickText;
-    const clicked = await evaluate(`(() => {
-      const el = [...document.querySelectorAll(${q(selector)})].find(
-        (node) => node.textContent.includes(${q(text)}) && node.getClientRects().length,
-      );
-      if (!el) return false;
-      el.focus({ preventScroll: true });
-      el.click();
-      return true;
-    })()`);
-    if (!clicked) throw new Error(`no ${selector} containing "${text}"`);
     return;
   }
   if (step.fill) {
