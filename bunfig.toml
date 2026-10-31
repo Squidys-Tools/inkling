@@ -1,3 +1,0 @@
-[test]
-# next/ is its own workspace and runs its own tests.
-pathIgnorePatterns = ["next/**"]
