@@ -1,0 +1,10 @@
+{
+  "name": "@inkling/library",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./process": "./src/process.ts",
+    "./paths": "./src/paths.ts"
+  }
+}

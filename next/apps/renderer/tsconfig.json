@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src",
+    "../../packages/ui/src",
+    "../../packages/contracts/src",
+    "../../packages/rpc-electron/src/client-renderer.ts",
+    "../../packages/rpc-electron/src/promise-client.ts"
+  ]
+}

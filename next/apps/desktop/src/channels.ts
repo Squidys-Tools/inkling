@@ -1,0 +1,28 @@
+// Channel names shared by the preload and main. Kept free of imports: the
+// sandboxed preload bundles this file.
+export const channels = {
+  libraryConnect: "inkling:library:connect",
+  libraryPort: "inkling:library-port",
+  command: "inkling:command",
+  captures: "inkling:captures",
+  windowMinimize: "inkling:window:minimize",
+  windowToggleMaximize: "inkling:window:toggle-maximize",
+  windowClose: "inkling:window:close",
+  windowReady: "inkling:window:ready",
+  appVersion: "inkling:app-version",
+  contextMenu: "inkling:context-menu",
+  confirm: "inkling:confirm",
+  chooseDirectory: "inkling:choose-directory",
+  showItemInFolder: "inkling:show-item-in-folder",
+  showLibraryFolder: "inkling:show-library-folder",
+  openExternal: "inkling:open-external",
+  updateState: "inkling:update:state",
+  updateCheck: "inkling:update:check",
+  updateDownload: "inkling:update:download",
+  updateInstall: "inkling:update:install",
+  updateSetChannel: "inkling:update:set-channel",
+  updateChanged: "inkling:update:changed",
+  captureReceiver: "inkling:capture:receiver",
+  capturePairingToken: "inkling:capture:pairing-token",
+  captureRegenerateToken: "inkling:capture:regenerate-token",
+} as const;

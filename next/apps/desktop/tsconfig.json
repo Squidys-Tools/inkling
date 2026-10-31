@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "lib": ["ES2023", "DOM"], "types": ["bun"] },
+  "include": [
+    "src",
+    "build.ts",
+    "../../packages/contracts/src",
+    "../../packages/rpc-electron/src/server.ts",
+    "../../packages/rpc-electron/src/client-main.ts"
+  ]
+}
