@@ -8,7 +8,7 @@ import {
   hasEmbeddableCharacters,
   layerNormalize,
   l2Normalize,
-  textTokens,
+  textTokenWindows,
 } from "./embeddings.ts";
 
 test("Nomic document normalization produces a unit vector and little-endian storage bytes", () => {
@@ -22,19 +22,34 @@ test("Nomic document normalization produces a unit vector and little-endian stor
   expect(floatVectorBytes(vector).readFloatLE(0)).toBeCloseTo(vector[0], 6);
 });
 
-test("tokenizer truncation preserves the final special token at the 8192-token document limit", () => {
-  const values = Array.from({ length: 8193 }, (_, index) => index);
-  const typeIds = values.map((_, index) => Number(index === values.length - 1));
-  const encoded = textTokens(
-    { encode: () => ({ ids: values, token_type_ids: typeIds }) },
-    "large document",
-  );
+const encoder = (ids: number[]) => ({
+  encode: () => ({ ids, token_type_ids: ids.map((_, index) => Number(index === ids.length - 1)) }),
+});
 
-  expect(encoded.ids).toHaveLength(8192);
-  expect(encoded.typeIds).toHaveLength(8192);
-  expect(encoded.ids.at(-1)).toBe(8192);
-  expect(encoded.typeIds.at(-1)).toBe(1);
-  expect(encoded.mask).toEqual(new Array(8192).fill(1));
+test("text within the 8192-token window stays one unchanged window", () => {
+  const values = Array.from({ length: 8192 }, (_, index) => index);
+  const windows = textTokenWindows(encoder(values), "document");
+
+  expect(windows).toHaveLength(1);
+  expect(windows[0].ids).toEqual(values);
+  expect(windows[0].mask).toEqual(new Array(8192).fill(1));
+});
+
+test("text past the 8192-token window is split so every token is embedded", () => {
+  // 20,000 tokens: an opening and closing special token around 19,998 of text.
+  const values = Array.from({ length: 20_000 }, (_, index) => index);
+  const windows = textTokenWindows(encoder(values), "large document");
+
+  expect(windows.map((window) => window.ids.length)).toEqual([8192, 8192, 3620]);
+  for (const window of windows) {
+    expect(window.ids[0]).toBe(0);
+    expect(window.ids.at(-1)).toBe(19_999);
+    expect(window.typeIds.at(-1)).toBe(1);
+    expect(window.typeIds).toHaveLength(window.ids.length);
+    expect(window.mask).toHaveLength(window.ids.length);
+  }
+  const body = windows.flatMap((window) => window.ids.slice(1, -1));
+  expect(body).toEqual(values.slice(1, -1));
 });
 
 test("Nomic text validation accepts Unicode letters and numbers", () => {
