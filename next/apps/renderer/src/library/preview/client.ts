@@ -7,6 +7,7 @@ import type {
   Space,
   SpaceQuery,
 } from "@inkling/contracts";
+import { markdownToPlainText } from "@inkling/ingestion/markdown-text";
 import { displayKind } from "../cardModel.ts";
 import type { LibraryClient } from "../connection.ts";
 import {
@@ -215,7 +216,7 @@ export function createPreviewClient(): LibraryClient {
           "note",
           {
             title: title?.trim() || firstLine.replace(/^#+\s*/u, "").slice(0, 80) || null,
-            description: body.slice(0, 240),
+            description: markdownToPlainText(body),
             sourceLabel: "Quick note",
           },
           { ...metadata },
@@ -286,7 +287,8 @@ export function createPreviewClient(): LibraryClient {
       const card: LibraryCard = {
         ...found.card,
         title: title ?? found.card.title,
-        description: description ?? found.card.description,
+        description:
+          description ?? (body == null ? found.card.description : markdownToPlainText(body)),
         sourceUrl: sourceUrl ?? found.card.sourceUrl,
         metadata: {
           ...found.card.metadata,

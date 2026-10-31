@@ -8,8 +8,10 @@ import { connect, pageTarget } from "./cdp.ts";
 const executable = process.argv[2];
 const port = 9300 + Math.floor(Math.random() * 500);
 const dataDirectory = await mkdtemp(join(tmpdir(), "inkling-smoke-"));
-const electron = (await import("electron")).default as unknown as string;
-const command = executable ? [executable] : [electron, "."];
+// The electron package throws on import when installed with --ignore-scripts, as CI's packaging jobs do.
+const command = executable
+  ? [executable]
+  : [(await import("electron")).default as unknown as string, "."];
 const app = Bun.spawn(
   [
     ...command,

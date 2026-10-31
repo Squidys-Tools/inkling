@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["tools/**/*.ts"],
+      "ignoreDependencies": ["@img/sharp-wasm32"],
+      "ignoreBinaries": ["dpkg-deb"]
+    },
+    "apps/desktop": {
+      "entry": ["src/main.ts", "src/preload.ts", "build.ts", "after-pack.cjs"]
+    },
+    "apps/renderer": {
+      "entry": ["index.html"]
+    },
+    "packages/library": {
+      "entry": ["src/storage/sqlite-snapshot-worker.ts"]
+    },
+    "packages/*": {},
+    "tools/*": {
+      "entry": ["*.{ts,mjs}"]
+    }
+  }
+}

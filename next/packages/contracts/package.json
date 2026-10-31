@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./capture": "./src/capture.ts",
     "./desktop": "./src/desktop.ts",
     "./jobs": "./src/jobs.ts",
     "./shortcuts": "./src/shortcuts.ts"

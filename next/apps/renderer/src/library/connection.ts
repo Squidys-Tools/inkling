@@ -31,10 +31,10 @@ let preview: Promise<LibraryClient> | undefined;
 /** The client for the library process, or for the in-memory demo library in the web preview. */
 export function libraryClient(): Promise<LibraryClient> {
   if (library) return library.client();
-  if (!import.meta.env.DEV)
+  // The web preview serves the demo seed from memory, only in development and in
+  // `build:web`'s preview mode, so the desktop bundle never carries the seed's images.
+  if (!import.meta.env.DEV && import.meta.env.MODE !== "preview")
     return Promise.reject(new Error("The library is only available in the desktop app."));
-  // The web preview serves the demo seed from memory, and only in development
-  // builds, so the desktop bundle never carries the seed's images.
   preview ??= import("./preview/client.ts").then(({ createPreviewClient }) =>
     createPreviewClient(),
   );

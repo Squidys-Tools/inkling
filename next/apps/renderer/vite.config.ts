@@ -23,7 +23,7 @@ const linkStylexCss = (command: "build" | "serve"): Plugin => ({
   ],
 });
 
-export default defineConfig(({ command }) => ({
+export default defineConfig(({ command, mode }) => ({
   root: fileURLToPath(new URL(".", import.meta.url)),
   // app://local/ serves the build from its own folder, so asset URLs stay relative.
   base: "./",
@@ -39,7 +39,8 @@ export default defineConfig(({ command }) => ({
     thirdPartyLicenses(workspace),
   ],
   build: {
-    outDir: `${workspace}/dist/renderer`,
+    // `build:web` (mode preview) carries the demo seed, so it never lands where the app is packed from.
+    outDir: `${workspace}/dist/${mode === "preview" ? "web" : "renderer"}`,
     emptyOutDir: true,
     target: "chrome140",
     // Fonts are tiny next to the bundle and must not turn into data: URLs.

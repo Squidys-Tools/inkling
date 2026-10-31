@@ -15,6 +15,9 @@ const results = await Promise.all([
     main: "apps/desktop/src/main.ts",
     library: "packages/library/src/process.ts",
     worker: "packages/jobs/src/process.ts",
+    // The packaged smokes in tools/smoke import these two; the app bundles them inline.
+    updates: "apps/desktop/src/updates/controller.ts",
+    "video-poster": "packages/jobs/src/video-poster.ts",
   }).map(([name, entry]) =>
     Bun.build({
       entrypoints: [entry],
@@ -22,8 +25,9 @@ const results = await Promise.all([
       target: "node",
       format: "esm",
       // Lazy imports (PDF, thumbnails, URL extraction) become chunks loaded on first use.
+      // The module's name stays in the chunk's, so the packaged smokes find `worker-pdf-*.mjs`.
       splitting: true,
-      naming: { entry: `${name}.mjs`, chunk: `${name}-[hash].mjs` },
+      naming: { entry: `${name}.mjs`, chunk: `${name}-[name]-[hash].mjs` },
       external,
     }),
   ),

@@ -1,8 +1,7 @@
 import type { LibraryCard, Space } from "@inkling/contracts";
 
-// The web preview's library: the demo seed from the old app's public/seed-demo
-// and seedPersonal.ts, plus one item of each kind the seed lacks. Image sizes
-// match the files, so cards keep their real proportions.
+// The web preview's library: the demo seed in ./seed-demo, plus one item of each
+// kind the seed lacks. Image sizes match the files, so cards keep their real proportions.
 const files = import.meta.glob<string>("./seed-demo/*", {
   eager: true,
   query: "?url",
