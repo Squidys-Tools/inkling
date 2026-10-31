@@ -77,6 +77,7 @@ function initializeLibraryStorage() {
   });
   storageReady ??= openLibraryRuntime({
     databasePath: join(libraryDirectory, "library.sqlite3"),
+    appVersion: app.getVersion(),
     ai: aiJobProcessors,
     onJobUpdated: emitJobUpdated,
   }).then(

@@ -143,7 +143,7 @@ export function makeExport(ctx: StorageContext) {
     const manifest = {
       format: "inkling-export",
       formatVersion: 1,
-      appVersion: "0.1.0",
+      appVersion: ctx.appVersion,
       schemaVersion: SCHEMA_VERSION,
       exportedAt,
       counts: {

@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { createAiJobProcessors as createProcessors } from "./ai-jobs.ts";
 import { IMAGE_MODEL, TEXT_MODEL } from "./embedding-contract.ts";
 import type { Job } from "./storage/jobs.ts";
-import type { JobQueue, Library, LibraryOptions } from "./storage/library.ts";
-import type { TestLibrary } from "./storage/test-library.ts";
+import type { JobQueue, Library } from "./storage/library.ts";
+import type { TestLibrary, TestLibraryOptions } from "./storage/test-library.ts";
 import {
   closeAll,
   removeTemporaryRoots,
@@ -31,17 +31,14 @@ export async function closeProcessors(ai: Ai) {
   await ai.close();
 }
 
-export async function openLibrary(
-  path: string,
-  { media, ...options }: Omit<LibraryOptions, "databasePath"> = {},
-) {
+export async function openLibrary(path: string, { media, ...options }: TestLibraryOptions = {}) {
   return trackedLibrary(path, {
     media: { createThumbnail: createImageThumbnail, inspectImage, ...media },
     ...options,
   });
 }
 
-export async function temporaryLibrary(options: Omit<LibraryOptions, "databasePath"> = {}) {
+export async function temporaryLibrary(options: TestLibraryOptions = {}) {
   const root = temporaryRoot();
   return { root, library: await openLibrary(join(root, "library.sqlite3"), options) };
 }

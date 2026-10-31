@@ -2,10 +2,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import type { LibraryOptions } from "./library.ts";
-import { openTestLibrary, type TestLibrary } from "./test-library.ts";
-
-type Options = Omit<LibraryOptions, "databasePath">;
+import {
+  openTestLibrary,
+  type TestLibrary,
+  type TestLibraryOptions as Options,
+} from "./test-library.ts";
 
 const roots: string[] = [];
 const libraries = new Set<TestLibrary>();

@@ -11,15 +11,18 @@ export type LibraryRuntime = Awaited<ReturnType<typeof openLibraryRuntime>>;
 // and starts both workers. Disposing the runtime hands any running job back.
 export async function openLibraryRuntime({
   databasePath,
+  appVersion,
   ai,
   onJobUpdated,
 }: {
   databasePath: string;
+  appVersion: string;
   ai: ReturnType<typeof createAiJobProcessors>;
   onJobUpdated: (itemId: string) => void;
 }) {
   const library = libraryLayer({
     databasePath,
+    appVersion,
     jobQueue: { onUpdated: onJobUpdated },
     media: {
       createSnapshot: snapshotDatabase,

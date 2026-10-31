@@ -121,6 +121,7 @@ Rules for entries:
 - Free-text search returns only items whose text matches or whose meaning is close to the query, instead of every item in the library; semantic matches below a 0.55 cosine similarity are dropped
 - List view rows for notes, quotes, and videos sit in the same thumbnail column as other items, the quote text no longer overlaps itself, and the video play control sits on the thumbnail.
 - The browser extension's failure badge is no longer cleared by an earlier save's success timer
+- Library exports record the version of inkling that wrote them in `manifest.json` instead of always `0.1.0`
 
 ### Changed
 

@@ -7,13 +7,15 @@ import { makeWorker, type WorkerOptions } from "./worker.ts";
 
 type Services = Library | JobQueue | SqlClient.SqlClient;
 
+export type TestLibraryOptions = Omit<LibraryOptions, "databasePath" | "appVersion"> &
+  Partial<Pick<LibraryOptions, "appVersion">>;
+
 // Tests drive the library through the same Promise facade the IPC handlers use,
 // and set up or inspect rows through a second, plain connection to the file.
-export async function openTestLibrary(
-  databasePath: string,
-  options: Omit<LibraryOptions, "databasePath"> = {},
-) {
-  const runtime = ManagedRuntime.make(libraryLayer({ databasePath, ...options }));
+export async function openTestLibrary(databasePath: string, options: TestLibraryOptions = {}) {
+  const runtime = ManagedRuntime.make(
+    libraryLayer({ databasePath, appVersion: "0.0.0-test", ...options }),
+  );
   const run = <A, E>(effect: Effect.Effect<A, E, Services>) => runtime.runPromise(effect);
   const [library, jobs] = await run(
     Effect.gen(function* () {

@@ -45,6 +45,7 @@ export function resolveLibraryDataDirectory({
 
 export type LibraryOptions = {
   databasePath: string;
+  appVersion: string;
   media?: StorageMedia;
   jobQueue?: JobQueueOptions;
   // Tests turn FTS off to cover the LIKE fallback on SQLite builds without FTS5.
@@ -53,6 +54,7 @@ export type LibraryOptions = {
 
 const makeLibrary = Effect.fnUntraced(function* (
   databasePath: string,
+  appVersion: string,
   fts5Enabled: boolean,
   media: StorageMedia,
 ) {
@@ -63,6 +65,7 @@ const makeLibrary = Effect.fnUntraced(function* (
     sql,
     jobs,
     databasePath,
+    appVersion,
     assetsRoot,
     assetsDirectory: join(assetsRoot, "items"),
     fts5Enabled,
@@ -102,7 +105,13 @@ export class Library extends Context.Service<
 
 // Migrations need multi-statement DDL, which the Effect client cannot run, so
 // they finish on a plain connection before the client opens the file.
-export function libraryLayer({ media = {}, jobQueue, useFts5, ...options }: LibraryOptions) {
+export function libraryLayer({
+  appVersion,
+  media = {},
+  jobQueue,
+  useFts5,
+  ...options
+}: LibraryOptions) {
   const databasePath = resolve(options.databasePath);
   return Layer.unwrap(
     Effect.try({
@@ -117,7 +126,7 @@ export function libraryLayer({ media = {}, jobQueue, useFts5, ...options }: Libr
       Effect.map((fts5Enabled) =>
         Layer.effect(
           Library,
-          makeLibrary(databasePath, fts5Enabled && useFts5 !== false, media),
+          makeLibrary(databasePath, appVersion, fts5Enabled && useFts5 !== false, media),
         ).pipe(
           Layer.provideMerge(Layer.effect(JobQueue, makeJobQueue(jobQueue))),
           Layer.provideMerge(SqliteClient.layer({ filename: databasePath, disableWAL: true })),
