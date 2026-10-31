@@ -30,7 +30,6 @@ export function RichNoteEditor({
   const [error, setError] = useState<string | null>(null);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
   const editorRootRef = useRef<HTMLDivElement>(null);
-  const linkInputRef = useRef<HTMLInputElement>(null);
   const editor = useEditor({
     extensions: noteEditorExtensions,
     content: "",
@@ -65,12 +64,6 @@ export function RichNoteEditor({
     editorRootRef.current?.scrollIntoView({ block: "start" });
     editor.commands.focus();
   }, [editor]);
-
-  useEffect(() => {
-    if (linkDraft === null) return;
-    linkInputRef.current?.focus();
-    linkInputRef.current?.select();
-  }, [linkDraft]);
 
   const toolbar = useToolbarState(editor);
 
@@ -163,7 +156,6 @@ export function RichNoteEditor({
           )}
           {linkDraft !== null && (
             <NoteLinkPopover
-              ref={linkInputRef}
               draft={linkDraft}
               canRemove={Boolean(toolbar?.link)}
               onDraftChange={setLinkDraft}

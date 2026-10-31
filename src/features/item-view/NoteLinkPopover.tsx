@@ -1,16 +1,14 @@
-import type { Ref } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { isSafeNoteLink } from "../../lib/notes";
 import "./NoteLinkPopover.css";
 
 export function NoteLinkPopover({
-  ref,
   draft,
   canRemove,
   onDraftChange,
   onApply,
   onRemove,
 }: {
-  ref: Ref<HTMLInputElement>;
   draft: string;
   canRemove: boolean;
   /** null closes the popover. */
@@ -18,10 +16,16 @@ export function NoteLinkPopover({
   onApply: () => void;
   onRemove: () => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Only on open: selecting on every draft change would replace the URL with each keystroke.
+  useLayoutEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
   return (
     <fieldset className="note-link-popover" aria-label="Link">
       <input
-        ref={ref}
+        ref={inputRef}
         className="note-link-input"
         aria-label="Link URL"
         value={draft}
