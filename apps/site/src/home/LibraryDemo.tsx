@@ -70,12 +70,13 @@ export function LibraryDemo() {
           </div>
         ))}
       </div>
-      {found.length === 0 && (
-        <p {...stylex.props(styles.empty)}>
-          Nothing in this demo has every one of those words. The app also searches by meaning and
-          reads the words inside your pictures.
-        </p>
-      )}
+      <p role="status" {...stylex.props(found.length === 0 ? styles.empty : styles.unseen)}>
+        {found.length === 0
+          ? "Nothing in this demo has every one of those words. The app also searches by meaning and reads the words inside your pictures."
+          : deferred.trim()
+            ? `${found.length} ${found.length === 1 ? "card matches" : "cards match"}`
+            : ""}
+      </p>
     </section>
   );
 }
@@ -147,4 +148,14 @@ const styles = stylex.create({
   },
   cell: { breakInside: "avoid" },
   empty: { margin: 0, maxWidth: "52ch", color: color.muted, lineHeight: 1.6 },
+  // Read out by screen readers, which cannot see the grid change.
+  unseen: {
+    position: "absolute",
+    width: "1px",
+    height: "1px",
+    margin: "-1px",
+    overflow: "hidden",
+    clipPath: "inset(50%)",
+    whiteSpace: "nowrap",
+  },
 });
