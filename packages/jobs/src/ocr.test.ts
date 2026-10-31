@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import sharp from "sharp";
 import { createTesseractOcr } from "./ocr.ts";
 import { fixture } from "./test-fixtures.ts";
 
@@ -119,6 +120,49 @@ test("files and passes share a bounded worker pool and ties resolve in the seria
   expect(stats.count).toBe(3);
   expect(stats.peak).toBe(3);
   expect(stats.cachePaths.size).toBe(3);
+});
+
+test("a large image reads two passes at a time and replaces each worker it grew", async () => {
+  const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-large-"));
+  roots.push(cacheDirectory);
+  const stats = { created: 0, terminated: 0, active: 0, peak: 0, calls: 0 };
+  const ocr = createTesseractOcr({
+    cacheDirectory,
+    workers: 4,
+    workerFactory: async () => {
+      stats.created++;
+      return {
+        setParameters: async () => {},
+        recognize: async () => {
+          stats.calls++;
+          stats.peak = Math.max(stats.peak, ++stats.active);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          stats.active--;
+          return { data: { text: "faint", confidence: 50 } };
+        },
+        terminate: async () => {
+          stats.terminated++;
+        },
+      };
+    },
+  });
+  // 3000 x 2000 pixels, just over the large-image threshold.
+  const large = await sharp({
+    create: { width: 3000, height: 2000, channels: 3, background: "#ffffff" },
+  })
+    .png()
+    .toBuffer();
+  try {
+    expect(await ocr.recognize(large)).toBe("faint");
+  } finally {
+    await ocr.close();
+  }
+  // 3 page modes, contrast and 6 rotations, never more than two at once, and
+  // every worker that read the large image was shut down rather than kept.
+  expect(stats.calls).toBe(10);
+  expect(stats.peak).toBe(2);
+  expect(stats.created).toBe(10);
+  expect(stats.terminated).toBe(10);
 });
 
 test("close cancels hung recognition and queued files even if terminate never settles recognition", async () => {

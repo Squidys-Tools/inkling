@@ -28,7 +28,13 @@ type OcrWorkerFactory = (
 // Each Tesseract worker reads on one core, so a few of them read several images,
 // and the page modes and rotations of one image, at once. Capped for memory.
 export const defaultOcrWorkers = () =>
-  Math.min(6, Math.max(2, Math.floor(availableParallelism() / 3)));
+  Math.min(4, Math.max(2, Math.floor(availableParallelism() / 3)));
+
+// Tesseract's heap grows to the largest image a worker has read and never
+// shrinks, so passes over a large image are limited to two at a time and the
+// worker that ran one is replaced afterwards. Small images keep the full pool.
+export const LARGE_OCR_PIXELS = 6_000_000;
+const LARGE_OCR_PASSES = 2;
 
 export function createTesseractOcr({
   cacheDirectory,
@@ -46,6 +52,8 @@ export function createTesseractOcr({
   const idle: number[] = [];
   const waiting: ((slot: number) => void)[] = [];
   let started = 0;
+  let largeActive = 0;
+  const largeWaiting: (() => void)[] = [];
   const pending = new Set<(error: Error) => void>();
   const inFlight = new Set<Promise<unknown>>();
   let closed = false;
@@ -87,21 +95,46 @@ export function createTesseractOcr({
     if (next) next(slot);
     else idle.push(slot);
   }
+  function acquireLarge() {
+    if (largeActive < LARGE_OCR_PASSES) {
+      largeActive += 1;
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => largeWaiting.push(resolve));
+  }
+  function releaseLarge() {
+    const next = largeWaiting.shift();
+    if (next) next();
+    else largeActive -= 1;
+  }
+  // The next pass in this slot starts a fresh worker with a small heap.
+  async function retire(slot: number) {
+    const current = workers[slot];
+    workers[slot] = undefined;
+    await current?.then((done) => done.terminate()).catch(() => {});
+  }
   // A pass may prepare its bytes once it holds a worker, so at most `poolSize`
   // rotated copies are alive at once across every file.
-  async function pass(input: Buffer | (() => Promise<Buffer>), psm: number) {
-    const slot = await acquire();
+  async function pass(input: Buffer | (() => Promise<Buffer>), psm: number, large = false) {
+    if (large) await acquireLarge();
     try {
       if (aborted) throw cancellation();
-      const bytes = typeof input === "function" ? await input() : input;
-      if (aborted) throw cancellation();
-      const current = await worker(slot);
-      if (aborted) throw cancellation();
-      await current.setParameters({ tessedit_pageseg_mode: String(psm) });
-      if (aborted) throw cancellation();
-      return await current.recognize(bytes);
+      const slot = await acquire();
+      try {
+        if (aborted) throw cancellation();
+        const bytes = typeof input === "function" ? await input() : input;
+        if (aborted) throw cancellation();
+        const current = await worker(slot);
+        if (aborted) throw cancellation();
+        await current.setParameters({ tessedit_pageseg_mode: String(psm) });
+        if (aborted) throw cancellation();
+        return await current.recognize(bytes);
+      } finally {
+        if (large && slot >= 0 && !aborted) await retire(slot);
+        release(slot);
+      }
     } finally {
-      release(slot);
+      if (large) releaseLarge();
     }
   }
   // Every pass of a stage runs at once; results are then judged in the original
@@ -121,6 +154,8 @@ export function createTesseractOcr({
     const image = await sharp(await sharpImageInput(input))
       .png()
       .toBuffer();
+    const { width = 0, height = 0 } = await sharp(image).metadata();
+    const large = width * height >= LARGE_OCR_PIXELS;
     let bestText = "";
     let bestQuality = -1;
     let bestWordCount = 0;
@@ -138,14 +173,19 @@ export function createTesseractOcr({
     }
     // Preserve all three page modes and the original confidence/word-count
     // decisions; this optimization never skips OCR on an assumed textless image.
-    for (const result of await passes([3, 6, 7].map((psm) => pass(image, psm)))) consider(result);
+    for (const result of await passes([3, 6, 7].map((psm) => pass(image, psm, large))))
+      consider(result);
     if (bestWordCount === 0 || bestConfidence < 70) {
       const highContrast = await sharp(image).grayscale().threshold(225).png().toBuffer();
-      consider(await pass(highContrast, 6));
+      consider(await pass(highContrast, 6, large));
     }
     if (bestWordCount < 8 || bestConfidence < 70) {
       const rotations = [-15, -10, -5, 5, 10, 15].map((angle) =>
-        pass(() => sharp(image).rotate(angle, { background: "#ffffff" }).png().toBuffer(), 6),
+        pass(
+          () => sharp(image).rotate(angle, { background: "#ffffff" }).png().toBuffer(),
+          6,
+          large,
+        ),
       );
       for (const result of await passes(rotations)) consider(result);
     }
@@ -193,6 +233,10 @@ export function createTesseractOcr({
       pending.clear();
       // Passes still waiting for a worker wake, see the abort and stop.
       for (const wake of waiting.splice(0)) wake(-1);
+      for (const wake of largeWaiting.splice(0)) {
+        largeActive += 1;
+        wake();
+      }
       const terminations = Promise.allSettled(
         workers.splice(0).map(async (worker) => (await worker)?.terminate()),
       );
