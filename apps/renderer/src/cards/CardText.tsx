@@ -61,12 +61,14 @@ export function CardText({
   processing,
   onRead,
   onOpen,
+  onRetry,
 }: {
   view: CardView;
   list: boolean;
   processing: Processing | undefined;
   onRead: () => void;
   onOpen: () => void;
+  onRetry: (jobId: string) => void;
 }) {
   const article = view.kind === "Article";
   const quote = view.kind === "Quote";
@@ -132,7 +134,7 @@ export function CardText({
       >
         {quote ? quoteAttribution(view.description) : view.description}
       </p>
-      {processing && <ProcessingRows processing={processing} onPaper={article} />}
+      {processing && <ProcessingRows processing={processing} onPaper={article} onRetry={onRetry} />}
       {footer}
     </div>
   );

@@ -42,6 +42,7 @@ export function CardKinds() {
               onOpen={ignore}
               onRead={ignore}
               onMenu={ignore}
+              onRetry={ignore}
             />
           </div>
           <figcaption {...stylex.props(styles.caption)}>

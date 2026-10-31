@@ -9,7 +9,13 @@ import type { CardView } from "../library/cardModel.ts";
 import { useProcessing } from "../library/jobs.ts";
 import { menuPoint } from "../menu/contextMenu.tsx";
 import { tileMarker } from "../markers.stylex.ts";
-import { deleteForever, openCardMenu, openItem, setArchived } from "./cardActions.ts";
+import {
+  deleteForever,
+  openCardMenu,
+  openItem,
+  retryProcessing,
+  setArchived,
+} from "./cardActions.ts";
 import { CardMedia } from "./CardMedia.tsx";
 import { ProcessingBadge } from "./Processing.tsx";
 
@@ -42,7 +48,7 @@ export function ArchiveTile({ view, index }: { view: CardView; index: number }) 
       >
         <div {...stylex.props(styles.media)}>
           <CardMedia view={view} layout="archive" priority={index < 12} />
-          {processing && <ProcessingBadge processing={processing} />}
+          {processing && <ProcessingBadge processing={processing} onRetry={retryProcessing} />}
           <div {...stylex.props(styles.controls)}>
             <button
               type="button"

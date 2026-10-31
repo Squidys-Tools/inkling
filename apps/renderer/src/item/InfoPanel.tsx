@@ -4,6 +4,7 @@ import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@inkling/ui";
 import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
+import { retryProcessing } from "../cards/cardActions.ts";
 import { ProcessingRows } from "../cards/Processing.tsx";
 import { quoteArtworkText } from "../cards/QuoteArtwork.tsx";
 import { hostname } from "../library/assets.ts";
@@ -77,7 +78,9 @@ export function InfoPanel({
       {item.kind !== "Note" && !quote && item.description && (
         <p {...stylex.props(styles.box)}>{item.description}</p>
       )}
-      {processing && <ProcessingRows processing={processing} onPaper={false} />}
+      {processing && (
+        <ProcessingRows processing={processing} onPaper={false} onRetry={retryProcessing} />
+      )}
       <TagList tags={item.tags} spaces={filedIn} onAddTag={onAddTag} />
       <section>
         <h3 {...stylex.props(styles.sectionTitle)}>Details</h3>

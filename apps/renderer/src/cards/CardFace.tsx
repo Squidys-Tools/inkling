@@ -22,6 +22,7 @@ export function CardFace({
   onOpen,
   onRead,
   onMenu,
+  onRetry,
 }: {
   view: CardView;
   index: number;
@@ -31,6 +32,7 @@ export function CardFace({
   onOpen: () => void;
   onRead: () => void;
   onMenu: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => void;
+  onRetry: (jobId: string) => void;
 }) {
   const gridArticle = !list && view.treatment === "article";
 
@@ -89,9 +91,10 @@ export function CardFace({
             processing={processing}
             onRead={onRead}
             onOpen={onOpen}
+            onRetry={onRetry}
           />
         )}
-        {!list && processing && <ProcessingBadge processing={processing} />}
+        {!list && processing && <ProcessingBadge processing={processing} onRetry={onRetry} />}
       </article>
     </div>
   );

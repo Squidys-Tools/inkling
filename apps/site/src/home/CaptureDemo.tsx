@@ -67,6 +67,7 @@ export function CaptureDemo() {
               onOpen={ignore}
               onRead={ignore}
               onMenu={ignore}
+              onRetry={ignore}
             />
           </div>
         )}

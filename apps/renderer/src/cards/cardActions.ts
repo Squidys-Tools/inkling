@@ -4,6 +4,7 @@ import { desktop } from "../desktop.ts";
 import { hostname } from "../library/assets.ts";
 import type { CardView } from "../library/cardModel.ts";
 import { libraryClient } from "../library/connection.ts";
+import { retryJob } from "../library/jobs.ts";
 import { errorMessage } from "../library/errors.ts";
 import { selectCard } from "../library/selection.ts";
 import { setInSpace, spacesStore } from "../library/spaces.ts";
@@ -12,6 +13,15 @@ import { showContextMenu } from "../menu/contextMenu.tsx";
 import { dismissActionError, reportActionError } from "./actionError.ts";
 
 type Navigate = ReturnType<typeof useNavigate>;
+
+export function retryProcessing(jobId: string) {
+  retryJob(jobId).then(
+    (retried) => {
+      if (!retried) reportActionError("That processing job is no longer available to retry.");
+    },
+    (error: unknown) => reportActionError(`Couldn’t try again: ${errorMessage(error)}`),
+  );
+}
 
 export function openItem(view: CardView, navigate: Navigate) {
   selectCard(view.id);

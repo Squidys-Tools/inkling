@@ -7,7 +7,7 @@ import { useLabelClock } from "../library/labelClock.ts";
 import { useIsSelected } from "../library/selection.ts";
 import { menuPoint } from "../menu/contextMenu.tsx";
 import { ArchiveTile } from "./ArchiveTile.tsx";
-import { openCardMenu, openItem, openReader } from "./cardActions.ts";
+import { openCardMenu, openItem, openReader, retryProcessing } from "./cardActions.ts";
 import { CardFace } from "./CardFace.tsx";
 import type { CardLayout } from "./CardMedia.tsx";
 
@@ -51,6 +51,7 @@ function LibraryCard({ view, index, list }: { view: CardView; index: number; lis
         event.preventDefault();
         void openCardMenu(view, menuPoint(event), navigate);
       }}
+      onRetry={retryProcessing}
     />
   );
 }

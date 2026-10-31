@@ -65,6 +65,7 @@ export function LibraryDemo() {
               onOpen={ignore}
               onRead={ignore}
               onMenu={ignore}
+              onRetry={ignore}
             />
           </div>
         ))}

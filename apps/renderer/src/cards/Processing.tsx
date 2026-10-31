@@ -2,18 +2,7 @@ import { AlertCircleIcon, RotateCwIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, radius } from "@inkling/ui/tokens.stylex";
-import { errorMessage } from "../library/errors.ts";
-import { type Processing, retryJob } from "../library/jobs.ts";
-import { reportActionError } from "./actionError.ts";
-
-function retry(jobId: string) {
-  retryJob(jobId).then(
-    (retried) => {
-      if (!retried) reportActionError("That processing job is no longer available to retry.");
-    },
-    (error: unknown) => reportActionError(`Couldn’t try again: ${errorMessage(error)}`),
-  );
-}
+import type { Processing } from "../library/jobs.ts";
 
 const ringLength = 2 * Math.PI * 5;
 
@@ -62,7 +51,13 @@ const progress = (processing: Processing) =>
     : "";
 
 /** A grid card's corner mark while its jobs run, or a retry button when one failed. */
-export function ProcessingBadge({ processing }: { processing: Processing }) {
+export function ProcessingBadge({
+  processing,
+  onRetry,
+}: {
+  processing: Processing;
+  onRetry: (jobId: string) => void;
+}) {
   const failed = processing.failedJob;
   if (failed && !processing.active)
     return (
@@ -72,7 +67,7 @@ export function ProcessingBadge({ processing }: { processing: Processing }) {
         title={`${failed.message} Try again`}
         onClick={(event) => {
           event.stopPropagation();
-          retry(failed.id);
+          onRetry(failed.id);
         }}
         onKeyDown={(event) => event.stopPropagation()}
         {...stylex.props(styles.badge, styles.failed)}
@@ -98,9 +93,11 @@ export function ProcessingBadge({ processing }: { processing: Processing }) {
 export function ProcessingRows({
   processing,
   onPaper,
+  onRetry,
 }: {
   processing: Processing;
   onPaper: boolean;
+  onRetry: (jobId: string) => void;
 }) {
   const failed = processing.failedJob;
   return (
@@ -122,7 +119,7 @@ export function ProcessingRows({
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              retry(failed.id);
+              onRetry(failed.id);
             }}
             onKeyDown={(event) => event.stopPropagation()}
             {...stylex.props(styles.retry)}
