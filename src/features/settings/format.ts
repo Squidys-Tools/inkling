@@ -18,7 +18,7 @@ export function formatByteSize(bytes: number) {
 }
 
 export function formatExportSummary(report: LibraryExportReport) {
-  const summary = `${report.items} items · ${report.assetFiles} files · ${formatByteSize(report.databaseBytes + report.assetsBytes)}`;
+  const summary = `${countOf(report.items, "item")} · ${countOf(report.assetFiles, "file")} · ${formatByteSize(report.databaseBytes + report.assetsBytes)}`;
   if (report.skippedAssets === 0) return summary;
   return `${summary} · ${countOf(report.skippedAssets, "asset")} skipped`;
 }
