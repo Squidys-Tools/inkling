@@ -2,6 +2,22 @@ import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, space } from "@inkling/ui/tokens.stylex";
 import { useInlineEdit } from "./useInlineEdit.ts";
 
+// A filename's date and time (2026-10-31 10-31-41) wraps as a whole, never at a hyphen.
+function keepNumbersTogether(title: string) {
+  const parts = title
+    .split(/(\d+(?:-\d+)+)/u)
+    .map((text, at) => ({ text, id: `${at}:${text}`, number: at % 2 === 1 }));
+  return parts.map(({ text, id, number }) =>
+    number ? (
+      <span key={id} {...stylex.props(styles.nowrap)}>
+        {text}
+      </span>
+    ) : (
+      text
+    ),
+  );
+}
+
 /** The item's title, which the user can rename. An empty title is not saved. */
 export function TitleField({
   title,
@@ -24,7 +40,7 @@ export function TitleField({
           onClick={() => edit.start(title)}
           {...stylex.props(styles.reset, styles.button)}
         >
-          {title}
+          {keepNumbersTogether(title)}
         </button>
       </h2>
     );
@@ -52,6 +68,7 @@ const styles = stylex.create({
     color: color.ink,
     overflowWrap: "anywhere",
   },
+  nowrap: { whiteSpace: "nowrap" },
   reset: {
     padding: 0,
     borderWidth: 0,

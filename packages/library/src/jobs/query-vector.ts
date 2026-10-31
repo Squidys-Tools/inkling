@@ -3,7 +3,7 @@ import { JobsWorker, workerClient } from "./worker-client.ts";
 
 // A busy worker, or one without models yet, must not hold up a search: past this
 // wait, or on any failure, search ranks by text alone. With no worker it does so at once.
-const queryWait = Duration.seconds(2);
+const queryWait = Duration.seconds(5);
 
 // Typing back over a query, or a Smart Space re-running its text, asks the same
 // worker for the same vector again; its model's answer for a text never changes.

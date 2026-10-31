@@ -5,6 +5,8 @@ test("a subject query is a list of photographable nouns, not any text that menti
   expect(visualSubjectQuery("Cats")).toEqual(["cat"]);
   expect(visualSubjectQuery("photos of kittens and dogs")).toEqual(["cat", "dog"]);
   expect(visualSubjectQuery("My Cats & Dogs!")).toEqual(["cat", "dog"]);
+  for (const text of ["My dog's photos", "My dog\u2019s photos"])
+    expect(visualSubjectQuery(text)).toEqual(["dog"]);
   for (const text of [
     "cat training notes",
     "screenshot of a cat",

@@ -219,8 +219,8 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
   });
 
   // Photos labelled one of the subjects by their vision vector, best first, then
-  // photos with no vector to judge (not analyzed yet, or no model to label with)
-  // whose title, description, OCR or tags name a subject. Notes never qualify.
+  // photos the user tagged with one, and photos with no vector to judge (not analyzed
+  // yet, or no model to label with) whose title, description or OCR name one.
   const subjectMatches = Effect.fnUntraced(function* (
     subjects: string[],
     tag: string | null,
@@ -250,18 +250,16 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
           ? decodeFloatVector(row.embedding_vector, row.embedding_dimension)
           : null;
       const best = labelled && image ? labelImage(image, labelled) : null;
-      if (best) {
-        if (wanted.has(best.label)) byPixels.push({ row, score: best.score });
+      if (best && wanted.has(best.label)) {
+        byPixels.push({ row, score: best.score });
         continue;
       }
+      // The user's own tags always count. Title, description and OCR count only when
+      // the pixels cannot be judged: a screenshot named cat.png is not a cat photo.
       const tags = parseJson<{ tags?: unknown } | null>(row.metadata, {})?.tags;
-      const text = [
-        row.title,
-        row.description,
-        row.ocr_text,
-        Array.isArray(tags) ? tags.join(" ") : "",
-      ];
-      if (mentionsSubject(text.join(" "), subjects)) byText.push(row);
+      const words = [Array.isArray(tags) ? tags.join(" ") : ""];
+      if (!best) words.push(row.title ?? "", row.description ?? "", row.ocr_text);
+      if (mentionsSubject(words.join(" "), subjects)) byText.push(row);
     }
     byPixels.sort((left, right) => right.score - left.score);
     const matches = [...byPixels.map(({ row }) => row), ...byText];

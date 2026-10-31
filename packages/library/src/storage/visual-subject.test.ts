@@ -91,20 +91,29 @@ test("a Space named Cats holds cat photos by their pixels, or by their text unti
   );
 
   insert.run("unnamed-pending", "image", "IMG_0001.jpg", "", "{}", 1, 1, 0);
+  // The user tagged it a cat, though its pixels lean toward a bear.
+  insert.run("tagged-cat", "image", "IMG_0002.jpg", "", '{"tags":["Cat"]}', 1, 1, 0);
+  await library.storeEmbedding(
+    "tagged-cat",
+    "image",
+    IMAGE_MODEL,
+    vector(axis("bear", 0.09)),
+    labels.length,
+  );
 
   const cats = await library.createSpace({ name: "Cats" });
   expect(cats.query).toEqual({});
-  // Pixels decide for analyzed images, best match first; images without a current
-  // vector follow, matched by the words on them.
+  // Pixels decide for analyzed images, best match first; the user's tags and, for
+  // images without a current vector, the words on them follow.
   const withPrompts = ids(await library.listSpaceItems(cats.id, 100, null, prompts));
   expect(withPrompts.slice(0, 2)).toEqual(["tabby", "kitten"]);
-  expect(withPrompts.slice(2).sort()).toEqual(["old-model-cat", "pending-cat"]);
+  expect(withPrompts.slice(2).sort()).toEqual(["old-model-cat", "pending-cat", "tagged-cat"]);
   const page = await library.spaceCardsPage(cats.id, null, 100, null, prompts);
-  expect(page).toMatchObject({ next: null, total: 4 });
+  expect(page).toMatchObject({ next: null, total: 5 });
   expect(ids(await library.listSpaceItems(cats.id, 1, null, prompts))).toEqual(["tabby"]);
   // With no model, or a partial set of prompts, every image falls back to its text,
   // so the screenshot whose OCR says cat comes in and nothing is labelled.
-  const byText = ["chat-shot", "old-model-cat", "pending-cat"];
+  const byText = ["chat-shot", "old-model-cat", "pending-cat", "tagged-cat"];
   expect(ids(await library.listSpaceItems(cats.id)).sort()).toEqual(byText);
   const listedOnly = new Map([...prompts].filter(([label]) => !otherSubjects.includes(label)));
   expect(ids(await library.listSpaceItems(cats.id, 100, null, listedOnly)).sort()).toEqual(byText);
@@ -116,6 +125,7 @@ test("a Space named Cats holds cat photos by their pixels, or by their text unti
     "pending-cat",
     "puppy",
     "tabby",
+    "tagged-cat",
   ]);
   const tagged = await library.createSpace({ name: "Pets", query: { text: "cats", tag: "pets" } });
   expect(ids(await library.listSpaceItems(tagged.id, 100, null, prompts))).toEqual([
@@ -140,6 +150,7 @@ test("a Space named Cats holds cat photos by their pixels, or by their text unti
     "pending-cat",
     "puppy",
     "tabby",
+    "tagged-cat",
     "unnamed-pending",
     "wolf",
   ]);

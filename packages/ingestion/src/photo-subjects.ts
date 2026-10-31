@@ -39,7 +39,11 @@ const alias = new Map(
   ),
 );
 
-const words = (text: string) => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+const words = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/['’]s\b/gu, "")
+    .match(/[\p{L}\p{N}]+/gu) ?? [];
 
 /** The subjects a query names when it is only a list of photographable nouns, else null:
  *  "Cats" and "photos of cats and dogs" qualify, "cat training notes" does not. */
