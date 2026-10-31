@@ -8,7 +8,7 @@ import { JobsWorker } from "./worker-client.ts";
 type Services = Library | JobQueue | JobsWorker;
 
 /** Main-lane jobs that run at once. Each item's own jobs still run one at a time, in order. */
-export const MAIN_LANES = 4;
+const MAIN_LANES = 4;
 
 /**
  * Hands back jobs a previous run left behind, then runs both lanes until the
