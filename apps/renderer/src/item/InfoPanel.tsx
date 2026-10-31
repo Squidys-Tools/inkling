@@ -20,6 +20,13 @@ function savedOn(createdAt: number) {
   });
 }
 
+// A file saved from disk carries its MIME type where a page carries its site.
+const mimeType = /^([a-z]+)\/(?:x-)?([a-z0-9.+-]+)$/iu;
+function fileType(value: string) {
+  const match = mimeType.exec(value);
+  return match ? `${match[2].toUpperCase()} ${match[1].toLowerCase()}` : null;
+}
+
 function Detail({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div {...stylex.props(styles.detail)}>
@@ -48,7 +55,9 @@ export function InfoPanel({
   onRead: () => void;
 }) {
   const processing = useProcessing(item.id);
-  const from = hostname(item.webUrl) ?? item.source;
+  const site = hostname(item.webUrl);
+  const type = site ? null : fileType(item.source);
+  const from = site ?? (type ? null : item.source);
   const quote = item.kind === "Quote" ? quoteArtworkText(item) : null;
   const canRead = item.hasArticleContent;
   const canOpenPdf = item.kind === "PDF" && Boolean(item.file);
@@ -84,6 +93,7 @@ export function InfoPanel({
         <dl {...stylex.props(styles.details)}>
           <Detail label="Saved" value={savedOn(item.createdAt)} />
           {from && <Detail label="From" value={from} />}
+          {type && <Detail label="Type" value={type} />}
           {item.size && (
             <Detail label="Size" value={`${item.size.width} × ${item.size.height}`} mono />
           )}
