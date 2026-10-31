@@ -46,5 +46,9 @@ try {
 } finally {
   app.kill();
   await app.exited;
-  await rm(dataDirectory, { recursive: true, force: true });
+  // On Windows the library and worker processes outlive a killed main process for a
+  // moment and hold their files, so a scratch folder left in the temp dir is no failure.
+  await rm(dataDirectory, { recursive: true, force: true }).catch((error: unknown) =>
+    console.warn(`smoke: left ${dataDirectory} behind:`, error),
+  );
 }
