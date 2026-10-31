@@ -72,6 +72,22 @@ const appPageListed = async () => {
   }
 };
 
+// Our Electron logs the browser endpoint it bound, with a fresh id per launch. Matching it against
+// what the port serves proves the port is ours; a page or a process with our args alone does not.
+const servesOurEndpoint = async () => {
+  if (!existsSync(logFile)) return false;
+  const logged = /DevTools listening on ws:\/\/[^/\s]+(\/devtools\/browser\/\S+)/.exec(
+    readFileSync(logFile, "utf8"),
+  )?.[1];
+  if (!logged) return false;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+    return new URL((await response.json()).webSocketDebuggerUrl).pathname === logged;
+  } catch {
+    return false;
+  }
+};
+
 async function launch() {
   if (!existsSync(join(repo, "dist", "renderer", "index.html"))) {
     console.error("dist/renderer missing: run bun run build:app first");
@@ -84,9 +100,9 @@ async function launch() {
     process.exit(1);
   }
   const busy = portOwner();
-  if (busy !== 0) {
+  if (busy !== 0 || (await appPageListed())) {
     console.error(
-      `CDP port ${port} is already owned by ${busy > 0 ? `pid ${busy}` : "another user's process"}, not ours: set INKLING_VERIFY_PORT to a free port`,
+      `CDP port ${port} is already in use${busy > 0 ? ` by pid ${busy}` : ""}: set INKLING_VERIFY_PORT to a free port`,
     );
     process.exit(1);
   }
@@ -119,7 +135,7 @@ async function launch() {
           "-a",
           "sh",
           "-c",
-          'echo $$ > "$0"; shift; exec "$@"',
+          'echo $$ > "$0"; exec "$@"',
           pidFile,
           electronBin,
           "--no-sandbox",
@@ -132,13 +148,13 @@ async function launch() {
   if (!headless) writeFileSync(pidFile, String(child.pid));
 
   for (let attempt = 0; attempt < 60; attempt++) {
-    if (await appPageListed()) {
+    if ((await appPageListed()) && (await servesOurEndpoint())) {
       console.log(`ready: pid ${recordedPid() || child.pid}, CDP port ${port}, library ${library}`);
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  console.error(`app page never listed on port ${port}; see ${logFile}`);
+  console.error(`our app page never listed on port ${port}; see ${logFile}`);
   process.exit(1);
 }
 
@@ -152,7 +168,7 @@ async function doctor() {
   check("pidfile present", pid > 0);
   check("electron pid alive", pid > 0 && alive(pid));
   check("pid runs our scratch data dir", pid > 0 && ownsScratchLibrary(pid));
-  check("CDP port owned by our pid", pid > 0 && portOwner() === pid);
+  check("CDP endpoint is the one our Electron logged", await servesOurEndpoint());
   check("app page loaded over CDP", await appPageListed());
   check("library database exists", existsSync(join(library, "library.sqlite3")));
   check("renderer build present", existsSync(join(repo, "dist", "renderer", "index.html")));

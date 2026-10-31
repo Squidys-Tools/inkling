@@ -1,40 +1,34 @@
 # Edit a note
 
-## Sub-features
+## User flow
 
-- Open a note in the item overlay, choose Edit note, save, close.
-
-## How to get to it (user POV)
-
-Click a note card to open it in the overlay. On the Info tab, choose Edit note, change the text in the editor, and press Save note. Saving returns to the Info tab with the overlay still open. Cancel, Close, and Escape discard the edit and only leave the editor; close the overlay afterwards with Close or Escape.
+Open a note card and choose **Edit note** on its Info panel. The full-page Focus Mode editor loads the existing body. Change the text and choose **Save note** to return to the item view. Cancel, Close, or Escape with unsaved changes asks whether to discard them; empty note content cannot be saved.
 
 ## Driving it with `scripts/drive.mjs`
 
-Needs a note whose text is `alpha probe` (see `capture-note.md`). Record its `updated_at` first.
+Needs an active note whose body contains `alpha probe`. Search for it first so the same accessible card name works in grid and List view.
 
 ```json
 [
-  {"label": "open card", "expect": "(() => { const a = [...document.querySelectorAll('article.library-card')].find(a => a.textContent.includes('alpha probe')); if (!a) return false; a.click(); return true; })()", "timeoutMs": 10000},
-  {"label": "overlay open", "wait": "section[role='dialog'] button[aria-label='Close details']"},
-  {"label": "Edit note", "clickText": {"selector": "button", "text": "Edit note"}},
-  {"label": "editor shown", "wait": "div[aria-label='Note content']"},
-  {"label": "body loaded", "expect": "document.querySelector(\"div[aria-label='Note content']\").textContent.includes('alpha probe')", "timeoutMs": 10000},
-  {"label": "select all", "expect": "(() => { const e = document.querySelector(\"div[aria-label='Note content']\"); e.focus(); document.getSelection().selectAllChildren(e); return true; })()"},
-  {"label": "replace text", "fill": "div[aria-label='Note content']", "text": "alpha edited"},
-  {"label": "typed", "expect": "document.querySelector(\"div[aria-label='Note content']\").textContent.trim() === 'alpha edited'"},
-  {"label": "Save", "click": "button[aria-label='Save note']"},
-  {"label": "editor gone", "expect": "!document.querySelector(\"div[aria-label='Note content']\")", "timeoutMs": 10000},
-  {"label": "close overlay", "click": "button[aria-label='Close details']"},
-  {"label": "overlay closed", "expect": "!document.querySelector(\"button[aria-label='Close details']\")", "timeoutMs": 10000},
-  {"label": "card shows new text", "expect": "[...document.querySelectorAll('article.library-card')].some(a => a.textContent.includes('alpha edited'))", "timeoutMs": 10000}
+  {"label":"focus search","key":"/"},
+  {"label":"search target note","fill":"input[aria-label='Search your mind']","text":"alpha"},
+  {"label":"one note result","expect":"document.querySelectorAll(\"article[aria-label='Note: Untitled note']\").length === 1","timeoutMs":5000},
+  {"label":"open note","click":"article[aria-label='Note: Untitled note']"},
+  {"label":"item view","wait":"button[aria-label='Close']"},
+  {"label":"Edit note","clickText":{"selector":"button","text":"Edit note"}},
+  {"label":"Focus Mode editor","wait":"[role=textbox][aria-label='Note']"},
+  {"label":"select existing body","expect":"(() => { const e = document.querySelector(\"[role=textbox][aria-label='Note']\"); if (!e) return false; e.focus(); document.getSelection().selectAllChildren(e); return true; })()"},
+  {"label":"replace body","fill":"[role=textbox][aria-label='Note']","text":"alpha edited"},
+  {"label":"new body visible","expect":"document.querySelector(\"[role=textbox][aria-label='Note']\").textContent.trim() === 'alpha edited'"},
+  {"label":"save","clickText":{"selector":"button","text":"Save note"}},
+  {"label":"item view returns","wait":"button[aria-label='Close']"}
 ]
 ```
 
-End state: the `items` row has `body = 'alpha edited'`, `description` the same, `body_format = 'md'`, `title` still null, `created_at` unchanged and `updated_at` moved forward.
+Read the scratch `items` row to prove `body = 'alpha edited'`, `description` equals it, `body_format = 'md'`, `title` and `created_at` are unchanged, and `updated_at` is at least its prior value. A same-millisecond save can keep the timestamp equal.
 
 ## Gotchas
 
-- The editor is a rich-text contenteditable (`div[aria-label='Note content']`), not a textarea, so `fill` needs the select-all step first or it inserts at the caret.
-- Edit note is a plain button with no `aria-label`; find it with `clickText`. It lives in the Info tab, not a toolbar.
-- The Close button reads "Close details", or "Close editor" while editing. There is no autosave and an empty note is refused.
-- Closing animates, so it needs a visible window (see the occlusion note in `SKILL.md`).
+- The editor is a full-page Focus Mode route, not an editor inside a dialog.
+- The editable control is a multiline textbox named **Note**. The Save button has visible text **Save note**, not an aria-label.
+- The item view close control is labeled **Close**. Dirty Close, Cancel, and Escape use a discard confirmation.
