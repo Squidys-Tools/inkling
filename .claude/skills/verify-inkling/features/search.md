@@ -39,6 +39,6 @@ Read `spaces` to prove the new row has `kind = 'smart'` and `query = '{"text":"a
 
 - The query is not prefilled into the Space name. It appears in the placeholder **Save “alpha” as…**; enter the actual name before creating.
 - Escape clears the query. To show the filter row without clearing it, move focus away from Search your mind.
-- Matching is whole-token full-text search: `alp` does not match `alpha`, so search for full words. Only a SQLite without FTS5 falls back to substring matching.
+- In the full app, matching uses whole-token FTS: `alp` does not match `alpha`, so search for full words. If SQLite lacks FTS5, it falls back to substring matching. Preview mode always uses substring matching and has no semantic results.
 - A development build downloads the text model into the scratch library on first use. Once notes have embeddings, any item at least 0.55 similar to the query joins the results, so the exact counts above hold only for lexical results. If a count is off by an unrelated note, read `item_embeddings` before calling it a regression.
 - The result count is plain text in the filter row, not an animated digit roll.

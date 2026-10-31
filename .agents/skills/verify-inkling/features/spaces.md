@@ -2,9 +2,9 @@
 
 ## User flow
 
-Choose **Add a Space** in the sidebar. Name the Space, keep the default Smart kind or choose Regular, then choose **Create Space**. Smart Spaces show matching search results; Regular Spaces start empty and hold items filed by hand. Rename and delete controls are on the Space row. Deleting a Space removes its memberships and keeps its items in the library.
+Choose **Add a Space** in the sidebar. Name the Space, keep the default Smart kind or choose Regular, then choose **Create Space**. Smart Spaces show matching search results; Regular Spaces start empty and hold items filed by hand. Space rows also have color and move up/down controls, plus rename and delete. Deleting a Space removes its memberships and keeps its items in the library.
 
-To file an item, open its detail view and choose **Keep in a Space**. The menu offers **Add to <name>** or **Remove from <name>** for each Regular Space.
+To file an active item, open its detail view and choose **Keep in a Space**, or right-click its card. Both menus offer **Add to <name>** or **Remove from <name>** for each Regular Space.
 
 ## Driving it with `scripts/drive.mjs`
 
@@ -35,12 +35,13 @@ Read `spaces` to prove create uses `kind = 'regular'` and `query = '{}'`, rename
 
 ## Native menu limit
 
-In the full app, choosing **Keep in a Space** opens an Electron native context menu. The action is present only when a Regular Space exists; archived items do not show it. The CDP driver can click the action but cannot inspect or select a native menu entry, so live membership add/remove is `verified-unreachable` in this harness. Deleting a populated Regular Space also uses a native confirmation. The source path in `apps/renderer/src/menu/contextMenu.tsx` confirms the native menu route; `apps/renderer/src/item/ActionBar.tsx` defines its labels and membership behavior.
+In the full app, **Keep in a Space** and a card's right-click menu open Electron native context menus. Filing is available only when a Regular Space exists; archived items do not show it. The CDP driver can trigger the detail-view menu but cannot inspect or select native entries, so membership add/remove is `verified-unreachable` in this harness. Deleting a populated Regular Space also uses a native confirmation. `apps/renderer/src/menu/contextMenu.tsx` handles the native menu route; `apps/renderer/src/item/ActionBar.tsx` and `apps/renderer/src/cards/cardActions.ts` define the filing actions.
 
-Attempt the route with an active note and a Regular Space:
+Return to Everything first if a newly created Space is still selected, then attempt the route with an active note and a Regular Space:
 
 ```json
 [
+  {"label":"return to Everything","clickText":{"selector":"a","text":"Everything"}},
   {"label":"open note","click":"article[aria-label='Note: Untitled note']"},
   {"label":"item view","wait":"button[aria-label='Close']"},
   {"label":"open Keep in a Space menu","click":"button[aria-label='Keep in a Space']"}
@@ -49,9 +50,21 @@ Attempt the route with an active note and a Regular Space:
 
 The final menu is native to Electron, outside the page CDP can inspect. Record membership selection as `verified-unreachable` unless a native UI driver is available.
 
+The card context menu offers the same Add/Remove actions. In a separate drive while Everything is selected and a Regular Space exists, trigger it with:
+
+```json
+[
+  {"label":"open card menu","rightClick":"article[aria-label='Note: Untitled note']"},
+  {"label":"record card menu attempt","shot":"card-space-menu-attempt.png"}
+]
+```
+
+CDP sends the right-click but cannot inspect or select the native menu entries.
+
 ## Gotchas
 
 - The new Space form defaults to Smart. **Save as Space** opens it with the query in a placeholder such as **Save “alpha” as…**; the field value is empty until the user types a name.
 - Rename is labeled `Rename <name>` and commits with Enter or blur; Escape cancels.
+- [SpaceRow.tsx](apps/renderer/src/shell/SpaceRow.tsx) labels row controls `Change color of <name>`, `Move <name> up`, and `Move <name> down`.
 - Deleting an empty Space needs no confirmation. A populated Regular Space asks first and says its items stay in the library.
 - A Smart Space cannot hold hand-filed items. Only Regular Spaces appear in **Keep in a Space**.

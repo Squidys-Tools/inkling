@@ -68,6 +68,7 @@ Every line must read PASS and the exit code must be 0: pidfile present, pid aliv
 
 - `click`: CSS selector, waits for a visible match, focuses it, then clicks it.
 - `clickText`: `{selector, text}`, the same for the first visible match whose text contains `text`.
+- `rightClick`: CSS selector; sends a right-button mouse event to the visible element's center. Electron's native menu may open outside CDP.
 - `fill`: CSS selector plus `text`, focuses, selects the field's text (inputs and textareas only), and inserts text. For a contenteditable, first run an `expect` that calls `getSelection().selectAllChildren(el)`, or `fill` inserts at the caret.
 - `key`: `Enter`, `Escape`, or a single character.
 - `wait`: selector that must appear.

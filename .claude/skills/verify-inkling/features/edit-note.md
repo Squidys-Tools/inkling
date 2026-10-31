@@ -25,7 +25,7 @@ Needs an active note whose body contains `alpha probe`. Search for it first so t
 ]
 ```
 
-Read the scratch `items` row to prove `body = 'alpha edited'`, `description` equals it, `body_format = 'md'`, `title` and `created_at` are unchanged, and `updated_at` moved forward.
+Read the scratch `items` row to prove `body = 'alpha edited'`, `description` equals it, `body_format = 'md'`, `title` and `created_at` are unchanged, and `updated_at` is at least its prior value. A same-millisecond save can keep the timestamp equal.
 
 ## Gotchas
 
