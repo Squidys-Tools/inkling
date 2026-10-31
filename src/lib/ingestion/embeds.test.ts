@@ -15,6 +15,7 @@ test.each([
     "https://www.youtube-nocookie.com/embed/abc12345678",
   ],
   ["https://vimeo.com/123456", "https://player.vimeo.com/video/123456"],
+  ["https://www.vimeo.com/123456", "https://player.vimeo.com/video/123456"],
   ["https://www.loom.com/share/abc123", "https://www.loom.com/embed/abc123"],
   ["https://open.spotify.com/track/abc123", "https://open.spotify.com/embed/track/abc123"],
   ["https://w.soundcloud.com/player/?url=x", "https://w.soundcloud.com/player/?url=x"],
@@ -26,7 +27,6 @@ test.each([
 test.each([
   "https://www.youtube.com/not-a-video",
   "https://youtu.be/abc12345678/extra",
-  "https://www.vimeo.com/123456",
   "https://open.spotify.com/user/abc123",
   "https://soundcloud.com/artist/track",
   "https://player.twitch.tv/",

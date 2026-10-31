@@ -102,8 +102,7 @@ export function embedCandidate(
   const url = new URL(sourceUrl);
   const provider = PROVIDER_HOSTS.get(url.hostname);
   if (kind === "iframe") {
-    // www.vimeo.com counts as a provider host for media but is not an allowed iframe host.
-    if (!provider || url.hostname === "www.vimeo.com") return null;
+    if (!provider) return null;
     const embedUrl = providerEmbedUrl(url, provider);
     return embedUrl ? { kind, provider, sourceUrl, embedUrl } : null;
   }
