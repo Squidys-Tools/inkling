@@ -1,10 +1,17 @@
 import { expect, test } from "bun:test";
 import { BotEngine } from "./bot/engine";
+import { EXPRESSION_BY_ID } from "./bot/expressions";
 import { RAYON } from "./bot/repere";
+import { SHAPE_BY_ID } from "./bot/skins";
 import { searchEyesViewBox } from "./MascotFigure";
 
 test("search crop centers both eyes through notify, blinks, interruption and recovery", () => {
-  const engine = new BotEngine(RAYON, "inkling-drift");
+  const engine = new BotEngine(
+    RAYON,
+    "inkling-drift",
+    SHAPE_BY_ID.get("inkling-splash")!.radii,
+    EXPRESSION_BY_ID.get("neutre")!,
+  );
   for (const [state, start] of [
     ["notify", 1],
     ["inkling-drift", 1.2],
@@ -16,7 +23,7 @@ test("search crop centers both eyes through notify, blinks, interruption and rec
       const frame = engine.sample(start + step / 60);
       const [x, y, width, height] = searchEyesViewBox(frame).split(" ").map(Number);
       for (const eye of frame.eyes) {
-        const b = eye.bounds!;
+        const b = eye.bounds;
         expect(b.left).toBeGreaterThanOrEqual(x);
         expect(b.right).toBeLessThanOrEqual(x + width);
         expect(b.top).toBeGreaterThanOrEqual(y);
@@ -24,7 +31,7 @@ test("search crop centers both eyes through notify, blinks, interruption and rec
       }
       expect(width / height).toBeCloseTo(78 / 80);
       // The search slot centers the painted pair, not the body's old drift origin.
-      const bounds = frame.eyes.map((eye) => eye.bounds!);
+      const bounds = frame.eyes.map((eye) => eye.bounds);
       const centerX =
         (Math.min(...bounds.map((b) => b.left)) + Math.max(...bounds.map((b) => b.right))) / 2;
       const centerY =
