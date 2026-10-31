@@ -16,7 +16,9 @@ export function Header() {
       </Link>
       <nav aria-label="Site" {...stylex.props(styles.nav)}>
         <NavLink to="/features">Features</NavLink>
-        <NavLink to="/privacy">Privacy</NavLink>
+        <NavLink to="/privacy" optional>
+          Privacy
+        </NavLink>
         <a href={repository} {...stylex.props(styles.link, styles.optional)}>
           Source
         </a>
@@ -28,10 +30,22 @@ export function Header() {
   );
 }
 
-function NavLink({ to, children }: { to: "/features" | "/privacy"; children: string }) {
+// Narrow screens drop the links the footer also carries, so Download stays in view.
+function NavLink({
+  to,
+  optional = false,
+  children,
+}: {
+  to: "/features" | "/privacy";
+  optional?: boolean;
+  children: string;
+}) {
   const here = useRouterState({ select: (state) => state.location.pathname === to });
   return (
-    <Link to={to} {...stylex.props(styles.link, here && styles.here)}>
+    <Link
+      to={to}
+      {...stylex.props(styles.link, here && styles.here, optional && styles.hiddenWhenNarrow)}
+    >
       {children}
     </Link>
   );
@@ -57,14 +71,14 @@ const styles = stylex.create({
   },
   wordmark: {
     fontFamily: font.display,
-    fontSize: "21px",
+    fontSize: { default: "21px", "@media (max-width: 480px)": "19px" },
     fontWeight: 600,
     letterSpacing: "-0.02em",
   },
   nav: { display: "flex", alignItems: "center", gap: "4px" },
   link: {
     paddingBlock: "8px",
-    paddingInline: "12px",
+    paddingInline: { default: "12px", "@media (max-width: 480px)": "8px" },
     borderRadius: radius.round,
     color: { default: color.muted, ":hover": color.inkStrong },
     fontSize: "15px",
@@ -73,10 +87,11 @@ const styles = stylex.create({
   },
   here: { color: color.inkStrong },
   optional: { display: { default: "inline", "@media (max-width: 560px)": "none" } },
+  hiddenWhenNarrow: { display: { default: "inline", "@media (max-width: 440px)": "none" } },
   download: {
-    marginLeft: "8px",
+    marginLeft: { default: "8px", "@media (max-width: 480px)": "4px" },
     paddingBlock: "8px",
-    paddingInline: "16px",
+    paddingInline: { default: "16px", "@media (max-width: 480px)": "12px" },
     borderRadius: radius.round,
     backgroundColor: { default: color.ink, ":hover": color.inkStrong },
     color: color.app,
