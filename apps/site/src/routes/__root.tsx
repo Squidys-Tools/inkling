@@ -1,7 +1,9 @@
 import * as stylex from "@stylexjs/stylex";
 import { color, font } from "@inkling/ui/tokens.stylex";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { registerFonts } from "@inkling/ui";
+import dmSans from "@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2?url";
+import { type ReactNode, useEffect } from "react";
 
 // StyleX writes one stylesheet: a virtual module in dev, stylex.css beside the client bundle in a build.
 const stylesheet = import.meta.env.DEV ? "/virtual:stylex.css" : "/assets/stylex.css";
@@ -20,6 +22,8 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "stylesheet", href: stylesheet },
+      // The same URL registerFonts loads, so headings do not wait for hydration to fetch their face.
+      { rel: "preload", href: dmSans, as: "font", type: "font/woff2", crossOrigin: "anonymous" },
       { rel: "icon", href: "/icon.png" },
     ],
   }),
@@ -28,6 +32,7 @@ export const Route = createRootRoute({
 });
 
 function Shell({ children }: { children: ReactNode }) {
+  useEffect(registerFonts, []);
   return (
     <html lang="en" {...stylex.props(styles.html)}>
       <head>

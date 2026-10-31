@@ -130,7 +130,8 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "tsc-rs": "0.8.0",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vite-imagetools": "^12.0.1"
   },
   "overrides": {
     "isbinaryfile": "5.0.7"
