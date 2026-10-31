@@ -151,7 +151,13 @@ function ItemBody({
               </Tabs.Tab>
             </Tabs.List>
           )}
-          <Button ref={closeButton} aria-label="Close" style={styles.close} onClick={onClose}>
+          <Button
+            ref={closeButton}
+            aria-label="Close"
+            data-bench="item-close"
+            style={styles.close}
+            onClick={onClose}
+          >
             Close <Kbd>esc</Kbd>
           </Button>
         </header>
