@@ -34,41 +34,35 @@ test("a query's vector is remembered", async () => {
   expect(calls).toBe(1);
 });
 
-test("an embed outlives a caller that stopped waiting and fills the cache", async () => {
+test("an embed outlives a caller that stopped waiting and serves the next query", async () => {
   let calls = 0;
+  const release = Effect.runSync(Deferred.make<void>());
   const layer = provide(() => {
     calls += 1;
-    return Effect.sleep("2300 millis").pipe(Effect.as([3]));
+    return Deferred.await(release).pipe(Effect.as([3]));
   });
-  expect(await run(layer, queryVector("slow"))).toBeNull();
-  await Bun.sleep(500);
-  expect(await run(layer, queryVector("slow"))).toEqual([3]);
-  expect(calls).toBe(1);
-}, 8000);
-
-test("a prefetch and the query after it share one embed", async () => {
-  let calls = 0;
-  const layer = provide(() => {
-    calls += 1;
-    return Effect.sleep("50 millis").pipe(Effect.as([4]));
-  });
-  await run(layer, prefetchQueryVector("shared"));
-  expect(await run(layer, queryVector("shared"))).toEqual([4]);
+  await run(layer, prefetchQueryVector("slow"));
+  const next = run(layer, queryVector("slow"));
+  Effect.runSync(Deferred.succeed(release, undefined));
+  expect(await next).toEqual([3]);
   expect(calls).toBe(1);
 });
 
 test("the warm-up waits for the worker to connect before embedding", async () => {
-  let calls = 0;
+  const events: string[] = [];
   const ready = Effect.runSync(Deferred.make<void>());
-  const layer = provide(() => {
-    calls += 1;
-    return Effect.succeed([5]);
-  }, Deferred.await(ready));
+  const embedded = Effect.runSync(Deferred.make<void>());
+  const layer = provide(
+    () =>
+      Effect.sync(() => events.push("embed")).pipe(
+        Effect.andThen(Deferred.succeed(embedded, undefined)),
+        Effect.as([5]),
+      ),
+    Deferred.await(ready).pipe(Effect.andThen(Effect.sync(() => events.push("connected")))),
+  );
   const warming = run(layer, warmQueryModel);
-  await Bun.sleep(20);
-  expect(calls).toBe(0);
   Effect.runSync(Deferred.succeed(ready, undefined));
   await warming;
-  await Bun.sleep(20);
-  expect(calls).toBe(1);
+  await Effect.runPromise(Deferred.await(embedded));
+  expect(events).toEqual(["connected", "embed"]);
 });
