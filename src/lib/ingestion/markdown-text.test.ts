@@ -1,0 +1,83 @@
+import { expect, test } from "bun:test";
+import { markdownToPlainText } from "./markdown-text";
+
+test.each([
+  [
+    "headings, bold and links",
+    "# Heading\n\n**Bold** and [a link](https://example.com).",
+    "Heading Bold and a link.",
+  ],
+  ["a heading above a paragraph", "## Evening\n\nWarm light.", "Evening Warm light."],
+  [
+    "task markers",
+    "- [x] Ship the editor\n- [ ] Verify the preview",
+    "Ship the editor Verify the preview",
+  ],
+  ["ordered list markers", "1. one\n2) two", "one two"],
+  ["a blockquote marker", "> quoted\n> twice", "quoted twice"],
+  ["strikethrough", "~~gone~~ kept", "gone kept"],
+  ["a fenced code block", "```js\nconst a = 1;\n```", "const a = 1;"],
+  ["code next to raw HTML", "`<tag>`\n\n<script>alert(1)</script>", "<tag> alert(1)"],
+  ["markup and entities in a code span", "`<tag> &amp;`", "<tag> &amp;"],
+  ["<br> between words", "foo<br>bar", "foo bar"],
+  ["<br/> between words", "one<br/>two", "one two"],
+  ["<hr> between words", "before<hr>after", "before after"],
+  ["an inline wrapper inside a word", "a<em>bc</em>d", "abcd"],
+  ["a break hint inside a word", "hy<wbr>phen", "hyphen"],
+  ["adjacent inline wrappers", "<span>a</span><span>b</span>", "ab"],
+  ["a block tag between words", "before<div>after", "before after"],
+  ["table markup", "<table><tr><td>cell</td></tr></table>", "cell"],
+  ["an HTML comment", "a<!-- hidden -->b", "ab"],
+  ["a lone task marker", "- [x] Measure", "Measure"],
+  [
+    "brackets written as prose",
+    "The prompt prints [X] when the step passes.",
+    "The prompt prints [X] when the step passes.",
+  ],
+  [
+    "empty brackets as prose",
+    "Toggle between [ ] and [x] in the list.",
+    "Toggle between [ ] and [x] in the list.",
+  ],
+  [
+    "punctuation after a line break",
+    "One line\n\nTwo, and three; done?",
+    "One line Two, and three; done?",
+  ],
+  ["escaped tags", "&lt;div&gt;hello&lt;/div&gt;", "<div>hello</div>"],
+  ["comparison entities", "5 &gt; 3 and 2 &lt; 4 &amp; 1", "5 > 3 and 2 < 4 & 1"],
+  ["named and numeric entities", "I &hearts; &#x41;&#66;", "I ♥ AB"],
+  ["an entity without its semicolon", "salt &amp pepper", "salt &amp pepper"],
+  ["an entity decoded once", "&amp;lt;", "&lt;"],
+  ["case-sensitive Aacute", "&Aacute; &aacute;", "Á á"],
+  ["case-sensitive AElig", "&AElig; &aelig;", "Æ æ"],
+  ["case-sensitive Uuml", "&Uuml; &uuml;", "Ü ü"],
+  ["an alias HTML defines in both cases", "&AMP;", "&"],
+  ["an upper-case name HTML does not define", "&EURO;", "&EURO;"],
+  ["another upper-case name HTML does not define", "&NBSP;", "&NBSP;"],
+  [
+    "an inherited property name",
+    "&constructor; &toString; &hasOwnProperty;",
+    "&constructor; &toString; &hasOwnProperty;",
+  ],
+  // U+0000 is the sentinel the code-span pass wraps placeholders in.
+  ["a forged code placeholder", "&#0;0&#0;", "\uFFFD0\uFFFD"],
+  ["a forged placeholder inside a word", "a&#0;0&#0;b", "a\uFFFD0\uFFFDb"],
+  ["a forged placeholder after real code", "`keep` &#0;0&#0;", "keep \uFFFD0\uFFFD"],
+  ["angle brackets as prose", "a < b and b > a", "a < b and b > a"],
+  ["a lone less-than sign", "5 < 10", "5 < 10"],
+  ["an autolink in a sentence", "see <https://example.com> now", "see https://example.com now"],
+  ["an http autolink", "<http://example.com>", "http://example.com"],
+  ["an email autolink", "<user@example.com>", "user@example.com"],
+  ["intraword underscores", "foo_bar_baz", "foo_bar_baz"],
+  ["an underscore emphasis that opens a word", "foo _bar_baz qux", "foo _bar_baz qux"],
+  // An ASCII-only word check passes any case with an ASCII neighbour.
+  ["underscores between non-ASCII letters", "é_foo_é", "é_foo_é"],
+  ["underscores between accented letters", "ï_ô_ü", "ï_ô_ü"],
+  ["a lone underscore", "naïve_thing snake_case", "naïve_thing snake_case"],
+  ["underscore emphasis", "_real_ __strong__ ___both___", "real strong both"],
+  ["underscore emphasis between words", "a _b_ c", "a b c"],
+  ["triple star emphasis", "***both***", "both"],
+])("markdownToPlainText handles %s", (_, markdown, plain) => {
+  expect(markdownToPlainText(markdown)).toBe(plain);
+});

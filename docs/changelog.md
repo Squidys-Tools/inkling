@@ -123,6 +123,7 @@ Rules for entries:
 - The browser extension's failure badge is no longer cleared by an earlier save's success timer
 - Library exports record the version of inkling that wrote them in `manifest.json` instead of always `0.1.0`
 - An `updates.json` holding `null`, an array or other unexpected JSON no longer turns updates off with a file-permissions message; inkling uses the default update preferences, and only a failed read disables updates
+- A note's description no longer changes once the save returns: storage now uses the renderer's plain-text projection, so raw HTML, code spans and entities agree, and both strip `~~strikethrough~~`. Notes saved earlier keep their stored description until they are edited
 
 ### Changed
 

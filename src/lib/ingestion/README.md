@@ -9,7 +9,8 @@ Three places import this folder, so it parses HTML with linkedom and imports
 nothing from Electron or the browser DOM:
 
 - the main process, where `electron/ai-jobs.ts` runs `ingestUrl` as a
-  background job;
+  background job and storage saves a note's `markdownToPlainText`
+  projection as its description;
 - the renderer, which uses helpers such as `file-classification.ts`,
   `video-links.ts` and `x-post.ts`;
 - the benchmark harness in `benchmarks/harness/`.

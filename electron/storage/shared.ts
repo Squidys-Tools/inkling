@@ -43,28 +43,6 @@ export const normalizeHttpUrl = Effect.fnUntraced(function* (value: unknown) {
   return url.toString();
 });
 
-// `src/lib/notes.ts` has a second copy; change both together. It explains how they differ.
-export function markdownToPlainText(markdown: string) {
-  return markdown
-    .replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/<br\s*\/?>|<hr\s*\/?>/gi, " ")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-+*]\s+|\d+\.\s+)/gm, " ")
-    .replace(/[*_~]/g, "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .join(" ")
-    .replace(/ \./g, ".")
-    .replace(/ ,/g, ",")
-    .replace(/ ;/g, ";")
-    .replace(/ :/g, ":")
-    .replace(/ !/g, "!")
-    .replace(/ \?/g, "?");
-}
-
 export const isSafeItemId = (id: string) => /^[a-zA-Z0-9_-]{1,128}$/.test(id);
 
 export function clampLimit(limit: number, fallback: number, maximum: number) {

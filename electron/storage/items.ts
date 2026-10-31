@@ -8,13 +8,13 @@ import type {
   CreateQuoteInput,
   UpdateItemInput,
 } from "@inkling/contracts";
+import { markdownToPlainText } from "../../src/lib/ingestion/markdown-text.ts";
 import type { StorageContext } from "./context.ts";
 import { readItem, selectCards, writtenItem } from "./rows.ts";
 import {
   changes,
   isMissing,
   isSafeItemId,
-  markdownToPlainText,
   type Metadata,
   nonEmpty,
   normalizeHttpUrl,

@@ -25,7 +25,7 @@ export {
   URL_ENRICHMENT_JOB,
   VIDEO_POSTER_JOB,
 } from "./jobs.ts";
-export { markdownToPlainText } from "./shared.ts";
+export { markdownToPlainText } from "../../src/lib/ingestion/markdown-text.ts";
 
 export function resolveLibraryDataDirectory({
   executablePath,

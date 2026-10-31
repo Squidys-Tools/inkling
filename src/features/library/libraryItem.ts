@@ -181,9 +181,7 @@ export async function storedItemToLibraryItem(
       : undefined;
   const rawTitle = item.title?.trim() || "Untitled note";
   // The backend already stored `markdownToPlainText(body)` as the
-  // description, so a note's plain text arrives ready to read. Projecting the
-  // body again here would only ever disagree with the stored row, and would
-  // eat the brackets in prose that happens to look like a link.
+  // description, so a note's plain text arrives ready to read.
   const rawDescription =
     item.description?.trim() ||
     item.ocrText?.trim().slice(0, 180) ||
