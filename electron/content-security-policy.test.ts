@@ -9,7 +9,8 @@ function directive(name: string) {
   return entry?.split(" ").slice(1) ?? [];
 }
 
-test("frame-src allows every frame URL the app builds", () => {
+test("the app document runs only its own script and frames every embed it builds", () => {
+  expect(directive("script-src")).toEqual(["'self'"]);
   const frameUrls = [
     ...[
       "https://www.youtube.com/watch?v=abc12345678",

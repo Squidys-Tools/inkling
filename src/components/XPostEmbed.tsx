@@ -1,175 +1,67 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { FRAME_ORIGINS, xPostFrameUrl } from "../lib/ingestion/frame-origins";
 import type { XPostMetadata } from "../lib/ingestion/types";
 import { cx } from "../ui/cx";
 
-declare global {
-  interface Window {
-    twttr?: { widgets?: { load: (element?: HTMLElement) => void } };
-  }
-}
+const FRAME_TIMEOUT_MS = 15000;
 
-let xWidgetsPromise: Promise<void> | undefined;
-
-function loadXWidgets() {
-  if (window.twttr?.widgets) return Promise.resolve();
-  xWidgetsPromise ??= new Promise<void>((resolve, reject) => {
-    const finish = (error?: Error) => {
-      window.clearInterval(pollId);
-      window.clearTimeout(timeoutId);
-      if (error) reject(error);
-      else resolve();
-    };
-    const checkReady = () => {
-      if (window.twttr?.widgets) finish();
-    };
-    // Polled as well: a widgets script already on the page may have loaded
-    // before these listeners attached.
-    const pollId = window.setInterval(checkReady, 100);
-    const timeoutId = window.setTimeout(() => finish(new Error("X widgets timed out.")), 15000);
-
-    const existing = document.querySelector<HTMLScriptElement>("#twitter-wjs");
-    const script = existing ?? document.createElement("script");
-    const handleLoad = () => {
-      checkReady();
-      window.setTimeout(checkReady, 0);
-    };
-    const handleError = () => finish(new Error("X widgets could not be loaded."));
-    script.addEventListener("load", handleLoad, { once: true });
-    script.addEventListener("error", handleError, { once: true });
-    if (!existing) {
-      script.id = "twitter-wjs";
-      script.src = "https://platform.twitter.com/widgets.js";
-      script.async = true;
-      script.charset = "utf-8";
-      document.head.appendChild(script);
-    }
-    checkReady();
-  });
-  return xWidgetsPromise;
-}
-
-// The official iframe appearing is the readiness signal. Its load event can
-// fire before a listener attaches, and a backgrounded preview stalls rAF.
-function waitForXWidget(root: HTMLElement) {
-  return new Promise<boolean>((resolve) => {
-    const finish = (loaded: boolean) => {
-      observer.disconnect();
-      window.clearTimeout(timeoutId);
-      resolve(loaded);
-    };
-    const watchWidget = () => {
-      if (root.querySelector("iframe")) finish(true);
-    };
-    const observer = new MutationObserver(watchWidget);
-    const timeoutId = window.setTimeout(() => finish(false), 8000);
-    observer.observe(root, { childList: true, subtree: true });
-    watchWidget();
-  });
+// X's frame reports over postMessage with the same methods widgets.js listens for.
+function frameOutcome(data: unknown) {
+  if (!data || typeof data !== "object" || !("twttr.embed" in data)) return null;
+  const message = data["twttr.embed"];
+  const method = message && typeof message === "object" && "method" in message && message.method;
+  if (method === "twttr.private.rendered") return "ready";
+  if (method === "twttr.private.no_results") return "failed";
+  return null;
 }
 
 export function XPostEmbed({ social, fallback }: { social: XPostMetadata; fallback: ReactNode }) {
-  const nativeRef = useRef<HTMLDivElement>(null);
-  const [shouldLoad, setShouldLoad] = useState(false);
-  const [embedHtml, setEmbedHtml] = useState(social.embedHtml);
+  const frameRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
 
-  const [syncedEmbedHtml, setSyncedEmbedHtml] = useState(social.embedHtml);
-  if (syncedEmbedHtml !== social.embedHtml) {
-    setSyncedEmbedHtml(social.embedHtml);
-    setEmbedHtml(social.embedHtml);
-    setStatus(shouldLoad ? "loading" : "idle");
-  }
-
   useEffect(() => {
-    if (!shouldLoad) return;
-    if (social.embedHtml) return;
-    let cancelled = false;
-
-    // Imported here so linkedom, which x-post parses with, stays out of the startup chunk.
-    import("../lib/ingestion/x-post")
-      .then(async ({ normalizeXPostOEmbed, xPostOEmbedUrl }) => {
-        const response = await fetch(xPostOEmbedUrl(social.postUrl), {
-          headers: { Accept: "application/json" },
-        });
-        if (!response.ok) throw new Error(`X oEmbed returned HTTP ${response.status}.`);
-        const payload = (await response.json()) as Parameters<typeof normalizeXPostOEmbed>[1];
-        if (cancelled) return;
-        const normalized = normalizeXPostOEmbed(social.postUrl, payload);
-        if (!normalized?.embedHtml) throw new Error("X did not return embed markup.");
-        setEmbedHtml(normalized.embedHtml);
-      })
-      .catch(() => {
-        if (!cancelled) setStatus("failed");
-      });
-
+    if (status !== "loading") return;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== FRAME_ORIGINS.x || event.source !== frameRef.current?.contentWindow) {
+        return;
+      }
+      const outcome = frameOutcome(event.data);
+      if (outcome) setStatus(outcome);
+    };
+    const timeoutId = window.setTimeout(() => setStatus("failed"), FRAME_TIMEOUT_MS);
+    window.addEventListener("message", handleMessage);
     return () => {
-      cancelled = true;
+      window.clearTimeout(timeoutId);
+      window.removeEventListener("message", handleMessage);
     };
-  }, [shouldLoad, social.embedHtml, social.postUrl]);
+  }, [status]);
 
-  useEffect(() => {
-    if (!shouldLoad) return;
-    const root = nativeRef.current;
-    if (!root || !embedHtml) return;
-
-    const updateEmbedWidth = () => {
-      // Changing the rendered iframe's URL reloads the widget and can loop on
-      // resize; at width 100% it already passes the new width to its document.
-      if (root.querySelector("iframe")) return;
-      const width = Math.min(550, Math.max(280, Math.floor(root.getBoundingClientRect().width)));
-      root.querySelector("blockquote.twitter-tweet")?.setAttribute("data-width", String(width));
-    };
-
-    const resizeObserver = new ResizeObserver(updateEmbedWidth);
-    resizeObserver.observe(root);
-    let cancelled = false;
-    // Imported here so DOMPurify stays out of the startup chunk.
-    import("../lib/purifyHtml")
-      .then(({ purifyHtml }) => {
-        if (cancelled) return;
-        root.innerHTML = purifyHtml(window, embedHtml, social.postUrl);
-        updateEmbedWidth();
-        return loadXWidgets();
-      })
-      .then(async () => {
-        if (cancelled) return;
-        const widgetLoad = waitForXWidget(root);
-        window.twttr?.widgets?.load(root);
-        const loaded = await widgetLoad;
-        if (!cancelled) setStatus(loaded ? "ready" : "failed");
-      })
-      .catch(() => {
-        if (!cancelled) setStatus("failed");
-      });
-
-    return () => {
-      cancelled = true;
-      resizeObserver.disconnect();
-      root.replaceChildren();
-    };
-  }, [embedHtml, shouldLoad, social.postUrl]);
-
+  const frameMounted = status === "loading" || status === "ready";
   return (
     <div className="relative size-full p-0" data-x-status={status}>
-      <div
-        className={cx(
-          "absolute inset-0 size-full [&_iframe]:h-full! [&_iframe]:w-full!",
-          status === "ready" ? "visible" : "invisible",
-        )}
-        ref={nativeRef}
-        aria-hidden={status !== "ready"}
-      />
+      {frameMounted && (
+        <iframe
+          ref={frameRef}
+          src={xPostFrameUrl(social.postId)}
+          title="Post from X"
+          // oxlint-disable-next-line react/iframe-missing-sandbox -- X's frame is cross-origin: allow-same-origin keeps X's own origin for its CORS fetch and grants nothing in the app.
+          sandbox="allow-scripts allow-same-origin allow-popups"
+          referrerPolicy="no-referrer"
+          className={cx(
+            "absolute inset-0 block size-full border-0",
+            status === "ready" ? "visible" : "invisible",
+          )}
+          aria-hidden={status !== "ready"}
+        />
+      )}
       {status !== "ready" && (
         <div className="absolute inset-0 size-full">
           {fallback}
-          {!shouldLoad && (
+          {!frameMounted && (
             <button
               type="button"
               className="flex cursor-pointer items-center justify-center gap-2 rounded-[8px] border border-border bg-transparent px-4 py-3 text-[12px] text-ink [transition:scale_0.16s_cubic-bezier(0.23,1,0.32,1),background-color_0.18s_ease,border-color_0.18s_ease] enabled:hover:border-[#4a4842] enabled:hover:bg-surface-raised enabled:active:scale-96 disabled:cursor-default disabled:opacity-50"
-              onClick={() => {
-                setShouldLoad(true);
-                setStatus("loading");
-              }}
+              onClick={() => setStatus("loading")}
             >
               Load post from X
             </button>
