@@ -3,8 +3,6 @@ name: Next
 # The rebuilt app in next/. It has its own workspace, lockfile and checks.
 on:
   push:
-    branches:
-      - main
     paths:
       - "next/**"
       - ".github/workflows/next.yml"
@@ -60,3 +58,81 @@ jobs:
       - name: Launch and reach the library process
         if: runner.os != 'Linux'
         run: bun tools/smoke/launch.ts
+
+  # Proves the rebuilt app packages and runs on every system before it replaces
+  # the root app: the release build commands, then the release workflow's checks.
+  package:
+    name: Package and smoke-test on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            command: build:win
+            app: .artifacts/electron/win-unpacked/inkling.exe
+          - os: ubuntu-latest
+            command: build:linux
+            app: .artifacts/electron/linux-unpacked/inkling
+          - os: macos-15
+            command: build:mac
+            app: .artifacts/electron/mac-arm64/inkling.app/Contents/MacOS/inkling
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: next/.bun-version
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - uses: actions/cache@v6
+        with:
+          path: next/.artifacts/electron-model-cache/models
+          key: inkling-next-models-${{ hashFiles('next/packages/jobs/src/model-manifest.json') }}
+      - name: Build the release artifacts (never publish)
+        env:
+          BUILD_COMMAND: ${{ matrix.command }}
+        shell: bash
+        run: |
+          umask 022
+          bun run "$BUILD_COMMAND"
+      - name: Exercise packaged Linux processing and local update feeds
+        if: runner.os == 'Linux'
+        run: |
+          bun tools/smoke/packaged-backend.mjs
+          bun tools/smoke/update-feed.mjs .artifacts/electron/linux-unpacked
+          python3 -I -B apps/desktop/src/updates/update-helper.test.py
+          bun tools/smoke/media.mjs .artifacts/electron/linux-unpacked .artifacts/media-smoke
+      - name: Check the ad-hoc signature and packaged macOS processing
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          codesign --display --verbose=4 .artifacts/electron/mac-arm64/inkling.app 2>&1 | grep -Fx 'Signature=adhoc'
+          codesign --verify --deep --strict .artifacts/electron/mac-arm64/inkling.app
+          bun tools/smoke/packaged-backend.mjs
+      - name: Exercise packaged Windows processing
+        if: runner.os == 'Windows'
+        run: bun tools/smoke/packaged-backend.mjs
+      - name: Launch the packaged app and reach the library process
+        if: runner.os == 'Linux'
+        run: xvfb-run -a bun tools/smoke/launch.ts ${{ matrix.app }}
+      - name: Launch the packaged app and reach the library process
+        if: runner.os != 'Linux'
+        run: bun tools/smoke/launch.ts ${{ matrix.app }}
+      - name: List the release artifacts
+        shell: bash
+        run: ls -la .artifacts/electron
+      - uses: actions/upload-artifact@v7
+        with:
+          name: next-release-${{ matrix.os }}
+          path: |
+            next/.artifacts/electron/*.exe
+            next/.artifacts/electron/*.deb
+            next/.artifacts/electron/*.AppImage
+            next/.artifacts/electron/*.dmg
+            next/.artifacts/electron/*.blockmap
+            next/.artifacts/electron/latest*.yml
+            next/.artifacts/electron/nightly*.yml
+            !next/.artifacts/electron/*-mac.yml
+          if-no-files-found: error
+          retention-days: 3
