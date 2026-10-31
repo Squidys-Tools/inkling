@@ -61,7 +61,7 @@ Rules for entries:
 - The item count above the library rolls up when it first appears and replays when hovered, using the React Bits CountUp in compact format
 - Liquid glass in the desktop app: the library toolbar, search chip and image zoom control refract what is behind them through WebGPU and Chromium's HTML-in-Canvas, and fall back to the CSS glass when either is unavailable (#170)
 - File pickers, paste, and drag-and-drop import every selected file through one serial queue with progress and per-file errors, instead of keeping only the first; the pickers accept files of any type (#218)
-- A Smart Space with no filters named only for photo subjects, such as "Cats" or "Photos of dogs", shows photos of those subjects, judged by the stored image vectors and, until an image is analyzed or when the model is unavailable, by its title, OCR text and tags (#225)
+- A Smart Space whose name (with no filters) or search text names only photo subjects, such as "Cats" or "Photos of dogs", shows photos of those subjects: judged by the stored image vectors, plus photos the user tagged with a subject, and by title, description, OCR text and tags for images not analyzed yet or while the model is unavailable (#225)
 
 ### Fixed
 
