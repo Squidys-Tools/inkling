@@ -122,6 +122,7 @@ Rules for entries:
 - List view rows for notes, quotes, and videos sit in the same thumbnail column as other items, the quote text no longer overlaps itself, and the video play control sits on the thumbnail.
 - The browser extension's failure badge is no longer cleared by an earlier save's success timer
 - Library exports record the version of inkling that wrote them in `manifest.json` instead of always `0.1.0`
+- An `updates.json` holding `null`, an array or other unexpected JSON no longer turns updates off with a file-permissions message; inkling uses the default update preferences, and only a failed read disables updates
 
 ### Changed
 

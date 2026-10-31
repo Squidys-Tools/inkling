@@ -4,8 +4,17 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname } from "node:path";
 import { gt, prerelease, valid } from "semver";
 import { CancellationToken } from "builder-util-runtime";
-import type { UpdateChannel, UpdateState } from "@inkling/contracts";
+import { Option, Schema } from "effect";
+import { UpdateChannel, type UpdateState } from "@inkling/contracts";
 import { isMissing } from "./storage/shared.ts";
+
+const UpdatePreferences = Schema.Struct({
+  channel: Schema.optionalKey(UpdateChannel),
+  install: Schema.optionalKey(Schema.Struct({ from: Schema.String, target: Schema.String })),
+});
+const decodeUpdatePreferences = Schema.decodeUnknownOption(
+  Schema.fromJsonString(UpdatePreferences),
+);
 
 type UpdateInfo = { version: string; files?: ReadonlyArray<{ url: string; sha512: string }> };
 type UpdaterLike = {
@@ -28,21 +37,15 @@ async function updateFileHash(path: string) {
 
 export function createUpdatePreferences(path: string) {
   return {
-    async read(): Promise<{ channel?: UpdateChannel; install?: { from: string; target: string } }> {
-      try {
-        const value = JSON.parse(await readFile(path, "utf8"));
-        return {
-          channel:
-            value.channel === "latest" || value.channel === "nightly" ? value.channel : undefined,
-          install:
-            typeof value.install?.from === "string" && typeof value.install?.target === "string"
-              ? { from: value.install.from, target: value.install.target }
-              : undefined,
-        };
-      } catch (error) {
-        if (isMissing(error) || error instanceof SyntaxError) return {};
-        throw error;
-      }
+    // Only an I/O failure rejects: the controller reports it as a permissions problem.
+    async read() {
+      const text = await readFile(path, "utf8").catch((error) =>
+        isMissing(error) ? null : Promise.reject(error),
+      );
+      return Option.getOrElse(
+        decodeUpdatePreferences(text),
+        (): typeof UpdatePreferences.Type => ({}),
+      );
     },
     async write(value: object) {
       await mkdir(dirname(path), { recursive: true });
