@@ -37,12 +37,14 @@ async function flush() {
   if (jobs.length > 0) void refreshActiveJobCount();
 }
 
+// A Smart Space named for a photo subject ("Cats") collects by its name, so a rename reads it again.
 const sameQuery = (a: Space, b: Space) =>
+  a.name === b.name &&
   (a.query.text ?? null) === (b.query.text ?? null) &&
   (a.query.kind ?? null) === (b.query.kind ?? null) &&
   (a.query.tag ?? null) === (b.query.tag ?? null);
 
-// A Regular Space's items may have moved; a Smart Space reads again only when its query changed.
+// A Regular Space's items may have moved; a Smart Space reads again only when its query or name changed.
 async function spacesChanged() {
   const before = new Map(spacesStore.get().spaces.map((space) => [space.id, space]));
   await reloadSpaces();

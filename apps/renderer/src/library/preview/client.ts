@@ -5,9 +5,9 @@ import type {
   LibraryCard,
   LibraryChange,
   Space,
-  SpaceQuery,
 } from "@inkling/contracts";
 import { markdownToPlainText } from "@inkling/ingestion/markdown-text";
+import { mentionsSubject, smartSpaceSubjects } from "@inkling/ingestion/photo-subjects";
 import { displayKind } from "../cardModel.ts";
 import type { LibraryClient } from "../connection.ts";
 import {
@@ -28,10 +28,19 @@ type Entry = { card: LibraryCard; body: string };
 
 const unavailable = (what: string) => Promise.reject(new Error(`${what} needs the desktop app.`));
 
-function matchesSmart(card: LibraryCard, query: SpaceQuery) {
+function matchesSmart(card: LibraryCard, space: Space) {
+  const { query } = space;
   const tags = Array.isArray(card.metadata.tags) ? card.metadata.tags.map(String) : [];
   if (query.tag && !tags.some((tag) => tag.toLowerCase() === query.tag?.toLowerCase()))
     return false;
+  // The preview has no vision vectors, so a photo-subject Space ("Cats") matches
+  // images by their words, as the full app does for images it has not analyzed.
+  const subjects = smartSpaceSubjects(space);
+  if (subjects)
+    return (
+      card.kind === "image" &&
+      mentionsSubject([card.title, card.description, card.ocrText, ...tags].join(" "), subjects)
+    );
   if (query.kind && displayKind(card.kind) !== displayKind(query.kind)) return false;
   return !query.text || haystack(card).includes(query.text.toLowerCase());
 }
@@ -111,7 +120,7 @@ export function createPreviewClient(): LibraryClient {
       const ids = membership.get(space.id) ?? new Set();
       return active.filter((card) => ids.has(card.id));
     }
-    return active.filter((card) => matchesSmart(card, space.query));
+    return active.filter((card) => matchesSmart(card, space));
   };
 
   const withCounts = () =>

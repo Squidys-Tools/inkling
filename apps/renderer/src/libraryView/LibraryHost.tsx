@@ -72,7 +72,10 @@ export function LibraryHost({
   const viewName = archive ? "Archive" : (space?.name ?? "Everything");
   const layout = archive ? "archive" : list ? "list" : "grid";
   // A new scope, search or layout starts a new grid at the top; anything else keeps the scroll.
-  const gridKey = `${layout}|${searching ? `search:${results === null ? "" : ran}` : scopeKey(scope)}`;
+  // So does a renamed or edited Smart Space: VirtuosoMasonry keeps the column of each index
+  // it has placed and only adds to them, so a replaced result set shows stale or doubled cards.
+  const definition = space?.kind === "smart" ? JSON.stringify([space.name, space.query]) : "";
+  const gridKey = `${layout}|${searching ? `search:${results === null ? "" : ran}` : `${scopeKey(scope)}${definition}`}`;
 
   let empty: { title: string; detail: string; action?: { label: string; run: () => void } } | null =
     null;

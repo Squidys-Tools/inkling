@@ -7,8 +7,9 @@ import {
   LibraryRpcs,
   type LibraryChange,
 } from "@inkling/contracts";
+import { smartSpaceSubjects, visualSubjects } from "@inkling/ingestion/photo-subjects";
 import { layerProtocol, type PortSource } from "@inkling/rpc-electron/server";
-import { Cause, Effect, Exit, Fiber, Layer, PubSub, Stream } from "effect";
+import { Cause, Duration, Effect, Exit, Fiber, Layer, PubSub, Stream } from "effect";
 import { RpcServer } from "effect/rpc";
 import { join } from "node:path";
 import { prefetchQueryVector, queryVector, warmQueryModel } from "./jobs/query-vector.ts";
@@ -19,6 +20,13 @@ import { errorMessage } from "./storage/errors.ts";
 import { JobQueue, Library, libraryLayer } from "./storage/library.ts";
 import { cardItem } from "./storage/rows.ts";
 import { snapshotDatabase } from "./storage/sqlite-snapshot.ts";
+import {
+  interfaceLabel,
+  interfacePrompt,
+  otherSubjects,
+  subjectPrompt,
+  type SubjectVectors,
+} from "./storage/visual-subject.ts";
 
 // The library process: the only owner of the SQLite file. Main starts it with
 // the library directory and app version and hands it one port per client.
@@ -56,6 +64,38 @@ const databasePath = join(libraryDirectory, "library.sqlite3");
 const librarySize = createLibrarySizeCache(databasePath, join(libraryDirectory, "assets"));
 const changes = Effect.runSync(PubSub.unbounded<LibraryChange>());
 const publish = (change: LibraryChange) => PubSub.publish(changes, change);
+
+// The subject prompts never change, so each vector is embedded once and kept. Until
+// all are in, a photo Space matches by text; one open waits at most subjectWait, and
+// the vectors embedded so far carry over to the next open.
+const subjectWait = Duration.seconds(5);
+const subjectPrompts = [
+  ...[...visualSubjects, ...otherSubjects].map(
+    (subject) => [subject, subjectPrompt(subject)] as const,
+  ),
+  [interfaceLabel, interfacePrompt] as const,
+];
+const subjectVectors = new Map<string, ArrayLike<number>>();
+const loadSubjectVectors = Effect.suspend(() =>
+  Effect.forEach(
+    subjectPrompts.filter(([label]) => !subjectVectors.has(label)),
+    ([label, prompt]) =>
+      queryVector(prompt).pipe(
+        Effect.flatMap((vector) =>
+          vector?.length
+            ? Effect.sync(() => void subjectVectors.set(label, vector))
+            : Effect.fail(label),
+        ),
+      ),
+    { discard: true },
+  ),
+).pipe(
+  Effect.timeoutOption(subjectWait),
+  Effect.orElseSucceed(() => undefined),
+  Effect.map((): SubjectVectors | null =>
+    subjectVectors.size === subjectPrompts.length ? subjectVectors : null,
+  ),
+);
 
 // Every failure reaches the renderer as one message it can show.
 const failure = (cause: unknown) => new LibraryError({ message: errorMessage(cause) });
@@ -101,8 +141,13 @@ const handlers = LibraryRpcs.toLayer(
             return answer(
               Effect.gen(function* () {
                 const space = yield* library.getSpace(scope.spaceId);
-                const text = space?.kind === "smart" ? (space.query.text ?? "") : "";
-                const vector = yield* queryVector(text);
+                if (space && smartSpaceSubjects(space)) {
+                  const prompts = yield* loadSubjectVectors;
+                  return yield* library.spaceCardsPage(scope.spaceId, cursor, limit, null, prompts);
+                }
+                const vector = yield* queryVector(
+                  space?.kind === "smart" ? (space.query.text ?? "") : "",
+                );
                 return yield* library.spaceCardsPage(scope.spaceId, cursor, limit, vector);
               }),
             );

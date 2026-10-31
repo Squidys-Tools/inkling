@@ -7,12 +7,25 @@ import {
   type Space,
   type UpdateSpaceInput,
 } from "@inkling/contracts";
+import { IMAGE_MODEL } from "@inkling/contracts/jobs";
+import {
+  mentionsSubject,
+  smartSpaceSubjects,
+  visualSubjects,
+} from "@inkling/ingestion/photo-subjects";
 import type { Fragment } from "effect/sql/Statement";
 import type { StorageContext } from "./context.ts";
 import { cardFromRow, type ItemRow, qualifiedItemColumns, readCursor, readItem } from "./rows.ts";
 import { changes, clampLimit, nonEmpty, parseJson } from "./shared.ts";
 import { invalidInput, itemNotFound, spaceNotFound } from "./errors.ts";
 import { escapeFtsQuery, type makeSearch, type QueryVector, sqlLikePattern } from "./search.ts";
+import {
+  decodeVector,
+  interfaceLabel,
+  labelImage,
+  otherSubjects,
+  type SubjectVectors,
+} from "./visual-subject.ts";
 
 type SpaceRow = {
   id: string;
@@ -200,11 +213,63 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     };
   });
 
+  // Photos labelled one of the subjects by their vision vector, best first, then
+  // photos the user tagged with one, and photos with no vector to judge (not analyzed
+  // yet, or no model to label with) whose title, description or OCR name one.
+  const subjectMatches = Effect.fnUntraced(function* (
+    subjects: string[],
+    tag: string | null,
+    cap: number,
+    prompts: SubjectVectors | null,
+  ) {
+    // Every label must compete, or a screenshot or a fox could win "cat" by default.
+    const labels = [...visualSubjects, interfaceLabel, ...otherSubjects];
+    const labelled =
+      prompts && labels.every((label) => prompts.get(label)?.length) ? prompts : null;
+    const rows = yield* sql<
+      ItemRow & { embedding_dimension: number | null; embedding_vector: Uint8Array | null }
+    >`
+      SELECT ${sql.literal(qualifiedItemColumns)},
+      e.dimension AS embedding_dimension, e.vector AS embedding_vector
+      FROM items i LEFT JOIN item_embeddings e
+        ON e.item_id = i.id AND e.kind = 'image' AND e.model = ${IMAGE_MODEL}
+      WHERE i.archived = 0 AND i.kind = 'image'
+      ${tag ? sql`AND i.id IN (SELECT value FROM json_each(${yield* taggedItemIds(tag)}))` : sql.literal("")}
+      ORDER BY i.updated_at DESC, i.created_at DESC`;
+    const wanted = new Set(subjects);
+    const byPixels: { row: ItemRow; score: number }[] = [];
+    const byText: ItemRow[] = [];
+    for (const row of rows) {
+      const image =
+        labelled && row.embedding_vector && row.embedding_dimension
+          ? decodeVector(row.embedding_vector, row.embedding_dimension)
+          : null;
+      const best = labelled && image ? labelImage(image, labelled) : null;
+      if (best && wanted.has(best.label)) {
+        byPixels.push({ row, score: best.score });
+        continue;
+      }
+      // The user's own tags always count. Title, description and OCR count only when
+      // the pixels cannot be judged: a screenshot named cat.png is not a cat photo.
+      const tags = parseJson<{ tags?: unknown } | null>(row.metadata, {})?.tags;
+      const words = [Array.isArray(tags) ? tags.join(" ") : ""];
+      if (!best) words.push(row.title ?? "", row.description ?? "", row.ocr_text);
+      if (mentionsSubject(words.join(" "), subjects)) byText.push(row);
+    }
+    byPixels.sort((left, right) => right.score - left.score);
+    const matches = [...byPixels.map(({ row }) => row), ...byText];
+    return { cards: matches.slice(0, cap).map(cardFromRow), total: matches.length };
+  });
+
   const smartMatches = Effect.fnUntraced(function* (
-    query: SpaceQuery,
+    space: Space,
     cap: number,
     queryVector: QueryVector,
+    subjectVectors: SubjectVectors | null,
   ) {
+    const query = space.query;
+    const subjects = smartSpaceSubjects(space);
+    if (subjects) return yield* subjectMatches(subjects, nonEmpty(query.tag), cap, subjectVectors);
     const text = nonEmpty(query.text);
     const clauses: Fragment[] = [sql`i.archived = 0`];
     let from = sql.literal("items i");
@@ -254,11 +319,17 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     cursor: string | null,
     limit: number,
     queryVector: QueryVector = null,
+    subjectVectors: SubjectVectors | null = null,
   ) {
     const space = yield* getSpace(id);
     if (!space) return yield* spaceNotFound(id);
     if (space.kind === "regular") return yield* memberPage(id, cursor, clampLimit(limit, 100, 200));
-    const { cards, total } = yield* smartMatches(space.query, SMART_SPACE_CAP, queryVector);
+    const { cards, total } = yield* smartMatches(
+      space,
+      SMART_SPACE_CAP,
+      queryVector,
+      subjectVectors,
+    );
     return { cards: cursor == null ? cards : [], next: null, total };
   });
 
@@ -266,12 +337,13 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     id: string,
     limit = 100,
     queryVector: QueryVector = null,
+    subjectVectors: SubjectVectors | null = null,
   ) {
     const space = yield* getSpace(id);
     if (!space) return yield* spaceNotFound(id);
     const cap = clampLimit(limit, 100, SMART_SPACE_CAP);
     if (space.kind === "regular") return (yield* memberPage(id, null, cap)).cards;
-    return (yield* smartMatches(space.query, cap, queryVector)).cards;
+    return (yield* smartMatches(space, cap, queryVector, subjectVectors)).cards;
   });
 
   const addSpaceItem = Effect.fnUntraced(function* (spaceId: string, itemId: string) {
