@@ -41,7 +41,7 @@ const systems: System[] = [
     name: "macOS",
     files: [{ label: "Apple silicon (.dmg)", href: release?.mac }],
     notes: [
-      "Intel Macs are not supported: the search models have no Intel build.",
+      "Intel Macs are not supported: the engine that runs the search models has no Intel Mac build.",
       "The app has no Apple developer signature yet. The first time you open it, macOS blocks it; go to System Settings, Privacy & Security, and choose Open Anyway.",
       "Updates on macOS are manual for now: download the new disk image.",
     ],
@@ -79,12 +79,14 @@ function Download() {
             aria-labelledby={`system-${system.platform}`}
             {...stylex.props(styles.system, system.platform === platform && styles.yours)}
           >
-            <h2 id={`system-${system.platform}`} {...stylex.props(type.subheading)}>
-              {system.name}
+            <div {...stylex.props(styles.heading)}>
+              <h2 id={`system-${system.platform}`} {...stylex.props(type.subheading)}>
+                {system.name}
+              </h2>
               {system.platform === platform && (
                 <span {...stylex.props(styles.yoursLabel)}>Your system</span>
               )}
-            </h2>
+            </div>
             <div {...stylex.props(styles.files)}>
               {system.files.map((file, index) => (
                 <a
@@ -150,8 +152,8 @@ const styles = stylex.create({
     backgroundColor: color.sunken,
   },
   yours: { borderColor: color.borderStrong, backgroundColor: color.surface },
+  heading: { display: "flex", alignItems: "baseline", gap: "10px" },
   yoursLabel: {
-    marginLeft: "10px",
     color: color.accentStrong,
     fontFamily: font.body,
     fontSize: "13px",
