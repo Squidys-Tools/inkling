@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { libraryClient } from "../library/connection.ts";
 import { Page } from "./Page.tsx";
 
-export function LibraryPage() {
+export function LibraryRoute() {
   const [status, setStatus] = useState<LibraryStatus | string>("Opening the library…");
   useEffect(() => {
     libraryClient()
