@@ -1,6 +1,7 @@
 import { BotEngine, type BotFrame } from "./bot/engine";
-import { EXPRESSION_BY_ID, type BotExpression } from "./bot/expressions";
+import { EXPRESSION_BY_ID, blendExpression, type BotExpression } from "./bot/expressions";
 import { REST_GAZE, blinkScale, liveliness } from "./bot/face";
+import { r2 } from "./bot/math";
 import { DEMI_VIEWBOX, RAYON } from "./bot/repere";
 
 /**
@@ -19,7 +20,6 @@ const FLICKER_STEP_SECONDS = 1;
 const STATE = "inkling-drift-faced";
 const MORPH = BotEngine.SHAPE_MORPH;
 
-const r2 = (n: number) => String(Math.round(n * 100) / 100);
 const r4 = (n: number) => String(Math.round(n * 10000) / 10000);
 
 const pct = (t: number) => r4((100 * t) / LOOP_SECONDS);
@@ -69,28 +69,7 @@ function scored(t: number): BotExpression {
   if (i === 0) return to;
   const from = expression(PERFORMANCE[i - 1]![1]);
   const k = (t - PERFORMANCE[i]![0]) / MORPH;
-  return blendTo(from, to, k >= 1 ? 1 : 1 - (1 - k) ** 5);
-}
-
-/** The engine's eye blend, without reaching into its private `lerpEyeCfg`. */
-function blendTo(from: BotExpression, to: BotExpression, t: number): BotExpression {
-  const mix = (a: number, b: number) => a + (b - a) * t;
-  const eye = (a: BotExpression["eyes"][number], b: BotExpression["eyes"][number]) => ({
-    w: mix(a.w, b.w),
-    h: mix(a.h, b.h),
-    open: mix(a.open, b.open),
-    tilt: mix(a.tilt ?? 0, b.tilt ?? 0),
-  });
-  return {
-    id: to.id,
-    gaze: {
-      yaw: mix(from.gaze.yaw, to.gaze.yaw),
-      pitch: mix(from.gaze.pitch, to.gaze.pitch),
-      roll: mix(from.gaze.roll, to.gaze.roll),
-    },
-    split: mix(from.split, to.split),
-    eyes: [eye(from.eyes[0], to.eyes[0]), eye(from.eyes[1], to.eyes[1])],
-  };
+  return blendExpression(from, to, k >= 1 ? 1 : 1 - (1 - k) ** 5);
 }
 
 /**
@@ -125,11 +104,6 @@ function frameAt(t: number): BotFrame {
   const g = face(t).gaze;
   engine.setLook({ yaw: g.yaw, pitch: g.pitch, mix: 1, wander: 0 }, -10);
   return engine.sample(t);
-}
-
-/** The loop's outline at t, turned and reshaped, straight from the engine. */
-function outlineAt(t: number): string {
-  return frameAt(t).bodyPath;
 }
 
 /**
@@ -186,10 +160,10 @@ function flickerKeyframes(): string {
   const frames: string[] = [];
   for (let i = 0; i < steps; i++) {
     frames.push(
-      `${pct((LOOP_SECONDS * i) / steps)}%{d:path("${path1(outlineAt((LOOP_SECONDS * i) / steps))}")}`,
+      `${pct((LOOP_SECONDS * i) / steps)}%{d:path("${path1(frameAt((LOOP_SECONDS * i) / steps).bodyPath)}")}`,
     );
   }
-  frames.push(`${pct(LOOP_SECONDS)}%{d:path("${path1(outlineAt(0))}")}`);
+  frames.push(`${pct(LOOP_SECONDS)}%{d:path("${path1(frameAt(0).bodyPath)}")}`);
   return frames.join("");
 }
 
@@ -350,5 +324,5 @@ export function readmeMascotSvg(
 /** The README asset: sampled from the live engine, then serialized. */
 export function buildReadmeMascot(): string {
   const frame = readmeMascotFrame();
-  return readmeMascotSvg(frame, "#1a1a1a", "#faf9f6", path1(outlineAt(0)));
+  return readmeMascotSvg(frame, "#1a1a1a", "#faf9f6", path1(frameAt(0).bodyPath));
 }
