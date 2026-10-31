@@ -165,6 +165,42 @@ test("a large image reads two passes at a time and replaces each worker it grew"
   expect(stats.terminated).toBe(10);
 });
 
+test("an idle pool shuts its workers down and the next file starts fresh ones", async () => {
+  const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-idle-"));
+  roots.push(cacheDirectory);
+  const stats = { created: 0, terminated: 0 };
+  let bothTerminated!: () => void;
+  const terminated = new Promise<void>((resolve) => {
+    bothTerminated = resolve;
+  });
+  const ocr = createTesseractOcr({
+    cacheDirectory,
+    workers: 2,
+    idleMillis: 0,
+    workerFactory: async () => {
+      stats.created++;
+      return {
+        setParameters: async () => {},
+        recognize: async () => ({
+          data: { text: "plenty of clear words in this sample text here", confidence: 95 },
+        }),
+        terminate: async () => {
+          if (++stats.terminated === 2) bothTerminated();
+        },
+      };
+    },
+  });
+  const bytes = fixture("image-columns-01.png");
+  try {
+    await ocr.recognize(bytes);
+    await terminated;
+    await ocr.recognize(bytes);
+    expect(stats.created).toBe(4);
+  } finally {
+    await ocr.close();
+  }
+});
+
 test("close cancels hung recognition and queued files even if terminate never settles recognition", async () => {
   for (const releaseOnTerminate of [false, true]) {
     const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-hung-"));

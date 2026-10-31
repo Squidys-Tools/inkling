@@ -40,11 +40,13 @@ export function createTesseractOcr({
   cacheDirectory,
   workerFactory = createWorker,
   shutdownGraceMillis = 2000,
+  idleMillis = 30_000,
   workers: poolSize = defaultOcrWorkers(),
 }: {
   cacheDirectory: string;
   workerFactory?: OcrWorkerFactory;
   shutdownGraceMillis?: number;
+  idleMillis?: number;
   workers?: number;
 }) {
   const cachePath = resolve(cacheDirectory);
@@ -52,6 +54,7 @@ export function createTesseractOcr({
   const idle: number[] = [];
   const waiting: ((slot: number) => void)[] = [];
   let started = 0;
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
   let largeActive = 0;
   const largeWaiting: (() => void)[] = [];
   const pending = new Set<(error: Error) => void>();
@@ -85,6 +88,7 @@ export function createTesseractOcr({
   // A worker holds one page mode's parameters, so each pass owns its worker
   // from setParameters through recognize. Slots are handed out first come, first served.
   function acquire() {
+    clearTimeout(idleTimer);
     const slot = idle.pop() ?? (started < poolSize ? started++ : undefined);
     if (slot !== undefined) return Promise.resolve(slot);
     return new Promise<number>((resolve) => waiting.push(resolve));
@@ -94,6 +98,14 @@ export function createTesseractOcr({
     const next = waiting.shift();
     if (next) next(slot);
     else idle.push(slot);
+    // Each worker keeps the heap of the largest image it read, so a pool left
+    // idle after a burst gives that memory back; the next file starts fresh workers.
+    if (idle.length === started && !closed) {
+      idleTimer = setTimeout(() => {
+        for (const slot of idle) void retire(slot);
+      }, idleMillis);
+      idleTimer.unref?.();
+    }
   }
   function acquireLarge() {
     if (largeActive < LARGE_OCR_PASSES) {
@@ -216,6 +228,7 @@ export function createTesseractOcr({
   }
   function close() {
     closed = true;
+    clearTimeout(idleTimer);
     closing ??= (async () => {
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
