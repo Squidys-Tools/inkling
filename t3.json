@@ -20,6 +20,12 @@
       "runOnWorktreeCreate": false
     },
     {
+      "name": "Run marketing site",
+      "command": "bun run dev:site",
+      "icon": "play",
+      "runOnWorktreeCreate": false
+    },
+    {
       "name": "Build desktop app (unpacked)",
       "command": "bun run build:dir",
       "icon": "configure",
@@ -28,6 +34,12 @@
     {
       "name": "Build web preview",
       "command": "bun run build:web",
+      "icon": "configure",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Build marketing site",
+      "command": "bun run build:site",
       "icon": "configure",
       "runOnWorktreeCreate": false
     },
