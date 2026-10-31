@@ -14,8 +14,26 @@ const FIGURE_VIEW: View = {
   height: DEMI_VIEWBOX * 2,
 };
 
-/** A tight crop around the drift gaze, so the eyes sit centred in the search field. */
+/** The search field's smallest crop of the eyes; it also sets that canvas's proportions. */
 export const EYES_VIEW: View = { x: -14, y: -88, width: 78, height: 80 };
+
+/**
+ * The search field's crop: the pair centred and grown to hold both eyes. Only
+ * drift keeps the face near `EYES_VIEW`; notify, idle and sway move it far
+ * outside, so a fixed crop would lose the eyes while jobs run.
+ */
+export function eyesView(frame: BotFrame): View {
+  if (frame.eyes.length === 0) return EYES_VIEW;
+  const pad = 4;
+  const left = Math.min(...frame.eyes.map((eye) => eye.bounds.left)) - pad;
+  const right = Math.max(...frame.eyes.map((eye) => eye.bounds.right)) + pad;
+  const top = Math.min(...frame.eyes.map((eye) => eye.bounds.top)) - pad;
+  const bottom = Math.max(...frame.eyes.map((eye) => eye.bounds.bottom)) + pad;
+  const aspect = EYES_VIEW.height / EYES_VIEW.width;
+  const width = Math.max(EYES_VIEW.width, right - left, (bottom - top) / aspect);
+  const height = width * aspect;
+  return { x: (left + right - width) / 2, y: (top + bottom - height) / 2, width, height };
+}
 
 /** Hex colors: dots fade toward the paper by mixing channels. `paper: null` leaves the eyes see-through. */
 export type MascotPaint = { ink: string; paper: string | null; notification: string };
@@ -148,7 +166,7 @@ export function drawFigure(
 export function drawEyes(ctx: CanvasRenderingContext2D, frame: BotFrame, ink: string) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  viewTransform(ctx, EYES_VIEW);
+  viewTransform(ctx, eyesView(frame));
   ctx.fillStyle = ink;
   fillEyes(ctx, frame);
 }
