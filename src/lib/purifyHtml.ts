@@ -1,11 +1,15 @@
 import createDOMPurify, { type WindowLike } from "dompurify";
 import { applyEmbedPolicy } from "./ingestion/embeds";
 
+// Saved pages could reuse the app's utility classes to draw over its UI, so
+// only classes the reader stylesheet styles survive.
+const KEPT_CLASSES = new Set(["article-lede"]);
+
 /**
- * The trust boundary for stored article and X embed HTML, run right before it
- * reaches the DOM. Stored HTML also comes from extension captures, imports and
- * older versions, so capture-time cleanup is never enough on its own. It needs
- * the renderer's real DOM: on linkedom DOMPurify returns its input unchanged.
+ * The trust boundary for stored article HTML, run right before it reaches the
+ * DOM. Stored HTML also comes from extension captures, imports and older
+ * versions, so capture-time cleanup is never enough on its own. It needs the
+ * renderer's real DOM: on linkedom DOMPurify returns its input unchanged.
  */
 export function purifyHtml(window: WindowLike, html: string, pageUrl: string): string {
   const purify = createDOMPurify(window);
@@ -20,6 +24,11 @@ export function purifyHtml(window: WindowLike, html: string, pageUrl: string): s
       else node.removeAttribute("target");
     }
     if (node.localName === "iframe") node.removeAttribute("name");
+    if (node.hasAttribute("class")) {
+      const kept = [...node.classList].filter((name) => KEPT_CLASSES.has(name));
+      if (kept.length > 0) node.setAttribute("class", kept.join(" "));
+      else node.removeAttribute("class");
+    }
   });
   return purify.sanitize(html, {
     ADD_TAGS: ["iframe"],

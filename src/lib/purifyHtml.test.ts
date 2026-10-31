@@ -22,11 +22,16 @@ describe("purifyHtml", () => {
     );
   });
 
-  test("keeps the X embed markup the widget upgrades", () => {
-    const embed =
-      '<blockquote class="twitter-tweet" data-dnt="true"><p lang="en">just setting up my twttr</p>' +
-      '— jack <a href="https://twitter.com/jack/status/20">March 21, 2006</a></blockquote>';
-    expect(purify(embed)).toBe(embed);
+  test("keeps only the classes the reader styles", () => {
+    expect(
+      purify(
+        '<p class="article-lede fixed inset-0 z-50">Lede</p>' +
+          '<div class="fixed inset-0 bg-surface">Fake dialog</div>' +
+          '<svg class="absolute top-0"><rect class="article-lede"></rect></svg>',
+      ),
+    ).toBe(
+      '<p class="article-lede">Lede</p><div>Fake dialog</div><svg><rect class="article-lede"></rect></svg>',
+    );
   });
 
   test("rebuilds an allowlisted iframe on the provider's embed URL", () => {
