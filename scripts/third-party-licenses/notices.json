@@ -28,6 +28,13 @@
     "noticeFile": "src/components/SegmentedControl/LICENSE.md"
   },
   {
+    "name": "Rare UI Grid Reveal",
+    "license": "MIT + Commons Clause + Attribution",
+    "sourceUrl": "https://rareui.com/components/gridreveal",
+    "description": "The photo that splits out of a grid on the welcome screens.",
+    "noticeFile": "src/components/onboarding/LICENSE-rare-ui.md"
+  },
+  {
     "name": "Viora UI Create New Disclosure",
     "license": "MIT",
     "sourceUrl": "https://www.vioraui.dedyn.io/docs/components/create-new-disclosure",

@@ -124,6 +124,7 @@ Rules for entries:
 - Library exports record the version of inkling that wrote them in `manifest.json` instead of always `0.1.0`
 - An `updates.json` holding `null`, an array or other unexpected JSON no longer turns updates off with a file-permissions message; inkling uses the default update preferences, and only a failed read disables updates
 - A note's description no longer changes once the save returns: storage now uses the renderer's plain-text projection, so raw HTML, code spans and entities agree, and both strip `~~strikethrough~~`. Notes saved earlier keep their stored description until they are edited
+- Settings → General → Open source licenses now lists Rare UI's Grid Reveal, which the welcome screens adapt, with its MIT + Commons Clause + Attribution license and a link to rareui.com
 
 ### Changed
 
