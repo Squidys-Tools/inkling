@@ -1,0 +1,38 @@
+name: Deploy site
+
+# The only way the marketing site reaches production. The Vercel secrets live in
+# the `site-production` environment, which requires a human reviewer, so a run
+# started by anyone (or any agent) waits for approval before it can read them.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy apps/site to production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: site-production
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      # The Vercel project's root directory is apps/site, so deploy from the repo root.
+      - name: Deploy to production
+        run: bunx vercel@65.9.0 deploy --prod --yes --token "$VERCEL_TOKEN" --meta githubSha=${{ github.sha }}
