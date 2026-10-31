@@ -7,12 +7,15 @@ import { searchDemo } from "./demoLibrary.ts";
 
 const suggestions = ["fuji", "a quote about time", "anime", "night", "paper"];
 const ignore = () => {};
+const restingCount = 15;
 
 export function LibraryDemo() {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const deferred = useDeferredValue(query);
   const found = searchDemo(deferred);
+  // Unfiltered, a few rows are enough to show the grid, and the rest never download.
+  const shown = deferred.trim() ? found : found.slice(0, restingCount);
 
   return (
     <section aria-label="Try the search on a demo library" {...stylex.props(styles.demo)}>
@@ -50,8 +53,8 @@ export function LibraryDemo() {
         ))}
       </div>
       {/* The cards are pictures of the app here: nothing in them opens. */}
-      <div inert {...stylex.props(styles.grid)}>
-        {found.map((view, index) => (
+      <div inert {...stylex.props(styles.grid, !deferred.trim() && styles.resting)}>
+        {shown.map((view, index) => (
           <div key={view.id} {...stylex.props(styles.cell)}>
             <CardFace
               view={view}
@@ -131,7 +134,13 @@ const styles = stylex.create({
     outlineOffset: "2px",
   },
   suggestionOn: { borderColor: color.accent, color: color.inkStrong },
-  grid: { columnWidth: "232px", columnGap: "12px" },
+  grid: { columnWidth: "220px", columnGap: "12px" },
+  // The resting grid ends in a fade rather than on ragged column bottoms.
+  resting: {
+    maxHeight: "980px",
+    overflow: "hidden",
+    maskImage: `linear-gradient(to bottom, ${color.ink} 70%, transparent)`,
+  },
   cell: { breakInside: "avoid" },
   empty: { margin: 0, maxWidth: "52ch", color: color.muted, lineHeight: 1.6 },
 });
