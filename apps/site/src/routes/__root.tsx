@@ -7,7 +7,7 @@ import { NotFound } from "../layout/NotFound.tsx";
 import { shareImage } from "../layout/seo.ts";
 import { registerFonts } from "@inkling/ui";
 import dmSans from "@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2?url";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, Suspense, useEffect } from "react";
 
 // StyleX writes one stylesheet: a virtual module in dev, stylex.css beside the client bundle in a build.
 const stylesheet = import.meta.env.DEV ? "/virtual:stylex.css" : "/assets/stylex.css";
@@ -17,6 +17,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { title: "inkling" },
       { name: "theme-color", content: siteColor.browserChrome },
       { property: "og:type", content: "website" },
       { property: "og:site_name", content: "inkling" },
@@ -35,7 +36,13 @@ export const Route = createRootRoute({
   }),
   shellComponent: Shell,
   component: Layout,
-  notFoundComponent: NotFound,
+  notFoundComponent: () => (
+    // The router wraps a route's component, like 404.html's, in Suspense but not the
+    // not-found page; the same boundary here lets 404.html hydrate at any unknown path.
+    <Suspense>
+      <NotFound />
+    </Suspense>
+  ),
 });
 
 function Layout() {
