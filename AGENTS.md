@@ -45,6 +45,7 @@ The usual defect works on the tested path and is missing elsewhere. Before calli
 ## Code
 
 - `apps/renderer` is the React renderer. It reaches the library only through the Effect RPC client in `apps/renderer/src/library/connection.ts`, whose groups live in `packages/contracts`, and the desktop only through the preload bridge typed in `packages/contracts/src/desktop.ts`.
+- `apps/site` is the marketing site. It imports renderer modules (cards, mascot, welcome demos, demo seed), which therefore must not touch `window` or `document` at import: the site prerenders them on a server.
 - `apps/desktop` is the Electron main process and preload: windows, menus, dialogs, the `app://` protocol, capture intake and updates. It never opens the database.
 - `packages/library` runs in the library utility process, the only owner of the SQLite file and the job queue. `packages/jobs` is the stateless worker process it calls for OCR, embeddings, thumbnails, PDF and URL extraction. `packages/ingestion` is shared by the worker and the renderer. `packages/rpc-electron` carries Effect RPC over Electron message ports.
 - The processes are written with Effect 4, whose API differs a lot from the Effect 3 most models remember. Read `node_modules/effect/AGENTS.md` and `node_modules/effect/ai-docs/` before writing Effect code. Effect stops at the UI edge: React code calls the promise client from `packages/rpc-electron/src/promise-client.ts`. Reusable functions use `Effect.fnUntraced`, inline programs and layers use `Effect.gen`.

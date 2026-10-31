@@ -12,6 +12,9 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 - `apps/desktop`: Electron main process and preload. Windows, menus, dialogs,
   the `app://` protocol, capture intake, updates, and the two processes below. It never opens the database.
 - `apps/renderer`: the React app. Routes, pages and stores, styled only with StyleX.
+- `apps/site`: the marketing site, a TanStack Start app prerendered to static
+  HTML. It imports the renderer's cards, mascot, welcome-screen demos and demo
+  seed instead of copying them.
 - `packages/library`: the library process, the only owner of the SQLite file.
   It runs the job queue and writes every job's result.
 - `packages/jobs`: the worker process. OCR, embeddings, thumbnails, PDF and URL
@@ -36,6 +39,8 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 | Web preview with the demo seed | `bun run dev` |
 | Desktop app from source, on a real library | `bun run dev:app` |
 | Static web preview build (keeps the demo seed) | `bun run build:web` |
+| Marketing site | `bun run dev:site` |
+| Static marketing site build | `bun run build:site` |
 | App build (drops the demo seed) | `bun run build:app` |
 | Electron directory build (unpacked) | `bun run build:dir` |
 | Windows NSIS installer | `bun run build:win` |
@@ -54,6 +59,13 @@ memory, only in `dev` and in `build:web`'s preview mode, which writes `dist/web`
 reference reached them. electron-builder packs only those two folders, and every
 packaging command goes through `build:app`, so no shipped package carries the
 ~9.7 MB seed.
+
+The marketing site deploys from a Vercel project whose root directory is
+`apps/site`; `apps/site/vercel.json` installs the Bun in `.bun-version` and
+serves `apps/site/dist/client`. Its download buttons link the installers of the
+latest GitHub release, looked up once per build, so redeploy the site after
+publishing a release. Build it with `bun run build:site`, which runs Vite on
+Node: under the Bun runtime, StyleX's production media-query parser fails.
 
 Packaged builds bundle the embedding models; [models.md](../models.md) covers how
 development builds fetch them.
