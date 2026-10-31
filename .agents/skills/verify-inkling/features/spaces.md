@@ -65,6 +65,6 @@ CDP sends the right-click but cannot inspect or select the native menu entries.
 
 - The new Space form defaults to Smart. **Save as Space** opens it with the query in a placeholder such as **Save “alpha” as…**; the field value is empty until the user types a name.
 - Rename is labeled `Rename <name>` and commits with Enter or blur; Escape cancels.
-- [SpaceRow.tsx](apps/renderer/src/shell/SpaceRow.tsx) labels row controls `Change color of <name>`, `Move <name> up`, and `Move <name> down`.
+- `apps/renderer/src/shell/SpaceRow.tsx` labels row controls `Change color of <name>`, `Move <name> up`, and `Move <name> down`.
 - Deleting an empty Space needs no confirmation. A populated Regular Space asks first and says its items stay in the library.
 - A Smart Space cannot hold hand-filed items. Only Regular Spaces appear in **Keep in a Space**.
