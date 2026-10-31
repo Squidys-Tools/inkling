@@ -22,8 +22,9 @@ type Timers = {
 
 /**
  * Search runs in the library process after a pause in typing or on Enter,
- * never per keystroke. Only the newest query's answer lands: an older search
- * that finishes late is dropped.
+ * never per keystroke. Text matches show at once; the semantic answer, which
+ * waits on the query's embedding, replaces them when it lands. Only the newest
+ * query's answers land: an older search that finishes late is dropped.
  */
 export function createSearch({
   run,
@@ -34,7 +35,7 @@ export function createSearch({
     clear: (handle) => window.clearTimeout(handle),
   },
 }: {
-  run: (query: string) => Promise<readonly LibraryCard[]>;
+  run: (query: string, semantic: boolean) => Promise<readonly LibraryCard[]>;
   onCards: (cards: readonly LibraryCard[]) => void;
   delay?: number;
   timers?: Timers;
@@ -60,19 +61,39 @@ export function createSearch({
     const removed = new Set<string>();
     removedSince = removed;
     store.set({ ...current, status: "searching", error: null });
-    try {
-      const cards = (await run(query)).filter((card) => !removed.has(card.id));
-      if (mine !== generation) return;
-      onCards(cards);
+    const land = (cards: readonly LibraryCard[], status: SearchState["status"]) => {
+      const kept = cards.filter((card) => !removed.has(card.id));
+      onCards(kept);
       store.set((state) => ({
         ...state,
-        results: cards.map((card) => card.id),
+        results: kept.map((card) => card.id),
         ran: query,
-        status: "ready",
+        status,
       }));
+    };
+    const semantic = run(query, true);
+    // Awaited below; this only keeps an early failure from being reported as unhandled.
+    semantic.catch(() => {});
+    let shown = false;
+    try {
+      const text = await run(query, false);
+      if (mine !== generation) return;
+      land(text, "searching");
+      shown = true;
+    } catch {
+      // The semantic answer below still lands, or reports the failure.
+    }
+    try {
+      const cards = await semantic;
+      if (mine !== generation) return;
+      land(cards, "ready");
     } catch (error) {
       if (mine !== generation) return;
-      store.set((state) => ({ ...state, status: "error", error: errorMessage(error) }));
+      store.set((state) =>
+        shown
+          ? { ...state, status: "ready" }
+          : { ...state, status: "error", error: errorMessage(error) },
+      );
     }
   }
 

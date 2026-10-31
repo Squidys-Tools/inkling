@@ -10,7 +10,7 @@ import { layerProtocol, type PortSource } from "@inkling/rpc-electron/server";
 import { Effect, Fiber, Layer, PubSub, Stream } from "effect";
 import { RpcServer } from "effect/rpc";
 import { join } from "node:path";
-import { queryVector } from "./jobs/query-vector.ts";
+import { prefetchQueryVector, queryVector, warmQueryModel } from "./jobs/query-vector.ts";
 import { jobLanesLayer } from "./jobs/runtime.ts";
 import { layerPorts } from "./jobs/worker-client.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
@@ -76,6 +76,8 @@ const handlers = LibraryRpcs.toLayer(
   Effect.gen(function* () {
     const library = yield* Library;
     const jobs = yield* JobQueue;
+    // The first search should not pay for loading the query model.
+    yield* Effect.forkDetach(warmQueryModel);
     // Announce every write, so each window refetches that one card.
     const written = <A extends { id: string }, E, R>(effect: Effect.Effect<A, E, R>) =>
       answer(effect).pipe(Effect.tap((item) => itemChanged(item.id)));
@@ -109,11 +111,15 @@ const handlers = LibraryRpcs.toLayer(
       item: ({ id }) => answer(Effect.map(library.getItem(id), itemRecord)),
       articleHtml: ({ id }) => answer(Effect.map(library.getItem(id), articleHtml)),
       itemContent: ({ id }) => answer(library.getItemContent(id)),
-      search: ({ query, limit }) =>
+      search: ({ query, limit, semantic }) =>
         answer(
-          queryVector(query).pipe(
-            Effect.flatMap((vector) => library.searchItems(query, limit, vector)),
-          ),
+          semantic === false
+            ? Effect.forkDetach(prefetchQueryVector(query)).pipe(
+                Effect.andThen(library.searchItems(query, limit, null)),
+              )
+            : queryVector(query).pipe(
+                Effect.flatMap((vector) => library.searchItems(query, limit, vector)),
+              ),
         ),
       similar: ({ id, by, limit }) => answer(library.searchSimilar(id, by, limit)),
       createNote: (input) => written(library.createNote(input)),

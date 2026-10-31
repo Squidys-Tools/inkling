@@ -103,3 +103,44 @@ test("LIKE fallback treats percent and underscore as literal search characters",
   expect(ids(await library.searchItems("100%"))).toEqual(["literal-percent"]);
   expect(ids(await library.searchItems("file_name"))).toEqual(["literal-underscore"]);
 });
+
+test("semantic search follows re-embedded, deleted and archived items after vectors are cached", async () => {
+  const { library } = await temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items
+    (id, kind, title, metadata, created_at, updated_at) VALUES (?, ?, ?, '{}', ?, ?)`);
+  for (const [index, id] of ["moved", "deleted", "archived", "kept"].entries()) {
+    insert.run(id, "note", `${id} note`, index, index);
+  }
+  await library.storeEmbedding("moved", "text", TEXT_MODEL, vector([1, 0]), 2);
+  await library.storeEmbedding("deleted", "text", TEXT_MODEL, vector([0.9, Math.sqrt(0.19)]), 2);
+  await library.storeEmbedding("archived", "text", TEXT_MODEL, vector([0.8, 0.6]), 2);
+  await library.storeEmbedding("kept", "text", TEXT_MODEL, vector([0.6, 0.8]), 2);
+  const east = Float32Array.from([1, 0]);
+  expect(ids(await library.searchItems("unrelated", 20, east))).toEqual([
+    "moved",
+    "deleted",
+    "archived",
+    "kept",
+  ]);
+
+  await library.storeEmbedding("moved", "text", TEXT_MODEL, vector([0, 1]), 2);
+  library.db.exec("DELETE FROM items WHERE id = 'deleted'");
+  await library.archiveItem("archived");
+  expect(ids(await library.searchItems("unrelated", 20, east))).toEqual(["kept"]);
+  expect(ids(await library.searchSimilar("kept", "text", 12))).toEqual(["moved"]);
+});
+
+test("exact-score ties across the result cap keep the newest items first", async () => {
+  const { library } = await temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items
+    (id, kind, title, metadata, created_at, updated_at) VALUES (?, 'note', ?, '{}', ?, ?)`);
+  for (let index = 0; index < 60; index += 1) {
+    const id = `dup-${String(index).padStart(2, "0")}`;
+    insert.run(id, `copy ${index}`, index, index);
+    await library.storeEmbedding(id, "text", TEXT_MODEL, vector([1, 0]), 2);
+  }
+  expect(ids(await library.searchItems("unrelated", 20, Float32Array.from([1, 0])))).toEqual(
+    Array.from({ length: 20 }, (_, index) => `dup-${59 - index}`),
+  );
+  expect(await library.searchSimilar("dup-00", "text", 12)).toHaveLength(12);
+});

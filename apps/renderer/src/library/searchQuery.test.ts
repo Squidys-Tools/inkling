@@ -5,13 +5,17 @@ import { createSearch } from "./searchQuery.ts";
 const card = (id: string) => ({ id }) as LibraryCard;
 
 /** A search whose timers and library answers the test releases by hand. */
-function harness() {
+function harness({ text }: { text?: (query: string) => Promise<LibraryCard[]> } = {}) {
   const timers = new Map<number, () => void>();
   let nextTimer = 0;
   const pending: { query: string; resolve: (cards: LibraryCard[]) => void }[] = [];
   const stored: LibraryCard[] = [];
   const search = createSearch({
-    run: (query) => new Promise((resolve) => pending.push({ query, resolve })),
+    // The text-first pass is off unless a test supplies it, so the semantic answer decides.
+    run: (query, semantic) =>
+      semantic
+        ? new Promise((resolve) => pending.push({ query, resolve }))
+        : (text?.(query) ?? Promise.reject(new Error("text pass off"))),
     onCards: (cards) => void stored.push(...cards),
     timers: {
       set: (run) => {
@@ -93,5 +97,50 @@ describe("search", () => {
     await answer("tea", ["a", "b"]);
     expect(search.store.get().results).toEqual(["b"]);
     expect(stored.map((card) => card.id)).toEqual(["b"]);
+  });
+
+  it("shows text matches at once, then the semantic answer", async () => {
+    const { search, firePause, answer } = harness({ text: async () => [card("lexical")] });
+    search.setQuery("corgi");
+    firePause();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(search.store.get()).toMatchObject({
+      results: ["lexical"],
+      ran: "corgi",
+      status: "searching",
+    });
+    await answer("corgi", ["semantic", "lexical"]);
+    expect(search.store.get()).toMatchObject({ results: ["semantic", "lexical"], status: "ready" });
+  });
+
+  it("keeps the text matches when the semantic pass fails", async () => {
+    const { search, firePause, pending } = harness({ text: async () => [card("lexical")] });
+    search.setQuery("corgi");
+    firePause();
+    await Promise.resolve();
+    pending.splice(0, 1)[0].resolve(Promise.reject(new Error("worker gone")) as never);
+    for (let i = 0; i < 4; i += 1) await Promise.resolve();
+    expect(search.store.get()).toMatchObject({
+      results: ["lexical"],
+      status: "ready",
+      error: null,
+    });
+  });
+
+  it("drops an older query's text matches once a newer query runs", async () => {
+    let release: (cards: LibraryCard[]) => void = () => {};
+    const { search, firePause, answer } = harness({
+      text: (query) =>
+        query === "cat" ? new Promise((resolve) => (release = resolve)) : Promise.resolve([]),
+    });
+    search.setQuery("cat");
+    firePause();
+    search.setQuery("cats");
+    firePause();
+    await answer("cats", ["new"]);
+    release([card("old")]);
+    await answer("cat", ["old"]);
+    expect(search.store.get()).toMatchObject({ results: ["new"], ran: "cats", status: "ready" });
   });
 });
