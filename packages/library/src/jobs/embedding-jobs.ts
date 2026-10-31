@@ -72,7 +72,11 @@ export const generateEmbedding: Processor<Library | JobQueue | JobsWorker> = Eff
     const worker = yield* workerClient;
     const item = yield* requireItem(job.itemId);
     const text = embeddingText(item);
-    const total = Number(Boolean(text)) + Number(item.kind === "image");
+    // A new image is embedded before its OCR, then again once OCR adds text; its
+    // pixels have not changed, so a current-model image vector is kept, not recomputed.
+    const embedImage =
+      item.kind === "image" && !(yield* library.hasImageEmbedding(item.id, IMAGE_MODEL));
+    const total = Number(Boolean(text)) + Number(embedImage);
     yield* reportProgress(job, workerId, 0, total, "Loading local Nomic embedding models");
     let current = 0;
 
@@ -83,7 +87,7 @@ export const generateEmbedding: Processor<Library | JobQueue | JobsWorker> = Eff
       yield* reportProgress(job, workerId, current, total, "Text search index ready");
     }
 
-    if (item.kind === "image") {
+    if (embedImage) {
       const path = yield* assetPath(item.localAssetPath);
       const { model, bytes, dimension } = yield* worker.embedImage({ path });
       yield* library.storeEmbedding(item.id, "image", model, bytes, dimension);

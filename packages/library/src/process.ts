@@ -87,7 +87,8 @@ const loadSubjectVectors = Effect.suspend(() =>
             : Effect.fail(label),
         ),
       ),
-    { discard: true },
+    // About a hundred short prompts on a cold first open; a few at once keeps it quick.
+    { discard: true, concurrency: 4 },
   ),
 ).pipe(
   Effect.timeoutOption(subjectWait),

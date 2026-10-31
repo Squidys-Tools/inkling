@@ -90,6 +90,9 @@ export function makeFiles(ctx: StorageContext) {
         if (kind === "image") {
           // The palette job reads the thumbnail, so the thumbnail job queues it.
           yield* jobs.enqueue(id, IMAGE_THUMBNAIL_JOB);
+          // The image vector takes a fraction of a second and OCR can take many, so the
+          // photo is findable by what it shows first; OCR text re-queues the embedding.
+          yield* jobs.enqueue(id, "generate_embedding");
           yield* jobs.enqueue(id, "ocr_image");
         }
         if (kind === "pdf") yield* jobs.enqueue(id, "ocr_pdf_page");

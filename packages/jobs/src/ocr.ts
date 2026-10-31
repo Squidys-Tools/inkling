@@ -127,7 +127,15 @@ export function createTesseractOcr({
   async function retire(slot: number) {
     const current = workers[slot];
     workers[slot] = undefined;
-    await current?.then((done) => done.terminate()).catch(() => {});
+    // A hung terminate must not hold a large-image token for the rest of the session.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      current?.then((done) => done.terminate()).catch(() => {}),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, 2000);
+      }),
+    ]);
+    clearTimeout(timer);
   }
   // A pass may prepare its bytes once it holds a worker, so at most `poolSize`
   // rotated copies are alive at once across every file.
