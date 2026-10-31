@@ -176,12 +176,7 @@ if (!app.requestSingleInstanceLock()) {
     library = startProcesses({
       bundleDirectory,
       libraryDirectory,
-      onGiveUp: (code) => {
-        dialog.showErrorBox(
-          "inkling can't open your library",
-          `The library process keeps stopping (exit code ${code}). Your library is unchanged; quit and open inkling again.`,
-        );
-      },
+      onCannotOpen: (reason) => dialog.showErrorBox("inkling can't open your library", reason),
     });
     library.attachMain(libraryClient.onPort);
     registerIpc();

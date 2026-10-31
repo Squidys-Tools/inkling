@@ -1,5 +1,9 @@
+import type { LibraryCannotOpen } from "@inkling/contracts";
 import { MessageChannelMain, type MessagePortMain, type WebContents } from "electron";
 import { superviseUtilityProcess } from "./utility-process.ts";
+
+const isCannotOpen = (message: unknown): message is LibraryCannotOpen =>
+  (message as { type?: unknown } | null)?.type === "cannot-open";
 
 /**
  * Runs the library process (SQLite, search, the job queue) and hands each window
@@ -10,12 +14,12 @@ export function startLibraryProcess({
   entry,
   args,
   onRestart,
-  onGiveUp,
+  onCannotOpen,
 }: {
   entry: string;
   args: string[];
   onRestart: () => void;
-  onGiveUp: (code: number) => void;
+  onCannotOpen: (reason: string) => void;
 }) {
   const clients = new Set<WebContents>();
   let mainClient: ((port: MessagePortMain) => void) | undefined;
@@ -41,7 +45,13 @@ export function startLibraryProcess({
       connectMain();
       onRestart();
     },
-    onGiveUp,
+    onGiveUp: (code) =>
+      onCannotOpen(
+        `The library process keeps stopping (exit code ${code}). Your library is unchanged; quit and open inkling again.`,
+      ),
+  });
+  child.onMessage((message) => {
+    if (isCannotOpen(message)) onCannotOpen(message.message);
   });
 
   return {

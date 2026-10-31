@@ -75,8 +75,8 @@ test("a library from a newer schema is refused without writing to it", async () 
   db.close();
   const before = readFileSync(databasePath);
 
-  expect(() => openDatabase(databasePath)).toThrow("saved by a newer Inkling");
-  await expect(trackedLibrary(databasePath)).rejects.toThrow("saved by a newer Inkling");
+  expect(() => openDatabase(databasePath)).toThrow("saved by a newer version of inkling");
+  await expect(trackedLibrary(databasePath)).rejects.toThrow("saved by a newer version of inkling");
   expect(readFileSync(databasePath).equals(before)).toBe(true);
   const after = trackDatabase(new DatabaseSync(databasePath, { readOnly: true }));
   expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: SCHEMA_VERSION + 1 });

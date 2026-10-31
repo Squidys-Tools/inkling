@@ -203,7 +203,7 @@ export function openDatabase(databasePath: string) {
   if (version > SCHEMA_VERSION) {
     db.close();
     throw storageFailure(
-      `This library was saved by a newer Inkling (schema ${version}, this app reads ${SCHEMA_VERSION}). Update Inkling to open it.`,
+      "This library was saved by a newer version of inkling and is unchanged. Update inkling to open it.",
     );
   }
   if (version < 1) db.exec(itemsSchema);

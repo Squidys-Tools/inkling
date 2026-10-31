@@ -162,3 +162,6 @@ export const LibraryRpcs = RpcGroup.make(
 
   Rpc.make("changes", { success: LibraryChange, stream: true }),
 );
+
+/** The library process sends this to main when it cannot open the library at all. */
+export type LibraryCannotOpen = { type: "cannot-open"; message: string };
