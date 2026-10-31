@@ -28,14 +28,14 @@ export function escapeFtsQuery(query: string) {
     .join(" ");
 }
 
-export function decodeFloatVector(blob: Uint8Array, dimension: number) {
+function decodeFloatVector(blob: Uint8Array, dimension: number) {
   if (blob.byteLength !== dimension * 4) return null;
   const bytes = Buffer.from(blob.buffer, blob.byteOffset, blob.byteLength);
   return Array.from({ length: dimension }, (_, index) => bytes.readFloatLE(index * 4));
 }
 
 // Callers skip vectors whose length differs from the query's.
-export function dotProduct(left: ArrayLike<number>, right: ArrayLike<number>) {
+function dotProduct(left: ArrayLike<number>, right: ArrayLike<number>) {
   let score = 0;
   for (let index = 0; index < left.length; index += 1) score += left[index] * right[index];
   return score;

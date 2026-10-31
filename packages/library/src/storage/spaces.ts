@@ -18,14 +18,9 @@ import type { StorageContext } from "./context.ts";
 import { cardFromRow, type ItemRow, qualifiedItemColumns, readCursor, readItem } from "./rows.ts";
 import { changes, clampLimit, nonEmpty, parseJson } from "./shared.ts";
 import { invalidInput, itemNotFound, spaceNotFound } from "./errors.ts";
+import { escapeFtsQuery, type makeSearch, type QueryVector, sqlLikePattern } from "./search.ts";
 import {
-  decodeFloatVector,
-  escapeFtsQuery,
-  type makeSearch,
-  type QueryVector,
-  sqlLikePattern,
-} from "./search.ts";
-import {
+  decodeVector,
   interfaceLabel,
   labelImage,
   otherSubjects,
@@ -247,7 +242,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     for (const row of rows) {
       const image =
         labelled && row.embedding_vector && row.embedding_dimension
-          ? decodeFloatVector(row.embedding_vector, row.embedding_dimension)
+          ? decodeVector(row.embedding_vector, row.embedding_dimension)
           : null;
       const best = labelled && image ? labelImage(image, labelled) : null;
       if (best && wanted.has(best.label)) {

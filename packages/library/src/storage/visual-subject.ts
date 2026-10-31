@@ -3,8 +3,6 @@
 // photo by its nearest prompt, a screenshot prompt and many unrelated subjects
 // competing, and keeps the photos labelled with a wanted subject.
 
-import { dotProduct } from "./search.ts";
-
 /** The prompt each label is embedded from, as a search query. */
 export const subjectPrompt = (subject: string) => `a photo of a ${subject}`;
 export const interfacePrompt = "a screenshot of a computer screen with text";
@@ -113,14 +111,29 @@ export const otherSubjects = [
  *  prompt, and every other subject. */
 export type SubjectVectors = ReadonlyMap<string, ArrayLike<number>>;
 
+function dot(left: ArrayLike<number>, right: ArrayLike<number>) {
+  let score = 0;
+  for (let index = 0; index < left.length; index += 1) score += left[index] * right[index];
+  return score;
+}
+
 /** The label whose prompt is nearest the image, and that similarity; null when no
  *  prompt shares the image's dimension. */
 export function labelImage(image: ArrayLike<number>, prompts: SubjectVectors) {
   let best: { label: string; score: number } | null = null;
   for (const [label, prompt] of prompts) {
     if (prompt.length !== image.length) continue;
-    const score = dotProduct(prompt, image);
+    const score = dot(prompt, image);
     if (!best || score > best.score) best = { label, score };
   }
   return best;
+}
+
+export function decodeVector(blob: Uint8Array, dimension: number) {
+  if (blob.byteLength !== dimension * 4) return null;
+  const view = new DataView(blob.buffer, blob.byteOffset, blob.byteLength);
+  const vector = new Float32Array(dimension);
+  for (let index = 0; index < dimension; index += 1)
+    vector[index] = view.getFloat32(index * 4, true);
+  return vector;
 }
