@@ -7,7 +7,7 @@ import { createUpdateController, createUpdatePreferences } from "./controller.ts
 
 const nightly = "0.2.0-nightly.20261030.1";
 
-test("Stable and Nightly survive controller restart without automatic checks, downloads, installs or downgrade", async () => {
+test("Alpha and Nightly survive controller restart without automatic checks, downloads, installs or downgrade; a local build runs Nightly", async () => {
   const root = await mkdtemp(join(tmpdir(), "inkling-nightly-channel-"));
   const preferences = createUpdatePreferences(join(root, "updates.json"));
   const calls: string[] = [];
@@ -28,10 +28,15 @@ test("Stable and Nightly survive controller restart without automatic checks, do
         return [];
       },
     });
-  const create = (autoUpdater: ReturnType<typeof engine>, currentVersion = "0.1.0") =>
+  const create = (
+    autoUpdater: ReturnType<typeof engine>,
+    currentVersion = "0.1.0",
+    localBuild = false,
+  ) =>
     createUpdateController({
       autoUpdater,
       currentVersion,
+      localBuild,
       preferences,
       install: async () => {
         calls.push("install");
@@ -69,6 +74,11 @@ test("Stable and Nightly survive controller restart without automatic checks, do
     expect((await third.getState()).channel).toBe("latest");
     expect(await third.checkForUpdates()).toBeNull();
     expect(thirdEngine.allowDowngrade).toBe(false);
+    // The saved channel is "latest" here, and a local build still runs Nightly.
+    const localEngine = engine();
+    const local = create(localEngine, "0.1.0", true);
+    expect((await local.getState()).channel).toBe("nightly");
+    expect(localEngine.channel).toBe("nightly");
     expect(calls.every((call) => call === "check")).toBe(true);
   } finally {
     await rm(root, { recursive: true, force: true });

@@ -1,5 +1,5 @@
 import { LicenseThirdPartyIcon, PlayIcon } from "@hugeicons/core-free-icons";
-import { Panel, PanelBody, Pill, Row } from "./parts.tsx";
+import { Panel, PanelBody, Row, TextAction } from "./parts.tsx";
 
 export function GeneralPanel({
   onShowWelcome,
@@ -17,13 +17,13 @@ export function GeneralPanel({
           icon={PlayIcon}
           title="Welcome tour"
           description="Replay the screens from your first launch: saving things, finding them again, and keeping your library on this computer."
-          action={<Pill onClick={onShowWelcome}>Show the welcome again</Pill>}
+          action={<TextAction onClick={onShowWelcome}>Show the welcome again</TextAction>}
         />
         <Row
           icon={LicenseThirdPartyIcon}
           title="Open source licenses"
           description="The projects inkling is built on, and the terms they come with."
-          action={<Pill onClick={onShowLicenses}>View licenses</Pill>}
+          action={<TextAction onClick={onShowLicenses}>View licenses</TextAction>}
         />
       </PanelBody>
     </Panel>

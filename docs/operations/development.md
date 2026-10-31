@@ -101,10 +101,11 @@ development builds fetch them.
 
 ## Updates and releases
 
-Settings → General → Updates offers two channels:
+Settings → Updates offers two channels:
 
-- **Stable / Beta** (`latest`) is the regular product. There is no separate beta feed.
-- **Nightly** (`nightly`) accepts only newer `X.Y.Z-nightly.YYYYMMDD.N` versions. Switching back to Stable / Beta never downgrades the app.
+- **Alpha** (`latest`) is the regular product. There is no separate beta feed.
+- **Nightly** (`nightly`) accepts only newer `X.Y.Z-nightly.YYYYMMDD.N` versions. Switching back to Alpha never downgrades the app.
+- An unpackaged build (`bun run dev:app`) always runs Nightly and ignores the saved channel, because the installed app shares `updates.json`.
 
 Checking, downloading, canceling and installing are separate actions the user takes; nothing downloads or installs on its own. On Debian, PolicyKit runs the root-owned helper `apps/desktop/src/updates/update-helper.py`, installed as `update-helper.py` in the app's resources. It copies the downloaded `.deb` into private staging, verifies the feed's SHA512, package name, version and architecture on that copy, and only then runs `dpkg --install` on it, so a rewrite of the download cache during the authorization prompt cannot change what gets installed. Do not add silent dependency repair or a way around the authorization prompt. After a restart, the app compares its version with the one it tried to install before it reports the update as applied.
 

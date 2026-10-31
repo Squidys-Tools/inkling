@@ -39,7 +39,7 @@ export function Panel({
             onClick={onClose}
             {...stylex.props(styles.close)}
           >
-            <HugeiconsIcon icon={Cancel01Icon} size={14} />
+            <HugeiconsIcon icon={Cancel01Icon} size={18} />
           </button>
         </div>
       </header>
@@ -61,7 +61,7 @@ export function Row({
 }: {
   icon: IconSvgElement;
   title: string;
-  description: string;
+  description?: string;
   action?: ReactNode;
   children?: ReactNode;
 }) {
@@ -72,7 +72,7 @@ export function Row({
       </span>
       <div {...stylex.props(styles.rowText)}>
         <h3 {...stylex.props(styles.rowTitle)}>{title}</h3>
-        <p {...stylex.props(styles.rowDescription)}>{description}</p>
+        {description && <p {...stylex.props(styles.rowDescription)}>{description}</p>}
         {children}
       </div>
       {action}
@@ -101,18 +101,31 @@ export function EmptyState({
   );
 }
 
-type PillProps = Omit<ComponentProps<typeof Button>, "variant" | "style"> & {
+type SquareButtonProps = Omit<ComponentProps<typeof Button>, "variant" | "style"> & {
   look?: "plain" | "solid" | "danger";
 };
 
-/** The settings button: a rounded pill, solid for the main action of a row. */
-export function Pill({ look = "plain", ...props }: PillProps) {
+/** A settings button: a hairline square with mono text. Solid marks a row's main action. */
+export function SquareButton({ look = "plain", ...props }: SquareButtonProps) {
   return (
     <Button
       variant="outline"
       {...props}
-      style={[styles.pill, look !== "plain" && pillLooks[look]]}
+      style={[styles.square, look !== "plain" && squareLooks[look]]}
     />
+  );
+}
+
+/** A secondary step: underlined text with an arrow, beside a button or in a sentence. */
+export function TextAction({
+  children,
+  ...props
+}: Omit<ComponentProps<typeof Button>, "variant" | "style">) {
+  return (
+    <Button variant="quiet" {...props} style={styles.textAction}>
+      {children}
+      <span aria-hidden="true">→</span>
+    </Button>
   );
 }
 
@@ -141,7 +154,7 @@ export const settingsText = stylex.create({
   },
 });
 
-const pillLooks = stylex.create({
+const squareLooks = stylex.create({
   solid: {
     borderColor: color.ink,
     backgroundColor: { default: color.ink, ":hover": color.inkStrong },
@@ -212,18 +225,15 @@ const styles = stylex.create({
   close: {
     display: "inline-grid",
     placeItems: "center",
-    width: "34px",
-    height: "34px",
+    width: "36px",
+    height: "36px",
     flex: "none",
     padding: 0,
-    borderRadius: radius.round,
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: color.border,
-    backgroundColor: { default: "transparent", ":hover": color.surface },
+    borderWidth: 0,
+    backgroundColor: "transparent",
     color: { default: color.inkSoft, ":hover": color.ink },
     cursor: "pointer",
-    transitionProperty: "background-color, color",
+    transitionProperty: "color",
     transitionDuration: motion.micro,
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "2px",
@@ -321,12 +331,28 @@ const styles = stylex.create({
     lineHeight: "19px",
     color: color.muted,
   },
-  pill: {
-    height: "34px",
-    paddingInline: space.s4,
-    borderRadius: radius.round,
+  square: {
+    height: "32px",
+    paddingInline: space.s3,
+    borderRadius: radius.control,
     borderColor: color.borderStrong,
-    fontWeight: 400,
+    fontFamily: font.mono,
+    fontSize: text.sm,
+    fontWeight: 500,
     flexShrink: 0,
+  },
+  textAction: {
+    height: "auto",
+    paddingInline: 0,
+    borderWidth: 0,
+    borderRadius: 0,
+    gap: space.s1,
+    fontFamily: font.body,
+    fontSize: text.md,
+    fontWeight: 400,
+    textDecoration: "underline",
+    textUnderlineOffset: "4px",
+    backgroundColor: { default: "transparent", ":hover": "transparent" },
+    color: { default: color.inkSoft, ":hover": color.inkStrong },
   },
 });

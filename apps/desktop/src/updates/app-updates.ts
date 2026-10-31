@@ -29,6 +29,7 @@ export function appUpdates({
     return createUpdateController({
       autoUpdater,
       currentVersion: app.getVersion(),
+      localBuild: !app.isPackaged,
       disabledReason: updateDisabledReason({
         isPackaged: app.isPackaged,
         hasFeed: existsSync(join(process.resourcesPath, "app-update.yml")),

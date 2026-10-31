@@ -72,6 +72,7 @@ export function createUpdateController({
   autoUpdater,
   currentVersion,
   disabledReason = null,
+  localBuild = false,
   preferences,
   install,
   onChange = () => {},
@@ -79,6 +80,8 @@ export function createUpdateController({
   autoUpdater: UpdaterLike;
   currentVersion: string;
   disabledReason?: string | null;
+  /** An unpackaged build always runs Nightly. */
+  localBuild?: boolean;
   preferences: ReturnType<typeof createUpdatePreferences>;
   install: (file: string, version: string, sha512: string) => Promise<void>;
   onChange?: (state: UpdateState) => void;
@@ -86,7 +89,7 @@ export function createUpdateController({
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
   let state: UpdateState = {
-    channel: prerelease(currentVersion)?.[0] === "nightly" ? "nightly" : "latest",
+    channel: localBuild || prerelease(currentVersion)?.[0] === "nightly" ? "nightly" : "latest",
     currentVersion,
     status: disabledReason ? "disabled" : "idle",
     availableVersion: null,
@@ -114,7 +117,8 @@ export function createUpdateController({
   const ready = preferences
     .read()
     .then((saved) => {
-      state.channel = saved.channel ?? state.channel;
+      // updates.json can be shared with an installed build, so a local build never takes the saved channel.
+      state.channel = localBuild ? "nightly" : (saved.channel ?? state.channel);
       installRecord = saved.install;
       if (installRecord && installRecord.target !== currentVersion) {
         state.message = "The previous update did not apply. Check for updates to try again.";

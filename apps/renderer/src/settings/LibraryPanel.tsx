@@ -5,7 +5,6 @@ import {
   Upload04Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Button } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
 import type { ReactNode } from "react";
@@ -16,7 +15,7 @@ import {
   formatImportSummary,
   formatLastCopy,
 } from "./format.ts";
-import { Panel, PanelBody, Pill, Row, settingsText } from "./parts.tsx";
+import { Panel, PanelBody, Row, settingsText, SquareButton } from "./parts.tsx";
 import { useLibraryOverview, useLibraryTransfer } from "./useLibraryTransfer.ts";
 
 export function LibraryPanel({ onClose }: { onClose: () => void }) {
@@ -48,13 +47,12 @@ export function LibraryPanel({ onClose }: { onClose: () => void }) {
             )}
           </div>
           {desktop && (
-            <Button
+            <SquareButton
               onClick={showFolder}
               icon={<HugeiconsIcon icon={Folder01Icon} size={13} />}
-              style={styles.smallPill}
             >
               Show folder
-            </Button>
+            </SquareButton>
           )}
         </div>
         {failure("folder")}
@@ -63,9 +61,9 @@ export function LibraryPanel({ onClose }: { onClose: () => void }) {
           title="Export a copy"
           description="A dated folder with the database, every file, and a manifest. Keep it on another drive."
           action={
-            <Pill look="solid" disabled={!desktop || busy !== null} onClick={exportCopy}>
+            <SquareButton look="solid" disabled={!desktop || busy !== null} onClick={exportCopy}>
               {busy === "export" ? "Exporting…" : "Export…"}
-            </Pill>
+            </SquareButton>
           }
         >
           {lastCopy && <p {...stylex.props(styles.lastCopy)}>{formatLastCopy(lastCopy)}</p>}
@@ -83,9 +81,9 @@ export function LibraryPanel({ onClose }: { onClose: () => void }) {
           title="Restore from an export"
           description="Adds its items, files and Spaces here. Nothing already in your library gets replaced."
           action={
-            <Pill disabled={!desktop || busy !== null} onClick={restoreCopy}>
+            <SquareButton disabled={!desktop || busy !== null} onClick={restoreCopy}>
               {busy === "import" ? "Restoring…" : "Restore…"}
-            </Pill>
+            </SquareButton>
           }
         >
           {!desktop && <p {...stylex.props(settingsText.hint)}>Restore runs in the desktop app.</p>}
@@ -136,16 +134,6 @@ const styles = stylex.create({
     fontWeight: 600,
     letterSpacing: "-0.01em",
     color: color.ink,
-  },
-  smallPill: {
-    height: "28px",
-    flexShrink: 0,
-    gap: "6px",
-    paddingInline: space.s3,
-    borderRadius: radius.round,
-    borderColor: color.border,
-    fontSize: text.sm,
-    fontWeight: 400,
   },
   lastCopy: {
     margin: 0,

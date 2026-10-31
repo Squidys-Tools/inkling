@@ -3,11 +3,11 @@ import type { UpdateChannel } from "@inkling/contracts/desktop";
 import { SegmentedControl } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, radius, space } from "@inkling/ui/tokens.stylex";
-import { Panel, PanelBody, Pill, Row, settingsText } from "./parts.tsx";
+import { Panel, PanelBody, Row, settingsText, SquareButton } from "./parts.tsx";
 import { type AppUpdate, useAppUpdate } from "./useAppUpdate.ts";
 
 const channels: readonly { value: UpdateChannel; label: string }[] = [
-  { value: "latest", label: "Stable / Beta" },
+  { value: "latest", label: "Alpha" },
   { value: "nightly", label: "Nightly" },
 ];
 
@@ -50,6 +50,8 @@ export function UpdatesPanel({ onClose }: { onClose: () => void }) {
   const update = useAppUpdate();
   const { state, isBusy, isReadyToInstall: ready, canDownload, failedAction } = update;
   const disabled = !state || state.status === "disabled";
+  const downloading = state?.status === "downloading";
+  const installing = state?.status === "installing";
   const progress =
     state?.progress === null || state?.progress === undefined || !Number.isFinite(state.progress)
       ? null
@@ -60,83 +62,60 @@ export function UpdatesPanel({ onClose }: { onClose: () => void }) {
       <PanelBody>
         <Row
           icon={RotateCwIcon}
-          title="Release channel"
-          description={
-            state?.currentVersion
-              ? `You’re using inkling ${state.currentVersion}.`
-              : "Choose which inkling releases you receive."
-          }
-        >
-          <div {...stylex.props(styles.stack)}>
-            <SegmentedControl
-              name="update-channel"
-              label="Update channel"
-              value={state?.channel ?? "latest"}
-              options={channels}
-              disabled={disabled || isBusy}
-              onChange={(channel) => void update.setChannel(channel)}
-              style={styles.segmented}
-            />
-            <p {...stylex.props(settingsText.body, styles.measure)}>
-              Stable / Beta is the regular release, currently in beta. Nightly is experimental and
-              may be less reliable.
-            </p>
-            <div
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-              {...stylex.props(styles.status)}
-            >
-              <p {...stylex.props(settingsText.status)}>{statusText(update)}</p>
-              {failedAction && (
-                <p {...stylex.props(settingsText.hint)}>{retryHint(failedAction)}</p>
-              )}
-            </div>
-            {state?.status === "downloading" && (
-              <div {...stylex.props(styles.progressRow)}>
-                <div
-                  role="progressbar"
-                  aria-label="Update download"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={progress ?? undefined}
-                  {...stylex.props(styles.track)}
-                >
-                  <div {...stylex.props(styles.fill(progress ?? 0))} />
-                </div>
-                <span {...stylex.props(settingsText.mono)}>
-                  {progress === null ? "Downloading…" : `${Math.round(progress)}%`}
-                </span>
-              </div>
-            )}
+          title="Update channel"
+          action={
             <div {...stylex.props(styles.actions)}>
-              <Pill disabled={disabled || isBusy} onClick={() => void update.check()}>
-                {state?.status === "checking" ? "Checking…" : "Check for updates"}
-              </Pill>
-              {(canDownload || ready || state?.status === "installing") && (
-                <Pill
+              <SegmentedControl
+                name="update-channel"
+                label="Update channel"
+                value={state?.channel ?? "latest"}
+                options={channels}
+                disabled={disabled || isBusy}
+                onChange={(channel) => void update.setChannel(channel)}
+                style={styles.segmented}
+              />
+              {downloading ? (
+                <SquareButton disabled={update.cancelling} onClick={() => void update.cancel()}>
+                  {update.cancelling ? "Cancelling…" : "Cancel download"}
+                </SquareButton>
+              ) : canDownload || ready || installing ? (
+                <SquareButton
                   look="solid"
                   disabled={disabled || isBusy}
                   onClick={() => void (ready ? update.install() : update.download())}
                 >
-                  {state?.status === "installing"
-                    ? "Installing…"
-                    : ready
-                      ? "Restart and install"
-                      : "Download update"}
-                </Pill>
-              )}
-              {state?.status === "downloading" && (
-                <Pill disabled={update.cancelling} onClick={() => void update.cancel()}>
-                  {update.cancelling ? "Cancelling…" : "Cancel download"}
-                </Pill>
+                  {installing ? "Installing…" : ready ? "Restart and install" : "Download update"}
+                </SquareButton>
+              ) : (
+                <SquareButton disabled={disabled || isBusy} onClick={() => void update.check()}>
+                  {state?.status === "checking" ? "Checking…" : "Check for updates"}
+                </SquareButton>
               )}
             </div>
-            <p {...stylex.props(settingsText.hint)}>
-              Downloading never installs an update. Restart and install only when you’re ready;
-              Linux may ask for system authorization.
-            </p>
+          }
+        >
+          <div role="status" aria-live="polite" aria-atomic="true" {...stylex.props(styles.status)}>
+            <p {...stylex.props(settingsText.status)}>{statusText(update)}</p>
+            {failedAction && <p {...stylex.props(settingsText.hint)}>{retryHint(failedAction)}</p>}
           </div>
+          {downloading && (
+            <div {...stylex.props(styles.progressRow)}>
+              <div
+                role="progressbar"
+                aria-label="Update download"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress ?? undefined}
+                {...stylex.props(styles.track)}
+              >
+                <div {...stylex.props(styles.fill(progress ?? 0))} />
+              </div>
+              <span {...stylex.props(settingsText.mono)}>
+                {progress === null ? "Downloading…" : `${Math.round(progress)}%`}
+              </span>
+            </div>
+          )}
+          <p {...stylex.props(settingsText.hint)}>Linux may ask for system authorization.</p>
         </Row>
       </PanelBody>
     </Panel>
@@ -144,12 +123,13 @@ export function UpdatesPanel({ onClose }: { onClose: () => void }) {
 }
 
 const styles = stylex.create({
-  stack: {
+  actions: {
     display: "flex",
-    flexDirection: "column",
-    gap: space.s3,
-    minWidth: 0,
-    marginTop: space.s3,
+    flex: "none",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: space.s2,
   },
   segmented: {
     width: "fit-content",
@@ -159,7 +139,6 @@ const styles = stylex.create({
     borderColor: color.border,
     backgroundColor: color.surface,
   },
-  measure: { maxWidth: "460px" },
   status: { display: "flex", flexDirection: "column", gap: space.s2 },
   progressRow: { display: "flex", alignItems: "center", gap: space.s3, minWidth: 0 },
   track: {
@@ -176,5 +155,4 @@ const styles = stylex.create({
     transformOrigin: "left",
     transform: `scaleX(${percent / 100})`,
   }),
-  actions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
 });

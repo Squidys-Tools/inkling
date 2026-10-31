@@ -4,7 +4,7 @@ import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useEffect, useState } from "react";
 import { desktop } from "../desktop.ts";
-import { EmptyState, Panel, PanelBody, Pill, settingsText } from "./parts.tsx";
+import { EmptyState, Panel, PanelBody, settingsText, SquareButton, TextAction } from "./parts.tsx";
 
 export function ExtensionPanel({ onClose }: { onClose: () => void }) {
   return (
@@ -98,12 +98,12 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
               ? "Receiver not running"
               : `Listening on 127.0.0.1:${receiver.port}`}
         </p>
-        <Pill
+        <SquareButton
           disabled={receiver === null || receiver === "unknown" || !receiver.running || testing}
           onClick={test}
         >
           {testing ? "Testing…" : "Test connection"}
-        </Pill>
+        </SquareButton>
       </div>
       <div {...stylex.props(styles.row)}>
         <span {...stylex.props(styles.visuallyHidden)}>
@@ -112,13 +112,13 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
         <code aria-hidden={!token} {...stylex.props(styles.token)}>
           {token ?? "••••••••••••••••••••••••"}
         </code>
-        <Pill onClick={reveal}>{token ? "Hide" : "Reveal"}</Pill>
-        <Pill disabled={!token} onClick={copy}>
+        <SquareButton onClick={reveal}>{token ? "Hide" : "Reveal"}</SquareButton>
+        <SquareButton disabled={!token} onClick={copy}>
           Copy
-        </Pill>
-        <Pill look="danger" onClick={() => setConfirmingRenew(true)}>
+        </SquareButton>
+        <SquareButton look="danger" onClick={() => setConfirmingRenew(true)}>
           Renew
-        </Pill>
+        </SquareButton>
       </div>
       {notice && (
         <p
@@ -134,10 +134,10 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
             Renew the pairing token? The extension will need the new token.
           </p>
           <div {...stylex.props(styles.confirmActions)}>
-            <Pill onClick={() => setConfirmingRenew(false)}>Cancel</Pill>
-            <Pill look="danger" onClick={renew}>
+            <TextAction onClick={() => setConfirmingRenew(false)}>Cancel</TextAction>
+            <SquareButton look="danger" onClick={renew}>
               Renew
-            </Pill>
+            </SquareButton>
           </div>
         </section>
       )}
