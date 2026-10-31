@@ -138,7 +138,11 @@ export function makeImport(ctx: StorageContext) {
         ${item.body ?? ""}, ${item.body_format ?? "md"}, ${item.source_url}, ${item.source_label},
         ${item.local_asset_path}, ${item.thumbnail_path}, ${item.ocr_text}, ${item.metadata},
         ${item.created_at}, ${item.updated_at}, ${item.archived}, ${item.favorite})`;
-      if (item.kind === "image") yield* jobs.enqueue(item.id, "ocr_image");
+      // As on capture: a photo is findable by its pixels before its text is read.
+      if (item.kind === "image") {
+        yield* jobs.enqueue(item.id, "generate_embedding");
+        yield* jobs.enqueue(item.id, "ocr_image");
+      }
       if (item.kind === "image" && !item.thumbnail_path)
         yield* jobs.enqueue(item.id, IMAGE_THUMBNAIL_JOB);
       if (item.kind === "pdf") yield* jobs.enqueue(item.id, "ocr_pdf_page");

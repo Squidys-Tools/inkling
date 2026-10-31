@@ -147,7 +147,8 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     ]);
     const tokenizerJson = JSON.parse(await readFile(tokenizerPath, "utf8"));
     const tokenizer = new Tokenizer(tokenizerJson, {});
-    const session = await ort.InferenceSession.create(modelPath);
+    // Documents vary in length, so an arena would keep the peak of the longest one.
+    const session = await ort.InferenceSession.create(modelPath, { enableCpuMemArena: false });
     return { tokenizer, session };
   }
 

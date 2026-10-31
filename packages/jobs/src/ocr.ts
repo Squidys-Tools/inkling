@@ -35,10 +35,10 @@ export const defaultOcrWorkers = () =>
   );
 
 // Tesseract's heap grows to the largest image a worker has read and never
-// shrinks, so passes over a large image are limited to two at a time and the
+// shrinks, so passes over a large image run one at a time and the
 // worker that ran one is replaced afterwards. Small images keep the full pool.
 export const LARGE_OCR_PIXELS = 6_000_000;
-const LARGE_OCR_PASSES = 2;
+const LARGE_OCR_PASSES = 1;
 
 export function createTesseractOcr({
   cacheDirectory,
