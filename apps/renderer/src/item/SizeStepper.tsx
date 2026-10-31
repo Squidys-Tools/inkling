@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, text } from "@inkling/ui/tokens.stylex";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 /**
  * The size control under a photo or video: a fixed-width pill. At a limit the
@@ -24,6 +24,7 @@ export function SizeStepper({
 }) {
   const shrinkRef = useRef<HTMLButtonElement>(null);
   const growRef = useRef<HTMLButtonElement>(null);
+  const pressed = useRef<"shrink" | "grow" | null>(null);
   // The value shown before this step, kept from the previous render, so the
   // changed digits can roll away from it.
   const [last, setLast] = useState({ percent, before: percent });
@@ -33,10 +34,10 @@ export function SizeStepper({
   const after = String(percent);
 
   // A button that just reached its limit leaves, so focus moves to the one that stays.
-  useEffect(() => {
-    const focused = document.activeElement;
-    if (!canShrink && focused === shrinkRef.current) growRef.current?.focus();
-    if (!canGrow && focused === growRef.current) shrinkRef.current?.focus();
+  // Keyed to the pressed button, not activeElement: disabling it may already have moved focus to body.
+  useLayoutEffect(() => {
+    if (!canShrink && pressed.current === "shrink") growRef.current?.focus();
+    if (!canGrow && pressed.current === "grow") shrinkRef.current?.focus();
   }, [canShrink, canGrow]);
 
   const width = Math.max(before.length, after.length);
@@ -54,7 +55,10 @@ export function SizeStepper({
         title="Smaller"
         disabled={!canShrink}
         tabIndex={canShrink ? 0 : -1}
-        onClick={onShrink}
+        onClick={() => {
+          pressed.current = "shrink";
+          onShrink();
+        }}
         {...stylex.props(styles.button, !canShrink && styles.gone)}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
@@ -103,7 +107,10 @@ export function SizeStepper({
         title="Larger"
         disabled={!canGrow}
         tabIndex={canGrow ? 0 : -1}
-        onClick={onGrow}
+        onClick={() => {
+          pressed.current = "grow";
+          onGrow();
+        }}
         {...stylex.props(styles.button, !canGrow && styles.gone)}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">

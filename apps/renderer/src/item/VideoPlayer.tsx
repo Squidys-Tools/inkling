@@ -45,6 +45,8 @@ const SIZES = [50, 75, 100, 125, 150];
 export function LocalVideo({ item, file }: { item: DescribedItem; file: string }) {
   const [step, setStep] = useState(SIZES.indexOf(100));
   const size = SIZES[step] ?? 100;
+  // Until metadata arrives, assume the common 16:9 shape.
+  const [aspect, setAspect] = useState(16 / 9);
   return (
     <div {...stylex.props(styles.stage)}>
       <div {...stylex.props(styles.area)}>
@@ -54,7 +56,11 @@ export function LocalVideo({ item, file }: { item: DescribedItem; file: string }
           poster={item.image}
           controls
           preload="metadata"
-          {...stylex.props(styles.local, styles.scale(size / 100))}
+          onLoadedMetadata={(event) => {
+            const { videoWidth, videoHeight } = event.currentTarget;
+            if (videoWidth > 0 && videoHeight > 0) setAspect(videoWidth / videoHeight);
+          }}
+          {...stylex.props(styles.local, styles.size(size / 100, aspect))}
         />
       </div>
       <Glass style={styles.pill}>
@@ -86,21 +92,26 @@ const styles = stylex.create({
     minHeight: 0,
     width: "100%",
     display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+    // Sizes above fit scroll, so the controls bar is never cut off.
+    overflow: "auto",
+    containerType: "size",
   },
   local: {
     display: "block",
-    maxWidth: "100%",
-    maxHeight: "100%",
+    flexShrink: 0,
+    // Auto margins centre it and keep any overflow reachable by scrolling.
+    margin: "auto",
+    height: "auto",
     borderRadius: "4px",
     boxShadow: `0 24px 60px ${color.shadow}`,
-    transitionProperty: "transform",
+    transitionProperty: "width",
     transitionDuration: motion.layout,
     transitionTimingFunction: motion.standard,
   },
-  scale: (value: number) => ({ transform: `scale(${value})` }),
+  // The box itself grows from the fitted size, rather than a transform that overflows the area.
+  size: (scale: number, aspect: number) => ({
+    width: `min(${scale * 100}cqw, ${scale * 100 * aspect}cqh)`,
+  }),
   pill: { flexShrink: 0, padding: space.s1, borderRadius: radius.round },
   fill: {
     display: "block",

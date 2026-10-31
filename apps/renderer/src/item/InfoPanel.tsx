@@ -22,9 +22,27 @@ function savedOn(createdAt: number) {
 
 // A file saved from disk carries its MIME type where a page carries its site.
 const mimeType = /^([a-z]+)\/(?:x-)?([a-z0-9.+-]+)$/iu;
+// Subtypes whose raw names read badly as a format label.
+const formatNames: Record<string, string> = {
+  quicktime: "MOV",
+  "x-matroska": "MKV",
+  "x-msvideo": "AVI",
+  "svg+xml": "SVG",
+  mpeg: "MPEG",
+  plain: "Plain",
+  "vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
+};
+const kindNames: Record<string, string> = { application: "file", text: "text", font: "font" };
+
 function fileType(value: string) {
   const match = mimeType.exec(value);
-  return match ? `${match[2].toUpperCase()} ${match[1].toLowerCase()}` : null;
+  if (!match) return null;
+  const kind = match[1].toLowerCase();
+  const subtype = match[2].toLowerCase();
+  const format =
+    formatNames[subtype] ?? subtype.replace(/^x-/u, "").split(/[.+]/u)[0].toUpperCase();
+  if (subtype === "pdf") return "PDF document";
+  return `${format} ${kindNames[kind] ?? kind}`;
 }
 
 function Detail({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
