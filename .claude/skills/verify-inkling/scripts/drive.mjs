@@ -96,13 +96,11 @@ const KEYS = {
 async function run(step) {
   const timeout = step.timeoutMs ?? 8000;
   if (step.click) {
-    const found = await poll(
-      `!!document.querySelector(${q(step.click)})?.getClientRects().length`,
-      timeout,
-    );
-    if (!found) throw new Error(`no element ${step.click}`);
+    const visible = `[...document.querySelectorAll(${q(step.click)})].find((node) => node.getClientRects().length)`;
+    const found = await poll(`!!${visible}`, timeout);
+    if (!found) throw new Error(`no visible element ${step.click}`);
     await evaluate(`(() => {
-      const el = document.querySelector(${q(step.click)});
+      const el = ${visible};
       el.focus({ preventScroll: true });
       el.click();
       return true;

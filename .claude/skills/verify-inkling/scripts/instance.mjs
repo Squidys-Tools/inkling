@@ -47,26 +47,23 @@ const commandLine = (pid) =>
         encoding: "utf8",
       }).stdout.trim();
 const ownsScratchLibrary = (pid) => alive(pid) && commandLine(pid).includes(library);
+// Windows can list the CDP port with no owning process; one of our Electron processes still
+// carries both the port and the scratch path on its command line.
 const hasScratchDebugProcess = () => {
   if (!windows) return false;
-  const result = spawnSync(
-    "powershell",
-    [
-      "-NoProfile",
-      "-NonInteractive",
-      "-Command",
-      "Get-CimInstance Win32_Process | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress",
-    ],
-    { encoding: "utf8" },
-  );
-  if (result.status !== 0) return false;
   try {
-    const processes = JSON.parse(result.stdout);
-    return (Array.isArray(processes) ? processes : [processes]).some(
-      (process) =>
-        process.CommandLine?.includes(`--remote-debugging-port=${port}`) &&
-        process.CommandLine.includes(library),
+    const processes = JSON.parse(
+      powershell(
+        "Get-CimInstance Win32_Process | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress",
+      ) || "[]",
     );
+    return [processes]
+      .flat()
+      .some(
+        (process) =>
+          process.CommandLine?.includes(`--remote-debugging-port=${port}`) &&
+          process.CommandLine.includes(library),
+      );
   } catch {
     return false;
   }
@@ -177,9 +174,11 @@ async function doctor() {
   check("electron pid alive", pid > 0 && alive(pid));
   check("pid runs our scratch data dir", pid > 0 && ownsScratchLibrary(pid));
   const pageLoaded = await appPageListed();
+  // Fall back only when no owner was reported: a different owner means another process holds the port.
+  const owner = portOwner();
   check(
     "CDP endpoint belongs to our scratch instance",
-    pid > 0 && (portOwner() === pid || (pageLoaded && hasScratchDebugProcess())),
+    pid > 0 && (owner === pid || (owner === 0 && pageLoaded && hasScratchDebugProcess())),
   );
   check("app page loaded over CDP", pageLoaded);
   check("library database exists", existsSync(join(library, "library.sqlite3")));
