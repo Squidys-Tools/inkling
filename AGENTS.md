@@ -1,6 +1,6 @@
 # inkling
 
-inkling is a private visual library: a Windows Electron app with a React, TypeScript, StyleX and Vite renderer, and Node.js processes on SQLite. Users save articles, images, screenshots, PDFs, notes, quotes and video links, and find them later by describing them. Search is the only organizer; there are no folders.
+inkling is a private visual library: an Electron app for Windows, macOS and Linux with a React, TypeScript, StyleX and Vite renderer, and Node.js processes on SQLite. Users save articles, images, screenshots, PDFs, notes, quotes and video links, and find them later by describing them. Search is the only organizer; there are no folders.
 
 ## Product rules
 
