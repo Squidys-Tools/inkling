@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Effect } from "effect";
 import { extractPdfTextByPages } from "@inkling/jobs/pdf";
 import { JobQueue, Library, PDF_THUMBNAIL_JOB } from "../storage/library.ts";
+import { createBackfill } from "./job-backfill.ts";
 import { cleanUpJobTests, createJobs, pdfFixture, savePdf, temporaryLibrary } from "./test-jobs.ts";
 
 cleanUpJobTests();
@@ -159,4 +160,24 @@ test("backfill retries the same candidate after queue admission fails", async ()
     kind: PDF_THUMBNAIL_JOB,
     status: "pending",
   });
+});
+
+test("a PDF thumbnail rescan asked for while the backfill is scanning is not lost", async () => {
+  const { library } = await temporaryLibrary();
+  const backfill = createBackfill();
+  const real = library.services.library;
+  let scans = 0;
+  const racing = {
+    ...real,
+    // A PDF job on another lane asks for a rescan while this scan is in flight.
+    nextPdfThumbnailCandidate: (cursor: number) => {
+      if (++scans === 1) backfill.rescanPdfThumbnails();
+      return real.nextPdfThumbnailCandidate(cursor);
+    },
+  };
+  const idle = () => library.run(backfill.onIdle().pipe(Effect.provideService(Library, racing)));
+
+  await idle();
+  await idle();
+  expect(scans).toBe(2);
 });
