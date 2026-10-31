@@ -64,6 +64,14 @@ function cardText(value: string | undefined, fallback: string) {
   return value?.replace(/\s+/gu, " ").trim() || fallback;
 }
 
+// The card and the item stage draw a quote's art from the same fields.
+export function quoteArtworkText(item: LibraryItem) {
+  return {
+    text: cardText(item.title, "Saved quote"),
+    attribution: quoteAttribution(item.description),
+  };
+}
+
 // The pill is the only play affordance on a video card; playback happens in
 // the item view, the only place a local video file is loaded.
 function VideoPill({ item }: { item: LibraryItem }) {
@@ -145,8 +153,7 @@ export function CardMedia({
   if (item.kind === "Quote")
     return (
       <QuoteArtwork
-        text={cardText(item.title, "Saved quote")}
-        attribution={quoteAttribution(item.description)}
+        {...quoteArtworkText(item)}
         compact={list}
         className={cx(
           list

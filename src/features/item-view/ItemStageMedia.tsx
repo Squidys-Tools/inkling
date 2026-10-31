@@ -1,9 +1,16 @@
 import type { ReactNode } from "react";
 import { DetailVideoMedia } from "../../components/DetailVideoMedia";
-import { KindIcon, NoteArtwork, PdfArtwork, PostArtwork } from "../../components/ItemMedia";
+import {
+  KindIcon,
+  NoteArtwork,
+  PdfArtwork,
+  PostArtwork,
+  QuoteArtwork,
+} from "../../components/ItemMedia";
 import { XPostEmbed } from "../../components/XPostEmbed";
 import type { LibraryItem } from "../../lib/types";
 import { cx } from "../../ui/cx";
+import { quoteArtworkText } from "../library/LibraryCardMedia";
 import { ZoomableImage } from "./ZoomableImage";
 
 // `post-art` can sit inside the X embed's fallback, a level below the art box.
@@ -67,10 +74,7 @@ export function ItemStageMedia({ item }: { item: LibraryItem }) {
   if (item.kind === "Quote") {
     return (
       <ArtBox>
-        <div className="bg-yellow-soft text-[#b3ad8d]">
-          <span className="block font-[Georgia,serif] text-[64px]/[0.8]">“</span>
-          <span>{item.kind}</span>
-        </div>
+        <QuoteArtwork {...quoteArtworkText(item)} className="flex flex-col px-10 pt-8 pb-10" />
       </ArtBox>
     );
   }
