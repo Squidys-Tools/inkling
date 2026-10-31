@@ -10,11 +10,11 @@ import { startWorkerProcess } from "./worker-process.ts";
 export function startProcesses({
   bundleDirectory,
   libraryDirectory,
-  onGiveUp,
+  onCannotOpen,
 }: {
   bundleDirectory: string;
   libraryDirectory: string;
-  onGiveUp: (code: number) => void;
+  onCannotOpen: (reason: string) => void;
 }) {
   const link = () => {
     const { port1, port2 } = new MessageChannelMain();
@@ -25,7 +25,7 @@ export function startProcesses({
     entry: join(bundleDirectory, "library.mjs"),
     args: ["--library-directory", libraryDirectory, "--app-version", app.getVersion()],
     onRestart: () => link(),
-    onGiveUp,
+    onCannotOpen,
   });
   // The packaged app ships the pinned models; a development build downloads them
   // once into the library's own folder.

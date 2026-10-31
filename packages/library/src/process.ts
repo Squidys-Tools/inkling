@@ -2,13 +2,14 @@ import type { MessagePortMain } from "electron";
 import {
   type ItemDetail,
   type ItemRecord,
+  type LibraryCannotOpen,
   LibraryError,
   LibraryRpcs,
   type LibraryChange,
 } from "@inkling/contracts";
 import { smartSpaceSubjects, visualSubjects } from "@inkling/ingestion/photo-subjects";
 import { layerProtocol, type PortSource } from "@inkling/rpc-electron/server";
-import { Duration, Effect, Fiber, Layer, PubSub, Stream } from "effect";
+import { Cause, Duration, Effect, Exit, Fiber, Layer, PubSub, Stream } from "effect";
 import { RpcServer } from "effect/rpc";
 import { join } from "node:path";
 import { prefetchQueryVector, queryVector, warmQueryModel } from "./jobs/query-vector.ts";
@@ -250,10 +251,23 @@ const server = Layer.mergeAll(
 
 const launched: Effect.Effect<never, unknown> = Layer.launch(server);
 const fiber = Effect.runFork(launched);
+let stopping = false;
+// A library that fails to open, such as one from a newer schema, leaves this
+// process idle rather than crashing, so main shows why instead of restarting it.
+// A failed cleanup on quit is not one: the user already asked to stop.
+fiber.addObserver((exit) => {
+  if (stopping || Exit.isSuccess(exit)) return;
+  const report: LibraryCannotOpen = {
+    type: "cannot-open",
+    message: errorMessage(Cause.squash(exit.cause)),
+  };
+  process.parentPort.postMessage(report);
+});
 
 // Main asks for a clean stop on quit: interrupting the server hands running
 // jobs back and closes the database before the process exits.
 process.parentPort.on("message", ({ data }) => {
   if ((data as { type?: unknown } | null)?.type !== "shutdown") return;
+  stopping = true;
   Effect.runFork(Fiber.interrupt(fiber)).addObserver(() => process.exit(0));
 });
