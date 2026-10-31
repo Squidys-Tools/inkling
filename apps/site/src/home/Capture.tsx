@@ -10,6 +10,7 @@ import { color } from "@inkling/ui/tokens.stylex";
 import { page } from "../layout/page.ts";
 import { usePlatform } from "../parts/platform.ts";
 import { type } from "../parts/type.ts";
+import { CaptureDemo } from "./CaptureDemo.tsx";
 
 type Way = { what: string; command?: Command; binding?: Binding };
 
@@ -44,6 +45,7 @@ export function Capture() {
           The card shows up the moment you save. inkling reads the article, the PDF or the words in
           the picture afterwards, in the background, while you get on with what you were doing.
         </p>
+        <CaptureDemo />
       </div>
       <ul {...stylex.props(styles.ways)}>
         {ways.map((way) => (
