@@ -1,4 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
+import { storageFailure } from "./errors.ts";
 
 export const SCHEMA_VERSION = 8;
 
@@ -198,6 +199,13 @@ export function openDatabase(databasePath: string) {
   const db = new DatabaseSync(databasePath);
   db.exec("PRAGMA busy_timeout = 5000");
   const version = Number((db.prepare("PRAGMA user_version").get() as Row).user_version);
+  // A newer app's library is left exactly as it is: migrating it down would lose data.
+  if (version > SCHEMA_VERSION) {
+    db.close();
+    throw storageFailure(
+      `This library was saved by a newer Inkling (schema ${version}, this app reads ${SCHEMA_VERSION}). Update Inkling to open it.`,
+    );
+  }
   if (version < 1) db.exec(itemsSchema);
   else if (version === 1) {
     try {
