@@ -33,7 +33,7 @@ export function escapeFtsQuery(query: string) {
 type VectorGroup = { ids: string[]; matrix: Float32Array; dimension: number; textRows: number };
 type VectorRow = { item_id: string; kind: string; dimension: number; vector: Uint8Array };
 
-function decodeFloatVector(blob: Uint8Array, dimension: number) {
+export function decodeFloatVector(blob: Uint8Array, dimension: number) {
   if (blob.byteLength !== dimension * 4) return null;
   return new Float32Array(Uint8Array.from(blob).buffer);
 }
@@ -82,6 +82,13 @@ function topRows(
     }
   }
   return rows;
+}
+
+// Callers skip vectors whose length differs from the query's.
+export function dotProduct(left: ArrayLike<number>, right: ArrayLike<number>) {
+  let score = 0;
+  for (let index = 0; index < left.length; index += 1) score += left[index] * right[index];
+  return score;
 }
 
 export function sqlLikePattern(value: string) {
