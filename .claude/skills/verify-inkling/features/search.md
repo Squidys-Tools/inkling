@@ -1,60 +1,43 @@
 # Search your library
 
-## Sub-features
+## User flow
 
-- Text search across notes and titles; "/" focuses the field, Escape clears it.
-- Result count, and Save as Space, which turns the search into a Smart Space.
+Press `/` or Ctrl+K (Cmd+K on macOS) to focus **Search your mind**. Results update after typing pauses; Enter runs the query immediately. Escape clears the query and blurs the field. A no-match query shows **Nothing surfaced yet.** with **Clear search**. After a query is unfocused, the filter row shows its result count and **Save as Space**.
 
-## How to get to it (user POV)
-
-Press `/` (or Ctrl+K) outside any text field and type in the Search your mind field. The grid updates a moment after typing stops. Escape clears the search and restores the grid.
+Search covers active items and indexed title, description, source label, OCR text, metadata, and body. Semantic ranking may contribute when available; text search remains the fallback. It searches the whole library, including while a Space is selected.
 
 ## Driving it with `scripts/drive.mjs`
 
-Needs two notes, `alpha probe` and `bravo probe` (see `capture-note.md`). Driven in this order:
+Needs notes with bodies `alpha probe` and `bravo probe` in Everything. The query results replace the visible card set. The driver focuses controls before clicking, so click **List view** to blur the search field and reveal the filter row before choosing **Save as Space**.
 
 ```json
 [
-  {"label": "two cards", "expect": "[...document.querySelectorAll('article')].filter(a => /alpha probe|bravo probe/.test(a.textContent)).length === 2"},
-  {"label": "slash", "key": "/"},
-  {"label": "focused", "expect": "document.activeElement?.getAttribute('aria-label') === 'Search your mind'"},
-  {"label": "type", "fill": "input[aria-label='Search your mind']", "text": "alpha"},
-  {"label": "only alpha", "expect": "(() => { const t = [...document.querySelectorAll('article')].map(a => a.textContent); return t.some(x => x.includes('alpha probe')) && !t.some(x => x.includes('bravo probe')); })()", "timeoutMs": 5000},
-  {"label": "escape clears", "key": "Escape"},
-  {"label": "both back", "expect": "document.querySelectorAll('article').length === 2", "timeoutMs": 5000},
-  {"label": "slash", "key": "/"},
-  {"label": "no match", "fill": "input[aria-label='Search your mind']", "text": "zzzzqqqq"},
-  {"label": "empty state", "expect": "document.body.textContent.includes('Nothing surfaced yet.') && document.querySelectorAll('article').length === 0", "timeoutMs": 5000},
-  {"label": "clear", "clickText": {"selector": "button", "text": "Clear search"}},
-  {"label": "restored", "expect": "document.querySelectorAll('article').length === 2", "timeoutMs": 5000}
+  {"label":"focus search","key":"/"},
+  {"label":"field focused","expect":"document.activeElement?.getAttribute('aria-label') === 'Search your mind'"},
+  {"label":"search alpha","fill":"input[aria-label='Search your mind']","text":"alpha"},
+  {"label":"only alpha result","expect":"document.querySelectorAll('article').length === 1","timeoutMs":5000},
+  {"label":"search no match","fill":"input[aria-label='Search your mind']","text":"zzzzqqqq"},
+  {"label":"empty state","expect":"document.body.textContent.includes('Nothing surfaced yet.') && document.querySelectorAll('article').length === 0","timeoutMs":5000},
+  {"label":"clear search","clickText":{"selector":"button","text":"Clear search"}},
+  {"label":"results restored","expect":"document.querySelectorAll('article').length >= 2","timeoutMs":5000},
+  {"label":"search alpha again","fill":"input[aria-label='Search your mind']","text":"alpha"},
+  {"label":"one match","expect":"document.querySelectorAll('article').length === 1","timeoutMs":5000},
+  {"label":"blur search","click":"button[aria-label='List view']"},
+  {"label":"save as Space","clickText":{"selector":"button","text":"Save as Space"}},
+  {"label":"Space form","wait":"input[aria-label='Space name']"},
+  {"label":"query in placeholder","expect":"document.querySelector(\"input[aria-label='Space name']\").placeholder.includes('alpha')"},
+  {"label":"name Space","fill":"input[aria-label='Space name']","text":"Alpha Smart"},
+  {"label":"create","clickText":{"selector":"button[type=submit]","text":"Create Space"}},
+  {"label":"Space opens with match","wait":"button[aria-label='Rename Alpha Smart']"},
+  {"label":"one matching card","expect":"document.querySelectorAll('article').length === 1"}
 ]
 ```
 
-End state: nothing is stored by a search, so the proof is the visible card set at each step; read `items` once to show both notes were present and `archived = 0`.
-
-Save as Space, driven as a separate run (blurring keeps the query; Escape would clear it):
-
-```json
-[
-  {"label": "slash", "key": "/"},
-  {"label": "type", "fill": "input[aria-label='Search your mind']", "text": "alpha"},
-  {"label": "only alpha", "expect": "document.querySelectorAll('article').length === 1 && document.querySelector('article').textContent.includes('alpha probe')", "timeoutMs": 5000},
-  {"label": "blur", "expect": "(() => { document.activeElement.blur(); return true; })()"},
-  {"label": "count", "expect": "document.querySelector('.capture-bar').textContent.includes('1 result')", "timeoutMs": 5000},
-  {"label": "Save as Space", "clickText": {"selector": "button", "text": "Save as Space"}},
-  {"label": "name prefilled", "expect": "document.querySelector(\"input[aria-label='Space name']\")?.value === 'alpha'", "timeoutMs": 5000},
-  {"label": "create", "clickText": {"selector": "button[type=submit]", "text": "Create Space"}},
-  {"label": "row exists", "wait": "button[aria-label='Rename alpha']"}
-]
-```
-
-End state: `spaces` has one row with `kind = 'smart'` and `query = '{"text":"alpha"}'`. The new Space opens showing only the matching card.
+Read `spaces` to prove the new row has `kind = 'smart'` and `query = '{"text":"alpha"}'`. Search itself stores no data; the visible card set proves its result behavior.
 
 ## Gotchas
 
-- Matching is whole-token full-text search over title, description, body, OCR text and metadata. `alp` does not match `alpha`; use full words. It works in a scratch library with no embedding model, where it is lexical only.
-- Results update about 200 ms after typing stops, so give `expect` a timeout of a few seconds.
-- The field is hidden at rest and expands on focus. `/` is ignored while an input has focus; press Escape first.
-- The expanded field's hint reads `esc to close`. The filter row (query chip, result count, Save as Space) shows only while the field is unfocused with a query set.
-- The count is an animated digit roll, so `.result-count` text reads like `01231`. Assert on the bar text (`1 result`) instead.
-- Save as Space opens the sidebar Space form with the query as the name and Smart selected; nothing is saved until Create Space.
+- The query is not prefilled into the Space name. It appears in the placeholder **Save “alpha” as…**; enter the actual name before creating.
+- Escape clears the query. To show the filter row without clearing it, move focus away from Search your mind.
+- Text matching can include substrings; do not describe it as whole-token-only search.
+- The result count is plain text in the filter row, not an animated digit roll.

@@ -47,6 +47,30 @@ const commandLine = (pid) =>
         encoding: "utf8",
       }).stdout.trim();
 const ownsScratchLibrary = (pid) => alive(pid) && commandLine(pid).includes(library);
+const hasScratchDebugProcess = () => {
+  if (!windows) return false;
+  const result = spawnSync(
+    "powershell",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      "Get-CimInstance Win32_Process | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress",
+    ],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0) return false;
+  try {
+    const processes = JSON.parse(result.stdout);
+    return (Array.isArray(processes) ? processes : [processes]).some(
+      (process) =>
+        process.CommandLine?.includes(`--remote-debugging-port=${port}`) &&
+        process.CommandLine.includes(library),
+    );
+  } catch {
+    return false;
+  }
+};
 
 // 0 means nothing listens, -1 means something does but ss hides its pid (another user's process).
 const portOwner = () => {
@@ -84,9 +108,9 @@ async function launch() {
     process.exit(1);
   }
   const busy = portOwner();
-  if (busy !== 0) {
+  if (busy !== 0 || (await appPageListed())) {
     console.error(
-      `CDP port ${port} is already owned by ${busy > 0 ? `pid ${busy}` : "another user's process"}, not ours: set INKLING_VERIFY_PORT to a free port`,
+      `CDP port ${port} is already in use${busy > 0 ? ` by pid ${busy}` : ""}: set INKLING_VERIFY_PORT to a free port`,
     );
     process.exit(1);
   }
@@ -152,8 +176,12 @@ async function doctor() {
   check("pidfile present", pid > 0);
   check("electron pid alive", pid > 0 && alive(pid));
   check("pid runs our scratch data dir", pid > 0 && ownsScratchLibrary(pid));
-  check("CDP port owned by our pid", pid > 0 && portOwner() === pid);
-  check("app page loaded over CDP", await appPageListed());
+  const pageLoaded = await appPageListed();
+  check(
+    "CDP endpoint belongs to our scratch instance",
+    pid > 0 && (portOwner() === pid || (pageLoaded && hasScratchDebugProcess())),
+  );
+  check("app page loaded over CDP", pageLoaded);
   check("library database exists", existsSync(join(library, "library.sqlite3")));
   check("renderer build present", existsSync(join(repo, "dist", "renderer", "index.html")));
   process.exit(failed ? 1 : 0);

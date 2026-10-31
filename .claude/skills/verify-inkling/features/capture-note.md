@@ -1,36 +1,30 @@
-# Capture a note from the Add menu
+# Capture a note from Add
 
-## Sub-features
+## User flow
 
-- Note tile in the Add menu.
-- Save to library button, or Enter; the card appears before any processing finishes.
-
-## How to get to it (user POV)
-
-Click Add at the foot of the sidebar. It opens into a menu of Note, Link, Quote, File, and Screen (screenshot). Choose Note, type a line, and press Enter or Save to library. Shift+Enter adds a line break. The new card lands at the top of Everything.
+Choose **Add → Note**, enter text in the multiline **Note** editor, then choose **Save to library**. Ctrl+Enter on Windows/Linux or Cmd+Enter on macOS also saves. Empty notes are refused. Text that is only a URL or bare domain is saved as a link. A regular note appears at the top of Everything while background processing continues.
 
 ## Driving it with `scripts/drive.mjs`
 
-Save as `steps.json`, then run with a fresh evidence dir. Swap the save step for `{"key": "Enter"}` to drive the Enter path; both were driven:
+Start in Everything. Use words with spaces so the input is saved as a note. Current note cards are named **Untitled note** because the text is stored in `body`, not `title`; List view also shows the body description.
 
 ```json
 [
-  {"label": "open Add", "click": "button.add-button"},
-  {"label": "choose Note", "clickText": {"selector": ".add-menu-tile", "text": "Note"}},
-  {"label": "note field", "wait": "textarea[aria-label='New note']"},
-  {"label": "type note", "fill": "textarea[aria-label='New note']", "text": "verify-inkling probe note"},
-  {"label": "save", "click": "button.add-menu-save"},
-  {"label": "card shows", "expect": "[...document.querySelectorAll('article')].some(a => a.textContent.includes('verify-inkling probe note'))", "timeoutMs": 10000},
-  {"label": "dialog closed", "expect": "!document.querySelector('.add-menu-panel')"},
-  {"label": "shot", "shot": "note-saved.png"}
+  {"label":"open Add","clickText":{"selector":"button","text":"Add"}},
+  {"label":"choose Note","clickText":{"selector":"[role=menuitem]","text":"Note"}},
+  {"label":"editor","wait":"[role=textbox][aria-label='Note']"},
+  {"label":"type note","fill":"[role=textbox][aria-label='Note']","text":"alpha probe"},
+  {"label":"save","clickText":{"selector":"button","text":"Save to library"}},
+  {"label":"note card appears","expect":"document.querySelectorAll(\"article[aria-label='Note: Untitled note']\").length > 0","timeoutMs":10000},
+  {"label":"shot","shot":"note-saved.png"}
 ]
 ```
 
-End state proof: the card with the text is in the grid, and `items` has one row with `kind = 'note'`, `title` null, `body = 'verify-inkling probe note'`, `body_format = 'md'`, `description` equal to the body, `metadata = '{"captureSource":"quick note"}'`, `archived = 0`.
+The UI proof is the new note card in Everything. Read the scratch `items` row to prove `kind = 'note'`, `title IS NULL`, `body` equals the entered text, `body_format = 'md'`, `description` equals the plain text, `metadata = '{"captureSource":"quick note"}'`, and `archived = 0`.
 
 ## Gotchas
 
-- Note title is null; the text lives in `body`. Check `body`, not `title`. The card shows "Untitled note" with the text in the DOM.
-- Add is only clickable while the sidebar is open (the default at 1280 wide). N, pressed outside a text field, opens the sidebar and goes straight to the Note form, skipping the tile menu.
-- Text that is only a URL or a bare domain (`example.com`) is saved as a link item, not a note. Keep probe text to words with spaces.
-- Quote has its own file, `capture-quote.md`. Link (`input[aria-label='URL to save']`) fetches the URL over the network, so it is not driven. File and Screen open native pickers that `drive.mjs` cannot reach, so they cannot be driven.
+- The Add menu items are menu roles, not `.add-menu-tile` elements. The note editor is a contenteditable textbox named **Note**, not a textarea.
+- Plain Enter inserts a line break; use the Save button or Ctrl/Cmd+Enter.
+- In grid view, a note card shows **Untitled note** and a word count. Do not expect the body text on the card itself.
+- The full-app library stores a null title. Preview may derive a title from the first body line.

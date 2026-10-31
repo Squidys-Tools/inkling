@@ -96,16 +96,27 @@ const KEYS = {
 async function run(step) {
   const timeout = step.timeoutMs ?? 8000;
   if (step.click) {
-    const found = await poll(`!!document.querySelector(${q(step.click)})`, timeout);
+    const found = await poll(
+      `!!document.querySelector(${q(step.click)})?.getClientRects().length`,
+      timeout,
+    );
     if (!found) throw new Error(`no element ${step.click}`);
-    await evaluate(`document.querySelector(${q(step.click)}).click()`);
+    await evaluate(`(() => {
+      const el = document.querySelector(${q(step.click)});
+      el.focus({ preventScroll: true });
+      el.click();
+      return true;
+    })()`);
     return;
   }
   if (step.clickText) {
     const { selector, text } = step.clickText;
     const clicked = await evaluate(`(() => {
-      const el = [...document.querySelectorAll(${q(selector)})].find((node) => node.textContent.includes(${q(text)}));
+      const el = [...document.querySelectorAll(${q(selector)})].find(
+        (node) => node.textContent.includes(${q(text)}) && node.getClientRects().length,
+      );
       if (!el) return false;
+      el.focus({ preventScroll: true });
       el.click();
       return true;
     })()`);

@@ -1,49 +1,57 @@
 # Spaces
 
-## Sub-features
+## User flow
 
-- Add a Space (Smart or Regular), rename it, delete it. Items are kept when a Space is deleted.
-- File an item into a Regular Space from the item overlay.
+Choose **Add a Space** in the sidebar. Name the Space, keep the default Smart kind or choose Regular, then choose **Create Space**. Smart Spaces show matching search results; Regular Spaces start empty and hold items filed by hand. Rename and delete controls are on the Space row. Deleting a Space removes its memberships and keeps its items in the library.
 
-## How to get to it (user POV)
-
-Click the plus beside Spaces in the sidebar. Name it, choose Smart (the default, stores the current search as its query) or Regular (holds items you file by hand), and press Create Space. The new Space opens at once and a Regular one is empty. To file an item, open it and use Move to Space in the footer; that menu appears only when a Regular Space exists. Rename (pencil) and delete (X) sit on the Space row.
+To file an item, open its detail view and choose **Keep in a Space**. The menu offers **Add to <name>** or **Remove from <name>** for each Regular Space.
 
 ## Driving it with `scripts/drive.mjs`
 
-Needs two notes (see `capture-note.md`). Driven in three runs; the Space name field alone does nothing until Create Space is clicked.
+Smart Space creation from a search is covered in [search.md](search.md). This recipe drives the Regular Space lifecycle with an empty Space. The native item-filing attempt is shown below.
 
 ```json
 [
-  {"label": "add Space", "click": "button[aria-label='Add a Space']"},
-  {"label": "name field", "wait": "input[aria-label='Space name']"},
-  {"label": "name", "fill": "input[aria-label='Space name']", "text": "Verify A"},
-  {"label": "Regular", "clickText": {"selector": "label", "text": "Regular"}},
-  {"label": "create", "clickText": {"selector": "button[type=submit]", "text": "Create Space"}},
-  {"label": "row exists", "wait": "button[aria-label='Rename Verify A']"},
-  {"label": "back to Everything", "clickText": {"selector": "button", "text": "Everything"}},
-  {"label": "open a card", "expect": "(() => { const a = [...document.querySelectorAll('article.library-card')].find(a => a.textContent.includes('bravo probe')); if (!a) return false; a.click(); return true; })()"},
-  {"label": "overlay", "wait": "section[role='dialog'] button[aria-label='Close details']"},
-  {"label": "Move to Space", "click": "button[aria-label='Move to Space']"},
-  {"label": "file it", "clickText": {"selector": "[role='menuitemcheckbox']", "text": "Verify A"}},
-  {"label": "close menu", "key": "Escape"},
-  {"label": "close overlay", "click": "button[aria-label='Close details']"},
-  {"label": "rename", "click": "button[aria-label='Rename Verify A']"},
-  {"label": "rename input", "wait": "input[aria-label='Rename Verify A']"},
-  {"label": "new name", "fill": "input[aria-label='Rename Verify A']", "text": "Verify B"},
-  {"label": "commit", "key": "Enter"},
-  {"label": "renamed", "expect": "[...document.querySelectorAll('button[aria-pressed]')].some(b => b.textContent.includes('Verify B'))"},
-  {"label": "delete", "click": "button[aria-label='Delete Verify B']"},
-  {"label": "gone", "expect": "![...document.querySelectorAll('button[aria-pressed]')].some(b => b.textContent.includes('Verify'))"},
-  {"label": "items kept", "expect": "document.querySelectorAll('article').length === 2", "timeoutMs": 5000}
+  {"label":"open Space form","click":"button[aria-label='Add a Space']"},
+  {"label":"name field","wait":"input[aria-label='Space name']"},
+  {"label":"name Regular Space","fill":"input[aria-label='Space name']","text":"Verify Regular"},
+  {"label":"choose Regular","clickText":{"selector":"label","text":"Regular"}},
+  {"label":"Regular selected","expect":"document.querySelector(\"input[type='radio'][value='regular']\").checked"},
+  {"label":"create","clickText":{"selector":"button[type=submit]","text":"Create Space"}},
+  {"label":"Space opened","wait":"button[aria-label='Rename Verify Regular']"},
+  {"label":"empty state","expect":"document.body.textContent.includes('Verify Regular is empty.')"},
+  {"label":"start rename","click":"button[aria-label='Rename Verify Regular']"},
+  {"label":"rename field","wait":"input[aria-label='Rename Verify Regular']"},
+  {"label":"new name","fill":"input[aria-label='Rename Verify Regular']","text":"Verify Renamed"},
+  {"label":"commit","key":"Enter"},
+  {"label":"renamed row","wait":"button[aria-label='Rename Verify Renamed']"},
+  {"label":"delete empty Space","click":"button[aria-label='Delete Verify Renamed']"},
+  {"label":"Space gone","expect":"!document.querySelector(\"button[aria-label='Rename Verify Renamed']\")"},
+  {"label":"return to Everything","expect":"window.location.hash === '#/'"}
 ]
 ```
 
-Split the file after "create", after "close overlay", and after "renamed" to read the database between runs. End state, read from `library.sqlite3` readonly: after create, `spaces` has one row with `kind = 'regular'` and `query = '{}'`; after filing, `space_items` has one row linking the Space `id` to the item id; after rename, the same row has `name = 'Verify B'` and `updated_at` later than `created_at`; after delete, `spaces` and `space_items` are empty and both `items` rows still have `archived = 0`. A Smart Space made with Save as Space (see `search.md`) renames and deletes the same way.
+Read `spaces` to prove create uses `kind = 'regular'` and `query = '{}'`, rename changes `name`, and delete removes the Space row. Read `items` to confirm the active library rows remain.
+
+## Native menu limit
+
+In the full app, choosing **Keep in a Space** opens an Electron native context menu. The action is present only when a Regular Space exists; archived items do not show it. The CDP driver can click the action but cannot inspect or select a native menu entry, so live membership add/remove is `verified-unreachable` in this harness. Deleting a populated Regular Space also uses a native confirmation. The source path in `apps/renderer/src/menu/contextMenu.tsx` confirms the native menu route; `apps/renderer/src/item/ActionBar.tsx` defines its labels and membership behavior.
+
+Attempt the route with an active note and a Regular Space:
+
+```json
+[
+  {"label":"open note","click":"article[aria-label='Note: Untitled note']"},
+  {"label":"item view","wait":"button[aria-label='Close']"},
+  {"label":"open Keep in a Space menu","click":"button[aria-label='Keep in a Space']"}
+]
+```
+
+The final menu is native to Electron, outside the page CDP can inspect. Record membership selection as `verified-unreachable` unless a native UI driver is available.
 
 ## Gotchas
 
-- Everything and Space rows are different: a Space row is `button[aria-pressed]`, the Everything row has no `aria-pressed`, so select it with `clickText` on `button`.
-- Rename and delete are hover-revealed but `click` works on them without hovering. There is no delete confirmation. Delete is `button[aria-label='Delete <name>']`; `data-tooltip='Delete Space'` matches the first row only.
-- `Rename <name>` is both the pencil button's and the input's `aria-label`; prefix the selector with `button` or `input`.
-- A Smart Space cannot hold hand-filed items, so Move to Space lists Regular Spaces only. A Smart Space made while the search box has text takes that text as its query.
+- The new Space form defaults to Smart. **Save as Space** opens it with the query in a placeholder such as **Save “alpha” as…**; the field value is empty until the user types a name.
+- Rename is labeled `Rename <name>` and commits with Enter or blur; Escape cancels.
+- Deleting an empty Space needs no confirmation. A populated Regular Space asks first and says its items stay in the library.
+- A Smart Space cannot hold hand-filed items. Only Regular Spaces appear in **Keep in a Space**.

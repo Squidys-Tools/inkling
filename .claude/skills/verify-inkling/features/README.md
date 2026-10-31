@@ -1,18 +1,17 @@
 # inkling feature map
 
-One file per user-facing feature. Each file names the entry points, the driving steps, and the observable end state. Drive one feature per run.
+The files below cover the core library flows. Each file names the user-visible route, current accessible controls, a live recipe, and the stored result to inspect in the scratch database.
 
-Every step list below was driven on the app before the rebuild in `apps/`. Its class selectors (`.add-menu-tile`, `.result-count` and the like) no longer exist, because StyleX emits atomic class names; re-drive each file against `apps/renderer/src` and move its selectors to aria-labels, roles and titles before trusting it.
-
-- [Capture a note from the Add menu](capture-note.md)
-- [Capture a quote from the Add menu](capture-quote.md)
+- [Capture a note from Add](capture-note.md)
+- [Capture a quote from Add](capture-quote.md)
 - [Search your library](search.md)
 - [Spaces](spaces.md)
 - [Edit a note](edit-note.md)
 - [Archive and restore](archive-restore.md)
 
-Not mapped, with the reason:
+Not covered by the CDP feature drives, with the reason:
 
 - Deep-link capture (`inkling://capture?url=...`) needs the capture server, which this run does not start.
-- Link capture fetches the URL over the network, so a run would depend on external state.
-- File and Screen capture open native pickers that the CDP driver cannot reach.
+- Link capture and article reading depend on fetching a saved URL. The Reader route appears for items with article content (`apps/renderer/src/item/InfoPanel.tsx`), so it needs a captured article and network state.
+- File and Screenshot capture open native pickers that the CDP driver cannot reach.
+- Filing an item in a Space opens Electron's native context menu (`apps/renderer/src/menu/contextMenu.tsx` calls `desktop.showContextMenu`). CDP can open the menu but cannot inspect or select its native entries.
