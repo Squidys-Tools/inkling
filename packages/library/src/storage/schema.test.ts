@@ -1,4 +1,5 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Effect } from "effect";
@@ -12,6 +13,7 @@ import {
   trackDatabase,
   trackedLibrary,
 } from "./test-helpers.ts";
+import { openDatabase, SCHEMA_VERSION } from "./schema.ts";
 
 afterEach(closeAll);
 afterAll(removeTemporaryRoots);
@@ -60,4 +62,25 @@ test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", 
     }),
   );
   expect(busy).toEqual({ timeout: 5000 });
+});
+
+// A library saved by a newer app must survive an older app untouched, not be
+// "migrated" down to a schema that drops what the newer one stored.
+test("a library from a newer schema is refused without writing to it", async () => {
+  const databasePath = join(temporaryRoot(), "newer.sqlite3");
+  const db = new DatabaseSync(databasePath);
+  db.exec(`CREATE TABLE items (id TEXT PRIMARY KEY, future_column TEXT);
+    INSERT INTO items VALUES ('kept', 'from the future');
+    PRAGMA user_version = ${SCHEMA_VERSION + 1};`);
+  db.close();
+  const before = readFileSync(databasePath);
+
+  expect(() => openDatabase(databasePath)).toThrow("saved by a newer Inkling");
+  await expect(trackedLibrary(databasePath)).rejects.toThrow("saved by a newer Inkling");
+  expect(readFileSync(databasePath).equals(before)).toBe(true);
+  const after = trackDatabase(new DatabaseSync(databasePath, { readOnly: true }));
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: SCHEMA_VERSION + 1 });
+  expect(after.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all()).toEqual([
+    { name: "items" },
+  ]);
 });
