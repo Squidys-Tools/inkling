@@ -90,7 +90,8 @@ function modeWorkers(confidence: number, delay = 5) {
         stats.peak = Math.max(stats.peak, stats.active);
         stats.calls++;
         const text = `psm${psm}`;
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        // Page mode 3 finishes last, so judging results as they arrive would pick another.
+        await new Promise((resolve) => setTimeout(resolve, psm === "3" ? delay * 4 : delay));
         busy = false;
         stats.active--;
         return { data: { text, confidence } };
