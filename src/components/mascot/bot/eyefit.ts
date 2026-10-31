@@ -452,7 +452,7 @@ const DECALAGES = batir();
  * descente sort au premier tour. La forme relevee sur la video ne bouge donc pas, sans
  * cas particulier.
  */
-export function decalageDesYeux(
+export function eyeOffset(
   radii: number[] | null,
   state: StateId,
   expr: string | null,
