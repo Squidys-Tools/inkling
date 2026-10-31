@@ -47,27 +47,6 @@ const commandLine = (pid) =>
         encoding: "utf8",
       }).stdout.trim();
 const ownsScratchLibrary = (pid) => alive(pid) && commandLine(pid).includes(library);
-// Windows can list the CDP port with no owning process; one of our Electron processes still
-// carries both the port and the scratch path on its command line.
-const hasScratchDebugProcess = () => {
-  if (!windows) return false;
-  try {
-    const processes = JSON.parse(
-      powershell(
-        "Get-CimInstance Win32_Process | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress",
-      ) || "[]",
-    );
-    return [processes]
-      .flat()
-      .some(
-        (process) =>
-          process.CommandLine?.includes(`--remote-debugging-port=${port}`) &&
-          process.CommandLine.includes(library),
-      );
-  } catch {
-    return false;
-  }
-};
 
 // 0 means nothing listens, -1 means something does but ss hides its pid (another user's process).
 const portOwner = () => {
@@ -88,6 +67,22 @@ const appPageListed = async () => {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/json/list`);
     return (await response.text()).includes("app://local/index.html");
+  } catch {
+    return false;
+  }
+};
+
+// Our Electron logs the browser endpoint it bound, with a fresh id per launch. Matching it against
+// what the port serves proves the port is ours; a page or a process with our args alone does not.
+const servesOurEndpoint = async () => {
+  if (!existsSync(logFile)) return false;
+  const logged = /DevTools listening on ws:\/\/[^/\s]+(\/devtools\/browser\/\S+)/.exec(
+    readFileSync(logFile, "utf8"),
+  )?.[1];
+  if (!logged) return false;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+    return new URL((await response.json()).webSocketDebuggerUrl).pathname === logged;
   } catch {
     return false;
   }
@@ -153,13 +148,13 @@ async function launch() {
   if (!headless) writeFileSync(pidFile, String(child.pid));
 
   for (let attempt = 0; attempt < 60; attempt++) {
-    if (await appPageListed()) {
+    if ((await appPageListed()) && (await servesOurEndpoint())) {
       console.log(`ready: pid ${recordedPid() || child.pid}, CDP port ${port}, library ${library}`);
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  console.error(`app page never listed on port ${port}; see ${logFile}`);
+  console.error(`our app page never listed on port ${port}; see ${logFile}`);
   process.exit(1);
 }
 
@@ -173,14 +168,8 @@ async function doctor() {
   check("pidfile present", pid > 0);
   check("electron pid alive", pid > 0 && alive(pid));
   check("pid runs our scratch data dir", pid > 0 && ownsScratchLibrary(pid));
-  const pageLoaded = await appPageListed();
-  // Fall back only when no owner was reported: a different owner means another process holds the port.
-  const owner = portOwner();
-  check(
-    "CDP endpoint belongs to our scratch instance",
-    pid > 0 && (owner === pid || (owner === 0 && pageLoaded && hasScratchDebugProcess())),
-  );
-  check("app page loaded over CDP", pageLoaded);
+  check("CDP endpoint is the one our Electron logged", await servesOurEndpoint());
+  check("app page loaded over CDP", await appPageListed());
   check("library database exists", existsSync(join(library, "library.sqlite3")));
   check("renderer build present", existsSync(join(repo, "dist", "renderer", "index.html")));
   process.exit(failed ? 1 : 0);

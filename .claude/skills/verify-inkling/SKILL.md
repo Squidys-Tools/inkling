@@ -60,7 +60,7 @@ Read-only. Run it first whenever anything looks off:
 bun .claude/skills/verify-inkling/scripts/instance.mjs doctor
 ```
 
-Every line must read PASS and the exit code must be 0: pidfile present, pid alive, pid runs our scratch dir, CDP endpoint belongs to the scratch instance, app page loaded, library database exists, renderer build present. On Windows, the renderer child may carry the CDP port and scratch path even when the OS port-owner query returns no row. Doctor cannot see a hidden window. If a step stalls on an animation, check `document.visibilityState`; anything but "visible" means relaunch.
+Every line must read PASS and the exit code must be 0: pidfile present, pid alive, pid runs our scratch dir, the endpoint on the CDP port is the one our Electron logged in `electron.log` (`DevTools listening on ...`), app page loaded, library database exists, renderer build present. Launch waits for that same endpoint match before it reports ready. Doctor cannot see a hidden window. If a step stalls on an animation, check `document.visibilityState`; anything but "visible" means relaunch.
 
 ## Drive
 
