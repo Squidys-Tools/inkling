@@ -5,7 +5,7 @@ import { CardFace } from "../../../renderer/src/cards/CardFace.tsx";
 import { MascotEyes } from "../../../renderer/src/mascot/Mascot.tsx";
 import { searchDemo } from "./demoLibrary.ts";
 
-const suggestions = ["fuji", "a quote about time", "anime", "night", "paper"];
+const suggestions = ["japan night", "mountain", "poster", "essay", "time"];
 const ignore = () => {};
 const restingCount = 15;
 
@@ -109,6 +109,8 @@ const styles = stylex.create({
     fontSize: { default: "22px", "@media (max-width: 480px)": "18px" },
     letterSpacing: "-0.01em",
     "::placeholder": { color: color.faint },
+    // Escape clears the field; Chrome's own clear button is a large white cross.
+    "::-webkit-search-cancel-button": { display: "none" },
   },
   suggestions: {
     display: "flex",
