@@ -1,7 +1,7 @@
 import { Effect, Layer } from "effect";
 import { JobQueue, type Library } from "../storage/library.ts";
 import { makeWorker, type Processor } from "../storage/worker.ts";
-import { enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
+import { enqueueLongTextEmbeddings, enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
 import { createJobProcessors, jobTimeouts } from "./processors.ts";
 import { JobsWorker } from "./worker-client.ts";
 
@@ -30,6 +30,7 @@ export const jobLanesLayer = (onItemChanged: (itemId: string) => Effect.Effect<u
       // Main holds the single-instance lock, so no other process owns a processing job.
       yield* jobs.recoverAfterExclusiveStartup();
       yield* enqueueStaleImageEmbeddings;
+      yield* enqueueLongTextEmbeddings;
       const { processors, thumbnailProcessors, onIdle } = createJobProcessors();
       // Every job needs the worker process, so neither lane claims while it is gone.
       const ready = JobsWorker.use((worker) => worker.connected);
