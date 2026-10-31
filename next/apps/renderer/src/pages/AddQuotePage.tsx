@@ -1,5 +1,5 @@
-import { Page } from "./Page.tsx";
+import { QuoteForm } from "../item/add/QuoteForm.tsx";
 
 export function AddQuotePage() {
-  return <Page title="New quote" />;
+  return <QuoteForm />;
 }

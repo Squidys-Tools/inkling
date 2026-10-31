@@ -6,6 +6,7 @@
     "build.ts",
     "../../packages/contracts/src",
     "../../packages/rpc-electron/src/server.ts",
-    "../../packages/rpc-electron/src/client-main.ts"
+    "../../packages/rpc-electron/src/client-main.ts",
+    "../../packages/rpc-electron/src/promise-client.ts"
   ]
 }

@@ -1,10 +1,10 @@
 import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Effect, Predicate } from "effect";
-import type { StorageContext } from "./context.ts";
+import type { StorageContext, Thumbnail } from "./context.ts";
 import { readItem } from "./rows.ts";
 import { changes, nonEmpty, normalizeHttpUrl, parseJson } from "./shared.ts";
-import { attempt, invalidInput, itemNotFound, storageFailure } from "./errors.ts";
+import { attempt, invalidInput, itemNotFound } from "./errors.ts";
 import {
   IMAGE_PALETTE_JOB,
   PDF_THUMBNAIL_JOB,
@@ -125,15 +125,12 @@ export function makeEnrichment(ctx: StorageContext) {
   const storeDerivedThumbnail = Effect.fnUntraced(function* (
     id: string,
     kind: string,
-    png: Buffer,
+    thumbnail: Thumbnail,
     recordSize = false,
   ) {
     const pending = sql`SELECT 1 FROM items WHERE id = ${id} AND kind = ${kind}
       AND thumbnail_path IS NULL`.pipe(Effect.map((rows) => rows.length > 0));
     if (!(yield* pending)) return false;
-    const createThumbnail = ctx.media.createThumbnail;
-    if (!createThumbnail) return yield* storageFailure("image thumbnail generation is unavailable");
-    const thumbnail = yield* attempt(() => createThumbnail(png));
     return yield* Effect.acquireUseRelease(
       attempt(() => mkdtemp(join(dirname(ctx.databasePath), ".inkling-thumbnail-"))),
       Effect.fnUntraced(function* (staging) {
@@ -181,12 +178,14 @@ export function makeEnrichment(ctx: StorageContext) {
       candidate(videoPosterCandidateSql, afterRowid, VIDEO_POSTER_JOB),
     nextImagePaletteCandidate: (afterRowid: number) =>
       candidate(imagePaletteCandidateSql, afterRowid, IMAGE_PALETTE_JOB),
-    storePdfThumbnail: (id: string, png: Buffer) => storeDerivedThumbnail(id, "pdf", png),
-    storeVideoPoster: (id: string, png: Buffer) => storeDerivedThumbnail(id, "video", png),
+    storePdfThumbnail: (id: string, thumbnail: Thumbnail) =>
+      storeDerivedThumbnail(id, "pdf", thumbnail),
+    storeVideoPoster: (id: string, thumbnail: Thumbnail) =>
+      storeDerivedThumbnail(id, "video", thumbnail),
     // The decoded size also lands in the metadata: BMP and ICO captures have no
     // header-only size, and an EXIF-rotated photo needs its oriented one.
-    storeImageThumbnail: (id: string, bytes: Buffer) =>
-      storeDerivedThumbnail(id, "image", bytes, true),
+    storeImageThumbnail: (id: string, thumbnail: Thumbnail) =>
+      storeDerivedThumbnail(id, "image", thumbnail, true),
     storeImagePalette,
   };
 }

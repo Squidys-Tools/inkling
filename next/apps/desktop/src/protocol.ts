@@ -1,3 +1,4 @@
+import { FRAME_ORIGINS } from "@inkling/ingestion/frame-origins";
 import { protocol } from "electron";
 import { join } from "node:path";
 import { appContentTypes } from "./app-content-types.ts";
@@ -18,7 +19,7 @@ const contentSecurityPolicy = [
   "media-src 'self' data: blob: https:",
   "connect-src 'self' https:",
   "worker-src 'self' blob:",
-  "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://platform.twitter.com",
+  `frame-src ${Object.values(FRAME_ORIGINS).join(" ")}`,
 ].join("; ");
 
 /** Must run before `app.whenReady`. */

@@ -1,5 +1,8 @@
-import { Page } from "./Page.tsx";
+import { useParams } from "@tanstack/react-router";
+import { Settings } from "../settings/Settings.tsx";
+import { sectionFrom } from "../settings/sections.ts";
 
 export function SettingsPage() {
-  return <Page title="Settings" />;
+  const { section } = useParams({ from: "/settings/$section" });
+  return <Settings section={sectionFrom(section)} />;
 }

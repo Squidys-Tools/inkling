@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import type { LibraryCard } from "@inkling/contracts";
-import { IMAGE_MODEL, TEXT_MODEL } from "../embedding-contract.ts";
+import { IMAGE_MODEL, TEXT_MODEL } from "@inkling/contracts/jobs";
 import type { StorageContext } from "./context.ts";
 import {
   cardItem,

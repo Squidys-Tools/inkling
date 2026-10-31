@@ -1,5 +1,5 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
-import { TEXT_MODEL } from "../embedding-contract.ts";
+import { TEXT_MODEL } from "@inkling/contracts/jobs";
 import { closeAll, ids, removeTemporaryRoots, temporaryLibrary, vector } from "./test-helpers.ts";
 
 afterEach(closeAll);

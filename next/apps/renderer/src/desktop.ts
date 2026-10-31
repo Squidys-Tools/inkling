@@ -7,7 +7,7 @@ declare global {
 }
 
 /** The preload bridge in the desktop app; undefined in the web preview. */
-export const desktop = window.inkling;
+export const desktop = typeof window === "undefined" ? undefined : window.inkling;
 
 const userAgentPlatform = (): Platform =>
   /Macintosh/.test(navigator.userAgent)

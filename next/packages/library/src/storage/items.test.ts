@@ -1,7 +1,7 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { TEXT_MODEL } from "../embedding-contract.ts";
+import { TEXT_MODEL } from "@inkling/contracts/jobs";
 import { URL_ENRICHMENT_JOB } from "./jobs.ts";
 import {
   closeAll,

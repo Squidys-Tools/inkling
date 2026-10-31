@@ -25,7 +25,7 @@ try {
   const deadline = Date.now() + 30_000;
   let text = "";
   while (Date.now() < deadline) {
-    text = await page.evaluate<string>("document.body.innerText");
+    text = await page.evaluate<string>(`document.body?.innerText ?? ""`);
     if (/\d+ items/.test(text)) break;
     await Bun.sleep(200);
   }

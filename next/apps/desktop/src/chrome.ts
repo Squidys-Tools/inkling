@@ -21,6 +21,8 @@ export function windowChrome(platform: Platform): {
       chrome: { controls: "native-left", titlebarHeight, controlsInset: 76 },
       options: { titleBarStyle: "hidden", trafficLightPosition: { x: 12, y: 10 } },
     };
+  // Untried on Linux (GNOME and KDE, X11 and Wayland), an open question in the
+  // plan; if the overlay fails there, Linux falls back to `system-frame`.
   return {
     chrome: { controls: "overlay-right", titlebarHeight, controlsInset: 138 },
     options: {

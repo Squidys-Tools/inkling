@@ -1,0 +1,44 @@
+import { Effect, Layer } from "effect";
+import { JobQueue, type Library } from "../storage/library.ts";
+import { makeWorker, type Processor } from "../storage/worker.ts";
+import { enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
+import { createJobProcessors, jobTimeouts } from "./processors.ts";
+import type { JobsWorker } from "./worker-client.ts";
+
+type Services = Library | JobQueue | JobsWorker;
+
+/**
+ * Hands back jobs a previous run left behind, then runs both lanes until the
+ * layer closes. Closing it interrupts each lane, which hands its job back.
+ * `onItemChanged` hears of each finished job, whose result may be on its card.
+ */
+export const jobLanesLayer = (onItemChanged: (itemId: string) => Effect.Effect<unknown>) => {
+  const announced = (set: Record<string, Processor<Services>>) =>
+    Object.fromEntries(
+      Object.entries(set).map(([kind, processor]): [string, Processor<Services>] => [
+        kind,
+        (job, workerId) =>
+          processor(job, workerId).pipe(Effect.tap(() => onItemChanged(job.itemId))),
+      ]),
+    );
+  return Layer.effectDiscard(
+    Effect.gen(function* () {
+      const jobs = yield* JobQueue;
+      // Main holds the single-instance lock, so no other process owns a processing job.
+      yield* jobs.recoverAfterExclusiveStartup();
+      yield* enqueueStaleImageEmbeddings;
+      const { processors, thumbnailProcessors, onIdle } = createJobProcessors();
+      const main = yield* makeWorker<Services>({
+        processors: announced(processors),
+        onIdle,
+        timeouts: jobTimeouts,
+      });
+      const thumbnails = yield* makeWorker<Services>({
+        processors: announced(thumbnailProcessors),
+        timeouts: jobTimeouts,
+      });
+      yield* Effect.forkScoped(main.run);
+      yield* Effect.forkScoped(thumbnails.run);
+    }),
+  );
+};

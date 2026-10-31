@@ -1,18 +1,8 @@
-import type { LibraryStatus } from "@inkling/contracts";
-import { useEffect, useState } from "react";
-import { libraryClient } from "../library/connection.ts";
-import { Page } from "./Page.tsx";
-
+/**
+ * "/", "/space/$id" and "/archive" draw nothing themselves: the library grid
+ * stays mounted in the shell under every page and reads its scope from the
+ * route (see LibraryHost).
+ */
 export function LibraryRoute() {
-  const [status, setStatus] = useState<LibraryStatus | string>("Opening the library…");
-  useEffect(() => {
-    libraryClient()
-      .then((client) => client.status({}))
-      .then(setStatus, (error: Error) => setStatus(error.message));
-  }, []);
-  return (
-    <Page title="Library">
-      <p>{typeof status === "string" ? status : `${status.itemCount} items`}</p>
-    </Page>
-  );
+  return null;
 }

@@ -16,6 +16,7 @@
         "effect": "4.0.6",
         "electron-updater": "6.8.11",
         "entities": "^7.0.1",
+        "ipaddr.js": "^2.5.0",
         "linkedom": "0.18.13",
         "onnxruntime-node": "1.30.0",
         "pdfjs-dist": "^6.4.299",
@@ -33,6 +34,8 @@
         "@hugeicons/core-free-icons": "^4.3.5",
         "@hugeicons/react": "^1.1.10",
         "@inkling/contracts": "workspace:*",
+        "@inkling/ingestion": "workspace:*",
+        "@inkling/jobs": "workspace:*",
         "@inkling/library": "workspace:*",
         "@inkling/rpc-electron": "workspace:*",
         "@inkling/ui": "workspace:*",
@@ -76,6 +79,14 @@
     },
     "packages/contracts": {
       "name": "@inkling/contracts",
+      "version": "0.0.0",
+    },
+    "packages/ingestion": {
+      "name": "@inkling/ingestion",
+      "version": "0.0.0",
+    },
+    "packages/jobs": {
+      "name": "@inkling/jobs",
       "version": "0.0.0",
     },
     "packages/library": {
@@ -275,6 +286,10 @@
     "@inkling/contracts": ["@inkling/contracts@workspace:packages/contracts"],
 
     "@inkling/desktop": ["@inkling/desktop@workspace:apps/desktop"],
+
+    "@inkling/ingestion": ["@inkling/ingestion@workspace:packages/ingestion"],
+
+    "@inkling/jobs": ["@inkling/jobs@workspace:packages/jobs"],
 
     "@inkling/library": ["@inkling/library@workspace:packages/library"],
 
@@ -869,6 +884,8 @@
     "inherits": ["inherits@2.0.4", "", {}, "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ=="],
 
     "invariant": ["invariant@2.2.4", "", { "dependencies": { "loose-envify": "^1.0.0" } }, "sha512-phJfQVBuaJM5raOpJjSfkiD6BpbCE4Ns//LaXl6wGYtUBY83nWS6Rf9tXm2e8VaK60JEjYldbPif/A2B1C2gNA=="],
+
+    "ipaddr.js": ["ipaddr.js@2.5.0", "", {}, "sha512-aq+t5NAc+cS6rZQQVWC2x98CPqGtKKTMDd4Gaodv0wShnItdKg/51djkGJ1hqH+Oy0ivDftCbSLCQob8zso01w=="],
 
     "is-fullwidth-code-point": ["is-fullwidth-code-point@3.0.0", "", {}, "sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg=="],
 

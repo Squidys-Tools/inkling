@@ -18,16 +18,18 @@
     "build:renderer": "vite build --config apps/renderer/vite.config.ts",
     "build:processes": "bun apps/desktop/build.ts",
     "build:app": "bun run build:renderer && bun run build:processes",
-    "build:dir": "bun run build:app && electron-builder --publish never --dir",
-    "build:win": "bun run build:app && electron-builder --publish never --win nsis",
-    "build:linux": "bun run build:app && electron-builder --publish never --linux deb AppImage",
-    "build:mac": "bun run build:app && electron-builder --publish never --mac dmg",
-    "typecheck": "tsc-rs -p apps/renderer --noEmit && tsc-rs -p apps/desktop --noEmit && tsc-rs -p packages/library --noEmit",
-    "test": "bun test",
+    "build:dir": "bun run build:app && bun tools/models/prepare.ts && electron-builder --publish never --dir",
+    "build:win": "bun run build:app && bun tools/models/prepare.ts && electron-builder --publish never --win nsis",
+    "build:linux": "bun run build:app && bun tools/models/prepare.ts && electron-builder --publish never --linux deb AppImage",
+    "build:mac": "bun run build:app && bun tools/models/prepare.ts && electron-builder --publish never --mac dmg",
+    "typecheck": "tsc-rs -p apps/renderer --noEmit && tsc-rs -p apps/desktop --noEmit && tsc-rs -p packages/library --noEmit && tsc-rs -p tools/bench --noEmit && tsc-rs -p packages/jobs --noEmit && tsc-rs -p packages/ingestion --noEmit",
+    "test": "bun test --timeout 30000",
     "lint": "oxlint --report-unused-disable-directives && oxfmt --check",
     "lint:fix": "oxlint --report-unused-disable-directives --fix && oxfmt",
     "check": "bun run typecheck && bun run lint && bun test && bun run build:app",
-    "bench": "bun tools/bench/run.ts"
+    "bench": "bun tools/bench/frames.ts",
+    "bench:library": "bun tools/bench/generate.ts",
+    "bench:first-page": "bun tools/bench/first-page.ts"
   },
   "dependencies": {
     "@effect/sql-sqlite-node": "4.0.6",
@@ -41,6 +43,7 @@
     "effect": "4.0.6",
     "electron-updater": "6.8.11",
     "entities": "^7.0.1",
+    "ipaddr.js": "^2.5.0",
     "linkedom": "0.18.13",
     "onnxruntime-node": "1.30.0",
     "pdfjs-dist": "^6.4.299",
@@ -58,6 +61,8 @@
     "@hugeicons/core-free-icons": "^4.3.5",
     "@hugeicons/react": "^1.1.10",
     "@inkling/contracts": "workspace:*",
+    "@inkling/ingestion": "workspace:*",
+    "@inkling/jobs": "workspace:*",
     "@inkling/library": "workspace:*",
     "@inkling/rpc-electron": "workspace:*",
     "@inkling/ui": "workspace:*",
@@ -103,8 +108,41 @@
     "files": [
       "dist/**/*",
       "package.json",
-      "!**/node_modules/**/*.{map,ts,mts,cts}"
+      "!**/node_modules/**/*.{map,ts,mts,cts}",
+      "!**/node_modules/onnxruntime-node/bin/napi-v6/*/!(${arch})/**",
+      "!**/node_modules/@napi-rs/canvas-linux-*-musl/**",
+      "!**/node_modules/tesseract.js-core/*.wasm.js",
+      "!**/node_modules/@img/sharp-{linux,linuxmusl,libvips-linux,libvips-linuxmusl}-*/**"
     ],
+    "asarUnpack": [
+      "**/tesseract.js/**/*",
+      "**/tesseract.js-core/**/*",
+      "**/node_modules/regenerator-runtime/**/*",
+      "**/node_modules/is-url/**/*",
+      "**/node_modules/bmp-js/**/*",
+      "**/node_modules/wasm-feature-detect/**/*",
+      "**/node_modules/node-fetch/**/*",
+      "**/node_modules/whatwg-url/**/*",
+      "**/node_modules/tr46/**/*",
+      "**/node_modules/webidl-conversions/**/*",
+      "**/@tesseract.js-data/eng/**/*",
+      "**/onnxruntime-node/bin/**/*",
+      "**/@img/sharp-*/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "apps/desktop/src/updates/update-helper.py",
+        "to": "update-helper.py"
+      },
+      {
+        "from": ".artifacts/electron-resources/models",
+        "to": "models",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "afterPack": "apps/desktop/after-pack.cjs",
     "win": {
       "icon": "build/icon.ico",
       "target": [
@@ -129,6 +167,7 @@
     },
     "linux": {
       "icon": "build/icon.png",
+      "syncDesktopName": true,
       "category": "Utility",
       "target": [
         "deb",
@@ -145,6 +184,17 @@
         }
       }
     },
+    "deb": {
+      "maintainer": "inkling contributors",
+      "fpm": [
+        "--depends",
+        "pkexec | policykit-1",
+        "--depends",
+        "python3",
+        "--depends",
+        "ffmpeg (>= 4.4)"
+      ]
+    },
     "protocols": [
       {
         "name": "Inkling capture link",
@@ -152,8 +202,17 @@
           "inkling"
         ]
       }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Squidys-Tools",
+        "repo": "inkling",
+        "releaseType": "release"
+      }
     ]
   },
+  "desktopName": "inkling.desktop",
   "patchedDependencies": {
     "sharp@0.35.5": "patches/sharp@0.35.5.patch"
   }

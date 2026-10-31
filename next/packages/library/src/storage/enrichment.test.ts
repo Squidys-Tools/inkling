@@ -61,22 +61,20 @@ test("image thumbnails publish once, record the decoded size, and tell the rende
   const events: string[] = [];
   const { root, library } = await temporaryLibrary({
     jobQueue: { onUpdated: (id: string) => events.push(id) },
-    media: {
-      inspectImage: async () => null,
-      createThumbnail: async () => ({ bytes: Buffer.from("thumbnail"), width: 640, height: 480 }),
-    },
+    media: { inspectImage: async () => null },
   });
   const source = Buffer.from("source image");
+  const thumbnail = { bytes: Buffer.from("thumbnail"), width: 640, height: 480 };
   const item = await library.saveFile({ fileName: "photo.bmp", kind: "image", bytes: source });
   const note = await library.createNote({ title: "Not an image", body: "text" });
   if (!item || !note) throw new Error("items were not saved");
   events.length = 0;
 
   expect(item.metadata.mediaWidth).toBeUndefined();
-  expect(await library.storeImageThumbnail(note.id, source)).toBe(false);
-  expect(await library.storeImageThumbnail("missing", source)).toBe(false);
-  expect(await library.storeImageThumbnail(item.id, source)).toBe(true);
-  expect(await library.storeImageThumbnail(item.id, source)).toBe(false);
+  expect(await library.storeImageThumbnail(note.id, thumbnail)).toBe(false);
+  expect(await library.storeImageThumbnail("missing", thumbnail)).toBe(false);
+  expect(await library.storeImageThumbnail(item.id, thumbnail)).toBe(true);
+  expect(await library.storeImageThumbnail(item.id, thumbnail)).toBe(false);
 
   expect(events).toEqual([item.id]);
   expect(await library.getItem(item.id)).toMatchObject({
@@ -91,15 +89,8 @@ test("image thumbnails publish once, record the decoded size, and tell the rende
 });
 
 test("PDF thumbnails publish once, touch only thumbnail_path, and survive export and restore", async () => {
-  let encoded = 0;
-  const { root, library } = await temporaryLibrary({
-    media: {
-      createThumbnail: async () => {
-        encoded += 1;
-        return { bytes: Buffer.from("page one"), width: 396, height: 512 };
-      },
-    },
-  });
+  const { root, library } = await temporaryLibrary();
+  const pageOne = { bytes: Buffer.from("page one"), width: 396, height: 512 };
   const pdf = await library.saveFile({
     fileName: "paper.pdf",
     mimeType: "application/pdf",
@@ -117,11 +108,10 @@ test("PDF thumbnails publish once, touch only thumbnail_path, and survive export
   });
   const writesBefore = writes();
 
-  expect(await library.storePdfThumbnail(note.id, Buffer.from("png"))).toBe(false);
-  expect(await library.storePdfThumbnail("missing", Buffer.from("png"))).toBe(false);
-  expect(await library.storePdfThumbnail(pdf.id, Buffer.from("png"))).toBe(true);
-  expect(await library.storePdfThumbnail(pdf.id, Buffer.from("png"))).toBe(false);
-  expect(encoded).toBe(1);
+  expect(await library.storePdfThumbnail(note.id, pageOne)).toBe(false);
+  expect(await library.storePdfThumbnail("missing", pageOne)).toBe(false);
+  expect(await library.storePdfThumbnail(pdf.id, pageOne)).toBe(true);
+  expect(await library.storePdfThumbnail(pdf.id, pageOne)).toBe(false);
 
   expect(await library.getItem(pdf.id)).toEqual({
     ...before,

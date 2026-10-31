@@ -1,5 +1,7 @@
-import { Page } from "./Page.tsx";
+import { useParams } from "@tanstack/react-router";
+import { FocusEditor } from "../editor/FocusEditor.tsx";
 
 export function FocusPage() {
-  return <Page title="Focus mode" />;
+  const { id } = useParams({ from: "/item/$id/write" });
+  return <FocusEditor id={id} />;
 }

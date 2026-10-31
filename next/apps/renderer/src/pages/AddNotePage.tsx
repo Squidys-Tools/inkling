@@ -1,5 +1,5 @@
-import { Page } from "./Page.tsx";
+import { NoteForm } from "../item/add/NoteForm.tsx";
 
 export function AddNotePage() {
-  return <Page title="New note" />;
+  return <NoteForm />;
 }

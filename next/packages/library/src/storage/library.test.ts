@@ -1,6 +1,6 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
 import { join, resolve } from "node:path";
-import { IMAGE_MODEL } from "../embedding-contract.ts";
+import { IMAGE_MODEL } from "@inkling/contracts/jobs";
 import parity from "../fixtures/storage-parity.json";
 import { resolveLibraryDataDirectory } from "./library.ts";
 import {

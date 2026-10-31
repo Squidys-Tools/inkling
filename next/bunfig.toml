@@ -1,4 +1,2 @@
 [test]
 root = "."
-# Export, restore and media tests snapshot real SQLite files and decode images.
-timeout = 30000

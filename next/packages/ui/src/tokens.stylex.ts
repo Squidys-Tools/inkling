@@ -57,6 +57,8 @@ export const font = stylex.defineVars({
   display: '"DM Sans Variable", system-ui, sans-serif',
   mono: '"DM Mono", ui-monospace, "SF Mono", Consolas, monospace',
   quote: '"Libre Baskerville", Georgia, serif',
+  // Long-form writing in Focus Mode.
+  writing: '"Source Serif 4", Georgia, serif',
 });
 
 // A modular scale on a 13px base, the size of a sidebar row.
@@ -108,4 +110,102 @@ export const motion = stylex.defineVars({
 export const layout = stylex.defineVars({
   titlebar: "32px",
   sidebar: "232px",
+});
+
+// The mascot draws on a canvas, which takes concrete colors, not CSS variables,
+// so these are constants. `body` is color.ink: the sidebar mascot is ink on the dark window.
+export const mascotColor = stylex.defineConsts({
+  body: "#e5ddd2",
+  notification: "#3b93f0",
+  portraitInk: "#2b2623",
+  portraitPaper: "#e5ddd2",
+});
+
+// The library's card treatments and the controls around the grid. Each card kind
+// keeps its own paper and ink, so these are roles of a card, not of the app.
+export const cardColor = stylex.defineVars({
+  articlePaper: "#ece6dc",
+  articleInk: "#1a1714",
+  articleMuted: "#7a7268",
+  articleRule: "rgba(26, 23, 20, 0.12)",
+  articleLine: "#4a4842",
+  stampEdge: "#a06b4e",
+  stampInk: "#d98d68",
+  noteText: "#9fb1ae",
+  noteKicker: "#9fb9b7",
+  quoteKicker: "#b3ad8d",
+  quoteMark: "#c4ba8c",
+  quoteText: "#d0c68f",
+  quoteRule: "#81764c",
+  quoteEdge: "rgba(255, 255, 255, 0.04)",
+  postPaper: "#edf4f5",
+  postInk: "#243d42",
+  postMuted: "#6b8589",
+  postAvatarInk: "#e8f0f2",
+  postRule: "rgba(36, 61, 66, 0.16)",
+  embedPaper: "#ffffff",
+  hoverShadow: "rgba(0, 0, 0, 0.4)",
+  controlEdge: "#4a4842",
+  tileMeta: "#6f685f",
+  tileButton: "rgba(12, 12, 11, 0.72)",
+  tileButtonHover: "rgba(12, 12, 11, 0.9)",
+  deleteHover: "#3a251d",
+  deleteInkHover: "#f0b095",
+  dangerTool: "#e08a5e",
+  dangerEdge: "rgba(208, 112, 85, 0.28)",
+  dangerWash: "rgba(208, 112, 85, 0.06)",
+  addHover: "#f2ece1",
+  addHighlight: "rgba(255, 255, 255, 0.55)",
+  addLowlight: "rgba(0, 0, 0, 0.08)",
+  addShadow: "rgba(0, 0, 0, 0.35)",
+  glassHighlight: "rgba(255, 255, 255, 0.1)",
+  glassTopEdge: "rgba(255, 255, 255, 0.16)",
+  glassBottomEdge: "rgba(255, 255, 255, 0.04)",
+  glassInnerShade: "rgba(0, 0, 0, 0.3)",
+  sidebarShadow: "rgba(0, 0, 0, 0.45)",
+  sidebarScrim: "rgba(10, 10, 9, 0.48)",
+  kbdEdge: "#3e3a36",
+  roundControl: "#34302c",
+  roundControlHover: "#45403a",
+  dropWash: "rgba(176, 113, 79, 0.1)",
+});
+
+// The item view's stage, the reader and the note editor.
+export const itemColor = stylex.defineVars({
+  stage: "#121110",
+  stageDot: "#2a2623",
+  pdfPaper: "#ffffff",
+  accentGlow: "rgba(176, 113, 79, 0.12)",
+  accentTint: "rgba(176, 113, 79, 0.05)",
+  mutedTint: "rgba(141, 134, 124, 0.08)",
+  writingInk: "#e9e1d6",
+  codeInk: "#c9d8c3",
+  linkInk: "#d7a887",
+  linkRule: "#6a4c39",
+  quoteRule: "#9a684c",
+  quoteInk: "#b6a999",
+  tagInk: "#a8a096",
+  swatchEdge: "rgba(229, 221, 210, 0.14)",
+});
+
+// The welcome screens' demos: a paper receipt read by a scan beam, and mini
+// video cards with their play button and duration badge.
+export const onboardingColor = stylex.defineVars({
+  receiptPaper: "#f1eadc",
+  receiptInk: "#3a332d",
+  receiptStrong: "#2a2420",
+  receiptMuted: "#7a7266",
+  receiptRule: "#c9bfae",
+  scanWash: "rgba(176, 113, 79, 0.32)",
+  scanGlow: "rgba(176, 113, 79, 0.55)",
+  matchWash: "rgba(176, 113, 79, 0.28)",
+  deepShadow: "rgba(0, 0, 0, 0.7)",
+  softShadow: "rgba(0, 0, 0, 0.45)",
+  videoScrimTop: "rgba(12, 12, 10, 0.02)",
+  videoScrimBottom: "rgba(12, 12, 10, 0.5)",
+  playButton: "rgba(18, 18, 16, 0.78)",
+  playInk: "#f2ede2",
+  playEdge: "rgba(255, 255, 255, 0.22)",
+  badge: "rgba(14, 14, 12, 0.72)",
+  badgeInk: "#d8d2c6",
 });

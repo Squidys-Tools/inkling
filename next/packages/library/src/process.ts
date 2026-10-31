@@ -1,17 +1,45 @@
+import type { MessagePortMain } from "electron";
 import { LibraryError, LibraryRpcs, type LibraryChange } from "@inkling/contracts";
-import { layerProtocol } from "@inkling/rpc-electron/server";
+import { layerProtocol, type PortSource } from "@inkling/rpc-electron/server";
 import { Effect, Fiber, Layer, PubSub, Stream } from "effect";
 import { RpcServer } from "effect/rpc";
 import { join } from "node:path";
+import { queryVector } from "./jobs/query-vector.ts";
+import { jobLanesLayer } from "./jobs/runtime.ts";
+import { layerPorts } from "./jobs/worker-client.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
 import { errorMessage } from "./storage/errors.ts";
 import { JobQueue, Library, libraryLayer } from "./storage/library.ts";
+import { snapshotDatabase } from "./storage/sqlite-snapshot.ts";
 
 // The library process: the only owner of the SQLite file. Main starts it with
 // the library directory and hands it one port per client.
 const directoryFlag = process.argv.indexOf("--library-directory");
 const libraryDirectory = process.argv[directoryFlag + 1];
 if (directoryFlag < 0 || !libraryDirectory) throw new Error("--library-directory is required");
+
+// Main sends the worker's port as soon as both processes run, which can be before
+// the server starts, so the newest one waits here until the client takes it.
+let waitingWorkerPort: MessagePortMain | undefined;
+let onWorkerPort: ((port: MessagePortMain) => void) | undefined;
+process.parentPort.on("message", ({ data, ports }) => {
+  if ((data as { type?: unknown } | null)?.type !== "worker") return;
+  for (const port of ports) {
+    if (onWorkerPort) onWorkerPort(port);
+    else {
+      waitingWorkerPort?.close();
+      waitingWorkerPort = port;
+    }
+  }
+});
+const workerPorts: PortSource = (onPort) => {
+  onWorkerPort = onPort;
+  if (waitingWorkerPort) onPort(waitingWorkerPort);
+  waitingWorkerPort = undefined;
+  return () => {
+    onWorkerPort = undefined;
+  };
+};
 
 const databasePath = join(libraryDirectory, "library.sqlite3");
 const librarySize = createLibrarySizeCache(databasePath, join(libraryDirectory, "assets"));
@@ -47,16 +75,25 @@ const handlers = LibraryRpcs.toLayer(
             return answer(library.cardsPage(true, cursor, limit));
           case "Space":
             return answer(
-              library
-                .listSpaceItems(scope.spaceId, 200, null)
-                .pipe(Effect.map((cards) => ({ cards, next: null, total: cards.length }))),
+              Effect.gen(function* () {
+                const space = yield* library.getSpace(scope.spaceId);
+                const text = space?.kind === "smart" ? (space.query.text ?? "") : "";
+                const vector = yield* queryVector(text);
+                const cards = yield* library.listSpaceItems(scope.spaceId, 200, vector);
+                return { cards, next: null, total: cards.length };
+              }),
             );
         }
       },
       cardsById: ({ ids }) => answer(library.getItemCards(ids)),
       item: ({ id }) => answer(library.getItem(id)),
       itemContent: ({ id }) => answer(library.getItemContent(id)),
-      search: ({ query, limit }) => answer(library.searchItems(query, limit, null)),
+      search: ({ query, limit }) =>
+        answer(
+          queryVector(query).pipe(
+            Effect.flatMap((vector) => library.searchItems(query, limit, vector)),
+          ),
+        ),
       similar: ({ id, by, limit }) => answer(library.searchSimilar(id, by, limit)),
       createNote: (input) => written(library.createNote(input)),
       createQuote: (input) => written(library.createQuote(input)),
@@ -118,13 +155,19 @@ const storage = libraryLayer({
   jobQueue: {
     onUpdated: (itemId) => Effect.runFork(publish({ _tag: "JobsChanged", itemIds: [itemId] })),
   },
+  media: {
+    // A header read on capture, kept here so a busy worker never delays a save.
+    inspectImage: (bytes) => import("@inkling/jobs/thumbnail").then((m) => m.inspectImage(bytes)),
+    createSnapshot: snapshotDatabase,
+  },
 });
 
-const server = RpcServer.layer(LibraryRpcs).pipe(
-  Layer.provide(handlers),
-  Layer.provide(storage),
-  Layer.provide(layerProtocol()),
-);
+// The lanes depend on the worker client, so closing the server stops them, and
+// hands their jobs back, before the client and the database close.
+const server = Layer.mergeAll(
+  RpcServer.layer(LibraryRpcs).pipe(Layer.provide(handlers), Layer.provide(layerProtocol())),
+  jobLanesLayer(itemChanged),
+).pipe(Layer.provide(Layer.merge(storage, layerPorts(workerPorts))));
 
 const launched: Effect.Effect<never, unknown> = Layer.launch(server);
 const fiber = Effect.runFork(launched);

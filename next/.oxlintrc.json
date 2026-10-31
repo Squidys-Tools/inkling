@@ -69,7 +69,12 @@
   "ignorePatterns": ["dist", ".artifacts", "**/*.d.ts"],
   "overrides": [
     {
-      "files": ["apps/desktop/**", "packages/library/**", "packages/rpc-electron/**"],
+      "files": [
+        "apps/desktop/**",
+        "packages/jobs/**",
+        "packages/library/**",
+        "packages/rpc-electron/**"
+      ],
       "rules": {
         "unicorn/require-post-message-target-origin": "off",
         "react-hooks/rules-of-hooks": "off"
@@ -79,6 +84,7 @@
       "files": [
         "packages/ui/src/tokens.stylex.ts",
         "apps/desktop/src/chrome.ts",
+        "packages/jobs/**",
         "**/*.test.ts",
         "tools/**"
       ],

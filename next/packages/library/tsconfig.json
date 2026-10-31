@@ -1,5 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "types": ["bun"] },
-  "include": ["src", "../contracts/src", "../rpc-electron/src/server.ts"]
+  "compilerOptions": { "lib": ["ES2023", "DOM", "DOM.Iterable"], "types": ["bun"] },
+  "include": [
+    "src",
+    "../contracts/src",
+    "../rpc-electron/src/server.ts",
+    "../rpc-electron/src/client-main.ts",
+    "../jobs/src/modules.d.ts"
+  ]
 }

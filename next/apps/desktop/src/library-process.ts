@@ -1,13 +1,5 @@
-import {
-  MessageChannelMain,
-  type UtilityProcess,
-  utilityProcess,
-  type WebContents,
-} from "electron";
-
-const restartWindowMillis = 60_000;
-const maxRestartsPerWindow = 3;
-const shutdownTimeoutMillis = 10_000;
+import { MessageChannelMain, type MessagePortMain, type WebContents } from "electron";
+import { superviseUtilityProcess } from "./utility-process.ts";
 
 /**
  * Runs the library process (SQLite, search, the job queue) and hands each window
@@ -17,39 +9,40 @@ const shutdownTimeoutMillis = 10_000;
 export function startLibraryProcess({
   entry,
   args,
+  onRestart,
   onGiveUp,
 }: {
   entry: string;
   args: string[];
+  onRestart: () => void;
   onGiveUp: (code: number) => void;
 }) {
   const clients = new Set<WebContents>();
-  const restarts: number[] = [];
-  let child: UtilityProcess;
-  let stopping: Promise<void> | undefined;
+  let mainClient: ((port: MessagePortMain) => void) | undefined;
 
   const connect = (contents: WebContents) => {
     const { port1, port2 } = new MessageChannelMain();
     child.postMessage({ type: "connect" }, [port1]);
     contents.postMessage("inkling:library-port", null, [port2]);
   };
-
-  const spawn = () => {
-    child = utilityProcess.fork(entry, args, {
-      serviceName: "inkling library",
-      stdio: "inherit",
-    });
-    child.once("exit", (code) => {
-      if (stopping) return;
-      const now = Date.now();
-      restarts.push(now);
-      while (restarts[0] < now - restartWindowMillis) restarts.shift();
-      if (restarts.length > maxRestartsPerWindow) return onGiveUp(code);
-      spawn();
-      for (const contents of clients) if (!contents.isDestroyed()) connect(contents);
-    });
+  const connectMain = () => {
+    if (!mainClient) return;
+    const { port1, port2 } = new MessageChannelMain();
+    child.postMessage({ type: "connect" }, [port1]);
+    mainClient(port2);
   };
-  spawn();
+
+  const child = superviseUtilityProcess({
+    entry,
+    args,
+    serviceName: "inkling library",
+    onRestart: () => {
+      for (const contents of clients) if (!contents.isDestroyed()) connect(contents);
+      connectMain();
+      onRestart();
+    },
+    onGiveUp,
+  });
 
   return {
     /** Sends `contents` a port now (a reloaded page asks again), and a new one after every restart. */
@@ -60,17 +53,16 @@ export function startLibraryProcess({
       }
       connect(contents);
     },
-    /** Asks the process to hand running jobs back and close the database, then waits for it. */
-    stop() {
-      stopping ??= new Promise<void>((resolve) => {
-        const timer = setTimeout(() => child.kill(), shutdownTimeoutMillis);
-        child.once("exit", () => {
-          clearTimeout(timer);
-          resolve();
-        });
-        child.postMessage({ type: "shutdown" });
-      });
-      return stopping;
+    /** Gives main's own client a port now and a new one after every restart. */
+    attachMain(onPort: (port: MessagePortMain) => void) {
+      mainClient = onPort;
+      connectMain();
     },
+    /** Hands the library its port to the worker process. */
+    connectWorker(port: MessagePortMain) {
+      child.postMessage({ type: "worker" }, [port]);
+    },
+    /** Asks the process to hand running jobs back and close the database, then waits for it. */
+    stop: () => child.stop(),
   };
 }

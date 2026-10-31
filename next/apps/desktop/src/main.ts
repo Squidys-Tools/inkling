@@ -4,9 +4,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { channels } from "./channels.ts";
 import { windowBackground, windowChrome } from "./chrome.ts";
+import { outsideCaptures } from "./capture/outside-captures.ts";
 import { libraryDirectory as resolveLibraryDirectory } from "./data-directory.ts";
-import { startLibraryProcess } from "./library-process.ts";
+import { mainLibraryClient } from "./library-client.ts";
 import { installMenu } from "./menu.ts";
+import { registerNativeHandlers } from "./native-handlers.ts";
+import { startProcesses } from "./processes.ts";
 import { appUrl, assetsDirectoryOf, handleAppScheme, registerAppScheme } from "./protocol.ts";
 
 const bundleDirectory = dirname(fileURLToPath(import.meta.url));
@@ -19,9 +22,12 @@ const libraryDirectory = resolveLibraryDirectory({
 });
 app.setPath("userData", libraryDirectory);
 registerAppScheme();
+if (platform === "linux") app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
+const libraryClient = mainLibraryClient();
+const captures = outsideCaptures({ libraryDirectory, library: libraryClient.client });
 
 let mainWindow: BrowserWindow | undefined;
-let library: ReturnType<typeof startLibraryProcess> | undefined;
+let library: ReturnType<typeof startProcesses> | undefined;
 
 function createWindow() {
   const { options } = windowChrome(platform);
@@ -96,6 +102,7 @@ function registerIpc() {
   ipcMain.handle(channels.windowReady, (event) => {
     const window = windowOf(event);
     if (window && !window.isVisible()) window.show();
+    captures.windowReady(event.sender);
   });
   ipcMain.handle(
     channels.contextMenu,
@@ -136,15 +143,6 @@ function registerIpc() {
     });
     return response === 0;
   });
-  ipcMain.handle(channels.chooseDirectory, async (event, title: string) => {
-    const window = windowOf(event);
-    if (!window) return null;
-    const result = await dialog.showOpenDialog(window, {
-      title,
-      properties: ["openDirectory", "createDirectory"],
-    });
-    return result.canceled ? null : (result.filePaths[0] ?? null);
-  });
   ipcMain.handle(channels.showLibraryFolder, async () => {
     const error = await shell.openPath(libraryDirectory);
     if (error) throw new Error(error);
@@ -158,7 +156,16 @@ function registerIpc() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", showMainWindow);
+  app.on("second-instance", (_event, argv) => {
+    captures.receive(argv);
+    showMainWindow();
+  });
+  // macOS sends links here, also at launch before `ready`, and keeps running with no window.
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    captures.receive([url]);
+    if (app.isReady()) showMainWindow();
+  });
 
   void app.whenReady().then(() => {
     installMenu((command) => mainWindow?.webContents.send(channels.command, command));
@@ -166,9 +173,9 @@ if (!app.requestSingleInstanceLock()) {
       rendererDirectory: join(bundleDirectory, "..", "renderer"),
       assetsDirectory: assetsDirectoryOf(libraryDirectory),
     });
-    library = startLibraryProcess({
-      entry: join(bundleDirectory, "library.mjs"),
-      args: ["--library-directory", libraryDirectory],
+    library = startProcesses({
+      bundleDirectory,
+      libraryDirectory,
       onGiveUp: (code) => {
         dialog.showErrorBox(
           "inkling can't open your library",
@@ -176,7 +183,15 @@ if (!app.requestSingleInstanceLock()) {
         );
       },
     });
+    library.attachMain(libraryClient.onPort);
     registerIpc();
+    registerNativeHandlers({
+      libraryDirectory,
+      library: libraryClient.client,
+      mainWindow: () => mainWindow,
+    });
+    void captures.start();
+    captures.receive(process.argv);
     createWindow();
 
     // macOS keeps the app running with no window; the Dock icon brings one back.
@@ -188,10 +203,16 @@ if (!app.requestSingleInstanceLock()) {
     app.on("before-quit", (event) => {
       if (drained || !library) return;
       event.preventDefault();
-      void library.stop().then(() => {
-        drained = true;
-        app.quit();
-      });
+      const running = library;
+      // The receiver finishes the captures it accepted before the library closes.
+      void captures
+        .stop()
+        .catch(() => {})
+        .then(() => running.stop())
+        .then(() => {
+          drained = true;
+          app.quit();
+        });
     });
   });
 }

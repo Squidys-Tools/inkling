@@ -1,5 +1,5 @@
-import { Page } from "./Page.tsx";
+import { LinkForm } from "../item/add/LinkForm.tsx";
 
 export function AddLinkPage() {
-  return <Page title="Save a link" />;
+  return <LinkForm />;
 }

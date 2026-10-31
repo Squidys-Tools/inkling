@@ -21,8 +21,14 @@ const listeners = new Set<Listener>();
  */
 export function libraryClient(): Promise<LibraryClient> {
   if (ready) return ready;
-  if (!desktop)
-    return Promise.reject(new Error("The library is only available in the desktop app."));
+  if (!desktop) {
+    if (!import.meta.env.DEV)
+      return Promise.reject(new Error("The library is only available in the desktop app."));
+    // The web preview serves the demo seed from memory, and only in development
+    // builds, so the desktop bundle never carries the seed's images.
+    ready = import("./preview/client.ts").then(({ createPreviewClient }) => createPreviewClient());
+    return ready;
+  }
   ready = new Promise((resolve) => {
     window.addEventListener("message", async (event) => {
       if (event.source !== window || event.data !== libraryPortMessage) return;

@@ -14,9 +14,15 @@ export const layerPlatform = (port: MessagePortMain) =>
               scope,
               Effect.sync(() => worker.postMessage([1])),
             ),
-            worker,
+            {
+              port: worker,
+              // Effect sends acks and interrupts with no transfer list, and
+              // MessagePortMain throws on an explicit `undefined` one.
+              postMessage: (message: unknown, transfers?: MessagePortMain[]) =>
+                worker.postMessage(message, transfers ?? []),
+            },
           ),
-        listen: ({ port: listening, emit, deferred, scope }) => {
+        listen: ({ port: { port: listening }, emit, deferred, scope }) => {
           const onMessage = ({ data }: Electron.MessageEvent) => emit(data);
           const onClose = () =>
             Deferred.doneUnsafe(

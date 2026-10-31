@@ -46,15 +46,8 @@ test("a typed array view saves only its own window of the buffer", async () => {
 });
 
 test("image capture saves the item and header-read size without resizing", async () => {
-  let resized = 0;
   const { root, library } = await temporaryLibrary({
-    media: {
-      inspectImage: async () => ({ width: 1200, height: 800 }),
-      createThumbnail: async () => {
-        resized += 1;
-        return { bytes: Buffer.from("thumbnail"), width: 1200, height: 800 };
-      },
-    },
+    media: { inspectImage: async () => ({ width: 1200, height: 800 }) },
   });
   const item = await library.saveFile({
     fileName: "photo.png",
@@ -62,7 +55,6 @@ test("image capture saves the item and header-read size without resizing", async
     bytes: new TextEncoder().encode("source image"),
   });
 
-  expect(resized).toBe(0);
   expect(item).toMatchObject({
     kind: "image",
     thumbnailPath: null,

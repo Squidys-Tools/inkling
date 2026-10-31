@@ -48,8 +48,11 @@ export type UpdateState = {
 
 export type CaptureReceiver = { running: boolean; port: number | null };
 
-/** A capture the browser extension or an `inkling://` link asked for. */
-export type DeepLinkCapture = { url: string; title?: string; source: "deep-link" | "extension" };
+/**
+ * An `inkling://` capture main could not save. Main saves every capture itself;
+ * saved ones reach the window as library changes, failures through `onCaptures`.
+ */
+export type FailedCapture = { url: string; message: string };
 
 /** What the preload exposes as `window.inkling`. Nothing here reaches files or the shell directly. */
 export type DesktopBridge = {
@@ -66,7 +69,7 @@ export type DesktopBridge = {
     ready: () => Promise<void>;
   };
   onCommand: (listener: (command: Command) => void) => () => void;
-  onCaptures: (listener: (captures: DeepLinkCapture[]) => void) => () => void;
+  onCaptures: (listener: (failures: FailedCapture[]) => void) => () => void;
   showContextMenu: (items: ContextMenuItem[]) => Promise<string | null>;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   chooseDirectory: (title: string) => Promise<string | null>;

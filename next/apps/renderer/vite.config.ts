@@ -3,6 +3,7 @@ import stylex from "@stylexjs/unplugin";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
+import { thirdPartyLicenses } from "./licenses/plugin.ts";
 
 const workspace = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -35,6 +36,7 @@ export default defineConfig(({ command }) => ({
     react(),
     babel({ presets: [reactCompilerPreset()] }),
     linkStylexCss(command),
+    thirdPartyLicenses(workspace),
   ],
   build: {
     outDir: `${workspace}/dist/renderer`,

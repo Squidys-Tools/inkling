@@ -1,10 +1,10 @@
 import type { SqlClient } from "effect/sql/SqlClient";
 import type { JobQueue } from "./jobs.ts";
 
-type Thumbnail = { bytes: Uint8Array; width?: number | null; height?: number | null };
+/** A finished WebP card image and the oriented size of its source. */
+export type Thumbnail = { bytes: Uint8Array; width?: number | null; height?: number | null };
 
 export type StorageMedia = {
-  createThumbnail?: (bytes: Buffer) => Promise<Thumbnail>;
   inspectImage?: (
     bytes: Buffer,
   ) => Promise<{ width: number | undefined; height: number | undefined } | null | undefined>;

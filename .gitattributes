@@ -1,5 +1,6 @@
 # Preserve PDF bytes exactly; line endings inside xref tables are significant to some parsers.
 benchmarks/corpus/pdfs/*.pdf binary
+next/packages/jobs/src/fixtures/*.pdf binary
 
 # Keep formatted files identical across Windows and Linux checkouts.
 *.cjs text eol=lf
