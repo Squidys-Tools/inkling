@@ -18,11 +18,12 @@ re-implemented in React as `../InklingMascot.tsx`.
 - `skins.ts` is the sanctioned extension point for inkling shapes and colors
   (marked `INKLING EXTENSION`). Adding a shape there also registers it in the
   `eyefit.ts` correction table built at import.
-- New animations go in `states.ts` as new `StateDef` entries; never rewrite
-  measured states.
+- New animations go in a state family module (`faceStates.ts`, `glyphStates.ts`,
+  `orbitStates.ts`, `inklingStates.ts`) and their id in `states.ts`; never
+  rewrite measured states.
 - The engine (`engine.ts`) may gain small declarative, default-off state flags
   (like `steadyFace`); never per-frame behavior changes that could disturb the
   measured states.
-- Test files (`*.test.ts`) were not vendored (vitest + happy-dom); coverage for
-  inkling shapes lives in `../alive.test.ts` and `../faceMargin.test.ts`
-  (bun:test).
+- Test files (`*.test.ts`) were not vendored (vitest + happy-dom); coverage lives
+  one level up: `../frames.test.ts` pins each state's frame, and
+  `../alive.test.ts` and `../faceMargin.test.ts` guard the inkling shapes.
