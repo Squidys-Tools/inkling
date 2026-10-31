@@ -6,6 +6,7 @@ import {
 import { layerProtocol } from "@inkling/rpc-electron/server";
 import { Effect, Fiber, Layer } from "effect";
 import { RpcServer } from "effect/rpc";
+import { randomUUID } from "node:crypto";
 import { workerHandlersLayer } from "./handlers.ts";
 import type { ShellThumbnail } from "./video-poster.ts";
 
@@ -18,15 +19,14 @@ const flag = (name: string) => {
 const modelCacheDirectory = flag("--model-cache-directory");
 if (!modelCacheDirectory) throw new Error("--model-cache-directory is required");
 
-const pending = new Map<number, (png: Uint8Array | null) => void>();
-let nextRequest = 0;
+const pending = new Map<string, (png: Uint8Array | null) => void>();
 // Linux has no shell thumbnailer, so its posters come from the local decoder alone.
 const shell: ShellThumbnail | undefined =
   process.platform === "linux"
     ? undefined
     : (path, edge) =>
         new Promise((resolve) => {
-          const id = nextRequest++;
+          const id = randomUUID();
           pending.set(id, resolve);
           const request: ShellThumbnailRequest = { type: "shell-thumbnail", id, path, edge };
           process.parentPort.postMessage(request);

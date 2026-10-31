@@ -6,6 +6,7 @@ import {
   type HttpClientResponse,
 } from "effect/http";
 import { UrlIngestionError } from "./errors.ts";
+import { assertPublicHost, type LookupHost } from "./public-host.ts";
 import { normalizeHttpUrl, parseHttpUrl } from "./url.ts";
 
 const MAX_REDIRECTS = 5;
@@ -15,6 +16,8 @@ const USER_AGENT = "inkling/0.1 (+local article capture)";
 export type RequestLimits = {
   timeoutMs: number;
   maxBytes: number;
+  // Tests answer with fixed addresses; otherwise each host resolves through DNS.
+  lookupHost?: LookupHost;
 };
 
 type PageRequest = RequestLimits & { allowPrivateNetwork?: boolean };
@@ -82,102 +85,122 @@ const parseUrl = (url: string, allowPrivateNetwork?: boolean) =>
     catch: (error) => error as UrlIngestionError,
   });
 
-export const downloadPage = (sourceUrl: string, request: PageRequest) =>
-  Effect.gen(function* () {
-    const client = withRetries(yield* HttpClient.HttpClient);
-    let fetchedUrl = sourceUrl;
-    for (let redirectCount = 0; ; redirectCount++) {
-      // codeql[js/request-forgery,javascript/ssrf]: This local-first desktop pipeline intentionally fetches user-selected public URLs. parseHttpUrl rejects non-HTTP(S), credentialed, and private-network destinations before this boundary, and redirect targets are validated before the next request.
-      const response = yield* client
-        .execute(
-          HttpClientRequest.get(fetchedUrl, {
-            headers: {
-              Accept: "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.5",
-              "User-Agent": USER_AGENT,
-            },
-          }),
-        )
-        .pipe(
-          Effect.mapError(
-            (cause) =>
-              new UrlIngestionError("network-error", "The page could not be downloaded.", {
-                cause,
-                url: sourceUrl,
-              }),
-          ),
-        );
-
-      if (isRedirectStatus(response.status)) {
-        if (redirectCount >= MAX_REDIRECTS) {
-          return yield* fail("redirect-error", "The page redirected too many times.", {
-            url: fetchedUrl,
-          });
-        }
-        const location = response.headers.location;
-        const redirectUrl = location ? normalizeHttpUrl(location, fetchedUrl) : null;
-        if (!redirectUrl) {
-          return yield* fail(
-            "redirect-error",
-            "The page returned an invalid redirect destination.",
-            { url: fetchedUrl },
-          );
-        }
-        fetchedUrl = yield* parseUrl(redirectUrl, request.allowPrivateNetwork);
-        continue;
-      }
-
-      if (response.status < 200 || response.status >= 300) {
-        return yield* fail("http-error", `The page returned HTTP ${response.status}.`, {
-          status: response.status,
-          url: sourceUrl,
-        });
-      }
-      const contentType = response.headers["content-type"]?.toLowerCase() ?? "";
-      if (
-        contentType &&
-        !contentType.includes("text/html") &&
-        !contentType.includes("application/xhtml+xml") &&
-        !contentType.startsWith("text/plain")
-      ) {
-        return yield* fail("unsupported-content-type", "The URL did not return an HTML document.", {
-          url: fetchedUrl,
-        });
-      }
-      const html = yield* readText(response, request.maxBytes, fetchedUrl).pipe(
-        Effect.mapError((error) =>
+const checkHost = (url: string, request: PageRequest) =>
+  request.allowPrivateNetwork
+    ? Effect.void
+    : Effect.tryPromise({
+        try: () => assertPublicHost(url, request.lookupHost),
+        catch: (error) =>
           error instanceof UrlIngestionError
             ? error
-            : new UrlIngestionError("network-error", "The page could not be read.", {
+            : new UrlIngestionError("network-error", "The address could not be checked.", {
                 cause: error,
-                url: fetchedUrl,
+                url,
               }),
-        ),
+      });
+
+// Each hop is checked, by name and by resolved address, before it is requested,
+// so fetch must not follow redirects on its own. Closing each hop's scope aborts
+// the request, which cancels a body `read` left unread.
+const requestFollowingRedirects = <A, E>(
+  sourceUrl: string,
+  request: PageRequest,
+  accept: string,
+  read: (response: HttpClientResponse.HttpClientResponse, url: string) => Effect.Effect<A, E>,
+) =>
+  Effect.gen(function* () {
+    const client = HttpClient.withScope(withRetries(yield* HttpClient.HttpClient));
+    let url = sourceUrl;
+    for (let redirectCount = 0; ; redirectCount++) {
+      yield* checkHost(url, request);
+      const hop = yield* Effect.scoped(
+        Effect.gen(function* () {
+          // codeql[js/request-forgery,javascript/ssrf]: This local-first desktop pipeline intentionally fetches user-selected public URLs. parseHttpUrl rejects non-HTTP(S), credentialed, and private-network destinations and checkHost refuses hosts that resolve to private addresses before this boundary, for every redirect hop.
+          const response = yield* client
+            .execute(
+              HttpClientRequest.get(url, { headers: { Accept: accept, "User-Agent": USER_AGENT } }),
+            )
+            .pipe(
+              Effect.mapError(
+                (cause) =>
+                  new UrlIngestionError("network-error", "The page could not be downloaded.", {
+                    cause,
+                    url: sourceUrl,
+                  }),
+              ),
+            );
+          if (!isRedirectStatus(response.status))
+            return { done: true as const, value: yield* read(response, url) };
+          const location = response.headers.location;
+          return { done: false as const, next: location ? normalizeHttpUrl(location, url) : null };
+        }),
       );
-      return { fetchedUrl, html };
+      if (hop.done) return hop.value;
+      if (redirectCount >= MAX_REDIRECTS) {
+        return yield* fail("redirect-error", "The page redirected too many times.", { url });
+      }
+      if (!hop.next) {
+        return yield* fail("redirect-error", "The page returned an invalid redirect destination.", {
+          url,
+        });
+      }
+      url = yield* parseUrl(hop.next, request.allowPrivateNetwork);
     }
   }).pipe(
-    // Each hop is validated here before the next request, so fetch must not follow on its own.
     Effect.provideService(FetchHttpClient.RequestInit, { redirect: "manual" }),
     withinBudget(request.timeoutMs, sourceUrl),
+  );
+
+const isPageType = (contentType: string) =>
+  !contentType ||
+  contentType.includes("text/html") ||
+  contentType.includes("application/xhtml+xml") ||
+  contentType.startsWith("text/plain");
+
+/** The page's HTML, or `html: null` when the URL answers with a file such as an image or PDF. */
+export const downloadPage = (sourceUrl: string, request: PageRequest) =>
+  requestFollowingRedirects(
+    sourceUrl,
+    request,
+    "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.5",
+    (response, fetchedUrl) =>
+      Effect.gen(function* () {
+        if (response.status < 200 || response.status >= 300) {
+          return yield* fail("http-error", `The page returned HTTP ${response.status}.`, {
+            status: response.status,
+            url: sourceUrl,
+          });
+        }
+        const contentType = response.headers["content-type"]?.toLowerCase() ?? "";
+        if (!isPageType(contentType)) return { fetchedUrl, contentType, html: null };
+        const html = yield* readText(response, request.maxBytes, fetchedUrl).pipe(
+          Effect.mapError((error) =>
+            error instanceof UrlIngestionError
+              ? error
+              : new UrlIngestionError("network-error", "The page could not be read.", {
+                  cause: error,
+                  url: fetchedUrl,
+                }),
+          ),
+        );
+        return { fetchedUrl, contentType, html };
+      }),
   );
 
 // Provider metadata is enrichment only: any failure, including a slow or
 // rate-limited provider, yields null and the capture carries on without it.
 export const fetchJson = (url: string, request: RequestLimits) =>
-  Effect.gen(function* () {
-    const client = withRetries(yield* HttpClient.HttpClient);
-    const response = yield* client.execute(
-      HttpClientRequest.get(url, {
-        headers: { Accept: "application/json", "User-Agent": USER_AGENT },
-      }),
-    );
-    if (response.status < 200 || response.status >= 300) return null;
-    const body = yield* readText(response, Math.min(request.maxBytes, MAX_JSON_BYTES), url);
-    return yield* Effect.try(() => JSON.parse(body) as unknown);
-  }).pipe(
-    withinBudget(request.timeoutMs, url),
-    Effect.catch(() => Effect.succeed(null)),
-  );
+  requestFollowingRedirects(url, request, "application/json", (response, fetchedUrl) =>
+    Effect.gen(function* () {
+      if (response.status < 200 || response.status >= 300) return null;
+      const body = yield* readText(
+        response,
+        Math.min(request.maxBytes, MAX_JSON_BYTES),
+        fetchedUrl,
+      );
+      return yield* Effect.try(() => JSON.parse(body) as unknown);
+    }),
+  ).pipe(Effect.catch(() => Effect.succeed(null)));
 
 export function runHttp<A>(
   effect: Effect.Effect<A, UrlIngestionError, HttpClient.HttpClient>,

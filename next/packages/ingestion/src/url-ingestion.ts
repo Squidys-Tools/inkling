@@ -49,6 +49,36 @@ function mergeExtraction(
   };
 }
 
+function decodedFileName(pathname: string) {
+  const segment = pathname.split("/").filter(Boolean).pop() ?? "";
+  try {
+    return normalizeText(decodeURIComponent(segment));
+  } catch {
+    return normalizeText(segment);
+  }
+}
+
+// A link straight to an image, PDF or other file is kept as a link titled by
+// its file name or host; the file itself is not downloaded.
+function linkedFile(sourceUrl: string, fetchedUrl: string, contentType: string): NormalizedArticle {
+  const { hostname, pathname } = new URL(fetchedUrl);
+  return {
+    sourceUrl,
+    fetchedUrl,
+    canonicalUrl: fetchedUrl,
+    title: decodedFileName(pathname) || hostname,
+    description: "",
+    author: "",
+    publishedDate: null,
+    html: "",
+    text: "",
+    imageUrls: contentType.startsWith("image/") ? [fetchedUrl] : [],
+    imageDimensions: [],
+    safeEmbeds: [],
+    extractor: "fallback",
+  };
+}
+
 function parseDocument(html: string): Document {
   try {
     return parseHTML(html).document;
@@ -72,6 +102,7 @@ export async function ingestUrl(
   const request = {
     timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     maxBytes: options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
+    lookupHost: options.lookupHost,
   };
 
   const videoLink = videoLinkFromSourceUrl(sourceUrl);
@@ -80,10 +111,12 @@ export async function ingestUrl(
   const xPost = parseXPostUrl(sourceUrl) ? await ingestXPost(sourceUrl, fetch, request) : null;
   if (xPost) return xPost;
 
-  const { fetchedUrl, html: rawHtml } = await runHttp(
+  const page = await runHttp(
     downloadPage(sourceUrl, { ...request, allowPrivateNetwork: options.allowPrivateNetwork }),
     fetch,
   );
+  if (page.html === null) return linkedFile(sourceUrl, page.fetchedUrl, page.contentType);
+  const { fetchedUrl, html: rawHtml } = page;
 
   const sourceDocument = parseDocument(rawHtml);
   const extractionDocument = parseDocument(rawHtml);
@@ -110,16 +143,9 @@ export async function ingestUrl(
   const contentDocument = parseDocument(
     `<html><head></head><body>${cleanCapturedHtml(extraction.contentHtml ?? "", fetchedUrl)}</body></html>`,
   );
-  const html = cleanArticleHeadings(contentDocument, title, description);
-  if (!hasReadableText(html)) {
-    throw new UrlIngestionError(
-      "extraction-failed",
-      "No readable article content was found on the page.",
-      {
-        url: fetchedUrl,
-      },
-    );
-  }
+  // A page with no readable body still gives its card a title, summary, author and images.
+  const cleaned = cleanArticleHeadings(contentDocument, title, description);
+  const html = hasReadableText(cleaned) ? cleaned : "";
 
   const canonicalUrl = normalizeHttpUrl(extraction.canonicalUrl, fetchedUrl) ?? fetchedUrl;
   const imageUrls = uniqueStrings([
@@ -149,7 +175,7 @@ export async function ingestUrl(
     author: normalizeText(extraction.author),
     publishedDate: normalizePublishedDate(extraction.publishedDate),
     html,
-    text: htmlToText(html),
+    text: html ? htmlToText(html) : "",
     imageUrls,
     imageDimensions,
     safeEmbeds: collectSafeEmbeds(sourceDocument, fetchedUrl),

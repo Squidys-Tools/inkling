@@ -42,6 +42,9 @@ describe("URL helpers", () => {
       "file:///etc/passwd",
       "https://user:password@example.com/",
       "http://localhost/",
+      // regression: a single-label name resolves only on the user's own network.
+      "http://router/",
+      "http://nas./",
       "http://0.0.0.0/",
       "http://10.1.2.3/",
       "http://100.64.0.1/",

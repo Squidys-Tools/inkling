@@ -9,9 +9,10 @@ function harness() {
   const timers = new Map<number, () => void>();
   let nextTimer = 0;
   const pending: { query: string; resolve: (cards: LibraryCard[]) => void }[] = [];
+  const stored: LibraryCard[] = [];
   const search = createSearch({
     run: (query) => new Promise((resolve) => pending.push({ query, resolve })),
-    onCards: () => {},
+    onCards: (cards) => void stored.push(...cards),
     timers: {
       set: (run) => {
         timers.set(++nextTimer, run);
@@ -31,7 +32,7 @@ function harness() {
     await Promise.resolve();
     await Promise.resolve();
   };
-  return { search, firePause, answer, pending, timers };
+  return { search, firePause, answer, pending, timers, stored };
 }
 
 describe("search", () => {
@@ -82,5 +83,15 @@ describe("search", () => {
     await answer("tea", ["a", "b"]);
     search.remove(["a"]);
     expect(search.store.get().results).toEqual(["b"]);
+  });
+
+  it("keeps an item removed while the search ran out of its late answer", async () => {
+    const { search, firePause, answer, stored } = harness();
+    search.setQuery("tea");
+    firePause();
+    search.remove(["a"]);
+    await answer("tea", ["a", "b"]);
+    expect(search.store.get().results).toEqual(["b"]);
+    expect(stored.map((card) => card.id)).toEqual(["b"]);
   });
 });

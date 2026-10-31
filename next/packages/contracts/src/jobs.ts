@@ -124,14 +124,16 @@ export const WorkerRpcs = RpcGroup.make(
  * Windows and macOS posters come from the shell thumbnailer, which only main
  * can reach. The worker asks over its parent port and main answers in kind.
  */
+// Ids are unique across worker restarts, so a reply meant for a dead worker cannot
+// answer a new worker's request.
 export type ShellThumbnailRequest = {
   type: "shell-thumbnail";
-  id: number;
+  id: string;
   path: string;
   edge: number;
 };
 export type ShellThumbnailReply = {
   type: "shell-thumbnail";
-  id: number;
+  id: string;
   png: Uint8Array | null;
 };

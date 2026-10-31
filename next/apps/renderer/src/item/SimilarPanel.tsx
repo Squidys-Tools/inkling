@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, radius, text } from "@inkling/ui/tokens.stylex";
 import { type CardView, cardView } from "../library/cardModel.ts";
+import { labelClock } from "../library/labelClock.ts";
 import type { DescribedItem } from "./model.ts";
 import { useLibraryQuery } from "./useLibraryQuery.ts";
 
@@ -41,7 +42,9 @@ export function SimilarPanel({
     async (client) => {
       const by = item.kind === "Image" ? "image" : "text";
       const cards = await client.similar({ id: item.id, by, limit: 24 });
-      return cards.filter((card) => card.id !== item.id).map(cardView);
+      return cards
+        .filter((card) => card.id !== item.id)
+        .map((card) => cardView(card, labelClock.get()));
     },
     () => false,
   );

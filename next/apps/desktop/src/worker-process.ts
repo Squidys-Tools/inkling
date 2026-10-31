@@ -38,11 +38,11 @@ export function startWorkerProcess({
       ),
   });
   // Utility processes cannot reach nativeImage, so Windows and macOS posters come through here.
-  child.onMessage((message) => {
+  child.onMessage((message, reply) => {
     if (!isShellThumbnailRequest(message)) return;
     void shellThumbnail(message).then((png) => {
-      const reply: ShellThumbnailReply = { type: "shell-thumbnail", id: message.id, png };
-      child.postMessage(reply);
+      const answer: ShellThumbnailReply = { type: "shell-thumbnail", id: message.id, png };
+      reply(answer);
     });
   });
 

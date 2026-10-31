@@ -1,4 +1,5 @@
 import { Tabs } from "@base-ui/react/tabs";
+import type { LibraryCard } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Button, Kbd } from "@inkling/ui";
 import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
@@ -10,6 +11,7 @@ import { errorMessage } from "../library/errors.ts";
 import { refreshJobs } from "../library/jobs.ts";
 import { selectCard } from "../library/selection.ts";
 import { setInSpace, useSpaces } from "../library/spaces.ts";
+import { showWrittenCard } from "../library/writes.ts";
 import { ActionBar } from "./ActionBar.tsx";
 import { InfoPanel } from "./InfoPanel.tsx";
 import { describeItem } from "./model.ts";
@@ -106,6 +108,10 @@ function ItemBody({
         },
       );
 
+  /** A write that answers with the item's card, shown at once. */
+  const write = (action: (client: LibraryClient) => Promise<LibraryCard>) =>
+    act(async (client) => showWrittenCard(await action(client)));
+
   // The same question the card menu asks; a failure is shown here rather than as a capture error.
   const deleteForever = async (title: string) => {
     const options = {
@@ -160,8 +166,8 @@ function ItemBody({
               <InfoPanel
                 item={item}
                 filedIn={regularSpaces.filter((space) => memberOf.includes(space.id))}
-                onRename={(title) => void act((client) => client.updateItem({ id, title }))}
-                onAddTag={(addTag) => void act((client) => client.updateItem({ id, addTag }))}
+                onRename={(title) => void write((client) => client.updateItem({ id, title }))}
+                onAddTag={(addTag) => void write((client) => client.updateItem({ id, addTag }))}
                 onEditNote={() => void navigate({ to: "/item/$id/write", params: { id } })}
                 onOpenPdf={() => setPdfOpen(true)}
                 onRead={() => void navigate({ to: "/item/$id/read", params: { id } })}
@@ -182,11 +188,11 @@ function ItemBody({
               memberOf={memberOf}
               onToggleSpace={(spaceId, filed) => void setInSpace(spaceId, id, filed)}
               onArchive={() =>
-                void act((client) => client.setArchived({ id, archived: true })).then(
+                void write((client) => client.setArchived({ id, archived: true })).then(
                   (archived) => archived && onClose(),
                 )
               }
-              onRestore={() => void act((client) => client.setArchived({ id, archived: false }))}
+              onRestore={() => void write((client) => client.setArchived({ id, archived: false }))}
               onDelete={() => void deleteForever(item.title)}
             />
           </>

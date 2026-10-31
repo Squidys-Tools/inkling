@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { EventEmitter } from "node:events";
 import { createHash } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createUpdateController, createUpdatePreferences } from "./controller.ts";
@@ -214,6 +214,40 @@ test("single-flight excludes channel changes and duplicate clicks; cancellation 
     expect((await wedging.installUpdate("0.1.1")).errorContext).toBe("install");
     expect((await wedging.getState()).status).toBe("error");
     expect(await wedging.checkForUpdates()).toEqual({ version: "0.1.1" });
+  } finally {
+    await rm(f.root, { recursive: true, force: true });
+  }
+});
+
+test.each([
+  ["null", "null", {}],
+  ["an array", '["nightly"]', {}],
+  ["a wrong field type", '{"channel":"nightly","install":{"from":1,"target":"0.2.0"}}', {}],
+  ["invalid JSON", '{"channel":', {}],
+  ["an unknown channel", '{"channel":"beta"}', {}],
+  ["valid preferences", '{"channel":"nightly","extra":true}', { channel: "nightly" as const }],
+])(
+  "updates.json holding %s keeps updates on and reads only valid preferences",
+  async (_, json, read) => {
+    const f = await fixture();
+    try {
+      await writeFile(join(f.root, "updates.json"), json);
+      expect(await f.options.preferences.read()).toEqual(read);
+      const controller = createUpdateController(f.options);
+      expect(await controller.getState()).toMatchObject({ status: "idle", message: null });
+    } finally {
+      await rm(f.root, { recursive: true, force: true });
+    }
+  },
+);
+
+test("an unreadable updates.json turns updates off with a permissions message", async () => {
+  const f = await fixture();
+  try {
+    await mkdir(join(f.root, "updates.json"));
+    const controller = createUpdateController(f.options);
+    expect(await controller.getState()).toMatchObject({ status: "disabled" });
+    expect((await controller.getState()).message).toContain("file permissions");
   } finally {
     await rm(f.root, { recursive: true, force: true });
   }

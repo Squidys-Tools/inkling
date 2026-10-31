@@ -71,8 +71,20 @@ test("an image download checks every redirect hop, the content type and the size
     requested.push(url);
     return responses[url]();
   };
+  // Bodies record their cancellation, since an unread one holds its connection open.
+  const cancelled: string[] = [];
+  const body = (name: string) =>
+    new ReadableStream({
+      pull: (controller) => controller.enqueue(new Uint8Array(1)),
+      cancel: () => {
+        cancelled.push(name);
+      },
+    });
   const redirect = (location: string) => () =>
-    new Response(null, { status: 302, headers: { location } });
+    new Response(body(`redirect to ${location}`), { status: 302, headers: { location } });
+  const lookup = async (hostname: string) => [
+    { address: hostname.endsWith("nip.io") ? "127.0.0.1" : "93.184.215.14" },
+  ];
   const image =
     (body: BodyInit, headers: Record<string, string> = {}) =>
     () =>
@@ -84,6 +96,7 @@ test("an image download checks every redirect hop, the content type and the size
       "https://example.com/a": redirect("/photos/cat.png?size=large"),
       "https://example.com/photos/cat.png?size=large": image(new Uint8Array([1, 2, 3])),
     }),
+    lookup,
   );
   expect(saved).toEqual({
     fileName: "cat.png",
@@ -96,6 +109,7 @@ test("an image download checks every redirect hop, the content type and the size
     downloadImage(
       "https://example.com/b",
       respond({ "https://example.com/b": redirect("http://192.168.1.1/admin.png") }),
+      lookup,
     ),
   ).rejects.toThrow("public address");
   expect(requested).toEqual(["https://example.com/b"]);
@@ -109,6 +123,7 @@ test("an image download checks every redirect hop, the content type and the size
     downloadImage(
       "https://example.com/c",
       respond({ "https://example.com/c": image(oversized, { "content-length": "10" }) }),
+      lookup,
     ),
   ).rejects.toThrow("larger than 50 MB");
   await expect(
@@ -116,8 +131,27 @@ test("an image download checks every redirect hop, the content type and the size
       "https://example.com/d",
       respond({
         "https://example.com/d": () =>
-          new Response("<html>", { headers: { "content-type": "text/html" } }),
+          new Response(body("html page"), { headers: { "content-type": "text/html" } }),
       }),
+      lookup,
     ),
   ).rejects.toThrow("not point to an image");
+
+  // regression: a public-looking name that resolves to this machine reached it.
+  requested.length = 0;
+  await expect(
+    downloadImage(
+      "https://example.com/e",
+      respond({ "https://example.com/e": redirect("https://127.0.0.1.nip.io/admin.png") }),
+      lookup,
+    ),
+  ).rejects.toThrow("Private network");
+  expect(requested).toEqual(["https://example.com/e"]);
+  // regression: redirect and refused bodies were left unread and open.
+  expect(cancelled).toEqual([
+    "redirect to /photos/cat.png?size=large",
+    "redirect to http://192.168.1.1/admin.png",
+    "html page",
+    "redirect to https://127.0.0.1.nip.io/admin.png",
+  ]);
 });

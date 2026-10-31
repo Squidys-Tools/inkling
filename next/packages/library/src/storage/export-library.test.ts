@@ -19,6 +19,7 @@ afterAll(removeTemporaryRoots);
 test("export counts and copies assets from the database snapshot", async () => {
   let library: TestLibrary | undefined;
   const opened = await temporaryLibrary({
+    appVersion: "3.2.1",
     media: {
       createSnapshot: async (_source, snapshotPath) => {
         library?.db.prepare("VACUUM INTO ?").run(snapshotPath);
@@ -41,9 +42,9 @@ test("export counts and copies assets from the database snapshot", async () => {
   expect(await library.listActiveItems()).toHaveLength(2);
   expect(report.items).toBe(1);
   expect(snapshotCount).toBe(1);
-  expect(
-    JSON.parse(readFileSync(join(report.directory, "manifest.json"), "utf8")).counts.items,
-  ).toBe(1);
+  const manifest = JSON.parse(readFileSync(join(report.directory, "manifest.json"), "utf8"));
+  expect(manifest.counts.items).toBe(1);
+  expect(manifest.appVersion).toBe("3.2.1");
 });
 
 test("successful export details persist across reopening the library", async () => {

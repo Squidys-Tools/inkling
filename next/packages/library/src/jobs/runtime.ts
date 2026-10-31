@@ -3,7 +3,7 @@ import { JobQueue, type Library } from "../storage/library.ts";
 import { makeWorker, type Processor } from "../storage/worker.ts";
 import { enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
 import { createJobProcessors, jobTimeouts } from "./processors.ts";
-import type { JobsWorker } from "./worker-client.ts";
+import { JobsWorker } from "./worker-client.ts";
 
 type Services = Library | JobQueue | JobsWorker;
 
@@ -28,14 +28,18 @@ export const jobLanesLayer = (onItemChanged: (itemId: string) => Effect.Effect<u
       yield* jobs.recoverAfterExclusiveStartup();
       yield* enqueueStaleImageEmbeddings;
       const { processors, thumbnailProcessors, onIdle } = createJobProcessors();
+      // Every job needs the worker process, so neither lane claims while it is gone.
+      const ready = JobsWorker.use((worker) => worker.connected);
       const main = yield* makeWorker<Services>({
         processors: announced(processors),
         onIdle,
         timeouts: jobTimeouts,
+        ready,
       });
       const thumbnails = yield* makeWorker<Services>({
         processors: announced(thumbnailProcessors),
         timeouts: jobTimeouts,
+        ready,
       });
       yield* Effect.forkScoped(main.run);
       yield* Effect.forkScoped(thumbnails.run);

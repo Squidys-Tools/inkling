@@ -1,6 +1,7 @@
-import type { ItemDetail, LibraryCard } from "@inkling/contracts";
+import type { ItemDetail, ItemRecord, LibraryCard } from "@inkling/contracts";
 import { videoLinkFromSourceUrl } from "@inkling/ingestion/video-links";
 import { assetUrl, webUrl } from "./assets.ts";
+import { expireLabelAt } from "./labelClock.ts";
 
 export type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
 
@@ -96,11 +97,17 @@ function xPost(value: unknown) {
   };
 }
 
-export function formatItemDate(timestamp: number, now = Date.now()) {
+const hour = 60 * 60 * 1000;
+
+/** A card's date label, and the moment it next changes. */
+export function itemDateLabel(timestamp: number, now: number) {
   const age = now - timestamp;
-  if (age < 60 * 60 * 1000) return "Just now";
-  if (age < 24 * 60 * 60 * 1000) return "Today";
-  return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+  if (age < hour) return { label: "Just now", until: timestamp + hour };
+  if (age < 24 * hour) return { label: "Today", until: timestamp + 24 * hour };
+  return {
+    label: new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "2-digit" }),
+    until: Number.POSITIVE_INFINITY,
+  };
 }
 
 function fallbackRatio(kind: ItemKind, isXPost: boolean) {
@@ -212,7 +219,7 @@ export function toCardView(card: LibraryCard, now = Date.now()): CardView {
     description,
     source,
     webUrl: webUrl(card.sourceUrl),
-    date: formatItemDate(card.createdAt, now),
+    date: itemDateLabel(card.createdAt, now).label,
     createdAt: card.createdAt,
     tags,
     image,
@@ -234,14 +241,21 @@ export function toCardView(card: LibraryCard, now = Date.now()): CardView {
 }
 
 // Card objects are replaced whenever the library sends them again, so a view
-// computed for one stays right for as long as that object lives.
-const views = new WeakMap<LibraryCard, CardView>();
-export function cardView(card: LibraryCard) {
-  let view = views.get(card);
-  if (!view) {
-    view = toCardView(card);
-    views.set(card, view);
+// computed for one stays right for as long as that object lives and its date
+// label holds. `clock` is the label clock's value: a caller that memoizes on
+// its arguments asks again when a label may have expired.
+const views = new WeakMap<LibraryCard, { view: CardView; clock: number; until: number }>();
+export function cardView(card: LibraryCard, clock: number, now = Date.now()) {
+  const held = views.get(card);
+  if (held && (held.clock === clock || now < held.until)) {
+    held.clock = clock;
+    expireLabelAt(held.until);
+    return held.view;
   }
+  const view = toCardView(card, now);
+  const { until } = itemDateLabel(card.createdAt, now);
+  views.set(card, { view, clock, until });
+  expireLabelAt(until);
   return view;
 }
 
@@ -260,7 +274,7 @@ const cardMetadataKeys = [
 ] as const;
 
 /** The card a freshly written item shows, so it appears before the library announces it. */
-export function cardFromDetail(detail: ItemDetail): LibraryCard {
+export function cardFromDetail(detail: ItemDetail | ItemRecord): LibraryCard {
   const metadata: Record<string, unknown> = {};
   for (const key of cardMetadataKeys)
     if (key in detail.metadata) metadata[key] = detail.metadata[key];
@@ -280,7 +294,10 @@ export function cardFromDetail(detail: ItemDetail): LibraryCard {
     updatedAt: detail.updatedAt,
     archived: detail.archived,
     metadata,
-    hasArticleContent: typeof html === "string" && html.trim() !== "",
+    hasArticleContent:
+      "hasArticleContent" in detail
+        ? detail.hasArticleContent
+        : typeof html === "string" && html.trim() !== "",
   };
 }
 

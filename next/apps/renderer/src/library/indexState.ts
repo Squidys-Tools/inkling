@@ -49,14 +49,14 @@ function withCards(
   incoming: readonly LibraryCard[],
   keepNewer = false,
 ) {
-  if (incoming.length === 0) return cards;
-  const next = new Map(cards);
+  let next: Map<string, LibraryCard> | null = null;
   for (const card of incoming) {
-    const held = next.get(card.id);
+    const held = cards.get(card.id);
     if (keepNewer && held && held.updatedAt > card.updatedAt) continue;
+    next ??= new Map(cards);
     next.set(card.id, card);
   }
-  return next;
+  return next ?? cards;
 }
 
 /** `ids` with the card where the library's order puts it, or null when a later page brings it. */
@@ -169,10 +169,18 @@ export function failLoad(
   });
 }
 
-/** Replaces cards the library sent again; their place in each scope stays. */
-export function updateCards(state: IndexState, cards: readonly LibraryCard[]): IndexState {
+/**
+ * Replaces cards the library sent again; their place in each scope stays.
+ * `keepNewer` is for answers that may have been read before a change this window already holds.
+ */
+export function updateCards(
+  state: IndexState,
+  cards: readonly LibraryCard[],
+  keepNewer = false,
+): IndexState {
   if (cards.length === 0) return state;
-  return { ...state, cards: withCards(state.cards, cards) };
+  const next = withCards(state.cards, cards, keepNewer);
+  return next === state.cards ? state : { ...state, cards: next };
 }
 
 /**

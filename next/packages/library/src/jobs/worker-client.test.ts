@@ -11,7 +11,8 @@ import { Effect, Fiber, Layer, ManagedRuntime } from "effect";
 import { RpcServer } from "effect/rpc";
 import { queryVector } from "./query-vector.ts";
 import { unusedModels } from "./test-jobs.ts";
-import { layerPorts, workerClient } from "./worker-client.ts";
+import { JobPostponed } from "../storage/worker.ts";
+import { JobsWorker, layerPorts, workerClient } from "./worker-client.ts";
 
 const root = mkdtempSync(join(tmpdir(), "inkling-worker-client-"));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -65,7 +66,7 @@ const answering = (values: number[]) => async () => {
   return { vector, model: TEXT_MODEL, bytes: Buffer.from(vector.buffer) };
 };
 
-test("worker calls wait for a port, fail when the worker dies, and resume on the next port", async () => {
+test("worker calls are postponed without a port, fail when the worker dies, and resume on the next port", async () => {
   let offer: (port: MessagePortMain) => void = () => {};
   const runtime = ManagedRuntime.make(
     layerPorts((onPort) => {
@@ -75,8 +76,13 @@ test("worker calls wait for a port, fail when the worker dies, and resume on the
   );
   const embed = (text: string) =>
     runtime.runPromise(workerClient.pipe(Effect.flatMap((worker) => worker.embedQuery({ text }))));
+  const postponed = () => runtime.runPromise(Effect.flip(workerClient));
+  const connected = () => runtime.runPromise(JobsWorker.use((worker) => worker.connected));
   try {
-    const beforeStart = embed("waits");
+    expect(await postponed()).toBeInstanceOf(JobPostponed);
+    // regression: with no worker, every search waited five seconds before ranking by text.
+    expect(await runtime.runPromise(queryVector("no worker yet"))).toBeNull();
+    const beforeStart = connected();
     const entered = Promise.withResolvers<void>();
     const held = Promise.withResolvers<never>();
     let calls = 0;
@@ -87,18 +93,21 @@ test("worker calls wait for a port, fail when the worker dies, and resume on the
       return held.promise;
     });
     offer(first.port);
-    expect(await beforeStart).toEqual([1, 0]);
+    await beforeStart;
+    expect(await embed("first")).toEqual([1, 0]);
 
     const inFlight = embed("held");
     await entered.promise;
     first.crash();
     await expect(inFlight).rejects.toThrow();
     await first.stop();
+    expect(await postponed()).toBeInstanceOf(JobPostponed);
 
-    const afterDeath = embed("waits again");
+    const afterDeath = connected();
     const second = startWorker(answering([0, 1]));
     offer(second.port);
-    expect(await afterDeath).toEqual([0, 1]);
+    await afterDeath;
+    expect(await embed("again")).toEqual([0, 1]);
     await second.stop();
   } finally {
     await runtime.dispose();

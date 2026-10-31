@@ -1,4 +1,7 @@
-// The cell tree behind GridReveal, adapted from Rare UI's Grid Reveal.
+// The cell tree behind GridReveal, adapted from Rare UI's Grid Reveal,
+// swamimalode07/rare-ui @ becb1a2 components/ui/grid-reveal.tsx. Copyright (c)
+// 2026 Swami Malode. MIT + Commons Clause v1.0 + Attribution, as the repo's LICENSE
+// @ 32b7b52 grants it; see apps/renderer/licenses/LICENSE-rare-ui.md.
 
 const CELLS = 180;
 const OPENING_CELLS = 4;

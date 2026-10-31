@@ -6,6 +6,7 @@ import { cardColor, color, motion, radius } from "@inkling/ui/tokens.stylex";
 import { useCard } from "../library/cards.ts";
 import { type CardView, cardView } from "../library/cardModel.ts";
 import { useProcessing } from "../library/jobs.ts";
+import { useLabelClock } from "../library/labelClock.ts";
 import { useIsSelected } from "../library/selection.ts";
 import { menuPoint } from "../menu/contextMenu.tsx";
 import { cardMarker } from "../markers.stylex.ts";
@@ -31,8 +32,9 @@ export function GridCell({
   context: GridContext;
 }) {
   const card = useCard(id);
+  const clock = useLabelClock();
   if (!card) return <div {...stylex.props(styles.gone)} />;
-  const view = cardView(card);
+  const view = cardView(card, clock);
   return context.layout === "archive" ? (
     <ArchiveTile view={view} index={index} />
   ) : (

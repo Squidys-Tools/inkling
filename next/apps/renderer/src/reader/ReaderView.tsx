@@ -3,10 +3,10 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, itemColor, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { hostname, webUrl } from "../library/assets.ts";
 import { useStepBack } from "../item/navigation.ts";
-import { useItem } from "../item/queries.ts";
+import { useArticleHtml, useItem } from "../item/queries.ts";
 import { useEscape } from "../item/useEscape.ts";
 import { ArticleContent } from "./ArticleContent.tsx";
 import { articleTree } from "./articleTree.ts";
@@ -35,14 +35,19 @@ export function ReaderView({ id }: { id: string }) {
   const [fontSet, setFontSet] = useFontSet();
   useEffect(() => registerFontSet(fontSet), [fontSet]);
   const query = useItem(id);
+  const article = useArticleHtml(id);
   const detail = query.value;
   const close = () =>
     stepBack(() => void navigate({ to: "/item/$id", params: { id }, replace: true }));
   useEscape(close);
 
-  const html = nonEmpty(detail?.metadata.html);
+  const html = nonEmpty(article.value);
   const sourceUrl = webUrl(detail?.sourceUrl);
-  const nodes = html ? articleTree(window, html, sourceUrl ?? "") : null;
+  // Explicit, not left to the compiler: sanitizing runs once per html, never per render.
+  const nodes = useMemo(
+    () => (html ? articleTree(window, html, sourceUrl ?? "") : null),
+    [html, sourceUrl],
+  );
   const byline = detail
     ? [
         nonEmpty(detail.metadata.author),
@@ -52,9 +57,10 @@ export function ReaderView({ id }: { id: string }) {
     : [];
   const status =
     query.error ??
+    article.error ??
     (detail === null
       ? "This item is no longer in your library."
-      : detail && !nodes
+      : detail && !article.loading && !nodes
         ? "This item has no saved article to read."
         : null);
 

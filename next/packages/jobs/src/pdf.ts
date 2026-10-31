@@ -8,26 +8,32 @@ const maxCanvasEdge = 8192;
 const maxCanvasPixels = 16_777_216;
 const maxThumbnailEdge = 512;
 const minTextLayerCharacters = 500;
-let pdfjsPromise: Promise<typeof import("pdfjs-dist/legacy/build/pdf.mjs")> | undefined;
-let canvasPromise: Promise<typeof import("@napi-rs/canvas")> | undefined;
 const pdfResources = dirname(fileURLToPath(import.meta.resolve("pdfjs-dist/package.json")));
 
-function nativeCanvas() {
-  return (canvasPromise ??= (async () => {
-    // Electron's Linux fontconfig initialization crashes the native font scan; use PDF fonts instead.
-    const skipFontScan = process.platform === "linux" && Boolean(process.versions.electron);
-    const previous = process.env.DISABLE_SYSTEM_FONTS_LOAD;
-    if (skipFontScan) process.env.DISABLE_SYSTEM_FONTS_LOAD = "1";
-    try {
-      return await import("@napi-rs/canvas");
-    } finally {
-      if (skipFontScan) {
-        if (previous === undefined) delete process.env.DISABLE_SYSTEM_FONTS_LOAD;
-        else process.env.DISABLE_SYSTEM_FONTS_LOAD = previous;
-      }
-    }
-  })());
+/** Shares one load between callers, but forgets a failed one so the next call tries again. */
+export function loadOnce<A>(load: () => Promise<A>) {
+  let pending: Promise<A> | undefined;
+  return () =>
+    (pending ??= load().catch((error: unknown) => {
+      pending = undefined;
+      throw error;
+    }));
 }
+
+const nativeCanvas = loadOnce(async () => {
+  // Electron's Linux fontconfig initialization crashes the native font scan; use PDF fonts instead.
+  const skipFontScan = process.platform === "linux" && Boolean(process.versions.electron);
+  const previous = process.env.DISABLE_SYSTEM_FONTS_LOAD;
+  if (skipFontScan) process.env.DISABLE_SYSTEM_FONTS_LOAD = "1";
+  try {
+    return await import("@napi-rs/canvas");
+  } finally {
+    if (skipFontScan) {
+      if (previous === undefined) delete process.env.DISABLE_SYSTEM_FONTS_LOAD;
+      else process.env.DISABLE_SYSTEM_FONTS_LOAD = previous;
+    }
+  }
+});
 
 async function pdfjs() {
   // pdf.js expects browser canvas globals; @napi-rs/canvas provides compatible ones.
@@ -36,16 +42,14 @@ async function pdfjs() {
   canvasGlobals.DOMMatrix ??= DOMMatrix;
   canvasGlobals.ImageData ??= ImageData;
   canvasGlobals.Path2D ??= Path2D;
-  pdfjsPromise ??= loadPdfjs();
-  return pdfjsPromise;
+  return loadPdfjs();
 }
 
 // pdf.js takes its Node paths only in Electron's main process, so a utility
 // process poses as one while both modules load. Preloading the worker module
 // as `pdfjsWorker` keeps pdf.js from importing it later, after the pose ends.
-async function loadPdfjs() {
-  const type = Object.getOwnPropertyDescriptor(process, "type");
-  if (type) Object.defineProperty(process, "type", { ...type, value: "browser" });
+const loadPdfjs = loadOnce(async () => {
+  const restoreType = poseAsMainProcess();
   try {
     const [library, worker] = await Promise.all([
       import("pdfjs-dist/legacy/build/pdf.mjs"),
@@ -54,8 +58,26 @@ async function loadPdfjs() {
     (globalThis as Record<string, unknown>).pdfjsWorker = worker;
     return library;
   } finally {
-    if (type) Object.defineProperty(process, "type", type);
+    restoreType();
   }
+});
+
+// Electron may define `type` as a getter or a fixed property, so the pose
+// changes only what the descriptor allows and puts the original back.
+function poseAsMainProcess() {
+  const type = Object.getOwnPropertyDescriptor(process, "type");
+  if (type?.configurable) {
+    Object.defineProperty(process, "type", {
+      configurable: true,
+      enumerable: type.enumerable,
+      writable: true,
+      value: "browser",
+    });
+    return () => Object.defineProperty(process, "type", type);
+  }
+  if (type?.writable && Reflect.set(process, "type", "browser"))
+    return () => Reflect.set(process, "type", type.value);
+  return () => {};
 }
 
 function normalizeText(value: string) {

@@ -1,6 +1,6 @@
 import type {
   CardScope,
-  ItemDetail,
+  ItemRecord,
   Job,
   LibraryCard,
   LibraryChange,
@@ -11,6 +11,7 @@ import { displayKind } from "../cardModel.ts";
 import type { LibraryClient } from "../connection.ts";
 import {
   seedArchived,
+  seedArticles,
   seedBodies,
   seedCards,
   seedJobs,
@@ -34,44 +35,21 @@ function matchesSmart(card: LibraryCard, query: SpaceQuery) {
   return !query.text || haystack(card).includes(query.text.toLowerCase());
 }
 
-function haystack(card: LibraryCard) {
+function haystack(card: LibraryCard, body = "") {
   const tags = Array.isArray(card.metadata.tags) ? card.metadata.tags.join(" ") : "";
-  return [
-    card.title,
-    card.description,
-    card.sourceLabel,
-    card.sourceUrl,
-    card.kind,
-    tags,
-    card.ocrText,
-  ]
+  return [card.title, card.description, card.sourceLabel, card.sourceUrl, tags, card.ocrText, body]
     .join(" ")
     .toLowerCase();
 }
 
-/** The operators the library process understands, approximated over the seed. */
-function matchesSearch(card: LibraryCard, query: string) {
-  const tags = Array.isArray(card.metadata.tags) ? card.metadata.tags.map(String) : [];
+// Plain text, as in the full app: every word must appear, and `kind:` or `tag:` are words too.
+function matchesSearch({ card, body }: Entry, query: string) {
+  const text = haystack(card, body);
   return query
     .toLowerCase()
     .split(/\s+/u)
     .filter(Boolean)
-    .every((term) => {
-      const [operator, value] = term.includes(":") ? term.split(":", 2) : ["", term];
-      if (!value) return true;
-      switch (operator) {
-        case "type":
-        case "kind":
-        case "format":
-          return displayKind(card.kind).toLowerCase() === displayKind(value).toLowerCase();
-        case "tag":
-          return tags.some((tag) => tag.toLowerCase() === value);
-        case "site":
-          return (card.sourceUrl ?? "").toLowerCase().includes(value);
-        default:
-          return haystack(card).includes(value);
-      }
-    });
+    .every((term) => text.includes(term));
 }
 
 function job(itemId: string, status: Job["status"]): Job {
@@ -116,11 +94,12 @@ export function createPreviewClient(): LibraryClient {
       .filter((entry) => entry.card.archived === archived)
       .sort((a, b) => b.card.updatedAt - a.card.updatedAt || b.card.createdAt - a.card.createdAt);
 
-  const detail = ({ card, body }: Entry): ItemDetail => ({
+  const detail = ({ card, body }: Entry): ItemRecord => ({
     ...card,
     body,
     bodyFormat: "md",
     metadata: { ...card.metadata },
+    hasArticleContent: card.id in seedArticles,
   });
 
   const spaceMembers = (spaceId: string) => {
@@ -145,8 +124,9 @@ export function createPreviewClient(): LibraryClient {
     const entry = { card: { ...card, updatedAt: Date.now() }, body };
     items.set(card.id, entry);
     emit({ _tag: "ItemsChanged", ids: [card.id] });
-    return detail(entry);
+    return entry;
   };
+  const created = (card: LibraryCard, body = "") => detail(write(card, body));
 
   const fresh = (
     kind: string,
@@ -220,16 +200,17 @@ export function createPreviewClient(): LibraryClient {
       return found ? detail(found) : null;
     },
     itemContent: async ({ id }) => ({ id, body: entry(id).body, bodyFormat: "md" }),
+    articleHtml: async ({ id }) => seedArticles[id] ?? null,
     search: async ({ query, limit }) =>
       ordered(false)
+        .filter((found) => matchesSearch(found, query))
         .map((found) => found.card)
-        .filter((card) => matchesSearch(card, query))
         .slice(0, limit),
     similar: async () => [],
 
     createNote: async ({ title, body, metadata }) => {
       const firstLine = body.split("\n").find((line) => line.trim()) ?? "";
-      return write(
+      return created(
         fresh(
           "note",
           {
@@ -243,7 +224,7 @@ export function createPreviewClient(): LibraryClient {
       );
     },
     createQuote: async ({ body, attribution, sourceUrl, metadata }) =>
-      write(
+      created(
         fresh(
           "quote",
           { title: body, description: attribution ?? null, sourceUrl: sourceUrl ?? null },
@@ -253,7 +234,7 @@ export function createPreviewClient(): LibraryClient {
       ),
     captureUrl: async ({ sourceUrl, title }) => {
       const url = new URL(sourceUrl);
-      return write(
+      return created(
         fresh("url", {
           title: title ?? url.hostname,
           sourceUrl: url.toString(),
@@ -281,7 +262,7 @@ export function createPreviewClient(): LibraryClient {
               image.src = url;
             })
           : null;
-      return write(
+      return created(
         fresh(
           kind,
           {
@@ -313,9 +294,10 @@ export function createPreviewClient(): LibraryClient {
           ...(addTag ? { tags: [...new Set([...tags, addTag])] } : {}),
         },
       };
-      return write(card, body ?? found.body);
+      return write(card, body ?? found.body).card;
     },
-    setArchived: async ({ id, archived }) => write({ ...entry(id).card, archived }, entry(id).body),
+    setArchived: async ({ id, archived }) =>
+      write({ ...entry(id).card, archived }, entry(id).body).card,
     deleteItem: async ({ id }) => {
       items.delete(id);
       for (const ids of membership.values()) ids.delete(id);

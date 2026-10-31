@@ -14,6 +14,7 @@ import {
 } from "./indexState.ts";
 import { refreshJobs } from "./jobs.ts";
 import { activeScope, archivedScope, scopeKey } from "./scope.ts";
+import { spacesStore } from "./spaces.ts";
 import { createStore, useStore } from "./store.ts";
 
 const pageSize = 100;
@@ -55,8 +56,9 @@ export function showNewCards(cards: readonly LibraryCard[]) {
   libraryIndex.set((state) => placeCards(state, cards, paged, home));
 }
 
+/** Cards read outside a scope's pages, such as search results; an older copy never replaces a newer one. */
 export function storeCards(cards: readonly LibraryCard[]) {
-  libraryIndex.set((state) => updateCards(state, cards));
+  libraryIndex.set((state) => updateCards(state, cards, true));
 }
 
 /**
@@ -84,14 +86,42 @@ export function removeItems(ids: readonly string[]) {
   libraryIndex.set((state) => removeIds(state, ids, "everywhere"));
 }
 
-/** Space membership is the library's to compute, so Space scopes read again rather than patch. */
-export function reloadSpaceScopes() {
-  const shown = shownScope.get();
+export type SpaceScopeChange = "stale" | "gone" | null;
+
+/**
+ * Space membership is the library's to compute, so a Space whose membership
+ * may have moved reads again: the shown one now, the others when next shown.
+ * A Space that no longer exists is forgotten rather than read into an error.
+ */
+export function reloadSpaceScopes(change: (spaceId: string) => SpaceScopeChange) {
+  const shown = scopeKey(shownScope.get());
   for (const key of libraryIndex.get().scopes.keys()) {
     if (!key.startsWith("space:")) continue;
-    if (key === scopeKey(shown)) void loadScope(shown);
+    const verdict = change(key.slice("space:".length));
+    if (!verdict) continue;
+    if (key === shown && verdict === "stale") void loadScope(shownScope.get());
     else libraryIndex.set((state) => dropScope(state, key));
   }
+}
+
+/**
+ * The grid shows `next`. A Space runs its query each time it is opened, so
+ * a Smart Space is evaluated on open rather than on every change.
+ */
+export function showScope(next: CardScope) {
+  const previous = scopeKey(shownScope.get());
+  shownScope.set(next);
+  if (next._tag === "Space" && previous !== scopeKey(next)) void loadScope(next);
+  else ensureScope(next);
+}
+
+/** After a write this window made, the shown Smart Space asks the library again. */
+export function reevaluateShownSpace() {
+  const shown = shownScope.get();
+  if (shown._tag !== "Space") return;
+  const space = spacesStore.get().spaces.find((candidate) => candidate.id === shown.spaceId);
+  if (space?.kind !== "regular" && libraryIndex.get().scopes.has(scopeKey(shown)))
+    void loadScope(shown);
 }
 
 /** After the library process restarts, every scope the window holds reads again. */

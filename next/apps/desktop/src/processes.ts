@@ -23,7 +23,7 @@ export function startProcesses({
   };
   const library = startLibraryProcess({
     entry: join(bundleDirectory, "library.mjs"),
-    args: ["--library-directory", libraryDirectory],
+    args: ["--library-directory", libraryDirectory, "--app-version", app.getVersion()],
     onRestart: () => link(),
     onGiveUp,
   });

@@ -1,4 +1,4 @@
-import type { ItemDetail } from "@inkling/contracts";
+import type { ItemRecord } from "@inkling/contracts";
 import { videoLinkFromSourceUrl } from "@inkling/ingestion/video-links";
 import { assetUrl } from "../library/assets.ts";
 import { cardFromDetail, toCardView } from "../library/cardModel.ts";
@@ -12,7 +12,7 @@ function xPostId(value: unknown) {
 }
 
 /** The card's view of an item, plus what only the item view shows. */
-export function describeItem(detail: ItemDetail) {
+export function describeItem(detail: ItemRecord) {
   const card = toCardView(cardFromDetail(detail));
   const width = positive(detail.metadata.mediaWidth);
   const height = positive(detail.metadata.mediaHeight);

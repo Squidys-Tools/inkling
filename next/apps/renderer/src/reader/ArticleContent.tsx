@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { color, font, itemColor } from "@inkling/ui/tokens.stylex";
 import { createElement, type ReactNode } from "react";
+import { ArticleEmbed } from "./ArticleEmbed.tsx";
 import type { ArticleElement, ArticleNode, ArticleTag } from "./articleTree.ts";
 import { reader } from "./readerTheme.stylex.ts";
 
@@ -21,7 +22,7 @@ function renderNodes(nodes: readonly ArticleNode[], context: Context): ReactNode
 
 function renderElement(node: ArticleElement, context: Context, afterLede: boolean) {
   const { parent, uprightQuotes } = context;
-  const { className, style } = stylex.props(
+  const xstyle = [
     BLOCKS.has(node.tag) && styles.flow,
     tagStyles[node.tag],
     node.tag === "blockquote" && uprightQuotes && styles.uprightQuote,
@@ -29,7 +30,14 @@ function renderElement(node: ArticleElement, context: Context, afterLede: boolea
     node.tag === "code" && parent === "pre" && styles.blockCode,
     node.lede && styles.lede,
     afterLede && styles.afterLede,
-  );
+  ];
+  if (node.tag === "iframe")
+    return createElement(ArticleEmbed, {
+      src: node.props.src ?? "",
+      title: node.props.title,
+      style: xstyle,
+    });
+  const { className, style } = stylex.props(xstyle);
   // Links open in the browser, which the main window does for target=_blank and nothing else.
   const link = node.tag === "a" ? { target: "_blank", rel: "noopener noreferrer" } : null;
   return createElement(
@@ -142,7 +150,7 @@ const styles = stylex.create({
     marginInline: "auto",
     borderRadius: "10px",
   },
-  iframe: { width: "100%", aspectRatio: "16 / 9", borderWidth: 0 },
+  iframe: { width: "100%", aspectRatio: "16 / 9", borderWidth: 0, backgroundColor: color.raised },
   audio: { display: "block", width: "100%", marginBlock: "1.6em" },
   figure: {
     marginTop: { default: "1.6em", ":first-child": 0 },

@@ -1,4 +1,4 @@
-import type { ItemDetail } from "@inkling/contracts";
+import type { ItemRecord } from "@inkling/contracts";
 import { useEffect } from "react";
 import { libraryClient } from "../library/connection.ts";
 
@@ -6,7 +6,7 @@ import { libraryClient } from "../library/connection.ts";
 const requested = new Set<string>();
 
 /** Opening an image or PDF with no text and no OCR job asks the library to read it. */
-export function useOcrOnOpen(detail: ItemDetail | null | undefined) {
+export function useOcrOnOpen(detail: ItemRecord | null | undefined) {
   const id = detail?.id;
   const kind = detail?.kind.toLowerCase();
   const needsText = kind === "image" || kind === "pdf" ? !detail?.ocrText.trim() : false;

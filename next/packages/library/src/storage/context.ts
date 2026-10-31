@@ -15,6 +15,7 @@ export type StorageContext = {
   sql: SqlClient;
   jobs: JobQueue["Service"];
   databasePath: string;
+  appVersion: string;
   assetsRoot: string;
   assetsDirectory: string;
   fts5Enabled: boolean;

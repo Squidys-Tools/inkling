@@ -2,6 +2,7 @@ import { afterAll, afterEach, expect, test } from "bun:test";
 import { Duration, Effect } from "effect";
 import { storageFailure } from "./errors.ts";
 import { closeAll, removeTemporaryRoots, temporaryLibrary } from "./test-helpers.ts";
+import { JobPostponed } from "./worker.ts";
 
 afterEach(closeAll);
 afterAll(removeTemporaryRoots);
@@ -55,6 +56,53 @@ test("stopping the worker hands its running job back without spending a retry", 
     { item_id: "first-item", status: "pending", retry_count: 0, worker_id: null },
     { item_id: "next-item", status: "pending", retry_count: 0, worker_id: null },
   ]);
+});
+
+// regression: a job that could not reach the worker process failed and spent its retries.
+test("a postponed job goes back to pending unspent and waits for the lane to be ready", async () => {
+  const { library } = await temporaryLibrary();
+  library.db
+    .prepare(
+      "INSERT INTO items (id, kind, created_at, updated_at) VALUES ('waiting-item', 'note', 1, 1)",
+    )
+    .run();
+  await library.jobs.enqueue("waiting-item", "needs-worker");
+
+  let gate = Promise.resolve();
+  const reopen = Promise.withResolvers<void>();
+  const waiting = Promise.withResolvers<void>();
+  let readyChecks = 0;
+  let runs = 0;
+  const worker = await library.worker({
+    ready: Effect.promise(() => {
+      readyChecks += 1;
+      if (readyChecks === 2) waiting.resolve();
+      return gate;
+    }),
+    processors: {
+      "needs-worker": () =>
+        Effect.suspend(() => {
+          runs += 1;
+          if (runs > 1) return Effect.void;
+          gate = reopen.promise;
+          return Effect.fail(new JobPostponed({ reason: "the worker process is not running" }));
+        }),
+    },
+  });
+  const drained = worker.drain();
+  await waiting.promise;
+  expect((await library.jobs.getForItem("waiting-item"))[0]).toMatchObject({
+    status: "pending",
+    retryCount: 0,
+  });
+
+  reopen.resolve();
+  await drained;
+  expect(runs).toBe(2);
+  expect((await library.jobs.getForItem("waiting-item"))[0]).toMatchObject({
+    status: "completed",
+    retryCount: 0,
+  });
 });
 
 // regression: a hung decoder or model call used to hold the worker forever.

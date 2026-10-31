@@ -10,6 +10,9 @@ const stubFetch = (
   handler: (url: string | URL | Request, init?: RequestInit) => Promise<Response>,
 ) => handler as typeof fetch;
 
+// Every host in these fixtures resolves to a public address without asking DNS.
+const lookupHost = async () => [{ address: "93.184.215.14" }];
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`Smoke assertion failed: ${message}`);
 }
@@ -61,6 +64,7 @@ for (const [url, html, expectedAuthor] of [
   ],
 ] as const) {
   const article = await ingestUrl(url, {
+    lookupHost,
     fetch: stubFetch(async () => new Response(html, { headers: { "content-type": "text/html" } })),
   });
   assert(article.author === expectedAuthor, `ingestUrl extracts author-only metadata for ${url}`);
@@ -91,6 +95,7 @@ assert(
 );
 
 const fetched = await ingestUrl(pageUrl, {
+  lookupHost,
   fetch: stubFetch(
     async () => new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } }),
   ),
@@ -115,6 +120,7 @@ assert(
 );
 
 const fallbackFetched = await ingestUrl(pageUrl, {
+  lookupHost,
   fetch: stubFetch(async () => new Response(html, { headers: { "content-type": "text/html" } })),
   extractArticle: () => {
     throw new Error("expected test failure");
@@ -140,6 +146,7 @@ const roundupHtml = `
   </body></html>`;
 
 const roundup = await ingestUrl("https://example.com/roundup/thing/", {
+  lookupHost,
   fetch: stubFetch(
     async () =>
       new Response(roundupHtml, { headers: { "content-type": "text/html; charset=utf-8" } }),
@@ -162,6 +169,7 @@ assert(
 const xPostUrl = "https://x.com/jack/status/20";
 const xOEmbedHtml = `<blockquote class="twitter-tweet" data-dnt="true"><p lang="en">just setting up my twttr</p>&mdash; jack (@jack) <a href="${xPostUrl}">March 21, 2006</a></blockquote>`;
 const ingestedXPost = await ingestUrl(xPostUrl, {
+  lookupHost,
   fetch: stubFetch(async (url) => {
     assert(
       String(url) === xPostOEmbedUrl(xPostUrl),
@@ -183,6 +191,7 @@ assert(ingestedXPost.title === "jack's post", "X ingestion preserves the author 
 
 const redirectRequests: string[] = [];
 const redirected = await ingestUrl(pageUrl, {
+  lookupHost,
   fetch: stubFetch(async (url, init) => {
     assert(init?.redirect === "manual", "ingestion inspects redirects before following them");
     redirectRequests.push(String(url));
@@ -220,6 +229,7 @@ assert(ipv6PrivateNetworkRejected, "IPv6 loopback URLs are rejected before fetch
 let privateRedirectRejected = false;
 try {
   await ingestUrl(pageUrl, {
+    lookupHost,
     fetch: stubFetch(
       async () =>
         new Response(null, { status: 302, headers: { location: "http://127.0.0.1:1420/" } }),
@@ -235,6 +245,7 @@ assert(
 
 const youTubePoster = "https://i.ytimg.com/vi/abc12345678/hqdefault.jpg";
 const indexedYouTubeLink = await ingestUrl("https://www.youtube.com/watch?v=abc12345678", {
+  lookupHost,
   fetch: stubFetch(async (url) => {
     assert(
       String(url).startsWith("https://www.youtube.com/oembed.json?url="),

@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
-import { extractPdfTextByPages, renderPdfFirstPage } from "./pdf.ts";
+import { extractPdfTextByPages, loadOnce, renderPdfFirstPage } from "./pdf.ts";
 
 function rectanglePdf(rectangles: string[], rotate = 0) {
   const objects = [
@@ -175,9 +175,14 @@ test("empty PDF bytes are rejected before any rendering or extraction", async ()
   await expect(extractPdfTextByPages(Buffer.alloc(0))).rejects.toThrow("PDF bytes cannot be empty");
 });
 
-test("pdf.js takes its Node paths inside an Electron utility process", () => {
+// regression: a getter or fixed `process.type` made the pose throw, and the failed load was kept.
+test.each([
+  ["a configurable value", '{ value: "utility", configurable: true, enumerable: true }'],
+  ["a getter", '{ get: () => "utility", configurable: true, enumerable: true }'],
+  ["a fixed writable value", '{ value: "utility", writable: true, configurable: false }'],
+])("pdf.js takes its Node paths inside an Electron utility process whose type is %s", (_, type) => {
   const script = `
-    Object.defineProperty(process, "type", { value: "utility", configurable: true, enumerable: true });
+    Object.defineProperty(process, "type", ${type});
     Object.defineProperty(process.versions, "electron", { value: "45.0.0", configurable: true });
     const { extractPdfTextByPages, renderPdfFirstPage } = await import(${JSON.stringify(
       pathToFileURL(join(import.meta.dir, "pdf.ts")).href,
@@ -194,4 +199,17 @@ test("pdf.js takes its Node paths inside an Electron utility process", () => {
     text: true,
     type: "utility",
   });
+});
+
+test("a failed load is retried on the next call while a finished one is shared", async () => {
+  let attempts = 0;
+  const load = loadOnce(async () => {
+    attempts += 1;
+    if (attempts === 1) throw new Error("first load failed");
+    return attempts;
+  });
+  await expect(load()).rejects.toThrow("first load failed");
+  expect(await load()).toBe(2);
+  expect(await load()).toBe(2);
+  expect(attempts).toBe(2);
 });

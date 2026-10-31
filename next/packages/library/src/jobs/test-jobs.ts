@@ -6,10 +6,11 @@ import { fixture } from "@inkling/jobs/test-fixtures";
 import { Effect, Exit, ManagedRuntime, Scope } from "effect";
 import { RpcTest } from "effect/rpc";
 import type { Job } from "../storage/jobs.ts";
-import type { JobQueue, Library, LibraryOptions } from "../storage/library.ts";
+import type { JobQueue, Library } from "../storage/library.ts";
 import type { TestLibrary } from "../storage/test-library.ts";
 import {
   closeAll,
+  type Options,
   removeTemporaryRoots,
   temporaryRoot,
   trackedLibrary,
@@ -47,7 +48,7 @@ export async function createJobs(root: string, options: Partial<WorkerOptions> =
   );
   const scope = Scope.makeUnsafe();
   const client = await runtime.runPromise(Scope.provide(RpcTest.makeClient(WorkerRpcs), scope));
-  const worker = JobsWorker.of({ client: Effect.succeed(client) });
+  const worker = JobsWorker.of({ client: Effect.succeed(client), connected: Effect.void });
   const withWorker = (set: Record<string, Processor<Library | JobQueue | JobsWorker>>) =>
     Object.fromEntries(
       Object.entries(set).map(([kind, processor]) => [
@@ -74,15 +75,12 @@ export async function createJobs(root: string, options: Partial<WorkerOptions> =
   return jobs;
 }
 
-export async function openLibrary(
-  path: string,
-  { media, ...options }: Omit<LibraryOptions, "databasePath"> = {},
-) {
+export async function openLibrary(path: string, { media, ...options }: Options = {}) {
   const { inspectImage } = await import("@inkling/jobs/thumbnail");
   return trackedLibrary(path, { media: { inspectImage, ...media }, ...options });
 }
 
-export async function temporaryLibrary(options: Omit<LibraryOptions, "databasePath"> = {}) {
+export async function temporaryLibrary(options: Options = {}) {
   const root = temporaryRoot();
   return { root, library: await openLibrary(join(root, "library.sqlite3"), options) };
 }

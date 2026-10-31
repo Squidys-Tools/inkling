@@ -1,6 +1,5 @@
 import type { ContextMenuItem } from "@inkling/contracts/desktop";
 import type { useNavigate } from "@tanstack/react-router";
-import { reportCaptureError } from "../capture/capture.ts";
 import { desktop } from "../desktop.ts";
 import { hostname } from "../library/assets.ts";
 import type { CardView } from "../library/cardModel.ts";
@@ -8,7 +7,9 @@ import { libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
 import { selectCard } from "../library/selection.ts";
 import { setInSpace, spacesStore } from "../library/spaces.ts";
+import { showWrittenCard } from "../library/writes.ts";
 import { showContextMenu } from "../menu/contextMenu.tsx";
+import { dismissActionError, reportActionError } from "./actionError.ts";
 
 type Navigate = ReturnType<typeof useNavigate>;
 
@@ -22,16 +23,19 @@ export function openReader(view: CardView, navigate: Navigate) {
   void navigate({ to: "/item/$id/read", params: { id: view.id } });
 }
 
-async function run(action: () => Promise<unknown>) {
+async function run(failure: string, action: () => Promise<unknown>) {
   try {
     await action();
+    dismissActionError();
   } catch (error) {
-    reportCaptureError(errorMessage(error));
+    reportActionError(`${failure}: ${errorMessage(error)}`);
   }
 }
 
 export const setArchived = (id: string, archived: boolean) =>
-  run(async () => (await libraryClient()).setArchived({ id, archived }));
+  run(archived ? "Couldn’t archive this" : "Couldn’t restore this", async () =>
+    showWrittenCard(await (await libraryClient()).setArchived({ id, archived })),
+  );
 
 /** Deleting is the one action that cannot be undone, so it always asks first. */
 export async function deleteForever(view: CardView) {
@@ -44,7 +48,10 @@ export async function deleteForever(view: CardView) {
   const confirmed = desktop
     ? await desktop.confirm(options)
     : window.confirm(`${options.message}\n\n${options.detail}`);
-  if (confirmed) await run(async () => (await libraryClient()).deleteItem({ id: view.id }));
+  if (confirmed)
+    await run("Couldn’t delete this", async () =>
+      (await libraryClient()).deleteItem({ id: view.id }),
+    );
 }
 
 /** The card's context menu, with the same actions as the old in-app one plus Space filing. */
@@ -78,7 +85,7 @@ export async function openCardMenu(
       add("copy", "Copy link", () =>
         navigator.clipboard
           .writeText(url)
-          .catch(() => reportCaptureError("Couldn’t copy the link.")),
+          .catch(() => reportActionError("Couldn’t copy the link.")),
       );
     }
     if (desktop) {

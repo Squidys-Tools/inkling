@@ -6,10 +6,10 @@ test("embedding text keeps the shared document inputs and markdown projection", 
     embeddingText({
       title: "Reading list",
       description: "ignored description",
-      body: "## Nomic\n\nA **local** model.",
+      body: "## Nomic\n\nA **local** snake_case model &amp; more.",
       bodyFormat: "md",
       ocrText: "Cover text",
       metadata: { text: "ignored metadata" },
     }),
-  ).toBe("Reading list\n\nNomic A local model.\n\nCover text");
+  ).toBe("Reading list\n\nNomic A local snake_case model & more.\n\nCover text");
 });

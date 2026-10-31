@@ -1,22 +1,16 @@
-import type { LibraryChange } from "@inkling/contracts";
-import {
-  ensureScope,
-  isKnownCard,
-  reconcileItems,
-  reloadAll,
-  reloadSpaceScopes,
-  removeItems,
-} from "./cards.ts";
+import type { LibraryChange, Space } from "@inkling/contracts";
+import { ensureScope, reconcileItems, reloadAll, reloadSpaceScopes, removeItems } from "./cards.ts";
 import { type LibraryClient, libraryClient, onReconnect } from "./connection.ts";
 import { forgetJobs, refreshActiveJobCount, refreshJobs } from "./jobs.ts";
 import { activeScope } from "./scope.ts";
 import { search } from "./search.ts";
 import { selection } from "./selection.ts";
-import { reloadSpaces } from "./spaces.ts";
+import { reloadSpaces, spacesStore } from "./spaces.ts";
 
 // Writes and job ticks arrive in bursts; each burst becomes one refetch of the
-// cards it named. Jobs only refetch cards the window already shows, since a
-// job does not move an item in the library's order.
+// cards it named and one read of their jobs. A job tick reads jobs only: the
+// job's result arrives as its own ItemsChanged. Neither re-runs a Smart
+// Space's query, which runs when the Space is opened or this window writes.
 const pendingItems = new Set<string>();
 const pendingJobs = new Set<string>();
 let flushTimer: number | null = null;
@@ -31,18 +25,34 @@ async function flush() {
   const jobs = [...pendingJobs];
   pendingItems.clear();
   pendingJobs.clear();
-  const ids = [...new Set([...items, ...jobs.filter(isKnownCard)])];
-  if (ids.length > 0) {
+  if (items.length > 0) {
     try {
-      const cards = await (await libraryClient()).cardsById({ ids });
-      search.remove(reconcileItems(ids, cards));
-      if (items.length > 0) reloadSpaceScopes();
+      const cards = await (await libraryClient()).cardsById({ ids: items });
+      search.remove(reconcileItems(items, cards));
     } catch {
       // The next change, or a reconnect, reads these again.
     }
   }
   void refreshJobs([...new Set([...items, ...jobs])]);
   if (jobs.length > 0) void refreshActiveJobCount();
+}
+
+const sameQuery = (a: Space, b: Space) =>
+  (a.query.text ?? null) === (b.query.text ?? null) &&
+  (a.query.kind ?? null) === (b.query.kind ?? null) &&
+  (a.query.tag ?? null) === (b.query.tag ?? null);
+
+// A Regular Space's items may have moved; a Smart Space reads again only when its query changed.
+async function spacesChanged() {
+  const before = new Map(spacesStore.get().spaces.map((space) => [space.id, space]));
+  await reloadSpaces();
+  const after = new Map(spacesStore.get().spaces.map((space) => [space.id, space]));
+  reloadSpaceScopes((spaceId) => {
+    const space = after.get(spaceId);
+    const previous = before.get(spaceId);
+    if (!space) return "gone";
+    return space.kind === "regular" || !previous || !sameQuery(previous, space) ? "stale" : null;
+  });
 }
 
 /** Reads every store again: after the library process restarts, or a restore replaced its contents. */
@@ -53,6 +63,7 @@ function reloadEverything() {
   void search.rerun();
 }
 
+/** Applies one change; a kind this build does not know is ignored. */
 export function applyChange(change: LibraryChange) {
   switch (change._tag) {
     case "ItemsChanged":
@@ -70,8 +81,7 @@ export function applyChange(change: LibraryChange) {
       if (change.ids.includes(selection.get() ?? "")) selection.set(null);
       return;
     case "SpacesChanged":
-      void reloadSpaces();
-      reloadSpaceScopes();
+      void spacesChanged();
       return;
     case "LibraryReplaced":
       reloadEverything();

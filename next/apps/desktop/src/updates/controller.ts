@@ -1,5 +1,6 @@
 import type { UpdateChannel, UpdateErrorContext, UpdateState } from "@inkling/contracts/desktop";
 import { CancellationToken } from "builder-util-runtime";
+import { Option, Schema } from "effect";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -25,27 +26,29 @@ async function updateFileHash(path: string) {
   return hash.digest("base64");
 }
 
+const UpdatePreferences = Schema.Struct({
+  channel: Schema.optionalKey(Schema.Literals(["latest", "nightly"])),
+  install: Schema.optionalKey(Schema.Struct({ from: Schema.String, target: Schema.String })),
+});
+const decodeUpdatePreferences = Schema.decodeUnknownOption(
+  Schema.fromJsonString(UpdatePreferences),
+);
+
 const isMissing = (error: unknown) =>
   error instanceof Error && (error as NodeJS.ErrnoException).code === "ENOENT";
 
 /** `updates.json` in the library folder: the chosen channel and the install in progress. */
 export function createUpdatePreferences(path: string) {
   return {
+    // Only an I/O failure rejects: the controller reports it as a permissions problem.
     async read(): Promise<{ channel?: UpdateChannel; install?: { from: string; target: string } }> {
-      try {
-        const value = JSON.parse(await readFile(path, "utf8"));
-        return {
-          channel:
-            value.channel === "latest" || value.channel === "nightly" ? value.channel : undefined,
-          install:
-            typeof value.install?.from === "string" && typeof value.install?.target === "string"
-              ? { from: value.install.from, target: value.install.target }
-              : undefined,
-        };
-      } catch (error) {
-        if (isMissing(error) || error instanceof SyntaxError) return {};
-        throw error;
-      }
+      const text = await readFile(path, "utf8").catch((error: unknown) =>
+        isMissing(error) ? null : Promise.reject(error),
+      );
+      return Option.getOrElse(
+        decodeUpdatePreferences(text),
+        (): typeof UpdatePreferences.Type => ({}),
+      );
     },
     async write(value: object) {
       await mkdir(dirname(path), { recursive: true });

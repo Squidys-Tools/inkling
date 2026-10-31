@@ -1,3 +1,5 @@
+import type { LookupHost } from "./public-host.ts";
+
 type IngestionExtractor = "defuddle" | "fallback";
 
 export type SafeEmbedKind = "iframe" | "video" | "audio";
@@ -73,4 +75,5 @@ export interface UrlIngestionOptions {
   extractArticle?: (document: Document, url: string) => RawArticleExtraction;
   /** Only enable this for trusted local fixture servers, never for user input. */
   allowPrivateNetwork?: boolean;
+  lookupHost?: LookupHost;
 }

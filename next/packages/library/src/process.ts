@@ -1,5 +1,11 @@
 import type { MessagePortMain } from "electron";
-import { LibraryError, LibraryRpcs, type LibraryChange } from "@inkling/contracts";
+import {
+  type ItemDetail,
+  type ItemRecord,
+  LibraryError,
+  LibraryRpcs,
+  type LibraryChange,
+} from "@inkling/contracts";
 import { layerProtocol, type PortSource } from "@inkling/rpc-electron/server";
 import { Effect, Fiber, Layer, PubSub, Stream } from "effect";
 import { RpcServer } from "effect/rpc";
@@ -10,13 +16,17 @@ import { layerPorts } from "./jobs/worker-client.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
 import { errorMessage } from "./storage/errors.ts";
 import { JobQueue, Library, libraryLayer } from "./storage/library.ts";
+import { cardItem } from "./storage/rows.ts";
 import { snapshotDatabase } from "./storage/sqlite-snapshot.ts";
 
 // The library process: the only owner of the SQLite file. Main starts it with
-// the library directory and hands it one port per client.
+// the library directory and app version and hands it one port per client.
 const directoryFlag = process.argv.indexOf("--library-directory");
 const libraryDirectory = process.argv[directoryFlag + 1];
 if (directoryFlag < 0 || !libraryDirectory) throw new Error("--library-directory is required");
+const versionFlag = process.argv.indexOf("--app-version");
+const appVersion = process.argv[versionFlag + 1];
+if (versionFlag < 0 || !appVersion) throw new Error("--app-version is required");
 
 // Main sends the worker's port as soon as both processes run, which can be before
 // the server starts, so the newest one waits here until the client takes it.
@@ -51,6 +61,17 @@ const failure = (cause: unknown) => new LibraryError({ message: errorMessage(cau
 const answer = <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.mapError(effect, failure);
 const itemChanged = (id: string) => publish({ _tag: "ItemsChanged", ids: [id] });
 
+// Small writes answer with the card, and the item view gets everything but the
+// article HTML, which only the reader asks for: full content stays off IPC.
+const articleHtml = (item: ItemDetail | null) =>
+  typeof item?.metadata.html === "string" && item.metadata.html.trim() ? item.metadata.html : null;
+const itemRecord = (item: ItemDetail | null): ItemRecord | null =>
+  item && {
+    ...item,
+    metadata: Object.fromEntries(Object.entries(item.metadata).filter(([key]) => key !== "html")),
+    hasArticleContent: articleHtml(item) !== null,
+  };
+
 const handlers = LibraryRpcs.toLayer(
   Effect.gen(function* () {
     const library = yield* Library;
@@ -79,14 +100,14 @@ const handlers = LibraryRpcs.toLayer(
                 const space = yield* library.getSpace(scope.spaceId);
                 const text = space?.kind === "smart" ? (space.query.text ?? "") : "";
                 const vector = yield* queryVector(text);
-                const cards = yield* library.listSpaceItems(scope.spaceId, 200, vector);
-                return { cards, next: null, total: cards.length };
+                return yield* library.spaceCardsPage(scope.spaceId, cursor, limit, vector);
               }),
             );
         }
       },
       cardsById: ({ ids }) => answer(library.getItemCards(ids)),
-      item: ({ id }) => answer(library.getItem(id)),
+      item: ({ id }) => answer(Effect.map(library.getItem(id), itemRecord)),
+      articleHtml: ({ id }) => answer(Effect.map(library.getItem(id), articleHtml)),
       itemContent: ({ id }) => answer(library.getItemContent(id)),
       search: ({ query, limit }) =>
         answer(
@@ -99,11 +120,16 @@ const handlers = LibraryRpcs.toLayer(
       createQuote: (input) => written(library.createQuote(input)),
       captureUrl: (input) => written(library.captureUrl(input)),
       saveFile: (input) => written(library.saveFile(input)),
-      updateItem: (input) => written(library.updateItem(input)),
-      setArchived: ({ id, archived }) => written(library.archiveItem(id, archived)),
+      updateItem: (input) => written(Effect.map(library.updateItem(input), cardItem)),
+      // Archiving or deleting an item changes the counts of the Spaces it is in.
+      setArchived: ({ id, archived }) =>
+        written(Effect.map(library.archiveItem(id, archived), cardItem)).pipe(
+          Effect.tap(() => publish({ _tag: "SpacesChanged" })),
+        ),
       deleteItem: ({ id }) =>
         answer(library.deleteItem(id)).pipe(
           Effect.tap(() => publish({ _tag: "ItemsRemoved", ids: [id] })),
+          Effect.tap(() => publish({ _tag: "SpacesChanged" })),
         ),
       spaces: () => answer(library.listSpaces()),
       createSpace: (input) =>
@@ -153,6 +179,7 @@ const handlers = LibraryRpcs.toLayer(
 
 const storage = libraryLayer({
   databasePath,
+  appVersion,
   jobQueue: {
     onUpdated: (itemId) => Effect.runFork(publish({ _tag: "JobsChanged", itemIds: [itemId] })),
   },

@@ -15,7 +15,8 @@ const IPV4_COMPATIBLE = ipaddr.IPv6.parseCIDR("::/96");
 
 // Only unicast is public: private, loopback, link-local, CGNAT, multicast,
 // documentation and other reserved ranges all have a range name of their own.
-function isPublicIpAddress(value: string) {
+export function isPublicIpAddress(value: string) {
+  if (!ipaddr.isValid(value)) return false;
   let address = ipaddr.parse(value);
   if (address instanceof ipaddr.IPv6) {
     if (address.isIPv4MappedAddress()) address = address.toIPv4Address();
@@ -24,18 +25,18 @@ function isPublicIpAddress(value: string) {
   return address.range() === "unicast";
 }
 
+// Text alone cannot tell where a name resolves; a process that can resolve
+// names checks the addresses too (public-host.ts). A single-label name such as
+// `router` only resolves on the user's own network, so it is refused here.
 function isPrivateNetworkHostname(hostname: string): boolean {
   const value = hostname.toLowerCase().replace(/^\[/u, "").replace(/\]$/u, "").replace(/\.$/u, "");
-  if (
-    value === "localhost" ||
+  if (ipaddr.isValid(value)) return !isPublicIpAddress(value);
+  return (
+    !value.includes(".") ||
     value.endsWith(".localhost") ||
     value.endsWith(".local") ||
     value.endsWith(".internal")
-  ) {
-    return true;
-  }
-
-  return ipaddr.isValid(value) && !isPublicIpAddress(value);
+  );
 }
 
 // A bare host such as `example.com/path` is saved as https; anything with a

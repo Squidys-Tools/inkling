@@ -42,6 +42,8 @@ export function createSearch({
   const store: Store<SearchState> = createStore(idle);
   let timer: number | null = null;
   let generation = 0;
+  // Ids deleted or archived while the newest search was in flight; its answer was read before that.
+  let removedSince = new Set<string>();
 
   const cancelTimer = () => {
     if (timer !== null) timers.clear(timer);
@@ -55,9 +57,11 @@ export function createSearch({
     const current = store.get();
     if (!again && current.ran === query && current.status === "ready") return;
     const mine = ++generation;
+    const removed = new Set<string>();
+    removedSince = removed;
     store.set({ ...current, status: "searching", error: null });
     try {
-      const cards = await run(query);
+      const cards = (await run(query)).filter((card) => !removed.has(card.id));
       if (mine !== generation) return;
       onCards(cards);
       store.set((state) => ({
@@ -95,6 +99,7 @@ export function createSearch({
     },
     /** Takes deleted or archived items out of the results without searching again. */
     remove(ids: readonly string[]) {
+      for (const id of ids) removedSince.add(id);
       const gone = new Set(ids);
       store.set((state) =>
         state.results?.some((id) => gone.has(id))

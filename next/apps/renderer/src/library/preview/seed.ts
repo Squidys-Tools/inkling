@@ -481,6 +481,19 @@ export const seedBodies: Record<string, string> = {
   "12": "# Books to reread this fall\n\n- [ ] Pilgrim at Tinker Creek\n- [ ] The Design of Everyday Things\n- [ ] Seeing Like a State\n\nStart with the Dillard.",
 };
 
+// Article HTML for the reader, which the library keeps off the card and the item record.
+export const seedArticles: Record<string, string> = {
+  "preview-article-image": [
+    '<p class="article-lede">The fortress wall still holds the harbor, though the guns are long gone.</p>',
+    "<p>Mornings start at the lighthouse, where the tide decides how far you can walk. By noon the fishing boats are in and the town smells of salt and diesel.</p>",
+    "<h2>The walk to the light</h2>",
+    "<p>A footpath runs along the breakwater. At low tide it is dry the whole way; at high tide the last stretch is a wade.</p>",
+    '<figure><iframe src="https://www.youtube.com/watch?v=PUv66718DII" title="A harbor at dawn"></iframe><figcaption>Footage the writer linked from the piece.</figcaption></figure>',
+    "<blockquote><p>Nothing here hurries, except the tide.</p></blockquote>",
+    "<p>Evenings belong to the square, where the café tables spill over the cobbles and nobody checks the time.</p>",
+  ].join(""),
+};
+
 export const seedSpaces: Space[] = [
   {
     id: "seed-design-references",

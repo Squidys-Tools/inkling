@@ -1,8 +1,8 @@
-import { Effect, Predicate } from "effect";
+import { Effect, Option, Predicate, Schema } from "effect";
 import type { Fragment } from "effect/sql/Statement";
 import type { LibraryCard, ItemDetail } from "@inkling/contracts";
 import type { StorageContext } from "./context.ts";
-import { itemNotFound } from "./errors.ts";
+import { invalidInput, itemNotFound } from "./errors.ts";
 import { type Metadata, parseJson } from "./shared.ts";
 
 export type ItemRow = {
@@ -103,9 +103,24 @@ export const selectCards = (
     Effect.map((rows) => rows.map(cardFromRow)),
   );
 
+// The renderer hands cursors back verbatim, but one from an older build or a
+// corrupted state must fail as a message, not a defect.
+export const readCursor = <A>(
+  decode: (input: unknown) => Option.Option<A>,
+  cursor: string | null,
+) =>
+  cursor == null
+    ? Effect.succeed(null)
+    : Option.match(decode(cursor), {
+        onNone: () =>
+          Effect.fail(invalidInput("the page cursor is not valid; load the list from the top")),
+        onSome: (after) => Effect.succeed(after),
+      });
+
 // Keyset paging: the cursor is the last card's sort key, so a page costs the
 // same at item 9,000 as at item 0 and an insert never shifts the next page.
-type CardCursor = [updatedAt: number, createdAt: number, id: string];
+const CardCursor = Schema.Tuple([Schema.Finite, Schema.Finite, Schema.String]);
+const decodeCardCursor = Schema.decodeUnknownOption(Schema.fromJsonString(CardCursor));
 
 export const pageCards = Effect.fnUntraced(function* (
   { sql }: StorageContext,
@@ -113,7 +128,7 @@ export const pageCards = Effect.fnUntraced(function* (
   cursor: string | null,
   limit: number,
 ) {
-  const after = cursor ? (JSON.parse(cursor) as CardCursor) : null;
+  const after = yield* readCursor(decodeCardCursor, cursor);
   const rows = yield* sql<ItemRow>`SELECT ${sql.literal(itemColumns)} FROM items WHERE ${where}
     ${after ? sql`AND (updated_at, created_at, id) < (${after[0]}, ${after[1]}, ${after[2]})` : sql.literal("")}
     ORDER BY updated_at DESC, created_at DESC, id DESC LIMIT ${limit + 1}`;
@@ -126,7 +141,11 @@ export const pageCards = Effect.fnUntraced(function* (
     cards: page.map(cardFromRow),
     next:
       rows.length > limit && last
-        ? JSON.stringify([last.updated_at, last.created_at, last.id] satisfies CardCursor)
+        ? JSON.stringify([
+            last.updated_at,
+            last.created_at,
+            last.id,
+          ] satisfies typeof CardCursor.Type)
         : null,
     total,
   };

@@ -120,7 +120,7 @@ export type ArticleProps = {
   referrerPolicy?: "strict-origin-when-cross-origin";
   poster?: string;
   controls?: boolean;
-  preload?: "metadata";
+  preload?: "none";
   type?: string;
   start?: number;
   reversed?: boolean;
@@ -181,12 +181,13 @@ function propsFor(element: Element, tag: ArticleTag, parent: string): ArticlePro
       props.poster = attribute("poster");
       props.src = attribute("src");
       props.controls = true;
-      props.preload = "metadata";
+      // Remote media loads nothing until the user plays it.
+      props.preload = "none";
       break;
     case "audio":
       props.src = attribute("src");
       props.controls = true;
-      props.preload = "metadata";
+      props.preload = "none";
       break;
     case "source":
       if (parent !== "video" && parent !== "audio") return null;

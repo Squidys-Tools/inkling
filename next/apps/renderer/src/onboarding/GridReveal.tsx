@@ -1,9 +1,14 @@
+// Adapted from Rare UI's Grid Reveal (https://rareui.com/components/gridreveal),
+// swamimalode07/rare-ui @ becb1a2 components/ui/grid-reveal.tsx. Copyright (c)
+// 2026 Swami Malode. MIT + Commons Clause v1.0 + Attribution, as the repo's LICENSE
+// @ 32b7b52 grants it; see apps/renderer/licenses/LICENSE-rare-ui.md.
+
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useRef } from "react";
 import { coverRect, drawScene, type Scene, smoothstep } from "./gridRevealScene.ts";
 import { buildTree, type Cell, measureTree, orderByDetail } from "./gridRevealTree.ts";
 
-// Rare UI's Grid Reveal, trimmed for the welcome screen: no captions, always
+// Trimmed for the welcome screen: no captions, always
 // dark, self-paced. While `src` is null the card waits as a quiet grey grid;
 // once it is set the grid splits along the photo's detail, takes on its
 // colors, and settles into the photo.

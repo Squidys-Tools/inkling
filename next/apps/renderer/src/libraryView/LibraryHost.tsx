@@ -1,14 +1,15 @@
 import { Cancel01Icon, ViewSidebarLeftIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
-import { useRouterState } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { dismissCaptureError, useCaptureState } from "../capture/capture.ts";
-import { ensureScope, loadScope, shownScope, useScope } from "../library/cards.ts";
+import { dismissActionError, useActionError } from "../cards/actionError.ts";
+import { loadScope, showScope, shownScope, useScope } from "../library/cards.ts";
 import { scopeFromPath, scopeKey } from "../library/scope.ts";
 import { search, useSearch } from "../library/search.ts";
-import { useSpace } from "../library/spaces.ts";
+import { spacesStore, useSpace } from "../library/spaces.ts";
 import { useStore } from "../library/store.ts";
 import { EmptyState } from "./EmptyState.tsx";
 import { FilterRow } from "./FilterRow.tsx";
@@ -29,19 +30,28 @@ export function LibraryHost({
   covered: boolean;
   sidebarCollapsed: boolean;
 }) {
+  const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const routeScope = scopeFromPath(pathname);
 
   useEffect(() => {
     const next = scopeFromPath(pathname);
-    if (!next) return;
-    shownScope.set(next);
-    ensureScope(next);
+    if (next) showScope(next);
   }, [pathname]);
 
   const scope = useStore(shownScope, (shown) => shown);
   const state = useScope(scope);
   const space = useSpace(scope._tag === "Space" ? scope.spaceId : null);
+  const spacesLoaded = useStore(spacesStore, (spaces) => spaces.loaded);
+  // A Space deleted here or in another window leaves for Everything instead of an error.
+  const spaceGone =
+    scope._tag === "Space" &&
+    ((spacesLoaded && !space) ||
+      (state?.status === "error" && /^space not found/iu.test(state.error ?? "")));
+  const leaveGoneSpace = spaceGone && routeScope?._tag === "Space";
+  useEffect(() => {
+    if (leaveGoneSpace) void navigate({ to: "/", replace: true });
+  }, [leaveGoneSpace, navigate]);
   const query = useSearch((search) => search.query.trim());
   const results = useSearch((search) => search.results);
   const searchError = useSearch((search) => search.error);
@@ -49,6 +59,7 @@ export function LibraryHost({
   const focused = useViewState((view) => view.searchFocused);
   const list = useViewState((view) => view.list);
   const captureError = useCaptureState((capture) => capture.error);
+  const actionError = useActionError();
 
   const archive = scope._tag === "Archived";
   const searching = query !== "" && !archive;
@@ -100,7 +111,7 @@ export function LibraryHost({
       inert={covered}
       {...stylex.props(styles.host, covered && styles.covered)}
     >
-      {state?.status === "error" && !searching ? (
+      {spaceGone ? null : state?.status === "error" && !searching ? (
         <EmptyState
           title="The library didn’t open."
           detail={state.error ?? "Something went wrong."}
@@ -140,16 +151,18 @@ export function LibraryHost({
 
       {pinned && <FilterRow query={query} count={results?.length ?? null} />}
 
-      {(captureError || (searching && searchError)) && (
+      {(captureError || actionError || (searching && searchError)) && (
         <p role="alert" {...stylex.props(styles.error, pinned && styles.errorBelowFilter)}>
           <span>
-            Couldn’t {captureError ? "save this yet" : "search"}: {captureError ?? searchError}
+            {captureError
+              ? `Couldn’t save this yet: ${captureError}`
+              : (actionError ?? `Couldn’t search: ${searchError}`)}
           </span>
-          {captureError && (
+          {(captureError || actionError) && (
             <button
               type="button"
               aria-label="Dismiss"
-              onClick={dismissCaptureError}
+              onClick={captureError ? dismissCaptureError : dismissActionError}
               {...stylex.props(styles.dismiss)}
             >
               <HugeiconsIcon icon={Cancel01Icon} size={12} />

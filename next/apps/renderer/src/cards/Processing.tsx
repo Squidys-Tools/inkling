@@ -1,19 +1,58 @@
-import { AlertCircleIcon, Loading01Icon, RotateCwIcon } from "@hugeicons/core-free-icons";
+import { AlertCircleIcon, RotateCwIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, radius } from "@inkling/ui/tokens.stylex";
-import { reportCaptureError } from "../capture/capture.ts";
 import { errorMessage } from "../library/errors.ts";
 import { type Processing, retryJob } from "../library/jobs.ts";
-
-const spin = stylex.keyframes({ to: { transform: "rotate(360deg)" } });
+import { reportActionError } from "./actionError.ts";
 
 function retry(jobId: string) {
   retryJob(jobId).then(
     (retried) => {
-      if (!retried) reportCaptureError("That processing job is no longer available to retry.");
+      if (!retried) reportActionError("That processing job is no longer available to retry.");
     },
-    (error: unknown) => reportCaptureError(errorMessage(error)),
+    (error: unknown) => reportActionError(`Couldn’t try again: ${errorMessage(error)}`),
+  );
+}
+
+const ringLength = 2 * Math.PI * 5;
+
+/**
+ * A still mark for running jobs: a ring filled to the jobs' progress, or a
+ * dashed ring while they report none. It changes only when progress does.
+ */
+function ProgressRing({ processing }: { processing: Processing }) {
+  const { progressCurrent, progressTotal } = processing;
+  const fraction =
+    progressTotal && progressTotal > 0
+      ? Math.min(1, Math.max(0, progressCurrent / progressTotal))
+      : null;
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true">
+      <circle
+        cx="7"
+        cy="7"
+        r="5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeOpacity={fraction === null ? 1 : 0.28}
+        strokeDasharray={fraction === null ? "2.2 1.73" : undefined}
+      />
+      {fraction !== null && fraction > 0 && (
+        <circle
+          cx="7"
+          cy="7"
+          r="5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeDasharray={`${fraction * ringLength} ${ringLength}`}
+          transform="rotate(-90 7 7)"
+        />
+      )}
+    </svg>
   );
 }
 
@@ -50,9 +89,7 @@ export function ProcessingBadge({ processing }: { processing: Processing }) {
       title={label}
       {...stylex.props(styles.badge, styles.active)}
     >
-      <span {...stylex.props(styles.spinner)}>
-        <HugeiconsIcon icon={Loading01Icon} size={13} />
-      </span>
+      <ProgressRing processing={processing} />
     </span>
   );
 }
@@ -70,9 +107,7 @@ export function ProcessingRows({
     <>
       {processing.active && (
         <div role="status" {...stylex.props(styles.row, styles.rowActive)}>
-          <span {...stylex.props(styles.spinner)}>
-            <HugeiconsIcon icon={Loading01Icon} size={13} />
-          </span>
+          <ProgressRing processing={processing} />
           <span>{processing.message ?? "Processing"}</span>
           <span {...stylex.props(styles.rowEnd, onPaper && styles.onPaper)}>
             {progress(processing)}
@@ -122,14 +157,6 @@ const styles = stylex.create({
     cursor: "pointer",
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "2px",
-  },
-  spinner: {
-    display: "grid",
-    placeItems: "center",
-    animationName: { default: spin, "@media (prefers-reduced-motion: reduce)": "none" },
-    animationDuration: "1.2s",
-    animationTimingFunction: "linear",
-    animationIterationCount: "infinite",
   },
   row: {
     display: "flex",

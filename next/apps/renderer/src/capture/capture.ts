@@ -1,5 +1,5 @@
 import type { ItemDetail } from "@inkling/contracts";
-import { showNewCards } from "../library/cards.ts";
+import { reevaluateShownSpace, showNewCards } from "../library/cards.ts";
 import { cardFromDetail } from "../library/cardModel.ts";
 import { type LibraryClient, libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
@@ -29,6 +29,7 @@ export const reportCaptureError = (message: string) =>
  */
 export function showNewItem(detail: ItemDetail) {
   showNewCards([cardFromDetail(detail)]);
+  reevaluateShownSpace();
   selectCard(detail.id);
   void refreshJobs([detail.id]);
 }
@@ -67,7 +68,8 @@ export function captureText(text: string, captureSource: string) {
 const maxFileBytes = 50 * 1024 * 1024;
 
 // Files save one at a time, holding File handles rather than their bytes, so a
-// large drop never reads every file into memory at once.
+// large drop never reads every file into memory at once. `save` never throws, and
+// a call cut off by a library restart rejects, so one failed file never stalls the rest.
 const fileQueue: File[] = [];
 let draining = false;
 

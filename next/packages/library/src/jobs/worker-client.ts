@@ -4,26 +4,34 @@ import { layerPlatform } from "@inkling/rpc-electron/client-main";
 import type { PortSource } from "@inkling/rpc-electron/server";
 import { Context, Deferred, Effect, Exit, Layer, Scope } from "effect";
 import { RpcClient, type RpcClientError, type RpcGroup } from "effect/rpc";
+import { JobPostponed } from "../storage/worker.ts";
 
 export type WorkerClient = RpcClient.RpcClient<
   RpcGroup.Rpcs<typeof WorkerRpcs>,
   RpcClientError.RpcClientError
 >;
 
-/** The worker process. `client` waits while main starts or restarts it. */
+/**
+ * The worker process. `client` fails with `JobPostponed` at once while main
+ * starts or restarts it, or has given up on it; `connected` waits for it.
+ */
 export class JobsWorker extends Context.Service<
   JobsWorker,
-  { readonly client: Effect.Effect<WorkerClient> }
+  {
+    readonly client: Effect.Effect<WorkerClient, JobPostponed>;
+    readonly connected: Effect.Effect<void>;
+  }
 >()("inkling/jobs/JobsWorker") {}
 
 export const workerClient = JobsWorker.use((worker) => worker.client);
 
 export const layerClient = (client: WorkerClient) =>
-  Layer.succeed(JobsWorker)({ client: Effect.succeed(client) });
+  Layer.succeed(JobsWorker)({ client: Effect.succeed(client), connected: Effect.void });
 
 /**
  * One client per port main hands over. When the worker dies its port closes:
- * calls in flight fail (their jobs retry) and new calls wait for the next port.
+ * calls in flight fail and spend a retry, so a job that crashes the worker
+ * cannot loop, while new calls are postponed until the next port.
  */
 export const layerPorts = (source: PortSource) =>
   Layer.effect(
@@ -70,6 +78,12 @@ export const layerPorts = (source: PortSource) =>
           return current ? Scope.close(current, Exit.void) : Effect.void;
         }),
       );
-      return { client: Effect.suspend(() => Deferred.await(ready)) };
+      const unavailable = new JobPostponed({ reason: "the worker process is not running" });
+      return {
+        client: Effect.suspend(() =>
+          Deferred.isDoneUnsafe(ready) ? Deferred.await(ready) : Effect.fail(unavailable),
+        ),
+        connected: Effect.suspend(() => Deferred.await(ready)).pipe(Effect.asVoid),
+      };
     }),
   );

@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { Cause, Duration, Effect, Exit, PubSub, Schedule } from "effect";
+import { Cause, Data, Duration, Effect, Exit, Option, PubSub, Schedule } from "effect";
 import { errorMessage } from "./errors.ts";
 import { type Job, JOB_LEASE_MILLIS, JobQueue } from "./jobs.ts";
+
+/** A job that cannot run yet goes back to pending without spending one of its retries. */
+export class JobPostponed extends Data.TaggedError("JobPostponed")<{ readonly reason: string }> {}
+
+const isPostponed = (cause: Cause.Cause<unknown>) =>
+  Option.exists(Cause.findErrorOption(cause), (error) => error instanceof JobPostponed);
 
 export type Processor<R> = (job: Job, workerId: string) => Effect.Effect<unknown, unknown, R>;
 
@@ -15,6 +21,8 @@ export type WorkerOptions<R> = {
   workerId?: string;
   // Runs when nothing is claimable, so backfills only queue work while the worker is free.
   onIdle?: () => Effect.Effect<unknown, unknown, R>;
+  // Waited before each claim, so a postponed job is not claimed again until it can run.
+  ready?: Effect.Effect<void, never, R>;
 };
 
 export const makeWorker = Effect.fnUntraced(function* <R>({
@@ -24,11 +32,13 @@ export const makeWorker = Effect.fnUntraced(function* <R>({
   pollInterval = Duration.seconds(5),
   workerId = randomUUID(),
   onIdle,
+  ready = Effect.void,
 }: WorkerOptions<R>) {
   const jobs = yield* JobQueue;
   const kinds = Object.keys(processors);
 
   const claim = Effect.gen(function* () {
+    yield* ready;
     const claimed = yield* jobs.claimNext(workerId, kinds);
     if (claimed || !onIdle) return claimed;
     yield* onIdle().pipe(
@@ -67,6 +77,7 @@ export const makeWorker = Effect.fnUntraced(function* <R>({
           yield* Effect.forkScoped(heartbeat(job));
           const exit = yield* Effect.exit(restore(process(job)));
           if (Exit.isSuccess(exit)) yield* jobs.complete(job.id, workerId);
+          else if (isPostponed(exit.cause)) yield* jobs.release(job.id, workerId);
           else if (!Cause.hasInterruptsOnly(exit.cause))
             yield* jobs.fail(job.id, workerId, errorMessage(Cause.squash(exit.cause)));
         }),

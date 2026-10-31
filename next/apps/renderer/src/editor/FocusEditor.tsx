@@ -8,6 +8,7 @@ import { useItem } from "../item/queries.ts";
 import { useEscape } from "../item/useEscape.ts";
 import { useMounted } from "../item/useMounted.ts";
 import { libraryClient } from "../library/connection.ts";
+import { showWrittenCard } from "../library/writes.ts";
 import { NoteEditor } from "./NoteEditor.tsx";
 import { noteBodyForEditor, noteBodyForStorage, normalizeNoteBody } from "./notes.ts";
 
@@ -76,7 +77,7 @@ export function FocusEditor({ id }: { id: string }) {
         const body = noteBodyForStorage(stored, title, markdown);
         saving.current = true;
         try {
-          await (await libraryClient()).updateItem({ id, body, bodyFormat: "md" });
+          showWrittenCard(await (await libraryClient()).updateItem({ id, body, bodyFormat: "md" }));
           dirty.current = false;
         } finally {
           saving.current = false;

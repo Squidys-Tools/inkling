@@ -35,7 +35,11 @@ try {
       const warm: number[] = [];
       for (let run = 0; run < repeats; run++) warm.push((yield* firstPage).millis);
       return { cold, warm: warm.sort((a, b) => a - b) };
-    }).pipe(Effect.provide(libraryLayer({ databasePath: join(directory, "library.sqlite3") }))),
+    }).pipe(
+      Effect.provide(
+        libraryLayer({ databasePath: join(directory, "library.sqlite3"), appVersion: "bench" }),
+      ),
+    ),
   );
   const median = timings.warm[Math.floor(timings.warm.length / 2)];
   const worst = timings.warm.at(-1) ?? 0;

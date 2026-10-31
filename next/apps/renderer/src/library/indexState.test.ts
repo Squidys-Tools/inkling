@@ -175,6 +175,14 @@ describe("library index changes", () => {
     expect(next.cards.get("b")).toBe(before);
   });
 
+  it("keeps a newer card over an older copy a late search answer brings", () => {
+    const state = loaded(["b", "a"]);
+    const archived = place(state, [card("a", { archived: true, updatedAt: 500 })]);
+    const answered = updateCards(archived, [card("a")], true);
+    expect(answered.cards.get("a")?.archived).toBe(true);
+    expect(answered).toBe(archived);
+  });
+
   it("takes archived items out of the named scopes but keeps their cards", () => {
     const next = removeIds(loaded(["b", "a"]), ["a"], ["Active"]);
     expect(ids(next)).toEqual(["b"]);

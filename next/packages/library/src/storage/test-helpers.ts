@@ -5,7 +5,9 @@ import type { DatabaseSync } from "node:sqlite";
 import type { LibraryOptions } from "./library.ts";
 import { openTestLibrary, type TestLibrary } from "./test-library.ts";
 
-type Options = Omit<LibraryOptions, "databasePath">;
+export type Options = Omit<LibraryOptions, "databasePath" | "appVersion"> & {
+  appVersion?: string;
+};
 
 const roots: string[] = [];
 const libraries = new Set<TestLibrary>();

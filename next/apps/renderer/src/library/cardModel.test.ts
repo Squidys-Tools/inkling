@@ -1,7 +1,7 @@
 import type { LibraryCard } from "@inkling/contracts";
 import { describe, expect, it } from "bun:test";
 import { assetUrl } from "./assets.ts";
-import { toCardView } from "./cardModel.ts";
+import { cardView, toCardView } from "./cardModel.ts";
 import { scopeFromPath } from "./scope.ts";
 
 const card = (fields: Partial<LibraryCard> = {}): LibraryCard => ({
@@ -71,6 +71,22 @@ describe("card views", () => {
     expect(toCardView(card({ sourceUrl: "https://example.com" })).webUrl).toBe(
       "https://example.com/",
     );
+  });
+});
+
+describe("card date labels", () => {
+  const hour = 60 * 60 * 1000;
+  const saved = card({ createdAt: 1_000 * hour });
+
+  it("keeps a card's view until its label changes, then draws the new label", () => {
+    const fresh = cardView(saved, 0, 1_000 * hour + 5 * 60 * 1000);
+    expect(fresh.date).toBe("Just now");
+    // The clock ticked for another card's label; this one still holds.
+    expect(cardView(saved, 1, 1_000 * hour + 59 * 60 * 1000)).toBe(fresh);
+    const later = cardView(saved, 2, 1_001 * hour);
+    expect(later.date).toBe("Today");
+    expect(cardView(saved, 3, 1_023 * hour)).toBe(later);
+    expect(cardView(saved, 4, 1_024 * hour).date).not.toBe("Today");
   });
 });
 

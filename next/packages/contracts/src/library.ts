@@ -100,6 +100,13 @@ export const UpdateSpaceInput = Schema.Struct({
 });
 export type UpdateSpaceInput = typeof UpdateSpaceInput.Type;
 
+// The item view's record: the detail without its article HTML, which only the reader reads.
+export const ItemRecord = Schema.Struct({
+  ...ItemDetail.fields,
+  hasArticleContent: Schema.Boolean,
+});
+export type ItemRecord = typeof ItemRecord.Type;
+
 export const CardScope = Schema.Union([
   Schema.TaggedStruct("Active", {}),
   Schema.TaggedStruct("Archived", {}),
@@ -112,9 +119,11 @@ export const LibraryRpcs = RpcGroup.make(
   call("cards", { scope: CardScope, cursor: Schema.NullOr(Text), limit: Schema.Number }, CardPage),
   // Archived cards too: each card says which scope it belongs to. Deleted ids are absent.
   call("cardsById", Ids, Schema.Array(LibraryCard)),
-  call("item", ById, Schema.NullOr(ItemDetail)),
+  call("item", ById, Schema.NullOr(ItemRecord)),
   call("itemContent", ById, ItemContent),
-  // `query` takes the search operators (kind:, tag:, before:...) documented in product-behavior.
+  // The reader's sanitizer is the trust boundary for this HTML; null when the item has none.
+  call("articleHtml", ById, Schema.NullOr(Text)),
+  // `query` is plain text with no operators; a Smart Space's `kind` and `tag` are the structured filters.
   call("search", { query: Text, limit: Schema.Number }, Schema.Array(LibraryCard)),
   call(
     "similar",
@@ -126,8 +135,8 @@ export const LibraryRpcs = RpcGroup.make(
   call("createQuote", CreateQuoteInput.fields, ItemDetail),
   call("captureUrl", CaptureUrlInput.fields, ItemDetail),
   call("saveFile", SaveFileInput.fields, ItemDetail),
-  call("updateItem", UpdateItemInput.fields, ItemDetail),
-  call("setArchived", { id: Text, archived: Schema.Boolean }, ItemDetail),
+  call("updateItem", UpdateItemInput.fields, LibraryCard),
+  call("setArchived", { id: Text, archived: Schema.Boolean }, LibraryCard),
   call("deleteItem", ById, Schema.Void),
 
   call("spaces", {}, Schema.Array(Space)),

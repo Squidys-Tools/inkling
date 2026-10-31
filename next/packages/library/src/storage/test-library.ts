@@ -11,9 +11,11 @@ type Services = Library | JobQueue | SqlClient.SqlClient;
 // and set up or inspect rows through a second, plain connection to the file.
 export async function openTestLibrary(
   databasePath: string,
-  options: Omit<LibraryOptions, "databasePath"> = {},
+  options: Omit<LibraryOptions, "databasePath" | "appVersion"> & { appVersion?: string } = {},
 ) {
-  const runtime = ManagedRuntime.make(libraryLayer({ databasePath, ...options }));
+  const runtime = ManagedRuntime.make(
+    libraryLayer({ databasePath, appVersion: "0.0.0-test", ...options }),
+  );
   const run = <A, E>(effect: Effect.Effect<A, E, Services>) => runtime.runPromise(effect);
   const [library, jobs] = await run(
     Effect.gen(function* () {

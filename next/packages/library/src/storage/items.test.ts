@@ -47,7 +47,10 @@ test("list rows keep card fields while full content stays available by item id",
     safeEmbeds: [],
   });
   await library.updateItem({ id: article.id, addTag: "reading" });
-  const note = await library.createNote({ title: "A saved note", body: "Private note body." });
+  const note = await library.createNote({
+    title: "A saved note",
+    body: "Private **note** on snake_case &amp; body.",
+  });
   library.db
     .prepare("UPDATE items SET ocr_text = ? WHERE id = ?")
     .run("OCR-PRIVATE-".repeat(100), article.id);
@@ -75,6 +78,7 @@ test("list rows keep card fields while full content stays available by item id",
   expect(JSON.stringify(articleCard)).not.toContain("indexhtmlneedle");
   expect(JSON.stringify(articleCard)).not.toContain("indextextneedle");
   expect(noteCard).not.toHaveProperty("body");
+  expect(noteCard?.description).toBe("Private note on snake_case & body.");
   const htmlSearch = await library.searchItems("indexhtmlneedle");
   const textSearch = await library.searchItems("indextextneedle");
   const smartSpace = await library.createSpace({ name: "Reading", query: { tag: "reading" } });
@@ -110,7 +114,9 @@ test("list rows keep card fields while full content stays available by item id",
       extractedText: "indextextneedle",
     },
   });
-  expect(await library.getItem(note.id)).toMatchObject({ body: "Private note body." });
+  expect(await library.getItem(note.id)).toMatchObject({
+    body: "Private **note** on snake_case &amp; body.",
+  });
   expect(await library.getItem("missing-item")).toBeNull();
 });
 

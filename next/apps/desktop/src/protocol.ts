@@ -1,26 +1,8 @@
-import { FRAME_ORIGINS } from "@inkling/ingestion/frame-origins";
 import { protocol } from "electron";
 import { join } from "node:path";
 import { appContentTypes } from "./app-content-types.ts";
 import { serveAssetFile } from "./asset-response.ts";
-
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  "object-src 'none'",
-  "script-src 'self' https://platform.twitter.com",
-  // StyleX injects no runtime styles in production; inline style attributes
-  // still carry per-card values such as aspect ratios.
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self' data:",
-  "img-src 'self' data: blob: https:",
-  "media-src 'self' data: blob: https:",
-  "connect-src 'self' https:",
-  "worker-src 'self' blob:",
-  `frame-src ${Object.values(FRAME_ORIGINS).join(" ")}`,
-].join("; ");
+import { contentSecurityPolicy } from "./content-security-policy.ts";
 
 /** Must run before `app.whenReady`. */
 export function registerAppScheme() {

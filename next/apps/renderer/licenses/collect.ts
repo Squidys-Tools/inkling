@@ -24,6 +24,13 @@ export const vendoredNotices = [
     noticeFile: "apps/renderer/src/mascot/bot/LICENSE.md",
   },
   {
+    name: "Rare UI Grid Reveal",
+    license: "MIT + Commons Clause + Attribution",
+    sourceUrl: "https://rareui.com/components/gridreveal",
+    description: "The photo that splits out of a grid on the welcome screens.",
+    noticeFile: "apps/renderer/licenses/LICENSE-rare-ui.md",
+  },
+  {
     name: "nomic-embed-text-v1.5",
     license: "Apache-2.0",
     sourceUrl: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5",

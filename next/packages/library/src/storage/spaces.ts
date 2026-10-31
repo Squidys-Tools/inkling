@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Effect, Predicate } from "effect";
+import { Effect, Predicate, Schema } from "effect";
 import {
   type CreateSpaceInput,
   type SpaceQuery,
@@ -9,7 +9,7 @@ import {
 } from "@inkling/contracts";
 import type { Fragment } from "effect/sql/Statement";
 import type { StorageContext } from "./context.ts";
-import { cardFromRow, type ItemRow, qualifiedItemColumns, readItem } from "./rows.ts";
+import { cardFromRow, type ItemRow, qualifiedItemColumns, readCursor, readItem } from "./rows.ts";
 import { changes, clampLimit, nonEmpty, parseJson } from "./shared.ts";
 import { invalidInput, itemNotFound, spaceNotFound } from "./errors.ts";
 import { escapeFtsQuery, type makeSearch, type QueryVector, sqlLikePattern } from "./search.ts";
@@ -65,6 +65,14 @@ const normalizeSpaceName = Effect.fnUntraced(function* (name: string) {
   return normalized;
 });
 
+// A Regular Space pages by when each item was added, newest first.
+const MemberCursor = Schema.Tuple([Schema.Finite, Schema.String]);
+const decodeMemberCursor = Schema.decodeUnknownOption(Schema.fromJsonString(MemberCursor));
+
+// A Smart Space is a ranked search, so it answers with its best matches in one
+// page of at most this many cards; `total` still counts every match.
+export const SMART_SPACE_CAP = 200;
+
 export function normalizeSpaceColor(color: unknown): SpaceColor {
   const normalized = nonEmpty(color)?.toLowerCase();
   return SpaceColor.literals.find((value) => value === normalized) ?? "blue";
@@ -76,7 +84,8 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
   const listSpaces = () =>
     sql<SpaceRow>`SELECT spaces.*, membership.item_count FROM spaces
       LEFT JOIN (
-        SELECT space_id, COUNT(*) AS item_count FROM space_items GROUP BY space_id
+        SELECT s.space_id, COUNT(*) AS item_count FROM space_items s
+        JOIN items i ON i.id = s.item_id WHERE i.archived = 0 GROUP BY s.space_id
       ) membership ON membership.space_id = spaces.id
       ORDER BY spaces.position, spaces.created_at`.pipe(
       Effect.map((rows) => rows.map(spaceFromRow)),
@@ -164,33 +173,50 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
       }),
     );
 
-  const listSpaceItems = Effect.fnUntraced(function* (
+  const memberPage = Effect.fnUntraced(function* (
     id: string,
-    limit = 100,
-    queryVector: QueryVector = null,
+    cursor: string | null,
+    limit: number,
   ) {
-    const space = yield* getSpace(id);
-    if (!space) return yield* spaceNotFound(id);
-    const cap = clampLimit(limit, 100, 200);
-    if (space.kind === "regular") {
-      const rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)}
-        FROM space_items s JOIN items i ON i.id = s.item_id
-        WHERE s.space_id = ${id} AND i.archived = 0 ORDER BY s.added_at DESC, i.id LIMIT ${cap}`;
-      return rows.map(cardFromRow);
-    }
-    const query = space.query;
+    const after = yield* readCursor(decodeMemberCursor, cursor);
+    const rows = yield* sql<ItemRow & { added_at: number }>`SELECT
+      ${sql.literal(qualifiedItemColumns)}, s.added_at
+      FROM space_items s JOIN items i ON i.id = s.item_id
+      WHERE s.space_id = ${id} AND i.archived = 0
+      ${after ? sql`AND (s.added_at < ${after[0]} OR (s.added_at = ${after[0]} AND i.id > ${after[1]}))` : sql.literal("")}
+      ORDER BY s.added_at DESC, i.id LIMIT ${limit + 1}`;
+    const [{ total }] = yield* sql<{ total: number }>`SELECT COUNT(*) AS total
+      FROM space_items s JOIN items i ON i.id = s.item_id
+      WHERE s.space_id = ${id} AND i.archived = 0`;
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
+    return {
+      cards: page.map(cardFromRow),
+      next:
+        rows.length > limit && last
+          ? JSON.stringify([last.added_at, last.id] satisfies typeof MemberCursor.Type)
+          : null,
+      total,
+    };
+  });
+
+  const smartMatches = Effect.fnUntraced(function* (
+    query: SpaceQuery,
+    cap: number,
+    queryVector: QueryVector,
+  ) {
     const text = nonEmpty(query.text);
     const clauses: Fragment[] = [sql`i.archived = 0`];
     let from = sql.literal("items i");
     let rankedCandidates: ReturnType<typeof cardFromRow>[] | null = null;
     if (text && queryVector?.length) {
-      rankedCandidates = yield* search.searchItems(text, 200, queryVector);
-      if (!rankedCandidates.length) return [];
+      rankedCandidates = yield* search.searchItems(text, SMART_SPACE_CAP, queryVector);
+      if (!rankedCandidates.length) return { cards: [], total: 0 };
       const ids = JSON.stringify(rankedCandidates.map((item) => item.id));
       clauses.push(sql`i.id IN (SELECT value FROM json_each(${ids}))`);
     } else if (text && ctx.fts5Enabled) {
       const match = escapeFtsQuery(text);
-      if (!match) return [];
+      if (!match) return { cards: [], total: 0 };
       from = sql.literal("items_fts f JOIN items i ON i.id = f.item_id");
       clauses.push(sql`items_fts MATCH ${match}`);
     } else if (text) {
@@ -206,13 +232,46 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
           : sql`lower(i.kind) = lower(${kind})`,
       );
     }
+    const where = sql.and(clauses);
+    const [{ total }] = yield* sql<{ total: number }>`SELECT COUNT(*) AS total FROM ${from}
+      WHERE ${where}`;
     const rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM ${from}
-      WHERE ${sql.and(clauses)} ORDER BY i.updated_at DESC, i.created_at DESC LIMIT ${cap}`;
+      WHERE ${where} ORDER BY i.updated_at DESC, i.created_at DESC
+      LIMIT ${rankedCandidates ? SMART_SPACE_CAP : cap}`;
     if (rankedCandidates) {
       const matchingIds = new Set(rows.map((row) => row.id));
-      return rankedCandidates.filter((item) => matchingIds.has(item.id)).slice(0, cap);
+      return {
+        cards: rankedCandidates.filter((item) => matchingIds.has(item.id)).slice(0, cap),
+        total,
+      };
     }
-    return rows.map(cardFromRow);
+    return { cards: rows.map(cardFromRow), total };
+  });
+
+  /** One page of a Space: keyset pages for a Regular Space, the capped ranked matches for a Smart one. */
+  const spaceCardsPage = Effect.fnUntraced(function* (
+    id: string,
+    cursor: string | null,
+    limit: number,
+    queryVector: QueryVector = null,
+  ) {
+    const space = yield* getSpace(id);
+    if (!space) return yield* spaceNotFound(id);
+    if (space.kind === "regular") return yield* memberPage(id, cursor, clampLimit(limit, 100, 200));
+    const { cards, total } = yield* smartMatches(space.query, SMART_SPACE_CAP, queryVector);
+    return { cards: cursor == null ? cards : [], next: null, total };
+  });
+
+  const listSpaceItems = Effect.fnUntraced(function* (
+    id: string,
+    limit = 100,
+    queryVector: QueryVector = null,
+  ) {
+    const space = yield* getSpace(id);
+    if (!space) return yield* spaceNotFound(id);
+    const cap = clampLimit(limit, 100, SMART_SPACE_CAP);
+    if (space.kind === "regular") return (yield* memberPage(id, null, cap)).cards;
+    return (yield* smartMatches(space.query, cap, queryVector)).cards;
   });
 
   const addSpaceItem = Effect.fnUntraced(function* (spaceId: string, itemId: string) {
@@ -243,6 +302,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     updateSpace,
     deleteSpace,
     swapSpacePositions,
+    spaceCardsPage,
     listSpaceItems,
     addSpaceItem,
     removeSpaceItem,

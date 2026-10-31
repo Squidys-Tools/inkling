@@ -26,11 +26,20 @@ export function superviseUtilityProcess({
   let child: UtilityProcess;
   let running = false;
   let stopping: Promise<void> | undefined;
-  const listeners: ((message: unknown) => void)[] = [];
+  type Listener = (message: unknown, reply: (answer: unknown) => void) => void;
+  const listeners: Listener[] = [];
+  // A reply reaches only the process that asked: once it exits, a restarted one
+  // must not receive an answer to a request it never made.
+  const listen = (sender: UtilityProcess, listener: Listener) =>
+    sender.on("message", (message) =>
+      listener(message, (answer) => {
+        if (running && child === sender) sender.postMessage(answer);
+      }),
+    );
 
   const spawn = () => {
     child = utilityProcess.fork(entry, args, { serviceName, stdio: "inherit" });
-    for (const listener of listeners) child.on("message", listener);
+    for (const listener of listeners) listen(child, listener);
     running = true;
     child.once("exit", (code) => {
       running = false;
@@ -47,9 +56,9 @@ export function superviseUtilityProcess({
 
   return {
     /** Runs `listener` for each message from the current process and every later one. */
-    onMessage(listener: (message: unknown) => void) {
+    onMessage(listener: Listener) {
       listeners.push(listener);
-      child.on("message", listener);
+      listen(child, listener);
     },
     postMessage(message: unknown, ports?: Electron.MessagePortMain[]) {
       if (running) child.postMessage(message, ports);

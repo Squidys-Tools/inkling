@@ -61,7 +61,7 @@ describe("articleTree", () => {
           "<video>\n</video>",
       ),
     ).toBe(
-      '<video controls=true preload="metadata"><source src="https://example.com/clip.mp4" type="video/mp4"></source></video>',
+      '<video controls=true preload="none"><source src="https://example.com/clip.mp4" type="video/mp4"></source></video>',
     );
   });
 
