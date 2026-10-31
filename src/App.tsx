@@ -138,7 +138,6 @@ function App() {
     {
       canUseDesktopBackend,
       query: scope.query,
-      activeView: scope.activeView,
       activeSpace: spaces.activeSpace,
       localSpaceItems: spaces.localSpaceItems,
     },
@@ -217,7 +216,7 @@ function App() {
           setIsOpen={setIsSidebarOpen}
           isSearchFocused={isSearchFocused}
           everything={{
-            active: scope.activeView === "Everything" && !scope.activeSpaceId,
+            active: !scope.activeSpaceId,
             count: library.items.length,
             onSelect: scope.clearToDefaultView,
           }}
@@ -252,7 +251,7 @@ function App() {
             }
             showSearch={showBrowseControls}
             searchRef={searchRef}
-            view={spaces.activeSpace?.name ?? scope.activeView}
+            view={spaces.activeSpace?.name ?? "Everything"}
             query={scope.query}
             isSearchFocused={isSearchFocused}
             onSearchFocusChange={setIsSearchFocused}

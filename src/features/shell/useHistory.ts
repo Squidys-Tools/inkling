@@ -13,7 +13,6 @@ import type { LibraryItem } from "../../lib/types";
 import type { useLibraryScope } from "./useLibraryScope";
 
 type NavSnapshot = {
-  view: string;
   spaceId: string | null;
   query: string;
   itemId: string | null;
@@ -49,7 +48,7 @@ export function useHistory({
   selectArchivedLibraryItem,
   setSelectedItem,
 }: HistoryOptions) {
-  const { activeView, activeSpaceId, query, setActiveView, setActiveSpaceId, setQuery } = scope;
+  const { activeSpaceId, query, setActiveSpaceId, setQuery } = scope;
   const selectedItemId = selectedItem ? String(selectedItem.id) : null;
   // In-memory back/forward history over view, search query, and open item.
   // Query changes commit after a pause so typing does not add an entry per key.
@@ -58,7 +57,6 @@ export function useHistory({
   const pendingHistoryCloseRef = useRef<{ target: NavSnapshot; index: number } | null>(null);
   const [historyCloseRequest, setHistoryCloseRequest] = useState(0);
   const navSnapshot: NavSnapshot = {
-    view: activeView,
     spaceId: activeSpaceId,
     query,
     itemId: selectedItemId,
@@ -105,7 +103,6 @@ export function useHistory({
     if (!target.itemId && selectedItem) {
       pendingHistoryCloseRef.current = { target, index: history.index + delta };
       setActiveSpaceId(target.spaceId);
-      setActiveView(target.view);
       setQuery(target.query);
       requestAnimationFrame(() => {
         void bringHistoryCardIntoView(selectedItem, filteredItemsRef.current).then((rects) => {
@@ -119,7 +116,6 @@ export function useHistory({
     selectionScrollRef.current = false;
     selectionRectsRef.current = null;
     setActiveSpaceId(target.spaceId);
-    setActiveView(target.view);
     setQuery(target.query);
     if (item?.archived) selectArchivedLibraryItem(item);
     else if (item) {
@@ -163,17 +159,9 @@ export function useHistory({
     selectionScrollRef.current = false;
     selectionRectsRef.current = null;
     setActiveSpaceId(pending.target.spaceId);
-    setActiveView(pending.target.view);
     setQuery(pending.target.query);
     setSelectedItem(null);
-  }, [
-    setSelectedItem,
-    selectionScrollRef,
-    setActiveSpaceId,
-    setQuery,
-    setActiveView,
-    selectionRectsRef,
-  ]);
+  }, [setSelectedItem, selectionScrollRef, setActiveSpaceId, setQuery, selectionRectsRef]);
 
   return { historyCloseRequest, closeItem };
 }

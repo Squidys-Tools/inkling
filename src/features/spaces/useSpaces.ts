@@ -67,7 +67,7 @@ export function useSpaces({
   setCaptureError,
   setIsSidebarOpen,
 }: SpacesOptions) {
-  const { query, activeSpaceId, selectSpace, clearToDefaultView, setActiveView } = scope;
+  const { query, activeSpaceId, selectSpace, clearToDefaultView } = scope;
   const [spaces, setSpaces] = useState<StoredSpace[]>(shouldUseSeedLibrary() ? seedSpaces : []);
   const [isCreatingSpace, setIsCreatingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
@@ -164,8 +164,7 @@ export function useSpaces({
     setRenamingSpaceId(null);
     if (!trimmed || trimmed === space.name) return;
     try {
-      const updated = await saveSpace(space, { name: trimmed });
-      if (activeSpaceId === space.id) setActiveView(updated.name);
+      await saveSpace(space, { name: trimmed });
     } catch {
       // Reopen the rename input with the draft preserved: the name visibly
       // didn't stick, so the user can retry or Escape instead of wondering.

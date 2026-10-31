@@ -46,20 +46,18 @@ function itemMatchesSmartQuery(item: LibraryItem, spaceQuery: SmartSpaceQuery) {
   return true;
 }
 
-// The desktop backend already searched and listed the open Space, so only the
-// "Everything" view gate applies there; preview filters the seed items here.
-function visibleLibraryItems(
+// The desktop backend already searched and listed the open Space; preview
+// filters the seed items here.
+export function visibleLibraryItems(
   items: LibraryItem[],
   {
     canUseDesktopBackend,
     query,
-    activeView,
     activeSpace,
     localSpaceItems,
   }: {
     canUseDesktopBackend: boolean;
     query: string;
-    activeView: string;
     activeSpace: StoredSpace | null;
     localSpaceItems: Map<string, Set<string>>;
   },
@@ -75,13 +73,11 @@ function visibleLibraryItems(
         .toLowerCase()
         .includes(normalizedQuery);
     const matchesView =
-      activeView === "Everything" ||
-      (activeSpace
-        ? canUseDesktopBackend ||
-          (activeSpace.kind === "regular"
-            ? (localSpaceItems.get(activeSpace.id)?.has(String(item.id)) ?? false)
-            : itemMatchesSmartQuery(item, activeSpace.query))
-        : false);
+      !activeSpace ||
+      canUseDesktopBackend ||
+      (activeSpace.kind === "regular"
+        ? (localSpaceItems.get(activeSpace.id)?.has(String(item.id)) ?? false)
+        : itemMatchesSmartQuery(item, activeSpace.query));
     return matchesQuery && matchesView;
   });
 }
@@ -91,17 +87,16 @@ export function useVisibleItems(
   scope: Parameters<typeof visibleLibraryItems>[1],
   visibleItemsRef: RefObject<LibraryItem[]>,
 ) {
-  const { canUseDesktopBackend, query, activeView, activeSpace, localSpaceItems } = scope;
+  const { canUseDesktopBackend, query, activeSpace, localSpaceItems } = scope;
   const visibleItems = useMemo(
     () =>
       visibleLibraryItems(items, {
         canUseDesktopBackend,
         query,
-        activeView,
         activeSpace,
         localSpaceItems,
       }),
-    [activeSpace, activeView, canUseDesktopBackend, items, localSpaceItems, query],
+    [activeSpace, canUseDesktopBackend, items, localSpaceItems, query],
   );
   // Selection and history read the grid's list from event handlers, after render.
   useLayoutEffect(() => {

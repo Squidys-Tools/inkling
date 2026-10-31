@@ -5,19 +5,16 @@ import type { LibraryItem } from "../../lib/types";
 // What the library shows: everything or one Space, narrowed by a search.
 export function useLibraryScope(setSelectedItem: Dispatch<SetStateAction<LibraryItem | null>>) {
   const [query, setQuery] = useState("");
-  const [activeView, setActiveView] = useState("Everything");
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
 
   function selectSpace(space: StoredSpace) {
     setActiveSpaceId(space.id);
-    setActiveView(space.name);
     setQuery("");
     setSelectedItem(null);
   }
 
   function clearToDefaultView() {
     setActiveSpaceId(null);
-    setActiveView("Everything");
   }
 
   // A search always runs over the whole library.
@@ -29,8 +26,6 @@ export function useLibraryScope(setSelectedItem: Dispatch<SetStateAction<Library
   return {
     query,
     setQuery,
-    activeView,
-    setActiveView,
     activeSpaceId,
     setActiveSpaceId,
     selectSpace,
