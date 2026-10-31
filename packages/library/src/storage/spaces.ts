@@ -7,12 +7,21 @@ import {
   type Space,
   type UpdateSpaceInput,
 } from "@inkling/contracts";
+import { IMAGE_MODEL } from "@inkling/contracts/jobs";
 import type { Fragment } from "effect/sql/Statement";
 import type { StorageContext } from "./context.ts";
 import { cardFromRow, type ItemRow, qualifiedItemColumns, readCursor, readItem } from "./rows.ts";
 import { changes, clampLimit, nonEmpty, parseJson } from "./shared.ts";
 import { invalidInput, itemNotFound, spaceNotFound } from "./errors.ts";
 import { escapeFtsQuery, type makeSearch, type QueryVector, sqlLikePattern } from "./search.ts";
+import {
+  decodeVector,
+  interfaceLabel,
+  labelImage,
+  type SubjectVectors,
+  visualSubjectQuery,
+  visualSubjects,
+} from "./visual-subject.ts";
 
 type SpaceRow = {
   id: string;
@@ -38,6 +47,21 @@ function spaceFromRow(row: SpaceRow): Space {
     updatedAt: row.updated_at,
     ...(row.kind === "regular" && row.item_count != null ? { itemCount: row.item_count } : {}),
   };
+}
+
+/** The text a Smart Space searches for. One with no filters at all searches for its
+ *  own name, so a Space called "Cats" means cats; the saved query stays as it is. */
+export function smartSpaceText(space: Pick<Space, "kind" | "name" | "query">) {
+  if (space.kind !== "smart") return "";
+  const { text, kind, tag } = space.query;
+  return nonEmpty(text) ?? (!nonEmpty(kind) && !nonEmpty(tag) ? space.name.trim() : "");
+}
+
+/** The photo subjects a Smart Space collects, or null when it is an ordinary search.
+ *  A kind filter ("note", say) keeps the search textual, so notes appear only when asked for. */
+export function smartSpaceSubjects(space: Pick<Space, "kind" | "name" | "query">) {
+  if (space.kind !== "smart" || nonEmpty(space.query.kind)) return null;
+  return visualSubjectQuery(smartSpaceText(space));
 }
 
 export const validateSmartQuery = Effect.fnUntraced(function* (query: unknown = {}) {
@@ -200,12 +224,53 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     };
   });
 
+  // Photos whose vision vector is labelled one of the subjects, best first. Images
+  // not yet analyzed have no vector and stay out; so do notes and screenshots.
+  const subjectMatches = Effect.fnUntraced(function* (
+    subjects: string[],
+    tag: string | null,
+    cap: number,
+    prompts: SubjectVectors | null,
+  ) {
+    // Every label must compete, or a screenshot could win "cat" by default. With no
+    // worker or models yet nothing can be confirmed, so the Space is empty for now.
+    const labels = [...visualSubjects, interfaceLabel];
+    if (!prompts || !labels.every((label) => prompts.get(label)?.length))
+      return { cards: [], total: 0 };
+    const rows = yield* sql<
+      ItemRow & { embedding_dimension: number; embedding_vector: Uint8Array }
+    >`
+      SELECT ${sql.literal(qualifiedItemColumns)},
+      e.dimension AS embedding_dimension, e.vector AS embedding_vector
+      FROM item_embeddings e JOIN items i ON i.id = e.item_id
+      WHERE i.archived = 0 AND i.kind = 'image' AND e.kind = 'image' AND e.model = ${IMAGE_MODEL}
+      ${tag ? sql`AND i.id IN (SELECT value FROM json_each(${yield* taggedItemIds(tag)}))` : sql.literal("")}`;
+    const wanted = new Set(subjects);
+    const matches = rows
+      .flatMap((row) => {
+        const image = decodeVector(row.embedding_vector, row.embedding_dimension);
+        const best = image && labelImage(image, prompts);
+        return best && wanted.has(best.label) ? [{ row, score: best.score }] : [];
+      })
+      .sort(
+        (left, right) => right.score - left.score || right.row.updated_at - left.row.updated_at,
+      );
+    return {
+      cards: matches.slice(0, cap).map(({ row }) => cardFromRow(row)),
+      total: matches.length,
+    };
+  });
+
   const smartMatches = Effect.fnUntraced(function* (
-    query: SpaceQuery,
+    space: Space,
     cap: number,
     queryVector: QueryVector,
+    subjectVectors: SubjectVectors | null,
   ) {
-    const text = nonEmpty(query.text);
+    const query = space.query;
+    const subjects = smartSpaceSubjects(space);
+    if (subjects) return yield* subjectMatches(subjects, nonEmpty(query.tag), cap, subjectVectors);
+    const text = nonEmpty(smartSpaceText(space));
     const clauses: Fragment[] = [sql`i.archived = 0`];
     let from = sql.literal("items i");
     let rankedCandidates: ReturnType<typeof cardFromRow>[] | null = null;
@@ -254,11 +319,17 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     cursor: string | null,
     limit: number,
     queryVector: QueryVector = null,
+    subjectVectors: SubjectVectors | null = null,
   ) {
     const space = yield* getSpace(id);
     if (!space) return yield* spaceNotFound(id);
     if (space.kind === "regular") return yield* memberPage(id, cursor, clampLimit(limit, 100, 200));
-    const { cards, total } = yield* smartMatches(space.query, SMART_SPACE_CAP, queryVector);
+    const { cards, total } = yield* smartMatches(
+      space,
+      SMART_SPACE_CAP,
+      queryVector,
+      subjectVectors,
+    );
     return { cards: cursor == null ? cards : [], next: null, total };
   });
 
@@ -266,12 +337,13 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     id: string,
     limit = 100,
     queryVector: QueryVector = null,
+    subjectVectors: SubjectVectors | null = null,
   ) {
     const space = yield* getSpace(id);
     if (!space) return yield* spaceNotFound(id);
     const cap = clampLimit(limit, 100, SMART_SPACE_CAP);
     if (space.kind === "regular") return (yield* memberPage(id, null, cap)).cards;
-    return (yield* smartMatches(space.query, cap, queryVector)).cards;
+    return (yield* smartMatches(space, cap, queryVector, subjectVectors)).cards;
   });
 
   const addSpaceItem = Effect.fnUntraced(function* (spaceId: string, itemId: string) {

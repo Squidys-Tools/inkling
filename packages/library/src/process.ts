@@ -17,7 +17,15 @@ import { createLibrarySizeCache } from "./library-size.ts";
 import { errorMessage } from "./storage/errors.ts";
 import { JobQueue, Library, libraryLayer } from "./storage/library.ts";
 import { cardItem } from "./storage/rows.ts";
+import { smartSpaceSubjects, smartSpaceText } from "./storage/spaces.ts";
 import { snapshotDatabase } from "./storage/sqlite-snapshot.ts";
+import {
+  interfaceLabel,
+  interfacePrompt,
+  subjectPrompt,
+  type SubjectVectors,
+  visualSubjects,
+} from "./storage/visual-subject.ts";
 
 // The library process: the only owner of the SQLite file. Main starts it with
 // the library directory and app version and hands it one port per client.
@@ -55,6 +63,26 @@ const databasePath = join(libraryDirectory, "library.sqlite3");
 const librarySize = createLibrarySizeCache(databasePath, join(libraryDirectory, "assets"));
 const changes = Effect.runSync(PubSub.unbounded<LibraryChange>());
 const publish = (change: LibraryChange) => PubSub.publish(changes, change);
+
+// The subject prompts never change, so their vectors are embedded once, after the
+// worker can answer; until then a photo Space has nothing it can confirm.
+let subjectVectors: SubjectVectors | null = null;
+const loadSubjectVectors = Effect.suspend(() => {
+  if (subjectVectors) return Effect.succeed(subjectVectors);
+  const prompts = [
+    ...visualSubjects.map((subject) => [subject, subjectPrompt(subject)] as const),
+    [interfaceLabel, interfacePrompt] as const,
+  ];
+  return Effect.forEach(prompts, ([label, prompt]) =>
+    Effect.map(queryVector(prompt), (vector) => [label, vector] as const),
+  ).pipe(
+    Effect.map((vectors) => {
+      if (vectors.some(([, vector]) => !vector?.length)) return null;
+      subjectVectors = new Map(vectors.map(([label, vector]) => [label, vector!]));
+      return subjectVectors;
+    }),
+  );
+});
 
 // Every failure reaches the renderer as one message it can show.
 const failure = (cause: unknown) => new LibraryError({ message: errorMessage(cause) });
@@ -98,8 +126,11 @@ const handlers = LibraryRpcs.toLayer(
             return answer(
               Effect.gen(function* () {
                 const space = yield* library.getSpace(scope.spaceId);
-                const text = space?.kind === "smart" ? (space.query.text ?? "") : "";
-                const vector = yield* queryVector(text);
+                if (space && smartSpaceSubjects(space)) {
+                  const prompts = yield* loadSubjectVectors;
+                  return yield* library.spaceCardsPage(scope.spaceId, cursor, limit, null, prompts);
+                }
+                const vector = yield* queryVector(space ? smartSpaceText(space) : "");
                 return yield* library.spaceCardsPage(scope.spaceId, cursor, limit, vector);
               }),
             );
