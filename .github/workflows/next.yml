@@ -95,6 +95,10 @@ jobs:
         run: |
           umask 022
           bun run "$BUILD_COMMAND"
+      # The .deb depends on FFmpeg for local-video posters; the runner image has none.
+      - name: Install the video decoder the Linux package depends on
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ffmpeg
       - name: Exercise packaged Linux processing and local update feeds
         if: runner.os == 'Linux'
         run: |
