@@ -27,9 +27,10 @@ const [diff, untracked] = await Promise.all([
   git("diff", "--name-only", "--no-renames", mergeBase.out),
   git("ls-files", "--others", "--exclude-standard"),
 ]);
-const touched = [...new Set([...lines(diff.out), ...lines(untracked.out)])].map((file) =>
-  file.replaceAll("\\", "/"),
-);
+// next/ is its own workspace with its own checks (`bun run check` inside it).
+const touched = [...new Set([...lines(diff.out), ...lines(untracked.out)])]
+  .map((file) => file.replaceAll("\\", "/"))
+  .filter((file) => !file.startsWith("next/"));
 const changed = touched.filter((file) => existsSync(file));
 
 if (touched.length === 0) {
@@ -62,7 +63,14 @@ if (lintAll) steps.push({ name: "lint", cmd: ["bun", "run", "lint"] });
 else if (code.length) {
   steps.push({
     name: "oxlint",
-    cmd: ["bun", "x", "oxlint", "--no-error-on-unmatched-pattern", ...code],
+    cmd: [
+      "bun",
+      "x",
+      "oxlint",
+      "--disable-nested-config",
+      "--no-error-on-unmatched-pattern",
+      ...code,
+    ],
   });
 }
 const formattable = changed.filter((file) => FORMATTABLE.test(file));

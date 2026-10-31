@@ -30,8 +30,8 @@
     "typecheck": "tsc-rs --noEmit && tsc-rs -p tsconfig.tools.json --noEmit && tsc-rs -p electron/tsconfig.json --noEmit",
     "test": "bun test --timeout 30000",
     "knip": "knip --no-progress",
-    "lint": "oxlint && oxfmt --check",
-    "lint:fix": "oxlint --fix && oxfmt",
+    "lint": "oxlint --disable-nested-config && oxfmt --check",
+    "lint:fix": "oxlint --disable-nested-config --fix && oxfmt",
     "ingest:smoke": "bun src/lib/ingestion/ingestion.smoke.ts",
     "bench": "bun benchmarks/harness/index.ts"
   },

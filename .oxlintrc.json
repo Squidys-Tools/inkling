@@ -71,7 +71,8 @@
     "**/*.d.ts",
     "benchmarks/corpus",
     "docs/assets",
-    "extension/icons"
+    "extension/icons",
+    "next"
   ],
   "options": {
     "reportUnusedDisableDirectives": "error"

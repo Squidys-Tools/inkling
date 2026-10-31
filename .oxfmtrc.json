@@ -5,6 +5,7 @@
     "benchmarks/corpus",
     "docs/assets",
     "extension/icons",
+    "next",
     "bun.lock",
     "**/*.md",
     "**/*.yml",
