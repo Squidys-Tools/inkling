@@ -39,5 +39,5 @@ Read `spaces` to prove the new row has `kind = 'smart'` and `query = '{"text":"a
 
 - The query is not prefilled into the Space name. It appears in the placeholder **Save “alpha” as…**; enter the actual name before creating.
 - Escape clears the query. To show the filter row without clearing it, move focus away from Search your mind.
-- Text matching can include substrings; do not describe it as whole-token-only search.
+- Matching is whole-token full-text search: `alp` does not match `alpha`, so search for full words. Only a SQLite without FTS5 falls back to substring matching.
 - The result count is plain text in the filter row, not an animated digit roll.

@@ -38,7 +38,17 @@ It runs `node_modules/electron/dist/electron .` with `--remote-debugging-port=93
 
 It also disables renderer backgrounding and occlusion tracking. An occluded window reports `visibilityState` "hidden" and stops firing animation frames, which strands the item overlay mid-close and hangs motion-gated steps.
 
-Ready means `app://local/index.html` is listed at `http://127.0.0.1:9333/json/list`, which takes about 10 seconds. The first launch against an empty dir shows "0 items in library". Launch refuses when the port has an owner or already responds with an inkling app page. Other dev servers on the machine often hold 9333, so set `INKLING_VERIFY_PORT` to a free port and pass it to doctor, drive, and cleanup as well.
+Ready means `app://local/index.html` is listed at `http://127.0.0.1:9333/json/list`, which takes about 10 seconds. Launch refuses when the port has an owner or already responds with an inkling app page. Other dev servers on the machine often hold 9333, so set `INKLING_VERIFY_PORT` to a free port and pass it to doctor, drive, and cleanup as well.
+
+A fresh scratch library opens on the welcome screen, and a recipe driven from there saves its item and then returns to the welcome instead of Everything. Skip it once after launch; that marks onboarding complete in the scratch library:
+
+```json
+[
+  {"label":"welcome","wait":"section[aria-label='Welcome to inkling']"},
+  {"label":"skip welcome","clickText":{"selector":"button","text":"Skip"}},
+  {"label":"Everything","expect":"window.location.hash === '#/' && !document.querySelector(\"section[aria-label='Welcome to inkling']\")","timeoutMs":5000}
+]
+```
 
 Two instances side by side: give each its own name and port, `INKLING_VERIFY_NAME=b INKLING_VERIFY_PORT=9334 bun .claude/skills/verify-inkling/scripts/instance.mjs launch`, then pass the same two variables to doctor, drive, and cleanup.
 
