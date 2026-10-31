@@ -124,7 +124,13 @@ export const LibraryRpcs = RpcGroup.make(
   // The reader's sanitizer is the trust boundary for this HTML; null when the item has none.
   call("articleHtml", ById, Schema.NullOr(Text)),
   // `query` is plain text with no operators; a Smart Space's `kind` and `tag` are the structured filters.
-  call("search", { query: Text, limit: Schema.Number }, Schema.Array(LibraryCard)),
+  // `semantic: false` answers from text alone at once and starts the query's embedding
+  // for the semantic pass that follows.
+  call(
+    "search",
+    { query: Text, limit: Schema.Number, semantic: Schema.optional(Schema.Boolean) },
+    Schema.Array(LibraryCard),
+  ),
   call(
     "similar",
     { id: Text, by: Schema.Literals(["text", "image"]), limit: Schema.Number },
