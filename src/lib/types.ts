@@ -16,6 +16,8 @@ export type LibraryItem = {
   tags: string[];
   ocrText?: string;
   image?: string;
+  /** Managed, bounded thumbnail only; never the original/remote card fallback. */
+  thumbnailUrl?: string;
   mediaWidth?: number;
   mediaHeight?: number;
   mediaAspectRatio?: number;

@@ -24,6 +24,7 @@ import type { LibraryItem } from "../../lib/types";
 import { storedItemToLibraryItem } from "./libraryItem";
 import { demoSeedItems } from "./seed";
 import { errorMessage } from "../errorMessage";
+import { warmThumbnails } from "./thumbnailCache";
 
 type LibraryDataOptions = {
   canUseDesktopBackend: boolean;
@@ -148,6 +149,7 @@ export function useLibraryData({
         if (!cancelled) {
           seenChanges = changes;
           if (activeJobs !== null) setActiveJobCount(activeJobs);
+          warmThumbnails(libraryItems);
           setItems(libraryItems.map(withSessionState));
           syncSelectedItem(libraryItems);
         }
@@ -192,6 +194,7 @@ export function useLibraryData({
         );
         if (cancelled || epoch !== fullLoadEpoch) return;
         if (activeJobs !== null) setActiveJobCount(activeJobs);
+        warmThumbnails(libraryItems);
         const patched = new Map(
           libraryItems.map((item) => [String(item.id), withSessionState(item)]),
         );
