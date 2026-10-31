@@ -143,7 +143,7 @@ async function launch() {
           "-a",
           "sh",
           "-c",
-          'echo $$ > "$0"; shift; exec "$@"',
+          'echo $$ > "$0"; exec "$@"',
           pidFile,
           electronBin,
           "--no-sandbox",
