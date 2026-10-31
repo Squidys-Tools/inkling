@@ -78,3 +78,14 @@ test("text-query embeddings do not download model assets during search", async (
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("very long text embeds at most eight windows, like a capped document", () => {
+  const values = Array.from({ length: 100_000 }, (_, index) => index);
+  const windows = textTokenWindows(encoder(values), "book");
+
+  expect(windows).toHaveLength(8);
+  expect(windows.every((window) => window.ids.length === 8192)).toBe(true);
+  expect(windows.at(-1)?.ids.at(-1)).toBe(99_999);
+  const body = windows.flatMap((window) => window.ids.slice(1, -1));
+  expect(body).toEqual(values.slice(1, 1 + 8 * 8190));
+});

@@ -69,7 +69,9 @@ function floatVectorBytes(vector: Float32Array) {
 }
 
 // Text longer than the model's window is split into windows that each keep the
-// opening and closing special tokens, so no part of a long text is dropped.
+// opening and closing special tokens. At most maxWindows are embedded (about
+// 65k tokens), so a book-length text cannot hold the jobs worker for minutes.
+const maxWindows = 8;
 const windowed = (values: number[]) => {
   if (values.length <= maxTokens) return [values];
   const first = values[0] ?? 0;
@@ -77,7 +79,7 @@ const windowed = (values: number[]) => {
   const body = values.slice(1, -1);
   const step = maxTokens - 2;
   const windows: number[][] = [];
-  for (let start = 0; start < body.length; start += step)
+  for (let start = 0; start < body.length && windows.length < maxWindows; start += step)
     windows.push([first, ...body.slice(start, start + step), last]);
   return windows;
 };
