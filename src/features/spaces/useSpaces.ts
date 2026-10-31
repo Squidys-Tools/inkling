@@ -90,19 +90,13 @@ export function useSpaces({
     setSidebarActionError,
   });
 
-  // A new Space and a rename are both typed in the sidebar, so starting either
-  // from the collapsed Codex rail opens it.
-  function openSpaceDraft() {
+  // A new Space, a saved search and a rename are all typed in the sidebar, so
+  // starting one while it is closed opens it.
+  function startSpaceDraft(name: string) {
     setIsSidebarOpen(true);
     setIsCreatingSpace(true);
-    setNewSpaceName("");
+    setNewSpaceName(name);
     setNewSpaceKind("smart");
-  }
-
-  function beginSaveSearch() {
-    setIsCreatingSpace(true);
-    setNewSpaceKind("smart");
-    setNewSpaceName(query.trim());
   }
 
   async function handleCreateSpace(event: React.FormEvent) {
@@ -287,7 +281,7 @@ export function useSpaces({
     localSpaceItems: membership.localSpaceItems,
     draft,
     draftNameInputRef: newSpaceNameInputRef,
-    openSpaceDraft,
+    openSpaceDraft: () => startSpaceDraft(""),
     renaming,
     actions: {
       select: selectSpace,
@@ -300,7 +294,7 @@ export function useSpaces({
     } satisfies SpaceRowActions,
     sidebarActionError,
     setSidebarActionError,
-    beginSaveSearch,
+    beginSaveSearch: () => startSpaceDraft(query.trim()),
     handleToggleItemInSpace: membership.toggleItemInSpace,
   };
 }
