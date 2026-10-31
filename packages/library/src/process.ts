@@ -8,7 +8,7 @@ import {
 } from "@inkling/contracts";
 import { smartSpaceSubjects, visualSubjects } from "@inkling/ingestion/photo-subjects";
 import { layerProtocol, type PortSource } from "@inkling/rpc-electron/server";
-import { Effect, Fiber, Layer, PubSub, Stream } from "effect";
+import { Duration, Effect, Fiber, Layer, PubSub, Stream } from "effect";
 import { RpcServer } from "effect/rpc";
 import { join } from "node:path";
 import { queryVector } from "./jobs/query-vector.ts";
@@ -64,29 +64,37 @@ const librarySize = createLibrarySizeCache(databasePath, join(libraryDirectory, 
 const changes = Effect.runSync(PubSub.unbounded<LibraryChange>());
 const publish = (change: LibraryChange) => PubSub.publish(changes, change);
 
-// The subject prompts never change, so their vectors are embedded once, after the
-// worker can answer; until then a photo Space matches by text. The first prompt
-// the worker cannot embed stops the rest, so a busy worker costs one wait, not 103.
-let subjectVectors: SubjectVectors | null = null;
-const loadSubjectVectors = Effect.suspend(() => {
-  if (subjectVectors) return Effect.succeed(subjectVectors);
-  const prompts = [
-    ...[...visualSubjects, ...otherSubjects].map(
-      (subject) => [subject, subjectPrompt(subject)] as const,
-    ),
-    [interfaceLabel, interfacePrompt] as const,
-  ];
-  return Effect.forEach(prompts, ([label, prompt]) =>
-    queryVector(prompt).pipe(
-      Effect.flatMap((vector) =>
-        vector?.length ? Effect.succeed([label, vector] as const) : Effect.fail(label),
+// The subject prompts never change, so each vector is embedded once and kept. Until
+// all are in, a photo Space matches by text; one open waits at most subjectWait, and
+// the vectors embedded so far carry over to the next open.
+const subjectWait = Duration.seconds(5);
+const subjectPrompts = [
+  ...[...visualSubjects, ...otherSubjects].map(
+    (subject) => [subject, subjectPrompt(subject)] as const,
+  ),
+  [interfaceLabel, interfacePrompt] as const,
+];
+const subjectVectors = new Map<string, ArrayLike<number>>();
+const loadSubjectVectors = Effect.suspend(() =>
+  Effect.forEach(
+    subjectPrompts.filter(([label]) => !subjectVectors.has(label)),
+    ([label, prompt]) =>
+      queryVector(prompt).pipe(
+        Effect.flatMap((vector) =>
+          vector?.length
+            ? Effect.sync(() => void subjectVectors.set(label, vector))
+            : Effect.fail(label),
+        ),
       ),
-    ),
-  ).pipe(
-    Effect.map((vectors) => (subjectVectors = new Map(vectors))),
-    Effect.orElseSucceed(() => null),
-  );
-});
+    { discard: true },
+  ),
+).pipe(
+  Effect.timeoutOption(subjectWait),
+  Effect.orElseSucceed(() => undefined),
+  Effect.map((): SubjectVectors | null =>
+    subjectVectors.size === subjectPrompts.length ? subjectVectors : null,
+  ),
+);
 
 // Every failure reaches the renderer as one message it can show.
 const failure = (cause: unknown) => new LibraryError({ message: errorMessage(cause) });
