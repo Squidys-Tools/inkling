@@ -16,15 +16,24 @@ export const Route = createFileRoute("/privacy")({
   component: Privacy,
 });
 
-// Kept in step with product rule 3 in AGENTS.md: these are the only times the app uses the network.
+// Every request the app makes. A new one in the code needs a row here; see
+// FRAME_ORIGINS in packages/ingestion/src/frame-origins.ts for the players.
 const online = [
   {
     when: "You save a link",
     what: "inkling fetches that page, its images and any media it points to, to make the card and a readable copy.",
   },
   {
-    when: "You play a video",
-    what: "A YouTube or Vimeo card loads the player from that site once you press play.",
+    when: "A saved link is on screen",
+    what: "The picture on a link card, a video's preview frame and the pictures inside a saved article load from the site they came from.",
+  },
+  {
+    when: "You press play",
+    what: "Players from YouTube, Vimeo, Loom, Spotify, SoundCloud and Twitch load from those sites.",
+  },
+  {
+    when: "You load a post from X",
+    what: "Choosing Load post from X shows the post through X's own embed.",
   },
   {
     when: "You check for updates",
@@ -75,7 +84,7 @@ function Privacy() {
         <h2 {...stylex.props(type.heading)}>What runs on your computer</h2>
         <p {...stylex.props(type.body)}>
           The text and image models ship inside the app. Nothing you save is sent anywhere to be
-          processed.
+          processed, and nothing about how you use inkling is reported.
         </p>
         <ul {...stylex.props(styles.list)}>
           {local.map((item) => (
@@ -86,7 +95,9 @@ function Privacy() {
 
       <section {...stylex.props(styles.section)}>
         <h2 {...stylex.props(type.heading)}>Every time it goes online</h2>
-        <p {...stylex.props(type.body)}>This is the whole list.</p>
+        <p {...stylex.props(type.body)}>
+          This is the whole list. Nothing goes out unless you saved a link or pressed a button.
+        </p>
         <dl {...stylex.props(styles.online)}>
           {online.map(({ when, what }) => (
             <div key={when} {...stylex.props(styles.onlineRow)}>
