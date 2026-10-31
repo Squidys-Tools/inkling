@@ -26,14 +26,14 @@ const personal: SeedRow[] = [
   {
     id: "me-fuji-night",
     kind: "image",
-    title: "Fuji over the village lights",
-    description: "Nightfall with the town glowing below the mountain.",
+    title: "The Matterhorn over the village lights",
+    description: "Nightfall with Zermatt glowing below the mountain.",
     source: "Downloads",
-    tags: ["photography", "japan", "landscape"],
+    tags: ["photography", "alps", "landscape", "night"],
     file: "compressO-6248AFB9-CEA1-45EE-944A-06CD88501EF8.jpg",
     width: 4000,
     height: 6000,
-    alt: "Mount Fuji at night above a village glowing with lights",
+    alt: "The Matterhorn at night above a village glowing with lights",
   },
   {
     id: "me-spidey-rain",
