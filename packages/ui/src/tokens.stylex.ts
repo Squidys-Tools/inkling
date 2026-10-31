@@ -111,6 +111,8 @@ export const motion = stylex.defineVars({
   delight: { default: "400ms", [reduced]: "0s" },
   standard: "cubic-bezier(0.4, 0, 0.2, 1)",
   enter: "cubic-bezier(0.2, 0, 0, 1)",
+  // A soft overshoot for controls that settle like liquid.
+  spring: "cubic-bezier(0.34, 1.4, 0.64, 1)",
 });
 
 export const layout = stylex.defineVars({

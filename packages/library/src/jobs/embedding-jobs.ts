@@ -43,6 +43,29 @@ export const enqueueStaleImageEmbeddings = Effect.gen(function* () {
   return items.length;
 });
 
+// A token covers at least one character, so text shorter than this always fit the
+// old single 8192-token window; longer text may have been cut off before windowing.
+const mayHaveBeenCut = 8000;
+const longTextBackfill = "long_text_embeddings_v1";
+
+/** Once per library: re-embeds text that the old single window may have cut off. */
+export const enqueueLongTextEmbeddings = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  const jobs = yield* JobQueue;
+  const done = yield* sql`SELECT 1 FROM app_settings WHERE key = ${longTextBackfill}`;
+  if (done.length > 0) return 0;
+  const items = yield* sql<{ item_id: string }>`SELECT e.item_id FROM item_embeddings e
+    JOIN items i ON i.id = e.item_id
+    WHERE e.kind = 'text' AND i.archived = 0
+      AND length(coalesce(i.title, '')) + length(coalesce(i.description, '')) + length(i.body)
+        + length(i.ocr_text) + length(i.metadata) >= ${mayHaveBeenCut}`;
+  yield* Effect.forEach(items, (item) => jobs.enqueue(item.item_id, "generate_embedding"), {
+    discard: true,
+  });
+  yield* sql`INSERT OR REPLACE INTO app_settings (key, value) VALUES (${longTextBackfill}, '1')`;
+  return items.length;
+});
+
 export const generateEmbedding: Processor<Library | JobQueue | JobsWorker> = Effect.fnUntraced(
   function* (job, workerId) {
     const library = yield* Library;

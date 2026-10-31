@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { Glass } from "@inkling/ui";
-import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
+import { color, radius, space } from "@inkling/ui/tokens.stylex";
 import { type PointerEvent, useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   BUTTON_ZOOM_FACTOR,
@@ -13,6 +13,7 @@ import {
   type Size,
   wheelZoomFactor,
 } from "./imageZoom.ts";
+import { SizeStepper } from "./SizeStepper.tsx";
 
 // Zoom and pan live here, so panning re-renders only this stage. The caller
 // keys it by item, which resets zoom when the shown item changes.
@@ -183,43 +184,19 @@ export function ZoomableImage({
       </div>
       {ready && (
         <Glass style={styles.pill}>
-          <button
-            type="button"
-            aria-label="Zoom out"
-            title="Zoom out"
-            disabled={!isZoomed}
-            onClick={() => zoomBy(1 / BUTTON_ZOOM_FACTOR)}
-            {...stylex.props(styles.zoomButton)}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 12h14" {...glyph} />
-            </svg>
-          </button>
-          <span {...stylex.props(styles.percent)}>{Math.round(zoom * 100)}%</span>
-          <button
-            type="button"
-            aria-label="Zoom in"
-            title="Zoom in"
-            disabled={zoom >= MAX_ZOOM}
-            onClick={() => zoomBy(BUTTON_ZOOM_FACTOR)}
-            {...stylex.props(styles.zoomButton)}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" {...glyph} />
-            </svg>
-          </button>
+          <SizeStepper
+            label="Zoom"
+            percent={Math.round(zoom * 100)}
+            canShrink={isZoomed}
+            canGrow={zoom < MAX_ZOOM}
+            onShrink={() => zoomBy(1 / BUTTON_ZOOM_FACTOR)}
+            onGrow={() => zoomBy(BUTTON_ZOOM_FACTOR)}
+          />
         </Glass>
       )}
     </>
   );
 }
-
-const glyph = {
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2.2,
-  strokeLinecap: "round",
-} as const;
 
 const styles = stylex.create({
   frame: {
@@ -269,37 +246,7 @@ const styles = stylex.create({
     zIndex: 1,
     display: "flex",
     alignItems: "center",
-    gap: space.s1,
-    paddingBlock: space.s1,
-    paddingInline: "6px",
+    padding: space.s1,
     borderRadius: radius.round,
-  },
-  zoomButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "26px",
-    height: "26px",
-    padding: 0,
-    borderWidth: 0,
-    borderRadius: radius.round,
-    backgroundColor: {
-      default: "transparent",
-      ":hover": color.overlayHover,
-      ":disabled": "transparent",
-    },
-    color: { default: color.inkSoft, ":disabled": color.faint },
-    cursor: { default: "pointer", ":disabled": "default" },
-    transitionProperty: "background-color, color",
-    transitionDuration: motion.micro,
-  },
-  percent: {
-    width: "40px",
-    textAlign: "center",
-    fontFamily: font.mono,
-    fontSize: text.sm,
-    lineHeight: "16px",
-    color: color.inkSoft,
-    fontVariantNumeric: "tabular-nums",
   },
 });

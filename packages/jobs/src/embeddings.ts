@@ -68,16 +68,31 @@ function floatVectorBytes(vector: Float32Array) {
   return bytes;
 }
 
-// Truncation keeps the final special token, which the model expects at the end.
-const truncateTokens = (values: number[]) =>
-  values.length > maxTokens ? [...values.slice(0, maxTokens - 1), values.at(-1) ?? 0] : values;
+// Text longer than the model's window is split into windows that each keep the
+// opening and closing special tokens. At most maxWindows are embedded (about
+// 65k tokens), so a book-length text cannot hold the jobs worker for minutes.
+const maxWindows = 8;
+const windowed = (values: number[]) => {
+  if (values.length <= maxTokens) return [values];
+  const first = values[0] ?? 0;
+  const last = values.at(-1) ?? 0;
+  const body = values.slice(1, -1);
+  const step = maxTokens - 2;
+  const windows: number[][] = [];
+  for (let start = 0; start < body.length && windows.length < maxWindows; start += step)
+    windows.push([first, ...body.slice(start, start + step), last]);
+  return windows;
+};
 
-function textTokens(tokenizer: TokenizerLike, text: string) {
+function textTokenWindows(tokenizer: TokenizerLike, text: string) {
   const encoding = tokenizer.encode(text, { return_token_type_ids: true });
-  const ids = truncateTokens(encoding.ids);
-  const typeIds = truncateTokens(encoding.token_type_ids ?? new Array(encoding.ids.length).fill(0));
-  if (ids.length === 0) throw new Error("Nomic tokenizer produced no tokens");
-  return { ids, typeIds, mask: ids.map(() => 1) };
+  if (encoding.ids.length === 0) throw new Error("Nomic tokenizer produced no tokens");
+  const typeIds = windowed(encoding.token_type_ids ?? new Array(encoding.ids.length).fill(0));
+  return windowed(encoding.ids).map((ids, index) => ({
+    ids,
+    typeIds: typeIds[index],
+    mask: ids.map(() => 1),
+  }));
 }
 
 export function hasEmbeddableCharacters(value: string) {
@@ -175,37 +190,41 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     if (!content || !hasEmbeddableCharacters(content))
       throw new Error("text contains no embeddable characters");
     const { tokenizer, session } = textRuntime ?? (await loadTextRuntime(allowDownload));
-    const { ids, typeIds, mask } = textTokens(tokenizer, `${prefix} ${content}`);
     const tensor = (values: number[]) =>
       new ort.Tensor(
         "int64",
         BigInt64Array.from(values, (value) => BigInt(value)),
         [1, values.length],
       );
-    const output = await session.run({
-      input_ids: tensor(ids),
-      token_type_ids: tensor(typeIds),
-      attention_mask: tensor(mask),
-    });
-    const hidden = output.last_hidden_state as ort.Tensor | undefined;
-    if (
-      hidden?.dims.length !== 3 ||
-      hidden.dims[0] !== 1 ||
-      hidden.dims[1] !== ids.length ||
-      hidden.dims[2] !== TEXT_DIMENSION
-    ) {
-      throw new Error(`Nomic text output has unexpected shape ${JSON.stringify(hidden?.dims)}`);
-    }
+    // Mean of every token's state across all windows; one window is the plain mean pool.
     const vector = new Float32Array(TEXT_DIMENSION);
-    const hiddenData = hidden.data as Float32Array;
-    for (let tokenIndex = 0; tokenIndex < ids.length; tokenIndex += 1) {
-      const offset = tokenIndex * TEXT_DIMENSION;
-      for (let dimension = 0; dimension < TEXT_DIMENSION; dimension += 1) {
-        vector[dimension] += hiddenData[offset + dimension];
+    let tokens = 0;
+    for (const { ids, typeIds, mask } of textTokenWindows(tokenizer, `${prefix} ${content}`)) {
+      const output = await session.run({
+        input_ids: tensor(ids),
+        token_type_ids: tensor(typeIds),
+        attention_mask: tensor(mask),
+      });
+      const hidden = output.last_hidden_state as ort.Tensor | undefined;
+      if (
+        hidden?.dims.length !== 3 ||
+        hidden.dims[0] !== 1 ||
+        hidden.dims[1] !== ids.length ||
+        hidden.dims[2] !== TEXT_DIMENSION
+      ) {
+        throw new Error(`Nomic text output has unexpected shape ${JSON.stringify(hidden?.dims)}`);
       }
+      const hiddenData = hidden.data as Float32Array;
+      for (let tokenIndex = 0; tokenIndex < ids.length; tokenIndex += 1) {
+        const offset = tokenIndex * TEXT_DIMENSION;
+        for (let dimension = 0; dimension < TEXT_DIMENSION; dimension += 1) {
+          vector[dimension] += hiddenData[offset + dimension];
+        }
+      }
+      tokens += ids.length;
     }
     for (let index = 0; index < vector.length; index += 1) {
-      vector[index] = Math.fround(vector[index] / ids.length);
+      vector[index] = Math.fround(vector[index] / tokens);
     }
     layerNormalize(vector);
     l2Normalize(vector);
@@ -243,4 +262,4 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
   };
 }
 
-export { floatVectorBytes, layerNormalize, l2Normalize, textTokens };
+export { floatVectorBytes, layerNormalize, l2Normalize, textTokenWindows };

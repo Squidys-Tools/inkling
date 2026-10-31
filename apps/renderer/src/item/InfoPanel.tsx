@@ -21,6 +21,31 @@ function savedOn(createdAt: number) {
   });
 }
 
+// A file saved from disk carries its MIME type where a page carries its site.
+const mimeType = /^([a-z]+)\/(?:x-)?([a-z0-9.+-]+)$/iu;
+// Subtypes whose raw names read badly as a format label.
+const formatNames: Record<string, string> = {
+  quicktime: "MOV",
+  matroska: "MKV",
+  msvideo: "AVI",
+  "svg+xml": "SVG",
+  mpeg: "MPEG",
+  plain: "Plain",
+  "vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
+};
+const kindNames: Record<string, string> = { application: "file", text: "text", font: "font" };
+
+function fileType(value: string) {
+  const match = mimeType.exec(value);
+  if (!match) return null;
+  const kind = match[1].toLowerCase();
+  const subtype = match[2].toLowerCase();
+  const format =
+    formatNames[subtype] ?? subtype.replace(/^x-/u, "").split(/[.+]/u)[0].toUpperCase();
+  if (subtype === "pdf") return "PDF document";
+  return `${format} ${kindNames[kind] ?? kind}`;
+}
+
 function Detail({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div {...stylex.props(styles.detail)}>
@@ -49,7 +74,9 @@ export function InfoPanel({
   onRead: () => void;
 }) {
   const processing = useProcessing(item.id);
-  const from = hostname(item.webUrl) ?? item.source;
+  const site = hostname(item.webUrl);
+  const type = site ? null : fileType(item.source);
+  const from = site ?? (type ? null : item.source);
   const quote = item.kind === "Quote" ? quoteArtworkText(item) : null;
   const canRead = item.hasArticleContent;
   const canOpenPdf = item.kind === "PDF" && Boolean(item.file);
@@ -87,6 +114,7 @@ export function InfoPanel({
         <dl {...stylex.props(styles.details)}>
           <Detail label="Saved" value={savedOn(item.createdAt)} />
           {from && <Detail label="From" value={from} />}
+          {type && <Detail label="Type" value={type} />}
           {item.size && (
             <Detail label="Size" value={`${item.size.width} × ${item.size.height}`} mono />
           )}
