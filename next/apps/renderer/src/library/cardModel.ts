@@ -6,8 +6,8 @@ import { expireLabelAt } from "./labelClock.ts";
 export type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
 
 /** How a card draws in the grid. Kinds with no artwork fall back to the typed file card. */
-export type Treatment = "note" | "quote" | "pdf" | "article" | "video" | "file" | "media";
-export type MediaKind = "x-post" | "video" | "image" | "post" | "paper";
+type Treatment = "note" | "quote" | "pdf" | "article" | "video" | "file" | "media";
+type MediaKind = "x-post" | "video" | "image" | "post" | "paper";
 
 export type PostArt = {
   displayName: string;
@@ -100,7 +100,7 @@ function xPost(value: unknown) {
 const hour = 60 * 60 * 1000;
 
 /** A card's date label, and the moment it next changes. */
-export function itemDateLabel(timestamp: number, now: number) {
+function itemDateLabel(timestamp: number, now: number) {
   const age = now - timestamp;
   if (age < hour) return { label: "Just now", until: timestamp + hour };
   if (age < 24 * hour) return { label: "Today", until: timestamp + 24 * hour };

@@ -4,7 +4,7 @@ export type ScopeKey = string;
 
 export const activeScope: CardScope = { _tag: "Active" };
 export const archivedScope: CardScope = { _tag: "Archived" };
-export const spaceScope = (spaceId: string): CardScope => ({ _tag: "Space", spaceId });
+const spaceScope = (spaceId: string): CardScope => ({ _tag: "Space", spaceId });
 
 export const scopeKey = (scope: CardScope): ScopeKey =>
   scope._tag === "Space" ? `space:${scope.spaceId}` : scope._tag;

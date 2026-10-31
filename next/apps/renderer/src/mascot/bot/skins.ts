@@ -37,7 +37,6 @@ export const SHAPES: BotShape[] = [
 
 // Keyed by `string`: callers look up an unvalidated prop.
 export const SHAPE_BY_ID = new Map<string, BotShape>(SHAPES.map((s) => [s.id, s]));
-export const DEFAULT_SHAPE = "cercle";
 
 /** Melange deux couleurs hex. Sert a la brume de profondeur des particules. */
 export function mixHex(from: string, to: string, t: number): string {

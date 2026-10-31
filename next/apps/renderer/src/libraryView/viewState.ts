@@ -8,7 +8,7 @@ type ViewState = {
 };
 
 /** How the library is shown; it outlives any one page. */
-export const viewState = createStore<ViewState>({
+const viewState = createStore<ViewState>({
   list: false,
   sidebarOpen: true,
   searchFocused: false,

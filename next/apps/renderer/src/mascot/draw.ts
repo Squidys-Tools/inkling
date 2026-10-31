@@ -7,7 +7,7 @@ import { mixHex } from "./bot/skins";
 export type View = { x: number; y: number; width: number; height: number };
 
 /** Room for every state's motion, the orbit rings included. */
-export const FIGURE_VIEW: View = {
+const FIGURE_VIEW: View = {
   x: -DEMI_VIEWBOX,
   y: -DEMI_VIEWBOX,
   width: DEMI_VIEWBOX * 2,

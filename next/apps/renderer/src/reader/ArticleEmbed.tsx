@@ -15,7 +15,7 @@ const providers: Record<keyof typeof FRAME_ORIGINS, string> = {
 };
 
 /** The provider an allowlisted frame URL plays from. */
-export function embedProvider(src: string) {
+function embedProvider(src: string) {
   for (const [key, origin] of Object.entries(FRAME_ORIGINS))
     if (src.startsWith(`${origin}/`))
       return { key, label: providers[key as keyof typeof providers] };

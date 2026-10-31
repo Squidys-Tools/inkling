@@ -71,7 +71,7 @@ const decodeMemberCursor = Schema.decodeUnknownOption(Schema.fromJsonString(Memb
 
 // A Smart Space is a ranked search, so it answers with its best matches in one
 // page of at most this many cards; `total` still counts every match.
-export const SMART_SPACE_CAP = 200;
+const SMART_SPACE_CAP = 200;
 
 export function normalizeSpaceColor(color: unknown): SpaceColor {
   const normalized = nonEmpty(color)?.toLowerCase();

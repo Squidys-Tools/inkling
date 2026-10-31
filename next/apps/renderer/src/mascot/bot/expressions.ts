@@ -169,7 +169,6 @@ export const EXPRESSIONS: BotExpression[] = [
 ];
 
 export const EXPRESSION_BY_ID = new Map<string, BotExpression>(EXPRESSIONS.map((e) => [e.id, e]));
-export const DEFAULT_EXPRESSION = "neutre";
 
 /** Interpolation de deux expressions : le changement se fait en glissant. */
 export function blendExpression(a: BotExpression, b: BotExpression, t: number): BotExpression {

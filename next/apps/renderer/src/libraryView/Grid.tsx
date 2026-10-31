@@ -12,7 +12,7 @@ const targetWidth: Record<CardLayout, number> = {
 };
 const maxColumns = 12;
 
-export function columnCount(width: number, layout: CardLayout) {
+function columnCount(width: number, layout: CardLayout) {
   if (layout === "list" || width <= 0) return 1;
   const columns = Math.round((width + gap) / (targetWidth[layout] + gap));
   return Math.min(Math.max(columns, 1), maxColumns);

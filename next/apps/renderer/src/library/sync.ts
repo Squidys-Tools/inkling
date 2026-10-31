@@ -64,7 +64,7 @@ function reloadEverything() {
 }
 
 /** Applies one change; a kind this build does not know is ignored. */
-export function applyChange(change: LibraryChange) {
+function applyChange(change: LibraryChange) {
   switch (change._tag) {
     case "ItemsChanged":
       for (const id of change.ids) pendingItems.add(id);

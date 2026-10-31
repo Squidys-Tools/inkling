@@ -14,7 +14,7 @@ type CaptureState = {
   error: string | null;
 };
 
-export const captureState = createStore<CaptureState>({ saving: 0, error: null });
+const captureState = createStore<CaptureState>({ saving: 0, error: null });
 
 export const useCaptureState = <Selected>(select: (state: CaptureState) => Selected) =>
   useStore(captureState, select);

@@ -107,7 +107,7 @@ const isArticleTag = (name: string): name is ArticleTag => KEPT.has(name);
 const NO_TEXT = new Set(["table", "thead", "tbody", "tfoot", "tr", "ul", "ol", "dl"]);
 
 /** Every attribute that can reach the page, by its React name. */
-export type ArticleProps = {
+type ArticleProps = {
   title?: string;
   dir?: "ltr" | "rtl" | "auto";
   href?: string;

@@ -1,7 +1,7 @@
 import type { ExportReport, ImportReport, LastExport } from "@inkling/contracts";
 
 // "1 item", "3 items". Every noun counted in Settings takes a plain -s.
-export function countOf(count: number, noun: string) {
+function countOf(count: number, noun: string) {
   return `${count} ${count === 1 ? noun : `${noun}s`}`;
 }
 

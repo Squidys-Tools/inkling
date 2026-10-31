@@ -25,9 +25,6 @@ export class JobsWorker extends Context.Service<
 
 export const workerClient = JobsWorker.use((worker) => worker.client);
 
-export const layerClient = (client: WorkerClient) =>
-  Layer.succeed(JobsWorker)({ client: Effect.succeed(client), connected: Effect.void });
-
 /**
  * One client per port main hands over. When the worker dies its port closes:
  * calls in flight fail and spend a retry, so a job that crashes the worker

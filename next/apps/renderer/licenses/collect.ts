@@ -15,7 +15,7 @@ type Manifest = {
 };
 
 /** Code and models inkling ships that no package manifest describes. Paths are from the workspace root. */
-export const vendoredNotices = [
+const vendoredNotices = [
   {
     name: "bloub",
     license: "MIT",

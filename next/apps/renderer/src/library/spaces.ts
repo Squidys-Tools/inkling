@@ -3,14 +3,7 @@ import { libraryClient } from "./connection.ts";
 import { errorMessage } from "./errors.ts";
 import { createStore, useStore } from "./store.ts";
 
-export const spaceColors: readonly SpaceColor[] = [
-  "blue",
-  "orange",
-  "green",
-  "pink",
-  "purple",
-  "yellow",
-];
+const spaceColors: readonly SpaceColor[] = ["blue", "orange", "green", "pink", "purple", "yellow"];
 
 type SpacesState = { spaces: readonly Space[]; loaded: boolean; error: string | null };
 
@@ -19,7 +12,7 @@ export const spacesStore = createStore<SpacesState>({ spaces: [], loaded: false,
 const ordered = (spaces: readonly Space[]) => [...spaces].sort((a, b) => a.position - b.position);
 
 /** The order after swapping a Space with its neighbor, or null when it is already at that end. */
-export function swapWithNeighbor(spaces: readonly Space[], id: string, direction: -1 | 1) {
+function swapWithNeighbor(spaces: readonly Space[], id: string, direction: -1 | 1) {
   const sorted = ordered(spaces);
   const index = sorted.findIndex((space) => space.id === id);
   const neighbor = sorted[index + direction];

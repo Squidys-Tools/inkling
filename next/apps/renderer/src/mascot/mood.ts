@@ -7,8 +7,6 @@ export type MascotMood = {
   face: "calm" | "attentive" | "curious" | "sad";
 };
 
-export const calmMood: MascotMood = { busy: false, face: "calm" };
-
 const expressions = {
   calm: "neutre",
   attentive: "attentif",

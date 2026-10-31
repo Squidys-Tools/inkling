@@ -7,7 +7,7 @@ const keyOf = (card: LibraryCard): SortKey => [card.updatedAt, card.createdAt, c
 const sortsBefore = (a: SortKey, b: SortKey) =>
   a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2];
 
-export type ScopeState = {
+type ScopeState = {
   ids: readonly string[];
   next: string | null;
   // The last card of the pages read so far. A card that sorts after it comes

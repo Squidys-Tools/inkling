@@ -11,7 +11,7 @@ import texture from "./assets/typed-texture.png";
 // PDFs, notes and files share one layout: a mono label and ring, the title in
 // DM Sans caps, three dots and a mono footnote over the same dotted texture.
 // `compact` is the list row.
-export function TypedArtwork({
+function TypedArtwork({
   label,
   title,
   footnote,

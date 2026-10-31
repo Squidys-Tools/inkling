@@ -56,7 +56,3 @@ export function parseDeepLink(value: string): DeepLinkCapture | null {
   const title = firstCharacters(parameter("title"), titleMaxLength);
   return title ? { kind: "url", url, title } : { kind: "url", url };
 }
-
-/** The `inkling:` links among a second instance's arguments (Windows and Linux pass links this way). */
-export const deepLinksIn = (argv: readonly string[]) =>
-  argv.filter((argument) => argument.startsWith("inkling:"));

@@ -24,7 +24,7 @@ const archived = scopeKey(archivedScope);
 const paged = [active, archived];
 const home = (card: LibraryCard) => (card.archived ? archived : active);
 
-export const libraryIndex = createStore<IndexState>(emptyIndex);
+const libraryIndex = createStore<IndexState>(emptyIndex);
 /** The scope the grid shows, which the library reloads when its membership may have moved. */
 export const shownScope = createStore<CardScope>(activeScope);
 
@@ -133,8 +133,6 @@ export function reloadAll() {
   void loadScope(activeScope);
   if (scopeKey(shown) !== active) void loadScope(shown);
 }
-
-export const isKnownCard = (id: string) => libraryIndex.get().cards.has(id);
 
 export const useScope = (scope: CardScope) => {
   const key = scopeKey(scope);

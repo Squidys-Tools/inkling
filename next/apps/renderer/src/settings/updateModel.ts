@@ -18,7 +18,7 @@ export type UpdateSnapshot = {
 
 type UpdateBridge = DesktopBridge["updates"];
 
-export const previewUpdateState: UpdateState = {
+const previewUpdateState: UpdateState = {
   channel: "latest",
   currentVersion: "",
   status: "disabled",
@@ -49,7 +49,7 @@ const failedStep: Record<UpdateAction | "cancel", UpdateErrorContext> = {
   install: "install",
 };
 
-export function isReadyToInstall({ state }: UpdateSnapshot) {
+function isReadyToInstall({ state }: UpdateSnapshot) {
   return Boolean(
     state?.downloadedVersion &&
     (state.status === "downloaded" ||

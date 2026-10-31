@@ -4,7 +4,7 @@ import { createStore, useStore } from "./store.ts";
 
 export type { Processing } from "./processing.ts";
 
-export const jobsStore = createStore<ReadonlyMap<string, Processing>>(new Map());
+const jobsStore = createStore<ReadonlyMap<string, Processing>>(new Map());
 
 export async function refreshJobs(itemIds: readonly string[]) {
   if (itemIds.length === 0) return;
