@@ -31,7 +31,11 @@ export function useMascotCanvas(
   visible: boolean,
   paint: (ctx: CanvasRenderingContext2D, layer: OffscreenCanvas, frame: BotFrame) => void,
 ) {
-  const ratio = useSyncExternalStore(subscribePixelRatio, () => window.devicePixelRatio);
+  const ratio = useSyncExternalStore(
+    subscribePixelRatio,
+    () => window.devicePixelRatio,
+    () => 1,
+  );
   return (canvas: HTMLCanvasElement | null) => {
     if (!canvas || !visible) return;
     // Assigning a size clears the canvas, even an unchanged one.
