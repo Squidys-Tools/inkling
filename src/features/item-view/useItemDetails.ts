@@ -28,6 +28,7 @@ import {
   withArticleContent,
 } from "../library/libraryItem";
 import { errorMessage } from "../errorMessage";
+import { tagToAdd } from "./tags";
 
 // The backend resolves false when the item has nothing on disk to point at.
 export function revealItemInFolder(item: LibraryItem) {
@@ -184,7 +185,7 @@ export function useItemDetails({
 
   const addTagToItem = useCallback(
     async (item: LibraryItem, tag: string) => {
-      const clean = tag.trim().replace(/^#+/u, "").trim().toLowerCase();
+      const clean = tagToAdd(item.tags, tag);
       if (!clean) return;
       try {
         const tags = canUseDesktopBackend

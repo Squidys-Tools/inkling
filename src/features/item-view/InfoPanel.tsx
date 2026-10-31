@@ -15,6 +15,7 @@ import { cx } from "../../ui/cx";
 import { SpaceMark } from "../../ui/SpaceMark";
 import { hostnameForUrl } from "../hostname";
 import { ItemTitle } from "./ItemTitle";
+import { tagToAdd } from "./tags";
 import type { ItemViewActions, ItemViewSpace } from "./ItemView";
 
 const PROCESSING =
@@ -46,10 +47,8 @@ function TagList({
   }, [isAdding]);
 
   function submit() {
-    const clean = draft.trim().replace(/^#+/u, "").toLowerCase();
-    if (clean && !item.tags.some((tag) => tag.toLowerCase() === clean)) {
-      void onAddTag(item, clean);
-    }
+    const tag = tagToAdd(item.tags, draft);
+    if (tag) void onAddTag(item, tag);
     setDraft("");
     setIsAdding(false);
   }
