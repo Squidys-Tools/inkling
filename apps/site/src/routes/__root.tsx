@@ -1,6 +1,8 @@
 import * as stylex from "@stylexjs/stylex";
 import { color, font } from "@inkling/ui/tokens.stylex";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { Footer } from "../layout/Footer.tsx";
+import { Header } from "../layout/Header.tsx";
 import { registerFonts } from "@inkling/ui";
 import dmSans from "@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2?url";
 import { type ReactNode, useEffect } from "react";
@@ -28,8 +30,18 @@ export const Route = createRootRoute({
     ],
   }),
   shellComponent: Shell,
-  component: Outlet,
+  component: Layout,
 });
+
+function Layout() {
+  return (
+    <>
+      <Header />
+      <Outlet />
+      <Footer />
+    </>
+  );
+}
 
 function Shell({ children }: { children: ReactNode }) {
   useEffect(registerFonts, []);

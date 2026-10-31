@@ -5,6 +5,7 @@ import { seedBodies, seedCards } from "../../../renderer/src/library/preview/see
 // The web preview's demo library, searched the way the preview searches it.
 const entries: Entry[] = seedCards.map((card) => ({ card, body: seedBodies[card.id] ?? "" }));
 const views = new Map(seedCards.map((card) => [card.id, toCardView(card)]));
+export const demoViews = [...views.values()];
 
 export function searchDemo(query: string) {
   const found = query.trim() ? entries.filter((entry) => matchesSearch(entry, query)) : entries;
