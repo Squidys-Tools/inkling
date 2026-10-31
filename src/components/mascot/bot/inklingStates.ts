@@ -110,9 +110,9 @@ export const INKLING_STATES: StateDef[] = [
   },
 
   {
-    // INKLING EXTENSION. Not a sidebar state: `inkling-drift`
-    // with `baseFace: true`, so a caller can put an expression on it. The README
-    // is that caller, and it is the only one.
+    // INKLING EXTENSION. Not a sidebar state: `inkling-drift` with
+    // `baseFace: true`, so a caller can put an expression on it. The README
+    // loop and the welcome screens do.
     //
     // The pose below is the sidebar's, shared, not a re-timed copy. The state does
     // NOT close on itself: `inkling-drift`'s nine periods (24, 26, 21, 17, 15, 14,
