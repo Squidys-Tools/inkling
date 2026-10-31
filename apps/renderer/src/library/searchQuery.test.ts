@@ -50,6 +50,20 @@ describe("search", () => {
     expect(pending.map((request) => request.query)).toEqual(["design"]);
   });
 
+  it("waits 100 ms after the last keystroke by default", () => {
+    const waits: number[] = [];
+    const search = createSearch({
+      run: () => Promise.resolve([]),
+      onCards: () => {},
+      timers: {
+        set: (_run, wait) => waits.push(wait),
+        clear: () => {},
+      },
+    });
+    search.setQuery("cat");
+    expect(waits).toEqual([100]);
+  });
+
   it("keeps the newest query's answer when an older one lands last", async () => {
     const { search, firePause, answer } = harness();
     search.setQuery("cat");

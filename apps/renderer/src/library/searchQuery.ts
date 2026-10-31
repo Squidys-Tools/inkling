@@ -29,7 +29,8 @@ type Timers = {
 export function createSearch({
   run,
   onCards,
-  delay = 220,
+  // Short enough to feel immediate, long enough that fast typing still sends one query.
+  delay = 100,
   timers = {
     set: (callback, wait) => window.setTimeout(callback, wait),
     clear: (handle) => window.clearTimeout(handle),
