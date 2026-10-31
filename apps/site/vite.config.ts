@@ -14,7 +14,6 @@ const siteUrl = production ? `https://${production}` : "";
 export default defineConfig(({ command }) => ({
   root: fileURLToPath(new URL(".", import.meta.url)),
   define: { "import.meta.env.VITE_SITE_URL": JSON.stringify(siteUrl) },
-  server: { host: true, port: 5180, strictPort: true, allowedHosts: true },
   plugins: [
     // The demo seed's photos are full camera files; the cards only ever show them at column width.
     imagetools({
