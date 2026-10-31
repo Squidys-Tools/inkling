@@ -47,6 +47,13 @@ if (!process.versions.electron) {
   let worker;
   let inference;
   try {
+    // electron-builder 26 packs the whole repository when a files list holds only exclusions.
+    assert.deepEqual(
+      (await readdir(archive)).sort(),
+      ["dist", "node_modules", "package.json"],
+      "the archive holds only the build, its runtime dependencies and package.json",
+    );
+    assert.deepEqual((await readdir(join(archive, "dist"))).sort(), ["desktop", "renderer"]);
     const chunks = join(archive, "dist/desktop");
     const pdfChunk = (await readdir(chunks)).find((name) => /^worker-pdf-.*\.mjs$/.test(name));
     assert(pdfChunk, "the worker's packaged PDF chunk is present");

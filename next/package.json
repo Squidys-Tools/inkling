@@ -140,6 +140,7 @@
       "dist/renderer/**/*",
       "package.json",
       "!**/node_modules/**/*.{map,ts,mts,cts}",
+      "!**/node_modules/onnxruntime-node/bin/napi-v6/!(${platform})/**",
       "!**/node_modules/onnxruntime-node/bin/napi-v6/*/!(${arch})/**",
       "!**/node_modules/@napi-rs/canvas-linux-*-musl/**",
       "!**/node_modules/tesseract.js-core/*.wasm.js",
@@ -178,9 +179,6 @@
       "icon": "build/icon.ico",
       "target": [
         "nsis"
-      ],
-      "files": [
-        "!**/node_modules/onnxruntime-node/bin/napi-v6/!(win32)/**"
       ]
     },
     "mac": {
@@ -191,10 +189,7 @@
       ],
       "identity": "-",
       "hardenedRuntime": false,
-      "artifactName": "${name}-${version}-mac-${arch}.${ext}",
-      "files": [
-        "!**/node_modules/onnxruntime-node/bin/napi-v6/!(darwin)/**"
-      ]
+      "artifactName": "${name}-${version}-mac-${arch}.${ext}"
     },
     "linux": {
       "icon": "build/icon.png",
@@ -205,9 +200,6 @@
         "AppImage"
       ],
       "artifactName": "${name}-${version}-linux-${arch}.${ext}",
-      "files": [
-        "!**/node_modules/onnxruntime-node/bin/napi-v6/!(linux)/**"
-      ],
       "desktop": {
         "entry": {
           "StartupWMClass": "inkling",
