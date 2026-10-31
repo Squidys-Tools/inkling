@@ -1,4 +1,5 @@
 import { mkdir } from "node:fs/promises";
+import { availableParallelism } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -24,19 +25,29 @@ type OcrWorkerFactory = (
   options: Record<string, unknown>,
 ) => Promise<OcrWorker>;
 
+// Each Tesseract worker reads on one core, so a few of them read several images,
+// and the page modes and rotations of one image, at once. Capped for memory.
+export const defaultOcrWorkers = () =>
+  Math.min(6, Math.max(2, Math.floor(availableParallelism() / 3)));
+
 export function createTesseractOcr({
   cacheDirectory,
   workerFactory = createWorker,
   shutdownGraceMillis = 2000,
+  workers: poolSize = defaultOcrWorkers(),
 }: {
   cacheDirectory: string;
   workerFactory?: OcrWorkerFactory;
   shutdownGraceMillis?: number;
+  workers?: number;
 }) {
   const cachePath = resolve(cacheDirectory);
   const workers: (Promise<OcrWorker> | undefined)[] = [];
+  const idle: number[] = [];
+  const waiting: ((slot: number) => void)[] = [];
+  let started = 0;
   const pending = new Set<(error: Error) => void>();
-  let serial: Promise<unknown> = Promise.resolve();
+  const inFlight = new Set<Promise<unknown>>();
   let closed = false;
   let aborted = false;
   let closing: Promise<void> | undefined;
@@ -45,7 +56,6 @@ export function createTesseractOcr({
   function worker(slot: number): Promise<OcrWorker> {
     if (aborted) return Promise.reject(cancellation());
     workers[slot] ??= (async () => {
-      // A second lazy worker is used only for difficult-image deskew passes.
       // Separate cache files avoid concurrent language-cache publication.
       const directory = slot === 0 ? cachePath : join(cachePath, `lane-${slot}`);
       await mkdir(directory, { recursive: true });
@@ -62,6 +72,47 @@ export function createTesseractOcr({
       throw error;
     });
     return workers[slot];
+  }
+
+  // A worker holds one page mode's parameters, so each pass owns its worker
+  // from setParameters through recognize. Slots are handed out first come, first served.
+  function acquire() {
+    const slot = idle.pop() ?? (started < poolSize ? started++ : undefined);
+    if (slot !== undefined) return Promise.resolve(slot);
+    return new Promise<number>((resolve) => waiting.push(resolve));
+  }
+  function release(slot: number) {
+    if (slot < 0) return;
+    const next = waiting.shift();
+    if (next) next(slot);
+    else idle.push(slot);
+  }
+  // A pass may prepare its bytes once it holds a worker, so at most `poolSize`
+  // rotated copies are alive at once across every file.
+  async function pass(input: Buffer | (() => Promise<Buffer>), psm: number) {
+    const slot = await acquire();
+    try {
+      if (aborted) throw cancellation();
+      const bytes = typeof input === "function" ? await input() : input;
+      if (aborted) throw cancellation();
+      const current = await worker(slot);
+      if (aborted) throw cancellation();
+      await current.setParameters({ tessedit_pageseg_mode: String(psm) });
+      if (aborted) throw cancellation();
+      return await current.recognize(bytes);
+    } finally {
+      release(slot);
+    }
+  }
+  // Every pass of a stage runs at once; results are then judged in the original
+  // order, so ties resolve exactly as the serial loop did. The first failure in
+  // that order fails the image, after its siblings have settled.
+  async function passes(runs: Promise<Awaited<ReturnType<typeof pass>>>[]) {
+    const results = await Promise.allSettled(runs);
+    return results.map((result) => {
+      if (result.status === "rejected") throw result.reason;
+      return result.value;
+    });
   }
 
   async function recognizeImage(input: Buffer) {
@@ -85,52 +136,31 @@ export function createTesseractOcr({
         bestConfidence = result.data.confidence;
       }
     }
-    async function run(bytes: Buffer, psm: number, slot = 0) {
-      const current = await worker(slot);
-      if (aborted) throw cancellation();
-      await current.setParameters({ tessedit_pageseg_mode: String(psm) });
-      if (aborted) throw cancellation();
-      return current.recognize(bytes);
-    }
     // Preserve all three page modes and the original confidence/word-count
     // decisions; this optimization never skips OCR on an assumed textless image.
-    for (const psm of [3, 6, 7]) consider(await run(image, psm));
+    for (const result of await passes([3, 6, 7].map((psm) => pass(image, psm)))) consider(result);
     if (bestWordCount === 0 || bestConfidence < 70) {
       const highContrast = await sharp(image).grayscale().threshold(225).png().toBuffer();
-      consider(await run(highContrast, 6));
+      consider(await pass(highContrast, 6));
     }
     if (bestWordCount < 8 || bestConfidence < 70) {
-      const angles = [-15, -10, -5, 5, 10, 15];
-      for (let offset = 0; offset < angles.length; offset += 2) {
-        // At most two decoded rotations and two worker calls live at once.
-        // allSettled drains the sibling before failure releases serial admission.
-        const results = await Promise.allSettled(
-          angles.slice(offset, offset + 2).map(async (angle, slot) => {
-            const rotated = await sharp(image)
-              .rotate(angle, { background: "#ffffff" })
-              .png()
-              .toBuffer();
-            return run(rotated, 6, slot);
-          }),
-        );
-        for (const result of results) {
-          if (result.status === "rejected") throw result.reason;
-          consider(result.value);
-        }
-      }
+      const rotations = [-15, -10, -5, 5, 10, 15].map((angle) =>
+        pass(() => sharp(image).rotate(angle, { background: "#ffffff" }).png().toBuffer(), 6),
+      );
+      for (const result of await passes(rotations)) consider(result);
     }
     return bestText;
   }
 
   function recognize(input: Buffer) {
     if (closed) return Promise.reject(new Error("OCR is closed"));
-    const work = serial.then(() => {
-      if (aborted) throw cancellation();
-      return recognizeImage(input);
-    });
+    const work = recognizeImage(input);
+    const settled = work.catch(() => {});
+    inFlight.add(settled);
+    void settled.then(() => inFlight.delete(settled));
     // A terminated Tesseract worker need not settle its recognize promise. The
-    // public result is cancellable independently, including already queued files.
-    const result = new Promise<string>((resolve, reject) => {
+    // public result is cancellable independently, including files still waiting for a worker.
+    return new Promise<string>((resolve, reject) => {
       pending.add(reject);
       work.then(
         (text) => {
@@ -143,8 +173,6 @@ export function createTesseractOcr({
         },
       );
     });
-    serial = result.catch(() => {});
-    return result;
   }
   function close() {
     closed = true;
@@ -152,7 +180,7 @@ export function createTesseractOcr({
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         await Promise.race([
-          serial,
+          Promise.all(inFlight),
           new Promise<void>((resolve) => {
             timer = setTimeout(resolve, Math.min(2000, Math.max(0, shutdownGraceMillis)));
           }),
@@ -163,6 +191,8 @@ export function createTesseractOcr({
       aborted = true;
       for (const reject of pending) reject(cancellation());
       pending.clear();
+      // Passes still waiting for a worker wake, see the abort and stop.
+      for (const wake of waiting.splice(0)) wake(-1);
       const terminations = Promise.allSettled(
         workers.splice(0).map(async (worker) => (await worker)?.terminate()),
       );

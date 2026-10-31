@@ -64,56 +64,61 @@ test("Tesseract prefers non-empty text and deskews rotated blocks", async () => 
   }
 });
 
-test("deskew uses two bounded workers, keeps tie order and serializes files through close", async () => {
+// A stand-in worker that answers with the page mode it was set to, so a result
+// shows which pass produced it.
+function modeWorkers(confidence: number, delay = 5) {
+  const stats = { count: 0, active: 0, peak: 0, calls: 0, cachePaths: new Set<unknown>() };
+  const workerFactory = async (
+    _language: string,
+    _oem: number,
+    options: Record<string, unknown>,
+  ) => {
+    stats.count++;
+    stats.cachePaths.add(options.cachePath);
+    let psm = "";
+    let busy = false;
+    return {
+      setParameters: async (parameters: Record<string, string>) => {
+        expect(busy).toBe(false);
+        psm = parameters.tessedit_pageseg_mode;
+      },
+      recognize: async () => {
+        expect(busy).toBe(false);
+        busy = true;
+        stats.active++;
+        stats.peak = Math.max(stats.peak, stats.active);
+        stats.calls++;
+        const text = `psm${psm}`;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        busy = false;
+        stats.active--;
+        return { data: { text, confidence } };
+      },
+      terminate: async () => {
+        expect(stats.active).toBe(0);
+      },
+    };
+  };
+  return { stats, workerFactory };
+}
+
+test("files and passes share a bounded worker pool and ties resolve in the serial order", async () => {
   const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-pool-"));
   roots.push(cacheDirectory);
-  let count = 0;
-  let active = 0;
-  let peak = 0;
-  let calls = 0;
-  const terminated: number[] = [];
-  const cachePaths: unknown[] = [];
-  const ocr = createTesseractOcr({
-    cacheDirectory,
-    workerFactory: async (_language, _oem, options) => {
-      const slot = count++;
-      cachePaths.push(options.cachePath);
-      let busy = false;
-      return {
-        setParameters: async () => {
-          expect(busy).toBe(false);
-        },
-        recognize: async () => {
-          expect(busy).toBe(false);
-          busy = true;
-          active++;
-          peak = Math.max(peak, active);
-          calls++;
-          await new Promise((resolve) => setTimeout(resolve, slot ? 1 : 10));
-          busy = false;
-          active--;
-          return { data: { text: slot ? "second" : "first", confidence: 50 } };
-        },
-        terminate: async () => {
-          expect(active).toBe(0);
-          terminated.push(slot);
-        },
-      };
-    },
-  });
+  const { stats, workerFactory } = modeWorkers(50);
+  const ocr = createTesseractOcr({ cacheDirectory, workerFactory, workers: 3 });
   const bytes = fixture("image-columns-01.png");
-  const first = ocr.recognize(bytes);
-  const second = ocr.recognize(bytes);
+  const files = [ocr.recognize(bytes), ocr.recognize(bytes), ocr.recognize(bytes)];
   const closing = ocr.close();
   await expect(ocr.recognize(bytes)).rejects.toThrow("OCR is closed");
-  expect(await first).toBe("first");
-  expect(await second).toBe("first");
+  // Every pass ties on quality, so the first one judged wins: page mode 3.
+  expect(await Promise.all(files)).toEqual(["psm3", "psm3", "psm3"]);
   await closing;
-  expect(calls).toBe(20);
-  expect(count).toBe(2);
-  expect(peak).toBe(2);
-  expect(new Set(cachePaths).size).toBe(2);
-  expect(terminated.sort()).toEqual([0, 1]);
+  // 3 page modes, contrast and 6 rotations per file, never more than 3 at once.
+  expect(stats.calls).toBe(30);
+  expect(stats.count).toBe(3);
+  expect(stats.peak).toBe(3);
+  expect(stats.cachePaths.size).toBe(3);
 });
 
 test("close cancels hung recognition and queued files even if terminate never settles recognition", async () => {
@@ -130,6 +135,8 @@ test("close cancels hung recognition and queued files even if terminate never se
     const ocr = createTesseractOcr({
       cacheDirectory,
       shutdownGraceMillis: 20,
+      // One worker, so the second file is still waiting for it when close() runs.
+      workers: 1,
       workerFactory: async () => ({
         setParameters: async () => {},
         recognize: async () => {
