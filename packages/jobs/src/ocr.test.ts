@@ -64,6 +64,104 @@ test("Tesseract prefers non-empty text and deskews rotated blocks", async () => 
   }
 });
 
+test("deskew uses two bounded workers, keeps tie order and serializes files through close", async () => {
+  const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-pool-"));
+  roots.push(cacheDirectory);
+  let count = 0;
+  let active = 0;
+  let peak = 0;
+  let calls = 0;
+  const terminated: number[] = [];
+  const cachePaths: unknown[] = [];
+  const ocr = createTesseractOcr({
+    cacheDirectory,
+    workerFactory: async (_language, _oem, options) => {
+      const slot = count++;
+      cachePaths.push(options.cachePath);
+      let busy = false;
+      return {
+        setParameters: async () => {
+          expect(busy).toBe(false);
+        },
+        recognize: async () => {
+          expect(busy).toBe(false);
+          busy = true;
+          active++;
+          peak = Math.max(peak, active);
+          calls++;
+          await new Promise((resolve) => setTimeout(resolve, slot ? 1 : 10));
+          busy = false;
+          active--;
+          return { data: { text: slot ? "second" : "first", confidence: 50 } };
+        },
+        terminate: async () => {
+          expect(active).toBe(0);
+          terminated.push(slot);
+        },
+      };
+    },
+  });
+  const bytes = fixture("image-columns-01.png");
+  const first = ocr.recognize(bytes);
+  const second = ocr.recognize(bytes);
+  const closing = ocr.close();
+  await expect(ocr.recognize(bytes)).rejects.toThrow("OCR is closed");
+  expect(await first).toBe("first");
+  expect(await second).toBe("first");
+  await closing;
+  expect(calls).toBe(20);
+  expect(count).toBe(2);
+  expect(peak).toBe(2);
+  expect(new Set(cachePaths).size).toBe(2);
+  expect(terminated.sort()).toEqual([0, 1]);
+});
+
+test("close cancels hung recognition and queued files even if terminate never settles recognition", async () => {
+  for (const releaseOnTerminate of [false, true]) {
+    const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-hung-"));
+    roots.push(cacheDirectory);
+    let calls = 0;
+    let terminateCalls = 0;
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    let release!: (error: Error) => void;
+    const ocr = createTesseractOcr({
+      cacheDirectory,
+      shutdownGraceMillis: 20,
+      workerFactory: async () => ({
+        setParameters: async () => {},
+        recognize: async () => {
+          calls++;
+          entered();
+          return new Promise<never>((_resolve, reject) => {
+            release = reject;
+          });
+        },
+        terminate: async () => {
+          terminateCalls++;
+          if (releaseOnTerminate) release(new Error("worker terminated"));
+        },
+      }),
+    });
+    const bytes = fixture("image-columns-01.png");
+    const first = ocr.recognize(bytes);
+    const queued = ocr.recognize(bytes);
+    const outcomes = Promise.allSettled([first, queued]);
+    await started;
+    const start = performance.now();
+    const closing = ocr.close();
+    expect(ocr.close()).toBe(closing);
+    await closing;
+    expect(performance.now() - start).toBeLessThan(500);
+    expect((await outcomes).map((result) => result.status)).toEqual(["rejected", "rejected"]);
+    expect(calls).toBe(1);
+    expect(terminateCalls).toBe(1);
+    await expect(ocr.recognize(bytes)).rejects.toThrow("OCR is closed");
+  }
+});
+
 test("a corrupt image fails the OCR call before it reaches the worker", async () => {
   let workerStarted = false;
   const ocr = createTesseractOcr({
