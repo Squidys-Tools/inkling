@@ -19,15 +19,17 @@ import { type JobsWorker, workerClient } from "./worker-client.ts";
 type Services = Library | JobQueue | JobsWorker;
 
 // Generous ceilings that only a hung decoder, model, or fetch should reach.
-// The first embedding job may also load the models from disk.
+// The first embedding job may also load the models from disk. Four lanes can
+// share as few as two OCR workers, which doubles an OCR job's time, so OCR
+// ceilings are twice what a lone job needs.
 export const jobTimeouts = {
   [URL_ENRICHMENT_JOB]: Duration.minutes(2),
   [IMAGE_THUMBNAIL_JOB]: Duration.minutes(2),
   [VIDEO_POSTER_JOB]: Duration.minutes(2),
   [PDF_THUMBNAIL_JOB]: Duration.minutes(2),
   [IMAGE_PALETTE_JOB]: Duration.minutes(2),
-  ocr_image: Duration.minutes(10),
-  ocr_pdf_page: Duration.minutes(30),
+  ocr_image: Duration.minutes(20),
+  ocr_pdf_page: Duration.minutes(60),
   generate_embedding: Duration.minutes(30),
 };
 

@@ -163,7 +163,11 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
 
   async function openImageSession() {
     const { name, model } = models.image;
-    return ort.InferenceSession.create(await modelAsset(name, model, true));
+    // Only indexing embeds images, and it runs several jobs at once beside the OCR
+    // workers: two threads each beat one call holding every core. Vectors are unchanged.
+    return ort.InferenceSession.create(await modelAsset(name, model, true), {
+      intraOpNumThreads: 2,
+    });
   }
 
   async function embedText(text: string, prefix = "search_document:", allowDownload = true) {

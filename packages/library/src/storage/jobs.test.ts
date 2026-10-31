@@ -185,3 +185,29 @@ test("item job lookups return the latest job of each kind, for any number of ite
   const itemIds = ["ocr-item", ...Array.from({ length: 40_000 }, (_, index) => `missing-${index}`)];
   expect((await queue.getForItems(itemIds)).map((job) => job.id)).toEqual([second]);
 });
+
+test("parallel lanes run each item's own jobs one at a time, in the order queued", async () => {
+  let now = 1;
+  const { library } = await temporaryLibrary({ jobQueue: { now: () => now++ } });
+  const insert = library.db.prepare(
+    `INSERT INTO items (id, kind, created_at, updated_at) VALUES (?, 'image', 1, 1)`,
+  );
+  for (const id of ["first", "second"]) insert.run(id);
+  const queue = library.jobs;
+  const main = ["ocr_image", "generate_embedding"];
+  const ocr = await queue.enqueue("first", "ocr_image");
+  const embedding = await queue.enqueue("first", "generate_embedding");
+  await queue.enqueue("first", "image_thumbnail");
+  const otherOcr = await queue.enqueue("second", "ocr_image");
+
+  expect((await queue.claimNext("lane-a", main))?.id).toBe(ocr);
+  // The first item's embedding waits for its OCR; another lane takes the next item.
+  expect((await queue.claimNext("lane-b", main))?.id).toBe(otherOcr);
+  expect(await queue.claimNext("lane-c", main)).toBeNull();
+  // Other lanes' kinds are not held back by a main-lane job on the same item.
+  expect((await queue.claimNext("thumbnails", ["image_thumbnail"]))?.kind).toBe("image_thumbnail");
+  // OCR finding text queues no duplicate: the pending embedding runs next, after it.
+  expect(await queue.enqueue("first", "generate_embedding")).toBe(embedding);
+  expect(await queue.complete(ocr, "lane-a")).toBe(true);
+  expect((await queue.claimNext("lane-c", main))?.kind).toBe("generate_embedding");
+});
