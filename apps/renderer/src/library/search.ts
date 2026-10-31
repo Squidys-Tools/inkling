@@ -4,7 +4,7 @@ import { createSearch, type SearchState } from "./searchQuery.ts";
 import { useStore } from "./store.ts";
 
 export const search = createSearch({
-  run: async (query) => (await libraryClient()).search({ query, limit: 200 }),
+  run: async (query, semantic) => (await libraryClient()).search({ query, limit: 200, semantic }),
   onCards: storeCards,
 });
 
