@@ -15,8 +15,16 @@ const kinds = {
 };
 
 async function lookUp() {
+  const token = process.env.GITHUB_TOKEN;
   try {
-    const response = await fetch(api, { headers: { Accept: "application/vnd.github+json" } });
+    const response = await fetch(api, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    // 404 means no release is published yet, which the fallback is for.
+    if (response.status === 404) return null;
     if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
     const release = (await response.json()) as Release;
     const pick = (pattern: RegExp) =>
@@ -29,7 +37,8 @@ async function lookUp() {
       deb: pick(kinds.deb),
     };
   } catch (error) {
-    // A build without a release, or offline, still links to GitHub's releases page.
+    // A rate limit or outage must not ship a production site whose buttons skip the installers.
+    if (process.env.VERCEL_ENV === "production") throw error;
     console.warn(`No latest release to link installers from: ${String(error)}`);
     return null;
   }
