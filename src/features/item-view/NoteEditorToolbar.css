@@ -41,11 +41,21 @@
   border-radius: 6px;
   background: #24211e;
 }
+/* These come after the toolbar button rules, at the same specificity, so they win. */
 .note-heading-group button {
+  width: 22px;
+  min-width: 0;
+  height: 22px;
+  border-radius: 4px;
+  color: #6f6a62;
   font:
     400 12px / 1 "Libre Baskerville",
     Georgia,
     serif;
+}
+.note-heading-group button[aria-pressed="true"] {
+  background: transparent;
+  color: var(--color-ink);
 }
 .note-control-divider {
   width: 1px;
