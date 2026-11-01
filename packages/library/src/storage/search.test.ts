@@ -93,6 +93,26 @@ test("free-text search keeps lexical matches and drops weak semantic matches", a
   ]);
 });
 
+test("photo text-vector similarity needs visual evidence, while literal OCR and notes stay", async () => {
+  const { library } = await temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items
+    (id, kind, title, ocr_text, created_at, updated_at) VALUES (?, ?, ?, ?, 1, 1)`);
+  insert.run("unrelated-photo", "image", "sleeping kitten", "");
+  insert.run("visual-photo", "image", "roadside", "");
+  insert.run("ocr-photo", "image", "receipt", "car repair");
+  insert.run("semantic-note", "note", "automobile maintenance", "");
+  await library.storeEmbedding("unrelated-photo", "text", TEXT_MODEL, vector([0.99, 0]), 2);
+  await library.storeEmbedding("unrelated-photo", "image", IMAGE_MODEL, vector([0.1, 0]), 2);
+  await library.storeEmbedding("visual-photo", "image", IMAGE_MODEL, vector([0.8, 0]), 2);
+  await library.storeEmbedding("ocr-photo", "text", TEXT_MODEL, vector([0.1, 0]), 2);
+  await library.storeEmbedding("semantic-note", "text", TEXT_MODEL, vector([0.7, 0]), 2);
+  expect(ids(await library.searchItems("car", 20, Float32Array.from([1, 0])))).toEqual([
+    "ocr-photo",
+    "visual-photo",
+    "semantic-note",
+  ]);
+});
+
 test("LIKE fallback treats percent and underscore as literal search characters", async () => {
   const { library } = await temporaryLibrary({ useFts5: false });
   const insert = library.db.prepare(`INSERT INTO items (id, kind, title, created_at, updated_at)
