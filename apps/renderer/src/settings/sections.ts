@@ -1,4 +1,5 @@
 import {
+  Camera01Icon,
   Database02Icon,
   Link01Icon,
   PaintBrush01Icon,
@@ -12,6 +13,7 @@ export const railSections = [
   { id: "appearance", label: "Appearance", icon: PaintBrush01Icon },
   { id: "library", label: "Library", icon: Database02Icon },
   { id: "extension", label: "Browser extension", icon: Link01Icon },
+  { id: "screenshots", label: "Screenshots", icon: Camera01Icon },
   { id: "updates", label: "Updates", icon: RotateCwIcon },
 ] as const;
 

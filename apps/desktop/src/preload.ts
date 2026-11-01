@@ -50,6 +50,11 @@ const bridge: DesktopBridge = {
     setChannel: (channel) => invoke(channels.updateSetChannel, channel),
     onState: (listener) => subscribe(channels.updateChanged, listener),
   },
+  screenshots: {
+    state: () => invoke(channels.screenshotState),
+    setEnabled: (enabled) => invoke(channels.screenshotSetEnabled, enabled),
+    chooseDirectory: () => invoke(channels.screenshotChooseDirectory),
+  },
   capture: {
     receiver: () => invoke(channels.captureReceiver),
     pairingToken: () => invoke(channels.capturePairingToken),

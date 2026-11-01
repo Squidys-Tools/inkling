@@ -173,6 +173,10 @@ const handlers = LibraryRpcs.toLayer(
       createQuote: (input) => written(library.createQuote(input)),
       captureUrl: (input) => written(library.captureUrl(input)),
       saveFile: (input) => written(library.saveFile(input)),
+      saveScreenshot: (input) =>
+        answer(library.saveScreenshot(input)).pipe(
+          Effect.tap((added) => (added ? publish({ _tag: "LibraryReplaced" }) : Effect.void)),
+        ),
       updateItem: (input) => written(Effect.map(library.updateItem(input), cardItem)),
       // Archiving or deleting an item changes the counts of the Spaces it is in.
       setArchived: ({ id, archived }) =>

@@ -1,5 +1,15 @@
 import type { FailedCapture } from "@inkling/contracts/desktop";
-import { app, ipcMain, type WebContents } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  type IpcMainInvokeEvent,
+  type WebContents,
+} from "electron";
+import { join } from "node:path";
+import { createScreenshotImporter } from "./screenshot-import.ts";
+import { createSingleFlightDirectoryPicker } from "../native-dialog.ts";
 import { channels } from "../channels.ts";
 import type { LibraryClient } from "../library-client.ts";
 import { downloadImage } from "./image-download.ts";
@@ -32,6 +42,18 @@ export function outsideCaptures({
     },
   });
   let server: Awaited<ReturnType<typeof startCaptureServer>> | undefined;
+  let screenshots: ReturnType<typeof createScreenshotImporter> | undefined;
+  const screenshotImporter = () => {
+    if (!screenshots) throw new Error("Screenshot import is not ready.");
+    return screenshots;
+  };
+  const trustedScreenshot = (event: IpcMainInvokeEvent) => {
+    if (!readyWindows.has(event.sender) || event.senderFrame !== event.sender.mainFrame)
+      throw new Error("Only the library window can configure screenshot import.");
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || window.isDestroyed()) throw new Error("No library window.");
+    return window;
+  };
   const runningServer = () => {
     if (!server) throw new Error("The browser extension receiver is not running.");
     return server;
@@ -64,6 +86,30 @@ export function outsideCaptures({
         channels.captureTestReceiver,
         async () => (await server?.answersHealthCheck()) ?? false,
       );
+      screenshots = createScreenshotImporter({
+        preferencesPath: join(libraryDirectory, "screenshot-import.json"),
+        defaultDirectory: join(app.getPath("pictures"), "Screenshots"),
+        save: async (input) => (await library()).saveScreenshot(input),
+      });
+      const choose = createSingleFlightDirectoryPicker<BrowserWindow>((parent, options) =>
+        dialog.showOpenDialog(parent, options),
+      );
+      ipcMain.handle(channels.screenshotState, (event) => {
+        trustedScreenshot(event);
+        return screenshotImporter().getState();
+      });
+      ipcMain.handle(channels.screenshotSetEnabled, (event, enabled: unknown) => {
+        trustedScreenshot(event);
+        if (typeof enabled !== "boolean") throw new Error("Enabled must be true or false.");
+        return screenshotImporter().configure(enabled);
+      });
+      ipcMain.handle(channels.screenshotChooseDirectory, async (event) => {
+        const window = trustedScreenshot(event);
+        const directory = await choose(window, "Choose a screenshots folder");
+        trustedScreenshot(event);
+        const current = await screenshotImporter().getState();
+        return directory ? screenshotImporter().configure(current.enabled, directory) : current;
+      });
       try {
         server = await startCaptureServer({
           libraryDirectory,
@@ -73,6 +119,9 @@ export function outsideCaptures({
         console.error("inkling: the browser extension receiver did not start", error);
       }
     },
-    stop: async () => server?.close(),
+    stop: async () => {
+      await screenshots?.close();
+      await server?.close();
+    },
   };
 }

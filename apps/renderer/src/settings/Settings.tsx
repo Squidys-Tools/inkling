@@ -12,6 +12,7 @@ import { LibraryPanel } from "./LibraryPanel.tsx";
 import { LicensesPanel } from "./LicensesPanel.tsx";
 import { railSections, type SettingsSection } from "./sections.ts";
 import { UpdatesPanel } from "./UpdatesPanel.tsx";
+import { ScreenshotsPanel } from "./ScreenshotsPanel.tsx";
 
 function useAppVersion() {
   const [version, setVersion] = useState<string | null>(null);
@@ -94,6 +95,7 @@ export function Settings({ section }: { section: SettingsSection }) {
       {section === "library" && <LibraryPanel onClose={close} />}
       {section === "extension" && <ExtensionPanel onClose={close} />}
       {section === "updates" && <UpdatesPanel onClose={close} />}
+      {section === "screenshots" && <ScreenshotsPanel onClose={close} />}
     </div>
   );
 }

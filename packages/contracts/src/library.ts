@@ -141,6 +141,7 @@ export const LibraryRpcs = RpcGroup.make(
   call("createQuote", CreateQuoteInput.fields, ItemDetail),
   call("captureUrl", CaptureUrlInput.fields, ItemDetail),
   call("saveFile", SaveFileInput.fields, ItemDetail),
+  call("saveScreenshot", SaveFileInput.fields, Schema.Boolean),
   call("updateItem", UpdateItemInput.fields, LibraryCard),
   call("setArchived", { id: Text, archived: Schema.Boolean }, LibraryCard),
   call("deleteItem", ById, Schema.Void),

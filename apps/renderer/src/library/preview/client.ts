@@ -255,6 +255,7 @@ export function createPreviewClient(): LibraryClient {
         }),
       );
     },
+    saveScreenshot: () => unavailable("Screenshot auto-import"),
     saveFile: async ({ fileName, mimeType, bytes }) => {
       const type = mimeType ?? "";
       const kind = type.startsWith("image/")

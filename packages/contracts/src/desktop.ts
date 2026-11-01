@@ -51,6 +51,13 @@ export type UpdateState = {
 };
 
 export type CaptureReceiver = { running: boolean; port: number | null };
+export type ScreenshotImportState = {
+  enabled: boolean;
+  directory: string;
+  status: "off" | "watching" | "missing-folder" | "error";
+  imported: number;
+  message: string | null;
+};
 
 /**
  * An `inkling://` capture main could not save. Main saves every capture itself;
@@ -91,6 +98,11 @@ export type DesktopBridge = {
     cancel: () => Promise<UpdateState>;
     setChannel: (channel: UpdateChannel) => Promise<UpdateState>;
     onState: (listener: (state: UpdateState) => void) => () => void;
+  };
+  screenshots: {
+    state: () => Promise<ScreenshotImportState>;
+    setEnabled: (enabled: boolean) => Promise<ScreenshotImportState>;
+    chooseDirectory: () => Promise<ScreenshotImportState>;
   };
   capture: {
     receiver: () => Promise<CaptureReceiver>;
