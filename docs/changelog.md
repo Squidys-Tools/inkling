@@ -134,6 +134,7 @@ Rules for entries:
 - A note's description no longer changes once the save returns: storage now uses the renderer's plain-text projection, so raw HTML, code spans and entities agree, and both strip `~~strikethrough~~`. Notes saved earlier keep their stored description until they are edited
 - Settings → General → Open source licenses now lists Rare UI's Grid Reveal, which the welcome screens adapt, with its MIT + Commons Clause + Attribution license and a link to rareui.com
 - The README mascot animates on Safari and iOS, where its outline used to stay frozen. It is sampled again from the current mascot engine, blinks close once as they do in the app, and readers who ask for reduced motion get a still
+- The grid↔list toggle animates the change again — the current view fades out and the new one staggers its cards in, dropped when the animation libraries came out — using the Web Animations API
 
 ### Changed
 

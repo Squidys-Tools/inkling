@@ -11,6 +11,7 @@ import { scopeFromPath, scopeKey } from "../library/scope.ts";
 import { search, useSearch } from "../library/search.ts";
 import { spacesStore, useSpace } from "../library/spaces.ts";
 import { useStore } from "../library/store.ts";
+import { libraryMarker } from "../markers.stylex.ts";
 import { EmptyState } from "./EmptyState.tsx";
 import { FilterRow } from "./FilterRow.tsx";
 import { Grid } from "./Grid.tsx";
@@ -58,6 +59,7 @@ export function LibraryHost({
   const ran = useSearch((search) => search.ran);
   const focused = useViewState((view) => view.searchFocused);
   const list = useViewState((view) => view.list);
+  const entering = useViewState((view) => view.entering);
   const captureError = useCaptureState((capture) => capture.error);
   const actionError = useActionError();
 
@@ -112,7 +114,8 @@ export function LibraryHost({
     <section
       aria-label={viewName}
       inert={covered}
-      {...stylex.props(styles.host, covered && styles.covered)}
+      data-entering={entering ? "" : undefined}
+      {...stylex.props(styles.host, libraryMarker, covered && styles.covered)}
     >
       {spaceGone ? null : state?.status === "error" && !searching ? (
         <EmptyState
