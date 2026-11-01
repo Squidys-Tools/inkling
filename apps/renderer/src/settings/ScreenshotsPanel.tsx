@@ -3,7 +3,7 @@ import type { ScreenshotImportState } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useRef, useState } from "react";
 import { desktop } from "../desktop.ts";
-import { Panel, PanelBody, Pill, Row, settingsText } from "./parts.tsx";
+import { Panel, PanelBody, SquareButton, Row, settingsText } from "./parts.tsx";
 
 export function ScreenshotsPanel({ onClose }: { onClose: () => void }) {
   const [state, setState] = useState<ScreenshotImportState | null>(null);
@@ -16,7 +16,10 @@ export function ScreenshotsPanel({ onClose }: { onClose: () => void }) {
       if (active.current) return;
       desktop?.screenshots.state().then(
         (next) => {
-          if (live && !active.current) setState(next);
+          if (live && !active.current) {
+            setState(next);
+            setError(null);
+          }
         },
         () => {
           if (live) setError("Couldn’t read screenshot import settings.");
@@ -60,14 +63,14 @@ export function ScreenshotsPanel({ onClose }: { onClose: () => void }) {
           title="Import new screenshots"
           description="New PNG, JPEG and WebP files are saved locally. Existing files are skipped when you turn it on."
           action={
-            <Pill
+            <SquareButton
               look={state?.enabled ? "solid" : "plain"}
               aria-pressed={state?.enabled ?? false}
               disabled={!desktop || !state || busy}
               onClick={() => void change(false)}
             >
               {state?.enabled ? "Turn off" : "Turn on"}
-            </Pill>
+            </SquareButton>
           }
         >
           {!desktop && (
@@ -87,9 +90,9 @@ export function ScreenshotsPanel({ onClose }: { onClose: () => void }) {
           title="Screenshots folder"
           description="Choose a dedicated screenshots folder, not your whole Pictures folder. Nothing is uploaded."
           action={
-            <Pill disabled={!desktop || !state || busy} onClick={() => void change(true)}>
+            <SquareButton disabled={!desktop || !state || busy} onClick={() => void change(true)}>
               Choose folder…
-            </Pill>
+            </SquareButton>
           }
         >
           {state && <p {...stylex.props(settingsText.mono)}>{state.directory}</p>}

@@ -67,6 +67,7 @@ test.skipIf(process.platform === "win32")(
       });
       let operation: Promise<unknown> | undefined;
       let scan: Promise<unknown> | undefined;
+      let cleanupError: unknown;
       try {
         await importer.configure(true);
         await importer.scanNow();
@@ -94,13 +95,14 @@ test.skipIf(process.platform === "win32")(
           closeSync(fd);
         } catch (error) {
           if (!["ENOENT", "ENXIO"].includes((error as NodeJS.ErrnoException).code ?? ""))
-            throw error;
+            cleanupError = error;
         }
         await scan;
         await operation;
         await importer.close();
         await rm(root, { recursive: true, force: true });
       }
+      if (cleanupError) throw cleanupError;
     }
   },
 );

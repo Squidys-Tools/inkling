@@ -104,7 +104,8 @@ afterAll(async () => {
 });
 
 test("closing fences a delayed export and drains it before removing plaintext", async () => {
-  const gate = Promise.withResolvers<any>();
+  const gate =
+    Promise.withResolvers<Awaited<ReturnType<Parameters<typeof createItemTransfer>[0]["item"]>>>();
   const isolated = createItemTransfer({
     assetsDirectory: assets,
     temporaryDirectory: root,
