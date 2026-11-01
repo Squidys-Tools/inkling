@@ -6,7 +6,10 @@ inkling is a quiet little home for everything you want to keep: articles, images
 
 Your library lives on your own computer. The app contacts GitHub only when you check for updates, and sends it no library data.
 
-<img src="docs/assets/mascots/inkling-splash-loop.svg" alt="inkling mascot, a small ink blot that drifts, blinks and changes expression" width="160">
+<picture>
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/mascots/inkling-splash-still.svg">
+  <img src="docs/assets/mascots/inkling-splash-loop.svg" alt="inkling mascot, a small ink blot that drifts, blinks and changes expression" width="160">
+</picture>
 
 ![Your inkling library — a visual grid of saved articles, images, quotes, and videos](docs/assets/screenshots/library.png)
 
