@@ -106,6 +106,7 @@ export function Sidebar({
         {...stylex.props(
           styles.sidebar,
           styles.width(width),
+          compact ? styles.compactReveal : open ? styles.reveal : styles.departing,
           narrow && styles.narrow,
           chrome.controls === "native-left" && styles.belowLights,
         )}
@@ -207,7 +208,25 @@ export function Sidebar({
   );
 }
 
+const reveal = stylex.keyframes({
+  "0%": { opacity: 0 },
+  "65%": { opacity: 0 },
+  "100%": { opacity: 1 },
+});
+const compactReveal = stylex.keyframes({ from: { opacity: 0 }, to: { opacity: 1 } });
+
 const styles = stylex.create({
+  reveal: {
+    animationName: reveal,
+    animationDuration: motion.layout,
+    animationTimingFunction: motion.enter,
+  },
+  compactReveal: {
+    animationName: compactReveal,
+    animationDuration: motion.micro,
+    animationTimingFunction: motion.enter,
+  },
+  departing: { opacity: 0 },
   sidebar: {
     position: "absolute",
     top: 0,
@@ -224,6 +243,10 @@ const styles = stylex.create({
     paddingBottom: "6px",
     borderRadius: radius.panel,
     overflow: "hidden",
+    // Fade labels before the moving frame can crop them, and reveal them only as it clears.
+    transitionProperty: "opacity",
+    transitionDuration: `calc(${motion.micro} / 2)`,
+    transitionTimingFunction: motion.enter,
     // The main frame reveals this panel; never animate sidebar layout width.
   },
   width: (width: number) => ({ width: width - 16 }),
