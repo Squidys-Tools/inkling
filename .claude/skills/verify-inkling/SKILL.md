@@ -17,7 +17,7 @@ Proves inkling behavior by driving the real Electron app over Chrome DevTools Pr
 
 ## Setup
 
-Use the Bun version in `.bun-version`; `bun run check:bun-version` says if it is wrong.
+Use the Bun version in `.bun-version`; `bun tools/repo/check-bun-version.ts` says if it is wrong.
 
 ```sh
 bun install

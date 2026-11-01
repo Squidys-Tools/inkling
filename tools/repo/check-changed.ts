@@ -81,6 +81,8 @@ if (!lintAll && formattable.length) {
 }
 if (tests.size)
   steps.push({ name: "test", cmd: ["bun", "test", ...[...tests].map((t) => `./${t}`)] });
+if (touched.some((file) => /\.md$/.test(file) || file === "t3.json" || file === "package.json"))
+  steps.push({ name: "command-refs", cmd: ["bun", "tools/repo/command-refs.ts"] });
 if (codeTouched || touches("package.json", "knip.json")) {
   steps.push({ name: "knip", cmd: ["bun", "run", "knip"] });
 }

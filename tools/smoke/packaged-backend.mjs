@@ -7,7 +7,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 // Runs the packaged app's own PDF chunk, OCR worker, sharp and ONNX models on its
-// Electron Node runtime, with no window and no library. Default: the build:dir output.
+// Electron Node runtime, with no window and no library. Default: the `bun run dist` output.
 const root = resolve(import.meta.dirname, "../..");
 const mac = process.platform === "darwin";
 const windows = process.platform === "win32";

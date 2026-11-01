@@ -49,14 +49,14 @@ jobs:
       matrix:
         include:
           - os: windows-2025
-            command: build:win
+            target: win
             name: windows
           - os: ubuntu-latest
-            command: build:linux
+            target: linux
             name: linux
           # onnxruntime-node ships no macOS x64 binary, so Intel Macs get no build.
           - os: macos-15
-            command: build:mac
+            target: mac
             name: mac-arm64
     runs-on: ${{ matrix.os }}
     steps:
@@ -79,11 +79,11 @@ jobs:
           node --input-type=module -e 'import fs from "node:fs";const p=JSON.parse(fs.readFileSync("package.json"));p.version=process.env.RELEASE_VERSION;p.build.publish[0].releaseType=process.env.NIGHTLY_BUILD==="true"?"prerelease":"release";p.build.generateUpdatesFilesForAllChannels=false;fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
       - name: Build reviewed platform artifacts (never publish from builder)
         env:
-          BUILD_COMMAND: ${{ matrix.command }}
+          DIST_TARGET: ${{ matrix.target }}
         shell: bash
         run: |
           umask 022
-          bun run "$BUILD_COMMAND"
+          bun run dist "$DIST_TARGET"
       # The .deb depends on FFmpeg for local-video posters; the runner image has none.
       - name: Install the video decoder the Linux package depends on
         if: runner.os == 'Linux'

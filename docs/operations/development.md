@@ -42,15 +42,14 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 | Marketing site | `bun run dev:site` |
 | Static marketing site build | `bun run build:site` |
 | App build (drops the demo seed) | `bun run build:app` |
-| Electron directory build (unpacked) | `bun run build:dir` |
-| Windows NSIS installer | `bun run build:win` |
-| Linux Debian package and AppImage | `bun run build:linux` |
-| macOS disk image (on an Apple silicon Mac) | `bun run build:mac` |
-| Ingestion smoke | `bun run ingest:smoke` |
+| Electron directory build (unpacked) | `bun run dist` |
+| Windows NSIS installer | `bun run dist win` |
+| Linux Debian package and AppImage | `bun run dist linux` |
+| macOS disk image (on an Apple silicon Mac) | `bun run dist mac` |
 | Frame-time benchmark | `bun run bench` |
-| Generate the 1,000-item benchmark library | `bun run bench:library` |
-| First-page benchmark | `bun run bench:first-page` |
-| Extraction and OCR quality benchmark | `bun run bench:quality` |
+| Generate the 1,000-item benchmark library | `bun run bench library` |
+| First-page benchmark | `bun run bench first-page` |
+| Extraction and OCR quality benchmark | `bun run bench quality` |
 
 The web preview serves the demo seed in `apps/renderer/src/library/preview/` from
 memory, only in `dev` and in `build:web`'s preview mode, which writes `dist/web`.
@@ -96,7 +95,7 @@ development builds fetch them.
 
 ## Linux packages
 
-`bun run build:linux` writes a `.deb` and an AppImage to `.artifacts/electron/`.
+`bun run dist linux` writes a `.deb` and an AppImage to `.artifacts/electron/`.
 
 - Install the `.deb` with `sudo apt install ./<package>.deb`. Its install scripts set up Chromium's sandbox and Ubuntu's AppArmor profile. Never work around a sandbox startup error with `--no-sandbox`.
 - An AppImage runs only on a host that lets Chromium's sandbox start.
@@ -105,7 +104,7 @@ development builds fetch them.
 - A pinned patch makes sharp use its WASM backend in Linux Electron, because the native libvips collides with Electron's GLib. When upgrading sharp, update the patch and `@img/sharp-wasm32` (a Knip runtime exception) together.
 - PDF rendering uses the bundled PDF.js fonts, character maps and WASM decoders, because the system-font scan crashes Linux Electron.
 
-`bun tools/smoke/packaged-backend.mjs` runs the unpacked build's PDF chunk, OCR worker, sharp and CPU models on Electron's Node runtime, with no GUI and no user library, on Windows, Linux or macOS. Run `bun run build:dir` first, or pass another unpacked app directory. It does not replace checking features in the installed app.
+`bun tools/smoke/packaged-backend.mjs` runs the unpacked build's PDF chunk, OCR worker, sharp and CPU models on Electron's Node runtime, with no GUI and no user library, on Windows, Linux or macOS. Run `bun run dist` first, or pass another unpacked app directory. It does not replace checking features in the installed app.
 
 `bun tools/smoke/launch.ts` launches the `build:app` output against a scratch library and checks the window reached the library process; pass a packaged executable to launch that instead. On Linux without a display, run it under `xvfb-run -a`.
 
@@ -113,7 +112,7 @@ development builds fetch them.
 
 ## macOS app
 
-`bun run build:mac` on an Apple silicon Mac writes an arm64 disk image to `.artifacts/electron/`.
+`bun run dist mac` on an Apple silicon Mac writes an arm64 disk image to `.artifacts/electron/`.
 
 - Intel Macs get no build: onnxruntime-node ships no macOS x64 binary, so embeddings and semantic search could not run.
 - The app is ad-hoc signed (`mac.identity` is `-`) without the hardened runtime, because there is no Developer ID. An arm64 bundle without a valid signature does not launch at all; `codesign --verify --deep --strict` on the `.app` catches that.
@@ -150,11 +149,11 @@ Never add signing secrets or publish automatically. The Windows installer is not
 | Everything | `bun run check` | Every gate CI runs, in one command |
 | Changed files | `bun run check:changed [ref]` | Lint, format, related tests, Knip and typecheck for what changed since `origin/main` or `ref`. Run it before pushing; it does not replace CI |
 | Typecheck | `bun run typecheck` | Every app, package and tool, the extension, and the benchmarks |
-| Tests | `bun run test` | |
+| Tests | `bun run test` | Includes the ingestion pipeline smoke |
 | Unused code | `bun run knip` | To clean up, run `bunx knip --fix`, then `bun install` to re-sync the lockfile, then fix any `noUnusedLocals` errors |
 | Lint and format | `bun run lint` (`bun run lint:fix` to apply) | oxlint, with inkling rules in `tools/oxlint-plugin/`, then oxfmt |
-| Bun pin | `bun run check:bun-version` | running Bun must match `.bun-version` |
-| Documented commands | `bun run check:refs` | every `bun run` in the docs and `t3.json` exists |
+| Bun pin | `bun tools/repo/check-bun-version.ts` | running Bun must match `.bun-version` |
+| Documented commands | `bun tools/repo/command-refs.ts` | every `bun run` in the docs and `t3.json` exists |
 | Extension build | `bun run --cwd extension build` | |
 
 ## CI

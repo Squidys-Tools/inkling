@@ -17,5 +17,5 @@ extracted text, but it runs on linkedom and is not the security boundary: the
 renderer must sanitize stored HTML again before it reaches the DOM, applying
 the same link and embed policy from `embeds.ts`.
 
-`bun packages/ingestion/src/ingestion.smoke.ts` runs the pipeline on inline
-fixtures with a stubbed fetch.
+`ingestion.smoke.test.ts` runs the pipeline on inline fixtures with a stubbed
+fetch under `bun test`.

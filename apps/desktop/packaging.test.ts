@@ -3,14 +3,15 @@ import { readFile } from "node:fs/promises";
 
 const pkg = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
 
-test("Linux packaging preserves Windows NSIS and standard sandbox maintainer scripts", () => {
+test("Linux packaging preserves Windows NSIS and standard sandbox maintainer scripts", async () => {
   expect(pkg.build.win).toMatchObject({ icon: "build/icon.ico", target: ["nsis"] });
   expect(pkg.build.linux.target).toEqual(["deb", "AppImage"]);
   expect(pkg.build.deb.afterInstall).toBeUndefined();
   expect(pkg.build.deb.afterRemove).toBeUndefined();
   expect(pkg.build.deb.appArmorProfile).toBeUndefined();
   expect(pkg.build.linux.executableArgs).toBeUndefined();
-  expect(pkg.scripts["build:linux"]).toContain("--publish never --linux deb AppImage");
+  const dist = await readFile(new URL("../../tools/repo/dist.ts", import.meta.url), "utf8");
+  expect(dist).toContain('"--linux", "deb", "AppImage"');
 });
 
 // regression (38f86e7): electron-builder 26 prepends **/* to a files list holding only exclusions,

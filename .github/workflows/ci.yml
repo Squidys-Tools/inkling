@@ -103,7 +103,7 @@ jobs:
         run: bun run typecheck
 
       - name: Check documented commands exist
-        run: bun run check:refs
+        run: bun tools/repo/command-refs.ts
 
       - name: Run unit tests
         run: bun run test
@@ -120,9 +120,6 @@ jobs:
 
       - name: Build the web preview
         run: bun run build:web
-
-      - name: Run ingestion smoke tests
-        run: bun run ingest:smoke
 
       - name: Build browser extension
         run: bun run --cwd extension build

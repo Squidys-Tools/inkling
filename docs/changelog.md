@@ -16,6 +16,7 @@ Rules for entries:
 ### Changed
 
 - Vercel site previews now build only when a push touches the site or its build inputs, instead of every branch and PR.
+- Developer commands consolidated to 15: `bun run dist [dir|win|linux|mac]` replaces `build:dir`/`build:win`/`build:linux`/`build:mac`, `bun run bench [frames|library|first-page|quality]` replaces the `bench:*` scripts, the ingestion smoke runs under `bun run test`, and the Bun-pin and documented-command checks run as `bun tools/repo/check-bun-version.ts` and `bun tools/repo/command-refs.ts`.
 
 ### Added
 

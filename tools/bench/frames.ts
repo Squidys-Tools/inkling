@@ -15,7 +15,7 @@ import {
   traceCategories,
 } from "./trace.ts";
 
-const usage = `Usage: bun tools/bench/frames.ts [--library <folder from bench:library>] [--items 1000]
+const usage = `Usage: bun run bench [frames] [--library <folder from bench library>] [--items 1000]
   [--executable <packaged app>] [--only <scenario name>] [--keep]
 
 Launches the built app against a generated library, traces Chromium's frame
@@ -47,7 +47,7 @@ if (!values.executable && !existsSync("dist/desktop/main.mjs"))
 // Only a library this tool generated: the app writes to the library it opens.
 let directory = values.library && resolve(values.library);
 if (directory && !existsSync(join(directory, benchMarker)))
-  throw new Error(`${directory} was not made by bun run bench:library; refusing to open it.`);
+  throw new Error(`${directory} was not made by bun run bench library; refusing to open it.`);
 const generated = !directory;
 if (!directory) {
   directory = await mkdtemp(join(tmpdir(), "inkling-bench-"));

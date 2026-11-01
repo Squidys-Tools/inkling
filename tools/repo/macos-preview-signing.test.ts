@@ -13,7 +13,7 @@ test("PR macOS signing is ad-hoc only and keeps strict verification, native smok
   const verify = macJob.indexOf("codesign --verify --deep --strict");
   const smoke = macJob.indexOf("bun tools/smoke/packaged-backend.mjs");
   const launch = macJob.indexOf("- name: Launch the packaged app");
-  expect(sign).toBeGreaterThan(macJob.indexOf("run: bun run build:dir"));
+  expect(sign).toBeGreaterThan(macJob.indexOf("run: bun run dist"));
   expect(verify).toBeGreaterThan(sign);
   expect(smoke).toBeGreaterThan(verify);
   expect(launch).toBeGreaterThan(smoke);

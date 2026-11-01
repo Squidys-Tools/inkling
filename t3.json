@@ -27,49 +27,19 @@
     },
     {
       "name": "Build desktop app (unpacked)",
-      "command": "bun run build:dir",
-      "icon": "configure",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Build web preview",
-      "command": "bun run build:web",
-      "icon": "configure",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Build marketing site",
-      "command": "bun run build:site",
-      "icon": "configure",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Build Linux packages (.deb and AppImage)",
-      "command": "bun run build:linux",
-      "icon": "configure",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Build macOS disk image",
-      "command": "bun run build:mac",
-      "icon": "configure",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Build Windows installer",
-      "command": "bun run build:win",
-      "icon": "configure",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Check everything",
-      "command": "bun run check",
-      "icon": "test",
+      "command": "bun run dist",
+      "icon": "build",
       "runOnWorktreeCreate": false
     },
     {
       "name": "Check changed files",
       "command": "bun run check:changed",
+      "icon": "test",
+      "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Check everything",
+      "command": "bun run check",
       "icon": "test",
       "runOnWorktreeCreate": false
     },
@@ -86,50 +56,20 @@
       "runOnWorktreeCreate": false
     },
     {
-      "name": "Find unused code",
-      "command": "bun run knip",
-      "icon": "test",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Ingestion smoke",
-      "command": "bun run ingest:smoke",
-      "icon": "test",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Run frame benchmark",
-      "command": "bun run bench",
-      "icon": "debug",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Generate benchmark library",
-      "command": "bun run bench:library",
-      "icon": "debug",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Score extraction and OCR",
-      "command": "bun run bench:quality",
-      "icon": "debug",
-      "runOnWorktreeCreate": false
-    },
-    {
-      "name": "Lint frontend",
+      "name": "Lint and format",
       "command": "bun run lint",
-      "icon": "test",
+      "icon": "lint",
       "runOnWorktreeCreate": false
     },
     {
-      "name": "Fix frontend lint and format",
+      "name": "Fix lint and format",
       "command": "bun run lint:fix",
       "icon": "configure",
       "runOnWorktreeCreate": false
     },
     {
-      "name": "Check Bun version",
-      "command": "bun run check:bun-version",
+      "name": "Run frame benchmark",
+      "command": "bun run bench",
       "icon": "debug",
       "runOnWorktreeCreate": false
     },
