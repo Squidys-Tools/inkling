@@ -20,14 +20,12 @@ import { useItem, useMemberships } from "./queries.ts";
 import { SimilarPanel } from "./SimilarPanel.tsx";
 import { preloadPdfViewer, Stage } from "./Stage.tsx";
 import { useEscape } from "./useEscape.ts";
-import { findCard, useOpenMotion } from "./useOpenMotion.ts";
+import { findCard } from "./itemFlight.ts";
 import { useOcrOnOpen } from "./useOcrOnOpen.ts";
 
 /** An open item: its media on the dotted stage and the inspector beside it, over the library. */
 export function ItemView({ id }: { id: string }) {
-  const viewRef = useRef<HTMLDivElement>(null);
   const navigation = useItemNavigation();
-  useOpenMotion(id, viewRef);
 
   // Closing hands focus back to the card, unless the user already moved it elsewhere.
   const shownId = useRef(id);
@@ -44,7 +42,7 @@ export function ItemView({ id }: { id: string }) {
   );
 
   return (
-    <div ref={viewRef} data-escape-scope {...stylex.props(styles.view)}>
+    <div data-escape-scope {...stylex.props(styles.view)}>
       <ItemBody
         key={id}
         id={id}
@@ -215,10 +213,18 @@ const narrow = "@media (max-width: 780px)";
 
 const styles = stylex.create({
   view: { position: "absolute", inset: 0, zIndex: 10, backgroundColor: color.frame },
+  // --item-progress is 0 mid-flight and 1 settled: the inspector column and
+  // stage insets grow as the page opens, and shrink as it closes.
   layout: {
     display: "grid",
-    gridTemplateColumns: { default: "minmax(0, 1fr) 320px", [narrow]: "minmax(0, 1fr)" },
-    gridTemplateRows: { default: "minmax(0, 1fr)", [narrow]: "minmax(0, 1fr) minmax(0, 1fr)" },
+    gridTemplateColumns: {
+      default: "minmax(0, 1fr) calc(320px * var(--item-progress))",
+      [narrow]: "minmax(0, 1fr)",
+    },
+    gridTemplateRows: {
+      default: "minmax(0, 1fr)",
+      [narrow]: "minmax(0, 1fr) calc(50% * var(--item-progress))",
+    },
     height: "100%",
   },
   stage: {
@@ -227,9 +233,15 @@ const styles = stylex.create({
     placeItems: "center",
     minWidth: 0,
     minHeight: 0,
-    margin: space.s2,
-    paddingBlock: { default: "60px", [narrow]: space.s4 },
-    paddingInline: { default: space.s10, [narrow]: space.s4 },
+    margin: `calc(${space.s2} * var(--item-progress))`,
+    paddingBlock: {
+      default: "calc(60px * var(--item-progress))",
+      [narrow]: `calc(${space.s4} * var(--item-progress))`,
+    },
+    paddingInline: {
+      default: `calc(${space.s10} * var(--item-progress))`,
+      [narrow]: `calc(${space.s4} * var(--item-progress))`,
+    },
     overflow: "hidden",
     borderRadius: `calc(${radius.frame} - 1px)`,
     borderWidth: 1,
@@ -243,7 +255,11 @@ const styles = stylex.create({
   inspector: {
     display: "flex",
     flexDirection: "column",
+    minWidth: 0,
     minHeight: 0,
+    overflowX: "hidden",
+    opacity: "var(--item-progress)",
+    transform: "translateX(calc(24px * (1 - var(--item-progress))))",
     paddingTop: "6px",
     paddingRight: space.s4,
     paddingBottom: space.s2,

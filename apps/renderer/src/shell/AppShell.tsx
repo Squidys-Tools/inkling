@@ -1,8 +1,16 @@
 import * as stylex from "@stylexjs/stylex";
 import { Outlet, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { AnimatePresence, MotionConfig, motion as m } from "motion/react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { cardColor, color, font, layout, motion, radius } from "@inkling/ui/tokens.stylex";
 import { useCaptureEvents } from "../capture/useCaptureEvents.ts";
+import {
+  aimAtCard,
+  FRAME_RADIUS,
+  ITEM_FLIGHT_EASE,
+  ITEM_FLIGHT_MS,
+  ItemFlightBack,
+} from "../item/itemFlight.ts";
 import { scopeFromPath } from "../library/scope.ts";
 import { startLibrarySync } from "../library/sync.ts";
 import { LibraryHost } from "../libraryView/LibraryHost.tsx";
@@ -48,48 +56,100 @@ export function AppShell() {
   const [settled, setSettled] = useState(shifted);
   const narrowed = instant ? shifted : !narrow && settled;
 
+  // An item opened from Similar replaces the open page in place, so the whole
+  // /item/$id family shares a key; every other covering page is its own.
+  const itemId = pathname.match(/^\/item\/([^/]+)$/)?.[1] ?? null;
+  const pageKey = itemId ? "/item" : pathname;
+
+  // The page ref must be a callback: aimAtCard snaps the element onto the card
+  // before motion's layout effects read its start geometry.
+  const pageRef = useRef<HTMLElement | null>(null);
+  const armPage = useCallback(
+    (el: HTMLElement | null) => {
+      pageRef.current = el;
+      if (el && itemId) aimAtCard(el);
+    },
+    [itemId],
+  );
+
   return (
-    <div {...stylex.props(styles.shell)}>
-      <TitleBar />
-      <div inert={welcome} {...stylex.props(styles.under)}>
-        <Sidebar open={open} narrow={narrow} />
-        <main
-          {...stylex.props(
-            styles.stage,
-            shifted && styles.shifted,
-            (shifted || narrowed) && styles.rounded,
-          )}
-          onTransitionEnd={(event) => {
-            if (event.target === event.currentTarget && event.propertyName === "transform")
-              setSettled(shifted);
-          }}
-        >
-          <div {...stylex.props(styles.content, narrowed && styles.narrowed)}>
-            <LibraryHost covered={covered} sidebarCollapsed={!open} />
-            {welcome ? null : covered ? (
-              <div {...stylex.props(styles.page)}>
-                <Outlet />
-              </div>
-            ) : (
-              <Outlet />
+    <MotionConfig reducedMotion="user">
+      <div {...stylex.props(styles.shell)}>
+        <TitleBar />
+        <div inert={welcome} {...stylex.props(styles.under)}>
+          <Sidebar open={open} narrow={narrow} />
+          <main
+            {...stylex.props(
+              styles.stage,
+              shifted && styles.shifted,
+              (shifted || narrowed) && styles.rounded,
             )}
-            {dragging && (
-              <div {...stylex.props(styles.drop)} aria-hidden="true">
-                Drop to save
-              </div>
-            )}
-          </div>
-        </main>
-      </div>
-      {welcome && (
-        <div {...stylex.props(styles.welcome)}>
-          <Outlet />
+            onTransitionEnd={(event) => {
+              if (event.target === event.currentTarget && event.propertyName === "transform")
+                setSettled(shifted);
+            }}
+          >
+            <div {...stylex.props(styles.content, narrowed && styles.narrowed)}>
+              <LibraryHost covered={covered} sidebarCollapsed={!open} />
+              {!welcome && !covered && <Outlet />}
+              {!welcome && (
+                <AnimatePresence initial={false}>
+                  {covered && (
+                    <m.div
+                      key={pageKey}
+                      ref={armPage}
+                      {...stylex.props(styles.page)}
+                      initial={itemId ? { opacity: 0 } : { opacity: 0, scale: 0.94 }}
+                      animate={
+                        itemId
+                          ? instant
+                            ? { opacity: 1 }
+                            : {
+                                left: "0px",
+                                top: "0px",
+                                right: "0px",
+                                bottom: "0px",
+                                borderRadius: FRAME_RADIUS,
+                                "--item-progress": 1,
+                                opacity: 1,
+                              }
+                          : { opacity: 1, scale: 1 }
+                      }
+                      exit={itemId ? {} : { opacity: 0, scale: 0.94 }}
+                      transition={
+                        itemId
+                          ? {
+                              duration: ITEM_FLIGHT_MS / 1000,
+                              ease: ITEM_FLIGHT_EASE,
+                              opacity: { duration: 0.12, ease: "easeOut" },
+                            }
+                          : { duration: 0.22, ease: [0.2, 0, 0, 1] }
+                      }
+                    >
+                      <Outlet />
+                      {itemId && <ItemFlightBack id={itemId} pageRef={pageRef} />}
+                    </m.div>
+                  )}
+                </AnimatePresence>
+              )}
+              {dragging && (
+                <div {...stylex.props(styles.drop)} aria-hidden="true">
+                  Drop to save
+                </div>
+              )}
+            </div>
+          </main>
         </div>
-      )}
-      <ShortcutsDialog />
-      <SettingsSheet />
-      <ContextMenuLayer />
-    </div>
+        {welcome && (
+          <div {...stylex.props(styles.welcome)}>
+            <Outlet />
+          </div>
+        )}
+        <ShortcutsDialog />
+        <SettingsSheet />
+        <ContextMenuLayer />
+      </div>
+    </MotionConfig>
   );
 }
 
@@ -151,6 +211,8 @@ const styles = stylex.create({
     zIndex: 4,
     overflow: "hidden",
     backgroundColor: color.frame,
+    // Item pages fly this from 0 to 1; other pages stay settled.
+    "--item-progress": "1",
   },
   drop: {
     position: "absolute",

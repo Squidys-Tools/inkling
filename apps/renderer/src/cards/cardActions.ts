@@ -5,6 +5,7 @@ import { hostname } from "../library/assets.ts";
 import type { CardView } from "../library/cardModel.ts";
 import { libraryClient } from "../library/connection.ts";
 import { retryJob } from "../library/jobs.ts";
+import { captureFlightBox } from "../item/itemFlight.ts";
 import { errorMessage } from "../library/errors.ts";
 import { selectCard } from "../library/selection.ts";
 import { setInSpace, spacesStore } from "../library/spaces.ts";
@@ -25,6 +26,7 @@ export function retryProcessing(jobId: string) {
 
 export function openItem(view: CardView, navigate: Navigate) {
   selectCard(view.id);
+  captureFlightBox(view.id);
   void navigate({ to: "/item/$id", params: { id: view.id } });
 }
 
