@@ -121,6 +121,16 @@ const styles = stylex.create({
     borderLeftWidth: 0,
     borderLeftStyle: "solid",
     borderLeftColor: color.border,
+    // Paint the frame edge above covering pages, not behind their backgrounds.
+    "::after": {
+      content: "''",
+      position: "absolute",
+      inset: 0,
+      border: "inherit",
+      borderRadius: "inherit",
+      pointerEvents: "none",
+      zIndex: 10,
+    },
     overflow: "hidden",
     // Its own layer: the slide moves pixels the compositor already has.
     contain: "strict",
@@ -134,6 +144,10 @@ const styles = stylex.create({
     borderLeftWidth: 1,
     borderTopLeftRadius: radius.frame,
     borderBottomLeftRadius: radius.frame,
+    "::after": {
+      borderTopLeftRadius: `calc(${radius.frame} - 1px)`,
+      borderBottomLeftRadius: `calc(${radius.frame} - 1px)`,
+    },
   },
   content: {
     position: "absolute",
