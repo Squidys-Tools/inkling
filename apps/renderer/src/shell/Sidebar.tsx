@@ -62,13 +62,21 @@ function UpdateRow({ compact }: { compact: boolean }) {
 }
 
 /** Codex is the only sidebar: full navigation or a persistent, usable compact rail. */
-export function Sidebar({ open, narrow }: { open: boolean; narrow: boolean }) {
+export function Sidebar({
+  open,
+  visualOpen = open,
+  narrow,
+}: {
+  open: boolean;
+  visualOpen?: boolean;
+  narrow: boolean;
+}) {
   const total = useActiveTotal();
   const shown = useStore(shownScope, (scope) => scope._tag);
   const appearance = useAppearance();
-  const compact = !open;
+  const compact = !visualOpen;
   const edge = appearance.sidebarToggle === "edge";
-  const width = open ? sidebarExpanded : sidebarCompact;
+  const width = visualOpen ? sidebarExpanded : sidebarCompact;
   const reopenButton = useRef<HTMLButtonElement>(null);
   const returnToggleFocus = useRef(false);
   const toggle = () => {
@@ -76,11 +84,11 @@ export function Sidebar({ open, narrow }: { open: boolean; narrow: boolean }) {
     setSidebarOpen(!open);
   };
   useLayoutEffect(() => {
-    if (!returnToggleFocus.current) return;
+    if (!returnToggleFocus.current || visualOpen !== open) return;
     returnToggleFocus.current = false;
     if (reopenButton.current?.getAttribute("aria-expanded") === String(open))
       reopenButton.current.focus({ preventScroll: true });
-  }, [open]);
+  }, [open, visualOpen]);
   return (
     <>
       {narrow && open && (
@@ -187,7 +195,10 @@ export function Sidebar({ open, narrow }: { open: boolean; narrow: boolean }) {
           aria-controls="library-navigation"
           data-bench="sidebar-toggle"
           onClick={toggle}
-          {...stylex.props(styles.grip, styles.gripInset(width - 6))}
+          {...stylex.props(
+            styles.grip,
+            styles.gripInset((open ? sidebarExpanded : sidebarCompact) - 6),
+          )}
         >
           <span {...stylex.props(styles.gripLine)} aria-hidden="true" />
         </button>
@@ -213,9 +224,7 @@ const styles = stylex.create({
     paddingBottom: "6px",
     borderRadius: radius.panel,
     overflow: "hidden",
-    transitionProperty: "width",
-    transitionDuration: motion.layout,
-    transitionTimingFunction: motion.standard,
+    // The main frame reveals this panel; never animate sidebar layout width.
   },
   width: (width: number) => ({ width: width - 16 }),
   belowLights: { top: "32px" },
@@ -299,11 +308,12 @@ const styles = stylex.create({
     backgroundColor: "transparent",
     cursor: "pointer",
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-    transitionProperty: "left",
+    left: 0,
+    transitionProperty: "transform",
     transitionDuration: motion.layout,
-    transitionTimingFunction: motion.standard,
+    transitionTimingFunction: motion.enter,
   },
-  gripInset: (left: number) => ({ left }),
+  gripInset: (left: number) => ({ transform: `translateX(${left}px)` }),
   gripLine: {
     display: "block",
     width: "3px",

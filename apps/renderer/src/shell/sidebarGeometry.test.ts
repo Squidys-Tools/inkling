@@ -1,5 +1,16 @@
 import { expect, test } from "bun:test";
-import { sidebarGeometry } from "./sidebarGeometry.ts";
+import { sidebarFlight, sidebarGeometry } from "./sidebarGeometry.ts";
+
+test("sidebar FLIP preserves the painted bounds when opening and reversing", () => {
+  const opening = sidebarFlight(76, 248, 1280, 1032, { a: 1, e: 0 });
+  expect(248 + opening.x).toBe(76);
+  expect(1032 * opening.scale).toBe(1204);
+  // An opening flight at left 171, width 1109 reverses without a snap to either endpoint.
+  const reversed = sidebarFlight(248, 76, 1280, 1204, { a: 1109 / 1032, e: -77 });
+  expect(76 + reversed.x).toBe(171);
+  expect(1204 * reversed.scale).toBeCloseTo(1109);
+  expect(sidebarFlight(248, 248, 1280, 1032, { a: 1, e: 0 })).toEqual({ x: 0, scale: 1 });
+});
 
 test("wide Codex panel has a live width and always leaves a compact rail", () => {
   expect(sidebarGeometry(1280, true)).toMatchObject({

@@ -16,6 +16,7 @@ import { Sidebar } from "./Sidebar.tsx";
 import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
 import { TitleBar } from "./TitleBar.tsx";
 import { useCommands } from "./useCommands.ts";
+import { useSidebarMotion } from "./useSidebarMotion.ts";
 
 function useMedia(query: string) {
   return useSyncExternalStore(
@@ -40,15 +41,24 @@ export function AppShell() {
   const dragging = useCaptureEvents(!covered);
   const narrow = useMedia("(max-width: 780px)");
   const open = useViewState((state) => state.sidebarOpen);
-  // A real inset changes the grid's width during the slide, not at its end.
+  // Reflow once, then FLIP the frame instead of resizing the grid every frame.
   const inset = narrow && open ? 0 : open ? sidebarExpanded : sidebarCompact;
+  const [stageRef, visualOpen] = useSidebarMotion(open, inset, narrow);
 
   return (
     <div {...stylex.props(styles.shell)}>
       <TitleBar />
       <div inert={welcome} {...stylex.props(styles.under)}>
-        <Sidebar open={open} narrow={narrow} />
-        <main {...stylex.props(styles.stage, styles.inset(inset), narrow && styles.narrow)}>
+        <Sidebar open={open} visualOpen={visualOpen} narrow={narrow} />
+        <main
+          ref={stageRef}
+          {...stylex.props(
+            styles.stage,
+            styles.inset(inset),
+            !covered && styles.library,
+            narrow && styles.narrow,
+          )}
+        >
           <div {...stylex.props(styles.content)}>
             <LibraryHost covered={covered} painting={painting} sidebarCollapsed={false} />
             {welcome ? null : covered ? (
@@ -114,11 +124,15 @@ const styles = stylex.create({
       pointerEvents: "none",
       zIndex: 10,
     },
-    transitionProperty: "left",
+    transformOrigin: "left top",
+    willChange: "transform",
+    transitionProperty: "none",
     transitionDuration: motion.layout,
-    transitionTimingFunction: motion.standard,
   },
   inset: (left: number) => ({ left }),
+  // The library already has its own gutters; a full-height rule here reads as a stray line.
+  // Covered pages keep the reviewed frame edge. The inset pseudo-edge inherits this color.
+  library: { borderLeftColor: "transparent" },
   narrow: { transitionDuration: "0s" },
   content: { position: "absolute", inset: 0 },
   page: {
