@@ -14,7 +14,7 @@
       "entry": ["index.html"]
     },
     "apps/site": {
-      "entry": ["src/routes/**/*.tsx"]
+      "entry": ["src/routes/**/*.tsx", "vercel-ignore.mjs"]
     },
     "packages/library": {
       "entry": ["src/storage/sqlite-snapshot-worker.ts"]
