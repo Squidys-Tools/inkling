@@ -14,7 +14,7 @@
   "main": "dist/electron/main.mjs",
   "scripts": {
     "dev": "vite",
-    "dev:app": "vite build --mode electron-preview && bun run build:electron && electron . --preview",
+    "dev:app": "vite build --mode electron-preview && bun run build:electron && bun scripts/launch-dev-app.mjs",
     "build": "tsc-rs && vite build",
     "build:app": "tsc-rs && vite build --mode app && bun run build:electron && bun scripts/assert-no-demo-seed.ts",
     "build:electron": "bun scripts/build-electron.ts",
@@ -132,6 +132,10 @@
       "output": ".artifacts/electron"
     },
     "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      },
       {
         "from": "electron/update-helper.py",
         "to": "update-helper.py"

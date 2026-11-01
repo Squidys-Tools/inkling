@@ -33,6 +33,8 @@ import { createDisplayCaptureHandler } from "./display-capture.ts";
 import { resolveLibraryDataDirectory } from "./storage/library.ts";
 
 const mainDirectory = dirname(fileURLToPath(import.meta.url));
+app.setName("inkling");
+if (process.platform === "win32") app.setAppUserModelId("com.inkling.library");
 const isPreview = process.argv.includes("--preview");
 const commandLineDataDirectory = app.commandLine.getSwitchValue("user-data-dir");
 const libraryDirectory = resolveLibraryDataDirectory({
@@ -210,6 +212,9 @@ function createWindow() {
   mainWindow = createMainWindow({
     preload: join(mainDirectory, "preload.cjs"),
     query: isPreview ? "?preview=1" : "",
+    icon: app.isPackaged
+      ? join(process.resourcesPath, "icon.png")
+      : resolve(mainDirectory, "../../build/icon.png"),
   });
   mainWindow.on("closed", () => {
     mainWindow = undefined;
@@ -246,6 +251,12 @@ if (!hasSingleInstanceLock) {
           { role: "editMenu" },
           { role: "windowMenu" },
         ]),
+      );
+    if (process.platform === "darwin")
+      app.dock?.setIcon(
+        app.isPackaged
+          ? join(process.resourcesPath, "icon.png")
+          : resolve(mainDirectory, "../../build/icon.png"),
       );
     if (process.platform === "linux" || process.platform === "darwin") {
       session.defaultSession.setDisplayMediaRequestHandler(

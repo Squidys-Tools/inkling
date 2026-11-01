@@ -2,9 +2,18 @@ import { BrowserWindow, ipcMain, shell } from "electron";
 import { tryParseHttpUrl } from "../src/lib/ingestion/url.ts";
 import { customWindowChrome } from "./window-chrome.ts";
 
-export function createMainWindow({ preload, query }: { preload: string; query: string }) {
+export function createMainWindow({
+  preload,
+  query,
+  icon,
+}: {
+  preload: string;
+  query: string;
+  icon: string;
+}) {
   const window = new BrowserWindow({
     title: "inkling",
+    icon,
     width: 1280,
     height: 720,
     // 320px matches the body min-width in src/index.css. At 240px high the library grid shrinks to 65px; 360px keeps it near 185px.
