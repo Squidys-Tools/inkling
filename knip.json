@@ -8,7 +8,8 @@
       "ignore": [".agents/**", ".claude/**"]
     },
     "apps/desktop": {
-      "entry": ["src/main.ts", "src/preload.ts", "build.ts", "after-pack.cjs"]
+      "entry": ["src/main.ts", "src/preload.ts", "build.ts", "after-pack.cjs"],
+      "ignoreBinaries": ["mkfifo"]
     },
     "apps/renderer": {
       "entry": ["index.html"]

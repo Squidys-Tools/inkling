@@ -24,7 +24,7 @@ export function captureDestination(): CaptureSpace {
 }
 
 /** Show the committed item even when filing fails, so retrying never duplicates the capture. */
-export function showNewItem(detail: ItemDetail) {
+function showNewItem(detail: ItemDetail) {
   showNewCards([cardFromDetail(detail)]);
   reevaluateShownSpace();
   void refreshJobs([detail.id]);
