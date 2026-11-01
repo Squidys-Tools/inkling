@@ -1,6 +1,6 @@
 import type { ConfirmOptions, ContextMenuItem, Platform } from "@inkling/contracts/desktop";
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from "electron";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { channels } from "./channels.ts";
 import { windowBackground, windowChrome } from "./chrome.ts";
@@ -14,6 +14,12 @@ import { startProcesses } from "./processes.ts";
 import { appUrl, assetsDirectoryOf, handleAppScheme, registerAppScheme } from "./protocol.ts";
 
 const bundleDirectory = dirname(fileURLToPath(import.meta.url));
+app.setName("inkling");
+if (process.platform === "win32") app.setAppUserModelId("com.inkling.library");
+if (process.platform === "linux") app.setDesktopName("inkling");
+const applicationIcon = app.isPackaged
+  ? join(process.resourcesPath, "icon.png")
+  : resolve(bundleDirectory, "../../build/icon.png");
 const platform = process.platform as Platform;
 const libraryDirectory = resolveLibraryDirectory({
   executablePath: app.getPath("exe"),
@@ -34,6 +40,7 @@ function createWindow() {
   const { options } = windowChrome(platform);
   const window = new BrowserWindow({
     title: "inkling",
+    icon: applicationIcon,
     width: 1280,
     height: 800,
     minWidth: 360,
@@ -170,6 +177,7 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(() => {
     installMenu((command) => mainWindow?.webContents.send(channels.command, command));
+    if (platform === "darwin") app.dock?.setIcon(applicationIcon);
     handleAppScheme({
       rendererDirectory: join(bundleDirectory, "..", "renderer"),
       assetsDirectory: assetsDirectoryOf(libraryDirectory),
