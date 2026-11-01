@@ -7,7 +7,11 @@ import {
   LibraryRpcs,
   type LibraryChange,
 } from "@inkling/contracts";
-import { smartSpaceSubjects, visualSubjects } from "@inkling/ingestion/photo-subjects";
+import {
+  smartSpaceSubjects,
+  visualSubjectQuery,
+  visualSubjects,
+} from "@inkling/ingestion/photo-subjects";
 import { layerProtocol, type PortSource } from "@inkling/rpc-electron/server";
 import { Cause, Duration, Effect, Exit, Fiber, Layer, PubSub, Stream } from "effect";
 import { RpcServer } from "effect/rpc";
@@ -19,6 +23,7 @@ import { createLibrarySizeCache } from "./library-size.ts";
 import { errorMessage } from "./storage/errors.ts";
 import { JobQueue, Library, libraryLayer } from "./storage/library.ts";
 import { cardItem } from "./storage/rows.ts";
+import { photoSearchLabels, supplementPhotoMatches } from "./storage/photo-search.ts";
 import { snapshotDatabase } from "./storage/sqlite-snapshot.ts";
 import {
   interfaceLabel,
@@ -98,6 +103,27 @@ const loadSubjectVectors = Effect.suspend(() =>
   ),
 );
 
+// Search adds confuser prompts without changing the Map the Smart Space classifier sees.
+let photoPrompts: SubjectVectors | null = null;
+const loadPhotoSearchVectors = Effect.gen(function* () {
+  if (photoPrompts) return photoPrompts;
+  const base = yield* loadSubjectVectors;
+  if (!base) return null;
+  const extras = yield* Effect.forEach(
+    photoSearchLabels.filter((label) => !base.has(label)),
+    (label) =>
+      queryVector(subjectPrompt(label)).pipe(Effect.map((vector) => [label, vector] as const)),
+    { concurrency: 4 },
+  );
+  if (extras.some(([, vector]) => !vector?.length)) return null;
+  photoPrompts = new Map([...base, ...extras.map(([label, vector]) => [label, vector!] as const)]);
+  return photoPrompts;
+}).pipe(
+  Effect.timeoutOption(subjectWait),
+  Effect.map((result) => (result._tag === "Some" ? result.value : null)),
+  Effect.orElseSucceed(() => null),
+);
+
 // Every failure reaches the renderer as one message it can show.
 const failure = (cause: unknown) => new LibraryError({ message: errorMessage(cause) });
 const answer = <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.mapError(effect, failure);
@@ -158,16 +184,36 @@ const handlers = LibraryRpcs.toLayer(
       item: ({ id }) => answer(Effect.map(library.getItem(id), itemRecord)),
       articleHtml: ({ id }) => answer(Effect.map(library.getItem(id), articleHtml)),
       itemContent: ({ id }) => answer(library.getItemContent(id)),
-      search: ({ query, limit, semantic }) =>
-        answer(
+      search: ({ query, limit, semantic }) => {
+        const visual = visualSubjectQuery(query) !== null;
+        const ranked = queryVector(query).pipe(
+          Effect.flatMap((vector) => library.searchItems(query, limit, vector)),
+        );
+        return answer(
           semantic === false
-            ? Effect.forkDetach(prefetchQueryVector(query)).pipe(
-                Effect.andThen(library.searchItems(query, limit, null)),
-              )
-            : queryVector(query).pipe(
-                Effect.flatMap((vector) => library.searchItems(query, limit, vector)),
-              ),
-        ),
+            ? Effect.forkDetach(
+                Effect.all(
+                  [prefetchQueryVector(query), visual ? loadPhotoSearchVectors : Effect.void],
+                  { concurrency: 2 },
+                ),
+              ).pipe(Effect.andThen(library.searchItems(query, limit, null)))
+            : !visual
+              ? ranked
+              : Effect.all(
+                  {
+                    ranked,
+                    photos: loadPhotoSearchVectors.pipe(
+                      Effect.flatMap((prompts) =>
+                        library.searchPhotoSubjects(query, limit, prompts),
+                      ),
+                    ),
+                  },
+                  { concurrency: 2 },
+                ).pipe(
+                  Effect.map(({ ranked, photos }) => supplementPhotoMatches(ranked, photos, limit)),
+                ),
+        );
+      },
       similar: ({ id, by, limit }) => answer(library.searchSimilar(id, by, limit)),
       createNote: (input) => written(library.createNote(input)),
       createQuote: (input) => written(library.createQuote(input)),
