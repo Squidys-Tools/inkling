@@ -3,12 +3,11 @@ import type { Command, Platform } from "./shortcuts.ts";
 export type { Command, Platform } from "./shortcuts.ts";
 
 /**
- * How the OS frames the window, decided by main per platform: traffic lights at
- * the top left (`native-left`), the Window Controls Overlay at the top right
- * (`overlay-right`), or the desktop's own titlebar (`system-frame`).
+ * Main chooses native macOS traffic lights, the app's own right-hand buttons,
+ * the native Window Controls Overlay, or a full system frame.
  */
 export type WindowChrome = {
-  controls: "native-left" | "overlay-right" | "system-frame";
+  controls: "native-left" | "custom-right" | "overlay-right" | "system-frame";
   /** Height of the draggable band the renderer draws, in CSS pixels. */
   titlebarHeight: number;
   /** Width the renderer must leave free for OS controls on that side. */
