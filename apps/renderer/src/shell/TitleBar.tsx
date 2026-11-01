@@ -15,7 +15,7 @@ export function TitleBar() {
         {...stylex.props(
           styles.band,
           custom && styles.customBand,
-          custom && open && styles.clearSidebar,
+          custom && styles.clearSidebar(open ? 248 : 76),
           chrome.controls === "overlay-right" && styles.overlay,
         )}
       />
@@ -25,7 +25,7 @@ export function TitleBar() {
             type="button"
             aria-label="Minimize"
             title="Minimize"
-            onClick={() => void desktop.window.minimize()}
+            onClick={() => void desktop?.window.minimize()}
             {...stylex.props(styles.control)}
           >
             <span aria-hidden="true">−</span>
@@ -34,7 +34,7 @@ export function TitleBar() {
             type="button"
             aria-label="Maximize or restore"
             title="Maximize or restore"
-            onClick={() => void desktop.window.toggleMaximize()}
+            onClick={() => void desktop?.window.toggleMaximize()}
             {...stylex.props(styles.control)}
           >
             <span aria-hidden="true">□</span>
@@ -43,7 +43,7 @@ export function TitleBar() {
             type="button"
             aria-label="Close window"
             title="Close window"
-            onClick={() => void desktop.window.close()}
+            onClick={() => void desktop?.window.close()}
             {...stylex.props(styles.control, styles.close)}
           >
             <span aria-hidden="true">×</span>
@@ -67,7 +67,7 @@ const styles = stylex.create({
   },
   // No paint over the frame's border, and no drag hit area over the buttons or mascot.
   customBand: { right: "138px", zIndex: 20 },
-  clearSidebar: { left: "248px" },
+  clearSidebar: (left: number) => ({ left }),
   overlay: {
     left: "env(titlebar-area-x, 0px)",
     width: "env(titlebar-area-width, 100%)",

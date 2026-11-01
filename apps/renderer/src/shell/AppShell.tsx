@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { Outlet, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { cardColor, color, font, layout, motion, radius } from "@inkling/ui/tokens.stylex";
+import { useEffect, useSyncExternalStore } from "react";
+import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { useCaptureEvents } from "../capture/useCaptureEvents.ts";
 import { scopeFromPath } from "../library/scope.ts";
 import { startLibrarySync } from "../library/sync.ts";
@@ -12,6 +12,7 @@ import { useFirstRun } from "../onboarding/useFirstRun.ts";
 import { handleCommand } from "./commands.ts";
 import { ShortcutsDialog } from "./ShortcutsDialog.tsx";
 import { Sidebar } from "./Sidebar.tsx";
+import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
 import { TitleBar } from "./TitleBar.tsx";
 import { useCommands } from "./useCommands.ts";
 
@@ -31,40 +32,23 @@ export function AppShell() {
   useCommands();
   useEffect(() => startLibrarySync(), []);
   useEffect(() => handleCommand("toggleSidebar", toggleSidebar), []);
-
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const covered = scopeFromPath(pathname) === null;
-  // The welcome covers the whole window, sidebar included.
   const welcome = pathname === "/welcome";
   const dragging = useCaptureEvents(!covered);
   const narrow = useMedia("(max-width: 780px)");
-  const instant = useMedia("(prefers-reduced-motion: reduce)");
   const open = useViewState((state) => state.sidebarOpen);
-
-  // On wide windows the frame slides over the sidebar by transform, and the
-  // grid inside lays out for its new width once, when the slide has ended.
-  const shifted = !narrow && open;
-  const [settled, setSettled] = useState(shifted);
-  const narrowed = instant ? shifted : !narrow && settled;
+  // A real inset changes the grid's width during the slide, not at its end.
+  const inset = narrow && open ? 0 : open ? sidebarExpanded : sidebarCompact;
 
   return (
     <div {...stylex.props(styles.shell)}>
       <TitleBar />
       <div inert={welcome} {...stylex.props(styles.under)}>
         <Sidebar open={open} narrow={narrow} />
-        <main
-          {...stylex.props(
-            styles.stage,
-            shifted && styles.shifted,
-            (shifted || narrowed) && styles.rounded,
-          )}
-          onTransitionEnd={(event) => {
-            if (event.target === event.currentTarget && event.propertyName === "transform")
-              setSettled(shifted);
-          }}
-        >
-          <div {...stylex.props(styles.content, narrowed && styles.narrowed)}>
-            <LibraryHost covered={covered} sidebarCollapsed={!open} />
+        <main {...stylex.props(styles.stage, styles.inset(inset), narrow && styles.narrow)}>
+          <div {...stylex.props(styles.content)}>
+            <LibraryHost covered={covered} sidebarCollapsed={false} />
             {welcome ? null : covered ? (
               <div {...stylex.props(styles.page)}>
                 <Outlet />
@@ -100,63 +84,41 @@ const styles = stylex.create({
     color: color.ink,
   },
   under: { display: "contents" },
-  welcome: {
-    position: "fixed",
-    inset: 0,
-    zIndex: 35,
-    backgroundColor: color.window,
-  },
+  welcome: { position: "fixed", inset: 0, zIndex: 35, backgroundColor: color.window },
   stage: {
     position: "absolute",
     top: 0,
     bottom: 0,
-    left: 0,
+    right: 0,
     zIndex: 1,
     boxSizing: "border-box",
-    width: "100%",
+    minWidth: 0,
     backgroundColor: color.frame,
-    borderBlockWidth: 1,
-    borderBlockStyle: "solid",
-    borderBlockColor: color.border,
-    borderLeftWidth: 0,
-    borderLeftStyle: "solid",
-    borderLeftColor: color.border,
-    // Paint the frame edge above covering pages, not behind their backgrounds.
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: color.border,
+    borderTopLeftRadius: radius.frame,
+    borderBottomLeftRadius: radius.frame,
+    overflow: "hidden",
+    contain: "strict",
+    // Keep the reviewed edge inside the clip and above covering pages.
     "::after": {
       content: "''",
       position: "absolute",
       inset: 0,
       border: "inherit",
-      borderRadius: "inherit",
+      borderTopLeftRadius: `calc(${radius.frame} - 1px)`,
+      borderBottomLeftRadius: `calc(${radius.frame} - 1px)`,
       pointerEvents: "none",
       zIndex: 10,
     },
-    overflow: "hidden",
-    // Its own layer: the slide moves pixels the compositor already has.
-    contain: "strict",
-    transform: "none",
-    transitionProperty: "transform",
+    transitionProperty: "left",
     transitionDuration: motion.layout,
     transitionTimingFunction: motion.standard,
   },
-  shifted: { transform: `translateX(${layout.sidebar})` },
-  rounded: {
-    borderLeftWidth: 1,
-    borderTopLeftRadius: radius.frame,
-    borderBottomLeftRadius: radius.frame,
-    "::after": {
-      borderTopLeftRadius: `calc(${radius.frame} - 1px)`,
-      borderBottomLeftRadius: `calc(${radius.frame} - 1px)`,
-    },
-  },
-  content: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: "100%",
-  },
-  narrowed: { width: `calc(100% - ${layout.sidebar})` },
+  inset: (left: number) => ({ left }),
+  narrow: { transitionDuration: "0s" },
+  content: { position: "absolute", inset: 0 },
   page: {
     position: "absolute",
     inset: 0,
