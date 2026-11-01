@@ -5,5 +5,4 @@ import * as stylex from "@stylexjs/stylex";
 // the sidebar's hover area cannot react to the wrong one.
 export const cardMarker = stylex.defineMarker();
 export const tileMarker = stylex.defineMarker();
-export const sidebarMarker = stylex.defineMarker();
 export const spaceRowMarker = stylex.defineMarker();

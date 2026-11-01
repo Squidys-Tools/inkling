@@ -27,7 +27,7 @@ export const photoSearchLabels = [
 // with a small ambiguity allowance retain nearby dogs and background cars.
 // Exploratory calibration uses audited saved vectors, not an independent
 // held-out corpus or a universal accuracy guarantee.
-export const photoSearchAmbiguity = 0.005;
+const photoSearchAmbiguity = 0.005;
 
 export function photoSearchScore(
   image: ArrayLike<number>,

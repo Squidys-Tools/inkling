@@ -1,6 +1,6 @@
 export const sidebarExpanded = 248;
 export const sidebarCompact = 76;
-export const sidebarBreakpoint = 780;
+const sidebarBreakpoint = 780;
 
 // A compact Codex rail never vanishes; on narrow screens an open sidebar overlays.
 export function sidebarGeometry(viewport: number, open: boolean) {
