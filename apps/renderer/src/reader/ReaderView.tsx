@@ -1,9 +1,19 @@
 import { ArrowUpRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
-import { color, font, itemColor, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
+import {
+  color,
+  font,
+  itemColor,
+  layout,
+  motion,
+  radius,
+  space,
+  text,
+} from "@inkling/ui/tokens.stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
+import { controlsOnRight } from "../desktop.ts";
 import { hostname, webUrl } from "../library/assets.ts";
 import { useStepBack } from "../item/navigation.ts";
 import { useArticleHtml, useItem } from "../item/queries.ts";
@@ -77,7 +87,7 @@ export function ReaderView({ id }: { id: string }) {
         aria-label="Close reader"
         title="Close reader"
         onClick={close}
-        {...stylex.props(styles.close)}
+        {...stylex.props(styles.close, controlsOnRight && styles.belowControls)}
       >
         <span {...stylex.props(styles.esc)}>Esc</span>
         <HugeiconsIcon icon={Cancel01Icon} size={16} />
@@ -151,6 +161,8 @@ const styles = stylex.create({
     animationDuration: "1.2s",
     animationTimingFunction: "ease-out",
   },
+  // The window's own buttons fill this corner on Windows and Linux.
+  belowControls: { top: `calc(4px + ${layout.titlebar})` },
   close: {
     position: "absolute",
     top: space.s4,
