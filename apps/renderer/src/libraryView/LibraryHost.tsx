@@ -26,9 +26,11 @@ import { setSidebarOpen, useViewState } from "./viewState.ts";
 export function LibraryHost({
   covered,
   sidebarCollapsed,
+  painting = false,
 }: {
   covered: boolean;
   sidebarCollapsed: boolean;
+  painting?: boolean;
 }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -112,7 +114,7 @@ export function LibraryHost({
     <section
       aria-label={viewName}
       inert={covered}
-      {...stylex.props(styles.host, covered && styles.covered)}
+      {...stylex.props(styles.host, covered && !painting && styles.covered)}
     >
       {spaceGone ? null : state?.status === "error" && !searching ? (
         <EmptyState

@@ -3,6 +3,7 @@ import { Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useSyncExternalStore } from "react";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { useCaptureEvents } from "../capture/useCaptureEvents.ts";
+import { useFlightPainting } from "../item/itemFlight.ts";
 import { scopeFromPath } from "../library/scope.ts";
 import { startLibrarySync } from "../library/sync.ts";
 import { LibraryHost } from "../libraryView/LibraryHost.tsx";
@@ -34,6 +35,7 @@ export function AppShell() {
   useEffect(() => handleCommand("toggleSidebar", toggleSidebar), []);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const covered = scopeFromPath(pathname) === null;
+  const painting = useFlightPainting();
   const welcome = pathname === "/welcome";
   const dragging = useCaptureEvents(!covered);
   const narrow = useMedia("(max-width: 780px)");
@@ -48,9 +50,9 @@ export function AppShell() {
         <Sidebar open={open} narrow={narrow} />
         <main {...stylex.props(styles.stage, styles.inset(inset), narrow && styles.narrow)}>
           <div {...stylex.props(styles.content)}>
-            <LibraryHost covered={covered} sidebarCollapsed={false} />
+            <LibraryHost covered={covered} painting={painting} sidebarCollapsed={false} />
             {welcome ? null : covered ? (
-              <div {...stylex.props(styles.page)}>
+              <div {...stylex.props(styles.page, painting && styles.flightPage)}>
                 <Outlet />
               </div>
             ) : (
@@ -126,6 +128,7 @@ const styles = stylex.create({
     overflow: "hidden",
     backgroundColor: color.frame,
   },
+  flightPage: { backgroundColor: "transparent" },
   drop: {
     position: "absolute",
     inset: "8px",

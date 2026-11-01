@@ -1,6 +1,7 @@
 import type { ContextMenuItem } from "@inkling/contracts/desktop";
 import type { useNavigate } from "@tanstack/react-router";
 import { desktop } from "../desktop.ts";
+import { prepareItemOpen } from "../item/itemFlight.ts";
 import { hostname } from "../library/assets.ts";
 import type { CardView } from "../library/cardModel.ts";
 import { libraryClient } from "../library/connection.ts";
@@ -23,6 +24,7 @@ export function retryProcessing(jobId: string) {
 }
 
 export function openItem(view: CardView, navigate: Navigate) {
+  prepareItemOpen(view.id);
   void navigate({ to: "/item/$id", params: { id: view.id } });
 }
 
