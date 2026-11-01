@@ -35,4 +35,4 @@ jobs:
 
       # The Vercel project's root directory is apps/site, so deploy from the repo root.
       - name: Deploy to production
-        run: bunx vercel@65.9.0 deploy --prod --yes --token "$VERCEL_TOKEN" --meta githubSha=${{ github.sha }}
+        run: bunx vercel@65.9.0 deploy --prod --archive=tgz --yes --token "$VERCEL_TOKEN" --meta githubSha=${{ github.sha }}
