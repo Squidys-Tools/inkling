@@ -3,7 +3,8 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Glass } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, motion, radius } from "@inkling/ui/tokens.stylex";
-import { setListMode, useViewState } from "./viewState.ts";
+import { useViewState } from "./viewState.ts";
+import { switchView } from "./viewTransition.ts";
 
 /** The grid and list switch at the bottom of the frame. */
 export function ViewDock() {
@@ -15,13 +16,13 @@ export function ViewDock() {
         label="Grid view"
         icon={GridViewIcon}
         selected={!list}
-        onClick={() => setListMode(false)}
+        onClick={() => switchView(false)}
       />
       <ViewButton
         label="List view"
         icon={ListViewIcon}
         selected={list}
-        onClick={() => setListMode(true)}
+        onClick={() => switchView(true)}
       />
     </Glass>
   );

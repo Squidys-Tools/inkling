@@ -4,7 +4,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { cardColor, color, motion, radius } from "@inkling/ui/tokens.stylex";
 import type { CardView } from "../library/cardModel.ts";
 import type { Processing } from "../library/jobs.ts";
-import { cardMarker } from "../markers.stylex.ts";
+import { cardMarker, libraryMarker } from "../markers.stylex.ts";
 import { CardImage, CardMedia } from "./CardMedia.tsx";
 import { CardText } from "./CardText.tsx";
 import { ProcessingBadge } from "./Processing.tsx";
@@ -144,6 +144,8 @@ const styles = stylex.create({
     borderRadius: radius.card,
     cursor: "pointer",
     contain: "layout paint",
+    // Hidden while the view transition's entrance runs; its animations outrank this.
+    opacity: { default: 1, [stylex.when.ancestor("[data-entering]", libraryMarker)]: 0 },
     transform: {
       default: "none",
       [stylex.when.ancestor(":hover", cardMarker)]: "translateY(-2px)",
