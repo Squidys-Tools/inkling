@@ -39,6 +39,8 @@ export const color = stylex.defineVars({
   overlayHover: "rgba(255, 255, 255, 0.04)",
   overlayActive: "rgba(255, 255, 255, 0.08)",
   scrim: "rgba(0, 0, 0, 0.5)",
+  // The settings sheet dims the library under it harder than a small dialog does.
+  modalScrim: "rgba(8, 8, 7, 0.74)",
   shadow: "rgba(0, 0, 0, 0.55)",
 });
 

@@ -37,16 +37,22 @@ export function NavLink({
 /** A sidebar row that does something in place. */
 export function NavButton({
   tone = "footer",
+  active = false,
   icon,
   label,
   description,
   disabled = false,
+  expanded,
+  controls,
   onClick,
 }: RowLook & {
   icon: ReactNode;
   label: string;
   description?: string;
   disabled?: boolean;
+  /** The overlay this row owns, for aria-expanded/aria-controls. */
+  expanded?: boolean;
+  controls?: string;
   onClick: () => void;
 }) {
   return (
@@ -55,10 +61,12 @@ export function NavButton({
       title={description}
       disabled={disabled}
       aria-live={tone === "update" ? "polite" : undefined}
+      aria-expanded={expanded}
+      aria-controls={controls}
       onClick={onClick}
-      {...stylex.props(styles.row, styles.button, styles[tone])}
+      {...stylex.props(styles.row, styles.button, styles[tone], active && styles.active)}
     >
-      <span {...stylex.props(styles.icon)}>{icon}</span>
+      <span {...stylex.props(styles.icon, active && styles.activeIcon)}>{icon}</span>
       <span {...stylex.props(styles.label)}>{label}</span>
     </button>
   );

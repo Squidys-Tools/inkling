@@ -2,6 +2,7 @@ import { type Command, commandForKey } from "@inkling/contracts/shortcuts";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { desktop, platform } from "../desktop.ts";
+import { setSettingsSheetOpen } from "../libraryView/viewState.ts";
 import { runHandledCommand } from "./commands.ts";
 
 const isEditable = (target: EventTarget | null) =>
@@ -14,6 +15,9 @@ export function useCommands() {
 
   useEffect(() => {
     const run = (command: Command) => {
+      // An open dialog owns the keyboard: it keeps Escape and the shortcuts
+      // until it closes.
+      if (document.querySelector('[role="dialog"]')) return;
       switch (command) {
         case "addNote":
           return router.navigate({ to: "/add/note" });
@@ -22,7 +26,7 @@ export function useCommands() {
         case "addLink":
           return router.navigate({ to: "/add/link" });
         case "openSettings":
-          return router.navigate({ to: "/settings/$section", params: { section: "general" } });
+          return setSettingsSheetOpen(true);
         case "back":
           return router.history.back();
         case "forward":
