@@ -1,8 +1,10 @@
 name: Deploy site
 
-# The only way the marketing site reaches production. The Vercel secrets live in
-# the `site-production` environment, which requires a human reviewer, so a run
-# started by anyone (or any agent) waits for approval before it can read them.
+# The only way the marketing site reaches production, in two jobs: `stage` builds
+# a production deployment that no custom domain points at, then `promote` makes that
+# exact build live. `promote` waits on a reviewer in the `site-production`
+# environment, so the reviewer approves a finished build they can open first.
+# The split follows t3code's release workflow.
 on:
   workflow_dispatch:
 
@@ -14,12 +16,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Deploy apps/site to production
+  stage:
+    name: Stage a production build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    environment: site-production
+    timeout-minutes: 15
+    # No reviewer: this job only builds. --skip-domain keeps it off custom domains; Vercel
+    # still points the project's own *.vercel.app alias at it, behind a Vercel login.
+    environment: site-staging
+    outputs:
+      deployment_url: ${{ steps.deploy.outputs.deployment_url }}
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -34,5 +40,55 @@ jobs:
           bun-version-file: .bun-version
 
       # The Vercel project's root directory is apps/site, so deploy from the repo root.
-      - name: Deploy to production
-        run: bunx vercel@65.9.0 deploy --prod --archive=tgz --yes --token "$VERCEL_TOKEN" --meta githubSha=${{ github.sha }}
+      - id: deploy
+        name: Build the deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${VERCEL_TOKEN:-}" || -z "${VERCEL_ORG_ID:-}" || -z "${VERCEL_PROJECT_ID:-}" ]]; then
+            echo "Missing a Vercel secret: VERCEL_TOKEN, VERCEL_ORG_ID or VERCEL_PROJECT_ID." >&2
+            exit 1
+          fi
+
+          output="$(
+            bunx vercel@65.9.0 deploy \
+              --prod \
+              --skip-domain \
+              --archive=tgz \
+              --yes \
+              --token "$VERCEL_TOKEN" \
+              --meta githubSha="$GITHUB_SHA"
+          )"
+          printf '%s\n' "$output"
+
+          # The CLI can print warnings to stdout ahead of the deployment URL.
+          url="$(printf '%s\n' "$output" | grep -E '^https://[[:alnum:].-]+\.vercel\.app$' || true)"
+          if [[ -z "$url" || "$url" == *$'\n'* ]]; then
+            echo "Expected exactly one deployment URL." >&2
+            exit 1
+          fi
+          echo "deployment_url=$url" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Staged site build"
+            echo
+            echo "$url (open it signed in to Vercel, then approve the promote job)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  promote:
+    name: Promote it to production
+    needs: stage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: site-production
+    env:
+      DEPLOYMENT_URL: ${{ needs.stage.outputs.deployment_url }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Promote
+        run: bunx vercel@65.9.0 promote "$DEPLOYMENT_URL" --yes --token "$VERCEL_TOKEN"

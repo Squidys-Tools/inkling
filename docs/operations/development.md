@@ -72,9 +72,14 @@ output). Branch and PR pushes get a Vercel preview URL.
 Pushes to `main` do not deploy: `apps/site/vercel.json` turns that off, so the
 production domain changes only through the `Deploy site` workflow
 (`.github/workflows/site-deploy.yml`, `gh workflow run site-deploy.yml`). It runs
-only from `main` and pauses for a reviewer on the `site-production` GitHub
-environment, which also holds the `VERCEL_TOKEN`, `VERCEL_ORG_ID` and
-`VERCEL_PROJECT_ID` secrets. Agents start it only when asked and never approve it.
+only from `main`. Its `stage` job builds a production deployment that no custom domain
+points at; its `promote` job then publishes that exact build and pauses for a
+reviewer on the `site-production` GitHub environment, so the reviewer approves a
+build they can already open. Both environments hold the `VERCEL_TOKEN`,
+`VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` secrets; `site-staging` has no reviewer.
+Vercel still points the project's own `*.vercel.app` alias at a staged build,
+behind a Vercel login, but never a custom domain.
+Agents start it only when asked and never approve it.
 
 Packaged builds bundle the embedding models; [models.md](../models.md) covers how
 development builds fetch them.
