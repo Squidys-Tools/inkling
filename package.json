@@ -16,7 +16,7 @@
   "main": "dist/desktop/main.mjs",
   "scripts": {
     "dev": "vite --config apps/renderer/vite.config.ts",
-    "dev:app": "bun run build:app && electron . --dev",
+    "dev:app": "bun run build:app && bun tools/dev/dev-app.ts",
     "dev:site": "bun run --cwd apps/site dev",
     "build:renderer": "vite build --config apps/renderer/vite.config.ts",
     "build:processes": "bun apps/desktop/build.ts",

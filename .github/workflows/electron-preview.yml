@@ -9,6 +9,7 @@ on:
       - "AGENTS.md"
       - "apps/renderer/src/library/preview/seed-demo/**"
       - "apps/renderer/src/library/preview/seed.ts"
+      - "apps/renderer/src/library/preview/seed-data.ts"
 
 permissions:
   contents: read

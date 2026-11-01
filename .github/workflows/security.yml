@@ -62,10 +62,12 @@ jobs:
               - '!AGENTS.md'
               - '!apps/renderer/src/library/preview/seed-demo/**'
               - '!apps/renderer/src/library/preview/seed.ts'
+              - '!apps/renderer/src/library/preview/seed-data.ts'
             code:
               - 'apps/**'
               - '!apps/renderer/src/library/preview/seed-demo/**'
               - '!apps/renderer/src/library/preview/seed.ts'
+              - '!apps/renderer/src/library/preview/seed-data.ts'
               - 'packages/**'
               - 'tools/**'
               - 'extension/**'
