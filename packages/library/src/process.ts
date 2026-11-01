@@ -208,6 +208,7 @@ const handlers = LibraryRpcs.toLayer(
           Effect.tap(() => publish({ _tag: "SpacesChanged" })),
         ),
       itemSpaces: ({ itemId }) => answer(library.listItemSpaces(itemId)),
+      itemSpaceExclusions: ({ itemId }) => answer(library.listSpaceExclusions(itemId)),
       jobsFor: ({ itemIds }) => answer(jobs.getForItems(itemIds)),
       activeJobs: () => answer(jobs.countActive()),
       retryJob: ({ jobId }) => answer(jobs.retry(jobId)),

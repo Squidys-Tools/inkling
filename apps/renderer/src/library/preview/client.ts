@@ -87,6 +87,7 @@ export function createPreviewClient(): LibraryClient {
     items.set(card.id, { card, body: seedBodies[card.id] ?? "" });
   let spaces: Space[] = seedSpaces.map((space) => ({ ...space }));
   const membership = new Map(Object.entries(seedMembership).map(([id, ids]) => [id, new Set(ids)]));
+  const exclusions = new Map<string, Set<string>>();
   const jobs = new Map<string, Job>([
     [seedJobs.processing, job(seedJobs.processing, "processing")],
     [seedJobs.failed, job(seedJobs.failed, "failed")],
@@ -120,7 +121,9 @@ export function createPreviewClient(): LibraryClient {
       const ids = membership.get(space.id) ?? new Set();
       return active.filter((card) => ids.has(card.id));
     }
-    return active.filter((card) => matchesSmart(card, space));
+    return active.filter(
+      (card) => !exclusions.get(spaceId)?.has(card.id) && matchesSmart(card, space),
+    );
   };
 
   const withCounts = () =>
@@ -361,14 +364,22 @@ export function createPreviewClient(): LibraryClient {
       return touchSpaces(withCounts());
     },
     addToSpace: async ({ spaceId, itemId }) => {
-      spaceById(spaceId);
-      membership.set(spaceId, new Set([...(membership.get(spaceId) ?? []), itemId]));
+      const space = spaceById(spaceId);
+      entry(itemId);
+      exclusions.get(spaceId)?.delete(itemId);
+      if (space.kind === "regular")
+        membership.set(spaceId, new Set([...(membership.get(spaceId) ?? []), itemId]));
       touchSpaces(undefined);
     },
     removeFromSpace: async ({ spaceId, itemId }) => {
-      membership.get(spaceId)?.delete(itemId);
+      const space = spaceById(spaceId);
+      entry(itemId);
+      if (space.kind === "regular") membership.get(spaceId)?.delete(itemId);
+      else exclusions.set(spaceId, new Set([...(exclusions.get(spaceId) ?? []), itemId]));
       touchSpaces(undefined);
     },
+    itemSpaceExclusions: async ({ itemId }) =>
+      [...exclusions].filter(([, ids]) => ids.has(itemId)).map(([id]) => id),
     itemSpaces: async ({ itemId }) =>
       [...membership.entries()].filter(([, ids]) => ids.has(itemId)).map(([id]) => id),
 

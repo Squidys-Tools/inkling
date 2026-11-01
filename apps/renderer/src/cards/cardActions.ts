@@ -5,6 +5,7 @@ import { prepareItemOpen } from "../item/itemFlight.ts";
 import { hostname } from "../library/assets.ts";
 import type { CardView } from "../library/cardModel.ts";
 import { libraryClient } from "../library/connection.ts";
+import { loadScope, shownScope } from "../library/cards.ts";
 import { retryJob } from "../library/jobs.ts";
 import { errorMessage } from "../library/errors.ts";
 import { setInSpace, spacesStore } from "../library/spaces.ts";
@@ -69,6 +70,15 @@ export async function openCardMenu(
   at: { x: number; y: number },
   navigate: Navigate,
 ) {
+  const scope = shownScope.get();
+  const current =
+    scope._tag === "Space" && spacesStore.get().spaces.find((s) => s.id === scope.spaceId);
+  const changeSpace = async (spaceId: string, filed: boolean) => {
+    if (await setInSpace(spaceId, view.id, filed)) {
+      const shown = shownScope.get();
+      if (shown._tag === "Space" && shown.spaceId === spaceId) void loadScope(shown);
+    }
+  };
   const items: ContextMenuItem[] = [];
   const actions = new Map<string, () => unknown>();
   const add = (id: string, label: string, action: () => unknown, destructive = false) => {
@@ -105,20 +115,36 @@ export async function openCardMenu(
         );
       add("folder", "Show in folder", () => bridge.showItemInFolder(view.id));
     }
+    if (current) {
+      separate();
+      add("remove-here", `Remove from ${current.name}`, () => changeSpace(current.id, false));
+    }
     const regular = spacesStore.get().spaces.filter((space) => space.kind === "regular");
-    if (regular.length > 0) {
-      const filed = new Set(
-        await libraryClient()
-          .then((client) => client.itemSpaces({ itemId: view.id }))
-          .catch(() => [] as readonly string[]),
-      );
+    if (spacesStore.get().spaces.length > 0) {
+      let filed: Set<string>, excluded: Set<string>;
+      try {
+        const client = await libraryClient();
+        const sets = await Promise.all([
+          client.itemSpaces({ itemId: view.id }),
+          client.itemSpaceExclusions({ itemId: view.id }),
+        ]);
+        filed = new Set(sets[0]);
+        excluded = new Set(sets[1]);
+      } catch {
+        reportActionError("Couldn’t load this item’s Space options.");
+        return;
+      }
+      for (const space of spacesStore
+        .get()
+        .spaces.filter((s) => s.kind === "smart" && excluded.has(s.id)))
+        add(`allow:${space.id}`, `Allow in ${space.name}`, () => changeSpace(space.id, true));
       separate();
       for (const space of regular) {
         const isFiled = filed.has(space.id);
         add(
           `space:${space.id}`,
           isFiled ? `Remove from ${space.name}` : `Add to ${space.name}`,
-          () => setInSpace(space.id, view.id, !isFiled),
+          () => changeSpace(space.id, !isFiled),
         );
       }
     }

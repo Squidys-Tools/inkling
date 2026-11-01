@@ -114,7 +114,8 @@ test("restore preserves Space kinds, ordering, and Regular Space membership", as
   });
   if (!item || !regular) throw new Error("fixtures were not created");
   await library.addSpaceItem(regular.id, item.id);
-  await library.createSpace({ name: "Japan", query: { tag: "japan" } });
+  const smart = await library.createSpace({ name: "Japan", query: { tag: "japan" } });
+  await library.removeSpaceItem(smart.id, item.id);
   const destination = join(root, "exports");
   mkdirSync(destination);
   const report = await library.exportLibrary(destination, 0);
@@ -130,7 +131,10 @@ test("restore preserves Space kinds, ordering, and Regular Space membership", as
   expect(spaces[0].color).toBe("yellow");
   expect(spaces[0].itemCount).toBe(1);
   expect(ids(await restored.listSpaceItems(regular.id))).toEqual([item.id]);
-  expect(ids(await restored.listSpaceItems(spaces[1].id))).toEqual([item.id]);
+  expect(ids(await restored.listSpaceItems(spaces[1].id))).toEqual([]);
+  expect(await restored.listSpaceExclusions(item.id)).toEqual([smart.id]);
+  await restored.addSpaceItem(smart.id, item.id);
+  expect(ids(await restored.listSpaceItems(smart.id))).toEqual([item.id]);
 });
 
 test("restore rejects unsupported Smart Space query fields", async () => {

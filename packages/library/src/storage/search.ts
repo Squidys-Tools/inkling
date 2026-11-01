@@ -193,22 +193,28 @@ export function makeSearch(ctx: StorageContext) {
     query: string,
     limit = 100,
     queryVector: QueryVector = null,
+    excludedIds: ReadonlyArray<string> = [],
   ) {
+    const excluded = new Set(excludedIds);
+    const allowed = (column: string) =>
+      excluded.size
+        ? sql`${sql.literal(column)} NOT IN (SELECT value FROM json_each(${JSON.stringify(excludedIds)}))`
+        : sql.literal("1");
     const search = query.trim();
     const cap = clampLimit(limit, 100, 200);
-    if (!search) return yield* selectCards(ctx, sql`archived = 0`, cap);
+    if (!search) return yield* selectCards(ctx, sql`archived = 0 AND ${allowed("id")}`, cap);
     let rows: ReadonlyArray<ItemRow> = [];
     if (ctx.fts5Enabled) {
       const match = escapeFtsQuery(search);
       if (match) {
         rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)}
           FROM items_fts f JOIN items i ON i.id = f.item_id
-          WHERE i.archived = 0 AND items_fts MATCH ${match}
+          WHERE i.archived = 0 AND ${allowed("i.id")} AND items_fts MATCH ${match}
           ORDER BY i.updated_at DESC, i.created_at DESC LIMIT ${cap}`;
       }
     } else {
       rows = yield* sql<ItemRow>`SELECT ${sql.literal(itemColumns)} FROM items
-        WHERE archived = 0 AND ${likeClause(sqlLikePattern(search))}
+        WHERE archived = 0 AND ${allowed("id")} AND ${likeClause(sqlLikePattern(search))}
         ORDER BY updated_at DESC, created_at DESC LIMIT ${cap}`;
     }
     const lexicalItems = rows.map(itemFromRow);
@@ -233,6 +239,7 @@ export function makeSearch(ctx: StorageContext) {
       const accept = (row: number) =>
         scores[row] >= semanticMatchFloor &&
         !lexical.has(group.ids[row]) &&
+        !excluded.has(group.ids[row]) &&
         (row >= group.textRows ||
           !group.photoIds.has(group.ids[row]) ||
           visualMatches.has(group.ids[row]));

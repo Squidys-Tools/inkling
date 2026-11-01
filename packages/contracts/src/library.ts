@@ -153,6 +153,7 @@ export const LibraryRpcs = RpcGroup.make(
   call("addToSpace", { spaceId: Text, itemId: Text }, Schema.Void),
   call("removeFromSpace", { spaceId: Text, itemId: Text }, Schema.Void),
   call("itemSpaces", { itemId: Text }, Schema.Array(Text)),
+  call("itemSpaceExclusions", { itemId: Text }, Schema.Array(Text)),
 
   call("jobsFor", { itemIds: Schema.Array(Text) }, Schema.Array(Job)),
   call("activeJobs", {}, Schema.Number),

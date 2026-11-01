@@ -139,12 +139,13 @@ export async function deleteSpace(space: Space) {
 }
 
 export async function setInSpace(spaceId: string, itemId: string, filed: boolean) {
-  await attempt(
+  return await attempt(
     filed ? "Couldn’t add this to the Space." : "Couldn’t take this out of the Space.",
     async () => {
       const client = await libraryClient();
       if (filed) await client.addToSpace({ spaceId, itemId });
       else await client.removeFromSpace({ spaceId, itemId });
+      return true;
     },
   );
 }
