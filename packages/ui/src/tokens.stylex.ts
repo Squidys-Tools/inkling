@@ -23,6 +23,8 @@ export const color = stylex.defineVars({
   accent: "#b0714f",
   accentStrong: "#c27f5b",
   accentSoft: "#241c16",
+  focusRing: "#815944",
+  selection: "#493327",
   onAccent: "#faf6f0",
   danger: "#d07055",
   dangerSoft: "rgba(208, 112, 85, 0.14)",

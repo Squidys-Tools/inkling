@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { useLayoutEffect, useRef, useState } from "react";
-import { color, font, radius } from "@inkling/ui/tokens.stylex";
+import { color, font, motion, radius, space } from "@inkling/ui/tokens.stylex";
 import { fitsTitleEdit, nameEnd, singleLine } from "./titleEdit.ts";
 
 // Keep a filename's date and time together in both the title and its editor.
@@ -57,16 +57,53 @@ function selectionOffsets(field: HTMLElement) {
 function TitleEditor({ title, finish }: { title: string; finish: (value: string | null) => void }) {
   const field = useRef<HTMLSpanElement>(null);
   const settled = useRef(false);
+  const animation = useRef<Animation | null>(null);
+  const pendingFinish = useRef<(() => void) | null>(null);
   const settle = (save: boolean) => {
     if (settled.current) return;
     settled.current = true;
-    finish(save ? singleLine(field.current?.textContent ?? "").trim() : null);
+    const element = field.current;
+    const value = save ? singleLine(element?.textContent ?? "").trim() : null;
+    const complete = () => {
+      if (!pendingFinish.current) return;
+      pendingFinish.current = null;
+      finish(value);
+    };
+    pendingFinish.current = complete;
+    if (!element || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      complete();
+      return;
+    }
+    const current = getComputedStyle(element);
+    const from = { opacity: current.opacity, transform: current.transform };
+    animation.current?.cancel();
+    element.contentEditable = "false";
+    const exit = element.animate([from, { opacity: 0.25, transform: "scale(0.985)" }], {
+      duration: parseFloat(current.transitionDuration) * 1000,
+      easing: current.transitionTimingFunction,
+      fill: "forwards",
+    });
+    animation.current = exit;
+    void exit.finished.then(complete, complete);
   };
   useLayoutEffect(() => {
     const element = field.current;
     if (!element) return;
     element.focus();
     selectRange(element, 0, nameEnd(title));
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const timing = getComputedStyle(element);
+      animation.current = element.animate(
+        [
+          { opacity: 0.4, transform: "scale(0.985)" },
+          { opacity: 1, transform: "none" },
+        ],
+        {
+          duration: parseFloat(timing.transitionDuration) * 1000,
+          easing: timing.transitionTimingFunction,
+        },
+      );
+    }
     const snapshot = () => ({
       nodes: [...element.childNodes].map((node) => node.cloneNode(true)),
       offsets: selectionOffsets(element),
@@ -107,6 +144,9 @@ function TitleEditor({ title, finish }: { title: string; finish: (value: string 
     element.addEventListener("compositionstart", startComposition);
     element.addEventListener("compositionend", endComposition);
     return () => {
+      animation.current?.cancel();
+      // Leaving the item mid-exit must not strand a committed edit.
+      pendingFinish.current?.();
       element.removeEventListener("beforeinput", beforeInput);
       element.removeEventListener("input", input);
       element.removeEventListener("compositionstart", startComposition);
@@ -201,8 +241,20 @@ const styles = stylex.create({
   nowrap: { whiteSpace: "nowrap" },
   reset: {
     display: "block",
-    width: "100%",
-    padding: 0,
+    boxSizing: "border-box",
+    width: "fit-content",
+    maxWidth: "calc(100% - 2px)",
+    maxHeight: "136px",
+    overflowY: "auto",
+    scrollbarWidth: "thin",
+    minWidth: "min(96px, 100%)",
+    paddingInline: space.s2,
+    paddingBlock: space.s2,
+    marginInline: "1px",
+    marginBlock: "-8px",
+    transformOrigin: "left center",
+    transitionDuration: motion.micro,
+    transitionTimingFunction: motion.standard,
     borderWidth: 0,
     backgroundColor: "transparent",
     fontFamily: "inherit",
@@ -220,10 +272,15 @@ const styles = stylex.create({
     outlineOffset: "3px",
   },
   editor: {
-    minHeight: "30px",
+    minHeight: "46px",
     borderRadius: radius.control,
     backgroundColor: color.sunken,
-    outline: `1px solid ${color.accent}`,
+    outline: "none",
+    boxShadow: `0 0 0 1px ${color.focusRing}`,
     whiteSpace: "pre-wrap",
+    "::selection": {
+      backgroundColor: color.selection,
+      color: color.inkStrong,
+    },
   },
 });
