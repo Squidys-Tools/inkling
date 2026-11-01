@@ -7,11 +7,7 @@ import {
   LibraryRpcs,
   type LibraryChange,
 } from "@inkling/contracts";
-import {
-  smartSpaceSubjects,
-  visualSubjectQuery,
-  visualSubjects,
-} from "@inkling/ingestion/photo-subjects";
+import { smartSpaceSubjects, visualSubjects } from "@inkling/ingestion/photo-subjects";
 import { layerProtocol, type PortSource } from "@inkling/rpc-electron/server";
 import { Cause, Duration, Effect, Exit, Fiber, Layer, PubSub, Stream } from "effect";
 import { RpcServer } from "effect/rpc";
@@ -23,7 +19,11 @@ import { createLibrarySizeCache } from "./library-size.ts";
 import { errorMessage } from "./storage/errors.ts";
 import { JobQueue, Library, libraryLayer } from "./storage/library.ts";
 import { cardItem } from "./storage/rows.ts";
-import { photoSearchLabels, supplementPhotoMatches } from "./storage/photo-search.ts";
+import {
+  photoSearchLabels,
+  photoSearchSubjects,
+  supplementPhotoMatches,
+} from "./storage/photo-search.ts";
 import { snapshotDatabase } from "./storage/sqlite-snapshot.ts";
 import {
   interfaceLabel,
@@ -105,24 +105,38 @@ const loadSubjectVectors = Effect.suspend(() =>
 
 // Search adds confuser prompts without changing the Map the Smart Space classifier sees.
 let photoPrompts: SubjectVectors | null = null;
-const loadPhotoSearchVectors = Effect.gen(function* () {
-  if (photoPrompts) return photoPrompts;
-  const base = yield* loadSubjectVectors;
-  if (!base) return null;
-  const extras = yield* Effect.forEach(
-    photoSearchLabels.filter((label) => !base.has(label)),
-    (label) =>
+const loadPhotoSearchVectors = (query: string) =>
+  Effect.gen(function* () {
+    if (!photoPrompts) {
+      const base = yield* loadSubjectVectors;
+      if (!base) return null;
+      const extras = yield* Effect.forEach(
+        photoSearchLabels.filter((label) => !base.has(label)),
+        (label) =>
+          queryVector(subjectPrompt(label)).pipe(Effect.map((vector) => [label, vector] as const)),
+        { concurrency: 4 },
+      );
+      if (extras.some(([, vector]) => !vector?.length)) return null;
+      photoPrompts = new Map([
+        ...base,
+        ...extras.map(([label, vector]) => [label, vector!] as const),
+      ]);
+    }
+    const base = photoPrompts;
+    const wanted = photoSearchSubjects(query);
+    const missing = wanted.filter((label) => !base.has(label));
+    if (!missing.length) return base;
+    const extra = yield* Effect.forEach(missing, (label) =>
       queryVector(subjectPrompt(label)).pipe(Effect.map((vector) => [label, vector] as const)),
-    { concurrency: 4 },
+    );
+    if (extra.some(([, vector]) => !vector?.length)) return null;
+    // Never add query-specific prompts to the shared Space/search guard inventory.
+    return new Map([...base, ...extra.map(([label, vector]) => [label, vector!] as const)]);
+  }).pipe(
+    Effect.timeoutOption(subjectWait),
+    Effect.map((result) => (result._tag === "Some" ? result.value : null)),
+    Effect.orElseSucceed(() => null),
   );
-  if (extras.some(([, vector]) => !vector?.length)) return null;
-  photoPrompts = new Map([...base, ...extras.map(([label, vector]) => [label, vector!] as const)]);
-  return photoPrompts;
-}).pipe(
-  Effect.timeoutOption(subjectWait),
-  Effect.map((result) => (result._tag === "Some" ? result.value : null)),
-  Effect.orElseSucceed(() => null),
-);
 
 // Every failure reaches the renderer as one message it can show.
 const failure = (cause: unknown) => new LibraryError({ message: errorMessage(cause) });
@@ -185,7 +199,7 @@ const handlers = LibraryRpcs.toLayer(
       articleHtml: ({ id }) => answer(Effect.map(library.getItem(id), articleHtml)),
       itemContent: ({ id }) => answer(library.getItemContent(id)),
       search: ({ query, limit, semantic }) => {
-        const visual = visualSubjectQuery(query) !== null;
+        const visual = photoSearchSubjects(query).length > 0;
         const ranked = queryVector(query).pipe(
           Effect.flatMap((vector) => library.searchItems(query, limit, vector)),
         );
@@ -193,7 +207,10 @@ const handlers = LibraryRpcs.toLayer(
           semantic === false
             ? Effect.forkDetach(
                 Effect.all(
-                  [prefetchQueryVector(query), visual ? loadPhotoSearchVectors : Effect.void],
+                  [
+                    prefetchQueryVector(query),
+                    visual ? loadPhotoSearchVectors(query) : Effect.void,
+                  ],
                   { concurrency: 2 },
                 ),
               ).pipe(Effect.andThen(library.searchItems(query, limit, null)))
@@ -202,7 +219,7 @@ const handlers = LibraryRpcs.toLayer(
               : Effect.all(
                   {
                     ranked,
-                    photos: loadPhotoSearchVectors.pipe(
+                    photos: loadPhotoSearchVectors(query).pipe(
                       Effect.flatMap((prompts) =>
                         library.searchPhotoSubjects(query, limit, prompts),
                       ),

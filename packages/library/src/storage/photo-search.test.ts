@@ -2,7 +2,12 @@ import { afterAll, afterEach, expect, test } from "bun:test";
 import type { LibraryCard } from "@inkling/contracts";
 import { IMAGE_MODEL } from "@inkling/contracts/jobs";
 import { closeAll, ids, removeTemporaryRoots, temporaryLibrary, vector } from "./test-helpers.ts";
-import { photoSearchLabels, photoSearchScore, supplementPhotoMatches } from "./photo-search.ts";
+import {
+  photoSearchLabels,
+  photoSearchScore,
+  photoSearchSubjects,
+  supplementPhotoMatches,
+} from "./photo-search.ts";
 
 afterEach(closeAll);
 afterAll(removeTemporaryRoots);
@@ -26,6 +31,21 @@ test("photo scores use prompt competition, not the incompatible text floor", () 
   expect(photoSearchScore(axis("cat", 0.08), ["cat"], new Map())).toBeNull();
   expect(photoSearchScore([1, 0], ["cat"], prompts)).toBeNull();
   expect(photoSearchScore(axis("cat", NaN), ["cat"], prompts)).toBeNull();
+  const dynamic = new Map([...prompts].map(([label, values]) => [label, [...values, 0]]));
+  dynamic.set("purple teapot", [...axis("car", 0), 1]);
+  expect(
+    photoSearchScore([...axis("food", 0.06), 0.08], ["purple teapot"], dynamic, false),
+  ).toBeCloseTo(0.08);
+  expect(
+    photoSearchScore([...axis("food", 0.06), 0.064], ["purple teapot"], dynamic, false),
+  ).toBeNull();
+  dynamic.delete("phone");
+  expect(
+    photoSearchScore([...axis("food", 0.06), 0.08], ["purple teapot"], dynamic, false),
+  ).toBeNull();
+  expect(photoSearchSubjects(" Purple teapot ")).toEqual(["purple teapot"]);
+  expect(photoSearchSubjects("photos of kittens and dogs")).toEqual(["cat", "dog"]);
+  expect(photoSearchSubjects(" ")).toEqual([]);
 });
 
 test("visual supplements preserve exact OCR/text and semantic notes, deduplicate and cap", () => {
@@ -40,6 +60,31 @@ test("visual supplements preserve exact OCR/text and semantic notes, deduplicate
     "ocr",
     "semantic-note",
   ]);
+});
+
+test("unlisted photo queries compete with the guard prompts without relaxing known-noun recall", async () => {
+  const { library } = await temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items (id, kind, title, created_at, updated_at)
+    VALUES (?, 'image', 'neutral', 1, 1)`);
+  for (const subject of [
+    "pizza",
+    "rabbit",
+    "shrimp",
+    "cake",
+    "lion",
+    "motorcycle",
+    "citrus",
+    "purple teapot",
+  ]) {
+    insert.run(subject);
+    const queryPrompts = new Map([...prompts].map(([label, values]) => [label, [...values, 0]]));
+    const wanted = [...axis("car", 0), 1];
+    queryPrompts.set(subject, wanted);
+    await library.storeEmbedding(subject, "image", IMAGE_MODEL, vector(wanted), wanted.length);
+    // An actual new query prompt wins its photograph; an absent query prompt cannot admit it.
+    expect(ids(await library.searchPhotoSubjects(subject, 20, queryPrompts))).toContain(subject);
+    await library.archiveItem(subject, true);
+  }
 });
 
 test("only current active photo vectors supplement recognized noun searches", async () => {

@@ -29,16 +29,25 @@ export const photoSearchLabels = [
 // held-out corpus or a universal accuracy guarantee.
 const photoSearchAmbiguity = 0.005;
 
+// The Space vocabulary is not a search allowlist: any description can supply
+// its own photo prompt, while the existing nouns retain their calibrated guard.
+export function photoSearchSubjects(query: string) {
+  const text = query.trim().toLowerCase();
+  return visualSubjectQuery(text) ?? (text ? [text] : []);
+}
+
 export function photoSearchScore(
   image: ArrayLike<number>,
   subjects: readonly string[],
   prompts: SubjectVectors,
+  allowAmbiguity = true,
 ) {
   if (!image.length) return null;
   let best = -Infinity;
+  let competing = -Infinity;
   let wanted = -Infinity;
   let bestLabel = "";
-  for (const label of photoSearchLabels) {
+  for (const label of new Set([...photoSearchLabels, ...subjects])) {
     const prompt = prompts.get(label);
     // Partial or incompatible prompts must not force every photo into a wanted noun.
     if (!prompt || prompt.length !== image.length) return null;
@@ -49,10 +58,14 @@ export function photoSearchScore(
       best = score;
       bestLabel = label;
     }
-    if (subjects.includes(label) && score > wanted) wanted = score;
+    if (subjects.includes(label)) wanted = Math.max(wanted, score);
+    else competing = Math.max(competing, score);
   }
   if (bestLabel === interfaceLabel || wanted === -Infinity) return null;
-  return wanted >= best - photoSearchAmbiguity ? wanted : null;
+  // New descriptions must beat the guard prompts, not borrow the known-noun
+  // ambiguity allowance to return weakly related tail results.
+  const floor = allowAmbiguity ? best - photoSearchAmbiguity : competing + photoSearchAmbiguity;
+  return wanted >= floor ? wanted : null;
 }
 
 /** Keep the normal ranked text/OCR/note matches first, deduplicate, then cap. */
@@ -71,7 +84,7 @@ export function supplementPhotoMatches(
     .slice(0, clampLimit(limit, 100, 200));
 }
 
-/** Known-noun visual supplements only; ordinary free text stays on the usual search path. */
+/** Query-driven photo evidence supplements, never replaces, ordinary text search. */
 export function makePhotoSearch({ sql }: StorageContext) {
   let cached: {
     signature: string;
@@ -84,8 +97,10 @@ export function makePhotoSearch({ sql }: StorageContext) {
     prompts: SubjectVectors | null = null,
     excludedIds: readonly string[] = [],
   ) {
-    const subjects = visualSubjectQuery(query);
-    if (!subjects || !prompts || !photoSearchLabels.every((label) => prompts.has(label))) return [];
+    const subjects = photoSearchSubjects(query);
+    if (!subjects.length || !prompts || !photoSearchLabels.every((label) => prompts.has(label)))
+      return [];
+    const allowAmbiguity = visualSubjectQuery(query) !== null;
     const cap = clampLimit(limit, 100, 200);
     const excluded = new Set(excludedIds);
     // The library owns writes; row count/rowid also notice external insert/delete fixtures.
@@ -107,7 +122,7 @@ export function makePhotoSearch({ sql }: StorageContext) {
       for (const row of vectors) {
         const image = decodeVector(row.vector, row.dimension);
         if (!image) continue;
-        const score = photoSearchScore(image, subjects, prompts);
+        const score = photoSearchScore(image, subjects, prompts, allowAmbiguity);
         if (score !== null) matches.push({ id: row.item_id, score });
       }
       // A result crossing another write is never inserted into the newer cache.
