@@ -68,7 +68,10 @@ publishing a release. Build it with `bun run build:site`, which runs Vite on
 Node: under the Bun runtime, StyleX's production media-query parser fails.
 
 Iterate on the site with `bun run dev:site` (hot reload; read the port from its
-output). Branch and PR pushes get a Vercel preview URL.
+output). Branch and PR pushes get a Vercel preview URL only when the diff
+touches what the site builds from — `apps/site`, the renderer modules and
+`packages` it imports, or dependency and toolchain files — because
+`apps/site/vercel.json`'s `ignoreCommand` skips every other push.
 Pushes to `main` do not deploy: `apps/site/vercel.json` turns that off, so the
 production domain changes only through the `Deploy site` workflow
 (`.github/workflows/site-deploy.yml`, `gh workflow run site-deploy.yml`). It runs
