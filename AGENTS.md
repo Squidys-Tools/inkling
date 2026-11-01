@@ -22,7 +22,7 @@ Find the real constraint, then build the smallest thing that makes the correct b
 - **Capture** is getting something in: the Add button, paste, drag and drop, clipboard, screenshot, or the **deep link** `inkling://capture?url=...`. The Chrome extension in `extension/` uses the deep link or the loopback receiver in `apps/desktop/src/capture/server.ts`.
 - A **job** is one unit of background work on the persisted queue with leases. Jobs retry, leases expire, and interrupted jobs recover on restart.
 - A **Space** is a collection. A Smart Space is a saved search that runs each time it loads; a regular Space holds items the user picked.
-- **Preview** is `bun run dev`, or its static build `bun run build:web`: the demo seed in memory and no desktop backend. The **full app** is `bun run dev:app` (unpackaged, on the seeded `.dev-library/` scratch library in the worktree) or the packaged build from `bun run build:dir`. OCR, embeddings and file access run only in the full app.
+- **Preview** is `bun run dev`, or its static build `bun run build:web`: the demo seed in memory and no desktop backend. The **full app** is `bun run dev:app` (unpackaged, on the seeded `.dev-library/` scratch library in the worktree) or the packaged build from `bun run dist`. OCR, embeddings and file access run only in the full app.
 
 ## Safety
 
@@ -59,7 +59,7 @@ The usual defect works on the tested path and is missing elsewhere. Before calli
 
 ## Tests and checks
 
-- While iterating, run `bun test <files>`. Before pushing, run `bun run check:changed`. Leave `bun run check`, a full `bun test` and a full `tsc` to CI unless asked. If module resolution looks broken, run `bun run check:bun-version`.
+- While iterating, run `bun test <files>`. Before pushing, run `bun run check:changed`. Leave `bun run check`, a full `bun test` and a full `tsc` to CI unless asked. If module resolution looks broken, run `bun tools/repo/check-bun-version.ts`.
 - Test what breaks quietly: extraction and sanitizing, embed allowlists, OCR scoring, queue leases and recovery, migrations, asset path containment and range requests, deep link and external-format parsing, and ordering and races. Leave out tests of what the types prove, trivial logic, static renders, mock-call mirrors, smoke tests and timing.
 - A logic, data, state or protocol bug gets a test that fails on `main`, then the fix; mark it `// regression: #NNN` if its name does not say so. A visual bug gets before and after screenshots instead. Capture and background changes ship with focused tests.
 - Add a row or assertion to an existing test before writing a new `it`, at the lowest layer that fails.

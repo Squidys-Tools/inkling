@@ -2,8 +2,12 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["tools/**/*.{ts,mjs}", "benchmarks/fetch-macrumors.ts"],
-      "ignoreDependencies": ["@img/sharp-wasm32"],
+      "entry": [
+        "tools/**/*.{ts,mjs}",
+        "benchmarks/fetch-macrumors.ts",
+        "benchmarks/harness/index.ts"
+      ],
+      "ignoreDependencies": ["@img/sharp-wasm32", "electron-builder"],
       "ignoreBinaries": ["dpkg-deb"],
       "ignore": [".agents/**", ".claude/**"]
     },
