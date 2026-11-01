@@ -17,7 +17,6 @@ export function CardFace({
   view,
   index,
   list,
-  selected,
   processing,
   onOpen,
   onRead,
@@ -27,7 +26,6 @@ export function CardFace({
   view: CardView;
   index: number;
   list: boolean;
-  selected: boolean;
   processing: Processing | undefined;
   onOpen: () => void;
   onRead: () => void;
@@ -62,7 +60,6 @@ export function CardFace({
           list ? styles.listShape : shapes[view.treatment],
           !list && view.treatment === "media" && styles.ratio(view.aspectRatio),
           view.kind === "Article" ? styles.paper : styles.surface,
-          selected && styles.selected,
         )}
       >
         {gridArticle ? (
@@ -162,17 +159,6 @@ const styles = stylex.create({
     display: "grid",
     gridTemplateColumns: "155px minmax(0, 1fr)",
     borderRadius: radius.panel,
-  },
-  selected: {
-    "::after": {
-      content: "''",
-      position: "absolute",
-      inset: 0,
-      zIndex: 5,
-      borderRadius: "inherit",
-      boxShadow: `inset 0 0 0 1px ${color.accent}`,
-      pointerEvents: "none",
-    },
   },
   strip: {
     position: "relative",

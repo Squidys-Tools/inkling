@@ -4,7 +4,6 @@ import { cardFromDetail } from "../library/cardModel.ts";
 import { type LibraryClient, libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
 import { refreshJobs } from "../library/jobs.ts";
-import { selectCard } from "../library/selection.ts";
 import { createStore, useStore } from "../library/store.ts";
 
 type CaptureState = {
@@ -24,13 +23,12 @@ export const reportCaptureError = (message: string) =>
   captureState.set((state) => ({ ...state, error: message }));
 
 /**
- * Puts a freshly written item at the top of the library and marks it, without
+ * Puts a freshly written item at the top of the library, without
  * waiting for the library's change event. The Add pages call this too.
  */
 export function showNewItem(detail: ItemDetail) {
   showNewCards([cardFromDetail(detail)]);
   reevaluateShownSpace();
-  selectCard(detail.id);
   void refreshJobs([detail.id]);
 }
 

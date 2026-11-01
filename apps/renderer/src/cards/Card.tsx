@@ -4,7 +4,6 @@ import { useCard } from "../library/cards.ts";
 import { type CardView, cardView } from "../library/cardModel.ts";
 import { useProcessing } from "../library/jobs.ts";
 import { useLabelClock } from "../library/labelClock.ts";
-import { useIsSelected } from "../library/selection.ts";
 import { menuPoint } from "../menu/contextMenu.tsx";
 import { ArchiveTile } from "./ArchiveTile.tsx";
 import { openCardMenu, openItem, openReader, retryProcessing } from "./cardActions.ts";
@@ -36,14 +35,12 @@ export function GridCell({
 
 function LibraryCard({ view, index, list }: { view: CardView; index: number; list: boolean }) {
   const navigate = useNavigate();
-  const selected = useIsSelected(view.id);
   const processing = useProcessing(view.id);
   return (
     <CardFace
       view={view}
       index={index}
       list={list}
-      selected={selected}
       processing={processing}
       onOpen={() => openItem(view, navigate)}
       onRead={() => openReader(view, navigate)}

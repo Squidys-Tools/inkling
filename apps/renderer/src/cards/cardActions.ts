@@ -6,7 +6,6 @@ import type { CardView } from "../library/cardModel.ts";
 import { libraryClient } from "../library/connection.ts";
 import { retryJob } from "../library/jobs.ts";
 import { errorMessage } from "../library/errors.ts";
-import { selectCard } from "../library/selection.ts";
 import { setInSpace, spacesStore } from "../library/spaces.ts";
 import { showWrittenCard } from "../library/writes.ts";
 import { showContextMenu } from "../menu/contextMenu.tsx";
@@ -24,12 +23,10 @@ export function retryProcessing(jobId: string) {
 }
 
 export function openItem(view: CardView, navigate: Navigate) {
-  selectCard(view.id);
   void navigate({ to: "/item/$id", params: { id: view.id } });
 }
 
 export function openReader(view: CardView, navigate: Navigate) {
-  selectCard(view.id);
   void navigate({ to: "/item/$id/read", params: { id: view.id } });
 }
 

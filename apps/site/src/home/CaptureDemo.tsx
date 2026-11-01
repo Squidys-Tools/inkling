@@ -62,7 +62,6 @@ export function CaptureDemo() {
               view={view}
               index={0}
               list={false}
-              selected={false}
               processing={processing}
               onOpen={ignore}
               onRead={ignore}

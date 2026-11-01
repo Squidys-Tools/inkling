@@ -60,7 +60,6 @@ export function LibraryDemo() {
               view={view}
               index={index}
               list={false}
-              selected={false}
               processing={undefined}
               onOpen={ignore}
               onRead={ignore}
