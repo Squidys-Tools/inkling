@@ -5,6 +5,7 @@ import { Link, useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { desktop } from "../desktop.ts";
 import { useEscape } from "../item/useEscape.ts";
+import { AppearancePanel } from "./AppearancePanel.tsx";
 import { ExtensionPanel } from "./ExtensionPanel.tsx";
 import { GeneralPanel } from "./GeneralPanel.tsx";
 import { LibraryPanel } from "./LibraryPanel.tsx";
@@ -89,6 +90,7 @@ export function Settings({ section }: { section: SettingsSection }) {
         />
       )}
       {section === "licenses" && <LicensesPanel onBack={() => show("general")} onClose={close} />}
+      {section === "appearance" && <AppearancePanel onClose={close} />}
       {section === "library" && <LibraryPanel onClose={close} />}
       {section === "extension" && <ExtensionPanel onClose={close} />}
       {section === "updates" && <UpdatesPanel onClose={close} />}
