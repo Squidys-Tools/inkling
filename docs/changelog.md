@@ -13,6 +13,10 @@ Rules for entries:
 
 ## Unreleased
 
+### Changed
+
+- Vercel site previews now build only when a push touches the site or its build inputs, instead of every branch and PR.
+
 ### Added
 
 - macOS disk images for Apple silicon Macs, with native window buttons, the standard app menu, `inkling://` links that reopen a closed window, screen capture through the system picker, and ⌘ in shortcut hints. They do not update themselves yet.
