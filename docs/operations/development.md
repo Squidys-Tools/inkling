@@ -67,6 +67,20 @@ latest GitHub release, looked up once per build, so redeploy the site after
 publishing a release. Build it with `bun run build:site`, which runs Vite on
 Node: under the Bun runtime, StyleX's production media-query parser fails.
 
+Iterate on the site with `bun run dev:site` (hot reload; read the port from its
+output). Branch and PR pushes get a Vercel preview URL.
+Pushes to `main` do not deploy: `apps/site/vercel.json` turns that off, so the
+production domain changes only through the `Deploy site` workflow
+(`.github/workflows/site-deploy.yml`, `gh workflow run site-deploy.yml`). It runs
+only from `main`. Its `stage` job builds a production deployment that no custom domain
+points at; its `promote` job then publishes that exact build and pauses for a
+reviewer on the `site-production` GitHub environment, so the reviewer approves a
+build they can already open. Both environments hold the `VERCEL_TOKEN`,
+`VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` secrets; `site-staging` has no reviewer.
+Vercel still points the project's own `*.vercel.app` alias at a staged build,
+behind a Vercel login, but never a custom domain.
+Agents start it only when asked and never approve it.
+
 Packaged builds bundle the embedding models; [models.md](../models.md) covers how
 development builds fetch them.
 
