@@ -4,6 +4,9 @@ dist
 *.local
 .artifacts/
 
+# dev:app's seeded scratch library
+.dev-library/
+
 # Benchmark run artifacts (only results-latest.json and summary.md are tracked)
 benchmarks/results/results-*.json
 !benchmarks/results/results-latest.json

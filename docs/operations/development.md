@@ -37,7 +37,7 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 | Goal | Command |
 |---|---|
 | Web preview with the demo seed | `bun run dev` |
-| Desktop app from source, on a real library | `bun run dev:app` |
+| Desktop app from source, on the seeded demo library | `bun run dev:app` |
 | Static web preview build (keeps the demo seed) | `bun run build:web` |
 | Marketing site | `bun run dev:site` |
 | Static marketing site build | `bun run build:site` |
@@ -54,6 +54,11 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 
 The web preview serves the demo seed in `apps/renderer/src/library/preview/` from
 memory, only in `dev` and in `build:web`'s preview mode, which writes `dist/web`.
+`dev:app` runs the app on `.dev-library/` in the worktree, which
+`tools/dev/seeded-library.ts` fills with the same seed on first run, so both dev
+modes show the same library and a dev run can never touch or stamp the real one.
+Delete `.dev-library/` to reseed. Passing `dev:app` a `--user-data-dir=<dir>`
+points at another library instead and never seeds it.
 `build:app` writes `dist/renderer` and `dist/desktop`, then runs
 `tools/repo/assert-no-demo-seed.ts`, which fails the build if any seed file or
 reference reached them. electron-builder packs only those two folders, and every
