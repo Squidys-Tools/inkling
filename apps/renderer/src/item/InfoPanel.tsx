@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@inkling/ui";
-import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
+import { color, font, itemColor, space, text } from "@inkling/ui/tokens.stylex";
 import { retryProcessing } from "../cards/cardActions.ts";
 import { ProcessingRows } from "../cards/Processing.tsx";
 import { quoteArtworkText } from "../cards/QuoteArtwork.tsx";
@@ -11,6 +11,7 @@ import { hostname } from "../library/assets.ts";
 import { useProcessing } from "../library/jobs.ts";
 import type { DescribedItem } from "./model.ts";
 import { TagList } from "./TagList.tsx";
+import { TextDisclosure } from "./TextDisclosure.tsx";
 import { TitleField } from "./TitleField.tsx";
 
 function savedOn(createdAt: number) {
@@ -122,10 +123,7 @@ export function InfoPanel({
         </dl>
       </section>
       {item.ocrText && item.kind !== "Note" && item.kind !== "Quote" && (
-        <details {...stylex.props(styles.ocr)}>
-          <summary {...stylex.props(styles.sectionTitle, styles.summary)}>Text</summary>
-          <p {...stylex.props(styles.box, styles.ocrText)}>{item.ocrText}</p>
-        </details>
+        <TextDisclosure text={item.ocrText} />
       )}
       {(item.kind === "Note" || canOpenPdf || canRead) && (
         <div {...stylex.props(styles.actions)}>
@@ -225,8 +223,5 @@ const styles = stylex.create({
     overflowWrap: "anywhere",
   },
   mono: { fontFamily: font.mono, fontSize: text.sm },
-  ocr: { display: "flex", flexDirection: "column" },
-  summary: { cursor: "pointer", borderRadius: radius.control },
-  ocrText: { maxHeight: "240px", overflowY: "auto", whiteSpace: "pre-wrap", userSelect: "text" },
   actions: { display: "flex", flexWrap: "wrap", gap: space.s2 },
 });
