@@ -160,7 +160,8 @@ const styles = stylex.create({
     textOverflow: "ellipsis",
     color: color.ink,
   },
-  positioner: { zIndex: 50 },
+  // The licenses panel lives in the settings sheet, which sits above z 71.
+  positioner: { zIndex: 80 },
   popup: {
     width: "250px",
     padding: "5px",

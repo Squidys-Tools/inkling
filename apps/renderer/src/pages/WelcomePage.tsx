@@ -14,7 +14,8 @@ export function WelcomePage() {
         .then((client) => client.completeOnboarding({}))
         .catch(() => undefined);
     }
-    // A replay from Settings returns there; the first run has nowhere to go back to.
+    // A replay from Settings returns to the page it sat over; the first run has
+    // nowhere to go back to.
     if (router.history.canGoBack()) router.history.back();
     else void router.navigate({ to: "/", replace: true });
   };

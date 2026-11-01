@@ -27,7 +27,6 @@ const routes = [
   page("/add/note", () => import("./pages/AddNotePage.tsx"), "AddNotePage"),
   page("/add/quote", () => import("./pages/AddQuotePage.tsx"), "AddQuotePage"),
   page("/add/link", () => import("./pages/AddLinkPage.tsx"), "AddLinkPage"),
-  page("/settings/$section", () => import("./pages/SettingsPage.tsx"), "SettingsPage"),
   page("/welcome", () => import("./pages/WelcomePage.tsx"), "WelcomePage"),
   page("/dev/design", () => import("./pages/DesignPage.tsx"), "DesignPage"),
 ] as const;

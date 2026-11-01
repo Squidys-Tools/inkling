@@ -14,9 +14,3 @@ export const railSections = [
 ] as const;
 
 export type SettingsSection = (typeof railSections)[number]["id"] | "licenses";
-
-/** The section a `/settings/$section` URL names; anything unknown opens General. */
-export function sectionFrom(param: string): SettingsSection {
-  if (param === "licenses") return "licenses";
-  return railSections.find((section) => section.id === param)?.id ?? "general";
-}

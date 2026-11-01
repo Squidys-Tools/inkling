@@ -13,7 +13,7 @@ import { chrome } from "../desktop.ts";
 import { shownScope, useActiveTotal } from "../library/cards.ts";
 import { search, useSearch } from "../library/search.ts";
 import { useStore } from "../library/store.ts";
-import { setSidebarOpen, useViewState } from "../libraryView/viewState.ts";
+import { setSettingsSheetOpen, setSidebarOpen, useViewState } from "../libraryView/viewState.ts";
 import { sidebarMarker } from "../markers.stylex.ts";
 import { Mascot } from "../mascot/Mascot.tsx";
 import { useMascotMood } from "../mascot/useMascotMood.ts";
@@ -74,6 +74,7 @@ function UpdateRow() {
 export function Sidebar({ open, narrow }: { open: boolean; narrow: boolean }) {
   const total = useActiveTotal();
   const shown = useStore(shownScope, (scope) => scope._tag);
+  const settingsOpen = useViewState((state) => state.settingsSheetOpen);
 
   return (
     <>
@@ -139,12 +140,14 @@ export function Sidebar({ open, narrow }: { open: boolean; narrow: boolean }) {
             label="Archive"
             onClick={() => search.clear()}
           />
-          <NavLink
-            to="/settings/$section"
-            params={{ section: "general" }}
+          <NavButton
             tone="footer"
+            active={settingsOpen}
+            expanded={settingsOpen}
+            controls="settings-sheet"
             icon={<HugeiconsIcon icon={Settings01Icon} size={15} />}
             label="Settings"
+            onClick={() => setSettingsSheetOpen(true)}
           />
         </div>
       </aside>
