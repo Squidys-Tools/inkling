@@ -37,6 +37,8 @@ const bridge: DesktopBridge = {
   confirm: (options) => invoke(channels.confirm, options),
   chooseDirectory: (title) => invoke(channels.chooseDirectory, title),
   showItemInFolder: (itemId) => invoke(channels.showItemInFolder, itemId),
+  copyItemImage: (itemId) => invoke(channels.copyItemImage, itemId),
+  startItemDrag: (itemId) => invoke(channels.startItemDrag, itemId),
   showLibraryFolder: () => invoke(channels.showLibraryFolder),
   openExternal: (url) => invoke(channels.openExternal, url),
   updates: {

@@ -1,5 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
+import { desktop } from "../desktop.ts";
+import { reportActionError } from "./actionError.ts";
 import { useCard } from "../library/cards.ts";
 import { type CardView, cardView } from "../library/cardModel.ts";
 import { useProcessing } from "../library/jobs.ts";
@@ -49,6 +51,16 @@ function LibraryCard({ view, index, list }: { view: CardView; index: number; lis
         void openCardMenu(view, menuPoint(event), navigate);
       }}
       onRetry={retryProcessing}
+      onDragStart={
+        desktop
+          ? (event) => {
+              event.preventDefault();
+              void desktop
+                ?.startItemDrag(view.id)
+                .catch(() => reportActionError("Couldn’t drag this item out."));
+            }
+          : undefined
+      }
     />
   );
 }

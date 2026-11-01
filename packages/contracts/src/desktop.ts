@@ -78,6 +78,8 @@ export type DesktopBridge = {
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   chooseDirectory: (title: string) => Promise<string | null>;
   showItemInFolder: (itemId: string) => Promise<void>;
+  copyItemImage: (itemId: string) => Promise<void>;
+  startItemDrag: (itemId: string) => Promise<void>;
   showLibraryFolder: () => Promise<void>;
   openExternal: (url: string) => Promise<void>;
   updates: {

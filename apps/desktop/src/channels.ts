@@ -14,6 +14,8 @@ export const channels = {
   confirm: "inkling:confirm",
   chooseDirectory: "inkling:choose-directory",
   showItemInFolder: "inkling:show-item-in-folder",
+  copyItemImage: "inkling:copy-item-image",
+  startItemDrag: "inkling:start-item-drag",
   showLibraryFolder: "inkling:show-library-folder",
   openExternal: "inkling:open-external",
   updateState: "inkling:update:state",

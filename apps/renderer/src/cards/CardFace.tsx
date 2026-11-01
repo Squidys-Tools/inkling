@@ -1,6 +1,6 @@
 /* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-noninteractive-element-interactions -- A card holds its own buttons, so the article cannot be a button; Enter and Space open the focused card. */
 import * as stylex from "@stylexjs/stylex";
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { DragEvent, KeyboardEvent, MouseEvent } from "react";
 import { cardColor, color, motion, radius } from "@inkling/ui/tokens.stylex";
 import type { CardView } from "../library/cardModel.ts";
 import type { Processing } from "../library/jobs.ts";
@@ -22,6 +22,7 @@ export function CardFace({
   onRead,
   onMenu,
   onRetry,
+  onDragStart,
 }: {
   view: CardView;
   index: number;
@@ -31,6 +32,7 @@ export function CardFace({
   onRead: () => void;
   onMenu: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => void;
   onRetry: (jobId: string) => void;
+  onDragStart?: (event: DragEvent<HTMLElement>) => void;
 }) {
   const gridArticle = !list && view.treatment === "article";
 
@@ -47,6 +49,8 @@ export function CardFace({
         data-item-id={view.id}
         onClick={onOpen}
         onContextMenu={onMenu}
+        draggable={Boolean(onDragStart)}
+        onDragStart={onDragStart}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
           if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey))

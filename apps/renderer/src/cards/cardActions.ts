@@ -99,6 +99,10 @@ export async function openCardMenu(
     }
     if (desktop) {
       const bridge = desktop;
+      if (view.kind === "Image")
+        add("copy-image", "Copy image", () =>
+          run("Couldn’t copy the image", () => bridge.copyItemImage(view.id)),
+        );
       add("folder", "Show in folder", () => bridge.showItemInFolder(view.id));
     }
     const regular = spacesStore.get().spaces.filter((space) => space.kind === "regular");

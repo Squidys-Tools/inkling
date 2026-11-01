@@ -10,6 +10,7 @@ import { mainLibraryClient } from "./library-client.ts";
 import { installMenu } from "./menu.ts";
 import { registerNativeHandlers } from "./native-handlers.ts";
 import { startProcesses } from "./processes.ts";
+import { createQuitDrain } from "./quit-drain.ts";
 import { appUrl, assetsDirectoryOf, handleAppScheme, registerAppScheme } from "./protocol.ts";
 
 const bundleDirectory = dirname(fileURLToPath(import.meta.url));
@@ -180,7 +181,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     library.attachMain(libraryClient.onPort);
     registerIpc();
-    registerNativeHandlers({
+    const native = registerNativeHandlers({
       libraryDirectory,
       library: libraryClient.client,
       mainWindow: () => mainWindow,
@@ -194,20 +195,22 @@ if (!app.requestSingleInstanceLock()) {
     app.on("window-all-closed", () => {
       if (process.platform !== "darwin") app.quit();
     });
-    let drained = false;
-    app.on("before-quit", (event) => {
-      if (drained || !library) return;
-      event.preventDefault();
-      const running = library;
-      // The receiver finishes the captures it accepted before the library closes.
-      void captures
-        .stop()
-        .catch(() => {})
-        .then(() => running.stop())
-        .then(() => {
-          drained = true;
-          app.quit();
-        });
-    });
+    app.on(
+      "before-quit",
+      createQuitDrain(
+        async () => {
+          // Close admission first, then drain private exports and captures before storage.
+          await native.stop();
+          await captures.stop();
+          await library?.stop();
+        },
+        () => app.quit(),
+        () =>
+          dialog.showErrorBox(
+            "inkling could not close",
+            "Cleanup could not finish. Please try quitting again.",
+          ),
+      ),
+    );
   });
 }
