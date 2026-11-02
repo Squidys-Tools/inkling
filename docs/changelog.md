@@ -26,6 +26,7 @@ Rules for entries:
 ### Added
 
 - Settings → Your library shows what the library holds as a bar and a legend with each card kind's count and share.
+- Settings → Appearance with a choice of Pill or Segmented for the grid and list switch at the bottom of the library.
 - macOS disk images for Apple silicon Macs, with native window buttons, the standard app menu, `inkling://` links that reopen a closed window, screen capture through the system picker, and ⌘ in shortcut hints. They do not update themselves yet.
 - Local-video posters on Debian/Ubuntu through the system decoder, with bounded background WebP compression and thumbnail cache revalidation.
 - Stable / Beta and Nightly update channels, with separate verified download, cancellation and explicit installation on Windows and supported Linux packages.

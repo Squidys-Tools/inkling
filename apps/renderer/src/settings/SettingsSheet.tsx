@@ -6,6 +6,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { desktop } from "../desktop.ts";
 import { setSettingsSheetOpen, useViewState } from "../libraryView/viewState.ts";
+import { AppearancePanel } from "./AppearancePanel.tsx";
 import { ExtensionPanel } from "./ExtensionPanel.tsx";
 import { GeneralPanel } from "./GeneralPanel.tsx";
 import { LibraryPanel } from "./LibraryPanel.tsx";
@@ -100,6 +101,7 @@ export function SettingsSheet() {
           {section === "licenses" && (
             <LicensesPanel onBack={() => setSection("general")} onClose={close} />
           )}
+          {section === "appearance" && <AppearancePanel onClose={close} />}
           {section === "library" && <LibraryPanel onClose={close} />}
           {section === "extension" && <ExtensionPanel onClose={close} />}
           {section === "updates" && <UpdatesPanel onClose={close} />}
