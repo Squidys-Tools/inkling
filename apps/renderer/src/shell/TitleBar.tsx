@@ -79,6 +79,9 @@ const styles = stylex.create({
     right: "8px",
     display: "flex",
     height: "24px",
+    // Gallery cards scroll beneath the caption; keep its glyphs readable.
+    backgroundColor: color.surface,
+    borderRadius: "6px",
     WebkitAppRegion: "no-drag",
     zIndex: 40,
   },
