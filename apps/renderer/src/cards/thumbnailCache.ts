@@ -4,6 +4,14 @@ const pending = new Set<string>();
 const maxPixels = 16_000_000;
 export const hasThumbnail = (url: string) => held.has(url);
 
+/** Lease the actual decoded node only after its previous cell released it. */
+export function takeThumbnail(url: string) {
+  const image = held.get(url);
+  if (!image || image.isConnected) return undefined;
+  held.delete(url);
+  return image;
+}
+
 export function retainThumbnail(image: HTMLImageElement) {
   if (!image.complete || !image.naturalWidth) return;
   const url = image.currentSrc || image.src;
