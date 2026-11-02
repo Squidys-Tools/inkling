@@ -58,6 +58,19 @@ export const spaceColor = stylex.defineVars({
   yellow: "#c9b27a",
 });
 
+// The Settings breakdown paints each card kind in its own hue, drawn from the Space
+// palette and the card paper tones so the bar sits in the same family as the grid.
+export const kindColor = stylex.defineVars({
+  article: "#c27f5b",
+  image: "#8e9bbf",
+  note: "#9fb9b7",
+  pdf: "#c98b8b",
+  quote: "#c9b27a",
+  video: "#a88ab5",
+  post: "#7f9a8c",
+  file: "#8d867c",
+});
+
 // Body text is each system's own UI face; display, numbers and quotes are bundled
 // so headings look the same on all three systems.
 export const font = stylex.defineVars({
