@@ -23,7 +23,7 @@ inkling is a private visual library for your desktop. Save articles, images, scr
 
 **Spaces keep themselves tidy.** A Smart Space is a saved search that updates as you save. Search `essay` once and every new essay shows up on its own. A regular Space holds the things you pick by hand.
 
-**It's private.** Your library is a SQLite file and a folder of your files on your own disk. There are no accounts, social features or analytics. inkling uses the network only to fetch URLs you save, play videos you start, and check GitHub for an update when you ask (that check sends the app version, never library data). Everything else works offline.
+**It's private.** Your library is a SQLite file and a folder of your files on your own disk. There are no accounts, social features or analytics. inkling uses the network only to fetch URLs you save, play videos you start, download its search models once, and check GitHub for an update when you ask (that check sends the app version, never library data). Once the models are in place, everything except saving a new URL works offline.
 
 ## Meet the mascot
 
