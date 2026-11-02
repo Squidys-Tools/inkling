@@ -26,17 +26,62 @@ concurrency:
 jobs:
   metadata:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Reads prior scheduled runs to skip a nightly whose commit already built.
+      actions: read
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       prerelease: ${{ steps.version.outputs.prerelease }}
+      skip: ${{ steps.nightly.outputs.skip }}
     steps:
+      - name: Skip the nightly when main has not moved
+        id: nightly
+        if: github.event_name == 'schedule'
+        # Pinned to the v9 tag commit, like the other gate jobs.
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            try {
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: "release.yml",
+                event: "schedule",
+                status: "success",
+                per_page: 1,
+              });
+              const last = data.workflow_runs[0];
+              const skip = last?.head_sha === context.sha;
+              core.setOutput("skip", skip ? "true" : "false");
+              core.info(
+                `Last successful nightly: ${last?.head_sha ?? "none"}; head: ${context.sha}; skip=${skip}.`,
+              );
+            } catch (error) {
+              core.warning(`Nightly check failed (${error}); building anyway.`);
+              core.setOutput("skip", "false");
+            }
       - uses: actions/checkout@v7
+        if: steps.nightly.outputs.skip != 'true'
       - uses: oven-sh/setup-bun@v2
+        if: steps.nightly.outputs.skip != 'true'
         with:
           bun-version-file: .bun-version
+      - name: Restore bun install cache
+        if: steps.nightly.outputs.skip != 'true'
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            extension/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
       - run: bun install --frozen-lockfile --ignore-scripts
+        if: steps.nightly.outputs.skip != 'true'
       - id: version
+        if: steps.nightly.outputs.skip != 'true'
         env:
           RELEASE_CHANNEL: ${{ github.event_name == 'push' && 'stable' || inputs.channel || 'nightly' }}
           RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
@@ -44,6 +89,7 @@ jobs:
 
   build:
     needs: metadata
+    if: needs.metadata.outputs.skip != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -64,6 +110,15 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
+      - name: Restore bun install cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            extension/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
       - run: bun install --frozen-lockfile --ignore-scripts
       - uses: actions/cache@v6
         with:
@@ -124,7 +179,9 @@ jobs:
   draft:
     needs: [metadata, build]
     # A run dispatched from any other branch only builds and checks the artifacts.
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    if: >-
+      needs.metadata.outputs.skip != 'true' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     permissions:
       contents: write

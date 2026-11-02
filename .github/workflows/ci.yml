@@ -25,7 +25,7 @@ concurrency:
 jobs:
   changes:
     name: Detect changes
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
@@ -36,9 +36,11 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          # Full history so the path filter diffs the real change set.
-          # A shallow checkout can yield an empty diff and silently skip jobs.
+          # Blobless full history: the path filter needs every commit, not
+          # every blob. A shallow checkout can yield an empty diff and
+          # silently skip jobs.
           fetch-depth: 0
+          filter: blob:none
 
       - name: Filter changed paths
         id: filter
@@ -75,13 +77,62 @@ jobs:
               - '.oxfmtrc.json'
               - '.github/workflows/ci.yml'
 
-  check:
-    name: Typecheck, lint, test and build
+  static:
+    name: Typecheck, lint and web builds
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Restore bun install cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            extension/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck every workspace
+        run: bun run typecheck
+
+      - name: Check documented commands exist
+        run: bun tools/repo/command-refs.ts
+
+      - name: Check for unused code
+        run: bun run knip
+
+      - name: Lint and format
+        run: bun run lint
+
+      # The app build runs only in the launch matrix: its demo-seed guard
+      # already executes there on all three OSes.
+      - name: Build the web preview
+        run: bun run build:web
+
+      - name: Build browser extension
+        run: bun run --cwd extension build
+
+  test:
+    name: Unit tests
     needs: changes
     if: needs.changes.outputs.code == 'true'
     # Windows is inkling's main target, so the suite runs there.
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     defaults:
       run:
         # pwsh only fails a multi-line step on its last command; bash stops at the first failure.
@@ -96,33 +147,21 @@ jobs:
         with:
           bun-version-file: .bun-version
 
+      - name: Restore bun install cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            extension/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Typecheck every workspace
-        run: bun run typecheck
-
-      - name: Check documented commands exist
-        run: bun tools/repo/command-refs.ts
-
       - name: Run unit tests
         run: bun run test
-
-      - name: Check for unused code
-        run: bun run knip
-
-      - name: Lint and format
-        run: bun run lint
-
-      # Its guard fails if the web preview's demo seed reaches a shipped bundle.
-      - name: Build the app
-        run: bun run build:app
-
-      - name: Build the web preview
-        run: bun run build:web
-
-      - name: Build browser extension
-        run: bun run --cwd extension build
 
   launch:
     name: Build and launch on ${{ matrix.os }}
@@ -131,7 +170,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-latest, macos-15]
+        os: [ubuntu-latest, windows-latest, macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
@@ -139,6 +178,15 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
+      - name: Restore bun install cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            extension/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
       - run: bun install --frozen-lockfile
       - run: bun run build:app
       - name: Launch and reach the library process

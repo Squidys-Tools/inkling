@@ -163,7 +163,7 @@ Never add signing secrets or publish automatically. The Windows installer is not
 
 Pushes and PRs that change only Markdown, `docs/` or `AGENTS.md` skip CI and the security scans.
 
-- `ci.yml` runs the checks on `windows-latest`, and builds and launches the app from source on Windows, Linux and macOS.
+- `ci.yml` runs the unit tests on `windows-latest`, the typecheck, lint, Knip and web/extension builds on `ubuntu-latest`, and builds and launches the app from source on Windows, Linux and macOS.
 - `security.yml` runs CodeQL when a PR opens or reopens and on about every fourth push to it, and dependency review on every PR push.
 - The `preview:win` label builds the Windows installer for a same-repository PR, launches it and links it in a comment (`electron-preview.yml`). App changes in a same-repository PR also build the Linux directory package, run the backend smoke and launch it under Xvfb, and build the macOS app bundle, verify its signature, run the backend smoke and launch it.
 - `pr-size.yml` labels each PR by the size of its diff.

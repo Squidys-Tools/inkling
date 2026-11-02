@@ -11,7 +11,7 @@ permissions:
 jobs:
   changes:
     name: Detect site changes
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
@@ -23,6 +23,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          filter: blob:none
 
       - name: Choose changed-path comparison base
         id: comparison
@@ -60,7 +61,7 @@ jobs:
     name: Deploy site preview
     needs: changes
     if: ${{ needs.changes.outputs.site == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
       group: site-preview-${{ github.event.pull_request.number }}
