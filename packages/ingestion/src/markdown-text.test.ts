@@ -55,6 +55,7 @@ test.each([
   ["an alias HTML defines in both cases", "&AMP;", "&"],
   ["an upper-case name HTML does not define", "&EURO;", "&EURO;"],
   ["another upper-case name HTML does not define", "&NBSP;", "&NBSP;"],
+  ["a defined name followed by more letters", "&Yumlx; &ampx;", "&Yumlx; &ampx;"],
   [
     "an inherited property name",
     "&constructor; &toString; &hasOwnProperty;",
