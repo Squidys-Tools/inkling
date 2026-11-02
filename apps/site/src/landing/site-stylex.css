@@ -1,0 +1,2 @@
+/* Dedicated extraction target: legacy route StyleX must not land in the home-only cascade. */
+@layer priority1;

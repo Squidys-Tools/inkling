@@ -1,4 +1,6 @@
 import { useRouter } from "@tanstack/react-router";
+import { useRef } from "react";
+import { createCloseIntent } from "./closeIntent.ts";
 
 // Each item opened from another item's Similar tab is a history step of its own,
 // so Back walks through them. Close skips them all: this counts, per history
@@ -8,6 +10,7 @@ const similarSteps = new Map<string, number>();
 
 export function useItemNavigation() {
   const router = useRouter();
+  const closeIntent = useRef(createCloseIntent());
   const current = () => {
     const { __TSR_key: key, __TSR_index: index } = router.state.location.state;
     return { index, steps: (key && similarSteps.get(key)) || 0 };
@@ -15,6 +18,10 @@ export function useItemNavigation() {
   return {
     /** Back to the library entry the first item opened from, where the grid kept its scroll. */
     close: () => {
+      const location = router.state.location;
+      // Fence the intent before history.go: the route stays mounted during its exit flight.
+      const key = location.state.__TSR_key ?? `${location.pathname}:${location.state.__TSR_index}`;
+      if (!closeIntent.current(key)) return;
       const { index, steps } = current();
       if (index > steps) router.history.go(-(steps + 1));
       else void router.navigate({ to: "/" });

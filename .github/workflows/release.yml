@@ -2,48 +2,123 @@ name: Release
 
 on:
   push:
-    tags: ["v[0-9]*"]
+    tags: ["v*.*.*", "!v*-nightly.*", "!v*-preview.*"]
   workflow_dispatch:
     inputs:
       channel:
-        description: Release train (Stable/Beta uses latest)
+        description: Release train (preview builds only, never releases)
         type: choice
-        options: [stable, nightly]
-        default: nightly
+        options: [preview, stable, nightly]
+        default: preview
       version:
-        description: Regular semantic version for Stable/Beta
+        description: Stable version override; defaults to the version the latest nightly previewed
         type: string
   schedule:
     - cron: "23 6 * * *"
 
+# t3code-style serialization: nightlies (scheduled, dispatched nightly and
+# preview builds) share one group, stable gets its own so a nightly never
+# blocks it. Running publishers are never canceled and queue: max keeps every
+# pending run instead of the default newest-wins slot, so a queued stable tag
+# cannot be dropped. Scheduled runs recheck whether a nightly is due after
+# leaving the queue.
+concurrency:
+  group: >-
+    inkling-release-${{ (github.event_name == 'schedule' || inputs.channel == 'nightly' || inputs.channel == 'preview') && 'nightly' || 'stable' }}
+  cancel-in-progress: false
+  queue: max
+
 permissions:
   contents: read
 
-concurrency:
-  group: inkling-release-${{ github.event_name == 'push' && github.ref || inputs.channel || 'nightly' }}
-  cancel-in-progress: false
-
 jobs:
+  # Picks the commit every later job builds. Nightlies and tag pushes build the
+  # triggering commit. A manual stable release builds the latest published
+  # nightly's commit, so stable only ever ships a build nightly users have
+  # already run. Scheduled runs also decide here whether a nightly is due.
+  resolve:
+    name: Resolve release commit
+    if: github.repository == 'Squidys-Tools/inkling'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+      channel: ${{ steps.resolve.outputs.channel }}
+      due: ${{ steps.resolve.outputs.due }}
+      nightly_version: ${{ steps.resolve.outputs.nightly_version }}
+    steps:
+      - name: Check out the release scripts
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Resolve release commit
+        id: resolve
+        # Pinned to the v9 tag commit, like the other gate jobs.
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          DISPATCH_CHANNEL: ${{ inputs.channel }}
+        with:
+          script: |
+            const {
+              assertCommitOnDefaultBranch,
+              assertReleaseSource,
+              shouldReleaseNightly,
+              resolveLatestNightlyCommit,
+            } = require("./.github/scripts/nightly-release.cjs");
+
+            const channel =
+              context.eventName === "schedule"
+                ? "nightly"
+                : context.eventName === "workflow_dispatch"
+                  ? process.env.DISPATCH_CHANNEL || "preview"
+                  : "stable";
+            core.setOutput("channel", channel);
+            await assertReleaseSource({ github, context, releaseChannel: channel });
+
+            if (context.eventName === "schedule") {
+              core.setOutput("due", await shouldReleaseNightly({ github, context, core }));
+              core.setOutput("ref", context.sha);
+            } else if (context.eventName === "workflow_dispatch" && channel === "stable") {
+              const { tag, sha, version } = await resolveLatestNightlyCommit({ github, context, core });
+              await assertCommitOnDefaultBranch({ github, context, sha });
+              core.notice(`Stable release builds ${sha}, the commit shipped by ${tag}.`);
+              core.setOutput("ref", sha);
+              core.setOutput("nightly_version", version);
+            } else {
+              core.setOutput("ref", context.sha);
+            }
+
   metadata:
+    name: Resolve release metadata
+    needs: resolve
+    if: needs.resolve.result == 'success' && needs.resolve.outputs.due != 'false'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       prerelease: ${{ steps.version.outputs.prerelease }}
+      channel: ${{ needs.resolve.outputs.channel }}
+      ref: ${{ needs.resolve.outputs.ref }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
       - run: bun install --frozen-lockfile --ignore-scripts
       - id: version
         env:
-          RELEASE_CHANNEL: ${{ github.event_name == 'push' && 'stable' || inputs.channel || 'nightly' }}
-          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+          RELEASE_CHANNEL: ${{ needs.resolve.outputs.channel }}
+          RELEASE_VERSION: ${{ inputs.version || needs.resolve.outputs.nightly_version || github.ref_name }}
         run: bun tools/release/prepare.mjs
 
   build:
-    needs: metadata
+    needs: [resolve, metadata]
+    if: needs.metadata.result == 'success'
     strategy:
       fail-fast: false
       matrix:
@@ -61,6 +136,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.metadata.outputs.ref }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
@@ -71,12 +148,9 @@ jobs:
           key: inkling-models-${{ hashFiles('packages/jobs/src/model-manifest.json') }}
       - name: Stage exact release metadata
         env:
-          RELEASE_CHANNEL: stable
+          RELEASE_CHANNEL: ${{ needs.metadata.outputs.channel }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-          NIGHTLY_BUILD: ${{ needs.metadata.outputs.prerelease }}
-        shell: bash
-        run: |
-          node --input-type=module -e 'import fs from "node:fs";const p=JSON.parse(fs.readFileSync("package.json"));p.version=process.env.RELEASE_VERSION;p.build.publish[0].releaseType=process.env.NIGHTLY_BUILD==="true"?"prerelease":"release";p.build.generateUpdatesFilesForAllChannels=false;fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
+        run: bun tools/release/prepare.mjs
       - name: Build reviewed platform artifacts (never publish from builder)
         env:
           DIST_TARGET: ${{ matrix.target }}
@@ -84,6 +158,12 @@ jobs:
         run: |
           umask 022
           bun run dist "$DIST_TARGET"
+      # electron-builder still writes update-info yml for a preview build; it
+      # must never reach a release, where a channel feed could point at it.
+      - name: Strip preview update feeds
+        if: needs.metadata.outputs.channel == 'preview'
+        shell: bash
+        run: rm -f .artifacts/electron/*.yml
       # The .deb depends on FFmpeg for local-video posters; the runner image has none.
       - name: Install the video decoder the Linux package depends on
         if: runner.os == 'Linux'
@@ -121,10 +201,16 @@ jobs:
             !.artifacts/electron/*-mac.yml
           if-no-files-found: error
 
-  draft:
-    needs: [metadata, build]
-    # A run dispatched from any other branch only builds and checks the artifacts.
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+  publish:
+    name: Create the GitHub release
+    needs: [resolve, metadata, build]
+    # A preview-channel run only builds and checks the artifacts; it releases nothing.
+    if: >-
+      needs.resolve.result == 'success' &&
+      needs.metadata.result == 'success' &&
+      needs.build.result == 'success' &&
+      needs.resolve.outputs.channel != 'preview' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -134,12 +220,15 @@ jobs:
           pattern: release-*
           merge-multiple: true
           path: release-assets
-      - name: Create draft only; a maintainer must verify and publish it
+      # The release starts as a draft so a channel's feed only goes live once
+      # every asset is attached; nightlies publish right after, stable stays a
+      # draft a maintainer reviews.
+      - name: Create the release as a draft
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
-          RELEASE_COMMIT: ${{ github.sha }}
+          RELEASE_COMMIT: ${{ needs.metadata.outputs.ref }}
           PRERELEASE: ${{ needs.metadata.outputs.prerelease }}
         shell: bash
         run: |
@@ -147,3 +236,9 @@ jobs:
           args=(--draft --target "$RELEASE_COMMIT" --title "inkling $RELEASE_TAG" --generate-notes)
           if [ "$PRERELEASE" = true ]; then args+=(--prerelease --latest=false); fi
           gh release create "$RELEASE_TAG" "${args[@]}" release-assets/*
+      - name: Publish the nightly once its assets are attached
+        if: needs.metadata.outputs.channel == 'nightly'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+        run: gh release edit "$RELEASE_TAG" --draft=false

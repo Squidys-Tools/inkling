@@ -39,6 +39,9 @@ export function Mascot({
     <canvas
       ref={ref}
       aria-hidden="true"
+      // At rest the figure holds still; a pointer over it wakes it up.
+      onPointerEnter={() => live.wake()}
+      onPointerMove={() => live.wake()}
       {...stylex.props(styles.canvas, styles.size(size, size))}
     />
   );
@@ -47,8 +50,15 @@ export function Mascot({
 /** The live mascot's eyes, for the search field while it has focus. `bobbing` while the user types. */
 export function MascotEyes({ size = 22, bobbing = false }: { size?: number; bobbing?: boolean }) {
   const height = (size * EYES_VIEW.height) / EYES_VIEW.width;
-  const ref = useMascotCanvas(live, size, height, true, (ctx, _layer, frame) =>
-    drawEyes(ctx, frame, mascotColor.body),
+  // The eyes show only while search has focus: the user is interacting, so
+  // they keep moving for as long as they are on screen.
+  const ref = useMascotCanvas(
+    live,
+    size,
+    height,
+    true,
+    (ctx, _layer, frame) => drawEyes(ctx, frame, mascotColor.body),
+    { live: true },
   );
   return (
     <canvas

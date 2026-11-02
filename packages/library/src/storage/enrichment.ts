@@ -172,6 +172,11 @@ export function makeEnrichment(ctx: StorageContext) {
   return {
     storeOcrText,
     applyUrlEnrichment,
+    hasImageEmbedding: (id: string, model: string) =>
+      sql<{ found: number }>`SELECT 1 AS found FROM item_embeddings
+        WHERE item_id = ${id} AND kind = 'image' AND model = ${model}`.pipe(
+        Effect.map((rows) => rows.length > 0),
+      ),
     nextPdfThumbnailCandidate: (afterRowid: number) =>
       candidate(pdfThumbnailCandidateSql, afterRowid, PDF_THUMBNAIL_JOB),
     nextVideoPosterCandidate: (afterRowid: number) =>

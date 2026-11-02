@@ -1,8 +1,8 @@
 import type { ItemDetail } from "@inkling/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-import { showNewItem } from "../../capture/capture.ts";
-import { type LibraryClient, libraryClient } from "../../library/connection.ts";
+import { captureDestination, saveCaptured } from "../../capture/capture.ts";
+import type { LibraryClient } from "../../library/connection.ts";
 import { errorMessage } from "../../library/errors.ts";
 import { useStepBack } from "../navigation.ts";
 import { useEscape } from "../useEscape.ts";
@@ -22,6 +22,7 @@ export function useAddPage() {
   const [saving, setSaving] = useState(false);
   // A second Enter can land before `saving` re-renders, so a ref keeps one save at a time.
   const busy = useRef(false);
+  const destination = useRef(captureDestination());
   const mounted = useMounted();
   // Leaving waits for a save in flight, which leaves by itself when it lands.
   const leave = () => {
@@ -36,7 +37,7 @@ export function useAddPage() {
     setSaving(true);
     setError(null);
     try {
-      showNewItem(await write(await libraryClient()));
+      await saveCaptured(write, destination.current);
     } catch (saveError) {
       setError(errorMessage(saveError));
       throw saveError;

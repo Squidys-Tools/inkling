@@ -1,16 +1,23 @@
 import * as stylex from "@stylexjs/stylex";
 import { color, font, siteColor } from "@inkling/ui/tokens.stylex";
-import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  HeadContent,
+  Outlet,
+  Scripts,
+  useRouterState,
+} from "@tanstack/react-router";
 import { Footer } from "../layout/Footer.tsx";
 import { Header } from "../layout/Header.tsx";
 import { NotFound } from "../layout/NotFound.tsx";
 import { shareImage } from "../layout/seo.ts";
+import { siteStylesheet } from "../landing/stylesheets.js";
 import { registerFonts } from "@inkling/ui";
 import dmSans from "@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2?url";
 import { type ReactNode, Suspense, useEffect } from "react";
 
-// StyleX writes one stylesheet: a virtual module in dev, stylex.css beside the client bundle in a build.
-const stylesheet = import.meta.env.DEV ? "/virtual:stylex.css" : "/assets/stylex.css";
+// StyleX has a dedicated build target so home-only CSS never styles the other routes.
+const stylesheet = import.meta.env.DEV ? "/virtual:stylex.css" : siteStylesheet;
 
 export const Route = createRootRoute({
   head: () => ({
@@ -30,7 +37,7 @@ export const Route = createRootRoute({
       { rel: "stylesheet", href: stylesheet },
       // The same URL registerFonts loads, so headings do not wait for hydration to fetch their face.
       { rel: "preload", href: dmSans, as: "font", type: "font/woff2", crossOrigin: "anonymous" },
-      { rel: "icon", href: "/icon.png" },
+      { rel: "icon", href: "/media/inkling-mark.png" },
       { rel: "apple-touch-icon", href: "/icon.png" },
     ],
   }),
@@ -46,6 +53,8 @@ export const Route = createRootRoute({
 });
 
 function Layout() {
+  const isLanding = useRouterState({ select: (state) => state.location.pathname === "/" });
+  if (isLanding) return <Outlet />;
   return (
     <>
       <Header />

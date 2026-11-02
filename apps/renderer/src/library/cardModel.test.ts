@@ -66,6 +66,18 @@ describe("card views", () => {
     expect(view.aspectRatio).toBe(2);
   });
 
+  it("offers file reveal only for an original local asset, regardless of card kind", () => {
+    for (const kind of ["note", "quote", "article", "image", "file"]) {
+      expect(toCardView(card({ kind })).hasLocalFile).toBe(false);
+      expect(
+        toCardView(card({ kind, thumbnailPath: "assets/items/item/thumbnail.webp" })).hasLocalFile,
+      ).toBe(false);
+      expect(
+        toCardView(card({ kind, localAssetPath: "assets/items/item/original.jpg" })).hasLocalFile,
+      ).toBe(true);
+    }
+  });
+
   it("keeps only web links as links", () => {
     expect(toCardView(card({ sourceUrl: "file:///C:/secret.png" })).webUrl).toBeUndefined();
     expect(toCardView(card({ sourceUrl: "https://example.com" })).webUrl).toBe(
