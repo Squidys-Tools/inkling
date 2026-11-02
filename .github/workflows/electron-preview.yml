@@ -86,13 +86,6 @@ jobs:
         with:
           bun-version-file: .bun-version
 
-      - name: Restore bun install cache
-        uses: actions/cache@v6
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
@@ -147,13 +140,6 @@ jobs:
         with:
           bun-version-file: .bun-version
 
-      - name: Restore bun install cache
-        uses: actions/cache@v6
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-
       - name: Cache pinned embedding models
         uses: actions/cache@v6
         with:
@@ -203,13 +189,6 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
-
-      - name: Restore bun install cache
-        uses: actions/cache@v6
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
 
       - name: Cache pinned embedding models
         uses: actions/cache@v6
