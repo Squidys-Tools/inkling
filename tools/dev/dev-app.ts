@@ -25,7 +25,22 @@ const electron = (await import("electron")).default as unknown as string;
 // inherited copy makes the app exit at startup.
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
-const app = Bun.spawn([electron, ".", "--dev", `--user-data-dir=${directory}`, ...rest], {
+let executable = electron;
+if (process.platform === "win32" || process.platform === "linux" || process.platform === "darwin") {
+  const prepare = Bun.spawn(["bun", join(repo, "tools/dev/prepare-dev-electron.mjs"), electron], {
+    cwd: repo,
+    env,
+    stdout: "pipe",
+    stderr: "inherit",
+  });
+  const [preparedPath, exitCode] = await Promise.all([
+    new Response(prepare.stdout).text(),
+    prepare.exited,
+  ]);
+  if (exitCode !== 0) throw new Error("Could not prepare the inkling development executable.");
+  executable = preparedPath.trim();
+}
+const app = Bun.spawn([executable, ".", "--dev", `--user-data-dir=${directory}`, ...rest], {
   stdio: ["inherit", "inherit", "inherit"],
   cwd: repo,
   env,

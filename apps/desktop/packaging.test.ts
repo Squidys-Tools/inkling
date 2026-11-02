@@ -3,9 +3,13 @@ import { readFile } from "node:fs/promises";
 
 const pkg = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
 
-test("Linux packaging preserves Windows NSIS and standard sandbox maintainer scripts", async () => {
+test("Desktop packaging preserves platform identity and distribution targets", async () => {
   expect(pkg.build.win).toMatchObject({ icon: "build/icon.ico", target: ["nsis"] });
+  expect(pkg.build.extraResources).toContainEqual({ from: "build/icon.ico", to: "icon.ico" });
+  expect(pkg.build.extraResources).toContainEqual({ from: "build/icon.png", to: "icon.png" });
+  expect(pkg.build.mac.icon).toBe("build/icon.icns");
   expect(pkg.build.linux.target).toEqual(["deb", "AppImage"]);
+  expect(pkg.build.linux.icon).toBe("build/icon.png");
   expect(pkg.build.deb.afterInstall).toBeUndefined();
   expect(pkg.build.deb.afterRemove).toBeUndefined();
   expect(pkg.build.deb.appArmorProfile).toBeUndefined();

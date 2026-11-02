@@ -160,6 +160,14 @@
     ],
     "extraResources": [
       {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      },
+      {
         "from": "apps/desktop/src/updates/update-helper.py",
         "to": "update-helper.py"
       },
