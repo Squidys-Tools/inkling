@@ -43,6 +43,7 @@ jobs:
           token: ''
           base: ${{ steps.comparison.outputs.sha }}
           predicate-quantifier: some-with-excludes
+          # Keep in sync with the push paths in site-deploy.yml.
           filters: |
             site:
               - 'apps/site/**'
