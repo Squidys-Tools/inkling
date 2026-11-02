@@ -5,10 +5,11 @@ afterAll(removeTemporaryRoots);
 
 test("excluded hits do not consume a hybrid Space's top-200 candidate slots", async () => {
   const { library } = await temporaryLibrary();
-  const insert = library.db.prepare(
-    "INSERT INTO items (id,kind,title,created_at,updated_at) VALUES (?, 'note', 'quiet', ?, ?)",
-  );
-  for (let index = 0; index < 201; index++) insert.run(`note-${index}`, index, index);
+  // One fixture write avoids hundreds of durable commits on Windows runners.
+  library.db.exec(`WITH RECURSIVE notes(n) AS (
+    VALUES (0) UNION ALL SELECT n + 1 FROM notes WHERE n < 200
+  ) INSERT INTO items (id,kind,title,created_at,updated_at)
+    SELECT 'note-' || n, 'note', 'quiet', n, n FROM notes`);
   const space = await library.createSpace({ name: "Quiet", query: { text: "quiet" } });
   const vector = Float32Array.from([1, 0]);
   const original = await library.spaceCardsPage(space.id, null, 200, vector);
@@ -17,7 +18,10 @@ test("excluded hits do not consume a hybrid Space's top-200 candidate slots", as
   const refilled = await library.spaceCardsPage(space.id, null, 200, vector);
   expect(refilled.cards).toHaveLength(200);
   expect(ids(refilled.cards)).toContain("note-0");
-  for (const card of original.cards.slice(1)) await library.removeSpaceItem(space.id, card.id);
+  library.db
+    .prepare(`INSERT INTO space_exclusions (space_id, item_id, excluded_at)
+      SELECT ?, value, 0 FROM json_each(?)`)
+    .run(space.id, JSON.stringify(original.cards.slice(1).map((card) => card.id)));
   expect(await library.spaceCardsPage(space.id, null, 200, vector)).toMatchObject({ total: 1 });
   expect(ids(await library.listSpaceItems(space.id, 200, vector))).toEqual(["note-0"]);
   expect(await library.searchItems("quiet", 200, vector)).toHaveLength(200);

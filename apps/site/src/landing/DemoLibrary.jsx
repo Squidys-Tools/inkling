@@ -6,7 +6,7 @@ function syncRevealDocument(doc, active) {
   return Boolean(root);
 }
 function prepareRevealDocument(doc) {
-  if (!doc?.documentElement || !doc?.head) return false;
+  if (!doc?.documentElement || !doc?.head || new URL(doc.URL).pathname !== "/demo/") return false;
   if (!doc.getElementById("embedded-reveal-chrome")) {
     const style = doc.createElement("style");
     style.id = "embedded-reveal-chrome";
@@ -23,7 +23,7 @@ export function DemoLibrary({ active }) {
     frame.current = node;
     const doc = node?.contentDocument;
     // A prerendered iframe may finish before React attaches its load handler.
-    if (doc?.URL.endsWith("/demo/index.html") && doc.readyState === "complete") {
+    if (doc && new URL(doc.URL).pathname === "/demo/" && doc.readyState === "complete") {
       if (prepareRevealDocument(doc)) setLoaded(true);
     }
   }, []);
@@ -48,7 +48,7 @@ export function DemoLibrary({ active }) {
       <iframe
         ref={attachFrame}
         title="Interactive inkling library"
-        src="/demo/index.html"
+        src="/demo/"
         sandbox="allow-scripts allow-same-origin allow-forms"
         referrerPolicy="no-referrer"
         tabIndex={active ? 0 : -1}

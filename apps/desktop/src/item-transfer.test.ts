@@ -5,6 +5,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   symlink,
   truncate,
@@ -140,7 +141,7 @@ test("copy decodes a saved original to PNG without modifying it", async () => {
   const png = await transfer.image("photo");
   expect(await sharp(png).metadata()).toMatchObject({ format: "png", width: 3, height: 2 });
   expect(await readFile(join(assets, "photo.jpg"))).toEqual(original);
-  expect(await transfer.file("photo")).toBe(join(assets, "photo.jpg"));
+  expect(await transfer.file("photo")).toBe(await realpath(join(assets, "photo.jpg")));
 });
 
 test("missing, non-image, escaped and oversized copy inputs fail closed", async () => {
