@@ -211,20 +211,21 @@ export function Sidebar({
 const styles = stylex.create({
   sidebar: {
     position: "absolute",
-    top: "8px",
-    bottom: "8px",
-    left: "8px",
+    top: 0,
+    bottom: 0,
+    left: 0,
     zIndex: 0,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
     gap: "14px",
     minHeight: 0,
-    paddingTop: "28px",
+    paddingTop: "32px",
     backgroundColor: color.surface,
-    paddingInline: "4px",
-    paddingBottom: "6px",
-    borderRadius: radius.panel,
+    paddingInline: "8px",
+    paddingBottom: "10px",
+    borderTopRightRadius: radius.panel,
+    borderBottomRightRadius: radius.panel,
     overflow: "hidden",
     // Fade labels before the moving frame can crop them, and reveal them only as it clears.
     transitionProperty: "opacity",
@@ -232,9 +233,9 @@ const styles = stylex.create({
     transitionTimingFunction: motion.enter,
     // The main frame reveals this panel; never animate sidebar layout width.
   },
-  // Let the rounded bubble meet the main panel; do not paint a second dark gutter beside it.
+  // Only the right edge floats; leave the same 8px gap in expanded and compact modes.
   width: (width: number) => ({ width: width - 8 }),
-  unifiedHeader: { paddingTop: "4px" },
+  unifiedHeader: { paddingTop: "8px" },
   belowLights: { top: "32px", paddingTop: "8px" },
   narrow: { position: "fixed", zIndex: 30, backgroundColor: color.window },
   scrim: {

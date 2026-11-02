@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { sidebarFlight, sidebarGeometry } from "./sidebarGeometry.ts";
+import { sidebarClip, sidebarFlight, sidebarGeometry } from "./sidebarGeometry.ts";
 
 test("sidebar FLIP preserves the painted bounds when opening and reversing", () => {
   const opening = sidebarFlight(76, 248, 1280, 1032, { a: 1, e: 0 });
@@ -19,6 +19,16 @@ test("sidebar flight honors the actual right gutter without an endpoint width sn
   expect(76 + from.x + 1196 * from.scale).toBe(1272);
   const flush = sidebarFlight(248, 76, 1280, 1204, { a: 1, e: 0 });
   expect(76 + flush.x + 1204 * flush.scale).toBe(1280);
+});
+
+test("retained sidebar keeps an 8px gap and round right edge throughout the slide", () => {
+  for (const frameLeft of [76, 100, 171, 220, 248]) {
+    const clipped = sidebarClip(frameLeft, 240);
+    expect(240 - clipped).toBe(frameLeft - 8);
+  }
+  expect(sidebarClip(76, 68)).toBe(0);
+  expect(sidebarClip(248, 240)).toBe(0);
+  expect(sidebarClip(500, 240)).toBe(0);
 });
 
 test("wide Codex panel has a live width and always leaves a compact rail", () => {

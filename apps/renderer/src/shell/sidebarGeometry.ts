@@ -18,6 +18,10 @@ export function sidebarFlight(
   };
 }
 
+/** Clip the retained navigation to the moving frame, preserving the gutter and round edge. */
+export const sidebarClip = (frameLeft: number, width: number, gap = 8) =>
+  Math.max(0, width - Math.max(0, frameLeft - gap));
+
 // A compact Codex rail never vanishes; on narrow screens an open sidebar overlays.
 export function sidebarGeometry(viewport: number, open: boolean) {
   const narrow = viewport <= sidebarBreakpoint;
