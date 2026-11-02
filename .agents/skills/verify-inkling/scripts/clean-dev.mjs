@@ -78,6 +78,9 @@ export const runStates = () => {
     });
 };
 
+export const runHasLiveProcess = (run, livePids) =>
+  [run.launcherPid, run.electronPid].some((pid) => livePids.has(pid));
+
 // Recorded pids that are still alive AND still carry the .dev path: a recycled pid never matches.
 export const liveOwned = () => {
   const table = new Map(listProcesses().map((p) => [p.pid, p]));

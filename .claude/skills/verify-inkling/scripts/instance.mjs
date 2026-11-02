@@ -14,6 +14,7 @@ import {
   liveOwned,
   mentionsDev,
   root,
+  runHasLiveProcess,
   runStates,
 } from "./clean-dev.mjs";
 import { seedLibrary } from "../../../../tools/dev/seeded-library.ts";
@@ -107,7 +108,8 @@ const startDetached = (library, logPath) => {
 };
 
 const launch = async (flags) => {
-  const live = runStates().filter((s) => liveOwned().some((p) => p.pid === s.electronPid));
+  const livePids = new Set(liveOwned().map((p) => p.pid));
+  const live = runStates().filter((s) => runHasLiveProcess(s, livePids));
   if (live.length > 0)
     fail("a verification run is already live in this worktree; run `cleanup` first");
   // Stale scratch from an earlier run goes first so `.dev` only ever holds one run.
