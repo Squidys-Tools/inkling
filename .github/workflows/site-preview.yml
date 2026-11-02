@@ -24,12 +24,23 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
+      - name: Choose changed-path comparison base
+        id: comparison
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          base="$(node .github/scripts/site-preview-base.mjs "$BEFORE_SHA" "$PR_BASE_SHA" "$PR_HEAD_SHA")"
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+
       - name: Filter changed paths
         id: filter
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           token: ''
-          base: ${{ github.event.before || github.event.pull_request.base.sha }}
+          base: ${{ steps.comparison.outputs.sha }}
           predicate-quantifier: some-with-excludes
           filters: |
             site:
