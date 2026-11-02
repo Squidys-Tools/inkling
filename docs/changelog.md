@@ -17,6 +17,11 @@ Rules for entries:
 
 - Vercel site previews now build only when a push touches the site or its build inputs, instead of every branch and PR.
 - Developer commands consolidated to 15: `bun run dist [dir|win|linux|mac]` replaces `build:dir`/`build:win`/`build:linux`/`build:mac`, `bun run bench [frames|library|first-page|quality]` replaces the `bench:*` scripts, the ingestion smoke runs under `bun run test`, and the Bun-pin and documented-command checks run as `bun tools/repo/check-bun-version.ts` and `bun tools/repo/command-refs.ts`.
+- The reader no longer fades text out at the top edge of its scroll view.
+
+### Fixed
+
+- Embedded videos in the reader and item view now play in the desktop app: the `app://` page cannot send an http(s) Referer, which YouTube answers with error 153, so the main process names the app's site on player requests that carry no referrer of their own.
 
 ### Added
 
