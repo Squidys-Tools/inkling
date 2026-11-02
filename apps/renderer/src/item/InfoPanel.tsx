@@ -11,7 +11,6 @@ import { hostname } from "../library/assets.ts";
 import { useProcessing } from "../library/jobs.ts";
 import type { DescribedItem } from "./model.ts";
 import { TagList } from "./TagList.tsx";
-import { TextDisclosure } from "./TextDisclosure.tsx";
 import { TitleField } from "./TitleField.tsx";
 
 function savedOn(createdAt: number) {
@@ -122,9 +121,6 @@ export function InfoPanel({
           {item.pdfPageCount && <Detail label="Pages" value={String(item.pdfPageCount)} mono />}
         </dl>
       </section>
-      {item.ocrText && item.kind !== "Note" && item.kind !== "Quote" && (
-        <TextDisclosure text={item.ocrText} />
-      )}
       {(item.kind === "Note" || canOpenPdf || canRead) && (
         <div {...stylex.props(styles.actions)}>
           {item.kind === "Note" && (
@@ -189,6 +185,10 @@ const styles = stylex.create({
   box: {
     margin: 0,
     minHeight: "72px",
+    maxHeight: "240px",
+    overflowY: "auto",
+    whiteSpace: "pre-wrap",
+    userSelect: "text",
     paddingBlock: "11px",
     paddingInline: space.s3,
     borderRadius: "10px",

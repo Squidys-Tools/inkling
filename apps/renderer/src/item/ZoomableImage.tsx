@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { Glass } from "@inkling/ui";
-import { color, radius, space } from "@inkling/ui/tokens.stylex";
+import { color, motion, radius, space } from "@inkling/ui/tokens.stylex";
 import { type PointerEvent, useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   BUTTON_ZOOM_FACTOR,
@@ -14,6 +14,8 @@ import {
   wheelZoomFactor,
 } from "./imageZoom.ts";
 import { SizeStepper } from "./SizeStepper.tsx";
+import { desktop } from "../desktop.ts";
+import { reportActionError } from "../cards/actionError.ts";
 
 // Zoom and pan live here, so panning re-renders only this stage. The caller
 // keys it by item, which resets zoom when the shown item changes.
@@ -21,7 +23,9 @@ export function ZoomableImage({
   src,
   originalSrc,
   alt,
+  itemId,
 }: {
+  itemId?: string;
   src: string;
   /** The full-size file, swapped in once the image is zoomed past fit. */
   originalSrc?: string;
@@ -38,6 +42,8 @@ export function ZoomableImage({
   const [zoomLevel, setZoomLevel] = useState<number | null>(null);
   const [pan, setPan] = useState<Offset>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const touches = useRef(new Map<number, Offset>());
+  const pinchDistance = useRef<number | null>(null);
 
   useEffect(() => {
     const element = frameRef.current;
@@ -119,6 +125,16 @@ export function ZoomableImage({
   }, []);
 
   function startDrag(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "touch") {
+      touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      event.currentTarget.setPointerCapture(event.pointerId);
+      if (touches.current.size === 2) {
+        const [a, b] = [...touches.current.values()];
+        pinchDistance.current = Math.hypot(a.x - b.x, a.y - b.y);
+        dragRef.current = null;
+        return;
+      }
+    }
     if (!isZoomed || (event.button !== 0 && event.button !== 1)) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -127,6 +143,21 @@ export function ZoomableImage({
   }
 
   function drag(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "touch" && touches.current.has(event.pointerId)) {
+      touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (touches.current.size === 2) {
+        const [a, b] = [...touches.current.values()];
+        const distance = Math.hypot(a.x - b.x, a.y - b.y);
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (pinchDistance.current)
+          zoomBy(distance / pinchDistance.current, {
+            x: (a.x + b.x) / 2 - rect.left - rect.width / 2,
+            y: (a.y + b.y) / 2 - rect.top - rect.height / 2,
+          });
+        pinchDistance.current = distance;
+        return;
+      }
+    }
     const start = dragRef.current;
     if (!start || !shown || !frame) return;
     const x = start.origin.x + event.clientX - start.pointerX;
@@ -134,7 +165,9 @@ export function ZoomableImage({
     setPan(clampPan({ x, y }, shown, frame));
   }
 
-  function endDrag() {
+  function endDrag(event: PointerEvent<HTMLDivElement>) {
+    touches.current.delete(event.pointerId);
+    pinchDistance.current = null;
     dragRef.current = null;
     setIsDragging(false);
   }
@@ -158,6 +191,13 @@ export function ZoomableImage({
           src={original?.url ?? src}
           alt={alt}
           draggable={!isZoomed}
+          onDragStart={(event) => {
+            if (!desktop || !itemId) return;
+            event.preventDefault();
+            void desktop
+              .startItemDrag(itemId)
+              .catch(() => reportActionError("Couldn’t drag this item out."));
+          }}
           onLoad={(event) => {
             const { naturalWidth, naturalHeight } = event.currentTarget;
             if (naturalWidth > 0 && naturalHeight > 0)
@@ -168,7 +208,8 @@ export function ZoomableImage({
             // A shadow would be recomputed over the whole scaled image on every pan.
             !isZoomed && styles.shadow,
             base && styles.box(base.width, base.height),
-            isZoomed && styles.transform(offset.x, offset.y, zoom / fit),
+            styles.transform(offset.x, offset.y, zoom / fit),
+            isDragging && styles.direct,
             zoom >= PIXEL_ZOOM && styles.pixelated,
           )}
         />
@@ -200,6 +241,7 @@ export function ZoomableImage({
 
 const styles = stylex.create({
   frame: {
+    touchAction: "none",
     position: "relative",
     width: "100%",
     height: "100%",
@@ -217,7 +259,11 @@ const styles = stylex.create({
     translate: "-50% -50%",
     borderRadius: "4px",
     userSelect: "none",
+    transitionProperty: "transform",
+    transitionDuration: motion.reveal,
+    transitionTimingFunction: motion.enter,
   },
+  direct: { transitionDuration: "0s" },
   shadow: { boxShadow: `0 24px 60px ${color.shadow}` },
   box: (width: number, height: number) => ({ width: `${width}px`, height: `${height}px` }),
   transform: (x: number, y: number, scale: number) => ({

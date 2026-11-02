@@ -4,6 +4,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GridCell, type GridContext } from "../cards/Card.tsx";
 import type { CardLayout } from "../cards/CardMedia.tsx";
 import { nextGeneration } from "./gridLayout.ts";
+import { warmCards } from "../library/cards.ts";
+import { viewState } from "./viewState.ts";
+import { animateArrival } from "./viewTransition.ts";
 
 const gap = 12;
 const targetWidth: Record<CardLayout, number> = {
@@ -48,6 +51,15 @@ export function Grid({
   const nextLayout = nextGeneration(layoutState, ids);
   if (nextLayout !== layoutState) setLayoutState(nextLayout);
   const generation = nextLayout.generation;
+  const arrived = useRef(false);
+  useLayoutEffect(() => {
+    if (!width || !ids.length || arrived.current) return;
+    arrived.current = true;
+    const element = frame.current?.querySelector<HTMLElement>("[data-bench='grid']");
+    if (!element || viewState.get().entering) return;
+    const animations = animateArrival(element, layout === "list");
+    return () => animations.forEach((animation) => animation.cancel());
+  }, [width, ids.length, layout]);
 
   // The fresh masonry measures its cells over the next frames, so the old
   // offset is set again each frame until it fits, unless the user scrolls.
@@ -96,7 +108,13 @@ export function Grid({
       {...stylex.props(styles.frame)}
       onScrollCapture={(event) => {
         const scroller = event.target as HTMLElement;
+        const forward = scroller.scrollTop >= scrollTop.current;
         scrollTop.current = scroller.scrollTop;
+        const indexes = [...scroller.querySelectorAll<HTMLElement>("[data-library-index]")].map(
+          (node) => Number(node.dataset.libraryIndex),
+        );
+        const edge = indexes.length ? (forward ? Math.max(...indexes) : Math.min(...indexes)) : 0;
+        warmCards(ids.slice(Math.max(0, edge - (forward ? 0 : 12)), edge + (forward ? 13 : 1)));
         if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < loadAhead)
           onNearEnd();
       }}
@@ -134,7 +152,7 @@ const styles = stylex.create({
     height: "100%",
     minWidth: 0,
     gap: `${gap}px`,
-    paddingTop: "36px",
+    paddingTop: "8px",
     paddingBottom: "72px",
     scrollbarWidth: "none",
     maskImage:

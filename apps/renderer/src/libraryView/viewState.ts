@@ -2,14 +2,16 @@ import { createStore, useStore } from "../library/store.ts";
 
 type ViewState = {
   list: boolean;
+  entering: boolean;
   sidebarOpen: boolean;
   /** The mascot reads this to look attentive while search has focus. */
   searchFocused: boolean;
 };
 
 /** How the library is shown; it outlives any one page. */
-const viewState = createStore<ViewState>({
+export const viewState = createStore<ViewState>({
   list: false,
+  entering: false,
   sidebarOpen: true,
   searchFocused: false,
 });
@@ -17,6 +19,8 @@ const viewState = createStore<ViewState>({
 export const useViewState = <Selected>(select: (state: ViewState) => Selected) =>
   useStore(viewState, select);
 
+export const setEntering = (entering: boolean) =>
+  viewState.set((state) => (state.entering === entering ? state : { ...state, entering }));
 export const setListMode = (list: boolean) => viewState.set((state) => ({ ...state, list }));
 export const setSidebarOpen = (sidebarOpen: boolean) =>
   viewState.set((state) => ({ ...state, sidebarOpen }));

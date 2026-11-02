@@ -4,7 +4,8 @@ import { Glass } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, text } from "@inkling/ui/tokens.stylex";
 import { useAppearance } from "../settings/appearance.ts";
-import { setListMode, useViewState } from "./viewState.ts";
+import { useViewState } from "./viewState.ts";
+import { switchView } from "./viewTransition.ts";
 
 /** Both looks share the same view state and switch action. */
 export function ViewDock() {
@@ -29,14 +30,14 @@ export function ViewDock() {
         icon={GridViewIcon}
         selected={!list}
         segmented={segmented}
-        onClick={() => setListMode(false)}
+        onClick={() => switchView(false)}
       />
       <ViewButton
         label="List view"
         icon={ListViewIcon}
         selected={list}
         segmented={segmented}
-        onClick={() => setListMode(true)}
+        onClick={() => switchView(true)}
       />
     </Glass>
   );

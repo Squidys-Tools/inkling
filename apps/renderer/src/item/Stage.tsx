@@ -66,6 +66,7 @@ export function Stage({
       <ZoomableImage
         key={item.id}
         src={item.image}
+        itemId={item.hasFile ? item.id : undefined}
         originalSrc={item.kind === "Image" ? item.file : undefined}
         alt={item.imageAlt || item.title}
       />

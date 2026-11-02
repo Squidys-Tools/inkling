@@ -106,7 +106,6 @@ export function Sidebar({
         {...stylex.props(
           styles.sidebar,
           styles.width(width),
-          compact ? styles.compactReveal : open ? styles.reveal : styles.departing,
           narrow && styles.narrow,
           chrome.controls === "native-left" && styles.belowLights,
         )}
@@ -208,37 +207,20 @@ export function Sidebar({
   );
 }
 
-const reveal = stylex.keyframes({
-  "0%": { opacity: 0 },
-  "65%": { opacity: 0 },
-  "100%": { opacity: 1 },
-});
-const compactReveal = stylex.keyframes({ from: { opacity: 0 }, to: { opacity: 1 } });
-
 const styles = stylex.create({
-  reveal: {
-    animationName: reveal,
-    animationDuration: motion.layout,
-    animationTimingFunction: motion.enter,
-  },
-  compactReveal: {
-    animationName: compactReveal,
-    animationDuration: motion.micro,
-    animationTimingFunction: motion.enter,
-  },
-  departing: { opacity: 0 },
   sidebar: {
     position: "absolute",
-    top: 0,
+    top: "8px",
     bottom: "8px",
     left: "8px",
     zIndex: 0,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
-    gap: "22px",
+    gap: "14px",
     minHeight: 0,
-    paddingTop: "8px",
+    paddingTop: "28px",
+    backgroundColor: color.surface,
     paddingInline: "4px",
     paddingBottom: "6px",
     borderRadius: radius.panel,
@@ -250,7 +232,7 @@ const styles = stylex.create({
     // The main frame reveals this panel; never animate sidebar layout width.
   },
   width: (width: number) => ({ width: width - 16 }),
-  belowLights: { top: "32px" },
+  belowLights: { top: "32px", paddingTop: "8px" },
   narrow: { position: "fixed", zIndex: 30, backgroundColor: color.window },
   scrim: {
     position: "fixed",

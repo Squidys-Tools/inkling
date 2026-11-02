@@ -6,6 +6,7 @@ import { type CardView, formatDuration } from "../library/cardModel.ts";
 import { PostArtwork } from "./PostArtwork.tsx";
 import { QuoteArtwork } from "./QuoteArtwork.tsx";
 import { TypedArtworkFor } from "./TypedArtwork.tsx";
+import { hasThumbnail, retainThumbnail } from "./thumbnailCache.ts";
 
 export type CardLayout = "grid" | "list" | "archive";
 
@@ -29,7 +30,8 @@ export function CardImage({
       src={view.image}
       alt={view.imageAlt || view.title}
       decoding="async"
-      loading={priority ? "eager" : "lazy"}
+      loading={priority || hasThumbnail(view.image) ? "eager" : "lazy"}
+      onLoad={(event) => retainThumbnail(event.currentTarget)}
       fetchPriority={priority ? "high" : undefined}
       draggable={false}
       {...stylex.props(styles.image, style)}
