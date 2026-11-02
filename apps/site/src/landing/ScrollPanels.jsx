@@ -22,7 +22,7 @@ const panels = [
     id: "spaces",
     title: "A corner of your own.",
     body: "Put favourites in a regular Space, or let a Smart Space collect items that match a saved search. A little structure, only when you want it.",
-    image: "/media/keepers/bear.jpg",
+    image: "/demo/assets/animal-1020-CF3jCN2d.jpg",
     alt: "A brown bear beside a quiet lake and forested mountains.",
     caption: "Out in nature",
   },
