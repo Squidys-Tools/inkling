@@ -57,7 +57,7 @@ jobs:
     environment: site-staging
     permissions:
       contents: read
-      issues: write
+      pull-requests: write
     steps:
       - name: Check out the PR head
         uses: actions/checkout@v7
