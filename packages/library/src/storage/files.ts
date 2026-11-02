@@ -122,21 +122,23 @@ export function makeFiles(ctx: StorageContext) {
     return realCandidate;
   });
 
-  const saveScreenshot = Effect.fnUntraced(function* (input: SaveFileInput) {
+  const saveScreenshotItem = Effect.fnUntraced(function* (input: SaveFileInput) {
     if (!input.bytes.length || input.bytes.length > maxFileBytes)
       return yield* invalidInput("screenshot exceeds the image input limit");
     const hash = createHash("sha256").update(input.bytes).digest("hex");
     return yield* sql.withTransaction(
       Effect.gen(function* () {
         const existing = yield* sql`SELECT id FROM items WHERE id = ${`screenshot-${hash}`}
-        OR json_extract(metadata, '$.screenshotHash') = ${hash} LIMIT 1`;
-        if (existing.length) return false;
+        OR CASE WHEN json_valid(metadata) THEN json_extract(metadata, '$.screenshotHash') END = ${hash} LIMIT 1`;
+        if (existing.length) return null;
         const item = yield* saveFile({ ...input, kind: "image" });
         yield* sql`UPDATE items SET metadata = json_set(metadata, '$.screenshotHash', ${hash})
         WHERE id = ${item.id}`;
-        return true;
+        return item.id;
       }),
     );
   });
-  return { saveFile, saveScreenshot, resolveAssetPath };
+  const saveScreenshot = (input: SaveFileInput) =>
+    saveScreenshotItem(input).pipe(Effect.map((id) => id !== null));
+  return { saveFile, saveScreenshot, saveScreenshotItem, resolveAssetPath };
 }

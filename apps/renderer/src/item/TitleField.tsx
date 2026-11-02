@@ -202,22 +202,23 @@ export function TitleField({
   title: string;
   onRename: (title: string) => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  // Keep the editing session's initial text stable across background refetches.
+  const [editing, setEditing] = useState<string | null>(null);
   return (
     <h2 {...stylex.props(styles.title)}>
-      {editing ? (
+      {editing !== null ? (
         <TitleEditor
-          title={title}
+          title={editing}
           finish={(value) => {
-            setEditing(false);
-            if (value && value !== title) onRename(value);
+            setEditing(null);
+            if (value && value !== editing) onRename(value);
           }}
         />
       ) : (
         <button
           type="button"
           title="Rename"
-          onClick={() => setEditing(true)}
+          onClick={() => setEditing(title)}
           {...stylex.props(styles.reset, styles.button)}
         >
           {keepNumbersTogether(title)}

@@ -342,6 +342,27 @@ test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
   },
 );
 
+test("a folder chosen while Off on a fresh install survives restart", async () => {
+  const f = await fixture();
+  const chosen = join(f.root, "Chosen screenshots");
+  await mkdir(chosen);
+  let importer = createScreenshotImporter(f.options);
+  try {
+    expect((await importer.configure(false, chosen)).directory).toBe(chosen);
+    await importer.close();
+    importer = createScreenshotImporter(f.options);
+    expect(await importer.getState()).toMatchObject({ enabled: false, directory: chosen });
+    expect(JSON.parse(await readFile(f.options.preferencesPath, "utf8"))).toMatchObject({
+      enabled: false,
+      directory: chosen,
+    });
+  } finally {
+    await importer.close();
+    await f.library.close();
+    await rm(f.root, { recursive: true, force: true });
+  }
+});
+
 test("missing folder and corrupted preferences fail closed", async () => {
   const f = await fixture();
   let importer = createScreenshotImporter(f.options);

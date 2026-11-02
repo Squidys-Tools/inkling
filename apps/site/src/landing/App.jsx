@@ -46,7 +46,7 @@ function Aperture() {
       (progress.get() > 0.12 && document.activeElement === frame.current?.querySelector("iframe")),
     [progress, reduced],
   );
-  const live = React.useSyncExternalStore(subscribeLive, liveSnapshot, () => true);
+  const live = React.useSyncExternalStore(subscribeLive, liveSnapshot, () => false);
   const paint = React.useCallback(
     (value) => {
       const focused = document.activeElement === frame.current?.querySelector("iframe");
@@ -220,22 +220,39 @@ function openLibrary(event) {
   const section = document.getElementById("library");
   if (!section) return;
   event.preventDefault();
+  // TanStack observes history writes and otherwise realigns #library to its
+  // masked opening after our scroll. Keep the hash, but own this offset.
+  if (window.location.hash !== url.hash)
+    window.history.pushState(
+      { ...window.history.state, __hashScrollIntoViewOptions: false },
+      "",
+      url.hash,
+    );
+  requestAnimationFrame(() => scrollLibraryIntoView("smooth"));
+}
+function scrollLibraryIntoView(behavior) {
+  const section = document.getElementById("library");
+  if (!section) return;
   const top = section.getBoundingClientRect().top + window.scrollY;
-  // useScroll's [start 55%, end 100%] mapping, safely beyond the .53 activation threshold.
   const enhanced =
     section.classList.contains("aperture-ready") && section.offsetHeight > window.innerHeight;
   const destination = enhanced
     ? top - window.innerHeight * 0.55 + (section.offsetHeight - window.innerHeight * 0.45) * 0.7
     : top;
-  if (window.location.hash !== url.hash)
-    window.history.pushState(window.history.state, "", url.hash);
   window.scrollTo({
     top: Math.max(0, destination),
-    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : behavior,
   });
 }
 function Site({ calm, setCalm }) {
   const reduced = useCalm();
+  const hydrated = useHydrated();
+  React.useEffect(() => {
+    if (!hydrated || window.location.hash !== "#library") return;
+    // Covers a direct hash reload or a native link clicked before hydration.
+    const handle = requestAnimationFrame(() => scrollLibraryIntoView("instant"));
+    return () => cancelAnimationFrame(handle);
+  }, [hydrated]);
   return (
     <div id="top" data-theme="dark" onClick={openLibrary}>
       <a className="skip-link" href="#main">

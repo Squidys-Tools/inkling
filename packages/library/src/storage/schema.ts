@@ -234,6 +234,10 @@ export function openDatabase(databasePath: string) {
     ["progress_message", "TEXT"],
   ]);
   migrateItemColumns(db, version < SCHEMA_VERSION);
+  // Optional lookup index, including existing version-9 libraries. Invalid legacy
+  // metadata is ignored here rather than preventing the library from opening.
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_items_screenshot_hash ON items
+    (CASE WHEN json_valid(metadata) THEN json_extract(metadata, '$.screenshotHash') END)`);
   db.exec(embeddingsSchema);
   db.exec(spacesSchema);
   db.exec(appSettingsSchema);

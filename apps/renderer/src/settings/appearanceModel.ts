@@ -3,10 +3,6 @@ export const appearanceOptions = {
     { value: "pill", label: "Pill" },
     { value: "segmented", label: "Segmented" },
   ],
-  sidebarToggle: [
-    { value: "buttons", label: "Buttons" },
-    { value: "edge", label: "Edge grip" },
-  ],
 } as const;
 
 export type Appearance = {
@@ -31,6 +27,5 @@ export function parseAppearance(
         : stored.viewToggle === "segmented"
           ? "segmented"
           : "pill",
-    sidebarToggle: stored.sidebarToggle === "edge" ? "edge" : "buttons",
   };
 }

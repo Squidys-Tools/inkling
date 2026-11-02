@@ -70,18 +70,21 @@ export function createScreenshotImporter({
           },
         );
       });
-      if (!handle) return; // No saved On record exists; absence defaults to Off.
-      try {
-        if (!(await handle.stat()).isFile())
-          throw new Error("Screenshot preferences must be a regular file.");
-        await handle.truncate(0);
-        await handle.sync();
-        await handle.writeFile(JSON.stringify(next) + "\n");
-        await handle.sync();
-      } finally {
-        await handle.close();
+      if (handle) {
+        try {
+          if (!(await handle.stat()).isFile())
+            throw new Error("Screenshot preferences must be a regular file.");
+          await handle.truncate(0);
+          await handle.sync();
+          await handle.writeFile(JSON.stringify(next) + "\n");
+          await handle.sync();
+        } finally {
+          await handle.close();
+        }
+        return;
       }
-      return;
+      // A fresh Off configuration must still retain its chosen folder.
+      // With no stale On record left, use the normal atomic creation below.
     }
     await mkdir(dirname(preferencesPath), { recursive: true });
     const temporary = `${preferencesPath}.${process.pid}.tmp`;

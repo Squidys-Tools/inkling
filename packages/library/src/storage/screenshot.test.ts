@@ -34,6 +34,20 @@ test("screenshot content identity is committed with the random-ID item and survi
   expect(count(reopened, "items")).toBe(1);
 });
 
+test("screenshot storage returns the exact changed ID internally and indexes content lookup", async () => {
+  const { library } = await temporaryLibrary();
+  const id = await library.saveScreenshotItem(input);
+  expect(typeof id).toBe("string");
+  if (id === null) throw new Error("Expected a newly saved screenshot ID");
+  expect((await library.listActiveItems()).map((item) => item.id)).toEqual([id]);
+  expect(await library.saveScreenshotItem(input)).toBeNull();
+  const plan = library.db
+    .prepare(`EXPLAIN QUERY PLAN SELECT id FROM items
+    WHERE id = ? OR CASE WHEN json_valid(metadata) THEN json_extract(metadata, '$.screenshotHash') END = ? LIMIT 1`)
+    .all("screenshot-hash", "hash");
+  expect(plan.map((row) => row.detail).join(" ")).toContain("idx_items_screenshot_hash");
+});
+
 test("a rejected screenshot is neither checkpointed nor stored", async () => {
   const { root, library } = await temporaryLibrary({
     media: {

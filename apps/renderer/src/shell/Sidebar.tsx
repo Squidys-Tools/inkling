@@ -17,7 +17,6 @@ import { useStore } from "../library/store.ts";
 import { setSettingsSheetOpen, setSidebarOpen, useViewState } from "../libraryView/viewState.ts";
 import { Mascot } from "../mascot/Mascot.tsx";
 import { useMascotMood } from "../mascot/useMascotMood.ts";
-import { useAppearance } from "../settings/appearance.ts";
 import { useAppUpdate } from "../settings/useAppUpdate.ts";
 import { AddMenu } from "./AddMenu.tsx";
 import { NavButton, NavLink } from "./NavRow.tsx";
@@ -75,9 +74,7 @@ export function Sidebar({
   const shown = useStore(shownScope, (scope) => scope._tag);
   const settingsOpen = useViewState((state) => state.settingsSheetOpen);
 
-  const appearance = useAppearance();
   const compact = !visualOpen;
-  const edge = appearance.sidebarToggle === "edge";
   const width = visualOpen ? sidebarExpanded : sidebarCompact;
   const reopenButton = useRef<HTMLButtonElement>(null);
   const returnToggleFocus = useRef(false);
@@ -117,10 +114,10 @@ export function Sidebar({
           {compact ? (
             <button
               type="button"
-              ref={edge ? undefined : reopenButton}
+              ref={reopenButton}
               aria-label="Open sidebar"
               title="Open sidebar"
-              data-bench={edge ? undefined : "sidebar-toggle"}
+              data-bench="sidebar-toggle"
               aria-expanded={false}
               aria-controls="library-navigation"
               onClick={toggle}
@@ -138,7 +135,7 @@ export function Sidebar({
               <span data-sidebar-label {...stylex.props(styles.wordmark)}>
                 inkling
               </span>
-              {!edge && (
+              {
                 <button
                   type="button"
                   ref={reopenButton}
@@ -152,7 +149,7 @@ export function Sidebar({
                 >
                   <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
                 </button>
-              )}
+              }
             </>
           )}
         </div>
@@ -192,24 +189,6 @@ export function Sidebar({
           />
         </div>
       </aside>
-      {edge && (
-        <button
-          type="button"
-          ref={reopenButton}
-          aria-label={open ? "Close sidebar" : "Open sidebar"}
-          title={open ? "Close sidebar" : "Open sidebar"}
-          aria-expanded={open}
-          aria-controls="library-navigation"
-          data-bench="sidebar-toggle"
-          onClick={toggle}
-          {...stylex.props(
-            styles.grip,
-            styles.gripInset((open ? sidebarExpanded : sidebarCompact) - 6),
-          )}
-        >
-          <span {...stylex.props(styles.gripLine)} aria-hidden="true" />
-        </button>
-      )}
     </>
   );
 }
@@ -311,31 +290,5 @@ const styles = stylex.create({
     gap: "2px",
     marginTop: "auto",
     flexShrink: 0,
-  },
-  grip: {
-    position: "absolute",
-    top: "80px",
-    bottom: "24px",
-    zIndex: 31,
-    width: "12px",
-    padding: 0,
-    display: "grid",
-    placeItems: "center",
-    borderWidth: 0,
-    backgroundColor: "transparent",
-    cursor: "pointer",
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-    left: 0,
-    transitionProperty: "transform",
-    transitionDuration: motion.layout,
-    transitionTimingFunction: motion.enter,
-  },
-  gripInset: (left: number) => ({ transform: `translateX(${left}px)` }),
-  gripLine: {
-    display: "block",
-    width: "3px",
-    height: "36px",
-    borderRadius: radius.round,
-    backgroundColor: color.borderStrong,
   },
 });

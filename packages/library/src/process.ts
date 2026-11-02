@@ -105,6 +105,7 @@ const loadSubjectVectors = Effect.suspend(() =>
 
 // Search adds confuser prompts without changing the Map the Smart Space classifier sees.
 let photoPrompts: SubjectVectors | null = null;
+const photoQueryPrompts = new Map<string, SubjectVectors>();
 const loadPhotoSearchVectors = (query: string) =>
   Effect.gen(function* () {
     if (!photoPrompts) {
@@ -126,12 +127,22 @@ const loadPhotoSearchVectors = (query: string) =>
     const wanted = photoSearchSubjects(query);
     const missing = wanted.filter((label) => !base.has(label));
     if (!missing.length) return base;
+    const key = JSON.stringify([...wanted].sort());
+    const remembered = photoQueryPrompts.get(key);
+    if (remembered) return remembered;
     const extra = yield* Effect.forEach(missing, (label) =>
       queryVector(subjectPrompt(label)).pipe(Effect.map((vector) => [label, vector] as const)),
     );
     if (extra.some(([, vector]) => !vector?.length)) return null;
     // Never add query-specific prompts to the shared Space/search guard inventory.
-    return new Map([...base, ...extra.map(([label, vector]) => [label, vector!] as const)]);
+    const prompts = new Map([
+      ...base,
+      ...extra.map(([label, vector]) => [label, vector!] as const),
+    ]);
+    if (photoQueryPrompts.size >= 32)
+      photoQueryPrompts.delete(photoQueryPrompts.keys().next().value!);
+    photoQueryPrompts.set(key, prompts);
+    return prompts;
   }).pipe(
     Effect.timeoutOption(subjectWait),
     Effect.map((result) => (result._tag === "Some" ? result.value : null)),
@@ -238,8 +249,9 @@ const handlers = LibraryRpcs.toLayer(
       captureUrl: (input) => written(library.captureUrl(input)),
       saveFile: (input) => written(library.saveFile(input)),
       saveScreenshot: (input) =>
-        answer(library.saveScreenshot(input)).pipe(
-          Effect.tap((added) => (added ? publish({ _tag: "LibraryReplaced" }) : Effect.void)),
+        answer(library.saveScreenshotItem(input)).pipe(
+          Effect.tap((id) => (id ? itemChanged(id) : Effect.void)),
+          Effect.map((id) => id !== null),
         ),
       updateItem: (input) => written(Effect.map(library.updateItem(input), cardItem)),
       // Archiving or deleting an item changes the counts of the Spaces it is in.
