@@ -136,9 +136,9 @@ Checking, downloading, canceling and installing are separate actions the user ta
 
 To cut a release:
 
-1. Push a `vX.Y.Z` tag, or run the Release workflow with the `stable` channel and a version. Nightlies run daily on a schedule, or run the workflow with the `nightly` channel; their version is the next patch with a `-nightly.YYYYMMDD.<run>` suffix.
-2. The workflow builds the Windows installer, the Linux `.deb` and AppImage, and the macOS disk image, runs the packaged smoke checks and launches each build, and creates a draft GitHub release. A run dispatched from any branch other than `main` stops after the builds and drafts nothing.
-3. Review the draft, which holds notes generated from merged PR titles, and publish it. Until a channel has a published release, update checks on it show an error.
+1. Push a `vX.Y.Z` tag, or run the Release workflow with the `stable` channel; a dispatched stable builds the latest published nightly's commit, so stable only ever ships a build nightly users already ran (`version` overrides the nightly-derived version). Nightlies run once a day on a schedule, and only when main has commits the last published nightly does not; run the workflow with the `nightly` channel to ship one by hand. Their version is the next patch with a `-nightly.YYYYMMDD.<run>` suffix. The `preview` channel exercises the whole flow from any branch and releases nothing.
+2. The workflow builds the Windows installer, the Linux `.deb` and AppImage, and the macOS disk image, runs the packaged smoke checks and launches each build, and creates a draft GitHub release. A nightly publishes itself once every asset is attached; a stable release stays a draft.
+3. For stable, review the draft, which holds notes generated from merged PR titles, and publish it. Until a channel has a published release, update checks on it show an error.
 4. For a stable release, add its section to `docs/changelog.md` from those notes, following the rules at the top of that file.
 
 To test the updater locally, run `bun tools/smoke/update-feed.mjs`, or pass `.artifacts/electron/linux-unpacked` to run it on the packaged runtime. It downloads from loopback feeds, verifies SHA512, replaces a scratch AppImage and checks Debian metadata, and never installs as root.
@@ -163,7 +163,7 @@ Never add signing secrets or publish automatically. The Windows installer is not
 
 Pushes and PRs that change only Markdown, `docs/` or `AGENTS.md` skip CI and the security scans.
 
-- `ci.yml` runs the checks on `windows-latest`, and builds and launches the app from source on Windows, Linux and macOS.
+- `ci.yml` runs the unit tests on `windows-latest`, the typecheck, lint, Knip and web/extension builds on `ubuntu-latest`, and builds and launches the app from source on Windows, Linux and macOS.
 - `security.yml` runs CodeQL when a PR opens or reopens and on about every fourth push to it, and dependency review on every PR push.
 - App changes in a same-repository PR (`electron-preview.yml`, skipped when only `apps/site/` changes) build the unpacked app on Windows, Linux and macOS, run the backend smoke and launch it (Linux under Xvfb); macOS also verifies its ad-hoc signature, and Windows and Linux upload the directory as a 3-day artifact.
 - `pr-size.yml` labels each PR by the size of its diff.
