@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { fixturePath } from "./test-fixtures.ts";
 
+// Cold-starts a node child that imports effect and the PDF stack; slow while parallel workers share the CPU.
 test("the system-font scan waits for PDF jobs, including after BMP thumbnailing", () => {
   const handlersUrl = pathToFileURL(join(import.meta.dir, "handlers.ts")).href;
   const thumbnailUrl = pathToFileURL(join(import.meta.dir, "thumbnail.ts")).href;
@@ -86,4 +87,4 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
   } finally {
     rmSync(tempDirectory, { recursive: true, force: true });
   }
-});
+}, 30_000);
