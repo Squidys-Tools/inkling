@@ -12,13 +12,21 @@
     "apps/renderer/src/libraryView/Grid.tsx",
     "apps/renderer/src/libraryView/viewTransition.ts",
     "apps/renderer/src/main.tsx",
+    "apps/renderer/src/shell/AddMenu.tsx",
+    "apps/renderer/src/shell/NavRow.tsx",
+    "apps/renderer/src/shell/Sidebar.tsx",
+    "apps/renderer/src/shell/SpaceRow.tsx",
+    "apps/renderer/src/shell/SpacesSection.tsx",
+    "apps/renderer/src/shell/sidebarGeometry.test.ts",
+    "apps/renderer/src/shell/sidebarGeometry.ts",
+    "apps/renderer/src/shell/useSidebarMotion.ts",
     "apps/renderer/vite.config.ts"
   ],
   "new_media": [
     {
       "id": 237,
       "provider": "Lorem Picsum / Unsplash",
-      "author": "André Spieker",
+      "author": "Andr\u00e9 Spieker",
       "source": "https://unsplash.com/photos/8wTPqxlnKM4",
       "download": "https://picsum.photos/id/237/720/960",
       "sha256": "47adeed5c560d86f9d91324f249bb19b900cf9e9d47678f67d810b4f7a9054ad",
@@ -84,7 +92,7 @@
     "plugin_react": "6.1.2",
     "stylex": "0.19.1",
     "react": "19.3.1",
-    "limit": "The original npm command inherited Vite 7 from its parent while package imports resolved through a Vite 8 dependency tree. The base lock alone cannot reproduce that mixed environment. Source reconstruction is verified; bit-identical compiled rebuilding is not claimed."
+    "limit": "The original npm command inherited Vite 7 from its parent while package imports resolved through a Vite 8 dependency tree. The base lock alone cannot reproduce that mixed environment. This follow-up rebuild uses that compatible saved environment; no base-lock-only bit-identical rebuild is claimed."
   },
   "exclusions": "Original seed-demo assets, private databases/profiles, local evidence and recordings excluded.",
   "source_overrides": {
