@@ -15,11 +15,12 @@ import {
   formatImportSummary,
   formatLastCopy,
 } from "./format.ts";
+import { KindBreakdown } from "./KindBreakdown.tsx";
 import { Panel, PanelBody, Row, settingsText, SquareButton } from "./parts.tsx";
 import { useLibraryOverview, useLibraryTransfer } from "./useLibraryTransfer.ts";
 
 export function LibraryPanel({ onClose }: { onClose: () => void }) {
-  const { count, sizeBytes, lastCopy } = useLibraryOverview();
+  const { count, kinds, sizeBytes, lastCopy } = useLibraryOverview();
   const { busy, outcome, exportCopy, restoreCopy, showFolder } = useLibraryTransfer();
   const failure = (action: "export" | "import" | "folder") =>
     outcome?.action === action && "error" in outcome ? (
@@ -36,24 +37,29 @@ export function LibraryPanel({ onClose }: { onClose: () => void }) {
     >
       <PanelBody>
         <div {...stylex.props(styles.overview)}>
-          <div {...stylex.props(styles.figures)}>
-            <p {...stylex.props(styles.count)}>
-              {count === null
-                ? "Your library"
-                : `${count.toLocaleString()} ${count === 1 ? "thing" : "things"}`}
-            </p>
-            {sizeBytes !== null && (
-              <span {...stylex.props(settingsText.mono)}>{formatByteSize(sizeBytes)} on disk</span>
+          <div {...stylex.props(styles.headline)}>
+            <div {...stylex.props(styles.figures)}>
+              <p {...stylex.props(styles.count)}>
+                {count === null
+                  ? "Your library"
+                  : `${count.toLocaleString()} ${count === 1 ? "thing" : "things"}`}
+              </p>
+              {sizeBytes !== null && (
+                <span {...stylex.props(settingsText.mono)}>
+                  {formatByteSize(sizeBytes)} on disk
+                </span>
+              )}
+            </div>
+            {desktop && (
+              <SquareButton
+                onClick={showFolder}
+                icon={<HugeiconsIcon icon={Folder01Icon} size={13} />}
+              >
+                Show folder
+              </SquareButton>
             )}
           </div>
-          {desktop && (
-            <SquareButton
-              onClick={showFolder}
-              icon={<HugeiconsIcon icon={Folder01Icon} size={13} />}
-            >
-              Show folder
-            </SquareButton>
-          )}
+          <KindBreakdown kinds={kinds} />
         </div>
         {failure("folder")}
         <Row
@@ -112,10 +118,9 @@ function Result({ children }: { children: ReactNode }) {
 const styles = stylex.create({
   overview: {
     display: "flex",
+    flexDirection: "column",
     flexShrink: 0,
-    alignItems: "baseline",
-    justifyContent: "space-between",
-    gap: space.s3,
+    gap: space.s4,
     marginBottom: "28px",
     paddingInline: "22px",
     paddingBlock: space.s5,
@@ -124,6 +129,12 @@ const styles = stylex.create({
     borderStyle: "solid",
     borderColor: color.border,
     backgroundColor: color.surface,
+  },
+  headline: {
+    display: "flex",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: space.s3,
   },
   figures: { display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "10px", minWidth: 0 },
   count: {

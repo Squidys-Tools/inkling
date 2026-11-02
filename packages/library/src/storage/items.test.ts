@@ -171,3 +171,40 @@ test("update_item refuses a source URL that is not HTTP or HTTPS", async () => {
   ).rejects.toThrow("sourceUrl must use HTTP or HTTPS");
   expect((await library.getItem(note.id))?.sourceUrl).toBeNull();
 });
+
+test("kind counts follow the card kinds, skip archived items and survive broken metadata", async () => {
+  const { library } = await temporaryLibrary();
+  await library.createNote({ title: "A note", body: "text" });
+  await library.createNote({ title: "Another note", body: "more" });
+  await library.createQuote({ body: "A quote worth keeping" });
+  await library.captureUrl({ sourceUrl: "https://example.com/read", captureSource: "quick link" });
+  await library.captureUrl({
+    sourceUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    captureSource: "quick link",
+  });
+  const post = await library.captureUrl({
+    sourceUrl: "https://x.com/someone/status/1",
+    captureSource: "quick link",
+  });
+  const broken = await library.captureUrl({
+    sourceUrl: "https://example.com/broken",
+    captureSource: "quick link",
+  });
+  const archived = await library.createNote({ title: "Gone", body: "archived" });
+  library.db.prepare("UPDATE items SET metadata = ? WHERE id = ?").run(
+    JSON.stringify({
+      social: { provider: "x", postUrl: "https://x.com/someone/status/1", postId: "1" },
+    }),
+    post.id,
+  );
+  library.db.prepare("UPDATE items SET metadata = 'not json' WHERE id = ?").run(broken.id);
+  await library.archiveItem(archived.id);
+
+  expect(await library.kindCounts()).toEqual([
+    { kind: "Article", count: 2 },
+    { kind: "Note", count: 2 },
+    { kind: "Quote", count: 1 },
+    { kind: "Video", count: 1 },
+    { kind: "Post", count: 1 },
+  ]);
+});

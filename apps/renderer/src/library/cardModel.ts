@@ -1,9 +1,10 @@
 import type { ItemDetail, ItemRecord, LibraryCard } from "@inkling/contracts";
+import { displayKind, itemKind, type ItemKind } from "@inkling/ingestion/item-kind";
 import { videoLinkFromSourceUrl } from "@inkling/ingestion/video-links";
 import { assetUrl, webUrl } from "./assets.ts";
 import { expireLabelAt } from "./labelClock.ts";
 
-export type ItemKind = "Article" | "Image" | "Note" | "PDF" | "Quote" | "Video" | "Post" | "File";
+export { displayKind, type ItemKind };
 
 /** How a card draws in the grid. Kinds with no artwork fall back to the typed file card. */
 type Treatment = "note" | "quote" | "pdf" | "article" | "video" | "file" | "media";
@@ -45,30 +46,6 @@ export type CardView = {
   treatment: Treatment;
   media: MediaKind;
 };
-
-export function displayKind(kind: string): ItemKind {
-  switch (kind.toLowerCase()) {
-    case "article":
-    case "url":
-      return "Article";
-    case "image":
-      return "Image";
-    case "quote":
-      return "Quote";
-    case "pdf":
-      return "PDF";
-    case "video":
-    case "embed":
-      return "Video";
-    case "post":
-    case "tweet":
-      return "Post";
-    case "file":
-      return "File";
-    default:
-      return "Note";
-  }
-}
 
 const positive = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
@@ -185,7 +162,7 @@ export function toCardView(card: LibraryCard, now = Date.now()): CardView {
   const social = xPost(metadata.social);
   const baseKind = displayKind(card.kind);
   const video = baseKind === "Article" ? videoLinkFromSourceUrl(card.sourceUrl) : null;
-  const kind: ItemKind = social ? "Post" : video ? "Video" : baseKind;
+  const kind = itemKind(card.kind, card.sourceUrl, Boolean(social));
   const remote = remoteImage(metadata);
   const image =
     assetUrl(card.thumbnailPath) ??

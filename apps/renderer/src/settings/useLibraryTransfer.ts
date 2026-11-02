@@ -1,4 +1,4 @@
-import type { ExportReport, ImportReport, LastExport } from "@inkling/contracts";
+import type { ExportReport, ImportReport, KindCount, LastExport } from "@inkling/contracts";
 import { useEffect, useState } from "react";
 import { desktop } from "../desktop.ts";
 import { libraryClient } from "../library/connection.ts";
@@ -71,11 +71,12 @@ export function useLibraryTransfer() {
 }
 
 /**
- * The library's item count, size on disk and last export, read again after
- * each export or restore. Each stays null when it cannot be read.
+ * The library's item count, per-kind counts, size on disk and last export, read
+ * again after each export or restore. Each stays null when it cannot be read.
  */
 export function useLibraryOverview() {
   const [count, setCount] = useState<number | null>(null);
+  const [kinds, setKinds] = useState<readonly KindCount[]>([]);
   const [sizeBytes, setSizeBytes] = useState<number | null>(null);
   const [lastCopy, setLastCopy] = useState<LastExport | null>(null);
   const outcome = useStore(transfers, (state) => state.outcome);
@@ -86,6 +87,10 @@ export function useLibraryOverview() {
       (client) => {
         client.status({}).then(
           (status) => current && setCount(status.itemCount),
+          () => undefined,
+        );
+        client.kindCounts({}).then(
+          (counts) => current && setKinds(counts),
           () => undefined,
         );
         client.lastExport({}).then(
@@ -107,5 +112,5 @@ export function useLibraryOverview() {
     };
   }, [outcome]);
 
-  return { count, sizeBytes, lastCopy };
+  return { count, kinds, sizeBytes, lastCopy };
 }

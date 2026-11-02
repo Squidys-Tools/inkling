@@ -6,9 +6,10 @@ import type {
   LibraryChange,
   Space,
 } from "@inkling/contracts";
+import { ITEM_KINDS, type ItemKind } from "@inkling/ingestion/item-kind";
 import { markdownToPlainText } from "@inkling/ingestion/markdown-text";
 import { mentionsSubject, smartSpaceSubjects } from "@inkling/ingestion/photo-subjects";
-import { displayKind } from "../cardModel.ts";
+import { displayKind, toCardView } from "../cardModel.ts";
 import type { LibraryClient } from "../connection.ts";
 import {
   seedArchived,
@@ -199,6 +200,17 @@ export function createPreviewClient(): LibraryClient {
       schemaVersion: 0,
       itemCount: ordered(false).length,
     }),
+    kindCounts: async () => {
+      const totals = new Map<ItemKind, number>();
+      for (const { card } of ordered(false)) {
+        const { kind } = toCardView(card);
+        totals.set(kind, (totals.get(kind) ?? 0) + 1);
+      }
+      return ITEM_KINDS.flatMap((kind) => {
+        const count = totals.get(kind);
+        return count ? [{ kind, count }] : [];
+      }).sort((a, b) => b.count - a.count);
+    },
     cards: async ({ scope, cursor, limit }) => page(scope, cursor, limit),
     cardsById: async ({ ids }) =>
       ids.flatMap((id) => {

@@ -122,6 +122,12 @@ export const LibraryStatus = Schema.Struct({
 });
 export type LibraryStatus = typeof LibraryStatus.Type;
 
+export const KindCount = Schema.Struct({
+  kind: Schema.Literals(["Article", "Image", "Note", "PDF", "Quote", "Video", "Post", "File"]),
+  count: Schema.Number,
+});
+export type KindCount = typeof KindCount.Type;
+
 export const ExportReport = Schema.Struct({
   directory: Text,
   items: Schema.Number,

@@ -7,6 +7,7 @@ import {
   ItemContent,
   ItemDetail,
   Job,
+  KindCount,
   LastExport,
   LibraryCard,
   LibraryChange,
@@ -116,6 +117,8 @@ export type CardScope = typeof CardScope.Type;
 
 export const LibraryRpcs = RpcGroup.make(
   call("status", {}, LibraryStatus),
+  // Unarchived items per card kind, largest first, kinds with none left out.
+  call("kindCounts", {}, Schema.Array(KindCount)),
   call("cards", { scope: CardScope, cursor: Schema.NullOr(Text), limit: Schema.Number }, CardPage),
   // Archived cards too: each card says which scope it belongs to. Deleted ids are absent.
   call("cardsById", Ids, Schema.Array(LibraryCard)),

@@ -8,6 +8,7 @@ import type {
   CreateQuoteInput,
   UpdateItemInput,
 } from "@inkling/contracts";
+import { ITEM_KINDS, itemKind } from "@inkling/ingestion/item-kind";
 import { markdownToPlainText } from "@inkling/ingestion/markdown-text";
 import type { StorageContext } from "./context.ts";
 import { pageCards, readItem, selectCards, writtenItem } from "./rows.ts";
@@ -202,7 +203,40 @@ export function makeItems(ctx: StorageContext) {
     if (removal) yield* attempt(() => rm(removal, { recursive: true, force: true }));
   });
 
+  // Only articles can turn out to be video links, so only they keep their URL in the grouping.
+  const kindCounts = Effect.fnUntraced(function* () {
+    const rows = yield* sql<{
+      kind: string;
+      source_url: string | null;
+      is_post: number;
+      n: number;
+    }>`
+      SELECT kind,
+        CASE WHEN lower(kind) IN ('article', 'url') THEN source_url END AS source_url,
+        CASE
+          WHEN NOT json_valid(metadata) THEN 0
+          WHEN json_extract(metadata, '$.social.provider') = 'x'
+            AND json_type(metadata, '$.social.postUrl') = 'text'
+            AND json_extract(metadata, '$.social.postUrl') <> ''
+            AND json_type(metadata, '$.social.postId') = 'text'
+            AND json_extract(metadata, '$.social.postId') <> '' THEN 1
+          ELSE 0
+        END AS is_post,
+        COUNT(*) AS n
+      FROM items WHERE archived = 0 GROUP BY 1, 2, 3`;
+    const totals = new Map<(typeof ITEM_KINDS)[number], number>();
+    for (const row of rows) {
+      const kind = itemKind(row.kind, row.source_url, row.is_post === 1);
+      totals.set(kind, (totals.get(kind) ?? 0) + row.n);
+    }
+    return ITEM_KINDS.flatMap((kind) => {
+      const count = totals.get(kind);
+      return count ? [{ kind, count }] : [];
+    }).sort((a, b) => b.count - a.count);
+  });
+
   return {
+    kindCounts,
     listActiveItems: () => selectCards(ctx, sql`archived = 0`),
     listArchivedItems: () => selectCards(ctx, sql`archived = 1`),
     cardsPage: (archived: boolean, cursor: string | null, limit: number) =>
