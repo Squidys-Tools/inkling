@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
+      - "apps/site/**"
       - "AGENTS.md"
       - "apps/renderer/src/library/preview/seed-demo/**"
       - "apps/renderer/src/library/preview/seed.ts"
