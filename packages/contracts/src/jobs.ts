@@ -13,6 +13,10 @@ export const TEXT_DIMENSION = 768;
 export const IMAGE_MODEL = "nomic-embed-vision-v1.5-sharp";
 export const IMAGE_DIMENSION = 768;
 
+// onnxruntime keeps a device ID and uploads usage events to Microsoft unless this is set
+// when the process starts; setting it later from JavaScript does not reach Windows' CRT.
+export const WORKER_ENVIRONMENT = { ORT_DISABLE_TELEMETRY: "1" };
+
 export class WorkerError extends Schema.TaggedError<WorkerError>()("WorkerError", {
   message: Schema.String,
 }) {}

@@ -12,12 +12,14 @@ const shutdownTimeoutMillis = 10_000;
 export function superviseUtilityProcess({
   entry,
   args,
+  env,
   serviceName,
   onRestart,
   onGiveUp,
 }: {
   entry: string;
   args: string[];
+  env?: NodeJS.ProcessEnv;
   serviceName: string;
   onRestart: () => void;
   onGiveUp: (code: number) => void;
@@ -38,7 +40,7 @@ export function superviseUtilityProcess({
     );
 
   const spawn = () => {
-    child = utilityProcess.fork(entry, args, { serviceName, stdio: "inherit" });
+    child = utilityProcess.fork(entry, args, { serviceName, env, stdio: "inherit" });
     for (const listener of listeners) listen(child, listener);
     running = true;
     child.once("exit", (code) => {
