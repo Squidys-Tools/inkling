@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { collectThirdPartyLicenses, packageDirOf, sourceUrlOf } from "./collect.ts";
+import { collectThirdPartyLicenses, packageDirsOf, sourceUrlOf } from "./collect.ts";
 
 let root: string;
 
@@ -82,15 +82,15 @@ describe("collectThirdPartyLicenses", () => {
     write("node_modules/@inkling/ui/package.json", { name: "@inkling/ui" });
     // Module ids as Vite writes them: forward slashes, queries, virtual prefixes.
     const id = (path: string) => `${root.replaceAll("\\", "/")}/${path}`;
-    const bundled = [
+    const bundled = packageDirsOf([
       id("node_modules/.bun/react@19.0.0/node_modules/react/cjs/react.production.js"),
       id("node_modules/.bun/react@19.0.0+peer/node_modules/react/index.js"),
       `\0${id("node_modules/d/index.js?url")}`,
       id("node_modules/@inkling/ui/src/Button.tsx"),
       id("apps/renderer/src/main.tsx"),
-    ].flatMap((moduleId) => packageDirOf(moduleId) ?? []);
+    ]);
 
-    const names = collectThirdPartyLicenses(root, new Set(bundled), notices).entries.map(
+    const names = collectThirdPartyLicenses(root, bundled, notices).entries.map(
       (entry) => entry.name,
     );
 

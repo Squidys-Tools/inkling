@@ -1,6 +1,5 @@
 import type { Plugin } from "vite";
-import { realpathSync } from "node:fs";
-import { collectThirdPartyLicenses, packagePathOf } from "./collect.ts";
+import { collectThirdPartyLicenses, packageDirsOf } from "./collect.ts";
 
 const LICENSES_FILE = "third-party-licenses.json";
 
@@ -20,14 +19,7 @@ export function thirdPartyLicenses(workspaceDir: string): Plugin {
       });
     },
     generateBundle() {
-      // Thousands of module ids collapse to a few dozen package paths; realpath
-      // is a syscall, so it runs on the deduped set rather than per module.
-      const packagePaths = new Set<string>();
-      for (const id of this.getModuleIds()) {
-        const path = packagePathOf(id);
-        if (path) packagePaths.add(path);
-      }
-      const bundled = new Set([...packagePaths].map((path) => realpathSync(path)));
+      const bundled = packageDirsOf(this.getModuleIds());
       const { entries, warnings } = collectThirdPartyLicenses(workspaceDir, bundled);
       for (const warning of warnings) this.warn(warning);
       this.emitFile({ type: "asset", fileName: LICENSES_FILE, source: JSON.stringify(entries) });
