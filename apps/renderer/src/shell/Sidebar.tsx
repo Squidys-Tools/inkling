@@ -232,7 +232,8 @@ const styles = stylex.create({
     transitionTimingFunction: motion.enter,
     // The main frame reveals this panel; never animate sidebar layout width.
   },
-  width: (width: number) => ({ width: width - 16 }),
+  // Let the rounded bubble meet the main panel; do not paint a second dark gutter beside it.
+  width: (width: number) => ({ width: width - 8 }),
   unifiedHeader: { paddingTop: "4px" },
   belowLights: { top: "32px", paddingTop: "8px" },
   narrow: { position: "fixed", zIndex: 30, backgroundColor: color.window },
