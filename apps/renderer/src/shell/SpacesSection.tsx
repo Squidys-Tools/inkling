@@ -13,12 +13,19 @@ import { SpaceRow } from "./SpaceRow.tsx";
 import {
   closeSpaceDraft,
   openSpaceDraft,
+  resumeSpaceDraft,
   spaceDraft,
   updateSpaceDraft,
   useSpaceDraft,
 } from "./spaceDraft.ts";
 
-export function SpacesSection() {
+export function SpacesSection({
+  compact = false,
+  onExpand,
+}: {
+  compact?: boolean;
+  onExpand?: () => void;
+}) {
   const spaces = useSpaces();
   const shown = useStore(shownScope, (scope) => scope);
   const shownState = useScope(shown);
@@ -27,28 +34,44 @@ export function SpacesSection() {
 
   return (
     <div {...stylex.props(styles.section)}>
-      <div {...stylex.props(styles.header)}>
-        <span>Spaces</span>
+      <div {...stylex.props(styles.header, compact && styles.compactHeader)}>
+        {!compact && <span>Spaces</span>}
         <button
           type="button"
           aria-label="Add a Space"
           title="Add a Space"
           aria-expanded={draft.open}
-          onClick={() => (draft.open ? closeSpaceDraft() : openSpaceDraft(""))}
+          onClick={() => {
+            if (compact) {
+              onExpand?.();
+              resumeSpaceDraft();
+            } else if (draft.open) closeSpaceDraft();
+            else openSpaceDraft("");
+          }}
           {...stylex.props(styles.add)}
         >
           <HugeiconsIcon icon={PlusSignIcon} size={14} />
         </button>
       </div>
       <div {...stylex.props(styles.list)}>
-        {spaces.map((space) => {
+        {spaces.map((space, index) => {
           const selected = shown._tag === "Space" && shown.spaceId === space.id;
           // A Smart Space has no stored membership, so its count is known only while it is open.
           const count = space.itemCount ?? (selected ? shownState?.total : undefined);
-          return <SpaceRow key={space.id} space={space} selected={selected} count={count} />;
+          return (
+            <SpaceRow
+              key={space.id}
+              space={space}
+              selected={selected}
+              count={count}
+              compact={compact}
+              canMoveUp={index > 0}
+              canMoveDown={index < spaces.length - 1}
+            />
+          );
         })}
       </div>
-      {draft.open && <SpaceDraftForm />}
+      {draft.open && !compact && <SpaceDraftForm />}
       {error && (
         <div {...stylex.props(styles.error)}>
           <p role="alert" {...stylex.props(styles.errorText)}>
@@ -159,6 +182,7 @@ const styles = stylex.create({
     letterSpacing: "0.02em",
     color: color.muted,
   },
+  compactHeader: { justifyContent: "center", paddingInline: 0 },
   add: {
     display: "grid",
     placeItems: "center",

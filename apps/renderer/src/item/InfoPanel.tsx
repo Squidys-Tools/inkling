@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@inkling/ui";
-import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
+import { color, font, itemColor, space, text } from "@inkling/ui/tokens.stylex";
 import { retryProcessing } from "../cards/cardActions.ts";
 import { ProcessingRows } from "../cards/Processing.tsx";
 import { quoteArtworkText } from "../cards/QuoteArtwork.tsx";
@@ -19,6 +19,31 @@ function savedOn(createdAt: number) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+// A file saved from disk carries its MIME type where a page carries its site.
+const mimeType = /^([a-z]+)\/(?:x-)?([a-z0-9.+-]+)$/iu;
+// Subtypes whose raw names read badly as a format label.
+const formatNames: Record<string, string> = {
+  quicktime: "MOV",
+  matroska: "MKV",
+  msvideo: "AVI",
+  "svg+xml": "SVG",
+  mpeg: "MPEG",
+  plain: "Plain",
+  "vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
+};
+const kindNames: Record<string, string> = { application: "file", text: "text", font: "font" };
+
+function fileType(value: string) {
+  const match = mimeType.exec(value);
+  if (!match) return null;
+  const kind = match[1].toLowerCase();
+  const subtype = match[2].toLowerCase();
+  const format =
+    formatNames[subtype] ?? subtype.replace(/^x-/u, "").split(/[.+]/u)[0].toUpperCase();
+  if (subtype === "pdf") return "PDF document";
+  return `${format} ${kindNames[kind] ?? kind}`;
 }
 
 function Detail({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
@@ -49,7 +74,9 @@ export function InfoPanel({
   onRead: () => void;
 }) {
   const processing = useProcessing(item.id);
-  const from = hostname(item.webUrl) ?? item.source;
+  const site = hostname(item.webUrl);
+  const type = site ? null : fileType(item.source);
+  const from = site ?? (type ? null : item.source);
   const quote = item.kind === "Quote" ? quoteArtworkText(item) : null;
   const canRead = item.hasArticleContent;
   const canOpenPdf = item.kind === "PDF" && Boolean(item.file);
@@ -87,18 +114,13 @@ export function InfoPanel({
         <dl {...stylex.props(styles.details)}>
           <Detail label="Saved" value={savedOn(item.createdAt)} />
           {from && <Detail label="From" value={from} />}
+          {type && <Detail label="Type" value={type} />}
           {item.size && (
             <Detail label="Size" value={`${item.size.width} × ${item.size.height}`} mono />
           )}
           {item.pdfPageCount && <Detail label="Pages" value={String(item.pdfPageCount)} mono />}
         </dl>
       </section>
-      {item.ocrText && item.kind !== "Note" && item.kind !== "Quote" && (
-        <details {...stylex.props(styles.ocr)}>
-          <summary {...stylex.props(styles.sectionTitle, styles.summary)}>Text</summary>
-          <p {...stylex.props(styles.box, styles.ocrText)}>{item.ocrText}</p>
-        </details>
-      )}
       {(item.kind === "Note" || canOpenPdf || canRead) && (
         <div {...stylex.props(styles.actions)}>
           {item.kind === "Note" && (
@@ -163,6 +185,10 @@ const styles = stylex.create({
   box: {
     margin: 0,
     minHeight: "72px",
+    maxHeight: "240px",
+    overflowY: "auto",
+    whiteSpace: "pre-wrap",
+    userSelect: "text",
     paddingBlock: "11px",
     paddingInline: space.s3,
     borderRadius: "10px",
@@ -197,8 +223,5 @@ const styles = stylex.create({
     overflowWrap: "anywhere",
   },
   mono: { fontFamily: font.mono, fontSize: text.sm },
-  ocr: { display: "flex", flexDirection: "column" },
-  summary: { cursor: "pointer", borderRadius: radius.control },
-  ocrText: { maxHeight: "240px", overflowY: "auto", whiteSpace: "pre-wrap", userSelect: "text" },
   actions: { display: "flex", flexWrap: "wrap", gap: space.s2 },
 });

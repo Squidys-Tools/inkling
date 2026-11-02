@@ -1,10 +1,11 @@
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
+import { desktop } from "../desktop.ts";
+import { reportActionError } from "./actionError.ts";
 import { useCard } from "../library/cards.ts";
 import { type CardView, cardView } from "../library/cardModel.ts";
 import { useProcessing } from "../library/jobs.ts";
 import { useLabelClock } from "../library/labelClock.ts";
-import { useIsSelected } from "../library/selection.ts";
 import { menuPoint } from "../menu/contextMenu.tsx";
 import { ArchiveTile } from "./ArchiveTile.tsx";
 import { openCardMenu, openItem, openReader, retryProcessing } from "./cardActions.ts";
@@ -36,14 +37,12 @@ export function GridCell({
 
 function LibraryCard({ view, index, list }: { view: CardView; index: number; list: boolean }) {
   const navigate = useNavigate();
-  const selected = useIsSelected(view.id);
   const processing = useProcessing(view.id);
   return (
     <CardFace
       view={view}
       index={index}
       list={list}
-      selected={selected}
       processing={processing}
       onOpen={() => openItem(view, navigate)}
       onRead={() => openReader(view, navigate)}
@@ -52,6 +51,16 @@ function LibraryCard({ view, index, list }: { view: CardView; index: number; lis
         void openCardMenu(view, menuPoint(event), navigate);
       }}
       onRetry={retryProcessing}
+      onDragStart={
+        desktop
+          ? (event) => {
+              event.preventDefault();
+              void desktop
+                ?.startItemDrag(view.id)
+                .catch(() => reportActionError("Couldn’t drag this item out."));
+            }
+          : undefined
+      }
     />
   );
 }

@@ -11,7 +11,7 @@ permissions:
 jobs:
   label:
     name: Label PR size
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: read
@@ -27,8 +27,6 @@ jobs:
       # actions here.
       - name: Checkout base repository
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
       - name: Sync PR size label
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:

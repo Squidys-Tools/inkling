@@ -1,6 +1,6 @@
 /* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-noninteractive-element-interactions -- A card holds its own buttons, so the article cannot be a button; Enter and Space open the focused card. */
 import * as stylex from "@stylexjs/stylex";
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { DragEvent, KeyboardEvent, MouseEvent } from "react";
 import { cardColor, color, motion, radius } from "@inkling/ui/tokens.stylex";
 import type { CardView } from "../library/cardModel.ts";
 import type { Processing } from "../library/jobs.ts";
@@ -17,22 +17,22 @@ export function CardFace({
   view,
   index,
   list,
-  selected,
   processing,
   onOpen,
   onRead,
   onMenu,
   onRetry,
+  onDragStart,
 }: {
   view: CardView;
   index: number;
   list: boolean;
-  selected: boolean;
   processing: Processing | undefined;
   onOpen: () => void;
   onRead: () => void;
   onMenu: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => void;
   onRetry: (jobId: string) => void;
+  onDragStart?: (event: DragEvent<HTMLElement>) => void;
 }) {
   const gridArticle = !list && view.treatment === "article";
 
@@ -49,6 +49,8 @@ export function CardFace({
         data-item-id={view.id}
         onClick={onOpen}
         onContextMenu={onMenu}
+        draggable={Boolean(onDragStart)}
+        onDragStart={onDragStart}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
           if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey))
@@ -62,7 +64,6 @@ export function CardFace({
           list ? styles.listShape : shapes[view.treatment],
           !list && view.treatment === "media" && styles.ratio(view.aspectRatio),
           view.kind === "Article" ? styles.paper : styles.surface,
-          selected && styles.selected,
         )}
       >
         {gridArticle ? (
@@ -144,7 +145,6 @@ const styles = stylex.create({
     borderRadius: radius.card,
     cursor: "pointer",
     contain: "layout paint",
-    // Hidden while the view transition's entrance runs; its animations outrank this.
     opacity: { default: 1, [stylex.when.ancestor("[data-entering]", libraryMarker)]: 0 },
     transform: {
       default: "none",
@@ -164,17 +164,6 @@ const styles = stylex.create({
     display: "grid",
     gridTemplateColumns: "155px minmax(0, 1fr)",
     borderRadius: radius.panel,
-  },
-  selected: {
-    "::after": {
-      content: "''",
-      position: "absolute",
-      inset: 0,
-      zIndex: 5,
-      borderRadius: "inherit",
-      boxShadow: `inset 0 0 0 1px ${color.accent}`,
-      pointerEvents: "none",
-    },
   },
   strip: {
     position: "relative",

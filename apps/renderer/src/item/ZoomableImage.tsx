@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { Glass } from "@inkling/ui";
-import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
+import { color, motion, radius, space } from "@inkling/ui/tokens.stylex";
 import { type PointerEvent, useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   BUTTON_ZOOM_FACTOR,
@@ -13,6 +13,9 @@ import {
   type Size,
   wheelZoomFactor,
 } from "./imageZoom.ts";
+import { SizeStepper } from "./SizeStepper.tsx";
+import { desktop } from "../desktop.ts";
+import { reportActionError } from "../cards/actionError.ts";
 
 // Zoom and pan live here, so panning re-renders only this stage. The caller
 // keys it by item, which resets zoom when the shown item changes.
@@ -20,7 +23,9 @@ export function ZoomableImage({
   src,
   originalSrc,
   alt,
+  itemId,
 }: {
+  itemId?: string;
   src: string;
   /** The full-size file, swapped in once the image is zoomed past fit. */
   originalSrc?: string;
@@ -37,6 +42,8 @@ export function ZoomableImage({
   const [zoomLevel, setZoomLevel] = useState<number | null>(null);
   const [pan, setPan] = useState<Offset>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const touches = useRef(new Map<number, Offset>());
+  const pinchDistance = useRef<number | null>(null);
 
   useEffect(() => {
     const element = frameRef.current;
@@ -118,6 +125,16 @@ export function ZoomableImage({
   }, []);
 
   function startDrag(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "touch") {
+      touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      event.currentTarget.setPointerCapture(event.pointerId);
+      if (touches.current.size === 2) {
+        const [a, b] = [...touches.current.values()];
+        pinchDistance.current = Math.hypot(a.x - b.x, a.y - b.y);
+        dragRef.current = null;
+        return;
+      }
+    }
     if (!isZoomed || (event.button !== 0 && event.button !== 1)) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -126,6 +143,21 @@ export function ZoomableImage({
   }
 
   function drag(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "touch" && touches.current.has(event.pointerId)) {
+      touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (touches.current.size === 2) {
+        const [a, b] = [...touches.current.values()];
+        const distance = Math.hypot(a.x - b.x, a.y - b.y);
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (pinchDistance.current)
+          zoomBy(distance / pinchDistance.current, {
+            x: (a.x + b.x) / 2 - rect.left - rect.width / 2,
+            y: (a.y + b.y) / 2 - rect.top - rect.height / 2,
+          });
+        pinchDistance.current = distance;
+        return;
+      }
+    }
     const start = dragRef.current;
     if (!start || !shown || !frame) return;
     const x = start.origin.x + event.clientX - start.pointerX;
@@ -133,7 +165,9 @@ export function ZoomableImage({
     setPan(clampPan({ x, y }, shown, frame));
   }
 
-  function endDrag() {
+  function endDrag(event: PointerEvent<HTMLDivElement>) {
+    touches.current.delete(event.pointerId);
+    pinchDistance.current = null;
     dragRef.current = null;
     setIsDragging(false);
   }
@@ -157,6 +191,13 @@ export function ZoomableImage({
           src={original?.url ?? src}
           alt={alt}
           draggable={!isZoomed}
+          onDragStart={(event) => {
+            if (!desktop || !itemId) return;
+            event.preventDefault();
+            void desktop
+              .startItemDrag(itemId)
+              .catch(() => reportActionError("Couldn’t drag this item out."));
+          }}
           onLoad={(event) => {
             const { naturalWidth, naturalHeight } = event.currentTarget;
             if (naturalWidth > 0 && naturalHeight > 0)
@@ -167,7 +208,8 @@ export function ZoomableImage({
             // A shadow would be recomputed over the whole scaled image on every pan.
             !isZoomed && styles.shadow,
             base && styles.box(base.width, base.height),
-            isZoomed && styles.transform(offset.x, offset.y, zoom / fit),
+            styles.transform(offset.x, offset.y, zoom / fit),
+            isDragging && styles.direct,
             zoom >= PIXEL_ZOOM && styles.pixelated,
           )}
         />
@@ -183,46 +225,23 @@ export function ZoomableImage({
       </div>
       {ready && (
         <Glass style={styles.pill}>
-          <button
-            type="button"
-            aria-label="Zoom out"
-            title="Zoom out"
-            disabled={!isZoomed}
-            onClick={() => zoomBy(1 / BUTTON_ZOOM_FACTOR)}
-            {...stylex.props(styles.zoomButton)}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 12h14" {...glyph} />
-            </svg>
-          </button>
-          <span {...stylex.props(styles.percent)}>{Math.round(zoom * 100)}%</span>
-          <button
-            type="button"
-            aria-label="Zoom in"
-            title="Zoom in"
-            disabled={zoom >= MAX_ZOOM}
-            onClick={() => zoomBy(BUTTON_ZOOM_FACTOR)}
-            {...stylex.props(styles.zoomButton)}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" {...glyph} />
-            </svg>
-          </button>
+          <SizeStepper
+            label="Zoom"
+            percent={Math.round(zoom * 100)}
+            canShrink={isZoomed}
+            canGrow={zoom < MAX_ZOOM}
+            onShrink={() => zoomBy(1 / BUTTON_ZOOM_FACTOR)}
+            onGrow={() => zoomBy(BUTTON_ZOOM_FACTOR)}
+          />
         </Glass>
       )}
     </>
   );
 }
 
-const glyph = {
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2.2,
-  strokeLinecap: "round",
-} as const;
-
 const styles = stylex.create({
   frame: {
+    touchAction: "none",
     position: "relative",
     width: "100%",
     height: "100%",
@@ -240,7 +259,11 @@ const styles = stylex.create({
     translate: "-50% -50%",
     borderRadius: "4px",
     userSelect: "none",
+    transitionProperty: "transform",
+    transitionDuration: motion.reveal,
+    transitionTimingFunction: motion.enter,
   },
+  direct: { transitionDuration: "0s" },
   shadow: { boxShadow: `0 24px 60px ${color.shadow}` },
   box: (width: number, height: number) => ({ width: `${width}px`, height: `${height}px` }),
   transform: (x: number, y: number, scale: number) => ({
@@ -269,37 +292,7 @@ const styles = stylex.create({
     zIndex: 1,
     display: "flex",
     alignItems: "center",
-    gap: space.s1,
-    paddingBlock: space.s1,
-    paddingInline: "6px",
+    padding: space.s1,
     borderRadius: radius.round,
-  },
-  zoomButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "26px",
-    height: "26px",
-    padding: 0,
-    borderWidth: 0,
-    borderRadius: radius.round,
-    backgroundColor: {
-      default: "transparent",
-      ":hover": color.overlayHover,
-      ":disabled": "transparent",
-    },
-    color: { default: color.inkSoft, ":disabled": color.faint },
-    cursor: { default: "pointer", ":disabled": "default" },
-    transitionProperty: "background-color, color",
-    transitionDuration: motion.micro,
-  },
-  percent: {
-    width: "40px",
-    textAlign: "center",
-    fontFamily: font.mono,
-    fontSize: text.sm,
-    lineHeight: "16px",
-    color: color.inkSoft,
-    fontVariantNumeric: "tabular-nums",
   },
 });

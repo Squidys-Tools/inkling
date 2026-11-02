@@ -116,11 +116,16 @@ export function createUpdateController({
   };
   const ready = preferences
     .read()
-    .then((saved) => {
-      // updates.json can be shared with an installed build, so a local build never takes the saved channel.
+    .then(async (saved) => {
+      // updates.json can be shared with an installed build; local Nightly is not its saved choice.
       state.channel = localBuild ? "nightly" : (saved.channel ?? state.channel);
       installRecord = saved.install;
-      if (installRecord && installRecord.target !== currentVersion) {
+      // A completed update is not a failed install after a later manual upgrade.
+      if (installRecord?.target === currentVersion) {
+        await preferences.write({ channel: saved.channel ?? state.channel });
+        installRecord = undefined;
+      }
+      if (installRecord) {
         state.message = "The previous update did not apply. Check for updates to try again.";
         state.errorContext = "install";
       }

@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { Button, Kbd } from "@inkling/ui";
-import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
+import { color, font, itemColor, layout, radius, space, text } from "@inkling/ui/tokens.stylex";
+import { controlsOnRight } from "../desktop.ts";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useRef, useState } from "react";
 import { errorMessage } from "../library/errors.ts";
@@ -103,7 +104,11 @@ export function NoteEditor({
 
   return (
     <div data-escape-scope {...stylex.props(styles.page)}>
-      <Button aria-label={`Close ${kicker.toLowerCase()}`} style={styles.exit} onClick={onCancel}>
+      <Button
+        aria-label={`Close ${kicker.toLowerCase()}`}
+        style={[styles.exit, controlsOnRight && styles.belowControls]}
+        onClick={onCancel}
+      >
         Close <Kbd>esc</Kbd>
       </Button>
       <div {...stylex.props(styles.column)}>
@@ -176,6 +181,7 @@ const styles = stylex.create({
     backgroundColor: color.sunken,
     backgroundImage: `radial-gradient(ellipse at 50% 42%, ${itemColor.accentGlow}, transparent 58%)`,
   },
+  belowControls: { top: `calc(4px + ${layout.titlebar})` },
   exit: {
     position: "absolute",
     top: space.s4,

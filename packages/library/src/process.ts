@@ -19,6 +19,11 @@ import { createLibrarySizeCache } from "./library-size.ts";
 import { errorMessage } from "./storage/errors.ts";
 import { JobQueue, Library, libraryLayer } from "./storage/library.ts";
 import { cardItem } from "./storage/rows.ts";
+import {
+  photoSearchLabels,
+  photoSearchSubjects,
+  supplementPhotoMatches,
+} from "./storage/photo-search.ts";
 import { snapshotDatabase } from "./storage/sqlite-snapshot.ts";
 import {
   interfaceLabel,
@@ -87,7 +92,8 @@ const loadSubjectVectors = Effect.suspend(() =>
             : Effect.fail(label),
         ),
       ),
-    { discard: true },
+    // About a hundred short prompts on a cold first open; a few at once keeps it quick.
+    { discard: true, concurrency: 4 },
   ),
 ).pipe(
   Effect.timeoutOption(subjectWait),
@@ -96,6 +102,52 @@ const loadSubjectVectors = Effect.suspend(() =>
     subjectVectors.size === subjectPrompts.length ? subjectVectors : null,
   ),
 );
+
+// Search adds confuser prompts without changing the Map the Smart Space classifier sees.
+let photoPrompts: SubjectVectors | null = null;
+const photoQueryPrompts = new Map<string, SubjectVectors>();
+const loadPhotoSearchVectors = (query: string) =>
+  Effect.gen(function* () {
+    if (!photoPrompts) {
+      const base = yield* loadSubjectVectors;
+      if (!base) return null;
+      const extras = yield* Effect.forEach(
+        photoSearchLabels.filter((label) => !base.has(label)),
+        (label) =>
+          queryVector(subjectPrompt(label)).pipe(Effect.map((vector) => [label, vector] as const)),
+        { concurrency: 4 },
+      );
+      if (extras.some(([, vector]) => !vector?.length)) return null;
+      photoPrompts = new Map([
+        ...base,
+        ...extras.map(([label, vector]) => [label, vector!] as const),
+      ]);
+    }
+    const base = photoPrompts;
+    const wanted = photoSearchSubjects(query);
+    const missing = wanted.filter((label) => !base.has(label));
+    if (!missing.length) return base;
+    const key = JSON.stringify([...wanted].sort());
+    const remembered = photoQueryPrompts.get(key);
+    if (remembered) return remembered;
+    const extra = yield* Effect.forEach(missing, (label) =>
+      queryVector(subjectPrompt(label)).pipe(Effect.map((vector) => [label, vector] as const)),
+    );
+    if (extra.some(([, vector]) => !vector?.length)) return null;
+    // Never add query-specific prompts to the shared Space/search guard inventory.
+    const prompts = new Map([
+      ...base,
+      ...extra.map(([label, vector]) => [label, vector!] as const),
+    ]);
+    if (photoQueryPrompts.size >= 32)
+      photoQueryPrompts.delete(photoQueryPrompts.keys().next().value!);
+    photoQueryPrompts.set(key, prompts);
+    return prompts;
+  }).pipe(
+    Effect.timeoutOption(subjectWait),
+    Effect.map((result) => (result._tag === "Some" ? result.value : null)),
+    Effect.orElseSucceed(() => null),
+  );
 
 // Every failure reaches the renderer as one message it can show.
 const failure = (cause: unknown) => new LibraryError({ message: errorMessage(cause) });
@@ -158,21 +210,49 @@ const handlers = LibraryRpcs.toLayer(
       item: ({ id }) => answer(Effect.map(library.getItem(id), itemRecord)),
       articleHtml: ({ id }) => answer(Effect.map(library.getItem(id), articleHtml)),
       itemContent: ({ id }) => answer(library.getItemContent(id)),
-      search: ({ query, limit, semantic }) =>
-        answer(
+      search: ({ query, limit, semantic }) => {
+        const visual = photoSearchSubjects(query).length > 0;
+        const ranked = queryVector(query).pipe(
+          Effect.flatMap((vector) => library.searchItems(query, limit, vector)),
+        );
+        return answer(
           semantic === false
-            ? Effect.forkDetach(prefetchQueryVector(query)).pipe(
-                Effect.andThen(library.searchItems(query, limit, null)),
-              )
-            : queryVector(query).pipe(
-                Effect.flatMap((vector) => library.searchItems(query, limit, vector)),
-              ),
-        ),
+            ? Effect.forkDetach(
+                Effect.all(
+                  [
+                    prefetchQueryVector(query),
+                    visual ? loadPhotoSearchVectors(query) : Effect.void,
+                  ],
+                  { concurrency: 2 },
+                ),
+              ).pipe(Effect.andThen(library.searchItems(query, limit, null)))
+            : !visual
+              ? ranked
+              : Effect.all(
+                  {
+                    ranked,
+                    photos: loadPhotoSearchVectors(query).pipe(
+                      Effect.flatMap((prompts) =>
+                        library.searchPhotoSubjects(query, limit, prompts),
+                      ),
+                    ),
+                  },
+                  { concurrency: 2 },
+                ).pipe(
+                  Effect.map(({ ranked, photos }) => supplementPhotoMatches(ranked, photos, limit)),
+                ),
+        );
+      },
       similar: ({ id, by, limit }) => answer(library.searchSimilar(id, by, limit)),
       createNote: (input) => written(library.createNote(input)),
       createQuote: (input) => written(library.createQuote(input)),
       captureUrl: (input) => written(library.captureUrl(input)),
       saveFile: (input) => written(library.saveFile(input)),
+      saveScreenshot: (input) =>
+        answer(library.saveScreenshotItem(input)).pipe(
+          Effect.tap((id) => (id ? itemChanged(id) : Effect.void)),
+          Effect.map((id) => id !== null),
+        ),
       updateItem: (input) => written(Effect.map(library.updateItem(input), cardItem)),
       // Archiving or deleting an item changes the counts of the Spaces it is in.
       setArchived: ({ id, archived }) =>
@@ -208,6 +288,7 @@ const handlers = LibraryRpcs.toLayer(
           Effect.tap(() => publish({ _tag: "SpacesChanged" })),
         ),
       itemSpaces: ({ itemId }) => answer(library.listItemSpaces(itemId)),
+      itemSpaceExclusions: ({ itemId }) => answer(library.listSpaceExclusions(itemId)),
       jobsFor: ({ itemIds }) => answer(jobs.getForItems(itemIds)),
       activeJobs: () => answer(jobs.countActive()),
       retryJob: ({ jobId }) => answer(jobs.retry(jobId)),

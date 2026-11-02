@@ -98,6 +98,48 @@ test("explicit verified download and install are separate, persist channels and 
   }
 });
 
+test("a successful update consumes its install marker before a later manual upgrade", async () => {
+  const f = await fixture();
+  try {
+    await f.options.preferences.write({
+      channel: "latest",
+      install: { from: "0.1.0", target: "0.1.1" },
+    });
+    const updated = createUpdateController({ ...f.options, currentVersion: "0.1.1" });
+    expect((await updated.getState()).message).toBeNull();
+    expect((await f.options.preferences.read()).install).toBeUndefined();
+    const later = createUpdateController({ ...f.options, currentVersion: "0.1.2" });
+    expect((await later.getState()).message).toBeNull();
+    expect(f.counts()).toEqual({ installs: 0, checks: 0 });
+  } finally {
+    await rm(f.root, { recursive: true, force: true });
+  }
+});
+
+test("local Nightly consumes an applied marker without overwriting the installed channel", async () => {
+  const f = await fixture();
+  try {
+    await f.options.preferences.write({
+      channel: "latest",
+      install: { from: "0.1.0", target: "0.1.1" },
+    });
+    const local = createUpdateController({
+      ...f.options,
+      currentVersion: "0.1.1",
+      localBuild: true,
+    });
+    expect((await local.getState()).channel).toBe("nightly");
+    expect((await local.getState()).message).toBeNull();
+    expect(await f.options.preferences.read()).toEqual({ channel: "latest" });
+    const installed = createUpdateController({ ...f.options, currentVersion: "0.1.2" });
+    expect((await installed.getState()).channel).toBe("latest");
+    expect((await installed.getState()).message).toBeNull();
+    expect(f.counts()).toEqual({ installs: 0, checks: 0 });
+  } finally {
+    await rm(f.root, { recursive: true, force: true });
+  }
+});
+
 test("rejects lower/equal versions, wrong prerelease trains and a stale or modified download", async () => {
   const f = await fixture();
   try {

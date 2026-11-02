@@ -1,5 +1,6 @@
 import type { CardScope, LibraryCard } from "@inkling/contracts";
 import { libraryClient } from "./connection.ts";
+import { assetUrl } from "./assets.ts";
 import { errorMessage } from "./errors.ts";
 import {
   dropScope,
@@ -16,6 +17,16 @@ import { refreshJobs } from "./jobs.ts";
 import { activeScope, archivedScope, scopeKey } from "./scope.ts";
 import { spacesStore } from "./spaces.ts";
 import { createStore, useStore } from "./store.ts";
+
+import { warmThumbnail } from "../cards/thumbnailCache.ts";
+
+export function warmCards(ids: readonly string[]) {
+  for (const id of ids) {
+    const card = libraryIndex.get().cards.get(id);
+    const image = card && (assetUrl(card.thumbnailPath) ?? assetUrl(card.localAssetPath));
+    if (image) warmThumbnail(image);
+  }
+}
 
 const pageSize = 100;
 const active = scopeKey(activeScope);

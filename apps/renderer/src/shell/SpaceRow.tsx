@@ -14,6 +14,8 @@ import { desktop } from "../desktop.ts";
 import { search } from "../library/search.ts";
 import { deleteSpace, moveSpace, recolorSpace, renameSpace } from "../library/spaces.ts";
 import { spaceRowMarker } from "../markers.stylex.ts";
+import { CompactSpaceRow } from "./CompactSpaceRow.tsx";
+import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { SpaceMark } from "./SpaceMark.tsx";
 
 async function confirmDelete(space: Space) {
@@ -34,10 +36,16 @@ export function SpaceRow({
   space,
   selected,
   count,
+  compact = false,
+  canMoveUp = true,
+  canMoveDown = true,
 }: {
   space: Space;
   selected: boolean;
   count: number | undefined;
+  compact?: boolean;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
 }) {
   const navigate = useNavigate();
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -47,6 +55,30 @@ export function SpaceRow({
     // A failed rename reopens the field with what was typed, so nothing is lost.
     if (!(await renameSpace(space, draft))) setRenaming(draft);
   };
+
+  const remove = async () => {
+    if (!(await confirmDelete(space))) return;
+    if ((await deleteSpace(space)) && selected) void navigate({ to: "/" });
+  };
+  if (compact && renaming === null)
+    return (
+      <CompactSpaceRow
+        space={space}
+        selected={selected}
+        canMoveUp={canMoveUp}
+        canMoveDown={canMoveDown}
+        actions={{
+          up: () => void moveSpace(space, -1),
+          down: () => void moveSpace(space, 1),
+          color: () => void recolorSpace(space),
+          rename: () => {
+            setSidebarOpen(true);
+            setRenaming(space.name);
+          },
+          delete: () => void remove(),
+        }}
+      />
+    );
 
   return (
     <div {...stylex.props(styles.row, selected && styles.selected, spaceRowMarker)}>
@@ -110,10 +142,7 @@ export function SpaceRow({
             label={`Delete ${space.name}`}
             icon={Cancel01Icon}
             danger
-            onSelect={async () => {
-              if (!(await confirmDelete(space))) return;
-              if ((await deleteSpace(space)) && selected) void navigate({ to: "/" });
-            }}
+            onSelect={() => void remove()}
           />
         </span>
       )}

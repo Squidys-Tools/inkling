@@ -95,7 +95,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
   const { sql } = ctx;
 
   const listSpaces = () =>
-    sql<SpaceRow>`SELECT spaces.*, membership.item_count FROM spaces
+    sql<SpaceRow>`SELECT spaces.*, COALESCE(membership.item_count, 0) AS item_count FROM spaces
       LEFT JOIN (
         SELECT s.space_id, COUNT(*) AS item_count FROM space_items s
         JOIN items i ON i.id = s.item_id WHERE i.archived = 0 GROUP BY s.space_id
@@ -150,6 +150,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     sql.withTransaction(
       Effect.gen(function* () {
         yield* sql`DELETE FROM space_items WHERE space_id = ${id}`;
+        yield* sql`DELETE FROM space_exclusions WHERE space_id = ${id}`;
         const deleted = yield* sql`DELETE FROM spaces WHERE id = ${id}`.raw;
         if (!changes(deleted)) return yield* spaceNotFound(id);
       }),
@@ -217,6 +218,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
   // photos the user tagged with one, and photos with no vector to judge (not analyzed
   // yet, or no model to label with) whose title, description or OCR name one.
   const subjectMatches = Effect.fnUntraced(function* (
+    spaceId: string,
     subjects: string[],
     tag: string | null,
     cap: number,
@@ -234,6 +236,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
       FROM items i LEFT JOIN item_embeddings e
         ON e.item_id = i.id AND e.kind = 'image' AND e.model = ${IMAGE_MODEL}
       WHERE i.archived = 0 AND i.kind = 'image'
+      AND NOT EXISTS (SELECT 1 FROM space_exclusions x WHERE x.space_id = ${spaceId} AND x.item_id = i.id)
       ${tag ? sql`AND i.id IN (SELECT value FROM json_each(${yield* taggedItemIds(tag)}))` : sql.literal("")}
       ORDER BY i.updated_at DESC, i.created_at DESC`;
     const wanted = new Set(subjects);
@@ -269,13 +272,25 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
   ) {
     const query = space.query;
     const subjects = smartSpaceSubjects(space);
-    if (subjects) return yield* subjectMatches(subjects, nonEmpty(query.tag), cap, subjectVectors);
+    if (subjects)
+      return yield* subjectMatches(space.id, subjects, nonEmpty(query.tag), cap, subjectVectors);
     const text = nonEmpty(query.text);
-    const clauses: Fragment[] = [sql`i.archived = 0`];
+    const clauses: Fragment[] = [
+      sql`i.archived = 0`,
+      sql`NOT EXISTS (
+      SELECT 1 FROM space_exclusions x WHERE x.space_id = ${space.id} AND x.item_id = i.id)`,
+    ];
     let from = sql.literal("items i");
     let rankedCandidates: ReturnType<typeof cardFromRow>[] | null = null;
     if (text && queryVector?.length) {
-      rankedCandidates = yield* search.searchItems(text, SMART_SPACE_CAP, queryVector);
+      const excluded = yield* sql<{ item_id: string }>`SELECT item_id FROM space_exclusions
+        WHERE space_id = ${space.id}`;
+      rankedCandidates = yield* search.searchItems(
+        text,
+        SMART_SPACE_CAP,
+        queryVector,
+        excluded.map((row) => row.item_id),
+      );
       if (!rankedCandidates.length) return { cards: [], total: 0 };
       const ids = JSON.stringify(rankedCandidates.map((item) => item.id));
       clauses.push(sql`i.id IN (SELECT value FROM json_each(${ids}))`);
@@ -349,17 +364,32 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
   const addSpaceItem = Effect.fnUntraced(function* (spaceId: string, itemId: string) {
     const space = yield* getSpace(spaceId);
     if (!space) return yield* spaceNotFound(spaceId);
-    if (space.kind !== "regular")
-      return yield* invalidInput("items can only be added to a Regular Space");
     if (!(yield* readItem(ctx, itemId))) return yield* itemNotFound(itemId);
-    yield* sql`INSERT OR IGNORE INTO space_items (space_id, item_id, added_at)
-      VALUES (${spaceId}, ${itemId}, ${Date.now()})`;
+    yield* sql.withTransaction(
+      Effect.gen(function* () {
+        yield* sql`DELETE FROM space_exclusions WHERE space_id = ${spaceId} AND item_id = ${itemId}`;
+        if (space.kind === "regular")
+          yield* sql`INSERT OR IGNORE INTO space_items (space_id, item_id, added_at)
+          VALUES (${spaceId}, ${itemId}, ${Date.now()})`;
+      }),
+    );
   });
 
   const removeSpaceItem = Effect.fnUntraced(function* (spaceId: string, itemId: string) {
-    if (!(yield* getSpace(spaceId))) return yield* spaceNotFound(spaceId);
-    yield* sql`DELETE FROM space_items WHERE space_id = ${spaceId} AND item_id = ${itemId}`;
+    const space = yield* getSpace(spaceId);
+    if (!space) return yield* spaceNotFound(spaceId);
+    if (!(yield* readItem(ctx, itemId))) return yield* itemNotFound(itemId);
+    if (space.kind === "regular")
+      yield* sql`DELETE FROM space_items WHERE space_id = ${spaceId} AND item_id = ${itemId}`;
+    else
+      yield* sql`INSERT OR IGNORE INTO space_exclusions (space_id, item_id, excluded_at)
+        VALUES (${spaceId}, ${itemId}, ${Date.now()})`;
   });
+
+  const listSpaceExclusions = (itemId: string) =>
+    sql<{ space_id: string }>`SELECT space_id FROM space_exclusions WHERE item_id = ${itemId}`.pipe(
+      Effect.map((rows) => rows.map((row) => row.space_id)),
+    );
 
   const listItemSpaces = (itemId: string) =>
     sql<{ id: string }>`SELECT s.id FROM space_items m JOIN spaces s ON s.id = m.space_id
@@ -379,5 +409,6 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     addSpaceItem,
     removeSpaceItem,
     listItemSpaces,
+    listSpaceExclusions,
   };
 }

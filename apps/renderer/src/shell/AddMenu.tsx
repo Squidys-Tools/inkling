@@ -33,7 +33,7 @@ const choices: Choice[] = [
  * The sidebar's Add button. Note, Link and Quote open their pages; File and
  * Screenshot save straight into the library without leaving it.
  */
-export function AddMenu() {
+export function AddMenu({ compact = false }: { compact?: boolean }) {
   const navigate = useNavigate();
   const files = useRef<HTMLInputElement>(null);
   const saving = useCaptureState((state) => state.saving > 0);
@@ -61,9 +61,13 @@ export function AddMenu() {
         {...stylex.props(styles.fileInput)}
       />
       <Menu.Root>
-        <Menu.Trigger {...stylex.props(styles.trigger)}>
+        <Menu.Trigger
+          aria-label={compact ? (saving ? "Saving…" : "Add") : undefined}
+          title={compact ? "Add" : undefined}
+          {...stylex.props(styles.trigger, compact && styles.compact)}
+        >
           <HugeiconsIcon icon={PlusSignIcon} size={16} />
-          {saving ? "Saving…" : "Add"}
+          {!compact && (saving ? "Saving…" : "Add")}
         </Menu.Trigger>
         <Menu.Portal>
           <Menu.Positioner
@@ -136,7 +140,8 @@ const styles = stylex.create({
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "3px",
   },
-  positioner: { width: "var(--anchor-width)", zIndex: 40, outline: "none" },
+  compact: { paddingInline: 0 },
+  positioner: { width: "max(220px, var(--anchor-width))", zIndex: 40, outline: "none" },
   popup: {
     boxSizing: "border-box",
     padding: "4px",

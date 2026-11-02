@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { Button, Kbd } from "@inkling/ui";
-import { color, font, space, text } from "@inkling/ui/tokens.stylex";
+import { color, font, layout, space, text } from "@inkling/ui/tokens.stylex";
+import { controlsOnRight } from "../../desktop.ts";
 import type { FormEvent, ReactNode } from "react";
 
 /** The page around the quote and link forms: a title, the fields, and Save or Cancel. */
@@ -23,7 +24,11 @@ export function AddFrame({
 }) {
   return (
     <div data-escape-scope {...stylex.props(styles.page)}>
-      <Button aria-label="Close" style={styles.close} onClick={onCancel}>
+      <Button
+        aria-label="Close"
+        style={[styles.close, controlsOnRight && styles.belowControls]}
+        onClick={onCancel}
+      >
         Close <Kbd>esc</Kbd>
       </Button>
       <form
@@ -60,6 +65,7 @@ const styles = stylex.create({
     overflowY: "auto",
     backgroundColor: color.frame,
   },
+  belowControls: { top: `calc(4px + ${layout.titlebar})` },
   close: {
     position: "absolute",
     top: space.s4,

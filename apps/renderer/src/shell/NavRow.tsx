@@ -3,12 +3,13 @@ import { Link, type LinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 
-type RowLook = { active?: boolean; tone?: "nav" | "footer" | "update" };
+type RowLook = { active?: boolean; tone?: "nav" | "footer" | "update"; compact?: boolean };
 
-/** A sidebar row that goes somewhere: Everything, the archive, a page. */
+/** A sidebar destination keeps its name when only its icon is visible. */
 export function NavLink({
   active = false,
   tone = "nav",
+  compact = false,
   icon,
   label,
   count,
@@ -24,20 +25,35 @@ export function NavLink({
     <Link
       {...link}
       onClick={onClick}
+      aria-label={compact ? label : undefined}
+      title={compact ? label : undefined}
       aria-current={active ? "page" : undefined}
-      {...stylex.props(styles.row, styles[tone], active && styles.active)}
+      {...stylex.props(
+        styles.row,
+        styles[tone],
+        compact && styles.compact,
+        active && styles.active,
+      )}
     >
       <span {...stylex.props(styles.icon, active && styles.activeIcon)}>{icon}</span>
-      <span {...stylex.props(styles.label)}>{label}</span>
-      {count !== undefined && <span {...stylex.props(styles.count)}>{count.toLocaleString()}</span>}
+      {!compact && (
+        <span data-sidebar-label {...stylex.props(styles.label)}>
+          {label}
+        </span>
+      )}
+      {!compact && count !== undefined && (
+        <span data-sidebar-label {...stylex.props(styles.count)}>
+          {count.toLocaleString()}
+        </span>
+      )}
     </Link>
   );
 }
 
-/** A sidebar row that does something in place. */
 export function NavButton({
   tone = "footer",
   active = false,
+  compact = false,
   icon,
   label,
   description,
@@ -58,16 +74,27 @@ export function NavButton({
   return (
     <button
       type="button"
-      title={description}
+      title={description ?? (compact ? label : undefined)}
+      aria-label={compact ? label : undefined}
       disabled={disabled}
       aria-live={tone === "update" ? "polite" : undefined}
       aria-expanded={expanded}
       aria-controls={controls}
       onClick={onClick}
-      {...stylex.props(styles.row, styles.button, styles[tone], active && styles.active)}
+      {...stylex.props(
+        styles.row,
+        styles.button,
+        styles[tone],
+        compact && styles.compact,
+        active && styles.active,
+      )}
     >
       <span {...stylex.props(styles.icon, active && styles.activeIcon)}>{icon}</span>
-      <span {...stylex.props(styles.label)}>{label}</span>
+      {!compact && (
+        <span data-sidebar-label {...stylex.props(styles.label)}>
+          {label}
+        </span>
+      )}
     </button>
   );
 }
@@ -79,7 +106,7 @@ const styles = stylex.create({
     gap: "10px",
     height: "32px",
     minWidth: 0,
-    paddingInline: "10px",
+    paddingInline: "18px",
     borderRadius: radius.control,
     backgroundColor: { default: "transparent", ":hover": color.overlayHover },
     lineHeight: "18px",
@@ -91,37 +118,18 @@ const styles = stylex.create({
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "-2px",
   },
-  button: {
-    width: "100%",
-    borderWidth: 0,
-    fontFamily: font.body,
-    textAlign: "left",
-  },
-  nav: {
-    fontSize: "14px",
-    color: { default: color.inkSoft, ":hover": color.ink },
-  },
-  footer: {
-    fontSize: "13px",
-    color: { default: color.muted, ":hover": color.ink },
-  },
+  compact: { justifyContent: "center", paddingInline: 0 },
+  button: { width: "100%", borderWidth: 0, fontFamily: font.body, textAlign: "left" },
+  nav: { fontSize: "14px", color: { default: color.inkSoft, ":hover": color.ink } },
+  footer: { fontSize: "13px", color: { default: color.muted, ":hover": color.ink } },
   update: {
     fontSize: "13px",
     color: { default: color.success, ":hover": color.successStrong, ":disabled": color.success },
     cursor: { default: "pointer", ":disabled": "progress" },
     opacity: { default: 1, ":disabled": 0.7 },
   },
-  active: {
-    fontWeight: 600,
-    color: { default: color.inkStrong, ":hover": color.inkStrong },
-  },
-  icon: {
-    display: "grid",
-    placeItems: "center",
-    width: "16px",
-    flexShrink: 0,
-    color: color.muted,
-  },
+  active: { fontWeight: 600, color: { default: color.inkStrong, ":hover": color.inkStrong } },
+  icon: { display: "grid", placeItems: "center", width: "16px", flexShrink: 0, color: color.muted },
   activeIcon: { color: color.accent },
   label: {
     flexGrow: 1,
