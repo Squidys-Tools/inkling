@@ -12,7 +12,7 @@ const shutdownTimeoutMillis = 10_000;
 export function superviseUtilityProcess({
   entry,
   args,
-  env,
+  env = process.env,
   serviceName,
   onRestart,
   onGiveUp,
