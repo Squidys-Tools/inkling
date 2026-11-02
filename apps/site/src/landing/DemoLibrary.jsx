@@ -19,6 +19,14 @@ function prepareRevealDocument(doc) {
 export function DemoLibrary({ active }) {
   const [loaded, setLoaded] = React.useState(false),
     frame = React.useRef(null);
+  const attachFrame = React.useCallback((node) => {
+    frame.current = node;
+    const doc = node?.contentDocument;
+    // A prerendered iframe may finish before React attaches its load handler.
+    if (doc?.URL.endsWith("/demo/index.html") && doc.readyState === "complete") {
+      if (prepareRevealDocument(doc)) setLoaded(true);
+    }
+  }, []);
   React.useEffect(() => {
     if (loaded) syncRevealDocument(frame.current?.contentDocument, active);
   }, [active, loaded]);
@@ -38,7 +46,7 @@ export function DemoLibrary({ active }) {
       style={{ clipPath: "url(#inkling-live-window)" }}
     >
       <iframe
-        ref={frame}
+        ref={attachFrame}
         title="Interactive inkling library"
         src="/demo/index.html"
         sandbox="allow-scripts allow-same-origin allow-forms"

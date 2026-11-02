@@ -11,12 +11,13 @@ import { Footer } from "../layout/Footer.tsx";
 import { Header } from "../layout/Header.tsx";
 import { NotFound } from "../layout/NotFound.tsx";
 import { shareImage } from "../layout/seo.ts";
+import { siteStylesheet } from "../landing/stylesheets.js";
 import { registerFonts } from "@inkling/ui";
 import dmSans from "@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2?url";
 import { type ReactNode, Suspense, useEffect } from "react";
 
-// StyleX writes one stylesheet: a virtual module in dev, stylex.css beside the client bundle in a build.
-const stylesheet = import.meta.env.DEV ? "/virtual:stylex.css" : "/assets/stylex.css";
+// StyleX has a dedicated build target so home-only CSS never styles the other routes.
+const stylesheet = import.meta.env.DEV ? "/virtual:stylex.css" : siteStylesheet;
 
 export const Route = createRootRoute({
   head: () => ({
