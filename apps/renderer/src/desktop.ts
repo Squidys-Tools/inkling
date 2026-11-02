@@ -24,3 +24,7 @@ export const chrome: WindowChrome = desktop?.chrome ?? {
   titlebarHeight: 32,
   controlsInset: 0,
 };
+
+/** The window's own buttons fill the top-right of the titlebar band, so controls there sit below it. */
+export const controlsOnRight =
+  chrome.controls === "overlay-right" || chrome.controls === "custom-right";

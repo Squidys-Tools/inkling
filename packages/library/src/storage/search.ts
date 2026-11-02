@@ -30,8 +30,20 @@ export function escapeFtsQuery(query: string) {
 // Current-model vectors of one dimension, decoded once into one contiguous
 // matrix, text rows first and then image rows. Stored blobs are little-endian
 // float32, the native byte order of every platform Inkling ships on.
-type VectorGroup = { ids: string[]; matrix: Float32Array; dimension: number; textRows: number };
-type VectorRow = { item_id: string; kind: string; dimension: number; vector: Uint8Array };
+type VectorGroup = {
+  ids: string[];
+  matrix: Float32Array;
+  dimension: number;
+  textRows: number;
+  photoIds: Set<string>;
+};
+type VectorRow = {
+  item_id: string;
+  kind: string;
+  item_kind: string;
+  dimension: number;
+  vector: Uint8Array;
+};
 
 function decodeFloatVector(blob: Uint8Array, dimension: number) {
   if (blob.byteLength !== dimension * 4) return null;
@@ -115,8 +127,10 @@ export function makeSearch(ctx: StorageContext) {
     if (vectorCache?.generation === startedAt && vectorCache.signature === signature) {
       return vectorCache.groups;
     }
-    const rows = yield* sql<VectorRow>`SELECT item_id, kind, dimension, vector FROM item_embeddings
-      WHERE (kind = 'text' AND model = ${TEXT_MODEL}) OR (kind = 'image' AND model = ${IMAGE_MODEL})`;
+    const rows = yield* sql<VectorRow>`SELECT e.item_id, e.kind, i.kind AS item_kind,
+      e.dimension, e.vector FROM item_embeddings e JOIN items i ON i.id = e.item_id
+      WHERE (e.kind = 'text' AND e.model = ${TEXT_MODEL})
+        OR (e.kind = 'image' AND e.model = ${IMAGE_MODEL})`;
     const byDimension = new Map<number, { text: VectorRow[]; image: VectorRow[] }>();
     for (const row of rows) {
       if (row.vector.byteLength !== row.dimension * 4) continue;
@@ -135,6 +149,9 @@ export function makeSearch(ctx: StorageContext) {
         matrix,
         dimension,
         textRows: text.length,
+        photoIds: new Set(
+          members.filter((row) => row.item_kind === "image").map((row) => row.item_id),
+        ),
       });
     }
     // A write that landed while this load ran leaves the next search to reload.
@@ -176,22 +193,28 @@ export function makeSearch(ctx: StorageContext) {
     query: string,
     limit = 100,
     queryVector: QueryVector = null,
+    excludedIds: ReadonlyArray<string> = [],
   ) {
+    const excluded = new Set(excludedIds);
+    const allowed = (column: string) =>
+      excluded.size
+        ? sql`${sql.literal(column)} NOT IN (SELECT value FROM json_each(${JSON.stringify(excludedIds)}))`
+        : sql.literal("1");
     const search = query.trim();
     const cap = clampLimit(limit, 100, 200);
-    if (!search) return yield* selectCards(ctx, sql`archived = 0`, cap);
+    if (!search) return yield* selectCards(ctx, sql`archived = 0 AND ${allowed("id")}`, cap);
     let rows: ReadonlyArray<ItemRow> = [];
     if (ctx.fts5Enabled) {
       const match = escapeFtsQuery(search);
       if (match) {
         rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)}
           FROM items_fts f JOIN items i ON i.id = f.item_id
-          WHERE i.archived = 0 AND items_fts MATCH ${match}
+          WHERE i.archived = 0 AND ${allowed("i.id")} AND items_fts MATCH ${match}
           ORDER BY i.updated_at DESC, i.created_at DESC LIMIT ${cap}`;
       }
     } else {
       rows = yield* sql<ItemRow>`SELECT ${sql.literal(itemColumns)} FROM items
-        WHERE archived = 0 AND ${likeClause(sqlLikePattern(search))}
+        WHERE archived = 0 AND ${allowed("id")} AND ${likeClause(sqlLikePattern(search))}
         ORDER BY updated_at DESC, created_at DESC LIMIT ${cap}`;
     }
     const lexicalItems = rows.map(itemFromRow);
@@ -208,10 +231,18 @@ export function makeSearch(ctx: StorageContext) {
         const best = lexical.get(group.ids[row]);
         if (best !== undefined && scores[row] > best) lexical.set(group.ids[row], scores[row]);
       }
-      // Semantic-only matches: read just the best few rows, widening only when
-      // archived items crowd them out. An item's best vector (text or image) counts.
+      const visualMatches = new Set<string>();
+      for (let row = group.textRows; row < total; row += 1)
+        if (scores[row] >= semanticMatchFloor) visualMatches.add(group.ids[row]);
+      // A photo's text similarity alone cannot establish its visual subject.
+      // Exact text/OCR hits already live in lexical and are never filtered here.
       const accept = (row: number) =>
-        scores[row] >= semanticMatchFloor && !lexical.has(group.ids[row]);
+        scores[row] >= semanticMatchFloor &&
+        !lexical.has(group.ids[row]) &&
+        !excluded.has(group.ids[row]) &&
+        (row >= group.textRows ||
+          !group.photoIds.has(group.ids[row]) ||
+          visualMatches.has(group.ids[row]));
       for (let k = cap + 16; ; k *= 4) {
         const top = topRows(scores, k, 0, total, accept);
         const best = new Map<string, number>();

@@ -93,6 +93,26 @@ test("free-text search keeps lexical matches and drops weak semantic matches", a
   ]);
 });
 
+test("photo text-vector similarity needs visual evidence, while literal OCR and notes stay", async () => {
+  const { library } = await temporaryLibrary();
+  const insert = library.db.prepare(`INSERT INTO items
+    (id, kind, title, ocr_text, created_at, updated_at) VALUES (?, ?, ?, ?, 1, 1)`);
+  insert.run("unrelated-photo", "image", "sleeping kitten", "");
+  insert.run("visual-photo", "image", "roadside", "");
+  insert.run("ocr-photo", "image", "receipt", "car repair");
+  insert.run("semantic-note", "note", "automobile maintenance", "");
+  await library.storeEmbedding("unrelated-photo", "text", TEXT_MODEL, vector([0.99, 0]), 2);
+  await library.storeEmbedding("unrelated-photo", "image", IMAGE_MODEL, vector([0.1, 0]), 2);
+  await library.storeEmbedding("visual-photo", "image", IMAGE_MODEL, vector([0.8, 0]), 2);
+  await library.storeEmbedding("ocr-photo", "text", TEXT_MODEL, vector([0.1, 0]), 2);
+  await library.storeEmbedding("semantic-note", "text", TEXT_MODEL, vector([0.7, 0]), 2);
+  expect(ids(await library.searchItems("car", 20, Float32Array.from([1, 0])))).toEqual([
+    "ocr-photo",
+    "visual-photo",
+    "semantic-note",
+  ]);
+});
+
 test("LIKE fallback treats percent and underscore as literal search characters", async () => {
   const { library } = await temporaryLibrary({ useFts5: false });
   const insert = library.db.prepare(`INSERT INTO items (id, kind, title, created_at, updated_at)
@@ -174,6 +194,37 @@ test("archived items that outscore every visible match do not hide it", async ()
     "visible",
   ]);
   expect(ids(await library.searchSimilar("probe", "text", 12))).toEqual(["visible"]);
+});
+
+test("pre-cap exclusions refill semantic notes without admitting unrelated photo text hits", async () => {
+  for (const useFts5 of [true, false]) {
+    const { library } = await temporaryLibrary({ useFts5 });
+    seedNotes(
+      library,
+      Array.from({ length: 201 }, (_, index) => ({
+        id: `note-${index}`,
+        at: index,
+        embedding: [0.9, 0],
+      })),
+    );
+    library.db
+      .prepare(`INSERT INTO items (id, kind, title, created_at, updated_at)
+      VALUES ('unrelated-photo', 'image', 'sleeping kitten', 1, 999)`)
+      .run();
+    await library.storeEmbedding("unrelated-photo", "text", TEXT_MODEL, vector([0.99, 0]), 2);
+    await library.storeEmbedding("unrelated-photo", "image", IMAGE_MODEL, vector([0.1, 0]), 2);
+    const query = Float32Array.from([1, 0]);
+    const normal = ids(await library.searchItems("quiet telescope", 200, query));
+    expect(normal).toHaveLength(200);
+    expect(normal).not.toContain("unrelated-photo");
+    expect(ids(await library.searchItems("quiet telescope", 200, query, []))).toEqual(normal);
+    expect(ids(await library.searchItems("quiet telescope", 200, query, normal))).toEqual([
+      "note-0",
+    ]);
+    expect(await library.searchItems("quiet telescope", 200, query, [...normal, "note-0"])).toEqual(
+      [],
+    );
+  }
 });
 
 test("exact-score ties across the result cap keep the newest items first", async () => {

@@ -188,6 +188,7 @@ const styles = stylex.create({
   },
   flush: { margin: 0 },
   plainTitle: {
+    overflowWrap: "anywhere",
     fontFamily: font.display,
     fontSize: "17px",
     lineHeight: 1.22,

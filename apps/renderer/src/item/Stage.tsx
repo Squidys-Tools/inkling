@@ -5,7 +5,7 @@ import { PostArtwork } from "../cards/PostArtwork.tsx";
 import { QuoteArtwork } from "../cards/QuoteArtwork.tsx";
 import { TypedArtworkFor } from "../cards/TypedArtwork.tsx";
 import type { DescribedItem } from "./model.ts";
-import { VideoPlayer } from "./VideoPlayer.tsx";
+import { LocalVideo, VideoPlayer } from "./VideoPlayer.tsx";
 import { XPostFrame } from "./XPostFrame.tsx";
 import { ZoomableImage } from "./ZoomableImage.tsx";
 
@@ -47,6 +47,8 @@ export function Stage({
         />
       </ArtBox>
     );
+  if (item.kind === "Video" && item.file && !item.video)
+    return <LocalVideo key={item.id} item={item} file={item.file} />;
   if (item.kind === "Video")
     return (
       <ArtBox>
@@ -64,6 +66,7 @@ export function Stage({
       <ZoomableImage
         key={item.id}
         src={item.image}
+        itemId={item.hasFile ? item.id : undefined}
         originalSrc={item.kind === "Image" ? item.file : undefined}
         alt={item.imageAlt || item.title}
       />

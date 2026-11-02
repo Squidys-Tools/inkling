@@ -73,7 +73,8 @@
     "benchmarks/corpus",
     "docs/assets",
     "extension/icons",
-    "apps/site/src/routeTree.gen.ts"
+    "apps/site/src/routeTree.gen.ts",
+    "apps/site/public/demo"
   ],
   "overrides": [
     {

@@ -1,0 +1,782 @@
+/* One uninterrupted material-led story. Interactive controls use a single
+   shadcn/Radix foundation with tactile role-based surfaces, not marketing cards. */
+:root {
+  --control-raised: #303030;
+  --control-hover: #3b3b3b;
+  --control-edge: #626262;
+  --control-radius: 14px;
+  --control-press: 140ms;
+  --control-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tactile-button.button {
+  border: 0;
+  border-radius: var(--control-radius);
+  min-height: 52px;
+  padding: 14px 24px;
+  gap: 16px;
+  line-height: 1.25;
+  font-size: 16px;
+  font-weight: 500;
+  transition:
+    transform var(--control-press) var(--control-ease),
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+  color: var(--paper);
+  background: var(--ink);
+  box-shadow:
+    0 0 0 0.5px var(--ink),
+    0 2px 2px #0003;
+  white-space: nowrap;
+}
+.tactile-button.button[data-variant="secondary"] {
+  background: var(--control-raised);
+  color: var(--ink);
+  box-shadow:
+    0 0 0 0.5px var(--control-edge),
+    0 2px 2px #0004;
+}
+.tactile-button.button[data-variant="ghost"] {
+  color: var(--ink);
+  background: none;
+  box-shadow: none;
+}
+.tactile-button.button[data-size="small"] {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 14px;
+  border-radius: 12px;
+}
+.tactile-button.button[data-size="icon"] {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 10px;
+  border-radius: 11px;
+}
+.tactile-button.button:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.tactile-button.button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 4px;
+}
+.tactile-button.button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tactile-button.button:hover {
+    background: #fff;
+  }
+  .tactile-button.button[data-variant="secondary"]:hover,
+  .tactile-button.button[data-variant="ghost"]:hover {
+    background: var(--control-hover);
+  }
+  .tactile-button.button[data-variant="ghost"]:hover {
+    box-shadow: none;
+  }
+}
+.control-segments {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  gap: 3px;
+  background: var(--paper);
+  border-radius: 13px;
+}
+.control-segment {
+  min-height: 40px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  background: transparent;
+  color: var(--muted);
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+  cursor: pointer;
+}
+.control-segment[data-state="active"] {
+  background: var(--control-raised);
+  color: var(--ink);
+  box-shadow:
+    0 0 0 0.5px var(--control-edge),
+    0 1px 2px #0005;
+}
+/* The main demonstration remains in its original frame. Only the lower story changes. */
+.story-flow {
+  background: var(--paper);
+}
+.story-flow h2 {
+  font-size: clamp(36px, 4.7vw, 68px);
+  line-height: 1.06;
+}
+.story-flow p {
+  font-size: clamp(17px, 1.4vw, 20px);
+}
+.continuation-chapter {
+  padding-block: 130px 70px;
+}
+.continuation-copy {
+  display: grid;
+  grid-template-columns: 1.45fr 1fr;
+  gap: 9%;
+  align-items: center;
+  margin-bottom: 100px;
+}
+.continuation-explanation p {
+  max-width: 31ch;
+  line-height: 1.6;
+}
+.continuation-explanation .continuation-formats {
+  font-size: 15px;
+  color: var(--muted);
+  margin-top: 22px;
+  line-height: 1.7;
+  max-width: 36ch;
+}
+.return-chapter {
+  scroll-margin-top: 40px;
+}
+.return-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 32px;
+  margin-bottom: 25px;
+}
+.story-flow .return-label h3 {
+  font-size: 25px;
+  line-height: 1.3;
+  letter-spacing: -0.03em;
+  font-weight: 400;
+}
+.return-label p {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.4;
+}
+.return-tail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  margin-top: 24px;
+}
+.return-tail p {
+  font-size: 16px;
+  color: var(--muted);
+}
+.story-flow .detail-image {
+  border-radius: 24px;
+  overflow: clip;
+  background: var(--surface);
+}
+.story-flow .item-inspector {
+  background: var(--surface);
+}
+.inspector-toolbar {
+  min-height: 72px;
+  height: auto;
+  padding: 14px 24px;
+  gap: 24px;
+  background: #232323;
+}
+.inspector-toolbar > span {
+  font-size: 14px;
+  min-width: 0;
+  line-height: 1.5;
+}
+.inspector-toolbar > span > span {
+  padding-inline: 14px;
+  color: #818181;
+}
+.inspector-toolbar .tactile-button {
+  flex: none;
+}
+.inspector-workspace {
+  min-height: 620px;
+}
+.inspector-stage {
+  min-height: 620px;
+  padding: 40px 390px 78px 40px;
+  background: #191919;
+  transition: padding-right 0.24s var(--control-ease);
+}
+.inspector-photo-wrap {
+  height: 500px;
+}
+.inspector-workspace[data-panel-open="false"] .inspector-stage {
+  padding-right: 40px;
+}
+.inspector-sidebar {
+  width: 350px;
+  background: #252525;
+}
+.inspector-panel-top {
+  padding: 20px 22px;
+  gap: 14px;
+}
+.inspector-panel-top [role="tablist"] {
+  gap: 3px;
+}
+.inspector-panel-top [role="tab"] {
+  font-size: 14px;
+  min-height: 40px;
+  padding: 10px 16px;
+  border-radius: 10px;
+}
+.inspector-panel-top [role="tab"][data-state="active"] {
+  background: var(--control-raised);
+  box-shadow:
+    0 0 0 0.5px var(--control-edge),
+    0 1px 2px #0005;
+}
+.inspector-content {
+  padding: 12px 28px 30px;
+}
+.story-flow .inspector-content h3 {
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 400;
+}
+.story-flow .inspector-description {
+  font-size: 16px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin-top: 22px;
+}
+.inspector-tags {
+  margin-top: 28px;
+  gap: 8px;
+}
+.inspector-tags > span {
+  background: #343434;
+  font-size: 13px;
+  padding: 9px 11px;
+  border-radius: 8px;
+}
+.inspector-tags .tactile-button {
+  padding: 8px;
+  min-height: 36px;
+  font-size: 13px;
+}
+.inspector-metadata {
+  margin-top: 32px;
+  gap: 18px;
+}
+.inspector-metadata > div {
+  font-size: 14px;
+  grid-template-columns: 90px 1fr;
+}
+.inspector-zoom {
+  bottom: 18px;
+  left: calc((100% - 350px)/2);
+  background: #292929;
+  padding: 4px;
+  box-shadow: 0 0 0 0.5px #4a4a4a;
+  transition: left 0.24s var(--control-ease);
+}
+.inspector-workspace[data-panel-open="false"] .inspector-zoom {
+  left: 50%;
+}
+.inspector-zoom .tactile-button {
+  color: var(--ink);
+}
+.inspector-related .tactile-button {
+  white-space: normal;
+  height: auto;
+  min-height: 110px;
+  display: grid;
+  grid-template-columns: 65px 1fr 16px;
+  gap: 12px;
+  text-align: left;
+  padding: 14px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.inspector-tag-form .tactile-button {
+  padding: 10px 14px;
+  min-height: 44px;
+}
+.inspector-tag-form input {
+  min-height: 44px;
+  font-size: 16px;
+  background: var(--paper);
+  border-radius: 10px;
+}
+.inspector-tag-form input:focus-visible {
+  outline-offset: 2px;
+}
+/* Ownership is a continuation of the product, not an unrelated white page. */
+.story-flow .ownership-scene {
+  display: grid;
+  grid-template-columns: 0.7fr 1.7fr;
+  gap: 9%;
+  align-items: center;
+  min-height: 0;
+  padding-block: 110px 120px;
+  background: var(--paper);
+  color: var(--ink);
+  --focus: var(--ink);
+}
+.ownership-company {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.story-flow .privacy-companion {
+  position: relative;
+  inset: auto;
+  width: 240px;
+  height: 240px;
+  margin: 0;
+}
+.ownership-intro h2 {
+  font-size: clamp(38px, 4.4vw, 64px);
+}
+.ownership-intro > p {
+  margin-top: 26px;
+  max-width: 38ch;
+  color: var(--muted);
+}
+.story-flow .ownership-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin: 40px 0 0;
+}
+.story-flow .ownership-facts h3 {
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+.story-flow .ownership-facts p {
+  font-size: 17px;
+  line-height: 1.55;
+  margin-top: 14px;
+  max-width: 29ch;
+  color: var(--muted);
+}
+.ownership-intro > .text-link {
+  margin-top: 28px;
+}
+/* Questions are quiet disclosures, not another row of feature panels. */
+.story-flow .questions-chapter {
+  padding-block: 70px 120px;
+}
+.story-flow .questions-layout {
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 11%;
+}
+.story-flow .questions-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.story-flow .faq-companion {
+  width: 120px;
+  height: 120px;
+  margin: 38px 0 0 0;
+}
+.story-flow .control-disclosures .question {
+  background: none;
+  border-radius: 0;
+  margin: 0;
+}
+.story-flow .control-disclosures .question-trigger {
+  padding: 22px 0;
+  min-height: 80px;
+  background: none;
+  border-radius: 0;
+  gap: 24px;
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+.control-disclosures .question-label {
+  font-size: inherit !important;
+  transform: none !important;
+}
+.control-disclosures .question-chevron {
+  height: 36px;
+  width: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface);
+  flex: none;
+  transition:
+    transform 0.22s var(--control-ease),
+    background 0.15s ease;
+}
+.control-disclosures .question-trigger[data-state="open"] > .question-chevron {
+  transform: rotate(180deg);
+  background: var(--control-raised);
+}
+.story-flow .question-content p {
+  padding: 0 48px 28px 0;
+  max-width: 48ch;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+/* One playful closing composition, not a CTA followed by a second footer. */
+.natural-ending {
+  background: var(--surface-alt);
+  padding-top: 60px;
+}
+.natural-ending .closing-invitation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+}
+.natural-ending .closing-invitation h2 {
+  font-size: clamp(32px, 3.5vw, 48px);
+  line-height: 1.15;
+}
+.natural-ending .closing-actions {
+  margin: 0;
+  gap: 16px;
+}
+.natural-ending .footer-signature {
+  margin-top: 32px;
+  padding: 0;
+  width: 100%;
+}
+.natural-ending .footer-signature > div {
+  font-size: clamp(90px, 31vw, 450px);
+  padding-block: 0.15em 0.02em;
+}
+.natural-ending .footer-utilities {
+  padding-block: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+}
+.natural-ending .footer-utilities > p {
+  font-size: 16px;
+  white-space: nowrap;
+}
+.natural-ending .footer-utilities nav {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px 24px;
+  flex-wrap: wrap;
+}
+.natural-ending .footer-utilities nav a {
+  font-size: 14px;
+  min-height: 44px;
+}
+.natural-ending .motion-preference {
+  margin: 0;
+  flex: none;
+}
+@media (max-width: 1100px) {
+  .continuation-copy {
+    gap: 6%;
+    grid-template-columns: 1.4fr 1fr;
+  }
+  .continuation-copy h2 {
+    font-size: clamp(36px, 4.7vw, 52px);
+  }
+  .inspector-stage {
+    padding-right: 330px;
+  }
+  .inspector-sidebar {
+    width: 300px;
+  }
+  .inspector-panel-top {
+    padding: 16px;
+  }
+  .inspector-content {
+    padding: 12px 22px 26px;
+  }
+  .inspector-zoom {
+    left: calc((100% - 300px)/2);
+  }
+  .natural-ending .footer-utilities {
+    flex-wrap: wrap;
+    gap: 10px 24px;
+  }
+  .natural-ending .footer-utilities nav {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .natural-ending .motion-preference {
+    margin-left: auto;
+  }
+}
+@media (max-width: 760px) {
+  .continuation-copy {
+    grid-template-columns: 1fr;
+    gap: 30px;
+    margin-bottom: 60px;
+  }
+  .continuation-explanation p {
+    max-width: none;
+  }
+  .continuation-explanation p br:nth-child(2) {
+    display: none;
+  }
+  .story-flow .ownership-scene {
+    grid-template-columns: 150px 1fr;
+    gap: 30px;
+    padding-block: 90px;
+  }
+  .story-flow .privacy-companion {
+    width: 150px;
+    height: 150px;
+  }
+  .story-flow .questions-layout {
+    gap: 40px;
+    grid-template-columns: 0.8fr 1.2fr;
+  }
+  .natural-ending .closing-invitation {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 26px;
+  }
+}
+@media (max-width: 639px) {
+  .continuation-chapter {
+    padding-block: 86px 35px;
+  }
+  .continuation-copy h2 {
+    font-size: clamp(31px, 8.8vw, 44px);
+  }
+  .continuation-explanation p {
+    font-size: 18px;
+    line-height: 1.6;
+  }
+  .continuation-explanation .continuation-formats {
+    font-size: 14px;
+    margin-top: 20px;
+  }
+  .return-label {
+    display: block;
+    margin-bottom: 24px;
+  }
+  .story-flow .return-label h3 {
+    font-size: 24px;
+    max-width: 21ch;
+    line-height: 1.3;
+  }
+  .return-label p {
+    margin-top: 12px;
+    font-size: 16px;
+  }
+  .return-tail {
+    align-items: flex-start;
+    gap: 12px;
+    flex-direction: column;
+    margin-top: 24px;
+  }
+  .return-tail p {
+    font-size: 15px;
+    max-width: 30ch;
+  }
+  .story-flow .detail-image {
+    border-radius: 20px;
+  }
+  .inspector-toolbar {
+    padding: 14px 16px;
+    align-items: center;
+    gap: 14px;
+    min-height: 72px;
+  }
+  .inspector-toolbar > span {
+    font-size: 13px;
+    max-width: 19ch;
+  }
+  .inspector-toolbar > span > span {
+    padding-inline: 5px;
+  }
+  .inspector-workspace {
+    min-height: 0;
+  }
+  .inspector-stage {
+    min-height: 440px;
+    padding: 28px 20px 76px;
+  }
+  .inspector-photo-wrap {
+    height: 340px;
+  }
+  .inspector-workspace[data-panel-open="false"] .inspector-stage {
+    padding: 28px 20px 76px;
+  }
+  .inspector-sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    inset: auto;
+  }
+  .inspector-panel-top {
+    padding: 22px 20px;
+  }
+  .inspector-content {
+    padding: 8px 24px 32px;
+    overflow: visible;
+  }
+  .story-flow .inspector-content h3 {
+    font-size: 27px;
+    max-width: 20ch;
+  }
+  .story-flow .inspector-description {
+    font-size: 16px;
+  }
+  .inspector-zoom,
+  .inspector-workspace[data-panel-open="false"] .inspector-zoom {
+    left: 50%;
+    bottom: 18px;
+    transition: none;
+  }
+  .inspector-metadata {
+    gap: 16px;
+  }
+  .story-flow .ownership-scene {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 24px;
+    padding-block: 76px 70px;
+  }
+  .ownership-company {
+    justify-content: flex-start;
+  }
+  .story-flow .privacy-companion {
+    width: 128px;
+    height: 128px;
+  }
+  .ownership-intro h2 {
+    font-size: 42px;
+  }
+  .story-flow .ownership-facts {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    margin-top: 32px;
+  }
+  .story-flow .ownership-facts > div + div {
+    margin: 0;
+  }
+  .story-flow .ownership-facts h3 {
+    font-size: 23px;
+  }
+  .story-flow .ownership-facts p {
+    font-size: 17px;
+    margin-top: 12px;
+  }
+  .story-flow .questions-chapter {
+    padding-block: 24px 80px;
+  }
+  .story-flow .questions-layout {
+    display: block;
+  }
+  .questions-intro {
+    position: relative;
+    margin-bottom: 40px;
+    min-height: 105px;
+  }
+  .story-flow .questions-intro h2 {
+    font-size: 42px;
+  }
+  .story-flow .faq-companion {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: auto;
+    width: 78px;
+    height: 78px;
+    margin: 0;
+  }
+  .story-flow .control-disclosures .question-trigger {
+    font-size: 18px;
+    min-height: 82px;
+    padding: 20px 0;
+    gap: 14px;
+  }
+  .story-flow .question-content p {
+    font-size: 16px;
+    padding-right: 8px;
+    padding-bottom: 28px;
+  }
+  .natural-ending {
+    padding-top: 50px;
+  }
+  .natural-ending .closing-invitation h2 {
+    font-size: 32px;
+  }
+  .natural-ending .closing-actions {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .natural-ending .closing-actions .tactile-button {
+    padding-inline: 18px;
+    font-size: 15px;
+  }
+  .natural-ending .footer-signature {
+    margin-top: 35px;
+  }
+  .natural-ending .footer-signature > div {
+    font-size: 31vw;
+  }
+  .natural-ending .footer-utilities {
+    gap: 12px;
+    align-items: center;
+    padding-block: 20px 28px;
+  }
+  .natural-ending .footer-utilities > p {
+    font-size: 14px;
+  }
+  .natural-ending .footer-utilities nav {
+    gap: 0 22px;
+    flex-basis: 100%;
+  }
+  .natural-ending .footer-utilities nav a {
+    min-height: 44px;
+    font-size: 14px;
+  }
+  .natural-ending .motion-preference {
+    font-size: 12px;
+    padding-inline: 8px;
+  }
+}
+@media (max-width: 360px) {
+  .continuation-copy h2 {
+    font-size: 29px;
+  }
+  .ownership-intro h2,
+  .story-flow .questions-intro h2 {
+    font-size: 36px;
+  }
+  .natural-ending .closing-invitation h2 {
+    font-size: 29px;
+  }
+  .story-flow .faq-companion {
+    width: 64px;
+    height: 64px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tactile-button.button,
+  .control-segment,
+  .control-disclosures .question-chevron,
+  .inspector-stage,
+  .inspector-zoom {
+    transition: none;
+  }
+  .story-flow [style] {
+    scroll-behavior: auto;
+  }
+  .ownership-intro {
+    transform: none !important;
+  }
+}

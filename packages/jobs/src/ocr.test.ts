@@ -123,11 +123,11 @@ test("files and passes share a bounded worker pool and ties resolve in the seria
   expect(stats.cachePaths.size).toBe(3);
 });
 
-test("a large image reads two passes at a time and replaces each worker it grew", async () => {
+test("a large image reads one pass at a time and replaces each worker it grew", async () => {
   // 3000 x 2000 is just over the large-image threshold. 2800 x 2000 is under it,
   // but each rotated copy's canvas is over it, so only the 6 rotations count as large.
   for (const [width, height, peak, retired] of [
-    [3000, 2000, 2, 10],
+    [3000, 2000, 1, 10],
     [2800, 2000, 3, 6],
   ]) {
     const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-large-"));
@@ -163,7 +163,7 @@ test("a large image reads two passes at a time and replaces each worker it grew"
     } finally {
       await ocr.close();
     }
-    // 3 page modes, contrast and 6 rotations. Large passes run two at once, and
+    // 3 page modes, contrast and 6 rotations. Large passes run one at a time, and
     // every worker that read one was shut down rather than kept.
     expect(stats.calls).toBe(10);
     expect(stats.peak).toBe(peak);

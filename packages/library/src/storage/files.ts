@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { Effect } from "effect";
@@ -90,6 +90,9 @@ export function makeFiles(ctx: StorageContext) {
         if (kind === "image") {
           // The palette job reads the thumbnail, so the thumbnail job queues it.
           yield* jobs.enqueue(id, IMAGE_THUMBNAIL_JOB);
+          // The image vector takes a fraction of a second and OCR can take many, so the
+          // photo is findable by what it shows first; OCR text re-queues the embedding.
+          yield* jobs.enqueue(id, "generate_embedding");
           yield* jobs.enqueue(id, "ocr_image");
         }
         if (kind === "pdf") yield* jobs.enqueue(id, "ocr_pdf_page");
@@ -119,5 +122,21 @@ export function makeFiles(ctx: StorageContext) {
     return realCandidate;
   });
 
-  return { saveFile, resolveAssetPath };
+  const saveScreenshot = Effect.fnUntraced(function* (input: SaveFileInput) {
+    if (!input.bytes.length || input.bytes.length > maxFileBytes)
+      return yield* invalidInput("screenshot exceeds the image input limit");
+    const hash = createHash("sha256").update(input.bytes).digest("hex");
+    return yield* sql.withTransaction(
+      Effect.gen(function* () {
+        const existing = yield* sql`SELECT id FROM items WHERE id = ${`screenshot-${hash}`}
+        OR json_extract(metadata, '$.screenshotHash') = ${hash} LIMIT 1`;
+        if (existing.length) return false;
+        const item = yield* saveFile({ ...input, kind: "image" });
+        yield* sql`UPDATE items SET metadata = json_set(metadata, '$.screenshotHash', ${hash})
+        WHERE id = ${item.id}`;
+        return true;
+      }),
+    );
+  });
+  return { saveFile, saveScreenshot, resolveAssetPath };
 }

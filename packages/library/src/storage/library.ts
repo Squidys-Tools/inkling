@@ -10,6 +10,7 @@ import { makeExport } from "./export-library.ts";
 import { makeFiles } from "./files.ts";
 import { makeImport } from "./import-library.ts";
 import { makeItems } from "./items.ts";
+import { makePhotoSearch } from "./photo-search.ts";
 import { JobQueue, type JobQueueOptions, makeJobQueue } from "./jobs.ts";
 import { toError } from "./errors.ts";
 import { openDatabase, SCHEMA_VERSION } from "./schema.ts";
@@ -96,6 +97,7 @@ const makeLibrary = Effect.fnUntraced(function* (
     ...makeFiles(ctx),
     ...makeEnrichment(ctx),
     ...search,
+    ...makePhotoSearch(ctx),
     ...makeSpaces(ctx, search),
     ...makeExport(ctx),
     ...makeImport(ctx),

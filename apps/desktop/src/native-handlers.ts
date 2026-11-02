@@ -1,6 +1,10 @@
 import type { UpdateChannel } from "@inkling/contracts/desktop";
 import {
+  app,
   BrowserWindow,
+  clipboard,
+  ClipboardItem,
+  nativeImage,
   desktopCapturer,
   dialog,
   type IpcMainInvokeEvent,
@@ -54,6 +58,49 @@ export function registerNativeHandlers({
     shell.showItemInFolder(file);
   });
 
+  let transfers:
+    | Promise<ReturnType<typeof import("./item-transfer.ts").createItemTransfer>>
+    | undefined;
+  let sharingClosed = false;
+  const transfer = () =>
+    (transfers ??= import("./item-transfer.ts").then(({ createItemTransfer }) =>
+      createItemTransfer({
+        assetsDirectory: assetsDirectoryOf(libraryDirectory),
+        temporaryDirectory: app.getPath("temp"),
+        item: async (id) => (await library()).item({ id }),
+      }),
+    ));
+  const trustedTransfer = (event: IpcMainInvokeEvent) => {
+    const window = mainWindow();
+    if (
+      sharingClosed ||
+      !window ||
+      window.isDestroyed() ||
+      event.sender !== window.webContents ||
+      event.senderFrame !== window.webContents.mainFrame
+    )
+      throw new Error("Only the library window can share an item.");
+    return window;
+  };
+  ipcMain.handle(channels.copyItemImage, async (event, id: unknown) => {
+    trustedTransfer(event);
+    const bytes = await (await transfer()).image(text(id));
+    trustedTransfer(event);
+    const image = nativeImage.createFromBuffer(bytes);
+    if (image.isEmpty()) throw new Error("This image cannot be copied.");
+    await clipboard.write([
+      new ClipboardItem({ "image/png": new Blob([Uint8Array.from(bytes)], { type: "image/png" }) }),
+    ]);
+  });
+  ipcMain.handle(channels.startItemDrag, async (event, id: unknown) => {
+    trustedTransfer(event);
+    const itemId = text(id);
+    const file = await (await transfer()).file(itemId);
+    // Never decode an imported thumbnail in main: even its dimensions are untrusted.
+    const icon = await app.getFileIcon(file, { size: "normal" });
+    trustedTransfer(event).webContents.startDrag({ file, icon });
+  });
+
   const updates = appUpdates({
     libraryDirectory,
     getWindow: mainWindow,
@@ -99,4 +146,10 @@ export function registerNativeHandlers({
     // macOS 15 and later show their own picker and never call the handler.
     { useSystemPicker: process.platform === "darwin" },
   );
+  return {
+    stop: async () => {
+      sharingClosed = true;
+      await (await transfers)?.close();
+    },
+  };
 }

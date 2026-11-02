@@ -30,6 +30,7 @@ export function useMascotCanvas(
   height: number,
   visible: boolean,
   paint: (ctx: CanvasRenderingContext2D, layer: OffscreenCanvas, frame: BotFrame) => void,
+  { live = false }: { live?: boolean } = {},
 ) {
   const ratio = useSyncExternalStore(
     subscribePixelRatio,
@@ -46,7 +47,7 @@ export function useMascotCanvas(
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const layer = new OffscreenCanvas(canvas.width, canvas.height);
-    const attachment = player.attach((frame) => paint(ctx, layer, frame));
+    const attachment = player.attach((frame) => paint(ctx, layer, frame), { live });
     const observer = new IntersectionObserver(([entry]) => {
       if (entry) attachment.setVisible(entry.isIntersecting);
     });

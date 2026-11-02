@@ -6,23 +6,25 @@ import {
   SidebarLeftIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useLayoutEffect, useRef } from "react";
 import * as stylex from "@stylexjs/stylex";
-import { cardColor, color, font, layout, motion } from "@inkling/ui/tokens.stylex";
+import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { useCaptureState } from "../capture/capture.ts";
 import { chrome } from "../desktop.ts";
 import { shownScope, useActiveTotal } from "../library/cards.ts";
 import { search, useSearch } from "../library/search.ts";
 import { useStore } from "../library/store.ts";
 import { setSettingsSheetOpen, setSidebarOpen, useViewState } from "../libraryView/viewState.ts";
-import { sidebarMarker } from "../markers.stylex.ts";
 import { Mascot } from "../mascot/Mascot.tsx";
 import { useMascotMood } from "../mascot/useMascotMood.ts";
+import { useAppearance } from "../settings/appearance.ts";
 import { useAppUpdate } from "../settings/useAppUpdate.ts";
 import { AddMenu } from "./AddMenu.tsx";
 import { NavButton, NavLink } from "./NavRow.tsx";
+import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
 import { SpacesSection } from "./SpacesSection.tsx";
 
-// The Everything glyph: a 3x3 dot grid, which the icon set does not have.
+// Keep the shipped nine-dot Everything glyph unchanged.
 function DotGrid() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
@@ -35,27 +37,20 @@ function DotGrid() {
   );
 }
 
-// While search has focus the mascot leaves the header; its eyes show in the field.
-function SidebarMascot({ open }: { open: boolean }) {
-  const searchFocused = useViewState((view) => view.searchFocused);
-  const query = useSearch((search) => search.query);
-  const captureFailed = useCaptureState((capture) => capture.error !== null);
-  const mood = useMascotMood({ searchFocused, query, captureFailed });
-  return (
-    <span {...stylex.props(styles.mascotSlot, searchFocused && styles.mascotAway)}>
-      <Mascot mood={mood} size={44} visible={open && !searchFocused} />
-    </span>
-  );
+function SidebarMascot() {
+  const query = useSearch((state) => state.query);
+  const captureFailed = useCaptureState((state) => state.error !== null);
+  // Codex keeps the mascot as the compact rail's way back, even during search.
+  const mood = useMascotMood({ searchFocused: false, query, captureFailed });
+  return <Mascot mood={mood} size={44} visible />;
 }
 
-/** Offers a new version once one is found: download it, then restart and install. */
-function UpdateRow() {
-  // Main loads electron-updater on the first update call, and nothing checks
-  // until Settings asks, so the row follows what Settings loaded.
+function UpdateRow({ compact }: { compact: boolean }) {
   const { navRow, runNavRow } = useAppUpdate({ start: false });
   if (!navRow) return null;
   return (
     <NavButton
+      compact={compact}
       tone="update"
       icon={<HugeiconsIcon icon={navRow.busy ? Loading01Icon : RotateCwIcon} size={15} />}
       label={navRow.label}
@@ -66,16 +61,36 @@ function UpdateRow() {
   );
 }
 
-/**
- * Wide windows keep the sidebar still under the library frame, which slides
- * over it; narrow ones slide the sidebar in over a scrim. Either way only a
- * transform moves.
- */
-export function Sidebar({ open, narrow }: { open: boolean; narrow: boolean }) {
+/** Codex is the only sidebar: full navigation or a persistent, usable compact rail. */
+export function Sidebar({
+  open,
+  visualOpen = open,
+  narrow,
+}: {
+  open: boolean;
+  visualOpen?: boolean;
+  narrow: boolean;
+}) {
   const total = useActiveTotal();
   const shown = useStore(shownScope, (scope) => scope._tag);
   const settingsOpen = useViewState((state) => state.settingsSheetOpen);
 
+  const appearance = useAppearance();
+  const compact = !visualOpen;
+  const edge = appearance.sidebarToggle === "edge";
+  const width = visualOpen ? sidebarExpanded : sidebarCompact;
+  const reopenButton = useRef<HTMLButtonElement>(null);
+  const returnToggleFocus = useRef(false);
+  const toggle = () => {
+    returnToggleFocus.current = true;
+    setSidebarOpen(!open);
+  };
+  useLayoutEffect(() => {
+    if (!returnToggleFocus.current || visualOpen !== open) return;
+    returnToggleFocus.current = false;
+    if (reopenButton.current?.getAttribute("aria-expanded") === String(open))
+      reopenButton.current.focus({ preventScroll: true });
+  }, [open, visualOpen]);
   return (
     <>
       {narrow && open && (
@@ -89,36 +104,62 @@ export function Sidebar({ open, narrow }: { open: boolean; narrow: boolean }) {
       <aside
         id="library-navigation"
         aria-label="Library"
-        inert={!open}
+        data-collapsed={compact}
         {...stylex.props(
           styles.sidebar,
+          styles.width(width),
           narrow && styles.narrow,
-          !open && (narrow ? styles.narrowClosed : styles.wideClosed),
-          sidebarMarker,
+          chrome.controls === "custom-right" && styles.unifiedHeader,
+          chrome.controls === "native-left" && styles.belowLights,
         )}
       >
-        <div
-          {...stylex.props(styles.brand, chrome.controls === "native-left" && styles.belowLights)}
-        >
-          <SidebarMascot open={open} />
-          <span {...stylex.props(styles.wordmark)}>inkling</span>
-          <button
-            type="button"
-            data-bench={open ? "sidebar-toggle" : undefined}
-            aria-label="Close sidebar"
-            title="Close sidebar"
-            aria-expanded={open}
-            aria-controls="library-navigation"
-            onClick={() => setSidebarOpen(false)}
-            {...stylex.props(styles.close)}
-          >
-            <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
-          </button>
+        <div {...stylex.props(styles.brand)}>
+          {compact ? (
+            <button
+              type="button"
+              ref={edge ? undefined : reopenButton}
+              aria-label="Open sidebar"
+              title="Open sidebar"
+              data-bench={edge ? undefined : "sidebar-toggle"}
+              aria-expanded={false}
+              aria-controls="library-navigation"
+              onClick={toggle}
+              {...stylex.props(styles.mascotButton)}
+            >
+              <SidebarMascot />
+            </button>
+          ) : (
+            <span {...stylex.props(styles.mascotButton)}>
+              <SidebarMascot />
+            </span>
+          )}
+          {!compact && (
+            <>
+              <span data-sidebar-label {...stylex.props(styles.wordmark)}>
+                inkling
+              </span>
+              {!edge && (
+                <button
+                  type="button"
+                  ref={reopenButton}
+                  aria-label="Close sidebar"
+                  title="Close sidebar"
+                  data-bench="sidebar-toggle"
+                  aria-expanded={open}
+                  aria-controls="library-navigation"
+                  onClick={toggle}
+                  {...stylex.props(styles.close)}
+                >
+                  <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
+                </button>
+              )}
+            </>
+          )}
         </div>
-
-        <nav aria-label="Main navigation" {...stylex.props(styles.nav)}>
+        <nav aria-label="Main navigation" {...stylex.props(styles.rows)}>
           <NavLink
             to="/"
+            compact={compact}
             active={shown === "Active"}
             icon={<DotGrid />}
             label="Everything"
@@ -126,15 +167,14 @@ export function Sidebar({ open, narrow }: { open: boolean; narrow: boolean }) {
             onClick={() => search.clear()}
           />
         </nav>
-
-        <SpacesSection />
-
+        <SpacesSection compact={compact} onExpand={() => setSidebarOpen(true)} />
         <div {...stylex.props(styles.footer)}>
-          <AddMenu />
-          <UpdateRow />
+          <AddMenu compact={compact} />
+          <UpdateRow compact={compact} />
           <NavLink
             to="/archive"
             tone="footer"
+            compact={compact}
             active={shown === "Archived"}
             icon={<HugeiconsIcon icon={Archive01Icon} size={15} />}
             label="Archive"
@@ -145,12 +185,31 @@ export function Sidebar({ open, narrow }: { open: boolean; narrow: boolean }) {
             active={settingsOpen}
             expanded={settingsOpen}
             controls="settings-sheet"
+            compact={compact}
             icon={<HugeiconsIcon icon={Settings01Icon} size={15} />}
             label="Settings"
             onClick={() => setSettingsSheetOpen(true)}
           />
         </div>
       </aside>
+      {edge && (
+        <button
+          type="button"
+          ref={reopenButton}
+          aria-label={open ? "Close sidebar" : "Open sidebar"}
+          title={open ? "Close sidebar" : "Open sidebar"}
+          aria-expanded={open}
+          aria-controls="library-navigation"
+          data-bench="sidebar-toggle"
+          onClick={toggle}
+          {...stylex.props(
+            styles.grip,
+            styles.gripInset((open ? sidebarExpanded : sidebarCompact) - 6),
+          )}
+        >
+          <span {...stylex.props(styles.gripLine)} aria-hidden="true" />
+        </button>
+      )}
     </>
   );
 }
@@ -165,38 +224,26 @@ const styles = stylex.create({
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
-    gap: "22px",
-    width: layout.sidebar,
+    gap: "14px",
     minHeight: 0,
-    paddingTop: "26px",
-    paddingInline: "10px",
-    paddingBottom: "6px",
+    paddingTop: "32px",
+    backgroundColor: color.surface,
+    paddingInline: "8px",
+    paddingBottom: "10px",
+    borderTopRightRadius: radius.panel,
+    borderBottomRightRadius: radius.panel,
     overflow: "hidden",
-    visibility: "visible",
-    // Hidden only once the frame has covered it, so its controls leave the tab order.
-    transitionProperty: "visibility",
-    transitionDuration: "0s",
-    transitionDelay: "0s",
+    // Fade labels before the moving frame can crop them, and reveal them only as it clears.
+    transitionProperty: "opacity",
+    transitionDuration: `calc(${motion.micro} / 2)`,
+    transitionTimingFunction: motion.enter,
+    // The main frame reveals this panel; never animate sidebar layout width.
   },
-  wideClosed: {
-    visibility: "hidden",
-    transitionDelay: motion.layout,
-  },
-  narrow: {
-    position: "fixed",
-    zIndex: 30,
-    width: "min(248px, calc(100vw - 42px))",
-    backgroundColor: color.window,
-    borderRightWidth: 1,
-    borderRightStyle: "solid",
-    borderRightColor: color.border,
-    boxShadow: `16px 0 40px ${cardColor.sidebarShadow}`,
-    transform: "none",
-    transitionProperty: "transform",
-    transitionDuration: motion.layout,
-    transitionTimingFunction: motion.standard,
-  },
-  narrowClosed: { transform: "translateX(-102%)", boxShadow: "none" },
+  // Only the right edge floats; leave the same 8px gap in expanded and compact modes.
+  width: (width: number) => ({ width: width - 8 }),
+  unifiedHeader: { paddingTop: "8px" },
+  belowLights: { top: "32px", paddingTop: "8px" },
+  narrow: { position: "fixed", zIndex: 30, backgroundColor: color.window },
   scrim: {
     position: "fixed",
     inset: 0,
@@ -213,25 +260,26 @@ const styles = stylex.create({
     alignItems: "center",
     flexShrink: 0,
     height: "44px",
+    paddingInline: "4px",
     marginBottom: "-8px",
-    paddingLeft: "6px",
-    paddingRight: "4px",
-    WebkitAppRegion: "no-drag",
+    WebkitAppRegion: "drag",
   },
-  // macOS draws its traffic lights at the top left, so the brand sits below them.
-  belowLights: { marginTop: "14px" },
-  mascotSlot: {
+  mascotButton: {
+    WebkitAppRegion: "no-drag",
     display: "block",
     width: "44px",
     height: "44px",
     flexShrink: 0,
-    opacity: 1,
-    transitionProperty: "opacity",
-    transitionDuration: motion.mascot,
+    padding: 0,
+    borderWidth: 0,
+    borderRadius: radius.control,
+    backgroundColor: "transparent",
+    cursor: "pointer",
+    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
+    outlineOffset: "-2px",
   },
-  mascotAway: { opacity: 0 },
   wordmark: {
-    marginLeft: "6px",
+    marginLeft: "-4px",
     fontFamily: font.quote,
     fontSize: "20px",
     lineHeight: 1,
@@ -241,33 +289,53 @@ const styles = stylex.create({
     userSelect: "none",
   },
   close: {
+    WebkitAppRegion: "no-drag",
     display: "grid",
     placeItems: "center",
     width: "30px",
     height: "30px",
     marginLeft: "auto",
+    flexShrink: 0,
     padding: 0,
     borderWidth: 0,
-    borderRadius: "7px",
+    borderRadius: radius.control,
     backgroundColor: { default: "transparent", ":hover": color.surface },
     color: { default: color.muted, ":hover": color.ink },
     cursor: "pointer",
-    opacity: {
-      default: 0,
-      [stylex.when.ancestor(":hover", sidebarMarker)]: 1,
-      [stylex.when.ancestor(":focus-within", sidebarMarker)]: 1,
-      "@media (max-width: 780px)": 1,
-    },
-    transitionProperty: "opacity",
-    transitionDuration: motion.layout,
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
   },
-  nav: { display: "grid", gap: "2px" },
+  rows: { display: "grid", gap: "2px" },
   footer: {
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr)",
     gap: "2px",
     marginTop: "auto",
     flexShrink: 0,
+  },
+  grip: {
+    position: "absolute",
+    top: "80px",
+    bottom: "24px",
+    zIndex: 31,
+    width: "12px",
+    padding: 0,
+    display: "grid",
+    placeItems: "center",
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    cursor: "pointer",
+    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
+    left: 0,
+    transitionProperty: "transform",
+    transitionDuration: motion.layout,
+    transitionTimingFunction: motion.enter,
+  },
+  gripInset: (left: number) => ({ transform: `translateX(${left}px)` }),
+  gripLine: {
+    display: "block",
+    width: "3px",
+    height: "36px",
+    borderRadius: radius.round,
+    backgroundColor: color.borderStrong,
   },
 });

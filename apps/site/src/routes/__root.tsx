@@ -1,6 +1,12 @@
 import * as stylex from "@stylexjs/stylex";
 import { color, font, siteColor } from "@inkling/ui/tokens.stylex";
-import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  HeadContent,
+  Outlet,
+  Scripts,
+  useRouterState,
+} from "@tanstack/react-router";
 import { Footer } from "../layout/Footer.tsx";
 import { Header } from "../layout/Header.tsx";
 import { NotFound } from "../layout/NotFound.tsx";
@@ -30,7 +36,7 @@ export const Route = createRootRoute({
       { rel: "stylesheet", href: stylesheet },
       // The same URL registerFonts loads, so headings do not wait for hydration to fetch their face.
       { rel: "preload", href: dmSans, as: "font", type: "font/woff2", crossOrigin: "anonymous" },
-      { rel: "icon", href: "/icon.png" },
+      { rel: "icon", href: "/media/inkling-mark.png" },
       { rel: "apple-touch-icon", href: "/icon.png" },
     ],
   }),
@@ -46,6 +52,8 @@ export const Route = createRootRoute({
 });
 
 function Layout() {
+  const isLanding = useRouterState({ select: (state) => state.location.pathname === "/" });
+  if (isLanding) return <Outlet />;
   return (
     <>
       <Header />
