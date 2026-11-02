@@ -189,8 +189,7 @@ const styles = stylex.create({
     position: "relative",
     height: "100%",
     overflowY: "auto",
-    maskImage:
-      "linear-gradient(to bottom, transparent 0, black 120px, black calc(100% - 110px), transparent 100%)",
+    maskImage: "linear-gradient(to bottom, black 0, black calc(100% - 110px), transparent 100%)",
   },
   status: {
     maxWidth: "720px",

@@ -173,7 +173,9 @@ function propsFor(element: Element, tag: ArticleTag, parent: string): ArticlePro
       if (!src || !isFrameUrl(src)) return null;
       props.src = src;
       props.loading = "lazy";
-      // YouTube refuses to play without a referrer (its error 153); the origin is all this sends.
+      // YouTube refuses a player it cannot identify by Referer (its error 153);
+      // an app:// page has none to send, so the desktop's frame-referer hook
+      // supplies one and this only covers pages on a real http(s) origin.
       props.referrerPolicy = "strict-origin-when-cross-origin";
       break;
     }

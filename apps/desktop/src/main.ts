@@ -1,11 +1,12 @@
 import type { ConfirmOptions, ContextMenuItem, Platform } from "@inkling/contracts/desktop";
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { channels } from "./channels.ts";
 import { windowBackground, windowChrome } from "./chrome.ts";
 import { outsideCaptures } from "./capture/outside-captures.ts";
 import { libraryDirectory as resolveLibraryDirectory } from "./data-directory.ts";
+import { registerFrameReferer } from "./frame-referer.ts";
 import { mainLibraryClient } from "./library-client.ts";
 import { installMenu } from "./menu.ts";
 import { registerNativeHandlers } from "./native-handlers.ts";
@@ -173,6 +174,7 @@ if (!app.requestSingleInstanceLock()) {
       rendererDirectory: join(bundleDirectory, "..", "renderer"),
       assetsDirectory: assetsDirectoryOf(libraryDirectory),
     });
+    registerFrameReferer(session.defaultSession.webRequest);
     library = startProcesses({
       bundleDirectory,
       libraryDirectory,
