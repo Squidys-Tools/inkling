@@ -28,7 +28,7 @@ If you open a 1,000+ line PR full of new features, we will probably close it qui
 
 - Keep it small, and do not mix unrelated fixes together.
 - Explain exactly what changed and why the change should exist.
-- Check docs/product-behavior.md before you change behavior, and follow the changelog rules at the top of docs/changelog.md.
+- Check docs/product-behavior.md before you change behavior. Give the PR a conventional title such as `fix(reader): code blocks keep line breaks`; maintainers write the changelog when they cut a release, so do not edit docs/changelog.md.
 - Run `bun run check:changed` before you push. docs/operations/development.md covers setup and the other checks.
 - If the PR makes anything resembling a UI change, include clear before and after images.
 - If the change depends on motion, timing, transitions, or interaction details, include a short video.

@@ -56,9 +56,9 @@ Surfacing forgotten material through browsing and curation.
 - [x] Trash and recoverable archive
 - [x] Space management (create, rename, reorder, recolor, delete)
 - [x] Regular Spaces (manual collections)
-- [x] Surface background OCR for existing images and PDFs in the UI (SQU-5)
+- [x] Surface background OCR for existing images and PDFs in the UI
 - [x] Export and backup (database snapshot + referenced assets + manifest)
-- [x] Import and restore from an export (SQU-119)
+- [x] Import and restore from an export
 
 ## Milestone 4 -- Local intelligence
 
@@ -80,6 +80,6 @@ Production readiness and first release.
 - [x] First-run onboarding (local-first, AI, export)
 - [x] Keyboard-first operation across all surfaces
 - [ ] Accessibility audit (contrast, focus indicators, screen readers)
-- [x] Windows installer and update mechanism (SQU-16)
+- [x] Windows installer and update mechanism
 - [ ] Web version portability (frontend + domain boundaries)
 - [ ] Performance and refactoring pass, then establish the frontend bundle-size baseline and add a bundle-size PR comment check (deferred until the bundle is feature-complete; `pdfjs-dist` / `tesseract.js` chunking is the main risk)
