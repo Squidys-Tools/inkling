@@ -115,6 +115,11 @@ const styles = stylex.create({
     position: "relative",
     boxSizing: "border-box",
     minWidth: 0,
+    // The card's ring draws outside its border box; the cell insets it so the
+    // ring stays inside the masonry item instead of clipping at the scroller's
+    // padding-box edge (edge columns and the hover lift's translateY(-2px)).
+    paddingTop: "4px",
+    paddingInline: "2px",
     paddingBottom: "12px",
   },
   listCell: { paddingBottom: "9px" },
@@ -122,9 +127,9 @@ const styles = stylex.create({
   // and transform only and never repaints the card.
   lift: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
+    top: "4px",
+    left: "2px",
+    right: "2px",
     bottom: "12px",
     borderRadius: radius.card,
     boxShadow: `0 10px 24px ${cardColor.hoverShadow}`,
@@ -155,7 +160,7 @@ const styles = stylex.create({
     transitionDuration: motion.layout,
     transitionTimingFunction: motion.standard,
     // Selection and focus draw the same ring, so a selected card never shows two.
-    outline: { default: "none", ":focus-visible": `3px solid ${color.inkStrong}` },
+    outline: { default: "none", ":focus-visible": `2px solid ${color.inkStrong}` },
     outlineOffset: "0px",
   },
   ratio: (ratio: number) => ({ aspectRatio: ratio }),
@@ -167,7 +172,7 @@ const styles = stylex.create({
     borderRadius: radius.panel,
   },
   selected: {
-    outline: `3px solid ${color.inkStrong}`,
+    outline: `2px solid ${color.inkStrong}`,
   },
   strip: {
     position: "relative",
