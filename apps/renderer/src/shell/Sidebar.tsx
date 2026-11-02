@@ -107,16 +107,11 @@ export function Sidebar({
           styles.sidebar,
           styles.width(width),
           narrow && styles.narrow,
-          chrome.controls === "custom-right" && !compact && styles.unifiedHeader,
+          chrome.controls === "custom-right" && styles.unifiedHeader,
           chrome.controls === "native-left" && styles.belowLights,
         )}
       >
-        <div
-          {...stylex.props(
-            styles.brand,
-            chrome.controls === "custom-right" && !compact && styles.captionSpace,
-          )}
-        >
+        <div {...stylex.props(styles.brand)}>
           {compact ? (
             <button
               type="button"
@@ -261,7 +256,6 @@ const styles = stylex.create({
     marginBottom: "-8px",
     WebkitAppRegion: "drag",
   },
-  captionSpace: { paddingRight: "64px" },
   mascotButton: {
     WebkitAppRegion: "no-drag",
     display: "block",

@@ -20,10 +20,7 @@ export function TitleBar() {
         )}
       />
       {custom && desktop && (
-        <div
-          aria-label="Window controls"
-          {...stylex.props(styles.controls, open && styles.brandRow)}
-        >
+        <div aria-label="Window controls" {...stylex.props(styles.controls)}>
           <button
             type="button"
             aria-label="Minimize"
@@ -68,8 +65,8 @@ const styles = stylex.create({
     WebkitAppRegion: "drag",
     zIndex: 0,
   },
-  // No paint over the frame's border, and no drag hit area over the buttons or mascot.
-  customBand: { right: "8px", height: "8px", zIndex: 20 },
+  // A clear top strip drags the window without covering the library controls.
+  customBand: { right: "76px", height: "10px", zIndex: 20 },
   clearSidebar: (left: number) => ({ left }),
   overlay: {
     left: "env(titlebar-area-x, 0px)",
@@ -78,15 +75,13 @@ const styles = stylex.create({
   },
   controls: {
     position: "fixed",
-    top: "10px",
-    left: "8px",
+    top: "8px",
+    right: "8px",
     display: "flex",
     height: "24px",
     WebkitAppRegion: "no-drag",
     zIndex: 40,
   },
-  // Share the expanded sidebar's brand row; the compact rail keeps its usable caption strip.
-  brandRow: { top: "22px", left: "172px" },
   control: {
     display: "grid",
     placeItems: "center",

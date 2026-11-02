@@ -9,10 +9,12 @@ export function sidebarFlight(
   viewport: number,
   destinationWidth: number,
   current: { a: number; e: number },
+  rightInset = 0,
 ) {
   return {
     x: oldInset + current.e - inset,
-    scale: (Math.max(1, viewport - oldInset) * current.a) / Math.max(1, destinationWidth),
+    scale:
+      (Math.max(1, viewport - oldInset - rightInset) * current.a) / Math.max(1, destinationWidth),
   };
 }
 

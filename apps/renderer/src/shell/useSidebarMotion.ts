@@ -23,7 +23,15 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
       timing.transform === "none" ? undefined : timing.transform,
     );
     // A reversing flight starts at its currently painted bounds, not its old endpoint.
-    const from = sidebarFlight(oldInset, inset, innerWidth, element.offsetWidth, matrix);
+    // Use the real gutter: the old viewport-wide estimate overshot by 8px.
+    const from = sidebarFlight(
+      oldInset,
+      inset,
+      innerWidth,
+      element.offsetWidth,
+      matrix,
+      parseFloat(timing.right) || 0,
+    );
     flight.current?.cancel();
     flight.current = null;
     const skip =
@@ -32,9 +40,8 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
       [
         {
           transform: `translateX(${from.x}px) scaleX(${from.scale})`,
-          opacity: 0.96,
         },
-        { transform: "none", opacity: 1 },
+        { transform: "none" },
       ],
       {
         duration: skip ? 0 : parseFloat(timing.transitionDuration) * 1000,

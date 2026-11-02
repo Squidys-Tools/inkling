@@ -12,6 +12,15 @@ test("sidebar FLIP preserves the painted bounds when opening and reversing", () 
   expect(sidebarFlight(248, 248, 1280, 1032, { a: 1, e: 0 })).toEqual({ x: 0, scale: 1 });
 });
 
+test("sidebar flight honors the actual right gutter without an endpoint width snap", () => {
+  const from = sidebarFlight(248, 76, 1280, 1196, { a: 1, e: 0 }, 8);
+  expect(76 + from.x).toBe(248);
+  expect(1196 * from.scale).toBeCloseTo(1024);
+  expect(76 + from.x + 1196 * from.scale).toBe(1272);
+  const flush = sidebarFlight(248, 76, 1280, 1204, { a: 1, e: 0 });
+  expect(76 + flush.x + 1204 * flush.scale).toBe(1280);
+});
+
 test("wide Codex panel has a live width and always leaves a compact rail", () => {
   expect(sidebarGeometry(1280, true)).toMatchObject({
     inset: 248,
