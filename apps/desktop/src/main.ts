@@ -17,9 +17,10 @@ const bundleDirectory = dirname(fileURLToPath(import.meta.url));
 app.setName("inkling");
 if (process.platform === "win32") app.setAppUserModelId("com.inkling.library");
 if (process.platform === "linux") app.setDesktopName("inkling");
+const applicationIconFile = process.platform === "win32" ? "icon.ico" : "icon.png";
 const applicationIcon = app.isPackaged
-  ? join(process.resourcesPath, "icon.png")
-  : resolve(bundleDirectory, "../../build/icon.png");
+  ? join(process.resourcesPath, applicationIconFile)
+  : resolve(bundleDirectory, `../../build/${applicationIconFile}`);
 const platform = process.platform as Platform;
 const libraryDirectory = resolveLibraryDirectory({
   executablePath: app.getPath("exe"),

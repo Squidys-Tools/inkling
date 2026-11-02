@@ -160,6 +160,10 @@
     ],
     "extraResources": [
       {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      },
+      {
         "from": "build/icon.png",
         "to": "icon.png"
       },
