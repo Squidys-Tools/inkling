@@ -78,25 +78,190 @@
    tab: {
 --- a/apps/renderer/src/libraryView/Grid.tsx
 +++ b/apps/renderer/src/libraryView/Grid.tsx
-@@ -142,6 +142,11 @@
+@@ -1,5 +1,6 @@
+ import * as stylex from "@stylexjs/stylex";
+ import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
++import { flushSync } from "react-dom";
+ import { useEffect, useLayoutEffect, useRef, useState } from "react";
+ import { GridCell, type GridContext } from "../cards/Card.tsx";
+ import type { CardLayout } from "../cards/CardMedia.tsx";
+@@ -26,10 +27,8 @@
+ // pixels of cards are still below the fold.
+ const loadAhead = 1600;
+
+-/**
+- * The virtualized masonry. Its width only changes when the frame settles (the
+- * sidebar slide moves the frame by transform and lays this out once, at the
+- * end), so a resize here is one relayout, never one per frame.
++/** Virtualized masonry fills the moving frame. CSS handles cell widths;
++ * React changes the column topology only at a responsive breakpoint.
+  */
+ export function Grid({
+   ids,
+@@ -85,13 +84,20 @@
+   useEffect(() => {
+     const element = frame.current;
+     if (!element) return;
++    let columns = 0;
+     const observer = new ResizeObserver(([entry]) => {
+       const next = Math.round(entry.contentRect.width);
+-      if (next > 0) setWidth(next);
++      if (next <= 0) return;
++      const nextColumns = columnCount(next, layout);
++      if (nextColumns === columns) return;
++      columns = nextColumns;
++      // CSS follows the moving frame. React only changes at a column boundary,
++      // before paint, never once per pixel of the sidebar's journey.
++      flushSync(() => setWidth(next));
+     });
+     observer.observe(element);
+     return () => observer.disconnect();
+-  }, []);
++  }, [layout]);
+
+   // A first page shorter than the window cannot be scrolled to its end, so
+   // the next page is asked for as soon as it renders.
+@@ -142,6 +148,8 @@
    frame: {
      position: "absolute",
      inset: 0,
-+    // Website embed only: reserve the genuine search control's own top row.
-+    // Cards remain clear of its resting and expanded bounds, including while scrolling.
 +    top: "60px",
-+    // The mode dock has its own bottom row, never a layer over readable cards.
 +    bottom: "60px",
      paddingInline: "14px",
    },
    // The grid scrolls under the search bar and fades out at both edges with a
-@@ -160,5 +165,5 @@
+@@ -160,5 +168,5 @@
    },
    list: { gap: 0 },
    // A pinned search has its own row under the bar, so the grid starts below it.
 -  pinned: { paddingTop: "136px" },
 +  pinned: { paddingTop: "76px" },
  });
+--- a/apps/renderer/src/libraryView/SearchBar.tsx
++++ b/apps/renderer/src/libraryView/SearchBar.tsx
+@@ -11,16 +11,7 @@
+ import { setSearchFocused, useViewState } from "./viewState.ts";
+ import { searchSurfaceFrames } from "./searchSurface.ts";
+
+-const reveal = stylex.keyframes({
+-  from: { opacity: 0, transform: "translateY(3px)" },
+-  to: { opacity: 1, transform: "none" },
+-});
+-
+-/**
+- * At rest a pill naming what the grid shows; focused, the full search field.
+- * Only the glass backing morphs between the two measured bounds; text and
+- * pointer targets stay unscaled. Search always runs over the whole library.
+- */
++/** The field's real bounds enclose its unscaled text throughout focus and reversal. */
+ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary: boolean }) {
+   const navigate = useNavigate();
+   const query = useSearch((state) => state.query);
+@@ -37,16 +28,19 @@
+   };
+
+   useLayoutEffect(() => {
+-    const element = surface.current;
++    const glass = surface.current;
++    const element = glass?.parentElement;
+     const from = origin.current;
+     origin.current = null;
+     flight.current?.cancel();
+-    if (!element || !from || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+-    const computed = getComputedStyle(element);
++    if (!element || !glass || !from || matchMedia("(prefers-reduced-motion: reduce)").matches)
++      return;
++    const computed = getComputedStyle(glass);
+     const frames = searchSurfaceFrames(
+       from,
+       element.getBoundingClientRect(),
+       computed.borderRadius,
++      parseFloat(getComputedStyle(element).top),
+     );
+     if (!frames) return;
+     const duration = parseFloat(computed.transitionDuration) * 1000;
+@@ -127,6 +121,7 @@
+     left: "50%",
+     zIndex: 3,
+     display: "flex",
++    overflow: "hidden",
+     color: color.muted,
+     transform: "translateX(-50%)",
+     pointerEvents: "auto",
+@@ -169,9 +164,6 @@
+     gap: "12px",
+     paddingInline: "16px",
+     cursor: "text",
+-    animationName: reveal,
+-    animationDuration: motion.reveal,
+-    animationTimingFunction: motion.enter,
+   },
+   rest: {
+     display: "inline-flex",
+--- a/apps/renderer/src/libraryView/searchSurface.test.ts
++++ b/apps/renderer/src/libraryView/searchSurface.test.ts
+@@ -1,16 +1,22 @@
+ import { expect, test } from "bun:test";
+ import { searchSurfaceFrames } from "./searchSurface.ts";
+
+-test("search glass starts at the pill bounds and reverses from its current painted bounds", () => {
++test("search focus keeps text inside real field bounds and reverses from the painted size", () => {
+   const pill = { left: 676, top: 45, width: 124, height: 34 };
+   const field = { left: 388, top: 37, width: 700, height: 50 };
+-  const frames = searchSurfaceFrames(pill, field, "24px")!;
+-  expect(frames[0].transform).toBe(`translate(288px, 8px) scale(${124 / 700}, 0.68)`);
+-  expect(frames[1]).toEqual({ transform: "none", borderRadius: "24px" });
++  const frames = searchSurfaceFrames(pill, field, "24px", 1)!;
++  expect(frames).toEqual([
++    { width: "124px", height: "34px", top: "9px", minWidth: "0px", borderRadius: "17px" },
++    { width: "700px", height: "50px", top: "1px", minWidth: "0px", borderRadius: "24px" },
++  ]);
+   const painted = { left: 500, top: 40, width: 480, height: 44 };
+-  expect(searchSurfaceFrames(painted, pill, "17px")![0].transform).toBe(
+-    `translate(-176px, -5px) scale(${480 / 124}, ${44 / 34})`,
+-  );
++  expect(searchSurfaceFrames(painted, pill, "17px", 9)![0]).toEqual({
++    width: "480px",
++    height: "44px",
++    top: "4px",
++    minWidth: "0px",
++    borderRadius: "22px",
++  });
+   expect(searchSurfaceFrames({ ...pill, width: 0 }, field, "24px")).toBeNull();
+   expect(searchSurfaceFrames(pill, { ...field, height: 0 }, "24px")).toBeNull();
+ });
+--- a/apps/renderer/src/libraryView/searchSurface.ts
++++ b/apps/renderer/src/libraryView/searchSurface.ts
+@@ -1,15 +1,22 @@
+ type Box = { left: number; top: number; width: number; height: number };
+
+-/** Morph only the glass backing; text and the input's hit target never scale. */
+-export function searchSurfaceFrames(from: Box, to: Box, radius: string) {
++/** Animate the enclosing bounds, never a smaller backing behind destination text. */
++export function searchSurfaceFrames(from: Box, to: Box, radius: string, top = 0) {
+   if (from.width <= 0 || from.height <= 0 || to.width <= 0 || to.height <= 0) return null;
+-  const x = from.width / to.width;
+-  const y = from.height / to.height;
+   return [
+     {
+-      transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${x}, ${y})`,
+-      borderRadius: `${from.height / 2 / x}px / ${from.height / 2 / y}px`,
++      width: `${from.width}px`,
++      height: `${from.height}px`,
++      top: `${top + from.top - to.top}px`,
++      minWidth: "0px",
++      borderRadius: `${from.height / 2}px`,
+     },
+-    { transform: "none", borderRadius: radius },
++    {
++      width: `${to.width}px`,
++      height: `${to.height}px`,
++      top: `${top}px`,
++      minWidth: "0px",
++      borderRadius: radius,
++    },
+   ];
+ }
 --- a/apps/renderer/src/libraryView/viewTransition.ts
 +++ b/apps/renderer/src/libraryView/viewTransition.ts
 @@ -1,4 +1,5 @@
@@ -106,7 +271,7 @@
  const easeIn = "cubic-bezier(0.55, 0.085, 0.68, 0.53)";
  const easeOut = "cubic-bezier(0.215, 0.61, 0.355, 1)";
 @@ -13,6 +14,7 @@
- 
+
  export function animateArrival(element: HTMLElement, list: boolean) {
    if (reduced()) return [];
 +  const holdUntilGroupSettles = viewState.get().entering;
@@ -145,9 +310,398 @@
 +import { setSidebarOpen } from "./libraryView/viewState.ts";
 +// Host-only default: retain the genuine compact rail on narrow embedded screens.
 +if (window.matchMedia('(max-width: 780px)').matches) setSidebarOpen(false);
- 
+
  const root = document.getElementById("root");
  if (!root) throw new Error("index.html has no #root");
+--- a/apps/renderer/src/shell/AddMenu.tsx
++++ b/apps/renderer/src/shell/AddMenu.tsx
+@@ -47,7 +47,7 @@
+   };
+
+   return (
+-    <div {...stylex.props(styles.anchor)}>
++    <div data-sidebar-add {...stylex.props(styles.anchor)}>
+       <input
+         ref={files}
+         type="file"
+@@ -67,7 +67,11 @@
+           {...stylex.props(styles.trigger, compact && styles.compact)}
+         >
+           <HugeiconsIcon icon={PlusSignIcon} size={16} />
+-          {!compact && (saving ? "Saving…" : "Add")}
++          {!compact && (
++            <span data-sidebar-label data-sidebar-add-label {...stylex.props(styles.label)}>
++              {saving ? "Saving…" : "Add"}
++            </span>
++          )}
+         </Menu.Trigger>
+         <Menu.Portal>
+           <Menu.Positioner
+@@ -109,6 +113,7 @@
+
+ const styles = stylex.create({
+   anchor: { position: "relative", marginBottom: "8px" },
++  label: { display: "inline-block", overflow: "hidden", whiteSpace: "nowrap" },
+   fileInput: {
+     position: "absolute",
+     width: "1px",
+--- a/apps/renderer/src/shell/NavRow.tsx
++++ b/apps/renderer/src/shell/NavRow.tsx
+@@ -36,9 +36,15 @@
+       )}
+     >
+       <span {...stylex.props(styles.icon, active && styles.activeIcon)}>{icon}</span>
+-      {!compact && <span {...stylex.props(styles.label)}>{label}</span>}
++      {!compact && (
++        <span data-sidebar-label {...stylex.props(styles.label)}>
++          {label}
++        </span>
++      )}
+       {!compact && count !== undefined && (
+-        <span {...stylex.props(styles.count)}>{count.toLocaleString()}</span>
++        <span data-sidebar-label {...stylex.props(styles.count)}>
++          {count.toLocaleString()}
++        </span>
+       )}
+     </Link>
+   );
+@@ -70,7 +76,11 @@
+       {...stylex.props(styles.row, styles.button, styles[tone], compact && styles.compact)}
+     >
+       <span {...stylex.props(styles.icon)}>{icon}</span>
+-      {!compact && <span {...stylex.props(styles.label)}>{label}</span>}
++      {!compact && (
++        <span data-sidebar-label {...stylex.props(styles.label)}>
++          {label}
++        </span>
++      )}
+     </button>
+   );
+ }
+--- a/apps/renderer/src/shell/Sidebar.tsx
++++ b/apps/renderer/src/shell/Sidebar.tsx
+@@ -132,13 +132,16 @@
+           )}
+           {!compact && (
+             <>
+-              <span {...stylex.props(styles.wordmark)}>inkling</span>
++              <span data-sidebar-label {...stylex.props(styles.wordmark)}>
++                inkling
++              </span>
+               {!edge && (
+                 <button
+                   type="button"
+                   ref={reopenButton}
+                   aria-label="Close sidebar"
+                   title="Close sidebar"
++                  data-sidebar-label
+                   data-bench="sidebar-toggle"
+                   aria-expanded={open}
+                   aria-controls="library-navigation"
+--- a/apps/renderer/src/shell/SpaceRow.tsx
++++ b/apps/renderer/src/shell/SpaceRow.tsx
+@@ -117,7 +117,9 @@
+           aria-current={selected ? "page" : undefined}
+           {...stylex.props(styles.name)}
+         >
+-          <span {...stylex.props(styles.nameText)}>{space.name}</span>
++          <span data-sidebar-label {...stylex.props(styles.nameText)}>
++            {space.name}
++          </span>
+           <span {...stylex.props(styles.count)}>{count?.toLocaleString()}</span>
+         </Link>
+       )}
+--- a/apps/renderer/src/shell/SpacesSection.tsx
++++ b/apps/renderer/src/shell/SpacesSection.tsx
+@@ -35,7 +35,7 @@
+   return (
+     <div {...stylex.props(styles.section)}>
+       <div {...stylex.props(styles.header, compact && styles.compactHeader)}>
+-        {!compact && <span>Spaces</span>}
++        {!compact && <span data-sidebar-label>Spaces</span>}
+         <button
+           type="button"
+           aria-label="Add a Space"
+--- a/apps/renderer/src/shell/sidebarGeometry.test.ts
++++ b/apps/renderer/src/shell/sidebarGeometry.test.ts
+@@ -1,5 +1,33 @@
+ import { expect, test } from "bun:test";
+-import { sidebarFlight, sidebarGeometry } from "./sidebarGeometry.ts";
++import {
++  sidebarFlight,
++  sidebarGeometry,
++  sidebarMotionFrames,
++  sidebarLabelFrames,
++} from "./sidebarGeometry.ts";
++
++test("sidebar motion uses true frame bounds and preserves full child width", () => {
++  expect(sidebarMotionFrames(178.039, 248)).toEqual({
++    frame: [{ left: "178.039px" }, { left: "248px" }],
++    content: [
++      { width: "auto", left: "0px", right: "0px" },
++      { width: "auto", left: "0px", right: "0px" },
++    ],
++  });
++});
++test("labels disappear before edge clipping and arrive after the edge opens", () => {
++  expect(sidebarLabelFrames(1, false, false)).toEqual([
++    { opacity: 1, offset: 0 },
++    { opacity: 0, offset: 0.18 },
++    { opacity: 0, offset: 1 },
++  ]);
++  expect(sidebarLabelFrames(0, true, false)).toEqual([
++    { opacity: 0, offset: 0 },
++    { opacity: 0, offset: 0.8 },
++    { opacity: 1, offset: 1 },
++  ]);
++  expect(sidebarLabelFrames(0.4, true, true)[0]).toEqual({ opacity: 0.4, offset: 0 });
++});
+
+ test("sidebar FLIP preserves the painted bounds when opening and reversing", () => {
+   const opening = sidebarFlight(76, 248, 1280, 1032, { a: 1, e: 0 });
+--- a/apps/renderer/src/shell/sidebarGeometry.ts
++++ b/apps/renderer/src/shell/sidebarGeometry.ts
+@@ -9,12 +9,44 @@
+   viewport: number,
+   destinationWidth: number,
+   current: { a: number; e: number },
++  rightInset = 0,
+ ) {
+   return {
+     x: oldInset + current.e - inset,
+-    scale: (Math.max(1, viewport - oldInset) * current.a) / Math.max(1, destinationWidth),
++    scale:
++      (Math.max(1, viewport - oldInset - rightInset) * current.a) / Math.max(1, destinationWidth),
+   };
+ }
++
++/** Move real bounds, never a scaled picture or a narrower fixed-width child. */
++export function sidebarMotionFrames(fromLeft: number, inset: number) {
++  return {
++    frame: [{ left: `${fromLeft}px` }, { left: `${inset}px` }],
++    content: [
++      { width: "auto", left: "0px", right: "0px" },
++      { width: "auto", left: "0px", right: "0px" },
++    ],
++  };
++}
++
++/** A reversal starts from the painted label opacity in either direction. */
++export function sidebarLabelFrames(opacity: number, open: boolean, reversing: boolean) {
++  return open
++    ? [
++        { opacity: reversing ? opacity : 0, offset: 0 },
++        { opacity: 0, offset: 0.8 },
++        { opacity: 1, offset: 1 },
++      ]
++    : [
++        { opacity, offset: 0 },
++        { opacity: 0, offset: 0.18 },
++        { opacity: 0, offset: 1 },
++      ];
++}
++
++/** Clip the retained navigation to the moving frame, preserving the gutter and round edge. */
++export const sidebarClip = (frameLeft: number, width: number, gap = 8) =>
++  Math.max(0, width - Math.max(0, frameLeft - gap));
+
+ // A compact Codex rail never vanishes; on narrow screens an open sidebar overlays.
+ export function sidebarGeometry(viewport: number, open: boolean) {
+--- a/apps/renderer/src/shell/useSidebarMotion.ts
++++ b/apps/renderer/src/shell/useSidebarMotion.ts
+@@ -1,13 +1,23 @@
+ import { useLayoutEffect, useRef, useState } from "react";
+-import { sidebarFlight } from "./sidebarGeometry.ts";
++import {
++  sidebarClip,
++  sidebarCompact,
++  sidebarExpanded,
++  sidebarLabelFrames,
++  sidebarMotionFrames,
++} from "./sidebarGeometry.ts";
+
+-/** Reflow once to the destination, then move that frame on the compositor.
+- * The old width/left transitions resized every retained library card each frame.
++/** Move real frame bounds without stretching images or exposing empty strips.
++ * The grid commits responsive column changes only at their actual boundary.
+  */
+ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) {
+   const stage = useRef<HTMLElement>(null);
+-  const previousInset = useRef(inset);
++  const previous = useRef({ inset, open, narrow });
+   const flight = useRef<Animation | null>(null);
++  const edgeFlight = useRef<Animation | null>(null);
++  const contentFlight = useRef<Animation | null>(null);
++  const labelsFlight = useRef<Animation[]>([]);
++  const addFlights = useRef<Animation[]>([]);
+   const [presentation, setPresentation] = useState({ requested: open, retained: open });
+   if (presentation.requested !== open) {
+     setPresentation({ requested: open, retained: open || presentation.retained });
+@@ -16,37 +26,115 @@
+   useLayoutEffect(() => {
+     const element = stage.current;
+     if (!element) return;
+-    const oldInset = previousInset.current;
+-    previousInset.current = inset;
++    const old = previous.current;
++    previous.current = { inset, open, narrow };
+     const timing = getComputedStyle(element);
+-    const matrix = new DOMMatrixReadOnly(
+-      timing.transform === "none" ? undefined : timing.transform,
+-    );
+-    // A reversing flight starts at its currently painted bounds, not its old endpoint.
+-    const from = sidebarFlight(oldInset, inset, innerWidth, element.offsetWidth, matrix);
++    // An active left animation survives React's destination style commit.
++    const fromLeft = flight.current ? parseFloat(timing.left) : old.inset;
++    const sidebar = document.getElementById("library-navigation");
++    const oldWidth = (old.open ? sidebarExpanded : sidebarCompact) - 16;
++    const clip = sidebar ? getComputedStyle(sidebar).clipPath : "none";
++    const clipped = clip.match(/^inset\(\s*[\d.]+px\s+([\d.]+)px/);
++    const fromEdge =
++      edgeFlight.current && sidebar ? sidebar.offsetWidth - Number(clipped?.[1] ?? 0) : oldWidth;
++    const labels = sidebar
++      ? [...sidebar.querySelectorAll<HTMLElement>("[data-sidebar-label]")]
++      : [];
++    const labelOpacity = labels.map((node) => Number(getComputedStyle(node).opacity));
++    const reversing = flight.current !== null;
++    const add = sidebar?.querySelector<HTMLElement>("[data-sidebar-add]");
++    const addLabel = add?.querySelector<HTMLElement>("[data-sidebar-add-label]");
++    const fromAdd =
++      addFlights.current.length && add ? add.getBoundingClientRect().width : oldWidth - 8;
++    const fromLabel =
++      addFlights.current.length && addLabel
++        ? addLabel.getBoundingClientRect().width
++        : old.open
++          ? (addLabel?.scrollWidth ?? 0)
++          : 0;
++    const fromGap =
++      addFlights.current.length && addLabel
++        ? getComputedStyle(addLabel).marginLeft
++        : old.open
++          ? "0px"
++          : "-7px";
++    addFlights.current.forEach((item) => item.cancel());
++    addFlights.current = [];
+     flight.current?.cancel();
+-    flight.current = null;
+-    const skip =
+-      oldInset === inset || narrow || matchMedia("(prefers-reduced-motion: reduce)").matches;
+-    const animation = element.animate(
+-      [
+-        {
+-          transform: `translateX(${from.x}px) scaleX(${from.scale})`,
+-          opacity: 0.96,
+-        },
+-        { transform: "none", opacity: 1 },
+-      ],
+-      {
+-        duration: skip ? 0 : parseFloat(timing.transitionDuration) * 1000,
+-        easing: "cubic-bezier(0.2, 0, 0, 1)",
+-      },
+-    );
++    edgeFlight.current?.cancel();
++    contentFlight.current?.cancel();
++    labelsFlight.current.forEach((animation) => animation.cancel());
++    labelsFlight.current = [];
++    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
++    const changed = old.open !== open || old.inset !== inset;
++    const options = {
++      duration:
++        changed && !reduced && !narrow ? parseFloat(timing.transitionDuration) * 1000 || 300 : 0,
++      easing: "cubic-bezier(0.2, 0, 0, 1)",
++    };
++    const frames = sidebarMotionFrames(fromLeft, inset);
++    const content = element.firstElementChild;
++    // Real layout fills both edges throughout. A held destination width left
++    // an exposed strip; a transform stretched images. Neither is used here.
++    contentFlight.current = content?.animate(frames.content, { ...options, fill: "both" }) ?? null;
++    if (sidebar) {
++      const width = sidebar.offsetWidth;
++      const radius = getComputedStyle(sidebar).borderTopRightRadius;
++      const clipAt = (edge: number) =>
++        `inset(0px ${sidebarClip(edge + 16, width)}px 0px 0px round 0px ${radius} ${radius} 0px)`;
++      const targetEdge = (open ? sidebarExpanded : sidebarCompact) - 16;
++      // The Add surface keeps its rounded end inside the moving edge, rather
++      // than getting sliced by the retained expanded navigation's clip.
++      if (add)
++        addFlights.current.push(
++          add.animate([{ width: `${fromAdd}px` }, { width: `${targetEdge - 8}px` }], {
++            ...options,
++            fill: "both",
++          }),
++        );
++      if (addLabel)
++        addFlights.current.push(
++          addLabel.animate(
++            [
++              { maxWidth: `${fromLabel}px`, marginLeft: fromGap },
++              {
++                maxWidth: `${open ? addLabel.scrollWidth : 0}px`,
++                marginLeft: open ? "0px" : "-7px",
++              },
++            ],
++            { ...options, fill: "both" },
++          ),
++        );
++      edgeFlight.current = sidebar.animate(
++        [{ clipPath: clipAt(fromEdge) }, { clipPath: clipAt(targetEdge) }],
++        { ...options, fill: "both" },
++      );
++      // Expanded-only labels should arrive, not appear as sliced full words.
++      if (options.duration) {
++        labelsFlight.current = labels.map((node, index) =>
++          node.animate(sidebarLabelFrames(labelOpacity[index], open, reversing), {
++            ...options,
++            fill: "both",
++          }),
++        );
++      }
++    }
++    const animation = element.animate(frames.frame, options);
+     flight.current = animation;
+     void animation.finished.then(
+       () => {
+         if (flight.current !== animation) return;
+         flight.current = null;
+-        // Keep the expanded navigation behind the moving frame until it is covered.
++        contentFlight.current?.cancel();
++        contentFlight.current = null;
++        if (open) {
++          addFlights.current.forEach((item) => item.cancel());
++          addFlights.current = [];
++          labelsFlight.current.forEach((item) => item.cancel());
++          labelsFlight.current = [];
++          edgeFlight.current?.cancel();
++          edgeFlight.current = null;
++        }
+         setPresentation((current) =>
+           current.requested === open ? { requested: open, retained: open } : current,
+         );
+@@ -55,9 +143,24 @@
+     );
+   }, [open, inset, narrow]);
+
++  useLayoutEffect(() => {
++    if (!flight.current) {
++      addFlights.current.forEach((item) => item.cancel());
++      addFlights.current = [];
++      edgeFlight.current?.cancel();
++      edgeFlight.current = null;
++      labelsFlight.current.forEach((item) => item.cancel());
++      labelsFlight.current = [];
++    }
++  });
++
+   useLayoutEffect(
+     () => () => {
+       flight.current?.cancel();
++      edgeFlight.current?.cancel();
++      contentFlight.current?.cancel();
++      labelsFlight.current.forEach((animation) => animation.cancel());
++      addFlights.current.forEach((animation) => animation.cancel());
+     },
+     [],
+   );
 --- a/apps/renderer/vite.config.ts
 +++ b/apps/renderer/vite.config.ts
 @@ -27,6 +27,9 @@

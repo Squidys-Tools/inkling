@@ -37,8 +37,20 @@ function Aperture() {
   const reduced = useCalm();
   const { scrollYProgress } = useScroll({ target: area, offset: ["start 55%", "end 100%"] });
   const progress = useSpring(scrollYProgress, { stiffness: 130, damping: 28, mass: 0.4 });
+  const focusFloor = useSpring(0, { stiffness: 130, damping: 28, mass: 0.4 });
+  const focusTarget = React.useRef(0);
   const ready = useHydrated();
-  const subscribeLive = React.useCallback((notify) => progress.on("change", notify), [progress]);
+  const subscribeLive = React.useCallback(
+    (notify) => {
+      const stopProgress = progress.on("change", notify);
+      const stopFocus = focusFloor.on("change", notify);
+      return () => {
+        stopProgress();
+        stopFocus();
+      };
+    },
+    [progress, focusFloor],
+  );
   const liveSnapshot = React.useCallback(
     () =>
       reduced ||
@@ -50,7 +62,18 @@ function Aperture() {
   const paint = React.useCallback(
     (value) => {
       const focused = document.activeElement === frame.current?.querySelector("iframe");
-      const shown = reduced ? 1 : focused && value > 0.12 ? Math.max(value, 0.62) : value;
+      const floor = focused && value > 0.12 ? 0.62 : 0;
+      if (reduced) {
+        focusTarget.current = floor;
+        if (focusFloor.get() !== floor) focusFloor.jump(floor);
+      } else if (focusTarget.current !== floor) {
+        focusTarget.current = floor;
+        // Start at the visible scroll pose; the hidden floor need not catch up from zero.
+        if (floor > 0 && focusFloor.get() < value) focusFloor.jump(value);
+        focusFloor.set(floor);
+      }
+      // Focus keeps the usable mask open through the same spring, never a geometry snap.
+      const shown = reduced ? 1 : Math.max(value, focusFloor.get());
       const pose = aperturePose(shown);
       const small = frame.current?.clientWidth < 640,
         initialHold = reduced ? 0 : 1 - clamp(shown / 0.53);
@@ -78,11 +101,31 @@ function Aperture() {
         eyes.current.style.opacity = reduced ? "0" : String(pose.eyes);
         eyes.current.setAttribute("transform", `translate(0 ${pose.y - 540})`);
       }
-      if (area.current) area.current.dataset.progress = value.toFixed(3);
+      if (area.current) {
+        area.current.dataset.progress = value.toFixed(3);
+        area.current.dataset.revealProgress = shown.toFixed(3);
+      }
     },
-    [reduced],
+    [reduced, focusFloor],
   );
   useMotionValueEvent(progress, "change", paint);
+  useMotionValueEvent(focusFloor, "change", () => paint(progress.get()));
+  React.useEffect(() => {
+    let handle = 0;
+    const syncFocus = () => {
+      cancelAnimationFrame(handle);
+      handle = requestAnimationFrame(() => paint(progress.get()));
+    };
+    window.addEventListener("blur", syncFocus);
+    window.addEventListener("focus", syncFocus);
+    document.addEventListener("focusin", syncFocus);
+    return () => {
+      cancelAnimationFrame(handle);
+      window.removeEventListener("blur", syncFocus);
+      window.removeEventListener("focus", syncFocus);
+      document.removeEventListener("focusin", syncFocus);
+    };
+  }, [paint, progress]);
   React.useLayoutEffect(() => {
     paint(progress.get());
     const observer = new ResizeObserver(() => paint(progress.get()));
@@ -149,7 +192,7 @@ function Aperture() {
               />
             </g>
           </svg>
-          <DemoLibrary active={live} />
+          <DemoLibrary active={live} calm={reduced} />
         </div>
         <div className="library-caption">
           <h2 id="library-heading">

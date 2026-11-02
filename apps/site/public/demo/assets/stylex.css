@@ -935,10 +935,6 @@
     animation-duration: var(--x16lecnj);
   }
 
-  .xlil3ux {
-    animation-duration: var(--x1e1mtky);
-  }
-
   .x1ixc1s7 {
     animation-duration: var(--x1lvz98k);
   }
@@ -1037,10 +1033,6 @@
 
   .x154v96d {
     animation-name: x895lb5-B;
-  }
-
-  .xnjr9wf {
-    animation-name: x9loz0l-B;
   }
 
   .x1eyo1u7 {
@@ -4944,18 +4936,6 @@
   from {
     opacity: 0;
     transform: translateY(-6px);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes x9loz0l-B {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
   }
 
   to {
