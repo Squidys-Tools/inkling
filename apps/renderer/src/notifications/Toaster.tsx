@@ -23,6 +23,12 @@ function ToastList() {
             key={toast.id}
             toast={toast}
             swipeDirection="right"
+            onKeyDown={(event) => {
+              if (event.key !== "Escape" || event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              event.stopPropagation();
+              notifications.dismiss(toast.id);
+            }}
             {...stylex.props(styles.toast)}
           >
             <Toast.Content {...stylex.props(styles.content)}>
