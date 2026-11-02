@@ -2,14 +2,23 @@
   "manifest_version": 3,
   "name": "inkling — save to your library",
   "version": "0.1.0",
-  "description": "Save the current page to your local inkling library.",
+  "description": "Save pages, links, quotes and images to your local inkling library.",
   "minimum_chrome_version": "116",
   "action": {
     "default_title": "Save to inkling",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/inkling.svg",
       "48": "icons/inkling.svg",
       "128": "icons/inkling.svg"
+    }
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Save the current page to inkling"
     }
   },
   "background": {
@@ -17,7 +26,7 @@
     "type": "module"
   },
   "options_page": "options.html",
-  "permissions": ["storage", "activeTab", "contextMenus"],
+  "permissions": ["storage", "activeTab", "contextMenus", "scripting"],
   "host_permissions": ["http://127.0.0.1/*"],
   "icons": {
     "16": "icons/inkling.svg",

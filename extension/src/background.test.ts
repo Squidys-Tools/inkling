@@ -1,7 +1,11 @@
 import { describe, expect, mock, test } from "bun:test";
 
 const badgeTexts: string[] = [];
-let onActionClicked: ((tab: { url?: string; title?: string }) => void) | undefined;
+type MenuClick = (
+  info: { menuItemId: string; pageUrl?: string },
+  tab: { url?: string; title?: string },
+) => void;
+let onMenuClicked: MenuClick | undefined;
 let tabsCreateFails = false;
 let resolveFailureShown: () => void = () => {};
 const failureShown = new Promise<void>((resolve) => {
@@ -21,17 +25,16 @@ mock.module("webextension-polyfill", () => ({
         if (text === "!") resolveFailureShown();
       },
       setTitle: async () => {},
-      onClicked: {
-        addListener: (listener: (tab: { url?: string; title?: string }) => void) => {
-          onActionClicked = listener;
-        },
-      },
     },
     runtime: { onInstalled: { addListener: () => {} } },
     contextMenus: {
       removeAll: async () => {},
       create: () => {},
-      onClicked: { addListener: () => {} },
+      onClicked: {
+        addListener: (listener: MenuClick) => {
+          onMenuClicked = listener;
+        },
+      },
     },
     storage: { local: { get: async () => ({}) } },
     tabs: {
@@ -63,14 +66,15 @@ describe("background badge state", () => {
 
     try {
       await import("./background");
-      if (!onActionClicked) throw new Error("background did not register a click listener");
+      if (!onMenuClicked) throw new Error("background did not register a menu listener");
+      const savePage = { menuItemId: "inkling-save-page" };
 
-      onActionClicked({ url: "https://example.com/a", title: "A" });
+      onMenuClicked(savePage, { url: "https://example.com/a", title: "A" });
       await successTimerArmed;
       const [successTimerId] = armedTimerIds;
 
       tabsCreateFails = true;
-      onActionClicked({ url: "https://example.com/b", title: "B" });
+      onMenuClicked(savePage, { url: "https://example.com/b", title: "B" });
       await failureShown;
 
       timers.get(successTimerId)?.();

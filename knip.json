@@ -30,7 +30,7 @@
       "entry": ["*.{ts,mjs}"]
     },
     "extension": {
-      "entry": ["src/options.ts", "src/background.ts"]
+      "entry": ["src/options.ts", "src/background.ts", "src/popup/main.tsx"]
     }
   }
 }
