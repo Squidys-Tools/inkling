@@ -41,6 +41,8 @@ export type CardView = {
   isXPost: boolean;
   isVideoLink: boolean;
   hasArticleContent: boolean;
+  /** A managed original exists to reveal; a thumbnail alone is not the saved file. */
+  hasLocalFile: boolean;
   archived: boolean;
   treatment: Treatment;
   media: MediaKind;
@@ -234,6 +236,7 @@ export function toCardView(card: LibraryCard, now = Date.now()): CardView {
     isXPost: Boolean(social),
     isVideoLink: Boolean(video),
     hasArticleContent: card.hasArticleContent,
+    hasLocalFile: Boolean(card.localAssetPath),
     archived: card.archived,
     treatment: treatmentOf(kind, image, social?.art),
     media: mediaOf(kind, image, social?.art, Boolean(social)),

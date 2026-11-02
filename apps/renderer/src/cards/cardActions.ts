@@ -113,7 +113,8 @@ export async function openCardMenu(
         add("copy-image", "Copy image", () =>
           run("Couldn’t copy the image", () => bridge.copyItemImage(view.id)),
         );
-      add("folder", "Show in folder", () => bridge.showItemInFolder(view.id));
+      if (view.hasLocalFile)
+        add("folder", "Show in folder", () => bridge.showItemInFolder(view.id));
     }
     if (current) {
       separate();
