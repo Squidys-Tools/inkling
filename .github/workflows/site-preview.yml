@@ -1,0 +1,118 @@
+name: Site preview
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect site changes
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      site: ${{ steps.filter.outputs.site }}
+    steps:
+      - name: Check out the PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          token: ''
+          base: ${{ github.event.before || github.event.pull_request.base.sha }}
+          predicate-quantifier: some-with-excludes
+          filters: |
+            site:
+              - 'apps/site/**'
+              - 'apps/renderer/**'
+              - 'packages/contracts/**'
+              - 'packages/ingestion/**'
+              - 'packages/ui/**'
+              - 'package.json'
+              - 'bun.lock'
+              - 'bunfig.toml'
+              - 'tsconfig.base.json'
+              - '.bun-version'
+              - 'patches/**'
+
+  deploy:
+    name: Deploy site preview
+    needs: changes
+    if: ${{ needs.changes.outputs.site == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: site-preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    environment: site-staging
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out the PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Deploy preview
+        id: deploy
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${VERCEL_TOKEN:-}" || -z "${VERCEL_ORG_ID:-}" || -z "${VERCEL_PROJECT_ID:-}" ]]; then
+            echo "Missing a Vercel secret: VERCEL_TOKEN, VERCEL_ORG_ID or VERCEL_PROJECT_ID." >&2
+            exit 1
+          fi
+
+          output="$(
+            bunx vercel@65.9.0 deploy \
+              --archive=tgz \
+              --yes \
+              --token "$VERCEL_TOKEN" \
+              --meta githubSha="$PR_HEAD_SHA"
+          )"
+          printf '%s\n' "$output"
+
+          url="$(printf '%s\n' "$output" | grep -E '^https://[[:alnum:].-]+\.vercel\.app$' || true)"
+          if [[ -z "$url" || "$url" == *$'\n'* ]]; then
+            echo "Expected exactly one deployment URL." >&2
+            exit 1
+          fi
+          echo "deployment_url=$url" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Marketing site preview"
+            echo
+            echo "$url (PR #${{ github.event.pull_request.number }})"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment preview URL
+        uses: ./.github/actions/pr-comment
+        with:
+          marker: "<!-- inkling-site-preview -->"
+          body: |-
+            ### Marketing site preview
+
+            [Open preview](${{ steps.deploy.outputs.deployment_url }}) for commit `${{ github.event.pull_request.head.sha }}`.
+
+            [Build details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})

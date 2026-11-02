@@ -72,20 +72,22 @@ publishing a release. Build it with `bun run build:site`, which runs Vite on
 Node: under the Bun runtime, StyleX's production media-query parser fails.
 
 Iterate on the site with `bun run dev:site` (hot reload; read the port from its
-output). Branch and PR pushes get a Vercel preview URL only when the diff
-touches what the site builds from — `apps/site`, the renderer modules and
-`packages` it imports, or dependency and toolchain files — because
-`apps/site/vercel.json`'s `ignoreCommand` runs `apps/site/vercel-ignore.mjs`,
-which skips every other push. When the previous commit is unreachable in the
-deploy clone — a force-push orphans it — the gate builds instead of erroring.
-Pushes to `main` do not deploy: `apps/site/vercel.json` turns that off, so the
-production domain changes only through the `Deploy site` workflow
-(`.github/workflows/site-deploy.yml`, `gh workflow run site-deploy.yml`). It runs
-only from `main`. Its `stage` job builds a production deployment that no custom domain
-points at; its `promote` job then publishes that exact build and pauses for a
-reviewer on the `site-production` GitHub environment, so the reviewer approves a
-build they can already open. Both environments hold the `VERCEL_TOKEN`,
-`VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` secrets; `site-staging` has no reviewer.
+output). Vercel's automatic Git deployments are disabled in
+`apps/site/vercel.json`. The `Site preview` workflow invokes Vercel only for a
+same-repository PR targeting `main` when its latest push changes `apps/site`,
+`apps/renderer`, the site's imported `packages/contracts`, `packages/ingestion`
+or `packages/ui`, or a shared dependency or toolchain file. It uses Vercel CLI
+and updates one PR comment with the preview URL. Fork PRs do not get Vercel
+secrets or previews.
+Pushes to `main` do not deploy automatically: the production domain changes only
+through the `Deploy site` workflow (`.github/workflows/site-deploy.yml`,
+`gh workflow run site-deploy.yml`). It runs only from `main`. Its `stage` job
+builds a production deployment that no custom domain points at; its `promote`
+job then publishes that exact build and pauses for a reviewer on the
+`site-production` GitHub environment, so the reviewer approves a build they can
+already open. Both environments hold the `VERCEL_TOKEN`, `VERCEL_ORG_ID` and
+`VERCEL_PROJECT_ID` secrets; `site-staging` has no reviewer and allows `main`
+plus `refs/pull/*/merge` for PR previews.
 Vercel still points the project's own `*.vercel.app` alias at a staged build,
 behind a Vercel login, but never a custom domain.
 Agents start it only when asked and never approve it.
