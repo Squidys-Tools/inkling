@@ -1,4 +1,4 @@
-import { GridViewIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
+import { GridViewIcon } from "@hugeicons/core-free-icons";
 import * as stylex from "@stylexjs/stylex";
 import { SegmentedControl } from "@inkling/ui";
 import { color, radius } from "@inkling/ui/tokens.stylex";
@@ -22,21 +22,6 @@ export function AppearancePanel({ onClose }: { onClose: () => void }) {
               options={appearanceOptions.viewToggle}
               value={appearance.viewToggle}
               onChange={(value) => setAppearance("viewToggle", value)}
-              style={styles.segmented}
-            />
-          }
-        />
-        <Row
-          icon={SidebarLeftIcon}
-          title="Sidebar button"
-          description="How the sidebar opens and closes."
-          action={
-            <SegmentedControl
-              name="appearance-sidebar-toggle"
-              label="Sidebar button style"
-              options={appearanceOptions.sidebarToggle}
-              value={appearance.sidebarToggle}
-              onChange={(value) => setAppearance("sidebarToggle", value)}
               style={styles.segmented}
             />
           }

@@ -133,7 +133,9 @@ export function Sidebar({
           )}
           {!compact && (
             <>
-              <span {...stylex.props(styles.wordmark)}>inkling</span>
+              <span data-sidebar-label {...stylex.props(styles.wordmark)}>
+                inkling
+              </span>
               {!edge && (
                 <button
                   type="button"

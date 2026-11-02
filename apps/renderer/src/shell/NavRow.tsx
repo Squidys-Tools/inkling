@@ -36,9 +36,15 @@ export function NavLink({
       )}
     >
       <span {...stylex.props(styles.icon, active && styles.activeIcon)}>{icon}</span>
-      {!compact && <span {...stylex.props(styles.label)}>{label}</span>}
+      {!compact && (
+        <span data-sidebar-label {...stylex.props(styles.label)}>
+          {label}
+        </span>
+      )}
       {!compact && count !== undefined && (
-        <span {...stylex.props(styles.count)}>{count.toLocaleString()}</span>
+        <span data-sidebar-label {...stylex.props(styles.count)}>
+          {count.toLocaleString()}
+        </span>
       )}
     </Link>
   );
@@ -70,7 +76,11 @@ export function NavButton({
       {...stylex.props(styles.row, styles.button, styles[tone], compact && styles.compact)}
     >
       <span {...stylex.props(styles.icon)}>{icon}</span>
-      {!compact && <span {...stylex.props(styles.label)}>{label}</span>}
+      {!compact && (
+        <span data-sidebar-label {...stylex.props(styles.label)}>
+          {label}
+        </span>
+      )}
     </button>
   );
 }

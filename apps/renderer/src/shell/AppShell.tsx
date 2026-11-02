@@ -41,7 +41,7 @@ export function AppShell() {
   const dragging = useCaptureEvents(!covered);
   const narrow = useMedia("(max-width: 780px)");
   const open = useViewState((state) => state.sidebarOpen);
-  // Reflow once, then FLIP the frame instead of resizing the grid every frame.
+  // Hold the library layout while its clipping frame edge moves.
   const inset = narrow && open ? 0 : open ? sidebarExpanded : sidebarCompact;
   const [stageRef, visualOpen] = useSidebarMotion(open, inset, narrow);
 

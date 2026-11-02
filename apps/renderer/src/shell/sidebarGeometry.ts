@@ -18,6 +18,19 @@ export function sidebarFlight(
   };
 }
 
+/** Move bounds without scaling the retained library's contents. */
+export function sidebarMotionFrames(fromLeft: number, inset: number, contentWidth: number) {
+  return {
+    frame: [{ left: `${fromLeft}px` }, { left: `${inset}px` }],
+    content: [{ width: `${contentWidth}px` }, { width: `${contentWidth}px` }],
+  };
+}
+
+/** A reversal starts from the painted label opacity in either direction. */
+export function sidebarLabelFrames(opacity: number, open: boolean, reversing: boolean) {
+  return [{ opacity: open && !reversing ? 0 : opacity }, { opacity: open ? 1 : 0 }];
+}
+
 /** Clip the retained navigation to the moving frame, preserving the gutter and round edge. */
 export const sidebarClip = (frameLeft: number, width: number, gap = 8) =>
   Math.max(0, width - Math.max(0, frameLeft - gap));
