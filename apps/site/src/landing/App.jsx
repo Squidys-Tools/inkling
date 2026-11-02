@@ -40,15 +40,20 @@ function Aperture() {
   const ready = useHydrated();
   const subscribeLive = React.useCallback((notify) => progress.on("change", notify), [progress]);
   const liveSnapshot = React.useCallback(
-    () => reduced || progress.get() >= 0.53,
+    () =>
+      reduced ||
+      progress.get() >= 0.53 ||
+      (progress.get() > 0.12 && document.activeElement === frame.current?.querySelector("iframe")),
     [progress, reduced],
   );
   const live = React.useSyncExternalStore(subscribeLive, liveSnapshot, () => true);
   const paint = React.useCallback(
     (value) => {
-      const pose = aperturePose(reduced ? 1 : value);
+      const focused = document.activeElement === frame.current?.querySelector("iframe");
+      const shown = reduced ? 1 : focused && value > 0.12 ? Math.max(value, 0.62) : value;
+      const pose = aperturePose(shown);
       const small = frame.current?.clientWidth < 640,
-        initialHold = reduced ? 0 : 1 - clamp(value / 0.53);
+        initialHold = reduced ? 0 : 1 - clamp(shown / 0.53);
       if (small) {
         pose.scale += 2.3 * initialHold * initialHold;
         pose.y += Math.max(0, pose.scale * 105 + 30 - pose.y) * initialHold * initialHold;
@@ -62,7 +67,7 @@ function Aperture() {
         unit = Math.min(w / 1920, h / 1080);
       // Keep the initial silhouette isotropic, then grow it to cover this viewport's
       // aspect ratio before interaction starts (the phone is taller than the artboard).
-      const growth = clamp(((reduced ? 1 : value) - 0.18) / 0.35),
+      const growth = clamp((shown - 0.18) / 0.35),
         blend = growth * growth * (3 - 2 * growth);
       const coveringScale = pose.scale * (1 + (Math.max(w / 1920, h / 1080) / unit - 1) * blend);
       livePath.current?.setAttribute(
@@ -193,10 +198,46 @@ export function App() {
     </MotionContext.Provider>
   );
 }
+// Links to the library promise the usable surface, not its masked opening.
+function openLibrary(event) {
+  const anchor = event.target.closest?.("a[href]");
+  if (
+    !anchor ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  )
+    return;
+  const url = new URL(anchor.href, window.location.href);
+  if (
+    url.origin !== window.location.origin ||
+    url.pathname !== window.location.pathname ||
+    url.hash !== "#library"
+  )
+    return;
+  const section = document.getElementById("library");
+  if (!section) return;
+  event.preventDefault();
+  const top = section.getBoundingClientRect().top + window.scrollY;
+  // useScroll's [start 55%, end 100%] mapping, safely beyond the .53 activation threshold.
+  const enhanced =
+    section.classList.contains("aperture-ready") && section.offsetHeight > window.innerHeight;
+  const destination = enhanced
+    ? top - window.innerHeight * 0.55 + (section.offsetHeight - window.innerHeight * 0.45) * 0.7
+    : top;
+  if (window.location.hash !== url.hash)
+    window.history.pushState(window.history.state, "", url.hash);
+  window.scrollTo({
+    top: Math.max(0, destination),
+    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+  });
+}
 function Site({ calm, setCalm }) {
   const reduced = useCalm();
   return (
-    <div id="top" data-theme="dark">
+    <div id="top" data-theme="dark" onClick={openLibrary}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
