@@ -43,7 +43,7 @@ function SidebarMascot({ open }: { open: boolean }) {
   const mood = useMascotMood({ searchFocused, query, captureFailed });
   return (
     <span {...stylex.props(styles.mascotSlot, searchFocused && styles.mascotAway)}>
-      <Mascot mood={mood} size={64} visible={open && !searchFocused} />
+      <Mascot mood={mood} size={44} visible={open && !searchFocused} />
     </span>
   );
 }
@@ -220,13 +220,10 @@ const styles = stylex.create({
   },
   // macOS draws its traffic lights at the top left, so the brand sits below them.
   belowLights: { marginTop: "14px" },
-  // The figure fills ~63% of its canvas (the rest is for the orbit rings), so the canvas outgrows the 44px the row gives it.
   mascotSlot: {
     display: "block",
-    width: "64px",
-    height: "64px",
-    marginLeft: "-4px",
-    marginRight: "-12px",
+    width: "44px",
+    height: "44px",
     flexShrink: 0,
     opacity: 1,
     transitionProperty: "opacity",
