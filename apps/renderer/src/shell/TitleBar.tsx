@@ -20,7 +20,10 @@ export function TitleBar() {
         )}
       />
       {custom && desktop && (
-        <div aria-label="Window controls" {...stylex.props(styles.controls)}>
+        <div
+          aria-label="Window controls"
+          {...stylex.props(styles.controls, open && styles.brandRow)}
+        >
           <button
             type="button"
             aria-label="Minimize"
@@ -82,6 +85,8 @@ const styles = stylex.create({
     WebkitAppRegion: "no-drag",
     zIndex: 40,
   },
+  // Share the expanded sidebar's brand row; the compact rail keeps its usable caption strip.
+  brandRow: { top: "22px", left: "172px" },
   control: {
     display: "grid",
     placeItems: "center",

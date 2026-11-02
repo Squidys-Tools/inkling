@@ -107,10 +107,16 @@ export function Sidebar({
           styles.sidebar,
           styles.width(width),
           narrow && styles.narrow,
+          chrome.controls === "custom-right" && !compact && styles.unifiedHeader,
           chrome.controls === "native-left" && styles.belowLights,
         )}
       >
-        <div {...stylex.props(styles.brand)}>
+        <div
+          {...stylex.props(
+            styles.brand,
+            chrome.controls === "custom-right" && !compact && styles.captionSpace,
+          )}
+        >
           {compact ? (
             <button
               type="button"
@@ -232,6 +238,7 @@ const styles = stylex.create({
     // The main frame reveals this panel; never animate sidebar layout width.
   },
   width: (width: number) => ({ width: width - 16 }),
+  unifiedHeader: { paddingTop: "4px" },
   belowLights: { top: "32px", paddingTop: "8px" },
   narrow: { position: "fixed", zIndex: 30, backgroundColor: color.window },
   scrim: {
@@ -252,9 +259,11 @@ const styles = stylex.create({
     height: "44px",
     paddingInline: "4px",
     marginBottom: "-8px",
-    WebkitAppRegion: "no-drag",
+    WebkitAppRegion: "drag",
   },
+  captionSpace: { paddingRight: "64px" },
   mascotButton: {
+    WebkitAppRegion: "no-drag",
     display: "block",
     width: "44px",
     height: "44px",
@@ -268,7 +277,7 @@ const styles = stylex.create({
     outlineOffset: "-2px",
   },
   wordmark: {
-    marginLeft: "6px",
+    marginLeft: "-4px",
     fontFamily: font.quote,
     fontSize: "20px",
     lineHeight: 1,
@@ -278,6 +287,7 @@ const styles = stylex.create({
     userSelect: "none",
   },
   close: {
+    WebkitAppRegion: "no-drag",
     display: "grid",
     placeItems: "center",
     width: "30px",
