@@ -6,7 +6,7 @@ import { IMAGE_MODEL, TEXT_MODEL } from "@inkling/contracts/jobs";
 import { fixture } from "@inkling/jobs/test-fixtures";
 import { Effect } from "effect";
 import { URL_ENRICHMENT_JOB } from "../storage/library.ts";
-import { enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
+import { enqueueLongTextEmbeddings, enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
 import {
   cleanUpJobTests,
   createJobs,
@@ -247,4 +247,19 @@ test("PDF capture stays instant and the OCR job publishes the page-one thumbnail
     "generate_embedding",
     "ocr_pdf_page",
   ]);
+});
+
+test("text the old single window may have cut is re-embedded once, short text is left alone", async () => {
+  const { library } = await temporaryLibrary();
+  const long = await library.createNote({ title: "Long", body: "word ".repeat(2000) });
+  const short = await library.createNote({ title: "Short", body: "A few words." });
+  for (const note of [long, short])
+    await library.storeEmbedding(note.id, "text", TEXT_MODEL, Buffer.alloc(8), 2);
+  library.db.exec("DELETE FROM jobs");
+  expect(await library.run(enqueueLongTextEmbeddings)).toBe(1);
+  const queued = library.db
+    .prepare("SELECT item_id FROM jobs WHERE kind = 'generate_embedding'")
+    .all();
+  expect(queued).toEqual([{ item_id: long.id }]);
+  expect(await library.run(enqueueLongTextEmbeddings)).toBe(0);
 });

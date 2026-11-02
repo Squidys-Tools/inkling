@@ -3,28 +3,66 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Glass } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { search, useSearch } from "../library/search.ts";
 import { MascotEyes } from "../mascot/Mascot.tsx";
 import { handleCommand } from "../shell/commands.ts";
 import { setSearchFocused, useViewState } from "./viewState.ts";
+import { searchSurfaceFrames } from "./searchSurface.ts";
 
-const grow = stylex.keyframes({
-  from: { opacity: 0.6, transform: "translateX(-50%) scale(0.97)" },
-  to: { opacity: 1, transform: "translateX(-50%) scale(1)" },
+const reveal = stylex.keyframes({
+  from: { opacity: 0, transform: "translateY(3px)" },
+  to: { opacity: 1, transform: "none" },
 });
 
 /**
  * At rest a pill naming what the grid shows; focused, the full search field.
- * The field switches size at once and settles with a transform, so nothing
- * lays out per frame. A search always runs over the whole library.
+ * Only the glass backing morphs between the two measured bounds; text and
+ * pointer targets stay unscaled. Search always runs over the whole library.
  */
 export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary: boolean }) {
   const navigate = useNavigate();
   const query = useSearch((state) => state.query);
   const focused = useViewState((state) => state.searchFocused);
   const input = useRef<HTMLInputElement>(null);
+  const surface = useRef<HTMLDivElement>(null);
+  const origin = useRef<DOMRect | null>(null);
+  const flight = useRef<Animation | null>(null);
+  const focusChanged = (next: boolean) => {
+    if (focused === next) return;
+    // Read the current animated bounds before changing layout, including a mid-flight reversal.
+    origin.current = surface.current?.getBoundingClientRect() ?? null;
+    setSearchFocused(next);
+  };
+
+  useLayoutEffect(() => {
+    const element = surface.current;
+    const from = origin.current;
+    origin.current = null;
+    flight.current?.cancel();
+    if (!element || !from || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const computed = getComputedStyle(element);
+    const frames = searchSurfaceFrames(
+      from,
+      element.getBoundingClientRect(),
+      computed.borderRadius,
+    );
+    if (!frames) return;
+    const duration = parseFloat(computed.transitionDuration) * 1000;
+    const animation = element.animate(frames, {
+      duration: duration * (focused ? 1 : 0.7),
+      easing: computed.transitionTimingFunction,
+    });
+    flight.current = animation;
+    return () => animation.cancel();
+  }, [focused]);
+
+  useEffect(() => {
+    const stop = () => flight.current?.cancel();
+    window.addEventListener("resize", stop);
+    return () => window.removeEventListener("resize", stop);
+  }, []);
 
   useEffect(
     () =>
@@ -37,7 +75,8 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
   );
 
   return (
-    <Glass style={[styles.field, focused ? styles.expanded : styles.resting]}>
+    <div {...stylex.props(styles.field, focused ? styles.expanded : styles.resting)}>
+      <Glass ref={surface} aria-hidden="true" data-bench="search-surface" style={styles.surface} />
       <label {...stylex.props(styles.label, focused && styles.labelExpanded)}>
         {!focused && (
           <span {...stylex.props(styles.rest)} aria-hidden="true">
@@ -60,8 +99,8 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
           aria-label="Search your mind"
           spellCheck={false}
           autoComplete="off"
-          onFocus={() => setSearchFocused(true)}
-          onBlur={() => setSearchFocused(false)}
+          onFocus={() => focusChanged(true)}
+          onBlur={() => focusChanged(false)}
           onChange={(event) => {
             const value = event.target.value;
             search.setQuery(value);
@@ -78,7 +117,7 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
         />
         {focused && <kbd {...stylex.props(styles.hint)}>esc to close</kbd>}
       </label>
-    </Glass>
+    </div>
   );
 }
 
@@ -90,6 +129,18 @@ const styles = stylex.create({
     display: "flex",
     color: color.muted,
     transform: "translateX(-50%)",
+    pointerEvents: "auto",
+    WebkitAppRegion: "no-drag",
+  },
+  surface: {
+    position: "absolute",
+    inset: 0,
+    borderRadius: "inherit",
+    pointerEvents: "none",
+    transformOrigin: "top left",
+    transitionProperty: "none",
+    transitionDuration: motion.layout,
+    transitionTimingFunction: motion.enter,
   },
   resting: {
     top: "9px",
@@ -102,11 +153,9 @@ const styles = stylex.create({
     width: "min(700px, calc(100% - 304px))",
     minWidth: "min(420px, calc(100% - 28px))",
     borderRadius: radius.overlay,
-    animationName: grow,
-    animationDuration: motion.micro,
-    animationTimingFunction: motion.enter,
   },
   label: {
+    position: "relative",
     display: "flex",
     alignItems: "center",
     gap: "8px",
@@ -120,6 +169,9 @@ const styles = stylex.create({
     gap: "12px",
     paddingInline: "16px",
     cursor: "text",
+    animationName: reveal,
+    animationDuration: motion.reveal,
+    animationTimingFunction: motion.enter,
   },
   rest: {
     display: "inline-flex",

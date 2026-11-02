@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { storageFailure } from "./errors.ts";
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 const itemsSchema = `
 CREATE TABLE IF NOT EXISTS items (
@@ -82,6 +82,13 @@ CREATE TABLE IF NOT EXISTS space_items (
   PRIMARY KEY (space_id, item_id)
 );
 CREATE INDEX IF NOT EXISTS idx_space_items_item ON space_items (item_id);
+CREATE TABLE IF NOT EXISTS space_exclusions (
+  space_id TEXT NOT NULL,
+  item_id TEXT NOT NULL,
+  excluded_at INTEGER NOT NULL,
+  PRIMARY KEY (space_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_space_exclusions_item ON space_exclusions (item_id);
 `;
 
 const appSettingsSchema = `
@@ -227,6 +234,10 @@ export function openDatabase(databasePath: string) {
     ["progress_message", "TEXT"],
   ]);
   migrateItemColumns(db, version < SCHEMA_VERSION);
+  // Optional lookup index, including existing version-9 libraries. Invalid legacy
+  // metadata is ignored here rather than preventing the library from opening.
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_items_screenshot_hash ON items
+    (CASE WHEN json_valid(metadata) THEN json_extract(metadata, '$.screenshotHash') END)`);
   db.exec(embeddingsSchema);
   db.exec(spacesSchema);
   db.exec(appSettingsSchema);

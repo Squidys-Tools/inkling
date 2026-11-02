@@ -12,6 +12,7 @@ import { GeneralPanel } from "./GeneralPanel.tsx";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { LicensesPanel } from "./LicensesPanel.tsx";
 import { railSections, type SettingsSection } from "./sections.ts";
+import { ScreenshotsPanel } from "./ScreenshotsPanel.tsx";
 import { UpdatesPanel } from "./UpdatesPanel.tsx";
 
 function useAppVersion(open: boolean) {
@@ -104,6 +105,7 @@ export function SettingsSheet() {
           {section === "appearance" && <AppearancePanel onClose={close} />}
           {section === "library" && <LibraryPanel onClose={close} />}
           {section === "extension" && <ExtensionPanel onClose={close} />}
+          {section === "screenshots" && <ScreenshotsPanel onClose={close} />}
           {section === "updates" && <UpdatesPanel onClose={close} />}
         </Dialog.Popup>
       </Dialog.Portal>

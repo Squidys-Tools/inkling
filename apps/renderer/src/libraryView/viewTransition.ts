@@ -1,47 +1,71 @@
+// Based on Chris's merged PR233: fade out, switch layout, stagger the new cards in.
+import { flushSync } from "react-dom";
 import { setEntering, setListMode, viewState } from "./viewState.ts";
-
-// The easings of the transition this restores: power1.in out, power2.out in.
 const easeIn = "cubic-bezier(0.55, 0.085, 0.68, 0.53)";
 const easeOut = "cubic-bezier(0.215, 0.61, 0.355, 1)";
-
+const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const gridElement = () => document.querySelector<HTMLElement>('[data-bench="grid"]');
-const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-/** A card's entrance delay in ms, staggered by where it sits in the scroll viewport (0–1). */
-export function entranceDelay(list: boolean, down: number, across: number) {
-  return (list ? down * 0.28 : (down + across) * 0.2) * 1000;
-}
-
-/** Only cards intersecting the scroll viewport take part in the entrance. */
-export function inViewport(
+export const entranceDelay = (list: boolean, down: number, across: number) =>
+  Math.min(160, Math.max(0, (list ? down * 0.28 : (down + across) * 0.2) * 1000));
+export const inViewport = (
   card: { top: number; bottom: number },
   view: { top: number; bottom: number },
-) {
-  return card.bottom > view.top && card.top < view.bottom;
+) => card.bottom > view.top && card.top < view.bottom;
+
+export function animateArrival(element: HTMLElement, list: boolean) {
+  if (reduced()) return [];
+  const holdUntilGroupSettles = viewState.get().entering;
+  const view = (element.parentElement ?? element).getBoundingClientRect();
+  return [...element.querySelectorAll<HTMLElement>('[data-bench="card"]')]
+    .filter((card) => inViewport(card.getBoundingClientRect(), view))
+    .map((card) => {
+      const rect = card.getBoundingClientRect();
+      const animation = card.animate(
+        [
+          { opacity: 0, transform: "translateY(8px)" },
+          { opacity: 1, transform: "none" },
+        ],
+        {
+          duration: 240,
+          delay: entranceDelay(
+            list,
+            (rect.top - view.top) / view.height,
+            (rect.left - view.left) / view.width,
+          ),
+          easing: easeOut,
+          fill: "both",
+        },
+      );
+      void animation.finished.then(
+        () => {
+          if (!holdUntilGroupSettles) animation.cancel();
+        },
+        () => {},
+      );
+      return animation;
+    });
 }
 
 let run = 0;
 let requested: boolean | null = null;
 let fade: Animation | null = null;
 let entrance: Animation[] = [];
-
-/** The grid↔list toggle: fade the grid out, flip the layout, stagger the new cards in. */
 export function switchView(list: boolean) {
   if (list === (requested ?? viewState.get().list)) return;
   requested = list;
   const thisRun = ++run;
   const element = gridElement();
-  // Read the shown opacity before canceling, so a mid-fade toggle falls from it.
-  const shown = element ? getComputedStyle(element).opacity : "1";
+  const opacity = element ? getComputedStyle(element).opacity : "1";
   fade?.cancel();
-  for (const animation of entrance) animation.cancel();
+  entrance.forEach((animation) => animation.cancel());
   entrance = [];
-  if (!element || reducedMotion()) {
+  if (!element || reduced()) {
     setEntering(false);
     setListMode(list);
+    requested = null;
     return;
   }
-  fade = element.animate([{ opacity: shown }, { opacity: 0 }], {
+  fade = element.animate([{ opacity }, { opacity: 0 }], {
     duration: 160,
     easing: easeIn,
     fill: "forwards",
@@ -52,62 +76,29 @@ export function switchView(list: boolean) {
       setEntering(true);
       fade?.cancel();
       fade = null;
-      // A flip remounts the masonry; toggling back keeps the view already shown.
-      if (list !== viewState.get().list) setListMode(list);
+      setListMode(list);
       waitForCards(thisRun, list, 0);
     },
     () => {},
   );
 }
-
-// The remounted grid lays out over two frames; give its cards a bounded wait after.
-const mountFrames = 8;
-
 function waitForCards(thisRun: number, list: boolean, frames: number) {
   requestAnimationFrame(() => {
     if (thisRun !== run) return;
     const element = gridElement();
-    if (
-      frames < 2 ||
-      (frames < mountFrames && element && !element.querySelector('[data-bench="card"]'))
-    ) {
+    if (frames < 2 || (frames < 8 && element && !element.querySelector('[data-bench="card"]'))) {
       waitForCards(thisRun, list, frames + 1);
       return;
     }
-    play(thisRun, list);
+    entrance = element ? animateArrival(element, list) : [];
+    void Promise.allSettled(entrance.map((animation) => animation.finished)).then(() => {
+      if (thisRun !== run) return;
+      // Earlier cards must keep their finished fill until every stagger ends.
+      // Commit removal of the CSS hidden marker before releasing those fills.
+      flushSync(() => setEntering(false));
+      entrance.forEach((animation) => animation.cancel());
+      entrance = [];
+      requested = null;
+    });
   });
-}
-
-function play(thisRun: number, list: boolean) {
-  const element = gridElement();
-  if (!element) return finish();
-  const view = element.getBoundingClientRect();
-  const from: Keyframe = list
-    ? { opacity: 0, transform: "translateY(-6px)" }
-    : { opacity: 0, transform: "scale(0.96)" };
-  for (const card of element.querySelectorAll<HTMLElement>('[data-bench="card"]')) {
-    const rect = card.getBoundingClientRect();
-    if (!inViewport(rect, view)) continue;
-    const down = Math.max(0, rect.top - view.top) / view.height;
-    const across = Math.max(0, rect.left - view.left) / view.width;
-    entrance.push(
-      card.animate([from, { opacity: 1, transform: "none" }], {
-        duration: 300,
-        delay: entranceDelay(list, down, across),
-        easing: easeOut,
-        fill: "both",
-      }),
-    );
-  }
-  if (entrance.length === 0) return finish();
-  void Promise.allSettled(entrance.map((animation) => animation.finished)).then(() => {
-    if (thisRun === run) finish();
-  });
-}
-
-// Back to the stylesheets: a left fill would outrank the cards' hover transform.
-function finish() {
-  for (const animation of entrance) animation.cancel();
-  entrance = [];
-  setEntering(false);
 }

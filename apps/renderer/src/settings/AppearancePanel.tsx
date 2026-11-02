@@ -1,7 +1,7 @@
 import { GridViewIcon } from "@hugeicons/core-free-icons";
-import { SegmentedControl } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
-import { color } from "@inkling/ui/tokens.stylex";
+import { SegmentedControl } from "@inkling/ui";
+import { color, radius } from "@inkling/ui/tokens.stylex";
 import {
   setViewToggleStyle,
   useViewToggleStyle,
@@ -12,7 +12,7 @@ import { Panel, PanelBody, Row } from "./parts.tsx";
 export function AppearancePanel({ onClose }: { onClose: () => void }) {
   const viewToggle = useViewToggleStyle();
   return (
-    <Panel title="Appearance" note="How parts of the app look." onClose={onClose}>
+    <Panel title="Appearance" onClose={onClose}>
       <PanelBody>
         <Row
           icon={GridViewIcon}
@@ -22,8 +22,8 @@ export function AppearancePanel({ onClose }: { onClose: () => void }) {
             <SegmentedControl
               name="appearance-view-toggle"
               label="Grid and list toggle style"
-              value={viewToggle}
               options={viewToggleStyles}
+              value={viewToggle}
               onChange={setViewToggleStyle}
               style={styles.segmented}
             />
@@ -36,11 +36,11 @@ export function AppearancePanel({ onClose }: { onClose: () => void }) {
 
 const styles = stylex.create({
   segmented: {
-    width: "fit-content",
-    maxWidth: "100%",
+    flexShrink: 0,
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: color.border,
+    borderRadius: radius.tile,
     backgroundColor: color.surface,
   },
 });

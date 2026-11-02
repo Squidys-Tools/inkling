@@ -35,10 +35,10 @@ export const defaultOcrWorkers = () =>
   );
 
 // Tesseract's heap grows to the largest image a worker has read and never
-// shrinks, so passes over a large image are limited to two at a time and the
+// shrinks, so passes over a large image run one at a time and the
 // worker that ran one is replaced afterwards. Small images keep the full pool.
 export const LARGE_OCR_PIXELS = 6_000_000;
-const LARGE_OCR_PASSES = 2;
+const LARGE_OCR_PASSES = 1;
 
 export function createTesseractOcr({
   cacheDirectory,
@@ -127,7 +127,15 @@ export function createTesseractOcr({
   async function retire(slot: number) {
     const current = workers[slot];
     workers[slot] = undefined;
-    await current?.then((done) => done.terminate()).catch(() => {});
+    // A hung terminate must not hold a large-image token for the rest of the session.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      current?.then((done) => done.terminate()).catch(() => {}),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, 2000);
+      }),
+    ]);
+    clearTimeout(timer);
   }
   // A pass may prepare its bytes once it holds a worker, so at most `poolSize`
   // rotated copies are alive at once across every file.
