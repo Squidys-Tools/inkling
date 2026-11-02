@@ -5,7 +5,6 @@
 
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ensureElectron } from "./ensure-electron.ts";
 import { seedLibrary } from "./seeded-library.ts";
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -21,7 +20,8 @@ for (let index = 0; index < args.length; index++) {
 const directory = override ? resolve(repo, override) : join(repo, ".dev-library");
 if (!override && (await seedLibrary(directory)))
   console.log(`dev: seeded the demo library into ${directory}`);
-const executable = ensureElectron();
+// electron/index.js downloads the binary on first use; its default export is the path.
+const executable = (await import("electron")).default as unknown as string;
 const env = { ...process.env };
 // Harnesses set ELECTRON_RUN_AS_NODE to reuse the binary as plain Node; an
 // inherited copy makes the app exit at startup.
