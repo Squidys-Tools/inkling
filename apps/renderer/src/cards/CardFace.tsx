@@ -155,8 +155,8 @@ const styles = stylex.create({
     transitionDuration: motion.layout,
     transitionTimingFunction: motion.standard,
     // Selection and focus draw the same inset ring, so a selected card never shows two.
-    outline: { default: "none", ":focus-visible": `1px solid ${color.inkStrong}` },
-    outlineOffset: "-1px",
+    outline: { default: "none", ":focus-visible": `2px solid ${color.inkStrong}` },
+    outlineOffset: "-2px",
   },
   ratio: (ratio: number) => ({ aspectRatio: ratio }),
   surface: { backgroundColor: color.surface },
@@ -167,7 +167,7 @@ const styles = stylex.create({
     borderRadius: radius.panel,
   },
   selected: {
-    outline: `1px solid ${color.inkStrong}`,
+    outline: `2px solid ${color.inkStrong}`,
   },
   strip: {
     position: "relative",
