@@ -2,7 +2,7 @@ name: Electron Preview
 
 on:
   pull_request:
-    types: [labeled, synchronize, reopened]
+    types: [opened, synchronize, reopened]
     paths-ignore:
       - "**/*.md"
       - "docs/**"
@@ -47,6 +47,7 @@ jobs:
           filters: |
             electron:
               - 'apps/**'
+              - '!apps/site/**'
               - 'packages/**'
               - 'tools/smoke/**'
               - 'tools/models/**'
@@ -61,9 +62,7 @@ jobs:
     needs: changes
     if: >-
       needs.changes.outputs.electron == 'true' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      contains(github.event.pull_request.labels.*.name, 'preview:win') &&
-      (github.event.action != 'labeled' || github.event.label.name == 'preview:win')
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
     timeout-minutes: 35
 
@@ -116,7 +115,7 @@ jobs:
 
             [Download the Electron NSIS installer](${{ steps.installer.outputs.artifact-url }}) (for ${{ github.event.pull_request.head.sha }})
 
-            [Build details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) · Add the `preview:win` label to refresh it.
+            [Build details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             The installer bundles the pinned embedding models. It is unsigned and may trigger a Windows SmartScreen warning.
 
   build-linux:
