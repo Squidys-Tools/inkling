@@ -64,8 +64,8 @@ function findPackage(name: string, fromDir: string) {
   }
 }
 
-/** The package folder a bundled module came from, or null for the app's own code. */
-export function packageDirOf(moduleId: string) {
+/** The unresolved package folder path a bundled module came from, or null for the app's own code. */
+export function packagePathOf(moduleId: string) {
   // Vite writes module ids with forward slashes on every system, Windows included.
   const path = moduleId.replace(/^\0/, "").replace(/\?.*$/, "").replaceAll("\\", "/");
   const marker = "/node_modules/";
@@ -73,7 +73,13 @@ export function packageDirOf(moduleId: string) {
   if (at < 0) return null;
   const [scopeOrName = "", name] = path.slice(at + marker.length).split("/");
   const packagePath = scopeOrName.startsWith("@") ? `${scopeOrName}/${name}` : scopeOrName;
-  return realpathSync(path.slice(0, at + marker.length) + packagePath);
+  return path.slice(0, at + marker.length) + packagePath;
+}
+
+/** The package folder a bundled module came from, or null for the app's own code. */
+export function packageDirOf(moduleId: string) {
+  const path = packagePathOf(moduleId);
+  return path && realpathSync(path);
 }
 
 function licenseOf(manifest: Manifest) {

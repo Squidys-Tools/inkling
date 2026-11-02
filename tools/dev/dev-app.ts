@@ -1,10 +1,11 @@
 // dev:app's launcher: the app runs against the worktree's .dev-library/,
-// seeded with the web preview's demo data on first run, so no dev run can
-// stamp the real library. An explicit --user-data-dir is used as-is, never
-// seeded. Delete .dev-library/ to reseed.
+// seeded on first run; --user-data-dir skips seeding. The stock binary runs
+// unrenamed: a renamed exe makes Electron report app.isPackaged, which would
+// register the inkling:// handler in dev.
 
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ensureElectron } from "./ensure-electron.ts";
 import { seedLibrary } from "./seeded-library.ts";
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -20,29 +21,19 @@ for (let index = 0; index < args.length; index++) {
 const directory = override ? resolve(repo, override) : join(repo, ".dev-library");
 if (!override && (await seedLibrary(directory)))
   console.log(`dev: seeded the demo library into ${directory}`);
-const electron = (await import("electron")).default as unknown as string;
+const executable = ensureElectron();
+const env = { ...process.env };
 // Harnesses set ELECTRON_RUN_AS_NODE to reuse the binary as plain Node; an
 // inherited copy makes the app exit at startup.
-const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
-let executable = electron;
-if (process.platform === "win32" || process.platform === "linux" || process.platform === "darwin") {
-  const prepare = Bun.spawn(["bun", join(repo, "tools/dev/prepare-dev-electron.mjs"), electron], {
+// Renderer console messages reach the terminal.
+env.ELECTRON_ENABLE_LOGGING ??= "1";
+const app = Bun.spawn(
+  [executable, ".", "--enable-logging", `--user-data-dir=${directory}`, ...rest],
+  {
+    stdio: ["inherit", "inherit", "inherit"],
     cwd: repo,
     env,
-    stdout: "pipe",
-    stderr: "inherit",
-  });
-  const [preparedPath, exitCode] = await Promise.all([
-    new Response(prepare.stdout).text(),
-    prepare.exited,
-  ]);
-  if (exitCode !== 0) throw new Error("Could not prepare the inkling development executable.");
-  executable = preparedPath.trim();
-}
-const app = Bun.spawn([executable, ".", "--dev", `--user-data-dir=${directory}`, ...rest], {
-  stdio: ["inherit", "inherit", "inherit"],
-  cwd: repo,
-  env,
-});
+  },
+);
 process.exitCode = await app.exited;

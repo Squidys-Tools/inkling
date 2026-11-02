@@ -15,7 +15,10 @@ import { appUrl, assetsDirectoryOf, handleAppScheme, registerAppScheme } from ".
 
 const bundleDirectory = dirname(fileURLToPath(import.meta.url));
 app.setName("inkling");
-if (process.platform === "win32") app.setAppUserModelId("com.inkling.library");
+// Windows falls back to the exe icon on the taskbar for an unregistered AUMID;
+// unpackaged dev windows must inherit electron.exe's AUMID so the window icon shows.
+if (process.platform === "win32" && (app.isPackaged || process.env.INKLING_APP_USER_MODEL_ID))
+  app.setAppUserModelId(process.env.INKLING_APP_USER_MODEL_ID ?? "com.inkling.library");
 if (process.platform === "linux") app.setDesktopName("inkling");
 const applicationIconFile = process.platform === "win32" ? "icon.ico" : "icon.png";
 const applicationIcon = app.isPackaged
