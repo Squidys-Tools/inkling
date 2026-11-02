@@ -1,30 +1,28 @@
-# Capture a quote from Add
+# Capture a quote
 
-## User flow
+Capture a quote saves quote text with an optional attribution as a quote card. Status: **driven** on 2026-11-02.
 
-Choose **Add → Quote**, enter the required quote text, optionally enter an attribution and source URL, then choose **Save to library**. Ctrl+Enter on Windows/Linux or Cmd+Enter on macOS also submits. Saving returns to Everything and selects the new quote card.
+## Sub-features
 
-## Driving it with `scripts/drive.mjs`
+- `quote-open` opens the quote form from Add.
+- `quote-save` saves the quote and shows its card in Everything.
+- `quote-store` stores title, attribution and source label.
 
-Leave Source URL empty to keep the drive independent of the network.
+## How to get to it (user POV)
 
-```json
-[
-  {"label":"open Add","clickText":{"selector":"button","text":"Add"}},
-  {"label":"choose Quote","clickText":{"selector":"[role=menuitem]","text":"Quote"}},
-  {"label":"quote field","wait":"textarea[aria-label='Quote text']"},
-  {"label":"type quote","fill":"textarea[aria-label='Quote text']","text":"Small steps cross oceans"},
-  {"label":"attribution","fill":"input[aria-label='Attribution']","text":"Ada Probe, Notes"},
-  {"label":"save","clickText":{"selector":"button","text":"Save to library"}},
-  {"label":"quote card appears","expect":"document.querySelectorAll(\"article[aria-label^='Quote:']\").length > 0","timeoutMs":10000},
-  {"label":"shot","shot":"quote-saved.png"}
-]
-```
+- Choose **Add**, then **Quote**.
 
-The card is the visible proof. Read the scratch `items` row to prove `kind = 'quote'`, `title` is the quote, `description` is the attribution, `body = ''`, `source_label` is the attribution before its comma when no URL is set, `metadata.quoteText` is the quote, and `archived = 0`.
+## Driving it with agent-desktop
+
+Preconditions: seeded library; leave `Source URL` empty to stay offline.
+
+- **Open.** `$I ad expand "$($I ref menubutton Add)"`, then `$I ad click "$($I ref menuitem Quote)"`. Route `#/add/quote`; textfields `Quote text`, `Attribution`, `Source URL`; `Save to library` is disabled until quote text is set.
+- **Fill.** `$I ad set-value "$($I ref textfield 'Quote text')" 'Small steps cross oceans'` and `$I ad set-value "$($I ref textfield Attribution)" 'Ada Probe, Notes'`. `$I shot q1`.
+- **Save.** `$I ad click "$($I ref button 'Save to library')"`.
+- **Proof.** `$I tree | grep -E 'Everything|Quote:'` shows `Everything` +1 and a group `Quote: Small steps cross oceans`; `$I shot q2`; `$I db "SELECT kind,title,description,body,source_label,metadata FROM items ORDER BY created_at DESC LIMIT 1"` → kind `quote`, title = the quote, description = `Ada Probe, Notes`, body `''`, source_label `Ada Probe`, metadata `captureSource` `quick quote` plus `quoteText` and `attribution`.
 
 ## Gotchas
 
-- Add opens a menu and then a full-page form; there is no `.add-menu-panel` or `.add-menu-save` element.
-- The attribution field is labeled **Attribution**.
-- Quote text is stored in `title` and `metadata.quoteText`; attribution is stored in `description`.
+- Unlike the note editor, the fields are plain textfields.
+- A filled `Source URL` triggers a network fetch: leave it empty.
+- Attribution is stored whole in `description`; `source_label` is the part before the first comma.

@@ -7,6 +7,9 @@ dist
 # dev:app's seeded scratch library
 .dev-library/
 
+# Verification-only app data and agent-desktop state (verify-inkling skill); deleted whole by its cleanup
+.dev/
+
 # Benchmark run artifacts (only results-latest.json and summary.md are tracked)
 benchmarks/results/results-*.json
 !benchmarks/results/results-latest.json
