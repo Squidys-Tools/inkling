@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { captureDestination, saveCaptured } from "../../capture/capture.ts";
 import type { LibraryClient } from "../../library/connection.ts";
 import { errorMessage } from "../../library/errors.ts";
+import { notifyError } from "../../notifications/toasts.ts";
 import { useStepBack } from "../navigation.ts";
 import { useEscape } from "../useEscape.ts";
 import { useMounted } from "../useMounted.ts";
@@ -40,6 +41,7 @@ export function useAddPage() {
       await saveCaptured(write, destination.current);
     } catch (saveError) {
       setError(errorMessage(saveError));
+      notifyError("Couldn’t save this yet", errorMessage(saveError), "capture-error");
       throw saveError;
     } finally {
       busy.current = false;

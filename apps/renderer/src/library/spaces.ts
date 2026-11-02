@@ -2,6 +2,7 @@ import type { Space, SpaceColor, SpaceKind } from "@inkling/contracts";
 import { libraryClient } from "./connection.ts";
 import { errorMessage } from "./errors.ts";
 import { createStore, useStore } from "./store.ts";
+import { notify, notifyError } from "../notifications/toasts.ts";
 
 const spaceColors: readonly SpaceColor[] = ["blue", "orange", "green", "pink", "purple", "yellow"];
 
@@ -52,8 +53,9 @@ export async function reloadSpaces() {
 async function attempt<T>(message: string, action: () => Promise<T>) {
   try {
     return await action();
-  } catch {
+  } catch (error) {
     fail(message);
+    notifyError(message, errorMessage(error), "space-error");
     return null;
   }
 }
@@ -73,6 +75,7 @@ export function createSpace(name: string, kind: SpaceKind, queryText: string) {
       ...state,
       spaces: ordered([...state.spaces.filter((space) => space.id !== created.id), created]),
     }));
+    notify("Space created", { description: created.name });
     return created;
   });
 }
@@ -90,7 +93,10 @@ export async function renameSpace(space: Space, name: string) {
   const updated = await attempt("Couldn’t rename this Space.", async () =>
     (await libraryClient()).updateSpace({ id: space.id, name: trimmed }),
   );
-  if (updated) replace(updated);
+  if (updated) {
+    replace(updated);
+    notify("Space renamed", { description: updated.name });
+  }
   return updated !== null;
 }
 
@@ -135,6 +141,7 @@ export async function deleteSpace(space: Space) {
       ...state,
       spaces: state.spaces.filter((candidate) => candidate.id !== space.id),
     }));
+  if (done) notify("Space deleted", { description: "Its items are still in your library." });
   return done === true;
 }
 
@@ -145,6 +152,8 @@ export async function setInSpace(spaceId: string, itemId: string, filed: boolean
       const client = await libraryClient();
       if (filed) await client.addToSpace({ spaceId, itemId });
       else await client.removeFromSpace({ spaceId, itemId });
+      const name = spacesStore.get().spaces.find((space) => space.id === spaceId)?.name ?? "Space";
+      notify(filed ? `Added to ${name}` : `Removed from ${name}`);
       return true;
     },
   );

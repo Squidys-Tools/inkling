@@ -1,11 +1,9 @@
-import { Cancel01Icon, ViewSidebarLeftIcon } from "@hugeicons/core-free-icons";
+import { ViewSidebarLeftIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
-import { dismissCaptureError, useCaptureState } from "../capture/capture.ts";
-import { dismissActionError, useActionError } from "../cards/actionError.ts";
 import { loadScope, showScope, shownScope, useScope } from "../library/cards.ts";
 import { scopeFromPath, scopeKey } from "../library/scope.ts";
 import { search, useSearch } from "../library/search.ts";
@@ -62,8 +60,6 @@ export function LibraryHost({
   const focused = useViewState((view) => view.searchFocused);
   const list = useViewState((view) => view.list);
   const entering = useViewState((view) => view.entering);
-  const captureError = useCaptureState((capture) => capture.error);
-  const actionError = useActionError();
 
   const archive = scope._tag === "Archived";
   const searching = query !== "" && !archive;
@@ -159,23 +155,9 @@ export function LibraryHost({
 
       {pinned && <FilterRow query={query} count={results?.length ?? null} />}
 
-      {(captureError || actionError || (searching && searchError)) && (
+      {searching && searchError && (
         <p role="alert" {...stylex.props(styles.error, pinned && styles.errorBelowFilter)}>
-          <span>
-            {captureError
-              ? `Couldn’t save this yet: ${captureError}`
-              : (actionError ?? `Couldn’t search: ${searchError}`)}
-          </span>
-          {(captureError || actionError) && (
-            <button
-              type="button"
-              aria-label="Dismiss"
-              onClick={captureError ? dismissCaptureError : dismissActionError}
-              {...stylex.props(styles.dismiss)}
-            >
-              <HugeiconsIcon icon={Cancel01Icon} size={12} />
-            </button>
-          )}
+          Couldn’t search: {searchError}
         </p>
       )}
 
@@ -253,19 +235,6 @@ const styles = stylex.create({
     color: color.danger,
   },
   errorBelowFilter: { top: "136px" },
-  dismiss: {
-    display: "grid",
-    placeItems: "center",
-    width: "20px",
-    height: "20px",
-    padding: 0,
-    borderWidth: 0,
-    borderRadius: radius.round,
-    backgroundColor: { default: "transparent", ":hover": color.dangerSoft },
-    color: { default: color.danger, ":hover": color.ink },
-    cursor: "pointer",
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-  },
   srOnly: {
     position: "absolute",
     width: "1px",

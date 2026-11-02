@@ -9,6 +9,7 @@ import { startLibrarySync } from "../library/sync.ts";
 import { LibraryHost } from "../libraryView/LibraryHost.tsx";
 import { toggleSidebar, useViewState } from "../libraryView/viewState.ts";
 import { ContextMenuLayer } from "../menu/contextMenu.tsx";
+import { Toaster } from "../notifications/Toaster.tsx";
 import { useFirstRun } from "../onboarding/useFirstRun.ts";
 import { SettingsSheet } from "../settings/SettingsSheet.tsx";
 import { handleCommand } from "./commands.ts";
@@ -85,6 +86,7 @@ export function AppShell() {
       <ShortcutsDialog />
       <SettingsSheet />
       <ContextMenuLayer />
+      <Toaster />
     </div>
   );
 }
