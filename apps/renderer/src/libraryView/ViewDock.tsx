@@ -1,14 +1,29 @@
 import { GridViewIcon, ListViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { Glass } from "@inkling/ui";
+import { Glass, SegmentedControl } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, motion, radius } from "@inkling/ui/tokens.stylex";
 import { useViewState } from "./viewState.ts";
+import { useViewToggleStyle } from "./viewToggleStyle.ts";
 import { switchView } from "./viewTransition.ts";
 
 /** The grid and list switch at the bottom of the frame. */
 export function ViewDock() {
   const list = useViewState((state) => state.list);
+  const look = useViewToggleStyle();
+  if (look === "segmented") {
+    return (
+      <Glass style={[styles.dock, styles.segmentedDock]}>
+        <SegmentedControl
+          name="library-view"
+          label="View options"
+          value={list ? "list" : "grid"}
+          options={viewOptions}
+          onChange={(view) => switchView(view === "list")}
+        />
+      </Glass>
+    );
+  }
   return (
     <Glass style={styles.dock} role="group" aria-label="View options">
       <span {...stylex.props(styles.thumb, list && styles.thumbList)} aria-hidden="true" />
@@ -53,6 +68,11 @@ function ViewButton({
   );
 }
 
+const viewOptions = [
+  { value: "grid", label: "Grid" },
+  { value: "list", label: "List" },
+] as const;
+
 const styles = stylex.create({
   dock: {
     position: "absolute",
@@ -68,6 +88,7 @@ const styles = stylex.create({
     borderRadius: radius.round,
     transform: "translateX(-50%)",
   },
+  segmentedDock: { gap: 0, height: "auto", padding: 0, borderRadius: radius.tile },
   thumb: {
     position: "absolute",
     top: "3px",

@@ -1,5 +1,6 @@
 import {
   Database02Icon,
+  PaintBoardIcon,
   Link01Icon,
   RotateCwIcon,
   Settings01Icon,
@@ -8,6 +9,7 @@ import {
 /** The rail, in order. Licenses opens from General and keeps General selected. */
 export const railSections = [
   { id: "general", label: "General", icon: Settings01Icon },
+  { id: "appearance", label: "Appearance", icon: PaintBoardIcon },
   { id: "library", label: "Library", icon: Database02Icon },
   { id: "extension", label: "Browser extension", icon: Link01Icon },
   { id: "updates", label: "Updates", icon: RotateCwIcon },
