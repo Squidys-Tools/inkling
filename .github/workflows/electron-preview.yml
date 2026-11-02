@@ -89,10 +89,7 @@ jobs:
       - name: Restore bun install cache
         uses: actions/cache@v6
         with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            extension/node_modules
+          path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-
 
@@ -153,10 +150,7 @@ jobs:
       - name: Restore bun install cache
         uses: actions/cache@v6
         with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            extension/node_modules
+          path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-
 
@@ -213,10 +207,7 @@ jobs:
       - name: Restore bun install cache
         uses: actions/cache@v6
         with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            extension/node_modules
+          path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-
 
