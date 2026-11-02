@@ -69,9 +69,10 @@ The usual defect works on the tested path and is missing elsewhere. Before calli
 
 ## Docs
 
-Most code changes need no docs change. Product intent lives in `docs/product.md` and `docs/product-behavior.md`, architecture reasons in `docs/tech-stack.md`, maintainer procedures in `docs/operations/`, milestone status in `docs/roadmap.md`, and changes in `docs/changelog.md`, whose rules are at its top. Keep each fact in one place. Write down only what a maintainer would get wrong without it, and when a decision changes, rewrite the text that described it. Keep plans and scratch notes outside the worktree.
+Most code changes need no docs change. Product intent lives in `docs/product.md` and `docs/product-behavior.md`, architecture reasons in `docs/tech-stack.md`, maintainer procedures in `docs/operations/`, milestone status in `docs/roadmap.md`, and what shipped in each release in `docs/changelog.md`. Keep each fact in one place. Write down only what a maintainer would get wrong without it, and when a decision changes, rewrite the text that described it. Keep plans and scratch notes outside the worktree.
 
-## Pull requests and Linear
+## Pull requests
 
-- Open a PR only when asked, one per request. Use a conventional commit title such as `fix(reader): code blocks keep line breaks`. The body gives the problem, the fix, and the model and harness that did the work. UI changes need before and after images and motion needs a short video, uploaded to GitHub rather than committed.
-- A Linear issue such as `SQU-6` tracks one task. Before starting, read it and its comments, move it to In Progress, and branch from its `gitBranchName`. Post progress as comments and leave the description alone. Leave an issue in In Review alone unless asked. When done, link the PR at the top of its description, move the issue to In Review, and in the same PR tick its box in `docs/roadmap.md` and add a changelog line with the issue ID. Move it to Done once the PR merges.
+- Open a PR only when asked, one per request. Use a conventional commit title such as `fix(reader): code blocks keep line breaks`, because release notes are drafted from PR titles. The body gives the problem, the fix, and the model and harness that did the work. UI changes need before and after images and motion needs a short video, uploaded to GitHub rather than committed.
+- When a GitHub issue tracks the task, read it and its comments before starting and put `Closes #N` in the PR body. If the PR finishes a roadmap item, tick its box in `docs/roadmap.md` in the same PR.
+- Do not add a changelog entry in a PR. The changelog is written when a release is cut; its rules are at the top of `docs/changelog.md`.
