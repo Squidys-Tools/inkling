@@ -37,15 +37,18 @@ test("retained sidebar keeps an 8px gap and round right edge throughout the slid
   expect(sidebarClip(500, 240)).toBe(0);
 });
 
-test("opening and reversal move frame bounds without scaling or relaying out card content", () => {
-  for (const [from, to, width] of [
-    [76, 248, 1032],
-    [171, 76, 1204],
-    [76, 0, 640],
+test("opening and reversal fill both frame edges without a scaled or held-width gallery", () => {
+  for (const [from, to] of [
+    [76, 248],
+    [171, 76],
+    [76, 0],
   ]) {
-    const frames = sidebarMotionFrames(from, to, width);
+    const frames = sidebarMotionFrames(from, to);
     expect(frames.frame).toEqual([{ left: `${from}px` }, { left: `${to}px` }]);
-    expect(frames.content).toEqual([{ width: `${width}px` }, { width: `${width}px` }]);
+    expect(frames.content).toEqual([
+      { width: "auto", left: "0px", right: "0px" },
+      { width: "auto", left: "0px", right: "0px" },
+    ]);
     expect(frames.frame.every((frame) => !("transform" in frame))).toBe(true);
   }
 });

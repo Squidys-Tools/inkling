@@ -18,11 +18,14 @@ export function sidebarFlight(
   };
 }
 
-/** Move bounds without scaling the retained library's contents. */
-export function sidebarMotionFrames(fromLeft: number, inset: number, contentWidth: number) {
+/** Move real bounds, never a scaled picture or a narrower fixed-width child. */
+export function sidebarMotionFrames(fromLeft: number, inset: number) {
   return {
     frame: [{ left: `${fromLeft}px` }, { left: `${inset}px` }],
-    content: [{ width: `${contentWidth}px` }, { width: `${contentWidth}px` }],
+    content: [
+      { width: "auto", left: "0px", right: "0px" },
+      { width: "auto", left: "0px", right: "0px" },
+    ],
   };
 }
 

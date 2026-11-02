@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { VirtuosoMasonry } from "@virtuoso.dev/masonry";
+import { flushSync } from "react-dom";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GridCell, type GridContext } from "../cards/Card.tsx";
 import type { CardLayout } from "../cards/CardMedia.tsx";
@@ -26,10 +27,8 @@ function columnCount(width: number, layout: CardLayout) {
 // pixels of cards are still below the fold.
 const loadAhead = 1600;
 
-/**
- * The virtualized masonry. Its width only changes when the frame settles (the
- * sidebar slide moves the frame by transform and lays this out once, at the
- * end), so a resize here is one relayout, never one per frame.
+/** Virtualized masonry fills the moving frame. CSS handles cell widths;
+ * React changes the column topology only at a responsive breakpoint.
  */
 export function Grid({
   ids,
@@ -85,13 +84,20 @@ export function Grid({
   useEffect(() => {
     const element = frame.current;
     if (!element) return;
+    let columns = 0;
     const observer = new ResizeObserver(([entry]) => {
       const next = Math.round(entry.contentRect.width);
-      if (next > 0) setWidth(next);
+      if (next <= 0) return;
+      const nextColumns = columnCount(next, layout);
+      if (nextColumns === columns) return;
+      columns = nextColumns;
+      // CSS follows the moving frame. React only changes at a column boundary,
+      // before paint, never once per pixel of the sidebar's journey.
+      flushSync(() => setWidth(next));
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [layout]);
 
   // A first page shorter than the window cannot be scrolled to its end, so
   // the next page is asked for as soon as it renders.

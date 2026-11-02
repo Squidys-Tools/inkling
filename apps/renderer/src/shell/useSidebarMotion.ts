@@ -7,8 +7,8 @@ import {
   sidebarMotionFrames,
 } from "./sidebarGeometry.ts";
 
-/** Move the frame edge while holding the library's destination layout stable.
- * Scaling the whole frame also stretched its images and text during opening.
+/** Move real frame bounds without stretching images or exposing empty strips.
+ * The grid commits responsive column changes only at their actual boundary.
  */
 export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) {
   const stage = useRef<HTMLElement>(null);
@@ -52,10 +52,10 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
       duration: changed && !reduced ? parseFloat(timing.transitionDuration) * 1000 || 300 : 0,
       easing: "cubic-bezier(0.2, 0, 0, 1)",
     };
-    const frames = sidebarMotionFrames(fromLeft, inset, element.offsetWidth);
+    const frames = sidebarMotionFrames(fromLeft, inset);
     const content = element.firstElementChild;
-    // Only the clipping shell changes width each frame. Its one retained child
-    // holds a constant width, so cards reflow once and are never scale-stretched.
+    // Real layout fills both edges throughout. A held destination width left
+    // an exposed strip; a transform stretched images. Neither is used here.
     contentFlight.current = content?.animate(frames.content, { ...options, fill: "both" }) ?? null;
     if (sidebar) {
       const width = sidebar.offsetWidth;
