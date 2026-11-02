@@ -5,6 +5,5 @@
   "buildCommand": "~/.bun/bin/bun run build",
   "outputDirectory": "dist/client",
   "cleanUrls": true,
-  "git": { "deploymentEnabled": { "main": false } },
-  "ignoreCommand": "node vercel-ignore.mjs"
+  "git": { "deploymentEnabled": false }
 }
