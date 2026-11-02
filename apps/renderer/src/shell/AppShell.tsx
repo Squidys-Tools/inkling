@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { cardColor, color, font, layout, motion, radius } from "@inkling/ui/tokens.stylex";
 import { useCaptureEvents } from "../capture/useCaptureEvents.ts";
 import { scopeFromPath } from "../library/scope.ts";
+import { selectCard, selection } from "../library/selection.ts";
 import { startLibrarySync } from "../library/sync.ts";
 import { LibraryHost } from "../libraryView/LibraryHost.tsx";
 import { toggleSidebar, useViewState } from "../libraryView/viewState.ts";
@@ -32,8 +33,32 @@ export function AppShell() {
   useCommands();
   useEffect(() => startLibrarySync(), []);
   useEffect(() => handleCommand("toggleSidebar", toggleSidebar), []);
+  // A press outside the marked card drops its mark; card clicks then mark the
+  // pressed card again after this runs. Presses inside an open item (or another
+  // escape-scoped surface) or an overlay's panel keep it: not a press elsewhere.
+  useEffect(() => {
+    const clear = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        (target.closest('[data-escape-scope], [role="dialog"], [role="menu"]') ||
+          target.closest("article[data-item-id]")?.getAttribute("data-item-id") === selection.get())
+      )
+        return;
+      selectCard(null);
+    };
+    document.addEventListener("pointerdown", clear, true);
+    return () => document.removeEventListener("pointerdown", clear, true);
+  }, []);
 
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  // Keyboard shortcuts open an Add page with no pointerdown to drop the mark, so
+  // entering one clears it here. The boolean dep skips /add/*→/add/* hops, so a
+  // save whose leave() walks back onto one keeps the mark showNewItem gave it.
+  const onAddPage = pathname.startsWith("/add/");
+  useEffect(() => {
+    if (onAddPage) selectCard(null);
+  }, [onAddPage]);
   const covered = scopeFromPath(pathname) === null;
   // The welcome covers the whole window, sidebar included.
   const welcome = pathname === "/welcome";
