@@ -170,6 +170,12 @@ jobs:
         run: |
           umask 022
           bun run dist "$DIST_TARGET"
+      # electron-builder still writes update-info yml for a preview build; it
+      # must never reach a release, where a channel feed could point at it.
+      - name: Strip preview update feeds
+        if: needs.metadata.outputs.channel == 'preview'
+        shell: bash
+        run: rm -f .artifacts/electron/*.yml
       # The .deb depends on FFmpeg for local-video posters; the runner image has none.
       - name: Install the video decoder the Linux package depends on
         if: runner.os == 'Linux'

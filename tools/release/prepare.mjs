@@ -15,8 +15,8 @@ if (!valid(version) || (channel === "stable" && prerelease(version)))
     "Stable uses a regular semver; experimental builds use the nightly or preview channel.",
   );
 pkg.version = version;
-// A preview build omits the publish config so electron-builder emits no
-// updater manifests: no install on any channel can ever be offered one.
+// A preview build omits the publish config so the packaged app carries no
+// update feed; the workflow also strips the emitted yml from its artifacts.
 if (channel === "preview") delete pkg.build.publish;
 else pkg.build.publish[0].releaseType = channel === "nightly" ? "prerelease" : "release";
 pkg.build.generateUpdatesFilesForAllChannels = false;
