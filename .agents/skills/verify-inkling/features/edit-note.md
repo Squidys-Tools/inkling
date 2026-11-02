@@ -1,34 +1,30 @@
 # Edit a note
 
-## User flow
+Edit note reopens a saved note's body in the full-page editor and saves the change in place. Status: **driven** (run `mvz69480-dfac`, after capture-note).
 
-Open a note card and choose **Edit note** on its Info panel. The full-page Focus Mode editor loads the existing body. Change the text and choose **Save note** to return to the item view. Cancel, Close, or Escape with unsaved changes asks whether to discard them; empty note content cannot be saved.
+## Sub-features
 
-## Driving it with `scripts/drive.mjs`
+- `edit-open` opens the editor with the existing body.
+- `edit-save` replaces the body and returns to the item view.
+- `edit-store` updates `body` and `description`, keeps `title` and `created_at`.
 
-Needs an active note whose body contains `alpha probe`. Search for it first so the same accessible card name works in grid and List view.
+## How to get to it (user POV)
 
-```json
-[
-  {"label":"focus search","key":"/"},
-  {"label":"search target note","fill":"input[aria-label='Search your mind']","text":"alpha"},
-  {"label":"one note result","expect":"document.querySelectorAll(\"article[aria-label='Note: Untitled note']\").length === 1","timeoutMs":5000},
-  {"label":"open note","click":"article[aria-label='Note: Untitled note']"},
-  {"label":"item view","wait":"button[aria-label='Close']"},
-  {"label":"Edit note","clickText":{"selector":"button","text":"Edit note"}},
-  {"label":"Focus Mode editor","wait":"[role=textbox][aria-label='Note']"},
-  {"label":"select existing body","expect":"(() => { const e = document.querySelector(\"[role=textbox][aria-label='Note']\"); if (!e) return false; e.focus(); document.getSelection().selectAllChildren(e); return true; })()"},
-  {"label":"replace body","fill":"[role=textbox][aria-label='Note']","text":"alpha edited"},
-  {"label":"new body visible","expect":"document.querySelector(\"[role=textbox][aria-label='Note']\").textContent.trim() === 'alpha edited'"},
-  {"label":"save","clickText":{"selector":"button","text":"Save note"}},
-  {"label":"item view returns","wait":"button[aria-label='Close']"}
-]
-```
+- Open a note card, choose **Edit note** in the Info panel.
+- Cancel/Close/Escape with unsaved edits asks to discard (not driven).
 
-Read the scratch `items` row to prove `body = 'alpha edited'`, `description` equals it, `body_format = 'md'`, `title` and `created_at` are unchanged, and `updated_at` is at least its prior value. A same-millisecond save can keep the timestamp equal.
+## Driving it with agent-desktop
+
+Preconditions: a note with body `verify probe alpha` exists (run capture-note first), Everything is shown.
+
+- **Open the note.** `$I ad click "$($I ref group 'Note: Untitled note')"`. Buttons `Close`, `Edit note`, `Keep in a Space`, `Archive` appear; `$I shot 04-open`.
+- **Open the editor.** `$I ad click "$($I ref button 'Edit note')"`. Textfield `Note` has value `verify probe alpha`; buttons `Cancel`, `Save note`.
+- **Replace the body.** `$I ad set-value "$($I ref textfield Note)" 'verify probe edited'`; `$I shot 05-typed`.
+- **Save.** `$I ad click "$($I ref button 'Save note')"`. The item view returns (`Edit note` button visible again).
+- **Proof.** `$I shot 06-saved`; `$I db "SELECT title,body,description,created_at,updated_at FROM items WHERE body LIKE 'verify probe%'"` returns body and description `verify probe edited`, title `null`, `created_at` unchanged, `updated_at` later.
 
 ## Gotchas
 
-- The editor is a full-page Focus Mode route, not an editor inside a dialog.
-- The editable control is a multiline textbox named **Note**. The Save button has visible text **Save note**, not an aria-label.
-- The item view close control is labeled **Close**. Dirty Close, Cancel, and Escape use a discard confirmation.
+- After a click that opens a view, the first snapshot may fail with `atomic replace failed … retry: safe`; take a fresh one (`ref` and `tree` retry for you or can be re-run). Do not repeat the click.
+- The editor is a full-page route, not a dialog; the Save button's name is `Save note`, not `Save to library`.
+- The editable field is a contenteditable body: `set-value` replaces it whole.

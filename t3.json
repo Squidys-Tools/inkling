@@ -78,6 +78,13 @@
       "command": "bun -e \"import { readdirSync, rmSync } from 'node:fs'; for (const dir of ['.', 'extension', ...['apps', 'packages', 'tools'].flatMap((root) => readdirSync(root).map((name) => root + '/' + name))]) rmSync(dir + '/node_modules', { recursive: true, force: true })\"",
       "icon": "debug",
       "runOnWorktreeCreate": false
+    },
+    {
+      "name": "Clean verification scratch (.dev)",
+      "command": "bun .agents/skills/verify-inkling/scripts/clean-dev.mjs --settle",
+      "icon": "debug",
+      "runOnWorktreeCreate": false,
+      "runOnSettle": true
     }
   ]
 }

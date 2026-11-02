@@ -1,113 +1,118 @@
 ---
 name: verify-inkling
-description: Drive the inkling Electron desktop app as a user would and prove a feature works. Use when a change touches capture, search, Spaces, note editing, archive or restore, or any user-visible behavior, and you need launch, doctor, drive, evidence, and cleanup on Windows or Linux (Linux runs under Xvfb). Uses CDP against an isolated scratch library; never the real user library.
+description: Drive the real inkling Electron desktop app as a user would (agent-desktop accessibility automation, no CDP) on a throwaway seeded library under the worktree's .dev/, and prove a feature with screenshots plus read-only database rows. Use when a change touches capture, note editing, search, Spaces, archive, or any user-visible behavior and you need launch, doctor, drive, evidence and cleanup on Windows.
 ---
 
 # verify-inkling
 
-Proves inkling behavior by driving the real Electron app over Chrome DevTools Protocol against a scratch data dir. The feature map lives in `features/`; start at `features/README.md` and drive one feature per run.
+Launches `bun run dev:app`'s app (build + Electron) against a scratch library, drives it through the OS accessibility tree with the `agent-desktop` CLI, and records evidence. Start at [features/README.md](features/README.md) and drive one feature per run. Written and proven on Windows 11; macOS and Linux are untested (the helpers have untested POSIX branches).
 
 ## Rules
 
-- Use only the scratch library under `<tmpdir>/verify-inkling-run/<NAME>/library` (override the parent with `INKLING_VERIFY_DIR`). Never point at the developer's real library, never copy from it.
-- Stop only the pid this run recorded in `electron.pid` after confirming its cmdline. Never `pkill`, never match processes by name.
-- Run one integrated pass per change. Do not run the full suite; CI owns it.
-- Linux cannot verify Windows-only behavior (OCR through Windows.Media, WebView2). Report those as unverified.
-- Drive through the UI handles below, not internal setters or test-only endpoints.
+- All verification-only state lives under `<worktree>/.dev/` (library, agent-desktop state, logs). Evidence lives in `<worktree>/.artifacts/verify-inkling/<run>/`, outside `.dev`. Never put evidence under `.dev`.
+- One instance per worktree. Cleanup deletes the whole `.dev`, so a second concurrent run would lose its state. `launch` refuses while one is live.
+- Never drive an app you did not launch with `launch`: other inkling windows (the user's, other worktrees') are also `electron.exe`. `.dev-library/` (the plain `dev:app` library) is not this skill's and is never touched.
+- Never kill by process name or path pattern. The helpers stop only the pids `launch` recorded, after confirming each pid's command line still names our `.dev` path.
+- Drive through visible controls. `set-value` is an accessibility ValuePattern write on a text field, not an internal setter; say so in the report. Key combos use `ad press <combo> --window-id '{window}'` (headless, no focus change). Never add `--headed` (physical cursor/keyboard, takes the user's focus) without the user's say-so.
+- What cannot be reached (file pickers, deep link, card right-click) is listed in `features/README.md`; report it as unverified.
 
-## Setup
+## Operational requirement: settle cleanup (T3)
 
-Use the Bun version in `.bun-version`; `bun tools/repo/check-bun-version.ts` says if it is wrong.
+`t3.json` has an action "Clean verification scratch (.dev)" with `runOnSettle: true` that runs `bun .agents/skills/verify-inkling/scripts/clean-dev.mjs --settle`. T3 runs `runOnSettle` actions only for threads with their own worktree (main-checkout threads skip them), **and actions in `t3.json` only take effect after they are imported into the project's Settings > Actions**. If that action is not imported for this project, nothing cleans up on settle: tell the user. Settle runs while terminals may still be alive, so it never kills anything: if a recorded app pid (or any process naming our `.dev`) is still alive it exits 1 and leaves `.dev` alone. Always run the normal `cleanup` below yourself first; settle cleanup is the backstop, not the plan.
 
-```sh
-bun install
-bun run build:app      # produces dist/renderer and dist/desktop; prints "No demo seed in N built files"
-```
+## Prerequisites
 
-Bun skips Electron's download script, so a fresh install has no `node_modules/electron/dist`. Run `node node_modules/electron/install.js` once from the repo root before the first launch.
+- Bun per `.bun-version` (`bun tools/repo/check-bun-version.ts`), `bun install` done, `node_modules/electron/dist` present. `agent-desktop` on PATH (`agent-desktop --version`; verified with 1.0.2).
+- An interactive, unlocked desktop session. The app window may be behind others but not minimized (minimized windows are not drivable).
 
 ## Launch
 
-Same commands on Windows and Linux. Launch starts Electron detached and returns once the app page is listed:
-
 ```sh
-bun .claude/skills/verify-inkling/scripts/instance.mjs launch
+bun .agents/skills/verify-inkling/scripts/instance.mjs launch            # seeded demo library (32 items, 3 Spaces)
+bun .agents/skills/verify-inkling/scripts/instance.mjs launch --empty    # empty library: opens on Welcome, no seed
+bun .agents/skills/verify-inkling/scripts/instance.mjs launch --skip-build   # reuse dist/ when you know it is current
 ```
 
-It runs `node_modules/electron/dist/electron .` with `--remote-debugging-port=9333 --user-data-dir=<tmpdir>/verify-inkling-run/default/library`, writing `electron.pid` and `electron.log` beside the library. On Linux with no `DISPLAY` it wraps Electron in `xvfb-run -a` and adds `--no-sandbox`.
+(All commands below take the same `bun .agents/skills/verify-inkling/scripts/instance.mjs` prefix; the path also works as `.claude/skills/verify-inkling/scripts/instance.mjs`.) Run from inside the worktree.
 
-It also disables renderer backgrounding and occlusion tracking. An occluded window reports `visibilityState` "hidden" and stops firing animation frames, which strands the item overlay mid-close and hangs motion-gated steps.
+It clears stale `.dev`, creates `.dev/verify-inkling/<run>/{library,agent-desktop}`, seeds the library with `seedLibrary` from `tools/dev/seeded-library.ts` (the same seed `dev:app` uses; it marks onboarding complete), runs `bun run build:app` (about 10 s warm), then starts `bun tools/dev/dev-app.ts --user-data-dir=<run>/library` detached (this is `dev:app` with an explicit, un-seeded data dir that we seeded ourselves). Ready means: Electron main found, its window listed by `agent-desktop list-windows`, `library.sqlite3` present, and the window snapshot shows the sidebar link "Everything" (or "Skip" with `--empty`). It prints a JSON object with `windowId`, `library`, `evidenceDir`, pids. About 15 s total. Logs: `.dev/verify-inkling/<run>/build.log`, `electron.log`.
 
-Ready means `app://local/index.html` is listed at `http://127.0.0.1:9333/json/list`, which takes about 10 seconds. Launch refuses when the port has an owner or already responds with an inkling app page. Other dev servers on the machine often hold 9333, so set `INKLING_VERIFY_PORT` to a free port and pass it to doctor, drive, and cleanup as well.
-
-A fresh scratch library opens on the welcome screen, and a recipe driven from there saves its item and then returns to the welcome instead of Everything. Skip it once after launch; that marks onboarding complete in the scratch library:
-
-```json
-[
-  {"label":"welcome","wait":"section[aria-label='Welcome to inkling']"},
-  {"label":"skip welcome","clickText":{"selector":"button","text":"Skip"}},
-  {"label":"Everything","expect":"window.location.hash === '#/' && !document.querySelector(\"section[aria-label='Welcome to inkling']\")","timeoutMs":5000}
-]
-```
-
-Two instances side by side: give each its own name and port, `INKLING_VERIFY_NAME=b INKLING_VERIFY_PORT=9334 bun .claude/skills/verify-inkling/scripts/instance.mjs launch`, then pass the same two variables to doctor, drive, and cleanup.
+`--empty` opens on the Welcome screen; skip it once (`find --role button --name Skip`, `click`) to reach an empty Everything; that marks onboarding complete in the scratch library.
 
 ## Doctor
 
 Read-only. Run it first whenever anything looks off:
 
 ```sh
-bun .claude/skills/verify-inkling/scripts/instance.mjs doctor
+bun .agents/skills/verify-inkling/scripts/instance.mjs doctor
 ```
 
-Every line must read PASS and the exit code must be 0: pidfile present, pid alive, pid runs our scratch dir, the endpoint on the CDP port is the one our Electron logged in `electron.log` (`DevTools listening on ...`), app page loaded, library database exists, renderer build present. Launch waits for that same endpoint match before it reports ready. Doctor cannot see a hidden window. If a step stalls on an animation, check `document.visibilityState`; anything but "visible" means relaunch.
+Every line must be PASS (exit 0): launcher pid alive and owning our `.dev` path, Electron main pid alive and owning it, library opens read-only with an item count, `dist/desktop` built (shows when), window found for our Electron pid, snapshot shows the ready marker. FAIL means relaunch (`cleanup`, then `launch`).
 
 ## Drive
 
-`scripts/drive.mjs` runs an ordered list of steps against the page and writes evidence. Steps are JSON objects with one key each:
-
-- `click`: CSS selector, waits for a visible match, focuses it, then clicks it.
-- `clickText`: `{selector, text}`, the same for the first visible match whose text contains `text`.
-- `rightClick`: CSS selector; sends a right-button mouse event to the visible element's center. Electron's native menu may open outside CDP.
-- `fill`: CSS selector plus `text`, focuses, selects the field's text (inputs and textareas only), and inserts text. For a contenteditable, first run an `expect` that calls `getSelection().selectAllChildren(el)`, or `fill` inserts at the caret.
-- `key`: `Enter`, `Escape`, or a single character.
-- `wait`: selector that must appear.
-- `expect`: JavaScript expression that must become true.
-- `shot`: PNG filename written into the evidence dir.
-
-Each step may set `label`, and `timeoutMs` (default 8000). A failed step writes `failure.png` and stops the run, and a page that stops answering for 20 seconds fails the step instead of hanging the run.
+The helper wraps `agent-desktop` with `AGENT_DESKTOP_HOME` pointed under `.dev` (so ref/snapshot state is isolated and removed by cleanup). `{window}` expands to our app's window id, resolved from `list-windows` by our Electron pid.
 
 ```sh
-bun .claude/skills/verify-inkling/scripts/drive.mjs 9333 <steps.json> .artifacts/verify-inkling/<run-name>
+I="bun .agents/skills/verify-inkling/scripts/instance.mjs"
+$I tree                                   # flat list: ref role "name" value [actions]; prints the snapshot id
+$I tree --surface menu                    # same, while a menu is open
+$I ref button "Save to library"          # prints one fresh ref for an exact role + accessible name (retries only retry:safe errors)
+$I ad click '@<snapshot>:e<N>'            # quote refs in PowerShell: a bare @token is the splatting operator
+$I ad set-value '@<snapshot>:e<N>' 'text'
+$I ad expand '@<snapshot>:e<N>'
+$I window                                 # prints the main window id
+$I windows                                # all our windows; a native dialog shows up as `other`
+$I ad press ctrl+k --window-id '{window}' # key combo to our window, no focus change (result is delivered_unverified: check the effect)
 ```
 
-Selectors come from `apps/renderer/src` (`shell/`, `libraryView/`, `item/`, `pages/`). StyleX emits no semantic class names, so prefer aria-labels, roles and titles over classes and coordinates. Feature files describe their prerequisites and current Windows flows; [features/README.md](features/README.md) records routes this CDP driver cannot reach. Compose recipes when a feature needs state: capture-note creates the cards the others use.
+Loop: `ref` (or `tree`) → act on the returned ref → `tree`/`find` again to verify. Refs are valid for one snapshot only; after any UI change take a new one. Prefer `ref <role> <exact accessible name>` over reading refs out of `tree`; it fails on 0 or 2+ matches. `--contains` matches part of a name (`ref link Everything --contains`, since the link is `Everything <count>`); `--in <ref>` searches only inside that element (`ref button Restore --in "$GROUP"`). Compose it inline: `$I ad click "$($I ref button "Save to library")"` (bash) or `$I ad click (bun … ref button "Save to library")` in PowerShell.
+
+Handles that hold in this app (from the live run):
+
+- Sidebar: link `Everything <count>`, links per Space (`Design references`, `Read later`, `Weekend reading <n>`), per-Space buttons `Rename|Delete|Move … up|down|Change color of <name>`, menubutton `Add a Space`, menubutton `Add`, link `Archive`, menubutton `Settings`.
+- The `Add` menubutton opens its menu only through `expand` (a semantic `click` does nothing). Then `tree --surface menu` or `find --role menuitem --name Note --exact`; menu items: Note, Link, Quote, File, Screenshot.
+- Cards are groups named `<Kind>: <title>` (`Note: Untitled note`, `Image: …`, `Article: …`, `Post: …`); search box is textfield `Search your mind`; switches `Grid view`/`List view`.
+- Routes show as link/document values: `app://local/index.html#/`, `#/add/note`, `#/space/<id>`, `#/archive`.
+- A note's body is a textfield named `Note` (contenteditable, `set-value` works); buttons `Save to library`, `Save note`, `Cancel`, `Edit note`, `Archive`, `Keep in a Space`.
+- Native Electron menus (`Keep in a Space`) appear via `$I tree --surface menu`; native confirms (delete a populated Space) open a second window of ours: `$I windows`, then `$I tree --window <id>` and `$I ref button '<name>' --window <id>`. Radio `Regular` in the Add-a-Space form cannot be clicked; use keyboard (see features/spaces.md).
+
+Retries: a snapshot or find can fail with `atomic replace failed ... os error 1175` and `disposition: {delivery: not_delivered, retry: safe}`. A fresh snapshot/find is the fix. Never repeat an action whose `disposition.retry` is `unsafe` (all successful click/set-value results say so): read state instead. With several `electron.exe` windows only the id from `$I window` is ours.
 
 ## Evidence
 
-Every run writes to `.artifacts/verify-inkling/<run-name>/` (gitignored):
+Per run, in `.artifacts/verify-inkling/<run>/` (gitignored; cleanup never touches it):
 
-- `steps.log`: one PASS or FAIL line per step.
-- `console.log`: renderer console, exceptions, and log entries captured during the run.
-- Numbered screenshots from `shot` steps, plus `failure.png` on a failed step.
-- Database proof: read the scratch `library.sqlite3` with bun's `bun:sqlite` in readonly mode, for example `items` rows with `kind`, `body`, `archived`. Set `PRAGMA busy_timeout = 5000` first, or a read that lands on an app write fails with `database is locked`. Include the query output in the run notes.
+```sh
+$I shot 01-before          # PNG of our window only -> prints the path
+$I db "SELECT kind, title, body, archived FROM items ORDER BY created_at DESC LIMIT 1"   # read-only SQLite
+```
 
-A proof must show the user action, the visible result, and the stored side effect. A card on screen with no row in `items` is not a pass, and neither is a row with no card.
+A proof shows (1) state before, (2) each user action with the command that did it, (3) the visible result, (4) the stored side effect from `db`, (5) any unexpected `error` envelopes. Write the sequence into `PROOF.md` beside the screenshots. A card without a row, or a row without a card, is not a pass. `db` opens the scratch `library.sqlite3` read-only; it can only be our library. Never write to it, never open the user's real library.
 
 ## Cleanup
 
-Run this after every run, including failed ones:
+Run after every run, including failed ones and before you finish:
 
 ```sh
-bun .claude/skills/verify-inkling/scripts/instance.mjs cleanup
+bun .agents/skills/verify-inkling/scripts/instance.mjs cleanup
 ```
 
-It stops only the recorded pid, then removes that instance's scratch library and pidfile. It confirms the pid's command line names the scratch library first, so a recycled pid is never touched. It never touches `.artifacts/`. Confirm afterwards with `ls .artifacts/verify-inkling/<run-name>/` that the evidence survived, and that `<tmpdir>/verify-inkling-run/<NAME>/library` is gone.
+It stops the recorded pids (graceful `taskkill /T`, then `/F /T` after 4 s; only pids from `run.json` whose command line still names our `.dev`), verifies nothing referencing `.dev` remains, then deletes the whole `.dev` directory. If something unrecorded still references `.dev` it refuses and lists the pids: close those yourself. It takes about 15 s. Afterwards confirm: `.dev` gone, `ls .artifacts/verify-inkling/<run>/` still lists your evidence, other inkling windows untouched. Idempotent: with no `.dev` it says so and exits 0.
 
-## Known platform noise
+Settle form (what T3 runs; never kills, fails safely if the app is alive): `bun .agents/skills/verify-inkling/scripts/clean-dev.mjs --settle`. Standalone stopping form: `clean-dev.mjs --stop`. Both refuse unless run with cwd inside this worktree, and operate only on the exact `<worktree>/.dev` (refused if it is a symlink).
 
-On Linux, Xvfb has no dbus session, so dbus and dconf errors in `electron.log` are environment noise, not app errors. The sharp Linux warning is also environment-only. A PDF.js worker failure in the packaged Linux app is a known app issue.
+## Helpers
+
+| Script | What |
+|---|---|
+| `scripts/instance.mjs` | `launch [--empty] [--skip-build]`, `doctor`, `window`, `windows`, `ref <role> <name> [--contains] [--in <ref>]`, `tree [snapshot args]`, `ad <agent-desktop args>`, `shot <name>`, `db "<SELECT>"`, `cleanup` |
+| `scripts/clean-dev.mjs` | `--settle` / `--stop`: delete the worktree's `.dev`; shared guards and process logic |
+
+`.claude/skills/verify-inkling/` is a plain copy of this directory for Claude threads (no symlink). Edit `.agents/skills/verify-inkling/` first, then re-copy: `rm -rf .claude/skills/verify-inkling && cp -r .agents/skills/verify-inkling .claude/skills/verify-inkling`.
+
+Run with bun (they import `tools/dev/seeded-library.ts` and use `bun:sqlite`). Seed is the source for expected counts; if `seed-data.ts` changes, update the numbers in the feature files.
 
 ## Keeping the map current
 
-When a feature's selectors or flow change, update its file in `features/`. `/maintain-verification-skill` is the maintenance loop for keeping this map honest.
+When a control's accessible name or flow changes, update its file in `features/`. `/maintain-verification-skill` is the loop for keeping the map honest.

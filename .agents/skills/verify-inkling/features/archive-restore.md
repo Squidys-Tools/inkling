@@ -1,33 +1,27 @@
 # Archive and restore
 
-## User flow
+Archiving moves an item out of Everything into the Archive view; Restore brings it back. Status: **driven** on 2026-11-02 (Archive and Restore). Permanent delete is deliberately not driven.
 
-Open an active item and choose **Archive** in the footer. The item view closes and the item leaves Everything. Choose **Archive** in the sidebar to see archived items. Focus or hover an archive tile to reveal **Restore**; choosing it returns the item to the active library. Permanent deletion is a separate action available only for archived items.
+## Sub-features
 
-## Driving it with `scripts/drive.mjs`
+- `archive-item` archives from the item view.
+- `archive-view` lists archived items with Restore and Delete controls.
+- `archive-restore` restores an item to Everything.
 
-Needs one active note. The archive tile's action is revealed when the button receives focus; the driver focuses visible controls before clicking.
+## How to get to it (user POV)
 
-```json
-[
-  {"label":"open note","click":"article[aria-label='Note: Untitled note']"},
-  {"label":"item view","wait":"button[aria-label='Close']"},
-  {"label":"Archive action","wait":"button[aria-label='Archive']"},
-  {"label":"archive","click":"button[aria-label='Archive']"},
-  {"label":"item view closes","expect":"!document.querySelector(\"button[aria-label='Close']\")","timeoutMs":10000},
-  {"label":"open Archive","clickText":{"selector":"a","text":"Archive"}},
-  {"label":"archived tile","wait":"article[aria-label^='Archived Note:']"},
-  {"label":"restore","click":"button[title='Restore to library']"},
-  {"label":"empty archive","expect":"document.body.textContent.includes('Nothing archived.')","timeoutMs":8000},
-  {"label":"return to Everything","clickText":{"selector":"a","text":"Everything"}},
-  {"label":"restored note is active","expect":"window.location.hash === '#/' && document.querySelectorAll(\"article[aria-label^='Note:']\").length > 0"}
-]
-```
+- Open an item card, choose **Archive** in the item footer; open the sidebar link **Archive**; choose **Restore** on a tile.
 
-Read the scratch `items` row before and after restore to prove `archived` changes from `1` to `0` and `updated_at` changes. The visible archive tile and its disappearance prove the route behavior.
+## Driving it with agent-desktop
+
+Preconditions: seeded library. The seed already holds archived copies (ids `archive-<id>`, same titles as some active items), so those titles appear twice in the Archive view.
+
+- **Archive.** `$I ad click "$($I ref group 'Note: Books to reread this fall')"` opens the item view; `$I ad click "$($I ref button Archive)"` archives it and closes the item view. `$I db "SELECT id,title,archived FROM items WHERE title='Books to reread this fall'"` → id `12` archived `1`; `Everything` drops by 1.
+- **View.** `$I ad click "$($I ref link Archive)"`; `$I tree` lists groups `Archived <Kind>: <title>` and, at the bottom, a status like `4 items`. `$I shot`.
+- **Restore.** `Restore` buttons repeat per tile, so scope by tile: `G=$($I ref group 'Archived Post: The first post on Twitter')` then `$I ad click "$($I ref button Restore --in "$G")"`. Before: `db "SELECT id,archived FROM items WHERE title='The first post on Twitter'"` → `archive-5` archived `1`. After: `archive-5` archived `0`, the tile leaves the Archive view, and `Everything` rises by 1.
 
 ## Gotchas
 
-- Archive is a sidebar destination, not a Settings tab. There is no batch selection or Undo toast in the current renderer.
-- The archive tile is an `article` named `Archived <kind>: <title>`; its Restore button has `title="Restore to library"` and no aria-label.
-- Permanent delete uses a native confirmation in the full app and is not part of this reversible drive.
+- Titles repeat (seed copies and the item you archived): use `ref group` only with a unique title like the Post above, and identify rows by `id` in `db`. `Archived Note: Books to reread this fall` has two tiles and `ref` will say so.
+- The item-view footer `Archive` is a *button*; the sidebar `Archive` is a *link*. The role disambiguates.
+- Permanent delete (`Delete <title>`) opens a native confirm and is irreversible: not part of this journey.
