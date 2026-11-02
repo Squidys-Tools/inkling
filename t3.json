@@ -3,7 +3,7 @@
   "scripts": [
     {
       "name": "Install dependencies",
-      "command": "bun install --frozen-lockfile --ignore-scripts",
+      "command": "bun install --frozen-lockfile --ignore-scripts && bun node_modules/electron/install.js",
       "icon": "configure",
       "runOnWorktreeCreate": true
     },

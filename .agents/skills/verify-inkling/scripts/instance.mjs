@@ -163,7 +163,8 @@ const launch = async (flags) => {
         (p) =>
           /electron/i.test(p.name || p.command) &&
           mentionsDev(p) &&
-          p.command.includes("--dev") &&
+          // Off Windows the regex sees the launcher's whole command line, which can name electron.
+          !p.command.includes("dev-app.ts") &&
           !p.command.includes("--type="),
       );
       if (!main) continue;
