@@ -113,6 +113,9 @@ test("onnxruntime started with the worker's environment keeps no device ID or te
           APPDATA: home,
           XDG_CACHE_HOME: home,
           BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0",
+          // onnxruntime stays quiet on its own where CI is set, which would let this pass vacuously.
+          CI: "",
+          GITHUB_ACTIONS: "",
           ...WORKER_ENVIRONMENT,
         },
         stderr: "inherit",
@@ -123,4 +126,4 @@ test("onnxruntime started with the worker's environment keeps no device ID or te
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
-});
+}, 20_000);
