@@ -144,6 +144,7 @@ export const LibraryRpcs = RpcGroup.make(
   call("createQuote", CreateQuoteInput.fields, ItemDetail),
   call("captureUrl", CaptureUrlInput.fields, ItemDetail),
   call("saveFile", SaveFileInput.fields, ItemDetail),
+  call("saveScreenshot", SaveFileInput.fields, Schema.Boolean),
   call("updateItem", UpdateItemInput.fields, LibraryCard),
   call("setArchived", { id: Text, archived: Schema.Boolean }, LibraryCard),
   call("deleteItem", ById, Schema.Void),
@@ -156,6 +157,7 @@ export const LibraryRpcs = RpcGroup.make(
   call("addToSpace", { spaceId: Text, itemId: Text }, Schema.Void),
   call("removeFromSpace", { spaceId: Text, itemId: Text }, Schema.Void),
   call("itemSpaces", { itemId: Text }, Schema.Array(Text)),
+  call("itemSpaceExclusions", { itemId: Text }, Schema.Array(Text)),
 
   call("jobsFor", { itemIds: Schema.Array(Text) }, Schema.Array(Job)),
   call("activeJobs", {}, Schema.Number),

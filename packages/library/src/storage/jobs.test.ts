@@ -200,14 +200,15 @@ test("parallel lanes run each item's own jobs one at a time, in the order queued
   await queue.enqueue("first", "image_thumbnail");
   const otherOcr = await queue.enqueue("second", "ocr_image");
 
-  expect((await queue.claimNext("lane-a", main))?.id).toBe(ocr);
-  // The first item's embedding waits for its OCR; another lane takes the next item.
-  expect((await queue.claimNext("lane-b", main))?.id).toBe(otherOcr);
+  // The newest import goes first; within an item, jobs keep the order they were queued.
+  expect((await queue.claimNext("lane-a", main))?.id).toBe(otherOcr);
+  // The first item's embedding waits for its OCR; another lane takes that OCR.
+  expect((await queue.claimNext("lane-b", main))?.id).toBe(ocr);
   expect(await queue.claimNext("lane-c", main)).toBeNull();
   // Other lanes' kinds are not held back by a main-lane job on the same item.
   expect((await queue.claimNext("thumbnails", ["image_thumbnail"]))?.kind).toBe("image_thumbnail");
   // OCR finding text queues no duplicate: the pending embedding runs next, after it.
   expect(await queue.enqueue("first", "generate_embedding")).toBe(embedding);
-  expect(await queue.complete(ocr, "lane-a")).toBe(true);
+  expect(await queue.complete(ocr, "lane-b")).toBe(true);
   expect((await queue.claimNext("lane-c", main))?.kind).toBe("generate_embedding");
 });

@@ -3,12 +3,11 @@ import type { Command, Platform } from "./shortcuts.ts";
 export type { Command, Platform } from "./shortcuts.ts";
 
 /**
- * How the OS frames the window, decided by main per platform: traffic lights at
- * the top left (`native-left`), the Window Controls Overlay at the top right
- * (`overlay-right`), or the desktop's own titlebar (`system-frame`).
+ * Main chooses native macOS traffic lights, the app's own right-hand buttons,
+ * the native Window Controls Overlay, or a full system frame.
  */
 export type WindowChrome = {
-  controls: "native-left" | "overlay-right" | "system-frame";
+  controls: "native-left" | "custom-right" | "overlay-right" | "system-frame";
   /** Height of the draggable band the renderer draws, in CSS pixels. */
   titlebarHeight: number;
   /** Width the renderer must leave free for OS controls on that side. */
@@ -52,6 +51,13 @@ export type UpdateState = {
 };
 
 export type CaptureReceiver = { running: boolean; port: number | null };
+export type ScreenshotImportState = {
+  enabled: boolean;
+  directory: string;
+  status: "off" | "watching" | "missing-folder" | "error";
+  imported: number;
+  message: string | null;
+};
 
 /**
  * An `inkling://` capture main could not save. Main saves every capture itself;
@@ -79,6 +85,8 @@ export type DesktopBridge = {
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   chooseDirectory: (title: string) => Promise<string | null>;
   showItemInFolder: (itemId: string) => Promise<void>;
+  copyItemImage: (itemId: string) => Promise<void>;
+  startItemDrag: (itemId: string) => Promise<void>;
   showLibraryFolder: () => Promise<void>;
   openExternal: (url: string) => Promise<void>;
   updates: {
@@ -90,6 +98,11 @@ export type DesktopBridge = {
     cancel: () => Promise<UpdateState>;
     setChannel: (channel: UpdateChannel) => Promise<UpdateState>;
     onState: (listener: (state: UpdateState) => void) => () => void;
+  };
+  screenshots: {
+    state: () => Promise<ScreenshotImportState>;
+    setEnabled: (enabled: boolean) => Promise<ScreenshotImportState>;
+    chooseDirectory: () => Promise<ScreenshotImportState>;
   };
   capture: {
     receiver: () => Promise<CaptureReceiver>;

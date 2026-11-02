@@ -24,11 +24,19 @@ export default defineConfig(({ command }) => ({
     stylex.vite({
       useCSSLayers: true,
       dev: command === "serve",
+      cssInjectionTarget: (filepath) => /site-stylex(?:-|\.)/u.test(filepath),
       unstable_moduleResolution: { type: "commonJS", rootDir: workspace },
     }),
     tanstackStart({
-      prerender: { enabled: true, crawlLinks: true },
-      pages: [{ path: "/404", prerender: { outputPath: "/404.html" }, sitemap: { exclude: true } }],
+      // The homepage links public images; crawling them as pages corrupts binary copies.
+      prerender: { enabled: true, crawlLinks: false },
+      pages: [
+        { path: "/" },
+        { path: "/download" },
+        { path: "/features" },
+        { path: "/privacy" },
+        { path: "/404", prerender: { outputPath: "/404.html" }, sitemap: { exclude: true } },
+      ],
       sitemap: { enabled: siteUrl !== "", host: siteUrl },
     }),
     react(),

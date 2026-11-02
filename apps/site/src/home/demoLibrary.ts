@@ -1,7 +1,6 @@
 import type { LibraryCard } from "@inkling/contracts";
 import { toCardView } from "../../../renderer/src/library/cardModel.ts";
-import { type Entry, matchesSearch } from "../../../renderer/src/library/preview/client.ts";
-import { seedBodies, seedCards } from "../../../renderer/src/library/preview/seed.ts";
+import { seedCards } from "../../../renderer/src/library/preview/seed.ts";
 
 const postDate = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -31,12 +30,4 @@ function siteView(card: LibraryCard) {
   };
 }
 
-// The web preview's demo library, searched the way the preview searches it.
-const entries: Entry[] = seedCards.map((card) => ({ card, body: seedBodies[card.id] ?? "" }));
-const views = new Map(seedCards.map((card) => [card.id, siteView(card)]));
-export const demoViews = [...views.values()];
-
-export function searchDemo(query: string) {
-  const found = query.trim() ? entries.filter((entry) => matchesSearch(entry, query)) : entries;
-  return found.flatMap(({ card }) => views.get(card.id) ?? []);
-}
+export const demoViews = seedCards.map(siteView);

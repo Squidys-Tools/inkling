@@ -2,14 +2,13 @@ import { Tabs } from "@base-ui/react/tabs";
 import type { LibraryCard } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Button, Kbd } from "@inkling/ui";
-import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
+import { color, font, itemColor, layout, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { desktop } from "../desktop.ts";
+import { controlsOnRight, desktop } from "../desktop.ts";
 import { type LibraryClient, libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
 import { refreshJobs } from "../library/jobs.ts";
-import { selectCard } from "../library/selection.ts";
 import { setInSpace, useSpaces } from "../library/spaces.ts";
 import { showWrittenCard } from "../library/writes.ts";
 import { ActionBar } from "./ActionBar.tsx";
@@ -33,7 +32,6 @@ export function ItemView({ id }: { id: string }) {
   const shownId = useRef(id);
   useEffect(() => {
     shownId.current = id;
-    selectCard(id);
   }, [id]);
   useEffect(
     () => () => {
@@ -138,7 +136,7 @@ function ItemBody({
       <Tabs.Root
         value={tab}
         onValueChange={(value) => setTab(value === "similar" ? "similar" : "info")}
-        {...stylex.props(styles.inspector)}
+        {...stylex.props(styles.inspector, controlsOnRight && styles.belowControls)}
       >
         <header {...stylex.props(styles.header)}>
           {item && (
@@ -250,6 +248,8 @@ const styles = stylex.create({
     paddingLeft: "18px",
     fontFamily: font.body,
   },
+  // The Close button sits just under the window's own buttons.
+  belowControls: { paddingTop: { default: `calc(3px + ${layout.titlebar})`, [narrow]: "6px" } },
   header: {
     display: "flex",
     flexShrink: 0,

@@ -36,14 +36,9 @@ export function TagList({
         </span>
       ))}
       {edit.draft === null ? (
-        <button
-          type="button"
-          aria-label="Add a tag"
-          title="Add a tag"
-          onClick={() => edit.start("")}
-          {...stylex.props(styles.add)}
-        >
+        <button type="button" onClick={() => edit.start("")} {...stylex.props(styles.add)}>
           <HugeiconsIcon icon={PlusSignIcon} size={11} />
+          Add tag
         </button>
       ) : (
         <input
@@ -82,11 +77,15 @@ const styles = stylex.create({
   },
   tag: { fontSize: text.md, lineHeight: "16px", color: itemColor.tagInk },
   add: {
-    display: "grid",
-    placeItems: "center",
-    width: "24px",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: space.s1,
     height: "24px",
-    padding: 0,
+    paddingBlock: 0,
+    paddingLeft: "7px",
+    paddingRight: "9px",
+    fontFamily: font.body,
+    fontSize: text.sm,
     borderWidth: 1,
     borderStyle: "dashed",
     borderColor: { default: color.borderStrong, ":hover": color.muted },

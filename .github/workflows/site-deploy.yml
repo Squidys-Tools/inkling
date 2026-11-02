@@ -19,7 +19,7 @@ jobs:
   stage:
     name: Stage a production build
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     # No reviewer: this job only builds. --skip-domain keeps it off custom domains; Vercel
     # still points the project's own *.vercel.app alias at it, behind a Vercel login.
@@ -78,7 +78,7 @@ jobs:
   promote:
     name: Promote it to production
     needs: stage
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: site-production
     env:

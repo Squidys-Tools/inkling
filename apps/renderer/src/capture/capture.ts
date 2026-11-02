@@ -1,43 +1,59 @@
 import type { ItemDetail } from "@inkling/contracts";
-import { reevaluateShownSpace, showNewCards } from "../library/cards.ts";
+import { loadScope, reevaluateShownSpace, shownScope, showNewCards } from "../library/cards.ts";
 import { cardFromDetail } from "../library/cardModel.ts";
 import { type LibraryClient, libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
 import { refreshJobs } from "../library/jobs.ts";
-import { selectCard } from "../library/selection.ts";
+import { spacesStore } from "../library/spaces.ts";
 import { createStore, useStore } from "../library/store.ts";
+import { type CaptureSpace, finishSpaceCapture } from "./captureSpace.ts";
 
-type CaptureState = {
-  /** Saves in flight, so the Add button can say it is busy. */
-  saving: number;
-  /** The last failure, shown under the search bar until the next capture. */
-  error: string | null;
-};
-
+type CaptureState = { saving: number; error: string | null };
 const captureState = createStore<CaptureState>({ saving: 0, error: null });
-
 export const useCaptureState = <Selected>(select: (state: CaptureState) => Selected) =>
   useStore(captureState, select);
-
 export const dismissCaptureError = () => captureState.set((state) => ({ ...state, error: null }));
 export const reportCaptureError = (message: string) =>
   captureState.set((state) => ({ ...state, error: message }));
 
-/**
- * Puts a freshly written item at the top of the library and marks it, without
- * waiting for the library's change event. The Add pages call this too.
- */
-export function showNewItem(detail: ItemDetail) {
+export function captureDestination(): CaptureSpace {
+  const scope = shownScope.get();
+  const space =
+    scope._tag === "Space" && spacesStore.get().spaces.find((s) => s.id === scope.spaceId);
+  return space ? { id: space.id, kind: space.kind } : null;
+}
+
+/** Show the committed item even when filing fails, so retrying never duplicates the capture. */
+function showNewItem(detail: ItemDetail) {
   showNewCards([cardFromDetail(detail)]);
   reevaluateShownSpace();
-  selectCard(detail.id);
   void refreshJobs([detail.id]);
 }
 
-async function save(write: (client: LibraryClient) => Promise<ItemDetail>) {
+export async function saveCaptured(
+  write: (client: LibraryClient) => Promise<ItemDetail>,
+  destination: CaptureSpace,
+) {
+  const client = await libraryClient();
+  const detail = await write(client);
+  showNewItem(detail);
+  const warning = await finishSpaceCapture(detail.id, destination, {
+    add: (spaceId, itemId) => client.addToSpace({ spaceId, itemId }),
+    reload: (spaceId) => {
+      const shown = shownScope.get();
+      if (shown._tag === "Space" && shown.spaceId === spaceId) void loadScope(shown);
+    },
+  });
+  if (warning) reportCaptureError(warning);
+}
+
+async function save(
+  write: (client: LibraryClient) => Promise<ItemDetail>,
+  destination = captureDestination(),
+) {
   captureState.set((state) => ({ saving: state.saving + 1, error: null }));
   try {
-    showNewItem(await write(await libraryClient()));
+    await saveCaptured(write, destination);
     return true;
   } catch (error) {
     reportCaptureError(errorMessage(error));
@@ -48,15 +64,11 @@ async function save(write: (client: LibraryClient) => Promise<ItemDetail>) {
 }
 
 const bareDomain = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?::\d+)?(?:\/\S*)?$/iu;
-
 export function looksLikeUrl(value: string) {
   return /^https?:\/\/\S+$/iu.test(value) || bareDomain.test(value);
 }
-
 export const withScheme = (value: string) =>
   /^https?:\/\//iu.test(value) ? value : `https://${value}`;
-
-/** Pasted or dropped text: a link becomes a saved page, anything else a note. */
 export function captureText(text: string, captureSource: string) {
   const value = text.trim();
   if (!value) return Promise.resolve(false);
@@ -66,41 +78,38 @@ export function captureText(text: string, captureSource: string) {
 }
 
 const maxFileBytes = 50 * 1024 * 1024;
-
-// Files save one at a time, holding File handles rather than their bytes, so a
-// large drop never reads every file into memory at once. `save` never throws, and
-// a call cut off by a library restart rejects, so one failed file never stalls the rest.
-const fileQueue: File[] = [];
+// Bind each queued file to the Space where its drop began, not wherever the user navigates next.
+const fileQueue: { file: File; destination: CaptureSpace }[] = [];
 let draining = false;
-
 async function drainFiles() {
   if (draining) return;
   draining = true;
   try {
-    for (let file = fileQueue.shift(); file; file = fileQueue.shift()) {
+    for (let next = fileQueue.shift(); next; next = fileQueue.shift()) {
+      const { file, destination } = next;
       if (file.size > maxFileBytes) {
         reportCaptureError(`${file.name} is larger than the 50 MB limit.`);
         continue;
       }
-      await save(async (client) =>
-        client.saveFile({
-          fileName: file.name || "Untitled file",
-          mimeType: file.type || null,
-          kind: null,
-          bytes: new Uint8Array(await file.arrayBuffer()),
-        }),
+      await save(
+        async (client) =>
+          client.saveFile({
+            fileName: file.name || "Untitled file",
+            mimeType: file.type || null,
+            kind: null,
+            bytes: new Uint8Array(await file.arrayBuffer()),
+          }),
+        destination,
       );
     }
   } finally {
     draining = false;
   }
 }
-
-export function captureFiles(files: readonly File[]) {
-  fileQueue.push(...files);
+export function captureFiles(files: readonly File[], destination = captureDestination()) {
+  fileQueue.push(...files.map((file) => ({ file, destination })));
   void drainFiles();
 }
-
 async function grabScreenshot() {
   const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
   try {
@@ -121,8 +130,8 @@ async function grabScreenshot() {
     for (const track of stream.getTracks()) track.stop();
   }
 }
-
 export async function captureScreenshot() {
+  const destination = captureDestination();
   if (!navigator.mediaDevices?.getDisplayMedia) {
     reportCaptureError(
       "Screen capture is unavailable. Take a screenshot with your system tool, then paste it here or add it with File.",
@@ -130,7 +139,7 @@ export async function captureScreenshot() {
     return;
   }
   try {
-    captureFiles([await grabScreenshot()]);
+    captureFiles([await grabScreenshot()], destination);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") return;
     reportCaptureError(

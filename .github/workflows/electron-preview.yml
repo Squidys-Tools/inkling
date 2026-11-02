@@ -2,10 +2,11 @@ name: Electron Preview
 
 on:
   pull_request:
-    types: [labeled, synchronize, reopened]
+    types: [opened, synchronize, reopened]
     paths-ignore:
       - "**/*.md"
       - "docs/**"
+      - "apps/site/**"
       - "AGENTS.md"
       - "apps/renderer/src/library/preview/seed-demo/**"
       - "apps/renderer/src/library/preview/seed.ts"
@@ -13,7 +14,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 concurrency:
   group: electron-preview-${{ github.event.pull_request.number }}
@@ -34,6 +34,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          filter: blob:none
 
       - name: Filter changed paths
         id: filter
@@ -47,6 +48,7 @@ jobs:
           filters: |
             electron:
               - 'apps/**'
+              - '!apps/site/**'
               - 'packages/**'
               - 'tools/smoke/**'
               - 'tools/models/**'
@@ -56,14 +58,12 @@ jobs:
               - 'build/**'
               - '.github/workflows/electron-preview.yml'
 
-  build:
-    name: Build Windows Electron installer
+  build-windows:
+    name: Build and smoke-test Windows Electron directory
     needs: changes
     if: >-
       needs.changes.outputs.electron == 'true' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      contains(github.event.pull_request.labels.*.name, 'preview:win') &&
-      (github.event.action != 'labeled' || github.event.label.name == 'preview:win')
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
     timeout-minutes: 35
 
@@ -73,51 +73,37 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Cache pinned Electron models
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Cache pinned embedding models
         uses: actions/cache@v6
         with:
           path: .artifacts/electron-model-cache/models
           key: inkling-electron-models-win-${{ hashFiles('packages/jobs/src/model-manifest.json') }}
           restore-keys: inkling-electron-models-win-
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: .bun-version
-
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
-      - name: Build Electron NSIS installer
-        run: bun run dist win
+      - name: Build Electron directory
+        run: bun run dist
+
+      - name: Check packaged OCR, PDF and native models
+        run: bun tools/smoke/packaged-backend.mjs
 
       - name: Launch the packaged app and reach the library process
         run: bun tools/smoke/launch.ts .artifacts/electron/win-unpacked/inkling.exe
 
-      - name: Upload Electron installer
-        id: installer
+      - name: Upload Windows Electron directory
         uses: actions/upload-artifact@v7
         with:
-          name: inkling-installer-win-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
-          path: |
-            .artifacts/electron/*.exe
-            .artifacts/electron/*.blockmap
-            .artifacts/electron/latest.yml
+          name: inkling-electron-dir-win-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: .artifacts/electron/win-unpacked
           if-no-files-found: error
           retention-days: 3
-
-      - name: Comment artifact link
-        uses: ./.github/actions/pr-comment
-        with:
-          marker: "<!-- inkling-electron-preview -->"
-          # GitHub links a full commit SHA and shows its first seven characters.
-          body: |-
-            ### Inkling Electron preview
-
-            [Download the Electron NSIS installer](${{ steps.installer.outputs.artifact-url }}) (for ${{ github.event.pull_request.head.sha }})
-
-            [Build details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) · Add the `preview:win` label to refresh it.
-            The installer bundles the pinned embedding models. It is unsigned and may trigger a Windows SmartScreen warning.
 
   build-linux:
     name: Build and smoke-test Linux Electron directory

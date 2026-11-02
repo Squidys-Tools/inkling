@@ -4,7 +4,6 @@ import { type LibraryClient, libraryClient, onReconnect } from "./connection.ts"
 import { forgetJobs, refreshActiveJobCount, refreshJobs } from "./jobs.ts";
 import { activeScope } from "./scope.ts";
 import { search } from "./search.ts";
-import { selection } from "./selection.ts";
 import { reloadSpaces, spacesStore } from "./spaces.ts";
 
 // Writes and job ticks arrive in bursts; each burst becomes one refetch of the
@@ -80,7 +79,6 @@ function applyChange(change: LibraryChange) {
       removeItems(change.ids);
       search.remove(change.ids);
       forgetJobs(change.ids);
-      if (change.ids.includes(selection.get() ?? "")) selection.set(null);
       return;
     case "SpacesChanged":
       void spacesChanged();

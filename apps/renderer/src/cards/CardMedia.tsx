@@ -1,11 +1,14 @@
 import { PlayIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
+import { useLayoutEffect, useRef } from "react";
 import { cardColor, color, font, radius } from "@inkling/ui/tokens.stylex";
+import { desktop } from "../desktop.ts";
 import { type CardView, formatDuration } from "../library/cardModel.ts";
 import { PostArtwork } from "./PostArtwork.tsx";
 import { QuoteArtwork } from "./QuoteArtwork.tsx";
 import { TypedArtworkFor } from "./TypedArtwork.tsx";
+import { hasThumbnail, retainThumbnail, takeThumbnail } from "./thumbnailCache.ts";
 
 export type CardLayout = "grid" | "list" | "archive";
 
@@ -23,13 +26,43 @@ export function CardImage({
   priority?: boolean;
   style?: stylex.StyleXStyles;
 }) {
-  if (!view.image) return null;
-  return (
+  const host = useRef<HTMLSpanElement>(null);
+  const url = view.image;
+  const alt = view.imageAlt || view.title;
+  useLayoutEffect(() => {
+    const container = host.current;
+    if (!container || !url) return;
+    const ready = hasThumbnail(url);
+    const image = takeThumbnail(url) ?? new Image();
+    image.alt = alt;
+    image.decoding = "async";
+    image.loading = priority || ready ? "eager" : "lazy";
+    image.fetchPriority = priority ? "high" : "auto";
+    image.draggable = false;
+    image.className = stylex.props(styles.image).className ?? "";
+    const loaded = () => retainThumbnail(image);
+    image.addEventListener("load", loaded);
+    if (image.src !== url) image.src = url;
+    // React owns the host; the bounded cache owns its decoded image child.
+    // A masonry column change can remount the host without blanking that image.
+    container.append(image);
+    if (image.complete) retainThumbnail(image);
+    return () => {
+      image.removeEventListener("load", loaded);
+      if (image.parentNode === container) container.removeChild(image);
+      retainThumbnail(image);
+    };
+  }, [url, alt, priority]);
+  if (!url) return null;
+  return desktop ? (
+    <span ref={host} {...stylex.props(styles.image, style)} />
+  ) : (
     <img
-      src={view.image}
-      alt={view.imageAlt || view.title}
+      src={url}
+      alt={alt}
       decoding="async"
-      loading={priority ? "eager" : "lazy"}
+      loading={priority || hasThumbnail(url) ? "eager" : "lazy"}
+      onLoad={(event) => retainThumbnail(event.currentTarget)}
       fetchPriority={priority ? "high" : undefined}
       draggable={false}
       {...stylex.props(styles.image, style)}
