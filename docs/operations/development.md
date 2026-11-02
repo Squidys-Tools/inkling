@@ -165,7 +165,7 @@ Pushes and PRs that change only Markdown, `docs/` or `AGENTS.md` skip CI and the
 
 - `ci.yml` runs the checks on `windows-latest`, and builds and launches the app from source on Windows, Linux and macOS.
 - `security.yml` runs CodeQL when a PR opens or reopens and on about every fourth push to it, and dependency review on every PR push.
-- App changes in a same-repository PR (`electron-preview.yml`, skipped when only `apps/site/` changes) build the Windows installer, launch it and link it in a comment; build the Linux directory package, run the backend smoke and launch it under Xvfb; and build the macOS app bundle, verify its signature, run the backend smoke and launch it.
+- App changes in a same-repository PR (`electron-preview.yml`, skipped when only `apps/site/` changes) build the unpacked app on Windows, Linux and macOS, run the backend smoke and launch it (Linux under Xvfb); macOS also verifies its ad-hoc signature, and Windows and Linux upload the directory as a 3-day artifact.
 - `pr-size.yml` labels each PR by the size of its diff.
 - `knip.yml` runs `knip --fix` every other day and opens a cleanup PR. It strips unused exports and prunes dependencies but never deletes files; if its PRs get noisy, tune the patterns in `knip.json` rather than disabling it.
 - `links.yml` checks Markdown links weekly and fails the workflow when links are broken. Add custom schemes such as `inkling://` and local hosts to `.lycheeignore`.
