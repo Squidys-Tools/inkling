@@ -217,6 +217,7 @@ test("form failure replacing a paste failure releases capture ownership on close
       useRef: (initial: unknown) => ({ current: initial }),
       captureDestination: () => null,
       reportCaptureError: cap.reportCaptureError,
+      notifyError: notices.notifyError,
       useMounted: () => ({ current: true }),
       useEscape: () => {},
       saveCaptured: () => Promise.reject(new Error("Form failed")),
