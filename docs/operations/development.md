@@ -79,18 +79,18 @@ same-repository PR targeting `main` when its latest push changes `apps/site`,
 or `packages/ui`, or a shared dependency or toolchain file. It uses Vercel CLI
 and updates one PR comment with the preview URL. Fork PRs do not get Vercel
 secrets or previews.
-Pushes to `main` do not deploy automatically: the production domain changes only
-through the `Deploy site` workflow (`.github/workflows/site-deploy.yml`,
-`gh workflow run site-deploy.yml`). It runs only from `main`. Its `stage` job
-builds a production deployment that no custom domain points at; its `promote`
-job then publishes that exact build and pauses for a reviewer on the
-`site-production` GitHub environment, so the reviewer approves a build they can
-already open. Both environments hold the `VERCEL_TOKEN`, `VERCEL_ORG_ID` and
-`VERCEL_PROJECT_ID` secrets; `site-staging` has no reviewer and allows `main`
-plus `refs/pull/*/merge` for PR previews.
-Vercel still points the project's own `*.vercel.app` alias at a staged build,
-behind a Vercel login, but never a custom domain.
-Agents start it only when asked and never approve it.
+
+The `Deploy site` workflow (`.github/workflows/site-deploy.yml`) is the only
+path to the production domain. It runs on every push to `main` whose paths match
+the preview filter above, plus the workflow file itself; keep the two lists in
+sync. On the `site-production` GitHub environment, which allows only `main` and
+has no reviewer, it builds a production deployment with no domain, promotes it
+through the Vercel API, and fails unless getinkling.dev then points at that
+deployment. A failed build leaves the previous site live. A newer push replaces a
+deploy still waiting in the queue. To redeploy without a push, as after a release,
+run `gh workflow run site-deploy.yml`. Both environments hold the `VERCEL_TOKEN`,
+`VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` secrets; `site-staging`, used only by
+previews, allows `main` plus `refs/pull/*/merge`.
 
 Packaged builds bundle the embedding models; [models.md](../models.md) covers how
 development builds fetch them.

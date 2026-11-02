@@ -1,4 +1,8 @@
-import type { ShellThumbnailReply, ShellThumbnailRequest } from "@inkling/contracts/jobs";
+import {
+  type ShellThumbnailReply,
+  type ShellThumbnailRequest,
+  WORKER_ENVIRONMENT,
+} from "@inkling/contracts/jobs";
 import { type MessagePortMain, nativeImage } from "electron";
 import { superviseUtilityProcess } from "./utility-process.ts";
 
@@ -30,6 +34,7 @@ export function startWorkerProcess({
   const child = superviseUtilityProcess({
     entry,
     args,
+    env: { ...process.env, ...WORKER_ENVIRONMENT },
     serviceName: "inkling worker",
     onRestart,
     onGiveUp: (code) =>

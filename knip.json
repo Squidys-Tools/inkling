@@ -7,9 +7,9 @@
         "benchmarks/fetch-macrumors.ts",
         "benchmarks/harness/index.ts"
       ],
-      "ignoreDependencies": ["@img/sharp-wasm32"],
+      "ignoreDependencies": ["@img/sharp-wasm32", "electron-builder"],
       "ignoreBinaries": ["dpkg-deb"],
-      "ignore": [".agents/**", ".claude/**"]
+      "ignore": [".agents/**", ".claude/**", ".github/scripts/**"]
     },
     "apps/desktop": {
       "entry": ["src/main.ts", "src/preload.ts", "build.ts", "after-pack.cjs"],
