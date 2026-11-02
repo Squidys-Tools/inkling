@@ -1,4 +1,5 @@
 // Based on Chris's merged PR233: fade out, switch layout, stagger the new cards in.
+import { flushSync } from "react-dom";
 import { setEntering, setListMode, viewState } from "./viewState.ts";
 const easeIn = "cubic-bezier(0.55, 0.085, 0.68, 0.53)";
 const easeOut = "cubic-bezier(0.215, 0.61, 0.355, 1)";
@@ -13,6 +14,7 @@ export const inViewport = (
 
 export function animateArrival(element: HTMLElement, list: boolean) {
   if (reduced()) return [];
+  const holdUntilGroupSettles = viewState.get().entering;
   const view = (element.parentElement ?? element).getBoundingClientRect();
   return [...element.querySelectorAll<HTMLElement>('[data-bench="card"]')]
     .filter((card) => inViewport(card.getBoundingClientRect(), view))
@@ -35,7 +37,9 @@ export function animateArrival(element: HTMLElement, list: boolean) {
         },
       );
       void animation.finished.then(
-        () => animation.cancel(),
+        () => {
+          if (!holdUntilGroupSettles) animation.cancel();
+        },
         () => {},
       );
       return animation;
@@ -89,10 +93,12 @@ function waitForCards(thisRun: number, list: boolean, frames: number) {
     entrance = element ? animateArrival(element, list) : [];
     void Promise.allSettled(entrance.map((animation) => animation.finished)).then(() => {
       if (thisRun !== run) return;
+      // Earlier cards must keep their finished fill until every stagger ends.
+      // Commit removal of the CSS hidden marker before releasing those fills.
+      flushSync(() => setEntering(false));
       entrance.forEach((animation) => animation.cancel());
       entrance = [];
       requested = null;
-      setEntering(false);
     });
   });
 }
