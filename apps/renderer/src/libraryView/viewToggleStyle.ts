@@ -12,25 +12,22 @@ const storageKey = "view-toggle-style";
 const isStyle = (value: string | null): value is ViewToggleStyle =>
   viewToggleStyles.some((style) => style.value === value);
 
-// Read on first use: the marketing site imports this module on a server with no localStorage.
-let current: ReturnType<typeof createStore<ViewToggleStyle>> | undefined;
-
-function store() {
-  if (current) return current;
-  let stored: string | null = null;
+function storedStyle(): ViewToggleStyle {
   try {
-    stored = localStorage.getItem(storageKey);
+    const stored = localStorage.getItem(storageKey);
+    if (isStyle(stored)) return stored;
   } catch {
     // Storage can be unavailable; the default style reads fine.
   }
-  current = createStore<ViewToggleStyle>(isStyle(stored) ? stored : "pill");
-  return current;
+  return "pill";
 }
 
-export const useViewToggleStyle = () => useStore(store(), (style) => style);
+const store = createStore(storedStyle());
+
+export const useViewToggleStyle = () => useStore(store, (style) => style);
 
 export function setViewToggleStyle(style: ViewToggleStyle) {
-  store().set(style);
+  store.set(style);
   try {
     localStorage.setItem(storageKey, style);
   } catch {

@@ -1,7 +1,7 @@
 import {
   Database02Icon,
-  PaintBoardIcon,
   Link01Icon,
+  PaintBoardIcon,
   RotateCwIcon,
   Settings01Icon,
 } from "@hugeicons/core-free-icons";
