@@ -26,6 +26,7 @@ The app moved from Tauri to Electron, gained macOS and Linux builds, and got its
 - PDF cards show page-one thumbnails generated in the background.
 - Smart Spaces named for photo subjects, such as "Cats", show photos of those subjects (#225).
 - Right-click menu on cards, hover labels on buttons, Ctrl+\ (⌘+\ on a Mac) to show or hide the sidebar, and a Settings → Your library breakdown by card kind (#248).
+- Settings → Appearance lets you choose a Pill or Segmented grid/list switch (#242), and the app icon fills its tile with the mascot (#249).
 - The back and forward buttons are gone; the mouse side buttons and Alt+Left/Right still step through history.
 - Settings → General → Open source licenses lists every shipped dependency, vendored component and bundled model with its license and source (#170).
 - A marketing site in `apps/site` with home, features, privacy and download pages.
