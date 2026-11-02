@@ -23,6 +23,8 @@ export const color = stylex.defineVars({
   accent: "#b0714f",
   accentStrong: "#c27f5b",
   accentSoft: "#241c16",
+  focusRing: "#815944",
+  selection: "#493327",
   onAccent: "#faf6f0",
   danger: "#d07055",
   dangerSoft: "rgba(208, 112, 85, 0.14)",
@@ -122,10 +124,14 @@ const reduced = "@media (prefers-reduced-motion: reduce)";
 export const motion = stylex.defineVars({
   micro: { default: "150ms", [reduced]: "0s" },
   mascot: { default: "250ms", [reduced]: "0s" },
+  reveal: { default: "200ms", [reduced]: "0s" },
   layout: { default: "300ms", [reduced]: "0s" },
   delight: { default: "400ms", [reduced]: "0s" },
   standard: "cubic-bezier(0.4, 0, 0.2, 1)",
   enter: "cubic-bezier(0.2, 0, 0, 1)",
+  exit: "cubic-bezier(0.4, 0, 1, 1)",
+  // A soft overshoot for controls that settle like liquid.
+  spring: "cubic-bezier(0.34, 1.4, 0.64, 1)",
 });
 
 export const layout = stylex.defineVars({

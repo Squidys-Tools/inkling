@@ -136,11 +136,17 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
       Effect.gen(function* () {
         // An item's jobs on one set of lanes run one at a time, in the order queued,
         // so its embedding still waits for its OCR text when several lanes claim.
+        // Across items the most recently queued goes first: a fresh import is
+        // indexed ahead of a backlog. Jobs queued in the same instant keep their order.
         const busyFilter = kinds ? sql`AND busy.kind IN ${sql.in(kinds)}` : sql.literal("");
+        const earlierFilter = kinds ? sql`AND earlier.kind IN ${sql.in(kinds)}` : sql.literal("");
         const [row] = yield* sql<JobRow>`SELECT * FROM jobs WHERE status = 'pending' ${kindFilter}
           AND NOT EXISTS (SELECT 1 FROM jobs busy WHERE busy.item_id = jobs.item_id
             AND busy.status = 'processing' ${busyFilter})
-          ORDER BY created_at ASC LIMIT 1`;
+          AND NOT EXISTS (SELECT 1 FROM jobs earlier WHERE earlier.item_id = jobs.item_id
+            AND earlier.status = 'pending' ${earlierFilter}
+            AND (earlier.created_at, earlier.rowid) < (jobs.created_at, jobs.rowid))
+          ORDER BY created_at DESC, rowid ASC LIMIT 1`;
         if (!row) return null;
         const startedAt = now();
         const updated = yield* sql`UPDATE jobs SET status = 'processing', started_at = ${startedAt},
@@ -184,7 +190,7 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
   const fail = Effect.fnUntraced(function* (jobId: string, workerId: string, error: string) {
     const job = yield* owned(jobId, workerId);
     if (!job) return false;
-    yield* sql.withTransaction(
+    const retried = yield* sql.withTransaction(
       Effect.gen(function* () {
         const failedAt = now();
         const retrying = yield* sql`UPDATE jobs SET error_message = ${error},
@@ -195,15 +201,19 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
           yield* sql`UPDATE jobs SET status = 'pending', retry_count = retry_count + 1,
             worker_id = NULL, lease_until = NULL, progress_current = 0, progress_message = NULL
             WHERE id = ${jobId} AND status = 'processing' AND worker_id = ${workerId}`;
+          return true;
         } else {
           yield* sql`UPDATE jobs SET status = 'failed', completed_at = ${failedAt},
             error_message = ${error}, progress_message = ${error}, worker_id = NULL,
             lease_until = NULL
             WHERE id = ${jobId} AND status = 'processing' AND worker_id = ${workerId}`;
+          return false;
         }
       }),
     );
     yield* announce(job);
+    // A retry is pending work again, so idle lanes hear of it instead of waiting for a poll.
+    if (retried) yield* PubSub.publish(enqueued, job.kind);
     return true;
   });
 

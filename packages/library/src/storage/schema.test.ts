@@ -18,7 +18,7 @@ import { openDatabase, SCHEMA_VERSION } from "./schema.ts";
 afterEach(closeAll);
 afterAll(removeTemporaryRoots);
 
-test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", async () => {
+test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to the current schema", async () => {
   const databasePath = join(temporaryRoot(), "v7.sqlite3");
   const db = trackDatabase(new DatabaseSync(databasePath));
   db.exec(`
@@ -47,7 +47,7 @@ test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to schema 8", 
   closeDatabase(db);
 
   const migrated = await trackedLibrary(databasePath);
-  expect(migrated.status().schemaVersion).toBe(8);
+  expect(migrated.status().schemaVersion).toBe(SCHEMA_VERSION);
   expect(await migrated.getItemContent("legacy-note")).toEqual({
     id: "legacy-note",
     body: "Old body",

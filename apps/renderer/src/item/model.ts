@@ -2,6 +2,7 @@ import type { ItemRecord } from "@inkling/contracts";
 import { videoLinkFromSourceUrl } from "@inkling/ingestion/video-links";
 import { assetUrl } from "../library/assets.ts";
 import { cardFromDetail, toCardView } from "../library/cardModel.ts";
+import { infoText } from "./infoText.ts";
 
 const positive = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
@@ -18,6 +19,7 @@ export function describeItem(detail: ItemRecord) {
   const height = positive(detail.metadata.mediaHeight);
   return {
     ...card,
+    description: card.kind === "Image" || card.kind === "PDF" ? infoText(detail) : card.description,
     /** The full-size file: the original image, the PDF, a local video. */
     file:
       card.kind === "Image" || card.kind === "PDF" || card.kind === "Video"

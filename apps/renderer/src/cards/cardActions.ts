@@ -1,12 +1,13 @@
 import type { ContextMenuItem } from "@inkling/contracts/desktop";
 import type { useNavigate } from "@tanstack/react-router";
 import { desktop } from "../desktop.ts";
+import { prepareItemOpen } from "../item/itemFlight.ts";
 import { hostname } from "../library/assets.ts";
 import type { CardView } from "../library/cardModel.ts";
 import { libraryClient } from "../library/connection.ts";
+import { loadScope, shownScope } from "../library/cards.ts";
 import { retryJob } from "../library/jobs.ts";
 import { errorMessage } from "../library/errors.ts";
-import { selectCard } from "../library/selection.ts";
 import { setInSpace, spacesStore } from "../library/spaces.ts";
 import { showWrittenCard } from "../library/writes.ts";
 import { showContextMenu } from "../menu/contextMenu.tsx";
@@ -24,12 +25,11 @@ export function retryProcessing(jobId: string) {
 }
 
 export function openItem(view: CardView, navigate: Navigate) {
-  selectCard(view.id);
+  prepareItemOpen(view.id);
   void navigate({ to: "/item/$id", params: { id: view.id } });
 }
 
 export function openReader(view: CardView, navigate: Navigate) {
-  selectCard(view.id);
   void navigate({ to: "/item/$id/read", params: { id: view.id } });
 }
 
@@ -70,6 +70,15 @@ export async function openCardMenu(
   at: { x: number; y: number },
   navigate: Navigate,
 ) {
+  const scope = shownScope.get();
+  const current =
+    scope._tag === "Space" && spacesStore.get().spaces.find((s) => s.id === scope.spaceId);
+  const changeSpace = async (spaceId: string, filed: boolean) => {
+    if (await setInSpace(spaceId, view.id, filed)) {
+      const shown = shownScope.get();
+      if (shown._tag === "Space" && shown.spaceId === spaceId) void loadScope(shown);
+    }
+  };
   const items: ContextMenuItem[] = [];
   const actions = new Map<string, () => unknown>();
   const add = (id: string, label: string, action: () => unknown, destructive = false) => {
@@ -100,22 +109,43 @@ export async function openCardMenu(
     }
     if (desktop) {
       const bridge = desktop;
-      add("folder", "Show in folder", () => bridge.showItemInFolder(view.id));
+      if (view.kind === "Image")
+        add("copy-image", "Copy image", () =>
+          run("Couldn’t copy the image", () => bridge.copyItemImage(view.id)),
+        );
+      if (view.hasLocalFile)
+        add("folder", "Show in folder", () => bridge.showItemInFolder(view.id));
+    }
+    if (current) {
+      separate();
+      add("remove-here", `Remove from ${current.name}`, () => changeSpace(current.id, false));
     }
     const regular = spacesStore.get().spaces.filter((space) => space.kind === "regular");
-    if (regular.length > 0) {
-      const filed = new Set(
-        await libraryClient()
-          .then((client) => client.itemSpaces({ itemId: view.id }))
-          .catch(() => [] as readonly string[]),
-      );
+    if (spacesStore.get().spaces.length > 0) {
+      let filed: Set<string>, excluded: Set<string>;
+      try {
+        const client = await libraryClient();
+        const sets = await Promise.all([
+          client.itemSpaces({ itemId: view.id }),
+          client.itemSpaceExclusions({ itemId: view.id }),
+        ]);
+        filed = new Set(sets[0]);
+        excluded = new Set(sets[1]);
+      } catch {
+        reportActionError("Couldn’t load this item’s Space options.");
+        return;
+      }
+      for (const space of spacesStore
+        .get()
+        .spaces.filter((s) => s.kind === "smart" && excluded.has(s.id)))
+        add(`allow:${space.id}`, `Allow in ${space.name}`, () => changeSpace(space.id, true));
       separate();
       for (const space of regular) {
         const isFiled = filed.has(space.id);
         add(
           `space:${space.id}`,
           isFiled ? `Remove from ${space.name}` : `Add to ${space.name}`,
-          () => setInSpace(space.id, view.id, !isFiled),
+          () => changeSpace(space.id, !isFiled),
         );
       }
     }
