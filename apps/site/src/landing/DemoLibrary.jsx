@@ -1,8 +1,11 @@
 import * as React from "react";
 // This trusted same-origin renderer stays mounted from the first mask through interaction.
-function syncRevealDocument(doc, active) {
+function syncRevealDocument(doc, active, calm) {
   const root = doc?.documentElement;
-  if (root) root.dataset.reveal = active ? "open" : "masked";
+  if (root) {
+    root.dataset.revealMotion = calm ? "calm" : "full";
+    root.dataset.reveal = active ? "open" : "masked";
+  }
   return Boolean(root);
 }
 function prepareRevealDocument(doc) {
@@ -10,13 +13,15 @@ function prepareRevealDocument(doc) {
   if (!doc.getElementById("embedded-reveal-chrome")) {
     const style = doc.createElement("style");
     style.id = "embedded-reveal-chrome";
-    style.textContent =
-      'html[data-reveal=masked] label:has(input[type=search]),html[data-reveal=masked] [aria-label="View options"]{opacity:0;pointer-events:none}';
+    style.textContent = `label:has(input[type=search]),[aria-label="View options"]{transition:opacity 180ms ease-out}
+      html[data-reveal=masked] label:has(input[type=search]),html[data-reveal=masked] [aria-label="View options"]{opacity:0;pointer-events:none}
+      html[data-reveal-motion=calm] label:has(input[type=search]),html[data-reveal-motion=calm] [aria-label="View options"]{transition:none}
+      @media(prefers-reduced-motion:reduce){label:has(input[type=search]),[aria-label="View options"]{transition:none}}`;
     doc.head.appendChild(style);
   }
   return true;
 }
-export function DemoLibrary({ active }) {
+export function DemoLibrary({ active, calm = false }) {
   const [loaded, setLoaded] = React.useState(false),
     frame = React.useRef(null);
   const attachFrame = React.useCallback((node) => {
@@ -28,12 +33,12 @@ export function DemoLibrary({ active }) {
     }
   }, []);
   React.useEffect(() => {
-    if (loaded) syncRevealDocument(frame.current?.contentDocument, active);
-  }, [active, loaded]);
+    if (loaded) syncRevealDocument(frame.current?.contentDocument, active, calm);
+  }, [active, loaded, calm]);
   const ready = () => {
     const doc = frame.current?.contentDocument;
     if (!prepareRevealDocument(doc)) return;
-    syncRevealDocument(doc, active);
+    syncRevealDocument(doc, active, calm);
     setLoaded(true);
   };
   return (

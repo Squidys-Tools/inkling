@@ -1,0 +1,1 @@
+import{T as n,r as s}from"./index-BhixM0te.js";function c(){const e=n.c(2),o=s.useRef(!1);let t,r;return e[0]===Symbol.for("react.memo_cache_sentinel")?(t=()=>(o.current=!0,()=>{o.current=!1}),r=[],e[0]=t,e[1]=r):(t=e[0],r=e[1]),s.useEffect(t,r),o}export{c as u};
