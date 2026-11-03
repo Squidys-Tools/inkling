@@ -3,6 +3,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from "elect
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { channels } from "./channels.ts";
+import { bindMaximizedState } from "./window-state.ts";
 import { windowBackground, windowChrome } from "./chrome.ts";
 import { outsideCaptures } from "./capture/outside-captures.ts";
 import { libraryDirectory as resolveLibraryDirectory } from "./data-directory.ts";
@@ -60,6 +61,7 @@ function createWindow() {
       spellcheck: true,
     },
   });
+  if (platform !== "darwin") bindMaximizedState(window, channels.windowMaximized);
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isWebUrl(url)) void shell.openExternal(url);
     return { action: "deny" };
@@ -105,6 +107,7 @@ function registerIpc() {
   ipcMain.on(channels.libraryConnect, (event) => library?.attach(event.sender));
   ipcMain.handle(channels.appVersion, () => app.getVersion());
   ipcMain.handle(channels.windowMinimize, (event) => windowOf(event)?.minimize());
+  ipcMain.handle(channels.windowIsMaximized, (event) => windowOf(event)?.isMaximized() ?? false);
   ipcMain.handle(channels.windowToggleMaximize, (event) => {
     const window = windowOf(event);
     if (window?.isMaximized()) window.unmaximize();

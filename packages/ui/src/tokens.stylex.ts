@@ -28,6 +28,10 @@ export const color = stylex.defineVars({
   onAccent: "#faf6f0",
   danger: "#d07055",
   dangerSoft: "rgba(208, 112, 85, 0.14)",
+  // The chosen inset-caption close hover, distinct from in-content destructive actions.
+  captionClose: "#d63b37",
+  captionClosePressed: "#b82f2b",
+  onCaptionClose: "#ffffff",
   success: "#7fa08d",
   successStrong: "#a5c3b1",
   successSoft: "#26332c",

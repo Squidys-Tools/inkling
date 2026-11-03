@@ -75,6 +75,8 @@ export type DesktopBridge = {
   window: {
     minimize: () => Promise<void>;
     toggleMaximize: () => Promise<void>;
+    isMaximized: () => Promise<boolean>;
+    onMaximized: (listener: (maximized: boolean) => void) => () => void;
     close: () => Promise<void>;
     /** Shows the window once the first frame worth showing has painted. */
     ready: () => Promise<void>;

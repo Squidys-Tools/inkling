@@ -5,6 +5,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
+import { chrome, platform } from "../desktop.ts";
 import { search, useSearch } from "../library/search.ts";
 import { MascotEyes } from "../mascot/Mascot.tsx";
 import { handleCommand } from "../shell/commands.ts";
@@ -74,10 +75,24 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
     [navigate],
   );
 
+  const linuxCaptions = platform === "linux" && chrome.controls === "custom-right";
   return (
-    <div {...stylex.props(styles.field, focused ? styles.expanded : styles.resting)}>
+    <div
+      {...stylex.props(
+        styles.field,
+        focused ? styles.expanded : styles.resting,
+        linuxCaptions && styles.captionCorridor,
+        linuxCaptions && focused && styles.captionExpanded,
+      )}
+    >
       <Glass ref={surface} aria-hidden="true" data-bench="search-surface" style={styles.surface} />
-      <label {...stylex.props(styles.label, focused && styles.labelExpanded)}>
+      <label
+        {...stylex.props(
+          styles.label,
+          focused && styles.labelExpanded,
+          linuxCaptions && styles.captionLabel,
+        )}
+      >
         {!focused && (
           <span {...stylex.props(styles.rest)} aria-hidden="true">
             <span {...stylex.props(styles.restIcon)}>
@@ -95,7 +110,7 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
           ref={input}
           type="search"
           value={query}
-          placeholder="Search your mind"
+          placeholder={linuxCaptions ? "Search" : "Search your mind"}
           aria-label="Search your mind"
           spellCheck={false}
           autoComplete="off"
@@ -122,6 +137,26 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
 }
 
 const styles = stylex.create({
+  // The inset Linux capsule is always present, so a small window must leave it
+  // a real slot rather than letting the centered search field pass beneath it.
+  captionCorridor: {
+    left: { default: "50%", "@media (max-width: 1023px)": "calc((100% - 124px) / 2)" },
+    maxWidth: { default: "none", "@media (max-width: 1023px)": "calc(100% - 124px)" },
+  },
+  captionExpanded: {
+    width: {
+      default: "min(700px, calc(100% - 304px))",
+      "@media (max-width: 1023px)": "calc(100% - 124px)",
+    },
+    minWidth: {
+      default: "min(420px, calc(100% - 28px))",
+      "@media (max-width: 1023px)": "0px",
+    },
+  },
+  captionLabel: {
+    boxSizing: { default: "content-box", "@media (max-width: 1023px)": "border-box" },
+    minWidth: { default: "auto", "@media (max-width: 1023px)": "0px" },
+  },
   field: {
     position: "absolute",
     left: "50%",
