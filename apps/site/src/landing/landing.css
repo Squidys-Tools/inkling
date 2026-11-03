@@ -271,6 +271,10 @@ button:disabled {
   letter-spacing: -0.055em;
 }
 .site-header nav {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   gap: 32px;
