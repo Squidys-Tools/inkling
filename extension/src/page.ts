@@ -1,7 +1,7 @@
 import type { CapturePayloadV1 } from "@inkling/contracts/capture";
 import type { LibraryCard } from "@inkling/contracts";
 import { videoLinkFromSourceUrl } from "@inkling/ingestion/video-links";
-import { webUrl } from "../../apps/renderer/src/library/assets.ts";
+import { safePublicImageUrl } from "@inkling/ingestion/url";
 import {
   buildImageCapturePayload,
   buildQuoteCapturePayload,
@@ -76,8 +76,9 @@ const card = (fields: Partial<LibraryCard> & Pick<LibraryCard, "kind" | "title">
   };
 };
 
-// X titles a post's page `Name on X: "text" / X`; the app fetches the real post after saving.
-const xPostTitle = /^(.+?) on X: "([\s\S]+)" \/ X$/u;
+// X titles a post's page `Name on X: "text" / X`, after an unread count like `(3) `, in
+// English only; the app fetches the real post after saving.
+const xPostTitle = /^(?:\(\d+\) )?(.+?) on X: "([\s\S]+)" \/ X$/u;
 const xPostPath = /^\/([^/]+)\/status\/(\d{1,30})(?:\/|$)/u;
 
 function xPost(url: URL, title: string) {
@@ -150,7 +151,8 @@ export function pageChoices(
   }
 
   const social = xPost(url, pageTitle);
-  const image = typeof facts?.image === "string" ? webUrl(facts.image) : undefined;
+  // The popup loads this itself, so a page must not point it at the user's own network.
+  const image = safePublicImageUrl(facts?.image);
   const description = text(facts?.description, 300);
   const page: Choice = {
     id: "page",

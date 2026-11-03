@@ -1,4 +1,5 @@
 import type { CapturePayloadV1 } from "@inkling/contracts/capture";
+import { tryParseHttpUrl } from "@inkling/ingestion/url";
 import browser from "webextension-polyfill";
 import {
   BASE_URL_KEY,
@@ -17,10 +18,14 @@ export async function readLoopbackConfig() {
 }
 
 function captureErrorMessage(status: number) {
-  if (status === 401) return "check the extension pairing in inkling Settings → Browser extension";
-  if (status === 429) return "too many saves; try again in a minute";
+  if (status === 422) return "inkling can't save this address";
   return `inkling returned HTTP ${status}`;
 }
+
+const isPrivate = (url: string) => url !== "" && !tryParseHttpUrl(url);
+
+// Windows hands an external-protocol link to the app only up to this length.
+const maxWindowsLinkLength = 2048;
 
 /**
  * Sends a capture to the paired app, or through the `inkling://` link when the
@@ -34,13 +39,19 @@ export async function deliver(payload: CapturePayloadV1) {
       await postPayloadToLoopback(config.baseUrl, config.token, payload);
       return "saved" as const;
     } catch (error) {
-      // The app answered and refused, so the link would be refused too.
-      if (error instanceof CaptureResponseError)
+      // A stale token or the rate limit does not bind the link; any other refusal would.
+      if (error instanceof CaptureResponseError && error.status !== 401 && error.status !== 429)
         throw new Error(captureErrorMessage(error.status), { cause: error });
     }
   }
+  // The app drops a link to an address on the user's own network (apps/desktop/src/capture/web-url.ts).
+  if ([payload.url, payload.kind === "image" ? payload.imageUrl : ""].some(isPrivate))
+    throw new Error("pair the extension with inkling to save from your own network");
+  const link = buildCaptureDeepLink(payload);
+  if (link.length > maxWindowsLinkLength && navigator.userAgent.includes("Windows"))
+    throw new Error("pair the extension with inkling to save something this long");
   try {
-    await browser.tabs.create({ url: buildCaptureDeepLink(payload) });
+    await browser.tabs.create({ url: link });
   } catch {
     throw new Error("open inkling once, then try again");
   }

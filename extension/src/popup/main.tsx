@@ -16,10 +16,15 @@ async function openTab() {
   // Opening the popup grants activeTab; pages Chrome protects still refuse the script.
   if (tab.id !== undefined) {
     try {
-      const [injection] = await browser.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: readPage,
-      });
+      // A tab still loading, or one holding an alert open, would never answer.
+      const [injection] = await Promise.race([
+        browser.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: readPage,
+          injectImmediately: true,
+        }),
+        new Promise<never>((_, reject) => setTimeout(reject, 800)),
+      ]);
       facts = (injection?.result as ReturnType<typeof readPage> | undefined) ?? null;
     } catch {
       facts = null;

@@ -82,8 +82,26 @@ test("loopback capture uses a persisted bearer token and saves through the libra
   });
   expect(response.status).toBe(201);
   expect(await response.json()).toEqual({ id: "item-1" });
+  const quote = await fetch(`${base}/v1/captures`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${originalToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      version: 1,
+      kind: "quote",
+      url: "https://example.com/article",
+      selection: "Kept words",
+      attribution: "An article",
+    }),
+  });
+  expect(quote.status).toBe(201);
   expect(saved).toEqual([
     { kind: "url", url: "https://example.com/article", title: "Captured page" },
+    {
+      kind: "quote",
+      url: "https://example.com/article",
+      selection: "Kept words",
+      attribution: "An article",
+    },
   ]);
 
   const nextToken = await server.regeneratePairingToken();

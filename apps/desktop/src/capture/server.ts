@@ -10,6 +10,7 @@ import { openPairingToken } from "./pairing-token.ts";
 const MAX_JSON_BYTES = 5 * 1024 * 1024;
 const MAX_HEAD_BYTES = 64 * 1024;
 const READ_TIMEOUT = 10_000;
+const SAVE_TIMEOUT = 45_000;
 const HEALTH_PATH = "/v1/health";
 const CAPTURES_PATH = "/v1/captures";
 
@@ -137,7 +138,8 @@ async function handleRequest(
   }
   // The whole request is in, and an image capture downloads for up to 30 seconds
   // before it answers, so the idle timer that guards reading must not cut it off.
-  request.setTimeout(0);
+  // It stays bounded: quitting waits for this request.
+  request.setTimeout(SAVE_TIMEOUT);
   try {
     const item = await save(capture);
     if (!item?.id) throw new Error("storage returned no item id");

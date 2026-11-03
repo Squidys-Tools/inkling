@@ -39,12 +39,12 @@ export async function postPayloadToLoopback(
   if (!response.ok) throw new CaptureResponseError(response.status);
 }
 
-/** How the paired app answers now; it picks a new port each time it starts. */
+/** How the paired app answers now; it picks a new port each time it starts. The popup waits on it. */
 export async function loopbackHealth(baseUrl: string, token: string) {
   try {
     const response = await fetch(`${baseUrl}/v1/health`, {
       headers: { authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(2_000),
+      signal: AbortSignal.timeout(500),
     });
     if (response.ok) return "connected";
     return response.status === 401 ? "refused" : "silent";

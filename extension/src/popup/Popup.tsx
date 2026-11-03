@@ -27,7 +27,8 @@ function fitCard(element: HTMLDivElement | null) {
   if (element && height > cardMaxHeight) element.style.zoom = String(cardMaxHeight / height);
 }
 const label = (noun: string) => noun.charAt(0).toUpperCase() + noun.slice(1);
-const sentence = (message: string) => `${label(message)}.`;
+const sentence = (message: string) =>
+  `${message.startsWith("inkling") ? message : label(message)}.`;
 
 export function Popup({
   choices,
@@ -111,8 +112,8 @@ function SaveForm({ choices, connection }: { choices: Choice[]; connection: Conn
           inert
           {...stylex.props(styles.card, flight && styles.fly(flight.x, flight.y))}
         >
-          {/* Only another choice changes the card's height, and it mounts a new one to measure. */}
-          <div key={choice.id} ref={fitCard} {...stylex.props(styles.fit)}>
+          {/* A new card or field text can change the card's height; a new element is measured again. */}
+          <div key={`${choice.id}:${value}`} ref={fitCard} {...stylex.props(styles.fit)}>
             <CardFace
               view={view}
               index={0}
@@ -133,7 +134,10 @@ function SaveForm({ choices, connection }: { choices: Choice[]; connection: Conn
             label="Save as"
             options={choices.map((option) => ({ value: option.id, label: label(option.noun) }))}
             value={choice.id}
-            onChange={setChoiceId}
+            onChange={(id) => {
+              setChoiceId(id);
+              if (status.step === "failed") setStatus({ step: "ready" });
+            }}
             disabled={busy}
             style={styles.choices}
           />
@@ -218,7 +222,7 @@ function ConnectionLine({ connection }: { connection: Connection }) {
         {connection === "unpaired"
           ? "Saving opens the inkling app."
           : connection === "refused"
-            ? "inkling no longer knows this pairing."
+            ? "inkling no longer knows this pairing, so saving opens the app."
             : "inkling isn't answering, so saving opens the app."}
       </span>
       <button
@@ -274,7 +278,6 @@ const styles = stylex.create({
   },
   // Near the library grid's own column width, so a title wraps as it will there.
   fit: { width: "272px", marginBottom: "-12px" },
-  // The card leaves for the mascot in the header: it is in the library now.
   fly: (x: number, y: number) => ({
     transform: `translate(${x}px, ${y}px) scale(0.08)`,
     opacity: 0,
