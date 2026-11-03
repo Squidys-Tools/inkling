@@ -14,8 +14,9 @@ on:
         description: Stable version override; defaults to the version the latest nightly previewed
         type: string
   schedule:
-    # Checks every 30 minutes; the 12-hour gate in nightly-release.cjs sets the
-    # cadence, and a late or dropped tick is caught by the next one.
+    # Checks every 30 minutes; nightly-release.cjs ships at most one nightly per
+    # 8-hour slot (midnight, 8am and 4pm EST), and a late or dropped tick is caught
+    # by the next tick in the same slot.
     - cron: "8,38 * * * *"
 
 # t3code-style serialization: nightlies (scheduled, dispatched nightly and
