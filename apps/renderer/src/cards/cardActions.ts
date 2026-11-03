@@ -12,6 +12,7 @@ import { setInSpace, spacesStore } from "../library/spaces.ts";
 import { showWrittenCard } from "../library/writes.ts";
 import { showContextMenu } from "../menu/contextMenu.tsx";
 import { dismissActionError, reportActionError } from "./actionError.ts";
+import { notify } from "../notifications/toasts.ts";
 
 type Navigate = ReturnType<typeof useNavigate>;
 
@@ -37,15 +38,26 @@ async function run(failure: string, action: () => Promise<unknown>) {
   try {
     await action();
     dismissActionError();
+    return true;
   } catch (error) {
     reportActionError(`${failure}: ${errorMessage(error)}`);
+    return false;
   }
 }
 
 export const setArchived = (id: string, archived: boolean) =>
-  run(archived ? "Couldn’t archive this" : "Couldn’t restore this", async () =>
-    showWrittenCard(await (await libraryClient()).setArchived({ id, archived })),
-  );
+  run(archived ? "Couldn’t archive this" : "Couldn’t restore this", async () => {
+    showWrittenCard(await (await libraryClient()).setArchived({ id, archived }));
+    notify(archived ? "Archived" : "Restored to library", {
+      id: `archive:${id}`,
+      action: {
+        label: "Undo",
+        run: async () => {
+          showWrittenCard(await (await libraryClient()).setArchived({ id, archived: !archived }));
+        },
+      },
+    });
+  });
 
 /** Deleting is the one action that cannot be undone, so it always asks first. */
 export async function deleteForever(view: CardView) {
@@ -59,9 +71,10 @@ export async function deleteForever(view: CardView) {
     ? await desktop.confirm(options)
     : window.confirm(`${options.message}\n\n${options.detail}`);
   if (confirmed)
-    await run("Couldn’t delete this", async () =>
-      (await libraryClient()).deleteItem({ id: view.id }),
-    );
+    await run("Couldn’t delete this", async () => {
+      await (await libraryClient()).deleteItem({ id: view.id });
+      notify("Deleted permanently");
+    });
 }
 
 /** The card's context menu, with the same actions as the old in-app one plus Space filing. */
@@ -102,19 +115,25 @@ export async function openCardMenu(
         desktop ? desktop.openExternal(url) : window.open(url, "_blank", "noopener,noreferrer"),
       );
       add("copy", "Copy link", () =>
-        navigator.clipboard
-          .writeText(url)
-          .catch(() => reportActionError("Couldn’t copy the link.")),
+        navigator.clipboard.writeText(url).then(
+          () => notify("Link copied", { id: "copy-link" }),
+          () => reportActionError("Couldn’t copy the link."),
+        ),
       );
     }
     if (desktop) {
       const bridge = desktop;
       if (view.kind === "Image")
         add("copy-image", "Copy image", () =>
-          run("Couldn’t copy the image", () => bridge.copyItemImage(view.id)),
+          run("Couldn’t copy the image", async () => {
+            await bridge.copyItemImage(view.id);
+            notify("Image copied", { id: "copy-image" });
+          }),
         );
       if (view.hasLocalFile)
-        add("folder", "Show in folder", () => bridge.showItemInFolder(view.id));
+        add("folder", "Show in folder", () =>
+          run("Couldn’t show this file", () => bridge.showItemInFolder(view.id)),
+        );
     }
     if (current) {
       separate();

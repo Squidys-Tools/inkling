@@ -1,7 +1,7 @@
 import type { ItemDetail } from "@inkling/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-import { captureDestination, saveCaptured } from "../../capture/capture.ts";
+import { captureDestination, reportCaptureError, saveCaptured } from "../../capture/capture.ts";
 import type { LibraryClient } from "../../library/connection.ts";
 import { errorMessage } from "../../library/errors.ts";
 import { useStepBack } from "../navigation.ts";
@@ -40,6 +40,7 @@ export function useAddPage() {
       await saveCaptured(write, destination.current);
     } catch (saveError) {
       setError(errorMessage(saveError));
+      reportCaptureError(errorMessage(saveError));
       throw saveError;
     } finally {
       busy.current = false;

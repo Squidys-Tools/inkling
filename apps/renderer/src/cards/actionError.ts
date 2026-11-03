@@ -1,9 +1,4 @@
-import { createStore, useStore } from "../library/store.ts";
+import { notifications, notifyError } from "../notifications/toasts.ts";
 
-// Card actions (archive, restore, delete, retry, copy) fail here, apart from
-// capture failures, which are the only ones that make the mascot sad.
-const actionError = createStore<string | null>(null);
-
-export const reportActionError = (message: string) => actionError.set(message);
-export const dismissActionError = () => actionError.set(null);
-export const useActionError = () => useStore(actionError, (message) => message);
+export const reportActionError = (message: string) => notifyError(message);
+export const dismissActionError = () => notifications.dismiss("action-error");

@@ -4,6 +4,8 @@ import { IconButton } from "@inkling/ui";
 import { color, space } from "@inkling/ui/tokens.stylex";
 import type { ReactNode } from "react";
 import { desktop } from "../desktop.ts";
+import { reportActionError } from "../cards/actionError.ts";
+import { errorMessage } from "../library/errors.ts";
 import { hostname } from "../library/assets.ts";
 import { menuPoint, showContextMenu } from "../menu/contextMenu.tsx";
 import type { DescribedItem } from "./model.ts";
@@ -110,7 +112,13 @@ export function ActionBar({
           label="Show in folder"
           icon={<Glyph>{glyphs.folder}</Glyph>}
           style={styles.button}
-          onClick={() => void desktop?.showItemInFolder(item.id)}
+          onClick={() =>
+            void desktop
+              ?.showItemInFolder(item.id)
+              .catch((error: unknown) =>
+                reportActionError(`Couldn’t show this file: ${errorMessage(error)}`),
+              )
+          }
         />
       )}
       {item.archived ? (

@@ -7,14 +7,18 @@ import { refreshJobs } from "../library/jobs.ts";
 import { spacesStore } from "../library/spaces.ts";
 import { createStore, useStore } from "../library/store.ts";
 import { type CaptureSpace, finishSpaceCapture } from "./captureSpace.ts";
+import { notifications, notify, notifyError } from "../notifications/toasts.ts";
 
 type CaptureState = { saving: number; error: string | null };
 const captureState = createStore<CaptureState>({ saving: 0, error: null });
 export const useCaptureState = <Selected>(select: (state: CaptureState) => Selected) =>
   useStore(captureState, select);
-export const dismissCaptureError = () => captureState.set((state) => ({ ...state, error: null }));
-export const reportCaptureError = (message: string) =>
+export const reportCaptureError = (message: string) => {
   captureState.set((state) => ({ ...state, error: message }));
+  notifyError("Couldn’t save this yet", message, "capture-error", () =>
+    captureState.set((state) => (state.error === message ? { ...state, error: null } : state)),
+  );
+};
 
 export function captureDestination(): CaptureSpace {
   const scope = shownScope.get();
@@ -36,6 +40,8 @@ export async function saveCaptured(
 ) {
   const client = await libraryClient();
   const detail = await write(client);
+  captureState.set((state) => ({ ...state, error: null }));
+  notifications.dismiss("capture-error");
   showNewItem(detail);
   const warning = await finishSpaceCapture(detail.id, destination, {
     add: (spaceId, itemId) => client.addToSpace({ spaceId, itemId }),
@@ -45,6 +51,7 @@ export async function saveCaptured(
     },
   });
   if (warning) reportCaptureError(warning);
+  else notify("Saved to your library", { id: "capture-saved" });
 }
 
 async function save(

@@ -17,7 +17,12 @@ export function useCommands() {
     const run = (command: Command) => {
       // An open dialog owns the keyboard: it keeps Escape and the shortcuts
       // until it closes.
-      if (document.querySelector('[role="dialog"]')) return;
+      if (
+        document.querySelector(
+          '[role="dialog"]:not([aria-modal="false"]), [role="alertdialog"]:not([aria-modal="false"])',
+        )
+      )
+        return;
       switch (command) {
         case "addNote":
           return router.navigate({ to: "/add/note" });

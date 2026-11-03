@@ -18,7 +18,12 @@ export function useEscape(onEscape: () => void) {
       if (target instanceof Element) {
         if (target.closest('[role="menu"]')) return;
         // An open dialog keeps its own Escape.
-        if (target.closest('[role="dialog"]') || document.querySelector('[role="dialog"]')) return;
+        if (
+          document.querySelector(
+            '[role="dialog"]:not([aria-modal="false"]), [role="alertdialog"]:not([aria-modal="false"])',
+          )
+        )
+          return;
         if (editable(target) && !target.closest("[data-escape-scope]")) return;
       }
       event.preventDefault();

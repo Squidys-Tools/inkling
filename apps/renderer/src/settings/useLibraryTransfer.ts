@@ -4,6 +4,8 @@ import { desktop } from "../desktop.ts";
 import { libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
 import { createStore, useStore } from "../library/store.ts";
+import { notify, notifyError } from "../notifications/toasts.ts";
+import { formatExportSummary, formatImportSummary } from "./format.ts";
 
 type Outcome =
   | { action: "export"; report: ExportReport }
@@ -29,6 +31,7 @@ async function transfer(action: "export" | "import") {
   } catch (error) {
     const message = `Could not open the folder picker. ${errorMessage(error)}`;
     transfers.set((state) => ({ ...state, outcome: { action, error: message } }));
+    notifyError("Couldn’t choose a folder", message, "library-transfer");
     return;
   }
   if (!folder || transfers.get().busy) return;
@@ -50,12 +53,27 @@ async function transfer(action: "export" | "import") {
     outcome = { action, error: errorMessage(error) };
   }
   transfers.set({ busy: null, outcome });
+  if ("error" in outcome)
+    notifyError(
+      action === "export" ? "Export failed" : "Restore failed",
+      outcome.error,
+      "library-transfer",
+    );
+  else
+    notify(action === "export" ? "Library exported" : "Library restored", {
+      id: "library-transfer",
+      description:
+        outcome.action === "export"
+          ? formatExportSummary(outcome.report)
+          : formatImportSummary(outcome.report),
+    });
 }
 
 function showFolder() {
   desktop?.showLibraryFolder().catch((error: unknown) => {
     const message = `Could not open the library folder. ${errorMessage(error)}`;
     transfers.set((state) => ({ ...state, outcome: { action: "folder", error: message } }));
+    notifyError("Couldn’t open the library folder", message, "library-transfer");
   });
 }
 

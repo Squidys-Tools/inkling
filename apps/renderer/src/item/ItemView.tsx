@@ -6,6 +6,9 @@ import { color, font, itemColor, layout, radius, space, text } from "@inkling/ui
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { controlsOnRight, desktop } from "../desktop.ts";
+import { reportActionError } from "../cards/actionError.ts";
+import { setArchived } from "../cards/cardActions.ts";
+import { notify } from "../notifications/toasts.ts";
 import { type LibraryClient, libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
 import { refreshJobs } from "../library/jobs.ts";
@@ -102,6 +105,7 @@ function ItemBody({
         },
         (error: unknown) => {
           setActionError(errorMessage(error));
+          reportActionError(errorMessage(error));
           return false;
         },
       );
@@ -121,7 +125,8 @@ function ItemBody({
     const confirmed = desktop
       ? await desktop.confirm(options)
       : window.confirm(`${options.message}\n\n${options.detail}`);
-    if (confirmed) await act((client) => client.deleteItem({ id }));
+    if (confirmed && (await act((client) => client.deleteItem({ id }))))
+      notify("Deleted permanently");
   };
 
   const memberOf = memberships.value ?? [];
@@ -176,11 +181,7 @@ function ItemBody({
                 onOpenPdf={() => setPdfOpen(true)}
                 onRead={() => void navigate({ to: "/item/$id/read", params: { id } })}
               />
-              {actionError && (
-                <p role="alert" {...stylex.props(styles.error)}>
-                  {actionError}
-                </p>
-              )}
+              {actionError && <p {...stylex.props(styles.error)}>{actionError}</p>}
             </Tabs.Panel>
             <Tabs.Panel value="similar" tabIndex={-1} {...stylex.props(styles.panel)}>
               <h2 {...stylex.props(styles.compactTitle)}>{item.title}</h2>
@@ -191,12 +192,8 @@ function ItemBody({
               spaces={regularSpaces}
               memberOf={memberOf}
               onToggleSpace={(spaceId, filed) => void setInSpace(spaceId, id, filed)}
-              onArchive={() =>
-                void write((client) => client.setArchived({ id, archived: true })).then(
-                  (archived) => archived && onClose(),
-                )
-              }
-              onRestore={() => void write((client) => client.setArchived({ id, archived: false }))}
+              onArchive={() => void setArchived(id, true).then((archived) => archived && onClose())}
+              onRestore={() => void setArchived(id, false)}
               onDelete={() => void deleteForever(item.title)}
             />
           </>
