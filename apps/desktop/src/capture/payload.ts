@@ -1,4 +1,7 @@
+import { cutCapture } from "@inkling/contracts/capture";
 import { Schema } from "effect";
+import type { DeepLinkCapture } from "./deep-link.ts";
+import { publicWebUrl } from "./web-url.ts";
 
 const MAX_DEFUDDLED_HTML_BYTES = 2 * 1024 * 1024;
 
@@ -38,11 +41,16 @@ const CapturePayload = Schema.fromJsonString(
     author: Schema.optionalKey(Schema.NullOr(Schema.String)),
     publishedDate: Schema.optionalKey(Schema.NullOr(Schema.String)),
     imageUrls: Schema.optionalKey(Schema.Array(Schema.String)),
+    selection: Schema.optionalKey(Schema.String),
+    attribution: Schema.optionalKey(Schema.String),
+    imageUrl: Schema.optionalKey(Schema.String),
+    alt: Schema.optionalKey(Schema.String),
   }),
 );
 const decodeCapturePayload = Schema.decodeUnknownSync(CapturePayload);
 
-export function validateCapturePayload(body: Uint8Array) {
+/** Reads a receiver request into the same capture an `inkling://` link makes. */
+export function validateCapturePayload(body: Uint8Array): DeepLinkCapture {
   let request: typeof CapturePayload.Type;
   try {
     request = decodeCapturePayload(new TextDecoder("utf-8", { fatal: true }).decode(body));
@@ -50,17 +58,40 @@ export function validateCapturePayload(body: Uint8Array) {
     throw new Error("request body must be a JSON capture object");
   }
   if (request.version !== 1) throw new Error("unsupported payload version");
+
+  const url = validateCaptureUrl(request.url);
+  const hostname = new URL(url).hostname;
+  if (request.kind === "quote") {
+    const selection = request.selection?.trim();
+    if (!selection) throw new Error("a quote needs selected text");
+    return {
+      kind: "quote",
+      url,
+      selection: cutCapture.quote(selection),
+      attribution: cutCapture.attribution(
+        request.attribution?.trim() || hostname.replace(/^www\./u, ""),
+      ),
+    };
+  }
+  if (request.kind === "image") {
+    // The app downloads this address, so it must name a public host like an image link does.
+    const imageUrl = publicWebUrl(request.imageUrl ?? "");
+    if (!imageUrl) throw new Error("imageUrl must be a public http(s) URL");
+    return {
+      kind: "image",
+      pageUrl: url,
+      imageUrl,
+      alt: cutCapture.attribution(request.alt?.trim() ?? ""),
+    };
+  }
   if (request.kind !== "page") throw new Error("unsupported payload kind");
 
-  const sourceUrl = validateCaptureUrl(request.url);
   if (Buffer.byteLength(request.defuddledHtml ?? "", "utf8") > MAX_DEFUDDLED_HTML_BYTES) {
     throw new Error("content exceeds the payload size limit");
   }
   checkLength(request.author, 240, "author");
   checkLength(request.publishedDate, 64, "publishedDate");
-  const title = request.title?.trim();
-  return {
-    sourceUrl,
-    title: title ? Array.from(title).slice(0, 500).join("") : new URL(sourceUrl).hostname,
-  };
+  // A blank title stays out, so the library takes the page's own once it fetches it.
+  const title = cutCapture.title(request.title?.trim() ?? "");
+  return title ? { kind: "url", url, title } : { kind: "url", url };
 }

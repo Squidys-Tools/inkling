@@ -1,24 +1,13 @@
-import browser from "webextension-polyfill";
-import { buildUrlCapturePayload } from "./capture";
-import type { PageCapturePayloadV1 } from "@inkling/contracts/capture";
+import type { CapturePayloadV1 } from "@inkling/contracts/capture";
+import browser, { type Menus, type Tabs } from "webextension-polyfill";
 import {
-  BASE_URL_KEY,
-  isPairingToken,
-  normalizeCaptureServerAddress,
-  TOKEN_KEY,
-} from "./connection";
-import { CaptureResponseError, buildCaptureDeepLink, postPayloadToLoopback } from "./transport";
+  buildImageCapturePayload,
+  buildQuoteCapturePayload,
+  buildUrlCapturePayload,
+} from "./capture";
+import { deliver } from "./deliver";
 
 const DEFAULT_TITLE = "Save to inkling";
-const MENU_ID = "inkling-save-page";
-
-async function readLoopbackConfig() {
-  const stored = await browser.storage.local.get([BASE_URL_KEY, TOKEN_KEY]);
-  const baseUrl = normalizeCaptureServerAddress(stored[BASE_URL_KEY]);
-  const token = stored[TOKEN_KEY];
-  if (!baseUrl || !isPairingToken(token)) return null;
-  return { baseUrl, token };
-}
 
 let successResetTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -42,59 +31,48 @@ async function showFailure(message: string) {
   await browser.action.setTitle({ title: `Couldn't save to inkling: ${message}` });
 }
 
-function captureErrorMessage(status: number) {
-  if (status === 401) return "check the extension pairing in inkling Settings → Browser extension";
-  if (status === 429) return "too many saves; try again in a minute";
-  return `inkling returned HTTP ${status}`;
+function menuCapture(info: Menus.OnClickData, tab: Tabs.Tab | undefined): CapturePayloadV1 {
+  const pageUrl = info.pageUrl ?? tab?.url ?? "";
+  const pageTitle = tab?.title ?? "";
+  if (info.menuItemId === "inkling-save-image")
+    return buildImageCapturePayload(pageUrl, info.srcUrl ?? "", pageTitle);
+  if (info.menuItemId === "inkling-save-selection")
+    return buildQuoteCapturePayload(pageUrl, info.selectionText ?? "", pageTitle);
+  if (info.menuItemId === "inkling-save-link")
+    return buildUrlCapturePayload(info.linkUrl ?? "", info.linkText ?? "");
+  return buildUrlCapturePayload(pageUrl, pageTitle);
 }
 
-async function saveUrl(rawUrl: string | undefined, title: string | undefined) {
-  let payload: PageCapturePayloadV1;
+async function saveFromMenu(info: Menus.OnClickData, tab: Tabs.Tab | undefined) {
+  let payload: CapturePayloadV1;
   try {
-    if (!rawUrl) throw new Error("no page URL");
-    payload = buildUrlCapturePayload(rawUrl, title ?? "");
-  } catch {
-    await showFailure("only HTTP and HTTPS pages can be saved");
+    payload = menuCapture(info, tab);
+  } catch (error) {
+    await showFailure(error instanceof Error ? error.message : "this can't be saved");
     return;
   }
-
-  const config = await readLoopbackConfig().catch(() => null);
-  if (config) {
-    try {
-      await postPayloadToLoopback(config.baseUrl, config.token, payload);
-      await showSuccess("Saved to inkling");
-      return;
-    } catch (error) {
-      if (error instanceof CaptureResponseError) {
-        await showFailure(captureErrorMessage(error.status));
-        return;
-      }
-    }
-  }
-
   try {
-    await browser.tabs.create({ url: buildCaptureDeepLink(payload) });
-    await showSuccess("Sent to inkling");
-  } catch {
-    await showFailure("open inkling once, then try again");
+    const delivery = await deliver(payload);
+    await showSuccess(delivery === "saved" ? "Saved to inkling" : "Sent to inkling");
+  } catch (error) {
+    await showFailure(error instanceof Error ? error.message : "inkling did not answer");
   }
 }
 
-browser.runtime.onInstalled.addListener(() => {
-  void browser.contextMenus.removeAll().then(() =>
-    browser.contextMenus.create({
-      id: MENU_ID,
-      title: "Save to inkling",
-      contexts: ["page", "link"],
-    }),
-  );
-});
+// Chrome offers "page" only when nothing more specific was right-clicked.
+const menus: Menus.CreateCreatePropertiesType[] = [
+  { id: "inkling-save-page", title: "Save page to inkling", contexts: ["page"] },
+  { id: "inkling-save-link", title: "Save link to inkling", contexts: ["link"] },
+  { id: "inkling-save-selection", title: "Save quote to inkling", contexts: ["selection"] },
+  { id: "inkling-save-image", title: "Save image to inkling", contexts: ["image"] },
+];
 
-browser.action.onClicked.addListener((tab) => {
-  void saveUrl(tab.url, tab.title);
+browser.runtime.onInstalled.addListener(() => {
+  void browser.contextMenus.removeAll().then(() => {
+    for (const menu of menus) browser.contextMenus.create(menu);
+  });
 });
 
 browser.contextMenus.onClicked.addListener((info, tab) => {
-  const isLink = typeof info.linkUrl === "string";
-  void saveUrl(info.linkUrl ?? info.pageUrl ?? tab?.url, isLink ? info.linkText : tab?.title);
+  void saveFromMenu(info, tab);
 });

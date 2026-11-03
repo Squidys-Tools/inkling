@@ -2,7 +2,7 @@
   "name": "@inkling/extension",
   "version": "0.1.0",
   "private": true,
-  "description": "Chrome MV3 extension for saving web page URLs to a local inkling library.",
+  "description": "Chrome MV3 extension for saving pages, links, quotes and images to a local inkling library.",
   "type": "module",
   "scripts": {
     "build": "vite build",

@@ -3,12 +3,14 @@ import { once } from "node:events";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { join } from "node:path";
 import { bearerToken, corsHeaders, createRateLimiter, originAllowed, tokensEqual } from "./gate.ts";
+import type { DeepLinkCapture } from "./deep-link.ts";
 import { validateCapturePayload } from "./payload.ts";
 import { openPairingToken } from "./pairing-token.ts";
 
 const MAX_JSON_BYTES = 5 * 1024 * 1024;
 const MAX_HEAD_BYTES = 64 * 1024;
 const READ_TIMEOUT = 10_000;
+const SAVE_TIMEOUT = 45_000;
 const HEALTH_PATH = "/v1/health";
 const CAPTURES_PATH = "/v1/captures";
 
@@ -62,20 +64,12 @@ async function readBody(request: IncomingMessage) {
   return Buffer.concat(chunks, length);
 }
 
-type CaptureUrl = (input: {
-  sourceUrl: string;
-  title?: string;
-  captureSource: string;
-}) => Promise<{ id: string } | null | undefined>;
+type SaveCapture = (capture: DeepLinkCapture) => Promise<{ id: string } | null | undefined>;
 
 async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
-  {
-    token,
-    allowRequest,
-    captureUrl,
-  }: { token: string; allowRequest: () => boolean; captureUrl: CaptureUrl },
+  { token, allowRequest, save }: { token: string; allowRequest: () => boolean; save: SaveCapture },
 ) {
   const origin = request.headers.origin;
   const cors = corsHeaders(origin);
@@ -132,9 +126,9 @@ async function handleRequest(
     });
     return;
   }
-  let input: ReturnType<typeof validateCapturePayload>;
+  let capture: DeepLinkCapture;
   try {
-    input = validateCapturePayload(body);
+    capture = validateCapturePayload(body);
   } catch (error) {
     send(response, 422, "Unprocessable Entity", cors, {
       error: "invalid-capture",
@@ -142,12 +136,12 @@ async function handleRequest(
     });
     return;
   }
+  // The whole request is in, and an image capture downloads for up to 30 seconds
+  // before it answers, so the idle timer that guards reading must not cut it off.
+  // It stays bounded: quitting waits for this request.
+  request.setTimeout(SAVE_TIMEOUT);
   try {
-    const item = await captureUrl({
-      sourceUrl: input.sourceUrl,
-      title: input.title,
-      captureSource: "browser extension",
-    });
+    const item = await save(capture);
     if (!item?.id) throw new Error("storage returned no item id");
     send(response, 201, "Created", cors, { id: item.id });
   } catch {
@@ -156,15 +150,15 @@ async function handleRequest(
 }
 
 /**
- * The loopback receiver the browser extension posts pages to. It answers only
- * extension origins holding the pairing token, and saves through `captureUrl`.
+ * The loopback receiver the browser extension posts captures to. It answers
+ * only extension origins holding the pairing token, and saves through `save`.
  */
 export async function startCaptureServer({
   libraryDirectory,
-  captureUrl,
+  save,
 }: {
   libraryDirectory: string;
-  captureUrl: CaptureUrl;
+  save: SaveCapture;
 }) {
   const pairing = await openPairingToken(join(libraryDirectory, "pairing_token"));
   const allowRequest = createRateLimiter();
@@ -178,7 +172,7 @@ export async function startCaptureServer({
     void handleRequest(request, response, {
       token: pairing.current(),
       allowRequest,
-      captureUrl,
+      save,
     });
   });
   server.headersTimeout = READ_TIMEOUT;
