@@ -7,6 +7,8 @@ export const channels = {
   captures: "inkling:captures",
   windowMinimize: "inkling:window:minimize",
   windowToggleMaximize: "inkling:window:toggle-maximize",
+  windowIsMaximized: "inkling:window:is-maximized",
+  windowMaximized: "inkling:window:maximized",
   windowClose: "inkling:window:close",
   windowReady: "inkling:window:ready",
   appVersion: "inkling:app-version",

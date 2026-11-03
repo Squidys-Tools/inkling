@@ -28,6 +28,8 @@ const bridge: DesktopBridge = {
   window: {
     minimize: () => invoke(channels.windowMinimize),
     toggleMaximize: () => invoke(channels.windowToggleMaximize),
+    isMaximized: () => invoke(channels.windowIsMaximized),
+    onMaximized: (listener) => subscribe(channels.windowMaximized, listener),
     close: () => invoke(channels.windowClose),
     ready: () => invoke(channels.windowReady),
   },

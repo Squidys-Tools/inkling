@@ -3,7 +3,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Glass } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, layout, motion } from "@inkling/ui/tokens.stylex";
-import { chrome, desktop } from "../desktop.ts";
+import { chrome, desktop, platform } from "../desktop.ts";
+import { WindowControls } from "./WindowControls.tsx";
 import { useViewState } from "../libraryView/viewState.ts";
 
 /** The native caption callbacks, in the library's own resting search-pill glass. */
@@ -22,7 +23,12 @@ export function TitleBar() {
           chrome.controls === "overlay-right" && styles.overlay,
         )}
       />
-      {custom && desktop && (
+      {custom && desktop && platform === "linux" && (
+        <div data-bench="linux-window-controls" {...stylex.props(styles.linuxControls)}>
+          <WindowControls actions={desktop.window} />
+        </div>
+      )}
+      {custom && desktop && platform !== "linux" && (
         <div data-bench="caption-reveal" {...stylex.props(styles.reveal)}>
           <Glass aria-label="Window controls" style={styles.controls}>
             <button
@@ -66,6 +72,13 @@ export function TitleBar() {
 }
 
 const styles = stylex.create({
+  linuxControls: {
+    position: "fixed",
+    top: "8px",
+    right: "8px",
+    WebkitAppRegion: "no-drag",
+    zIndex: 40,
+  },
   band: {
     position: "fixed",
     left: 0,
