@@ -106,6 +106,7 @@
     "Apply renderer.patch from this directory at the scratch checkout root.",
     "Copy each source_overrides template to its mapped scratch source path.",
     "For every new_media entry, verify asset SHA256 and copy it to scratch apps/renderer/src/library/preview/safe-media/fixture_name.",
-    "Build the preview intentionally with its compatible toolchain; public/demo remains the reviewed frozen runtime."
+    "Build the preview intentionally with its compatible toolchain; public/demo remains the reviewed frozen runtime.",
+    "Carry forward the Safari boot guards added after this freeze: apps/renderer/src/router.tsx falls back to setTimeout when window.requestIdleCallback is missing (Safari <18.4), apps/renderer/src/shell/firstScreen.ts avoids Promise.withResolvers (Safari <17.4). The frozen bundle instead loads public/demo/compat.js from index.html."
   ]
 }
