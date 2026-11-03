@@ -46,7 +46,9 @@ declare module "@tanstack/react-router" {
 
 /** Loads every page's code once the app is idle, so no first visit waits on a chunk. */
 export function preloadPagesWhenIdle() {
-  requestIdleCallback(() => {
+  // requestIdleCallback needs Safari 18.4; the site demo and web preview run on older.
+  const schedule = window.requestIdleCallback?.bind(window) ?? setTimeout;
+  schedule(() => {
     for (const route of routes) void router.loadRouteChunk(route);
   });
 }
