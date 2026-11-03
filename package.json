@@ -42,7 +42,7 @@
     "dompurify": "^3.4.17",
     "effect": "4.1.1",
     "electron-updater": "6.8.11",
-    "entities": "^7.0.1",
+    "entities": "^9.0.0",
     "ipaddr.js": "^2.5.0",
     "linkedom": "0.18.14",
     "onnxruntime-node": "1.31.1",
