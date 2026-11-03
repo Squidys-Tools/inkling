@@ -1,6 +1,6 @@
-// Ported from t3code's check-nightly-release.cjs. The gap sits under the daily
-// cron period so a delayed schedule or a queued run does not skip a day.
-const MINIMUM_RELEASE_GAP_MS = 20 * 60 * 60 * 1000;
+// Ported from t3code's check-nightly-release.cjs. Scheduled runs tick every
+// 30 minutes; this gap, not the cron, sets how often a nightly ships.
+const MINIMUM_RELEASE_GAP_MS = 12 * 60 * 60 * 1000;
 
 function repositoryDefaultBranch(context) {
   const branch = context.payload.repository?.default_branch;
