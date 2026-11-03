@@ -270,15 +270,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Check out before downloading: a checkout cleans the workspace, which would delete the installers.
+      - name: Check out the release scripts
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
       - uses: actions/download-artifact@v8
         with:
           pattern: release-*
           merge-multiple: true
           path: release-assets
-      - name: Check out the release scripts
-        uses: actions/checkout@v7
-        with:
-          sparse-checkout: .github/scripts
       # Created with the workflow token, which GitHub does not use to start the
       # tag-push trigger. A personal or app token here would start a second run.
       - name: Create the release tag at the release commit
