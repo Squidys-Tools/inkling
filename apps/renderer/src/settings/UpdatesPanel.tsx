@@ -3,7 +3,7 @@ import type { UpdateChannel } from "@inkling/contracts/desktop";
 import { SegmentedControl } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, radius, space } from "@inkling/ui/tokens.stylex";
-import { Panel, PanelBody, Row, settingsText, SquareButton } from "./parts.tsx";
+import { inset, Panel, PanelBody, Row, settingsText, SquareButton } from "./parts.tsx";
 import { type AppUpdate, useAppUpdate } from "./useAppUpdate.ts";
 
 const channels: readonly { value: UpdateChannel; label: string }[] = [
@@ -72,7 +72,7 @@ export function UpdatesPanel({ onClose }: { onClose: () => void }) {
                 options={channels}
                 disabled={disabled || isBusy}
                 onChange={(channel) => void update.setChannel(channel)}
-                style={styles.segmented}
+                style={[inset.capsule, styles.segmented]}
               />
               {downloading ? (
                 <SquareButton disabled={update.cancelling} onClick={() => void update.cancel()}>
@@ -134,10 +134,6 @@ const styles = stylex.create({
   segmented: {
     width: "fit-content",
     maxWidth: "100%",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: color.border,
-    backgroundColor: color.surface,
   },
   status: { display: "flex", flexDirection: "column", gap: space.s2 },
   progressRow: { display: "flex", alignItems: "center", gap: space.s3, minWidth: 0 },

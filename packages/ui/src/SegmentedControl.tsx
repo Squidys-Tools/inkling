@@ -66,7 +66,7 @@ const styles = stylex.create({
     paddingInline: space.s3,
     borderRadius: radius.control,
     color: { default: color.muted, ":hover": color.inkSoft },
-    backgroundColor: "transparent",
+    backgroundColor: { default: "transparent", ":hover": color.overlayHover },
     fontFamily: font.body,
     fontSize: text.md,
     fontWeight: 500,

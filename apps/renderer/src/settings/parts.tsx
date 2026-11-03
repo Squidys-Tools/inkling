@@ -39,7 +39,7 @@ export function Panel({
             onClick={onClose}
             {...stylex.props(styles.close)}
           >
-            <HugeiconsIcon icon={Cancel01Icon} size={18} />
+            <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={1.25} />
           </button>
         </div>
       </header>
@@ -105,7 +105,10 @@ type SquareButtonProps = Omit<ComponentProps<typeof Button>, "variant" | "style"
   look?: "plain" | "solid" | "danger";
 };
 
-/** A settings button: a hairline square with mono text. Solid marks a row's main action. */
+/**
+ * A settings button: a soft inset tile with mono text that lights up on hover. Solid marks a
+ * row's main action; danger fills with the danger color on hover.
+ */
 export function SquareButton({ look = "plain", ...props }: SquareButtonProps) {
   return (
     <Button
@@ -160,10 +163,24 @@ const squareLooks = stylex.create({
     backgroundColor: { default: color.ink, ":hover": color.inkStrong },
     color: color.surface,
     fontWeight: 600,
+    boxShadow: "none",
   },
   danger: {
-    color: color.accent,
-    borderColor: { default: color.borderStrong, ":hover": color.accent },
+    color: { default: color.danger, ":hover": color.onAccent },
+    borderColor: { default: color.glassEdge, ":hover": color.danger },
+    backgroundColor: { default: color.surface, ":hover": color.danger },
+  },
+});
+
+/** The inset capsule behind a group of choices, shared by every settings segmented control. */
+export const inset = stylex.create({
+  capsule: {
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: color.glassEdge,
+    borderRadius: radius.tile,
+    backgroundColor: color.surface,
+    boxShadow: `inset 0 1px 0 ${color.glassEdge}`,
   },
 });
 
@@ -225,16 +242,18 @@ const styles = stylex.create({
   close: {
     display: "inline-grid",
     placeItems: "center",
-    width: "36px",
-    height: "36px",
+    width: "32px",
+    height: "32px",
     flex: "none",
     padding: 0,
     borderWidth: 0,
-    backgroundColor: "transparent",
-    color: { default: color.inkSoft, ":hover": color.ink },
+    borderRadius: radius.control,
+    backgroundColor: { default: "transparent", ":hover": color.danger },
+    color: { default: color.inkSoft, ":hover": color.onAccent },
     cursor: "pointer",
-    transitionProperty: "color",
+    transitionProperty: "color, background-color",
     transitionDuration: motion.micro,
+    transitionTimingFunction: motion.standard,
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "2px",
   },
@@ -335,7 +354,13 @@ const styles = stylex.create({
     height: "32px",
     paddingInline: space.s3,
     borderRadius: radius.control,
-    borderColor: color.borderStrong,
+    borderColor: { default: color.glassEdge, ":hover": color.borderStrong },
+    backgroundColor: {
+      default: color.surface,
+      ":hover": color.hover,
+      ":active": color.raised,
+    },
+    boxShadow: `inset 0 1px 0 ${color.glassEdge}`,
     fontFamily: font.mono,
     fontSize: text.sm,
     fontWeight: 500,
