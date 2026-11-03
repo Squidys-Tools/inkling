@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { WORKER_ENVIRONMENT } from "@inkling/contracts/jobs";
 import {
   createEmbeddingEngine,
   floatVectorBytes,
@@ -89,3 +90,40 @@ test("very long text embeds at most eight windows, like a capped document", () =
   const body = windows.flatMap((window) => window.ids.slice(1, -1));
   expect(body).toEqual(values.slice(1, 1 + 8 * 8190));
 });
+
+test("onnxruntime started with the worker's environment keeps no device ID or telemetry queue", async () => {
+  const home = mkdtempSync(join(tmpdir(), "inkling-ort-telemetry-"));
+  try {
+    // A one-node Identity model: the telemetry client starts with the first session.
+    const model =
+      "08083a370a100a017812017922084964656e746974791201675a0f0a0178120a0a08080112040a020801620f0a0179120a0a08080112040a02080142040a00100d";
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "-e",
+        `await require("onnxruntime-node").InferenceSession.create(Buffer.from("${model}", "hex"))`,
+      ],
+      {
+        cwd: import.meta.dir,
+        env: {
+          ...process.env,
+          HOME: home,
+          USERPROFILE: home,
+          LOCALAPPDATA: home,
+          APPDATA: home,
+          XDG_CACHE_HOME: home,
+          BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0",
+          // onnxruntime stays quiet on its own where CI is set, which would let this pass vacuously.
+          CI: "",
+          GITHUB_ACTIONS: "",
+          ...WORKER_ENVIRONMENT,
+        },
+        stderr: "inherit",
+      },
+    );
+    expect(await child.exited).toBe(0);
+    expect(readdirSync(home, { recursive: true })).toEqual([]);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+}, 20_000);

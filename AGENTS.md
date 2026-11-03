@@ -54,7 +54,7 @@ The usual defect works on the tested path and is missing elsewhere. Before calli
 - Keep partial results when extraction fails. A card with a title and domain beats an error card.
 - Let TypeScript infer types, and never use `any`.
 - Write a comment only where a reader would likely break something without it: an ordering or race guarantee, a security check, a Chromium, Electron, WebGPU or OS quirk, or an invariant another file relies on. One line where you can, four at most. `inkling/no-low-value-comments` (in `tools/oxlint-plugin/`) enforces part of this, and every `oxlint-disable` needs a `-- reason`.
-- The marketing site reaches production only through the `Deploy site` workflow, and only when a maintainer asks. Merging to `main` never deploys it. Never approve that deployment yourself. See `docs/operations/development.md`.
+- Merging to `main` deploys the marketing site to production when the merge changes anything the site builds from, through the `Deploy site` workflow. Treat a merge of site, renderer or shared UI code as a release of the site. See `docs/operations/development.md`.
 - When a package.json script is renamed or removed, or its command changes, update `t3.json` in the same change.
 
 ## Tests and checks

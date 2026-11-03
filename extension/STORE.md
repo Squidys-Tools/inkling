@@ -2,22 +2,23 @@
 
 ## Short description
 
-Save web pages and links to your local inkling library.
+Save pages, links, quotes and images to your local inkling library.
 
 ## Long description
 
-Save the page you are viewing from the toolbar, or right-click a link or page and choose **Save to inkling**. The extension sends the URL to inkling on this computer. It does not read page content or send anything to a remote service.
+Click the toolbar icon to see the card the page will become in inkling: an article, video, post, PDF, image, or a quote of the text you selected. Edit the title, press Enter, and it is in your library. Right-click a page, link, selection or image to save it without the popup. Everything goes to inkling on this computer, never to a remote service.
 
 ## Permissions
 
-- `activeTab` — read the URL and title only after you click the toolbar action or context-menu item.
-- `contextMenus` — add **Save to inkling** to links and pages.
+- `activeTab` — read the open tab only after you open the popup or choose a context-menu item.
+- `scripting` — read the page's title, description, preview image and selection to draw the popup's preview card.
+- `contextMenus` — add the save items to pages, links, selections and images.
 - `storage` — keep the optional local receiver address and pairing token in this browser profile.
 - `http://127.0.0.1/*` — send paired captures to the inkling receiver on this computer; the receiver requires its per-install bearer token and allows browser-extension origins.
 
 ## Privacy note
 
-The extension sends page URLs only. When paired, the token is sent only to `127.0.0.1`; otherwise the extension hands the URL to inkling through its registered `inkling://` capture link. No accounts, analytics, remote calls, or page extraction.
+The popup reads the page's title, description, preview image address and selection to draw its preview, and loads that preview image from the site you are on. It sends inkling only the URL, title, selected text or image address. When paired, the token is sent only to `127.0.0.1`; otherwise the extension hands the capture to inkling through its registered `inkling://` capture link. No accounts, analytics, or remote calls.
 
 ## Load unpacked
 

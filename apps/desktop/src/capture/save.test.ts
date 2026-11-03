@@ -14,9 +14,16 @@ test("links save in arrival order, an image that will not download keeps its pag
       calls.push(["captureUrl", input]);
       if (input.sourceUrl === "https://read-only.example/")
         throw new Error("The library is read-only.");
+      return { id: "page" };
     },
-    createQuote: async (input: unknown) => void calls.push(["createQuote", input]),
-    saveFile: async (input: unknown) => void calls.push(["saveFile", input]),
+    createQuote: async (input: unknown) => {
+      calls.push(["createQuote", input]);
+      return { id: "quote" };
+    },
+    saveFile: async (input: unknown) => {
+      calls.push(["saveFile", input]);
+      return { id: "image" };
+    },
   };
   const receive = deepLinkInbox({
     library: async () => library,

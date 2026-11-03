@@ -1,5 +1,5 @@
 import type { Plugin } from "vite";
-import { collectThirdPartyLicenses, packageDirOf } from "./collect.ts";
+import { collectThirdPartyLicenses, packageDirsOf } from "./collect.ts";
 
 const LICENSES_FILE = "third-party-licenses.json";
 
@@ -19,11 +19,7 @@ export function thirdPartyLicenses(workspaceDir: string): Plugin {
       });
     },
     generateBundle() {
-      const bundled = new Set<string>();
-      for (const id of this.getModuleIds()) {
-        const dir = packageDirOf(id);
-        if (dir) bundled.add(dir);
-      }
+      const bundled = packageDirsOf(this.getModuleIds());
       const { entries, warnings } = collectThirdPartyLicenses(workspaceDir, bundled);
       for (const warning of warnings) this.warn(warning);
       this.emitFile({ type: "asset", fileName: LICENSES_FILE, source: JSON.stringify(entries) });

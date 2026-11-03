@@ -13,7 +13,7 @@ import { createSingleFlightDirectoryPicker } from "../native-dialog.ts";
 import { channels } from "../channels.ts";
 import type { LibraryClient } from "../library-client.ts";
 import { downloadImage } from "./image-download.ts";
-import { deepLinkInbox } from "./save.ts";
+import { deepLinkInbox, saveCapture } from "./save.ts";
 import { startCaptureServer } from "./server.ts";
 
 /**
@@ -31,10 +31,11 @@ export function outsideCaptures({
   // A failure with no window to show it waits for the next window that is ready.
   const readyWindows = new Set<WebContents>();
   const pendingFailures: FailedCapture[] = [];
+  // Node's fetch, not net.fetch: it returns a redirect unfollowed, so each hop is checked first.
+  const download = (url: string) => downloadImage(url, fetch);
   const receive = deepLinkInbox({
     library,
-    // Node's fetch, not net.fetch: it returns a redirect unfollowed, so each hop is checked first.
-    downloadImage: (url) => downloadImage(url, fetch),
+    downloadImage: download,
     onFailure: (failure) => {
       const live = [...readyWindows].filter((contents) => !contents.isDestroyed());
       if (live.length === 0) pendingFailures.push(failure);
@@ -113,7 +114,7 @@ export function outsideCaptures({
       try {
         server = await startCaptureServer({
           libraryDirectory,
-          captureUrl: async (input) => (await library()).captureUrl(input),
+          save: async (capture) => saveCapture(capture, await library(), download),
         });
       } catch (error) {
         console.error("inkling: the browser extension receiver did not start", error);
