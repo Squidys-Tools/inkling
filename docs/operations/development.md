@@ -83,8 +83,9 @@ secrets or previews.
 The `Deploy site` workflow (`.github/workflows/site-deploy.yml`) is the only
 path to the production domain. It runs on every push to `main` whose paths match
 the preview filter above, plus the workflow file itself; keep the two lists in
-sync. On the `site-production` GitHub environment, which allows only `main` and
-has no reviewer, it builds a production deployment with no domain, promotes it
+sync. On the `site-production` GitHub environment, which deploys only from
+`main` and needs a maintainer's approval, it builds a production deployment
+with no domain, promotes it
 through the Vercel API, and fails unless getinkling.dev then points at that
 deployment. A failed build leaves the previous site live. A newer push replaces a
 deploy still waiting in the queue. To redeploy without a push, as after a release,
