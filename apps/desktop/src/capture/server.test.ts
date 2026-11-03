@@ -31,11 +31,11 @@ const page = (title: string) =>
 test("loopback capture uses a persisted bearer token and saves through the library", async () => {
   const directory = temporaryDirectory();
   const saved: unknown[] = [];
-  const captureUrl = async (input: unknown) => {
-    saved.push(input);
+  const save = async (capture: unknown) => {
+    saved.push(capture);
     return { id: `item-${saved.length}` };
   };
-  let server = await startCaptureServer({ libraryDirectory: directory, captureUrl });
+  let server = await startCaptureServer({ libraryDirectory: directory, save });
   servers.push(server);
 
   const status = server.status();
@@ -82,11 +82,25 @@ test("loopback capture uses a persisted bearer token and saves through the libra
   });
   expect(response.status).toBe(201);
   expect(await response.json()).toEqual({ id: "item-1" });
+  const quote = await fetch(`${base}/v1/captures`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${originalToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      version: 1,
+      kind: "quote",
+      url: "https://example.com/article",
+      selection: "Kept words",
+      attribution: "An article",
+    }),
+  });
+  expect(quote.status).toBe(201);
   expect(saved).toEqual([
+    { kind: "url", url: "https://example.com/article", title: "Captured page" },
     {
-      sourceUrl: "https://example.com/article",
-      title: "Captured page",
-      captureSource: "browser extension",
+      kind: "quote",
+      url: "https://example.com/article",
+      selection: "Kept words",
+      attribution: "An article",
     },
   ]);
 
@@ -99,7 +113,7 @@ test("loopback capture uses a persisted bearer token and saves through the libra
   await server.close();
   expect(server.status()).toEqual({ running: false, port: null });
   expect(await server.answersHealthCheck()).toBe(false);
-  server = await startCaptureServer({ libraryDirectory: directory, captureUrl });
+  server = await startCaptureServer({ libraryDirectory: directory, save });
   servers.push(server);
   expect(server.getPairingToken()).toBe(nextToken);
 });
@@ -107,7 +121,7 @@ test("loopback capture uses a persisted bearer token and saves through the libra
 test("a library that cannot save answers 503 instead of a fake success", async () => {
   const server = await startCaptureServer({
     libraryDirectory: temporaryDirectory(),
-    captureUrl: async () => {
+    save: async () => {
       throw new Error("the library process stopped");
     },
   });
@@ -130,7 +144,7 @@ test("closing the receiver waits for an in-flight capture to finish", async () =
   const captureResult = Promise.withResolvers<{ id: string }>();
   const server = await startCaptureServer({
     libraryDirectory: directory,
-    captureUrl: async () => {
+    save: async () => {
       captureStarted.resolve();
       return captureResult.promise;
     },

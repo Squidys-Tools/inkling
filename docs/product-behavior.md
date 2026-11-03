@@ -55,7 +55,9 @@ If extraction fails, retain the URL, title, domain, and any metadata that was su
 
 ### Image capture
 
-Images can be added by file picker, drag-and-drop into the main library grid view, clipboard, or screenshot capture. The Chrome browser extension captures page URLs from the toolbar or a link/page context menu; it does not capture images or read page content.
+Images can be added by file picker, drag-and-drop into the main library grid view, clipboard, screenshot capture, or the Chrome extension.
+
+The Chrome extension's toolbar popup shows the card the open tab will become, drawn with the library's own card components: a page, video, X post or PDF as its URL capture, an image tab as the image, and selected text as a quote, with the page offered beside it. The user can edit the title or quote source before saving; a blank title lets the app take the page's own. Its right-click menu saves a page, link, selection or image without the popup. To draw the preview the popup reads the page's title, description, preview image and selection, and it sends the app only the URL, title, selected text or image address. A saved image is downloaded by the app; if that fails, the page is kept instead.
 
 The system should automatically process images for searchable text, concepts, colors, and semantic similarity. The resulting metadata should improve search and Spaces without exposing an AI-management surface.
 

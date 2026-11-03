@@ -1,8 +1,14 @@
 import { describe, expect, mock, test } from "bun:test";
 
 const badgeTexts: string[] = [];
-let onActionClicked: ((tab: { url?: string; title?: string }) => void) | undefined;
+type MenuClick = (
+  info: { menuItemId: string; pageUrl?: string },
+  tab: { url?: string; title?: string },
+) => void;
+let onMenuClicked: MenuClick | undefined;
 let tabsCreateFails = false;
+let stored: Record<string, string> = {};
+const openedLinks: string[] = [];
 let resolveFailureShown: () => void = () => {};
 const failureShown = new Promise<void>((resolve) => {
   resolveFailureShown = resolve;
@@ -21,22 +27,22 @@ mock.module("webextension-polyfill", () => ({
         if (text === "!") resolveFailureShown();
       },
       setTitle: async () => {},
-      onClicked: {
-        addListener: (listener: (tab: { url?: string; title?: string }) => void) => {
-          onActionClicked = listener;
-        },
-      },
     },
     runtime: { onInstalled: { addListener: () => {} } },
     contextMenus: {
       removeAll: async () => {},
       create: () => {},
-      onClicked: { addListener: () => {} },
+      onClicked: {
+        addListener: (listener: MenuClick) => {
+          onMenuClicked = listener;
+        },
+      },
     },
-    storage: { local: { get: async () => ({}) } },
+    storage: { local: { get: async () => stored } },
     tabs: {
-      create: async () => {
+      create: async ({ url }: { url: string }) => {
         if (tabsCreateFails) throw new Error("could not open the capture link");
+        openedLinks.push(url);
         return {};
       },
     },
@@ -63,14 +69,15 @@ describe("background badge state", () => {
 
     try {
       await import("./background");
-      if (!onActionClicked) throw new Error("background did not register a click listener");
+      if (!onMenuClicked) throw new Error("background did not register a menu listener");
+      const savePage = { menuItemId: "inkling-save-page" };
 
-      onActionClicked({ url: "https://example.com/a", title: "A" });
+      onMenuClicked(savePage, { url: "https://example.com/a", title: "A" });
       await successTimerArmed;
       const [successTimerId] = armedTimerIds;
 
       tabsCreateFails = true;
-      onActionClicked({ url: "https://example.com/b", title: "B" });
+      onMenuClicked(savePage, { url: "https://example.com/b", title: "B" });
       await failureShown;
 
       timers.get(successTimerId)?.();
@@ -78,6 +85,40 @@ describe("background badge state", () => {
     } finally {
       globalThis.setTimeout = originalSetTimeout;
       globalThis.clearTimeout = originalClearTimeout;
+    }
+  });
+});
+
+describe("delivery", () => {
+  test("a stale pairing falls back to the link, and a refusal the link would share does not", async () => {
+    const { buildUrlCapturePayload } = await import("./capture");
+    const { deliver } = await import("./deliver");
+    stored = { "inkling.base-url": "http://127.0.0.1:41234", "inkling.token": "a".repeat(64) };
+    tabsCreateFails = false;
+    const originalFetch = globalThis.fetch;
+    let status = 401;
+    globalThis.fetch = (async () => new Response(null, { status })) as unknown as typeof fetch;
+    try {
+      const page = buildUrlCapturePayload("https://example.com/a", "A");
+      openedLinks.length = 0;
+      for (status of [401, 429]) expect(await deliver(page)).toBe("sent");
+      expect(openedLinks).toHaveLength(2);
+
+      status = 503;
+      await expect(deliver(page)).rejects.toThrow("HTTP 503");
+      status = 201;
+      expect(await deliver(page)).toBe("saved");
+      expect(openedLinks).toHaveLength(2);
+
+      // The app drops a link to the user's own network, so the popup must not say it went.
+      status = 401;
+      await expect(
+        deliver(buildUrlCapturePayload("http://192.168.1.20:8080/wiki", "Wiki")),
+      ).rejects.toThrow("own network");
+      expect(openedLinks).toHaveLength(2);
+    } finally {
+      globalThis.fetch = originalFetch;
+      stored = {};
     }
   });
 });

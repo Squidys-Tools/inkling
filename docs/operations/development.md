@@ -23,7 +23,7 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
   shared by the worker and the renderer.
 - `packages/contracts`: the Effect RPC groups the renderer and the library
   process call, the preload bridge type, the shortcut table, and the capture
-  payload the browser extension sends.
+  payloads the browser extension sends.
 - `packages/rpc-electron`: Effect RPC over Electron message ports.
 - `packages/ui`: design tokens (`tokens.stylex.ts`, the only file with color
   values) and shared components.

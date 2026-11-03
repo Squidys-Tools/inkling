@@ -1,16 +1,10 @@
+import { cutCapture } from "@inkling/contracts/capture";
 import { publicWebUrl } from "./web-url.ts";
 
 export type DeepLinkCapture =
   | { kind: "url"; url: string; title?: string }
   | { kind: "quote"; url: string; selection: string; attribution: string }
   | { kind: "image"; pageUrl: string; imageUrl: string; alt: string };
-
-// The library's own limits for a quote; a longer one would fail to save.
-const selectionMaxLength = 1500;
-const attributionMaxLength = 240;
-const titleMaxLength = 500;
-
-const firstCharacters = (value: string, count: number) => [...value].slice(0, count).join("");
 
 /**
  * Parses `inkling://capture?url=&title=`, the quote form (`&selection=`) and the
@@ -31,14 +25,14 @@ export function parseDeepLink(value: string): DeepLinkCapture | null {
   const url = publicWebUrl(parameter("url"));
   if (!url) return null;
 
-  const selection = parameter("selection").slice(0, selectionMaxLength);
+  const selection = cutCapture.quote(parameter("selection"));
   if (selection) {
     const attribution = parameter("title") || new URL(url).hostname.replace(/^www\./u, "");
     return {
       kind: "quote",
       url,
       selection,
-      attribution: attribution.slice(0, attributionMaxLength),
+      attribution: cutCapture.attribution(attribution),
     };
   }
 
@@ -49,10 +43,10 @@ export function parseDeepLink(value: string): DeepLinkCapture | null {
       kind: "image",
       pageUrl: url,
       imageUrl,
-      alt: parameter("alt").slice(0, attributionMaxLength),
+      alt: cutCapture.attribution(parameter("alt")),
     };
   }
 
-  const title = firstCharacters(parameter("title"), titleMaxLength);
+  const title = cutCapture.title(parameter("title"));
   return title ? { kind: "url", url, title } : { kind: "url", url };
 }
