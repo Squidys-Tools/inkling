@@ -1,7 +1,8 @@
 // Radix/shadcn semantics (MIT), original Inkling artwork and owned Motion animations.
 import * as React from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { motion, useInView, AnimatePresence, animate } from "motion/react";
+import { useInView, AnimatePresence, animate } from "motion/react";
+import { InkHint } from "./InkHint";
 import { useMotionPreference } from "./motion-preference";
 import { Cast, cast } from "./Cast";
 import { useHydrated } from "./environment";
@@ -36,6 +37,8 @@ export function MascotHint({
     [hovered, setHovered] = React.useState(false),
     root = React.useRef(null),
     trigger = React.useRef(null),
+    figure = React.useRef(null),
+    placed = React.useRef(null),
     visible = useInView(root, { amount: 0.1 });
   const slots = {
     "hero-peek-left": 0,
@@ -51,6 +54,10 @@ export function MascotHint({
     person = cast[variant % cast.length],
     alive = !reduced && visible;
   const changeOpen = (next) => setOpen(next);
+  const getFigure = React.useCallback(() => figure.current, []);
+  const registerPlaced = React.useCallback((start) => {
+    placed.current = start;
+  }, []);
   return (
     <div
       ref={root}
@@ -68,7 +75,7 @@ export function MascotHint({
             onPointerEnter={() => setHovered(true)}
             onPointerLeave={() => setHovered(false)}
           >
-            <span className="mascot-character" data-alive={alive}>
+            <span ref={figure} className="mascot-character" data-alive={alive}>
               <Cast index={variant} gaze={gaze} alive={alive} engaged={open || hovered} />
             </span>
           </button>
@@ -92,23 +99,19 @@ export function MascotHint({
                     : undefined
                 }
                 aria-label={label}
+                onPlaced={() => placed.current?.()}
                 onCloseAutoFocus={(event) => {
                   event.preventDefault();
                   trigger.current?.focus({ preventScroll: true });
                 }}
               >
-                <motion.div
-                  className="mascot-hint"
-                  initial={reduced ? false : { opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 4 }}
-                  transition={{ duration: reduced ? 0 : 0.18, ease: [0.16, 1, 0.3, 1] }}
-                >
-                  <p>{tip}</p>
-                  <Popover.Close className="hint-close" aria-label="Close hint">
-                    ×
-                  </Popover.Close>
-                </motion.div>
+                <InkHint
+                  trigger={trigger}
+                  getCharacter={getFigure}
+                  reduced={reduced}
+                  register={registerPlaced}
+                  tip={tip}
+                />
               </Popover.Content>
             </Popover.Portal>
           )}
