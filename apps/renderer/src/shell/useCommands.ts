@@ -3,21 +3,22 @@ import { useHotkeys } from "@tanstack/react-hotkeys";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { desktop, platform } from "../desktop.ts";
-import { setSettingsSheetOpen } from "../libraryView/viewState.ts";
 import { runHandledCommand } from "./commands.ts";
 
 // Mod resolves from the same platform that picked the bindings, not from the user agent.
 const hotkeyPlatform = { darwin: "mac", win32: "windows", linux: "linux" } as const;
 
+const modal =
+  '[role="dialog"]:not([aria-modal="false"]), [role="alertdialog"]:not([aria-modal="false"])';
+
 function run(router: ReturnType<typeof useRouter>, command: Command) {
   // An open dialog owns the keyboard: it keeps Escape and the shortcuts
-  // until it closes.
-  if (
-    document.querySelector(
-      '[role="dialog"]:not([aria-modal="false"]), [role="alertdialog"]:not([aria-modal="false"])',
-    )
-  )
-    return;
+  // until it closes. The settings sheet lives in the URL, so back and
+  // forward from the mouse or the menu still close and reopen it (Base UI
+  // keeps Alt+arrow keys inside the sheet).
+  const navigation = command === "back" || command === "forward";
+  const owners = [...document.querySelectorAll(modal)];
+  if (owners.some((dialog) => !navigation || dialog.id !== "settings-sheet")) return;
   switch (command) {
     case "addNote":
       return router.navigate({ to: "/add/note" });
@@ -26,7 +27,7 @@ function run(router: ReturnType<typeof useRouter>, command: Command) {
     case "addLink":
       return router.navigate({ to: "/add/link" });
     case "openSettings":
-      return setSettingsSheetOpen(true);
+      return router.navigate({ to: ".", search: (prev) => ({ ...prev, settings: "general" }) });
     case "back":
       return router.history.back();
     case "forward":
@@ -59,10 +60,12 @@ export function useCommands() {
   );
 
   useEffect(() => {
-    // Mouse side buttons are back and forward on every system.
+    // Chromium also steps history itself on an uncancelled side-button
+    // mouseup, so without preventDefault one press moves two entries.
     const onMouseUp = (event: MouseEvent) => {
-      if (event.button === 3) void run(router, "back");
-      if (event.button === 4) void run(router, "forward");
+      if (event.button !== 3 && event.button !== 4) return;
+      event.preventDefault();
+      void run(router, event.button === 3 ? "back" : "forward");
     };
     window.addEventListener("mouseup", onMouseUp);
     const stopMenu = desktop?.onCommand((command) => void run(router, command));

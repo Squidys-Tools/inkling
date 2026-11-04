@@ -6,6 +6,7 @@ import {
   SidebarLeftIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useNavigate, useSearch as useRouteSearch } from "@tanstack/react-router";
 import { useLayoutEffect, useRef } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
@@ -14,7 +15,7 @@ import { chrome } from "../desktop.ts";
 import { shownScope, useActiveTotal } from "../library/cards.ts";
 import { search, useSearch } from "../library/search.ts";
 import { useStore } from "../library/store.ts";
-import { setSettingsSheetOpen, setSidebarOpen, useViewState } from "../libraryView/viewState.ts";
+import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { Mascot } from "../mascot/Mascot.tsx";
 import { useMascotMood } from "../mascot/useMascotMood.ts";
 import { useAppUpdate } from "../settings/useAppUpdate.ts";
@@ -71,7 +72,11 @@ export function Sidebar({
 }) {
   const total = useActiveTotal();
   const shown = useStore(shownScope, (scope) => scope._tag);
-  const settingsOpen = useViewState((state) => state.settingsSheetOpen);
+  const navigate = useNavigate();
+  const settingsOpen = useRouteSearch({
+    from: "__root__",
+    select: (search) => search.settings !== undefined,
+  });
 
   const compact = !visualOpen;
   const width = visualOpen ? sidebarExpanded : sidebarCompact;
@@ -183,7 +188,9 @@ export function Sidebar({
             compact={compact}
             icon={<HugeiconsIcon icon={Settings01Icon} size={15} />}
             label="Settings"
-            onClick={() => setSettingsSheetOpen(true)}
+            onClick={() =>
+              void navigate({ to: ".", search: (prev) => ({ ...prev, settings: "general" }) })
+            }
           />
         </div>
       </aside>

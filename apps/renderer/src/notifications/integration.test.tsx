@@ -93,7 +93,6 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
       platform: "linux",
       bindingsFor,
       shortcuts,
-      setSettingsSheetOpen: () => calls.push("settings"),
       runHandledCommand: (command: string) => calls.push(command),
     },
     "useCommands",
@@ -138,6 +137,15 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
     target.dispatchEvent(e);
     return e;
   };
+  const sideBack = () => {
+    const e = new f.dom.window.MouseEvent("mouseup", {
+      button: 3,
+      bubbles: true,
+      cancelable: true,
+    });
+    page.dispatchEvent(e);
+    return e;
+  };
   try {
     await act(async () => root.render(<App />));
     await act(async () =>
@@ -149,10 +157,10 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
       page.dispatchEvent(
         new f.dom.window.KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
       );
-      page.dispatchEvent(new f.dom.window.MouseEvent("mouseup", { button: 3, bubbles: true }));
+      expect(sideBack().defaultPrevented).toBe(true);
       escape(page);
     });
-    expect(calls).toEqual(["search", "settings", "search", "back"]);
+    expect(calls).toEqual(["search", ".", "search", "back"]);
     expect(escaped).toBe(1);
     const modal = document.createElement("div");
     modal.setAttribute("role", "dialog");
@@ -163,10 +171,17 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
       page.dispatchEvent(
         new f.dom.window.KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
       );
+      sideBack();
       escape(page);
     });
     expect(calls).toHaveLength(4);
     expect(escaped).toBe(1);
+    modal.id = "settings-sheet";
+    await act(async () => {
+      fromMenu("search");
+      sideBack();
+    });
+    expect(calls.slice(4)).toEqual(["back"]);
     modal.remove();
     // A bare key runs from the page but stays text in a field.
     const field = document.createElement("input");
@@ -176,7 +191,7 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
       field.focus();
       field.dispatchEvent(new f.dom.window.KeyboardEvent("keydown", { key: "n", bubbles: true }));
     });
-    expect(calls.slice(4)).toEqual(["/add/note"]);
+    expect(calls.slice(5)).toEqual(["/add/note"]);
     field.remove();
     for (const error of [false, true]) {
       await act(async () => {
@@ -211,7 +226,6 @@ test("on macOS desktop, Cmd shortcuts reach commands only through the menu", asy
       platform: "darwin",
       bindingsFor,
       shortcuts,
-      setSettingsSheetOpen: () => {},
       runHandledCommand: (command: string) => calls.push(command),
     },
     "useCommands",
