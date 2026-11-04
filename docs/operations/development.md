@@ -10,8 +10,8 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 ## Layout
 
 - `apps/desktop`: Electron main process and preload. Windows, menus, dialogs,
-  the `app://` protocol, capture intake, updates, and the two processes below. It never opens the database.
-- `apps/renderer`: the React app. Routes, pages and stores, styled only with StyleX.
+  the `app://` protocol, capture intake, updates, and the two processes below.
+- `apps/renderer`: the React app. Routes, pages and stores.
 - `apps/site`: the marketing site, a TanStack Start app prerendered to static
   HTML. It imports the renderer's cards, mascot, welcome-screen demos and demo
   seed instead of copying them.
@@ -25,11 +25,12 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
   process call, the preload bridge type, the shortcut table, and the capture
   payloads the browser extension sends.
 - `packages/rpc-electron`: Effect RPC over Electron message ports.
-- `packages/ui`: design tokens (`tokens.stylex.ts`, the only file with color
-  values) and shared components.
+- `packages/ui`: design tokens (`tokens.stylex.ts`) and shared components.
 - `tools/`: the packaged and launch smokes (`smoke/`), the frame and first-page
-  benchmarks (`bench/`), model staging (`models/`), the lint plugin
-  (`oxlint-plugin/`), repository checks (`repo/`) and release staging (`release/`).
+  benchmarks (`bench/`), the `dev:app` launcher and its seeded library (`dev/`),
+  the README mascot animation (`mascot/`), model staging (`models/`), the lint
+  plugin (`oxlint-plugin/`), repository checks (`repo/`) and release staging
+  (`release/`).
 - `extension/`: the Chrome extension. `benchmarks/`: the extraction and OCR corpus and harness.
 
 ## Running
@@ -67,9 +68,9 @@ packaging command goes through `build:app`, so no shipped package carries the
 The marketing site deploys from a Vercel project whose root directory is
 `apps/site`; `apps/site/vercel.json` installs the Bun in `.bun-version` and
 serves `apps/site/dist/client`. Its download buttons link the installers of the
-latest GitHub release, looked up once per build, so redeploy the site after
-publishing a release. Build it with `bun run build:site`, which runs Vite on
-Node: under the Bun runtime, StyleX's production media-query parser fails.
+latest GitHub release, looked up once per build. Build it with
+`bun run build:site`, which runs Vite on Node: under the Bun runtime, StyleX's
+production media-query parser fails.
 
 Iterate on the site with `bun run dev:site` (hot reload; read the port from its
 output). Vercel's automatic Git deployments are disabled in
@@ -167,7 +168,7 @@ Never add signing secrets. Nightlies publish themselves; a stable release is pub
 Pushes and PRs that change only Markdown, `docs/` or `AGENTS.md` skip CI and the security scans.
 
 - `ci.yml` runs the unit tests on `windows-latest`, the typecheck, lint, Knip and web/extension builds on `ubuntu-latest`, and builds and launches the app from source on Windows, Linux and macOS.
-- `security.yml` runs CodeQL when a PR opens or reopens and on about every fourth push to it, and dependency review on every PR push.
+- `security.yml` runs CodeQL weekly, on pushes to `main` that change code, and on a PR when it opens or reopens and on about every fourth push to it. Dependency review runs on every PR push that changes more than docs or demo data.
 - App changes in a same-repository PR (`electron-preview.yml`, skipped when only `apps/site/` changes) build the unpacked app on Windows, Linux and macOS, run the backend smoke and launch it (Linux under Xvfb); macOS also verifies its ad-hoc signature, and Windows and Linux upload the directory as a 3-day artifact.
 - `pr-size.yml` labels each PR by the size of its diff.
 - `knip.yml` runs `knip --fix` every other day and opens a cleanup PR. It strips unused exports and prunes dependencies but never deletes files; if its PRs get noisy, tune the patterns in `knip.json` rather than disabling it.
