@@ -49,10 +49,8 @@ export function Welcome({ onFinish }: { onFinish: () => void }) {
     return () => observer.disconnect();
   }, []);
 
-  // The later screens' photos decode while the first one shows, so none pop in.
   useEffect(preloadOnboardingPhotos, []);
 
-  // Plays the current screen's exit, then lands on `next` or finishes.
   const go = (next: number | "close") => {
     if (leaving !== null) return;
     const step = next === "close" ? 0 : next > screen ? 1 : -1;
