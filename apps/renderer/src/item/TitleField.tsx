@@ -108,35 +108,34 @@ function TitleEditor({ title, finish }: { title: string; finish: (value: string 
       nodes: [...element.childNodes].map((node) => node.cloneNode(true)),
       offsets: selectionOffsets(element),
     });
-    let previous = snapshot();
-    let composing = false;
+    const edit = { previous: snapshot(), composing: false };
     const beforeInput = (event: InputEvent) => {
-      if (composing || event.isComposing) return;
-      previous = snapshot();
-      const [start, end] = previous.offsets;
+      if (edit.composing || event.isComposing) return;
+      edit.previous = snapshot();
+      const [start, end] = edit.previous.offsets;
       const length = element.textContent?.length ?? 0;
       if (event.data !== null && !fitsTitleEdit(length, start, end, event.data))
         event.preventDefault();
     };
     const input = (event?: Event) => {
-      if (composing || (event instanceof InputEvent && event.isComposing)) return;
+      if (edit.composing || (event instanceof InputEvent && event.isComposing)) return;
       const value = element.textContent ?? "";
       const clean = singleLine(value);
       if (clean.length > 500) {
-        element.replaceChildren(...previous.nodes.map((node) => node.cloneNode(true)));
-        selectRange(element, previous.offsets[0], previous.offsets[1]);
+        element.replaceChildren(...edit.previous.nodes.map((node) => node.cloneNode(true)));
+        selectRange(element, edit.previous.offsets[0], edit.previous.offsets[1]);
       } else if (clean !== value) {
         element.textContent = clean;
         selectRange(element, clean.length, clean.length);
       }
-      previous = snapshot();
+      edit.previous = snapshot();
     };
     const startComposition = () => {
-      previous = snapshot();
-      composing = true;
+      edit.previous = snapshot();
+      edit.composing = true;
     };
     const endComposition = () => {
-      composing = false;
+      edit.composing = false;
       input();
     };
     element.addEventListener("beforeinput", beforeInput);
