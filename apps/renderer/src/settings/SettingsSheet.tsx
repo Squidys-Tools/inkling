@@ -42,9 +42,13 @@ export function SettingsSheet() {
   const open = shown !== undefined;
   const version = useAppVersion(open);
   const section = shown ?? "general";
-  const show = (settings: SettingsSection) =>
-    void navigate({ to: ".", search: (prev) => ({ ...prev, settings }), replace: true });
+  // The popup stays clickable while it fades out; a second close would step
+  // back past the page, and a section click would reopen the sheet over it.
+  const show = (settings: SettingsSection) => {
+    if (open) void navigate({ to: ".", search: (prev) => ({ ...prev, settings }), replace: true });
+  };
   const close = () => {
+    if (!open) return;
     // A sheet opened by a link straight to it has no page of ours to go back to.
     if (router.history.canGoBack()) router.history.back();
     else
