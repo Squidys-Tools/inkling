@@ -270,6 +270,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       # Check out before downloading: a checkout cleans the workspace, which would delete the installers.
       - name: Check out the release scripts
@@ -320,3 +321,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
         run: gh release edit "$RELEASE_TAG" --draft=false
+      # Publishes made with the workflow token emit no release event, so the site
+      # deploy is dispatched directly. Dispatches run on the default branch.
+      - name: Deploy the site for the published nightly
+        if: needs.metadata.outputs.channel == 'nightly'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run site-deploy.yml --ref main
