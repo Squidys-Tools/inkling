@@ -18,32 +18,10 @@ jobs:
     outputs:
       site: ${{ steps.filter.outputs.site }}
     steps:
-      - name: Check out the PR head
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-          filter: blob:none
-
-      - name: Choose changed-path comparison base
-        id: comparison
-        shell: bash
-        env:
-          BEFORE_SHA: ${{ github.event.before }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          base="$(node .github/scripts/site-preview-base.mjs "$BEFORE_SHA" "$PR_BASE_SHA" "$PR_HEAD_SHA")"
-          echo "sha=$base" >> "$GITHUB_OUTPUT"
-
-      - name: Filter changed paths
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          token: ''
-          base: ${{ steps.comparison.outputs.sha }}
-          predicate-quantifier: some-with-excludes
-          # Keep in sync with the push paths in site-deploy.yml.
+          # The site's build inputs. Keep in sync with the push paths in site-deploy.yml.
           filters: |
             site:
               - 'apps/site/**'
@@ -57,11 +35,14 @@ jobs:
               - 'tsconfig.base.json'
               - '.bun-version'
               - 'patches/**'
+              - 'tools/ci/**'
+              - '.github/workflows/site-preview.yml'
 
   deploy:
     name: Deploy site preview
     needs: changes
-    if: ${{ needs.changes.outputs.site == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
+    # Fork PRs get no Vercel secrets.
+    if: needs.changes.outputs.site == 'true' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -72,60 +53,18 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - name: Check out the PR head
-        uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: .bun-version
-
-      - name: Deploy preview
-        id: deploy
-        shell: bash
+      - run: bun tools/ci/site-deploy.ts preview
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${VERCEL_TOKEN:-}" || -z "${VERCEL_ORG_ID:-}" || -z "${VERCEL_PROJECT_ID:-}" ]]; then
-            echo "Missing a Vercel secret: VERCEL_TOKEN, VERCEL_ORG_ID or VERCEL_PROJECT_ID." >&2
-            exit 1
-          fi
-
-          output="$(
-            bunx vercel@65.9.0 deploy \
-              --archive=tgz \
-              --yes \
-              --token "$VERCEL_TOKEN" \
-              --meta githubSha="$PR_HEAD_SHA"
-          )"
-          printf '%s\n' "$output"
-
-          url="$(printf '%s\n' "$output" | grep -E '^https://[[:alnum:].-]+\.vercel\.app$' || true)"
-          if [[ -z "$url" || "$url" == *$'\n'* ]]; then
-            echo "Expected exactly one deployment URL." >&2
-            exit 1
-          fi
-          echo "deployment_url=$url" >> "$GITHUB_OUTPUT"
-          {
-            echo "### Marketing site preview"
-            echo
-            echo "$url (PR #${{ github.event.pull_request.number }})"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Comment preview URL
-        uses: ./.github/actions/pr-comment
-        with:
-          marker: "<!-- inkling-site-preview -->"
-          body: |-
-            ### Marketing site preview
-
-            [Open preview](${{ steps.deploy.outputs.deployment_url }}) for commit `${{ github.event.pull_request.head.sha }}`.
-
-            [Build details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})

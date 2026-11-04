@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { isAbsolute, relative, sep } from "node:path";
 import { Effect, Predicate } from "effect";
 import { invalidInput } from "./errors.ts";
 
@@ -47,14 +46,6 @@ export const isSafeItemId = (id: string) => /^[a-zA-Z0-9_-]{1,128}$/.test(id);
 
 export function clampLimit(limit: number, fallback: number, maximum: number) {
   return Number.isFinite(limit) ? Math.min(maximum, Math.max(1, Math.trunc(limit))) : fallback;
-}
-
-export function isInside(candidate: string, root: string) {
-  const pathFromRoot = relative(root, candidate);
-  return (
-    pathFromRoot === "" ||
-    (!pathFromRoot.startsWith(`..${sep}`) && pathFromRoot !== ".." && !isAbsolute(pathFromRoot))
-  );
 }
 
 export async function sha256File(path: string) {

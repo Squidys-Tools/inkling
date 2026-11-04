@@ -2,13 +2,44 @@ import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Effect, Fiber, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/sql";
-import { JobQueue, Library, type LibraryOptions, libraryLayer, promised } from "./library.ts";
+import { SqlError } from "effect/sql/SqlError";
+import { errorMessage } from "./errors.ts";
+import { JobQueue } from "./jobs.ts";
+import { Library, type LibraryOptions, libraryLayer } from "./library.ts";
 import { makeWorker, type WorkerOptions } from "./worker.ts";
 
 type Services = Library | JobQueue | SqlClient.SqlClient;
 
-// Tests drive the library through the same Promise facade the IPC handlers use,
-// and set up or inspect rows through a second, plain connection to the file.
+type Promised<T> = {
+  [K in keyof T]: T[K] extends (...args: infer A) => Effect.Effect<infer R, infer _E, never>
+    ? (...args: A) => Promise<R>
+    : T[K];
+};
+
+// Rejections carry the storage message the renderer shows, not the SQL client's summary.
+function promised<T extends object>(
+  service: T,
+  run: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>,
+): Promised<T> {
+  const call =
+    (method: (...args: unknown[]) => unknown) =>
+    (...args: unknown[]) => {
+      const result = method(...args);
+      if (!Effect.isEffect(result)) return result;
+      return run(result as Effect.Effect<unknown, unknown>).catch((error: unknown) => {
+        throw error instanceof SqlError ? new Error(errorMessage(error), { cause: error }) : error;
+      });
+    };
+  return Object.fromEntries(
+    Object.entries(service).map(([key, value]) => [
+      key,
+      typeof value === "function" ? call(value) : value,
+    ]),
+  ) as Promised<T>;
+}
+
+// Tests drive the library through a Promise facade, and set up or inspect rows
+// through a second, plain connection to the file.
 export async function openTestLibrary(
   databasePath: string,
   options: Omit<LibraryOptions, "databasePath" | "appVersion"> & { appVersion?: string } = {},

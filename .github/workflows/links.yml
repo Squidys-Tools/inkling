@@ -2,7 +2,6 @@ name: Links
 
 on:
   schedule:
-    # Weekly on Mondays at 05:30 UTC (offset from the security scan at 03:30).
     - cron: "30 5 * * 1"
   workflow_dispatch:
 
@@ -10,17 +9,15 @@ permissions:
   contents: read
 
 jobs:
-  link-checker:
-    name: Check markdown links
+  links:
+    name: Check Markdown links
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Link Checker
-        id: lychee
-        uses: lycheeverse/lychee-action@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The benchmark corpus holds made-up URLs. A 403 or 429 is a site refusing bots, not a dead link.
+      - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
           fail: true
-          format: markdown
-          args: --root-dir "$(pwd)" --verbose --no-progress './**/*.md'
+          args: >-
+            --root-dir "$(pwd)" --no-progress --accept 200..=299,403,429
+            --exclude-path benchmarks/corpus './**/*.md'

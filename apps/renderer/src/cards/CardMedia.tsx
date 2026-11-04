@@ -17,15 +17,7 @@ export type CardLayout = "grid" | "list" | "archive";
  * item, so a card loads that (or, until it exists, the original) and lets the
  * browser decode it off the main thread.
  */
-export function CardImage({
-  view,
-  priority = false,
-  style,
-}: {
-  view: CardView;
-  priority?: boolean;
-  style?: stylex.StyleXStyles;
-}) {
+export function CardImage({ view, priority }: { view: CardView; priority: boolean }) {
   const host = useRef<HTMLSpanElement>(null);
   const url = view.image;
   const alt = view.imageAlt || view.title;
@@ -55,7 +47,7 @@ export function CardImage({
   }, [url, alt, priority]);
   if (!url) return null;
   return desktop ? (
-    <span ref={host} {...stylex.props(styles.image, style)} />
+    <span ref={host} {...stylex.props(styles.image)} />
   ) : (
     <img
       src={url}
@@ -65,7 +57,7 @@ export function CardImage({
       onLoad={(event) => retainThumbnail(event.currentTarget)}
       fetchPriority={priority ? "high" : undefined}
       draggable={false}
-      {...stylex.props(styles.image, style)}
+      {...stylex.props(styles.image)}
     />
   );
 }

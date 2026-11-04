@@ -49,7 +49,6 @@ const vector = (embedding: { model: string; bytes: Buffer; vector: Float32Array 
   dimension: embedding.vector.length,
 });
 
-/** The worker's calls as plain functions; the RPC layer and tests share them. */
 export const makeWorkerHandlers = Effect.fnUntraced(function* ({
   modelCacheDirectory,
   bundledModelDirectory,
@@ -60,7 +59,9 @@ export const makeWorkerHandlers = Effect.fnUntraced(function* ({
   shell,
   videoDecoderPath,
 }: WorkerOptions) {
-  yield* Effect.addFinalizer(() => Effect.promise(async () => ocr.close?.()).pipe(Effect.ignore));
+  yield* Effect.addFinalizer(() =>
+    Effect.tryPromise(async () => ocr.close?.()).pipe(Effect.ignore),
+  );
 
   return WorkerRpcs.of({
     recognizeImage: ({ path }) =>

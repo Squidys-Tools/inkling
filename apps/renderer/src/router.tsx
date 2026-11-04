@@ -5,9 +5,15 @@ import {
   createRouter,
   lazyRouteComponent,
 } from "@tanstack/react-router";
+import { isSettingsSection, type SettingsSection } from "./settings/sections.ts";
 import { AppShell } from "./shell/AppShell.tsx";
 
-const root = createRootRoute({ component: AppShell });
+const root = createRootRoute({
+  component: AppShell,
+  // The open settings sheet is part of the URL, so back closes it and forward reopens it.
+  validateSearch: ({ settings }): { settings?: SettingsSection } =>
+    isSettingsSection(settings) ? { settings } : {},
+});
 const page = <const Path extends string>(
   path: Path,
   load: () => Promise<Record<string, unknown>>,

@@ -2,7 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font } from "@inkling/ui/tokens.stylex";
 import { type CardView, quoteAttribution } from "../library/cardModel.ts";
 
-/** The card and the item stage draw a quote from the same fields. */
+/** The quote artwork and the item's Info panel read a quote from the same fields. */
 export function quoteArtworkText(view: CardView) {
   return {
     text: view.title.replace(/\s+/gu, " ").trim() || "Saved quote",

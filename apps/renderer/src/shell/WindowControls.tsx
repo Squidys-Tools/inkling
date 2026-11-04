@@ -4,10 +4,8 @@ import { useEffect, useState } from "react";
 import { color, motion } from "@inkling/ui/tokens.stylex";
 import { observeMaximized } from "./windowState.ts";
 
-type WindowActions = DesktopBridge["window"];
-
 /** The inset caption pill, drawn on Windows and Linux. */
-export function WindowControls({ actions }: { actions: WindowActions }) {
+export function WindowControls({ actions }: { actions: DesktopBridge["window"] }) {
   const [maximized, setMaximized] = useState(false);
   useEffect(() => observeMaximized(actions, setMaximized), [actions]);
   return (

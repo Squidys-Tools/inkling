@@ -1,56 +1,33 @@
 import { Camera01Icon, Folder01Icon } from "@hugeicons/core-free-icons";
 import type { ScreenshotImportState } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";
-import { useEffect, useRef, useState } from "react";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { desktop } from "../desktop.ts";
 import { Panel, PanelBody, SquareButton, Row, settingsText } from "./parts.tsx";
 
+const screenshotsKey = ["screenshots"];
+
 export function ScreenshotsPanel({ onClose }: { onClose: () => void }) {
-  const [state, setState] = useState<ScreenshotImportState | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const active = useRef(false);
-  useEffect(() => {
-    let live = true;
-    const read = () => {
-      if (active.current) return;
-      desktop?.screenshots.state().then(
-        (next) => {
-          if (live && !active.current) {
-            setState(next);
-            setError(null);
-          }
-        },
-        () => {
-          if (live) setError("Couldn’t read screenshot import settings.");
-        },
-      );
-    };
-    read();
-    const timer = setInterval(read, 2000);
-    return () => {
-      live = false;
-      clearInterval(timer);
-    };
-  }, []);
-  const change = async (choose: boolean) => {
-    if (!desktop || active.current) return;
-    active.current = true;
-    setBusy(true);
-    setError(null);
-    try {
-      const next = choose
-        ? await desktop.screenshots.chooseDirectory()
-        : await desktop.screenshots.setEnabled(!state?.enabled);
-      setState(next);
-    } catch {
-      setError("Couldn’t change screenshot import. Check the folder and try again.");
-      setState(await desktop.screenshots.state().catch(() => null));
-    } finally {
-      active.current = false;
-      setBusy(false);
-    }
-  };
+  const bridge = desktop?.screenshots;
+  const queryClient = useQueryClient();
+  const change = useMutation({
+    mutationFn: (apply: () => Promise<ScreenshotImportState>) => apply(),
+    // A poll that started before the change would otherwise land after it.
+    onMutate: () => queryClient.cancelQueries({ queryKey: screenshotsKey }),
+    onSuccess: (next) => queryClient.setQueryData(screenshotsKey, next),
+    onError: () => queryClient.invalidateQueries({ queryKey: screenshotsKey }),
+  });
+  const read = useQuery({
+    queryKey: screenshotsKey,
+    queryFn: bridge ? () => bridge.state() : skipToken,
+    refetchInterval: change.isPending ? false : 2000,
+  });
+  const state = read.data;
+  const error = change.isError
+    ? "Couldn’t change screenshot import. Check the folder and try again."
+    : read.isError
+      ? "Couldn’t read screenshot import settings."
+      : null;
   return (
     <Panel
       title="Screenshots"
@@ -66,8 +43,10 @@ export function ScreenshotsPanel({ onClose }: { onClose: () => void }) {
             <SquareButton
               look={state?.enabled ? "solid" : "plain"}
               aria-pressed={state?.enabled ?? false}
-              disabled={!desktop || !state || busy}
-              onClick={() => void change(false)}
+              disabled={!state || change.isPending}
+              onClick={() =>
+                bridge && state && change.mutate(() => bridge.setEnabled(!state.enabled))
+              }
             >
               {state?.enabled ? "Turn off" : "Turn on"}
             </SquareButton>
@@ -90,7 +69,10 @@ export function ScreenshotsPanel({ onClose }: { onClose: () => void }) {
           title="Screenshots folder"
           description="Choose a dedicated screenshots folder, not your whole Pictures folder. Nothing is uploaded."
           action={
-            <SquareButton disabled={!desktop || !state || busy} onClick={() => void change(true)}>
+            <SquareButton
+              disabled={!state || change.isPending}
+              onClick={() => bridge && change.mutate(() => bridge.chooseDirectory())}
+            >
               Choose folder…
             </SquareButton>
           }
