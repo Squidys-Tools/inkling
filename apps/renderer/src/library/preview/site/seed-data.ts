@@ -1,4 +1,4 @@
-import type { JobStatus, Space } from "@inkling/contracts";
+import type { Job, Space } from "@inkling/contracts";
 import type { SeedItem } from "../seed-data.ts";
 
 // The site demo's library (`vite build --mode site`). The marketing site may
@@ -185,4 +185,4 @@ export const seedMembership: Record<string, string[]> = {
   "space-favourites": ["photo-237", "note-tiny-things", "quote-surprise"],
 };
 
-export const seedJobs: { itemId: string; status: JobStatus }[] = [];
+export const seedJobs: { itemId: string; status: Job["status"] }[] = [];

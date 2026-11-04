@@ -1,4 +1,4 @@
-import type { JobStatus, LibraryCard, Space } from "@inkling/contracts";
+import type { Job, LibraryCard, Space } from "@inkling/contracts";
 
 // The demo library's records as data, with file names instead of bundler URLs:
 // the web preview (./seed.ts) projects them into cards, and tools/dev writes
@@ -450,7 +450,7 @@ export const seedMembership: Record<string, string[]> = {
 };
 
 /** One card mid-processing and one with a failed job, so both states show in the preview. */
-export const seedJobs: { itemId: string; status: JobStatus }[] = [
+export const seedJobs: { itemId: string; status: Job["status"] }[] = [
   { itemId: "preview-article", status: "processing" },
   { itemId: "preview-file", status: "failed" },
 ];
