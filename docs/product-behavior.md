@@ -1,13 +1,5 @@
 # Product behavior
 
-## Product definition
-
-This is a private, visual personal library for saving anything worth remembering. The primary behavior is:
-
-> Save without organizing; retrieve through memory, search, and visual association.
-
-The product should feel quiet, immediate, and visual. Organization happens automatically in the background. Users should not be asked to manage AI output.
-
 ## Product principles
 
 - Capture must be faster than deciding where something belongs.
@@ -22,34 +14,11 @@ The product should feel quiet, immediate, and visual. Organization happens autom
 - Processing runs after capture, and the app stays usable while it is incomplete.
 - The library should encourage rediscovery, not only storage.
 
-## Supported content
-
-The initial product should support:
-
-- URLs and web pages
-- Articles
-- Images and screenshots
-- PDFs
-- Quick notes
-- Longer notes
-- Quotes and text clippings
-- Video links and selected local video files
-
-Content types are first-class item types. A product, article, image, quote, PDF, and note should not all render as generic bookmarks.
-
 ## Capture behavior
 
 ### URL capture
 
-When a user pastes or saves a URL:
-
-1. Create the item immediately.
-2. Display a provisional card using the URL.
-3. Fetch metadata and page content in the background.
-4. Classify the page type.
-5. Extract readable content when appropriate.
-6. Generate the final card presentation.
-7. Index extracted text and derived concepts.
+When a user pastes or saves a URL, the item and its card appear at once, titled with the domain unless the capture supplied a title. A video link shows as a video card from the start. A background job then fetches the page, extracts the article, sanitizes it, and stores its text, author, date, images and safe embeds; an X post link becomes a post card once that job has run. The page's title replaces the domain unless the user renamed the card first, and a description the user wrote is kept.
 
 If extraction fails, retain the URL, title, domain, and any metadata that was successfully found.
 
@@ -57,19 +26,19 @@ If extraction fails, retain the URL, title, domain, and any metadata that was su
 
 Images can be added by file picker, drag-and-drop into the main library grid view, clipboard, screenshot capture, or the Chrome extension.
 
-The Chrome extension's toolbar popup shows the card the open tab will become, drawn with the library's own card components: a page, video, X post or PDF as its URL capture, an image tab as the image, and selected text as a quote, with the page offered beside it. The user can edit the title or quote source before saving; a blank title lets the app take the page's own. Its right-click menu saves a page, link, selection or image without the popup. To draw the preview the popup reads the page's title, description, preview image and selection, and it sends the app only the URL, title, selected text or image address. A saved image is downloaded by the app; if that fails, the page is kept instead.
+[extension/README.md](../extension/README.md) describes the Chrome extension's popup and right-click menu. The popup draws its preview with the library's own card components, and a title left blank there lets the app take the page's own. The app downloads a saved image itself; if that fails, it keeps the page instead.
 
-The system should automatically process images for searchable text, concepts, colors, and semantic similarity. The resulting metadata should improve search and Spaces without exposing an AI-management surface.
+Background jobs read an image's text with OCR, take its color palette for the item view's details, and embed it for semantic and similar-image search. None of this is shown as AI output.
 
 ### Notes and quotes
 
-Quick Notes should open instantly and remain lightweight. A note can expand into Focus Mode for longer forms of writing or reading.
+A quick note opens at once and stays lightweight. A note can expand into Focus Mode for longer writing or reading.
 
-Quoted text should be stored with its source URL when available and displayed as a quote card.
+A quote keeps its source URL when it has one and shows as a quote card.
 
 ## Card types
 
-The card kinds are the `ItemKind` values in `apps/renderer/src/library/cardModel.ts`:
+The card kinds are the `ItemKind` values in `packages/ingestion/src/item-kind.ts`, which `apps/renderer/src/library/cardModel.ts` re-exports:
 
 - Article, which also covers general web pages
 - Image, which also covers screenshots
@@ -86,51 +55,25 @@ Each card may show a title, source, preview, date, tags, summary, and relevant m
 
 ## Search
 
-Search should support natural-language-like queries and structured filters. Examples:
+Search takes plain words, with no operators or filters. It runs after a pause in typing or on Enter, never on each keystroke. Text matches show at once: titles, descriptions, note and article text, OCR text, domains, and metadata such as authors and tags. Matches by meaning, over text and image embeddings, join them when the query's embedding is ready, so a query finds items that never use its words. Text matches rank first. If the models are unavailable, text search still answers. Concepts and colors drawn from images and articles are planned to feed search and Smart Spaces too.
 
-```text
-shoes
-shoes blue
-object:car
-text:invoice
-type:image
-format:pdf
-site:youtube
-tag:research
-red honeycrisp apple
-```
-
-Pressing Enter after a term creates a deeper search step. Search should combine:
-
-- Titles and descriptions
-- Notes and article text
-- OCR text
-- Domains and authors
-- Manual and auto-generated tags
-- Derived image concepts through semantic embeddings
-- Colors
-- Semantic similarity
-- Dates and item types
-
-Search results should be useful even when the query does not exactly match the saved content.
+The item view's Similar tab shows images that look like an image, or articles, notes and quotes close in meaning to a text item.
 
 ## Spaces
 
-Spaces are saved searches presented as visual collections.
+A Space is a collection in the sidebar. Users can create, rename, reorder, recolor and delete Spaces, and deleting a Space never deletes its items. Whether a Space is Smart or Regular is chosen when it is created and does not change afterwards.
 
 ### Smart Spaces
 
-Smart Spaces update automatically whenever an item matches their query. They can use type, date, tag, domain, search terms, OCR text, image concepts, colors, or semantic criteria.
+A Smart Space saves the search that was in the field when Save as Space was chosen, and runs it each time it loads, matching items the way search does. Its stored query can also hold an item kind and a tag, which no control in the app sets yet. Removing an item from a Smart Space excludes it there; the item's right-click menu then offers to allow it back in.
 
-A Smart Space with no type filter whose search text names only photo subjects, or with no filters at all whose name does ("Cats", "Photos of dogs and horses"), shows images of those subjects instead of everything. The subjects are cat, dog, bird, horse, car, bicycle, flower, tree, mountain and beach, in English, with their plurals and a few synonyms (kitten, puppy, bike, pony). Each analyzed image is labelled by the nearest of these, a screenshot, or about ninety other common subjects, so a lion or a screenshot of a chat about cats stays out; close look-alikes such as a truck for a car can still get in. An image the user tagged with a subject always counts. An image that is not analyzed yet, or every image while the search model cannot answer (not downloaded yet, or the worker busy), counts when its title, description or OCR text name a subject; the preview, which has no image model, always works this way. Any other name leaves an unfiltered Smart Space listing everything, and the saved query never changes.
+A Smart Space with no item kind filter whose search text names only photo subjects, or with no filters at all whose name does ("Cats", "Photos of dogs and horses"), shows images of those subjects instead of everything. The subjects are cat, dog, bird, horse, car, bicycle, flower, tree, mountain and beach, in English, with their plurals and a few synonyms (kitten, puppy, bike, pony). Each analyzed image is labelled by the nearest of these, a screenshot, or about ninety other common subjects, so a lion or a screenshot of a chat about cats stays out; close look-alikes such as a truck for a car can still get in. An image the user tagged with a subject always counts. An image that is not analyzed yet, or every image while the search model cannot answer (not downloaded yet, or the worker busy), counts when its title, description or OCR text name a subject; the preview, which has no image model, always works this way. Any other name leaves an unfiltered Smart Space listing everything, and the saved query never changes.
 
 ### Regular Spaces
 
-Regular Spaces hold items the user adds by hand. Opening an item shows its Regular Spaces as chips; choosing one files the item in, and choosing it again takes the item back out. Whether a Space is Smart or Regular is chosen when it is created and does not change afterwards.
+Regular Spaces hold items the user adds by hand, from the item view's Keep in a Space button or a card's right-click menu. The item view lists the Regular Spaces an item is in beside its tags.
 
 Archiving an item hides it from a Regular Space without removing it, so restoring the item returns it to the Space it was filed in. Deleting an item for good removes it from every Space.
-
-Users should be able to create, rename, reorder, recolor, and delete Spaces. Deleting a Space must not delete its items.
 
 ## Item view
 
@@ -138,25 +81,23 @@ Opening a card grows it into the library frame, and the item view replaces the l
 
 - The item's media sits on a dotted stage. Images zoom and pan, and show their pixels when zoomed far in.
 - An inspector on the right holds the title, note, Spaces, tags, and details, with a Similar tab beside Info.
-- An action bar moves the item to a Space, opens the original, shows a file in its folder, and archives it. An archived item can also be deleted for good.
+- An action bar files the item in a Regular Space, opens the original, shows a file in its folder, and archives it. An archived item can be restored or deleted for good.
 - The view closes only from Close or Escape. Mouse side buttons and Alt+Left/Right step back and forward through opened items.
 
 ## Reading and writing
 
-Articles should open in a distraction-free reader with clean typography, cached images, headings and links, code blocks, footnotes where available, safe supported video embeds, and an original source link at the bottom.
+Articles open in a distraction-free reader with clean typography, images, headings and links, code blocks, footnotes where available, safe supported video embeds, and an original source link at the bottom.
 
-Focus Mode provides a sparse writing environment with headings, bold text, links, and simple interactive todos, using the existing WYSIWYG Markdown editor.
+Focus Mode is a sparse writing view with headings, bold text, links and interactive todos, in the same WYSIWYG Markdown editor as notes.
 
 ## Onboarding
 
-First-run onboarding should explain:
+The first-run welcome, which Settings → General can show again, explains that:
 
 - The library is local-first.
-- AI processing runs on the device where supported.
-- Content may still require network access when fetching a URL or remote media.
-- The user can export and back up their library.
-
-After onboarding, this information should not dominate the main experience.
+- Search, including reading text in images, runs on the device.
+- inkling goes online to fetch the links the user saves.
+- The user can export a full copy of the library.
 
 ## Explicit non-goals
 

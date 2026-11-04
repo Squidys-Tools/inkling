@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { color, font } from "@inkling/ui/tokens.stylex";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useHotkey } from "@tanstack/react-hotkeys";
+import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "../mascot/motion.ts";
 import { preloadOnboardingPhotos } from "./media.ts";
 import { LAST_SCREEN, Screen } from "./screens.tsx";
@@ -16,8 +17,6 @@ const MASCOT_SIZE = 860;
 /** Eyes stay turned toward each screen's text (positive yaw is right, positive pitch is up). */
 const WELCOME_LOOK = { yaw: -15, pitch: 24 };
 const FAREWELL_LOOK = { yaw: 26, pitch: 12 };
-/** The big mascots run this much slower, so they stay calm beside the text. */
-const MASCOT_SPEED = 0.55;
 /** How long a screen takes to leave before the next one comes in; matches the stage's exit. */
 const LEAVE_MS = 320;
 
@@ -51,10 +50,8 @@ export function Welcome({ onFinish }: { onFinish: () => void }) {
     return () => observer.disconnect();
   }, []);
 
-  // The later screens' photos decode while the first one shows, so none pop in.
   useEffect(preloadOnboardingPhotos, []);
 
-  // Plays the current screen's exit, then lands on `next` or finishes.
   const go = (next: number | "close") => {
     if (leaving !== null) return;
     const step = next === "close" ? 0 : next > screen ? 1 : -1;
@@ -71,14 +68,7 @@ export function Welcome({ onFinish }: { onFinish: () => void }) {
     leaveTimer.current = window.setTimeout(land, LEAVE_MS);
   };
 
-  const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (event.key === "Escape") go("close");
-  });
-  useEffect(() => {
-    const listener = (event: KeyboardEvent) => onKeyDown(event);
-    window.addEventListener("keydown", listener);
-    return () => window.removeEventListener("keydown", listener);
-  }, []);
+  useHotkey("Escape", () => go("close"));
 
   const nav = {
     onAdvance: () => go(screen === LAST_SCREEN ? "close" : screen + 1),
@@ -100,7 +90,6 @@ export function Welcome({ onFinish }: { onFinish: () => void }) {
           size={mascotSize}
           faces={welcomeFaces}
           look={WELCOME_LOOK}
-          speed={MASCOT_SPEED}
           side="right"
           leaving={leaving !== null}
           reducedMotion={reducedMotion}
@@ -112,7 +101,6 @@ export function Welcome({ onFinish }: { onFinish: () => void }) {
           size={mascotSize}
           faces={farewellFaces}
           look={FAREWELL_LOOK}
-          speed={MASCOT_SPEED}
           side="left"
           leaving={leaving !== null}
           reducedMotion={reducedMotion}

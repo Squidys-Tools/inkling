@@ -1,12 +1,12 @@
 import * as stylex from "@stylexjs/stylex";
+import { useQuery } from "@tanstack/react-query";
 import { cardColor, color, font, radius, text } from "@inkling/ui/tokens.stylex";
 import { type CardView, cardView } from "../library/cardModel.ts";
+import { errorMessage } from "../library/errors.ts";
 import { labelClock } from "../library/labelClock.ts";
+import { libraryQuery } from "../queryClient.ts";
 import type { DescribedItem } from "./model.ts";
-import { useLibraryQuery } from "./useLibraryQuery.ts";
 
-// Tiles sit in two 139px columns. An image's height follows its shape within
-// the range the old design used; other tiles have fixed heights.
 const TILE_WIDTH = 139;
 const TILE_GAP = 8;
 
@@ -37,23 +37,22 @@ export function SimilarPanel({
   item: DescribedItem;
   onOpen: (id: string) => void;
 }) {
-  const similar = useLibraryQuery(
-    `similar:${item.id}`,
-    async (client) => {
+  const similar = useQuery(
+    libraryQuery(["similar", item.id], async (client) => {
       const by = item.kind === "Image" ? "image" : "text";
       const cards = await client.similar({ id: item.id, by, limit: 24 });
       return cards
         .filter((card) => card.id !== item.id)
         .map((card) => cardView(card, labelClock.get()));
-    },
-    () => false,
+    }),
   );
-  if (similar.error) return <p {...stylex.props(styles.note)}>{similar.error}</p>;
-  if (!similar.value) return null;
-  if (similar.value.length === 0) return <p {...stylex.props(styles.note)}>Nothing similar yet.</p>;
+  if (similar.isLoadingError)
+    return <p {...stylex.props(styles.note)}>{errorMessage(similar.error)}</p>;
+  if (!similar.data) return null;
+  if (similar.data.length === 0) return <p {...stylex.props(styles.note)}>Nothing similar yet.</p>;
   return (
     <div {...stylex.props(styles.columns)}>
-      {columns(similar.value).map((column, index) => (
+      {columns(similar.data).map((column, index) => (
         <div key={index === 0 ? "left" : "right"} {...stylex.props(styles.column)}>
           {column.map((view) => (
             <SimilarTile key={view.id} view={view} onOpen={() => onOpen(view.id)} />

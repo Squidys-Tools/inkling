@@ -17,7 +17,7 @@ export const LAST_SCREEN = 4;
  */
 const HEADLINE_DELAY = [0.15, 0.2, 0.45, 0.45, 0.15] as const;
 
-export type ScreenNav = {
+type ScreenNav = {
   onAdvance: () => void;
   onBack: () => void;
   onSkip: () => void;

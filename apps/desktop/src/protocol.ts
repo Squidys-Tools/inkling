@@ -45,5 +45,5 @@ export function handleAppScheme({
   });
 }
 
-export const appUrl = (query = "") => `app://local/index.html${query}`;
+export const appUrl = "app://local/index.html";
 export const assetsDirectoryOf = (libraryDirectory: string) => join(libraryDirectory, "assets");

@@ -4,7 +4,7 @@ import { DEMI_VIEWBOX, RAYON } from "./bot/repere";
 import { mixHex } from "./bot/skins";
 
 /** The part of the engine's coordinate space a canvas shows. */
-export type View = { x: number; y: number; width: number; height: number };
+type View = { x: number; y: number; width: number; height: number };
 
 /** Room for every state's motion, the orbit rings included. */
 const FIGURE_VIEW: View = {
@@ -36,7 +36,7 @@ export function eyesView(frame: BotFrame): View {
 }
 
 /** Hex colors: dots fade toward the paper by mixing channels. `paper: null` leaves the eyes see-through. */
-export type MascotPaint = { ink: string; paper: string | null; notification: string };
+type MascotPaint = { ink: string; paper: string | null; notification: string };
 
 type Context = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 

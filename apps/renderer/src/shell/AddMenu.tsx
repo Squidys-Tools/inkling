@@ -33,7 +33,7 @@ const choices: Choice[] = [
  * The sidebar's Add button. Note, Link and Quote open their pages; File and
  * Screenshot save straight into the library without leaving it.
  */
-export function AddMenu({ compact = false }: { compact?: boolean }) {
+export function AddMenu({ compact }: { compact: boolean }) {
   const navigate = useNavigate();
   const files = useRef<HTMLInputElement>(null);
   const saving = useCaptureState((state) => state.saving > 0);

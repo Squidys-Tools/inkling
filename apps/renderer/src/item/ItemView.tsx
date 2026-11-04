@@ -5,9 +5,9 @@ import { Button, Kbd } from "@inkling/ui";
 import { color, font, itemColor, layout, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { controlsOnRight, desktop } from "../desktop.ts";
+import { controlsOnRight } from "../desktop.ts";
 import { reportActionError } from "../cards/actionError.ts";
-import { setArchived } from "../cards/cardActions.ts";
+import { confirmDeleteForever, setArchived } from "../cards/cardActions.ts";
 import { notify } from "../notifications/toasts.ts";
 import { type LibraryClient, libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
@@ -16,13 +16,14 @@ import { setInSpace, useSpaces } from "../library/spaces.ts";
 import { showWrittenCard } from "../library/writes.ts";
 import { ActionBar } from "./ActionBar.tsx";
 import { InfoPanel } from "./InfoPanel.tsx";
+import { findCard } from "./itemFlight.ts";
 import { describeItem } from "./model.ts";
 import { useItemNavigation } from "./navigation.ts";
 import { useItem, useMemberships } from "./queries.ts";
 import { SimilarPanel } from "./SimilarPanel.tsx";
 import { preloadPdfViewer, Stage } from "./Stage.tsx";
 import { useEscape } from "./useEscape.ts";
-import { findCard, useOpenMotion } from "./useOpenMotion.ts";
+import { useOpenMotion } from "./useOpenMotion.ts";
 import { useOcrOnOpen } from "./useOcrOnOpen.ts";
 
 /** An open item: its media on the dotted stage and the inspector beside it, over the library. */
@@ -73,7 +74,7 @@ function ItemBody({
   const [pdfOpen, setPdfOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
-  const detail = query.value;
+  const detail = query.data;
   const item = detail ? describeItem(detail) : null;
 
   useEscape(() => (pdfOpen ? setPdfOpen(false) : onClose()));
@@ -114,24 +115,16 @@ function ItemBody({
   const write = (action: (client: LibraryClient) => Promise<LibraryCard>) =>
     act(async (client) => showWrittenCard(await action(client)));
 
-  // The same question the card menu asks; a failure is shown here rather than as a capture error.
+  // Not the card menu's deleteForever: a failure here also shows in the Info panel.
   const deleteForever = async (title: string) => {
-    const options = {
-      message: `Delete “${title}” for good?`,
-      detail: "It leaves every Space, and its files are removed from the library.",
-      confirmLabel: "Delete",
-      destructive: true,
-    };
-    const confirmed = desktop
-      ? await desktop.confirm(options)
-      : window.confirm(`${options.message}\n\n${options.detail}`);
-    if (confirmed && (await act((client) => client.deleteItem({ id }))))
+    if ((await confirmDeleteForever(title)) && (await act((client) => client.deleteItem({ id }))))
       notify("Deleted permanently");
   };
 
-  const memberOf = memberships.value ?? [];
+  const memberOf = memberships.data ?? [];
   const status =
-    query.error ?? (detail === null ? "This item is no longer in your library." : null);
+    (query.isLoadingError && errorMessage(query.error)) ??
+    (detail === null ? "This item is no longer in your library." : null);
 
   return (
     <div {...stylex.props(styles.layout)}>
