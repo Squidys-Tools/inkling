@@ -74,7 +74,6 @@ function PanelPicture({ panel, pinned }: { panel: Panel; pinned: boolean }) {
   );
 }
 
-// Tall screens pin the panels and step through them with scroll; others stack them.
 export function ScrollPanels() {
   const root = useRef<HTMLDivElement>(null);
   const calm = useCalm();

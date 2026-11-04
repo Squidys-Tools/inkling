@@ -26,7 +26,6 @@ export function useMediaQuery(query: string, serverValue = false) {
   );
 }
 
-// The footer's motion switch; the system's reduced-motion setting calms the page too.
 export const CalmContext = createContext(false);
 
 export function useCalm() {

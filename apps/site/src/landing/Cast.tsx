@@ -10,7 +10,6 @@ type Eye =
 const pill = (h: number, w = 21, a = 0, y = 12): Eye => ({ kind: "pill", h, w, a, y });
 const arc = (a = 0, y = 13, bend = -14): Eye => ({ kind: "arc", w: 24, a, y, bend });
 
-// Same body, different faces: eye sizes, lids and angles are drawn per character.
 const cast = [
   { gap: 24, eyes: [pill(45, 20, 21, 9), pill(59, 22, 8, 4)], duration: 5.7, gaze: 1.1 },
   { gap: 24, eyes: [arc(-9, 15, -15), arc(9, 15, -15)], duration: 7.1, gaze: 0.55 },

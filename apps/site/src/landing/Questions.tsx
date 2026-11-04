@@ -53,7 +53,7 @@ export function Questions({ items }: { items: { id: string; title: string; body:
 
 const styles = stylex.create({
   item: { overflow: "hidden" },
-  header: { fontSize: "inherit", fontWeight: 500 },
+  header: { fontSize: "inherit" },
   trigger: {
     boxSizing: "border-box",
     display: "flex",
@@ -99,6 +99,7 @@ const styles = stylex.create({
     transitionTimingFunction: landing.ease,
   },
   answer: {
+    boxSizing: "border-box",
     maxWidth: "48ch",
     paddingBlock: "0 26px",
     paddingInline: { default: "0 44px", [media.phone]: "0 8px" },

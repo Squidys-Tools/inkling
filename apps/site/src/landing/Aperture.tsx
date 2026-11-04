@@ -33,8 +33,6 @@ function aperturePose(value: number) {
   };
 }
 
-// The library opens out of the mascot's body as the page scrolls, then hands over to
-// the live demo inside the same silhouette.
 export function Aperture() {
   const area = useRef<HTMLElement>(null),
     frame = useRef<HTMLDivElement>(null),
@@ -252,11 +250,11 @@ const styles = stylex.create({
   scrollable: {
     height: {
       default: "calc(185svh + 100px)",
-      [media.phone]: "calc(165svh + 150px)",
+      [media.phoneInMotion]: "calc(165svh + 150px)",
       [media.reduced]: "auto",
     },
     minHeight: { default: null, [media.phone]: "115svh" },
-    paddingBottom: { default: null, [media.reduced]: "60px", [media.phone]: 0 },
+    paddingBottom: { default: null, [media.reducedAbovePhone]: "60px" },
   },
   sticky: {
     boxSizing: "border-box",
@@ -271,7 +269,7 @@ const styles = stylex.create({
   },
   pinned: {
     position: { default: "sticky", [media.reduced]: "relative" },
-    top: { default: "24px", [media.phone]: "18px", [media.reduced]: 0 },
+    top: { default: "24px", [media.phoneInMotion]: "18px", [media.reduced]: 0 },
   },
   frame: {
     position: "relative",

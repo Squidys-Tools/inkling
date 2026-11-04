@@ -292,6 +292,7 @@ export function InkHint({
     <Popover.Popup
       ref={box}
       aria-label={label}
+      initialFocus={close}
       finalFocus={false}
       inert={open ? undefined : true}
       {...stylex.props(styles.hint, reduced && styles.plain, compact && styles.compact)}
@@ -360,6 +361,7 @@ const styles = stylex.create({
   drop: { borderRadius: "50%" },
   text: { position: "relative" },
   close: {
+    boxSizing: "border-box",
     position: "absolute",
     right: "8px",
     top: "8px",

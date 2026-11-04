@@ -9,7 +9,6 @@ import { useCalm, useMediaQuery } from "./environment.ts";
 import { InkHint } from "./InkHint.tsx";
 import { media } from "./landing.stylex.ts";
 
-// A mascot that peeks in from the edge and opens a tip when pressed.
 export function MascotHint({
   character,
   side = "left",
@@ -67,6 +66,8 @@ export function MascotHint({
             align="center"
             sideOffset={8}
             collisionPadding={16}
+            // Fixed, so the ink layer reaching past the bubble never widens the page.
+            positionMethod="fixed"
             {...stylex.props(styles.positioner)}
           >
             <InkHint

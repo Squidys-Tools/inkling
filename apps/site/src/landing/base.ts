@@ -30,7 +30,6 @@ export const base = stylex.create({
   focusOnSheet: {
     outline: { default: null, ":focus-visible": `3px solid ${landingColor.sheetInk}` },
   },
-  // An underline that draws in from the left on hover.
   textLink: {
     position: "relative",
     display: "inline-flex",
@@ -53,7 +52,6 @@ export const base = stylex.create({
       transitionTimingFunction: landing.ease,
     },
   },
-  // The arrow after a text link nudges toward where it goes.
   textLinkArrow: {
     transitionProperty: "transform",
     transitionDuration: { default: "0.16s", [media.reduced]: "0s" },

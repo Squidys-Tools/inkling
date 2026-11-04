@@ -18,7 +18,11 @@ const faces = [
   ["/media/red-hat-700.ttf", "700"],
 ] as const;
 
+let registered = false;
+
 function registerRedHat() {
+  if (registered) return;
+  registered = true;
   for (const [url, weight] of faces) {
     const face = new FontFace("Red Hat", `url(${url}) format("truetype")`, {
       weight,

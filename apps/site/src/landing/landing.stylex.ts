@@ -1,12 +1,15 @@
 import * as stylex from "@stylexjs/stylex";
 
-// Later keys win: StyleX orders media queries as written.
+// StyleX emits narrower max-width queries after wider ones, so the narrower wins where
+// they overlap. It does not order other queries by key, so keep those exclusive.
 export const media = stylex.defineConsts({
   wide: "@media (min-width: 1600px)",
   tablet: "@media (max-width: 1023px)",
   phone: "@media (max-width: 639px)",
   narrow: "@media (max-width: 360px)",
   reduced: "@media (prefers-reduced-motion: reduce)",
+  phoneInMotion: "@media (max-width: 639px) and (prefers-reduced-motion: no-preference)",
+  reducedAbovePhone: "@media (min-width: 640px) and (prefers-reduced-motion: reduce)",
   hover: "@media (hover: hover) and (pointer: fine)",
 });
 
