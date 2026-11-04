@@ -24,7 +24,6 @@ export default defineConfig(({ command }) => ({
     stylex.vite({
       useCSSLayers: true,
       dev: command === "serve",
-      cssInjectionTarget: (filepath) => /site-stylex(?:-|\.)/u.test(filepath),
       unstable_moduleResolution: { type: "commonJS", rootDir: workspace },
     }),
     tanstackStart({
