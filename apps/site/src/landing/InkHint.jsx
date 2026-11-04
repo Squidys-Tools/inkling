@@ -81,7 +81,9 @@ export function InkHint({ trigger, getCharacter, reduced, register, tip, ref, ..
     leaving = React.useRef(false),
     session = React.useRef(0),
     done = React.useRef(safeToRemove);
+  // Every cancel starts a new session, so a swallow in flight stops instead of touching unmounted nodes.
   const settle = React.useCallback(() => {
+    session.current += 1;
     animations.current.forEach((a) => a.cancel());
     animations.current = [];
     const figure = getCharacter();
@@ -89,7 +91,6 @@ export function InkHint({ trigger, getCharacter, reduced, register, tip, ref, ..
   }, [getCharacter]);
   const emerge = React.useCallback(() => {
     const figure = getCharacter();
-    session.current += 1;
     settle();
     shown.current = true;
     const g = measure(trigger.current, box.current),
@@ -144,7 +145,7 @@ export function InkHint({ trigger, getCharacter, reduced, register, tip, ref, ..
     });
     play(list, close.current, [{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 700 });
   }, [trigger, getCharacter, settle]);
-  // Resolves false when a reopen started a new session before the swallow finished.
+  // Resolves false when a reopen or unmount settled before the swallow finished.
   const swallow = React.useCallback(async () => {
     const mine = session.current,
       figure = getCharacter(),
@@ -224,13 +225,9 @@ export function InkHint({ trigger, getCharacter, reduced, register, tip, ref, ..
       done.current?.();
       return;
     }
-    swallow().then((finished) => {
-      if (!finished) return;
-      settle();
-      shown.current = false;
-      done.current?.();
-    });
-  }, [present, reduced, emerge, swallow, settle]);
+    // The unmount settles; settling here first would flash the text for a frame before removal.
+    swallow().then((finished) => finished && done.current?.());
+  }, [present, reduced, emerge, swallow]);
   return (
     <div
       {...props}

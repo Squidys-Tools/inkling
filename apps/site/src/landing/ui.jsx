@@ -37,6 +37,7 @@ export function MascotHint({
     [hovered, setHovered] = React.useState(false),
     root = React.useRef(null),
     trigger = React.useRef(null),
+    content = React.useRef(null),
     figure = React.useRef(null),
     placed = React.useRef(null),
     visible = useInView(root, { amount: 0.1 });
@@ -53,7 +54,12 @@ export function MascotHint({
   const variant = character ?? slots[className] ?? 8,
     person = cast[variant % cast.length],
     alive = !reduced && visible;
-  const changeOpen = (next) => setOpen(next);
+  const changeOpen = (next) => {
+    // The bubble goes inert while it animates out; move focus now or it falls to <body>.
+    if (!next && content.current?.contains(document.activeElement))
+      trigger.current?.focus({ preventScroll: true });
+    setOpen(next);
+  };
   const getFigure = React.useCallback(() => figure.current, []);
   const registerPlaced = React.useCallback((start) => {
     placed.current = start;
@@ -84,6 +90,7 @@ export function MascotHint({
           {open && (
             <Popover.Portal forceMount>
               <Popover.Content
+                ref={content}
                 forceMount
                 asChild
                 side={compact ? "top" : side === "left" ? "right" : "left"}
@@ -100,10 +107,7 @@ export function MascotHint({
                 }
                 aria-label={label}
                 onPlaced={() => placed.current?.()}
-                onCloseAutoFocus={(event) => {
-                  event.preventDefault();
-                  trigger.current?.focus({ preventScroll: true });
-                }}
+                onCloseAutoFocus={(event) => event.preventDefault()}
               >
                 <InkHint
                   trigger={trigger}
