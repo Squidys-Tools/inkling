@@ -28,6 +28,7 @@ jobs:
               - 'apps/renderer/**'
               - 'packages/contracts/**'
               - 'packages/ingestion/**'
+              - 'packages/rpc-electron/**'
               - 'packages/ui/**'
               - 'package.json'
               - 'bun.lock'

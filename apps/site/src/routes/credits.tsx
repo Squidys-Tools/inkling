@@ -23,7 +23,8 @@ function Credits() {
     <main {...stylex.props(page.column, styles.main)}>
       <h1 {...stylex.props(type.display)}>Image credits</h1>
       <p {...stylex.props(type.lede, styles.measure)}>
-        The photos in the demo library and on this site come from Unsplash, under the{" "}
+        The photos in the demo library, among them the jellyfish and the bear on the home page, come
+        from Unsplash, under the{" "}
         <a href="https://unsplash.com/license" {...stylex.props(action.inline)}>
           Unsplash License
         </a>

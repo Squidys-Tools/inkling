@@ -12,15 +12,10 @@ import { handleCommand } from "../shell/commands.ts";
 import { setSearchFocused, useViewState } from "./viewState.ts";
 import { searchSurfaceFrames } from "./searchSurface.ts";
 
-const reveal = stylex.keyframes({
-  from: { opacity: 0, transform: "translateY(3px)" },
-  to: { opacity: 1, transform: "none" },
-});
-
 /**
  * At rest a pill naming what the grid shows; focused, the full search field.
- * Only the glass backing morphs between the two measured bounds; text and
- * pointer targets stay unscaled. Search always runs over the whole library.
+ * The field's real bounds animate, so its unscaled text never sits outside the
+ * glass mid-flight. Search always runs over the whole library.
  */
 export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary: boolean }) {
   const navigate = useNavigate();
@@ -38,16 +33,19 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
   };
 
   useLayoutEffect(() => {
-    const element = surface.current;
+    const glass = surface.current;
+    const element = glass?.parentElement;
     const from = origin.current;
     origin.current = null;
     flight.current?.cancel();
-    if (!element || !from || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const computed = getComputedStyle(element);
+    if (!element || !glass || !from || matchMedia("(prefers-reduced-motion: reduce)").matches)
+      return;
+    const computed = getComputedStyle(glass);
     const frames = searchSurfaceFrames(
       from,
       element.getBoundingClientRect(),
       computed.borderRadius,
+      parseFloat(getComputedStyle(element).top),
     );
     if (!frames) return;
     const duration = parseFloat(computed.transitionDuration) * 1000;
@@ -165,6 +163,7 @@ const styles = stylex.create({
     left: "50%",
     zIndex: 3,
     display: "flex",
+    overflow: "hidden",
     color: color.muted,
     transform: "translateX(-50%)",
     pointerEvents: "auto",
@@ -207,9 +206,6 @@ const styles = stylex.create({
     gap: "12px",
     paddingInline: "16px",
     cursor: "text",
-    animationName: reveal,
-    animationDuration: motion.reveal,
-    animationTimingFunction: motion.enter,
   },
   rest: {
     display: "inline-flex",

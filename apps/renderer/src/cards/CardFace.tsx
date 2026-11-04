@@ -163,10 +163,7 @@ const styles = stylex.create({
   listShape: {
     display: "grid",
     // A fixed 155px media column leaves a phone-width row about 48px for its text.
-    gridTemplateColumns: {
-      default: "clamp(64px, 32%, 155px) minmax(0, 1fr)",
-      "@media (max-width: 360px)": "minmax(0, 1fr)",
-    },
+    gridTemplateColumns: "clamp(64px, 32%, 155px) minmax(0, 1fr)",
     borderRadius: radius.panel,
   },
   strip: {
@@ -176,13 +173,7 @@ const styles = stylex.create({
     overflow: "hidden",
     backgroundColor: color.raised,
   },
-  rowMedia: {
-    position: "relative",
-    minWidth: 0,
-    alignSelf: { default: "stretch", "@media (max-width: 360px)": "start" },
-    height: { default: "auto", "@media (max-width: 360px)": "120px" },
-    overflow: "hidden",
-  },
+  rowMedia: { position: "relative", minWidth: 0 },
   quoteMedia: {
     position: "relative",
     display: "flex",

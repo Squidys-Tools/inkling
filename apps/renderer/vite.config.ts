@@ -3,6 +3,7 @@ import stylex from "@stylexjs/unplugin";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { defineConfig, normalizePath, type Plugin } from "vite";
+import { findSeedLeaks } from "../../tools/repo/assert-no-demo-seed.ts";
 import { thirdPartyLicenses } from "./licenses/plugin.ts";
 
 const workspace = fileURLToPath(new URL("../..", import.meta.url));
@@ -23,29 +24,41 @@ const linkStylexCss = (command: "build" | "serve"): Plugin => ({
   ],
 });
 
-const previewSeed = normalizePath(
-  fileURLToPath(new URL("src/library/preview/seed.ts", import.meta.url)),
-);
 const siteSeed = normalizePath(
-  fileURLToPath(new URL("src/library/preview/site/seed.ts", import.meta.url)),
+  fileURLToPath(new URL("./src/library/preview/site/seed.ts", import.meta.url)),
 );
 
 // The marketing site's /demo/: the web preview on a seed the site may publish,
 // under a CSP of its own, since the desktop app's comes from the app:// protocol.
+// A suffix match, because a resolved id can differ from fileURLToPath in case or
+// symlinks; generateBundle fails the build if the dev seed still gets in.
 const siteDemo = (): Plugin => ({
   name: "inkling-site-demo",
-  load: (id) => (id === previewSeed ? `export * from ${JSON.stringify(siteSeed)};` : null),
+  load: (id) =>
+    id.endsWith("/src/library/preview/seed.ts")
+      ? `export * from ${JSON.stringify(siteSeed)};`
+      : null,
   transformIndexHtml: () => [
     {
       tag: "meta",
       attrs: {
         "http-equiv": "Content-Security-Policy",
         content:
-          "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'",
+          "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'self'",
       },
       injectTo: "head-prepend",
     },
   ],
+  generateBundle(_options, bundle) {
+    const leaks = findSeedLeaks(Object.keys(bundle), (name) => {
+      const output = bundle[name];
+      return output.type === "chunk" ? output.code : String(output.source);
+    });
+    if (leaks.length > 0)
+      this.error(
+        `The dev seed reached the site's /demo/: ${leaks.map((leak) => `${leak.path} (${leak.reason})`).join(", ")}`,
+      );
+  },
 });
 
 const outDirs: Record<string, string> = {
