@@ -52,9 +52,11 @@ export const jobLanesLayer = (onItemChanged: (itemId: string) => Effect.Effect<u
         ready,
       });
       // A saved page shows only its domain until this runs, and OCR and embeddings of a large
-      // import can hold every main lane for many minutes. Main lanes still take these jobs too.
+      // import can hold every main lane for many minutes. It keeps the main lanes' per-item order:
+      // an enrichment landing mid-embedding would queue no new embedding of the page's text.
       const pages = yield* makeWorker<Services>({
         processors: announced({ [URL_ENRICHMENT_JOB]: processors[URL_ENRICHMENT_JOB] }),
+        itemKinds: Object.keys(processors),
         timeouts: jobTimeouts,
         ready,
       });

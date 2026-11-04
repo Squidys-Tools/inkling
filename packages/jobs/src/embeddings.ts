@@ -124,6 +124,7 @@ async function imageTensor(bytes: Buffer) {
 
 type TextRuntime = {
   tokenizer: TokenizerLike;
+  stopped: boolean;
   infer: ReturnType<typeof startTextInference>;
 };
 
@@ -152,14 +153,21 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     const tokenizerJson = JSON.parse(await readFile(tokenizerPath, "utf8"));
     const tokenizer = new Tokenizer(tokenizerJson, {});
     // A stopped thread answers nothing more, so the next embedding opens a new one.
-    const infer = startTextInference(modelPath, () => {
-      textRuntime = undefined;
-      textQueryRuntimePromise = undefined;
-    });
-    return { tokenizer, infer };
+    const runtime: TextRuntime = {
+      tokenizer,
+      stopped: false,
+      infer: startTextInference(modelPath, () => {
+        runtime.stopped = true;
+        textRuntime = undefined;
+        textQueryRuntimePromise = undefined;
+      }),
+    };
+    return runtime;
   }
 
-  const keepTextRuntime = (runtime: TextRuntime) => (textRuntime ??= runtime);
+  // A thread can stop before its open resolves, and keeping it then would fail every later embed.
+  const keepTextRuntime = (runtime: TextRuntime) =>
+    runtime.stopped ? runtime : (textRuntime ??= runtime);
 
   function loadTextRuntime(allowDownload: boolean) {
     if (allowDownload) {

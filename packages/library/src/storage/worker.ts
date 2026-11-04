@@ -14,6 +14,8 @@ export type Processor<R> = (job: Job, workerId: string) => Effect.Effect<unknown
 
 export type WorkerOptions<R> = {
   processors: Record<string, Processor<R>>;
+  // Kinds whose jobs on the same item this lane waits for, when more than the ones it runs.
+  itemKinds?: ReadonlyArray<string>;
   // A hung model, decoder, or fetch fails its job after this long instead of
   // holding the worker forever. Kinds without an entry get `defaultTimeout`.
   timeouts?: Partial<Record<string, Duration.Input>>;
@@ -29,6 +31,7 @@ const defaultTimeout = Duration.minutes(30);
 
 export const makeWorker = Effect.fnUntraced(function* <R>({
   processors,
+  itemKinds,
   timeouts = {},
   pollInterval = Duration.seconds(5),
   workerId = randomUUID(),
@@ -40,12 +43,12 @@ export const makeWorker = Effect.fnUntraced(function* <R>({
 
   const claim = Effect.gen(function* () {
     yield* ready;
-    const claimed = yield* jobs.claimNext(workerId, kinds);
+    const claimed = yield* jobs.claimNext(workerId, kinds, itemKinds);
     if (claimed || !onIdle) return claimed;
     yield* onIdle().pipe(
       Effect.catchCause((cause) => Effect.logWarning("job backfill failed", cause)),
     );
-    return yield* jobs.claimNext(workerId, kinds);
+    return yield* jobs.claimNext(workerId, kinds, itemKinds);
   });
 
   const heartbeat = (job: Job) =>

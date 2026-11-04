@@ -218,8 +218,11 @@ test("parallel lanes run each item's own jobs one at a time, in the order queued
   const pageKinds = [...main, "enrich_url"];
   const download = await queue.enqueue("page", "enrich_url");
   await queue.enqueue("page", "generate_embedding");
-  expect((await queue.claimNext("pages", ["enrich_url"]))?.id).toBe(download);
+  expect((await queue.claimNext("pages", ["enrich_url"], pageKinds))?.id).toBe(download);
   expect(await queue.claimNext("lane-d", pageKinds)).toBeNull();
   expect(await queue.complete(download, "pages")).toBe(true);
   expect((await queue.claimNext("lane-d", pageKinds))?.kind).toBe("generate_embedding");
+  // It waits for a main-lane job on its own item: finishing mid-embedding would queue no new one.
+  await queue.enqueue("page", "enrich_url");
+  expect(await queue.claimNext("pages", ["enrich_url"], pageKinds)).toBeNull();
 });
