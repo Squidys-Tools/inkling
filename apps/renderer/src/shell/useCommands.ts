@@ -4,7 +4,8 @@ import { useEffect } from "react";
 import { desktop, platform } from "../desktop.ts";
 import { runHandledCommand } from "./commands.ts";
 
-const modal = '[role="dialog"]:not([aria-modal="false"]), [role="alertdialog"]:not([aria-modal="false"])';
+const modal =
+  '[role="dialog"]:not([aria-modal="false"]), [role="alertdialog"]:not([aria-modal="false"])';
 
 const isEditable = (target: EventTarget | null) =>
   target instanceof HTMLElement &&

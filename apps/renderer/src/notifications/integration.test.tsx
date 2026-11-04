@@ -134,7 +134,11 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
     return e;
   };
   const sideBack = () => {
-    const e = new f.dom.window.MouseEvent("mouseup", { button: 3, bubbles: true, cancelable: true });
+    const e = new f.dom.window.MouseEvent("mouseup", {
+      button: 3,
+      bubbles: true,
+      cancelable: true,
+    });
     page.dispatchEvent(e);
     return e;
   };

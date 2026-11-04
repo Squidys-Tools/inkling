@@ -47,7 +47,12 @@ export function SettingsSheet() {
   const close = () => {
     // A sheet opened by a link straight to it has no page of ours to go back to.
     if (router.history.canGoBack()) router.history.back();
-    else void navigate({ to: ".", search: (prev) => ({ ...prev, settings: undefined }), replace: true });
+    else
+      void navigate({
+        to: ".",
+        search: (prev) => ({ ...prev, settings: undefined }),
+        replace: true,
+      });
   };
   const selected = section === "licenses" ? "general" : section;
 
