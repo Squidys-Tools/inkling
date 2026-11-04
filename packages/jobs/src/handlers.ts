@@ -60,7 +60,9 @@ export const makeWorkerHandlers = Effect.fnUntraced(function* ({
   shell,
   videoDecoderPath,
 }: WorkerOptions) {
-  yield* Effect.addFinalizer(() => Effect.promise(async () => ocr.close?.()).pipe(Effect.ignore));
+  yield* Effect.addFinalizer(() =>
+    Effect.tryPromise(async () => ocr.close?.()).pipe(Effect.ignore),
+  );
 
   return WorkerRpcs.of({
     recognizeImage: ({ path }) =>
