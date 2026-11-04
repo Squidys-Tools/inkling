@@ -5,9 +5,9 @@ import { Button, Kbd } from "@inkling/ui";
 import { color, font, itemColor, layout, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { controlsOnRight, desktop } from "../desktop.ts";
+import { controlsOnRight } from "../desktop.ts";
 import { reportActionError } from "../cards/actionError.ts";
-import { setArchived } from "../cards/cardActions.ts";
+import { confirmDeleteForever, setArchived } from "../cards/cardActions.ts";
 import { notify } from "../notifications/toasts.ts";
 import { type LibraryClient, libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
@@ -114,18 +114,9 @@ function ItemBody({
   const write = (action: (client: LibraryClient) => Promise<LibraryCard>) =>
     act(async (client) => showWrittenCard(await action(client)));
 
-  // The same question the card menu asks; a failure is shown here rather than as a capture error.
+  // Not the card menu's deleteForever: a failure here also shows in the Info panel.
   const deleteForever = async (title: string) => {
-    const options = {
-      message: `Delete “${title}” for good?`,
-      detail: "It leaves every Space, and its files are removed from the library.",
-      confirmLabel: "Delete",
-      destructive: true,
-    };
-    const confirmed = desktop
-      ? await desktop.confirm(options)
-      : window.confirm(`${options.message}\n\n${options.detail}`);
-    if (confirmed && (await act((client) => client.deleteItem({ id }))))
+    if ((await confirmDeleteForever(title)) && (await act((client) => client.deleteItem({ id }))))
       notify("Deleted permanently");
   };
 

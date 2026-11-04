@@ -59,18 +59,21 @@ export const setArchived = (id: string, archived: boolean) =>
     });
   });
 
-/** Deleting is the one action that cannot be undone, so it always asks first. */
-export async function deleteForever(view: CardView) {
+/** Deleting is the one action that cannot be undone, so the card menu and the item view ask first. */
+export async function confirmDeleteForever(title: string) {
   const options = {
-    message: `Delete “${view.title}” for good?`,
+    message: `Delete “${title}” for good?`,
     detail: "It leaves every Space, and its files are removed from the library.",
     confirmLabel: "Delete",
     destructive: true,
   };
-  const confirmed = desktop
-    ? await desktop.confirm(options)
+  return desktop
+    ? desktop.confirm(options)
     : window.confirm(`${options.message}\n\n${options.detail}`);
-  if (confirmed)
+}
+
+export async function deleteForever(view: CardView) {
+  if (await confirmDeleteForever(view.title))
     await run("Couldn’t delete this", async () => {
       await (await libraryClient()).deleteItem({ id: view.id });
       notify("Deleted permanently");
