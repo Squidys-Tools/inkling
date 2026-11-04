@@ -173,7 +173,7 @@ up. Scripts that import only `tools/ci/github.ts` run without `bun install`. Eac
 Dependabot updates the two together.
 
 - `ci.yml` runs on every push to `main` and every PR. It calls `checks.yml` (typecheck, lint,
-  Knip, web and extension builds on Linux, unit tests on Windows) and `package.yml` (package the
+  Knip, web and extension builds on Linux, unit tests on Windows and Linux) and `package.yml` (package the
   unpacked app on Windows and Linux, run the packaged smoke checks and launch it). A PR skips
   either when its diff cannot affect it; every commit on `main` runs both, each in its own run
   that no later merge cancels. macOS packages only on a PR that changes its `macos` paths and in
