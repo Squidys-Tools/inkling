@@ -1,4 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
+import { isWebUrl } from "@inkling/ingestion/url";
 import { Button, Kbd } from "@inkling/ui";
 import { color, font, itemColor, layout, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { controlsOnRight } from "../desktop.ts";
@@ -8,20 +9,20 @@ import { errorMessage } from "../library/errors.ts";
 import { registerWritingFont } from "../reader/fonts.ts";
 import { LinkPopover } from "./LinkPopover.tsx";
 import { type NoteClasses, noteExtensions } from "./noteMarkdown.ts";
-import { isSafeNoteLink, normalizeNoteBody } from "./notes.ts";
+import { normalizeNoteBody } from "./notes.ts";
 import { NoteToolbar, useToolbarState } from "./NoteToolbar.tsx";
 
+// This module loads with the first editor, so the writing face loads with it.
+registerWritingFont();
+
 /** What the editor hands its page when the user saves. */
-export type NoteDraft = { markdown: string; text: string };
+type NoteDraft = { markdown: string; text: string };
 
 /**
  * The full-page note editor (Focus Mode), for a new note or an existing one.
  * Nothing is written until Save; `onChange` reports each edit so the page can
  * keep or guard the draft.
  */
-// This module loads with the first editor, so the writing face loads with it.
-registerWritingFont();
-
 export function NoteEditor({
   kicker,
   name,
@@ -97,7 +98,8 @@ export function NoteEditor({
 
   const applyLink = () => {
     const href = (linkDraft ?? "").trim();
-    if (!isSafeNoteLink(href)) return;
+    // The link opens in the user's browser, so `javascript:` and data URLs never reach the Markdown.
+    if (!isWebUrl(href)) return;
     editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
     setLinkDraft(null);
   };
