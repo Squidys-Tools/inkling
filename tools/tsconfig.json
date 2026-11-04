@@ -1,5 +1,5 @@
 {
   "extends": "../tsconfig.base.json",
-  "compilerOptions": { "types": ["bun"], "allowJs": true },
+  "compilerOptions": { "types": ["bun"] },
   "include": [".", "../.claude/skills", "../packages/jobs/src/modules.d.ts"]
 }

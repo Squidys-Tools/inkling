@@ -2,7 +2,10 @@ import { readFile, writeFile } from "node:fs/promises";
 import { inc, prerelease, valid } from "semver";
 
 const channel = process.env.RELEASE_CHANNEL ?? "stable";
-const tag = process.env.RELEASE_VERSION ?? process.env.GITHUB_REF_NAME ?? "";
+const requested = (process.env.RELEASE_VERSION ?? process.env.GITHUB_REF_NAME ?? "").replace(
+  /^v/,
+  "",
+);
 if (!["stable", "nightly", "preview"].includes(channel))
   throw new Error("Unsupported release channel");
 const pkg = JSON.parse(await readFile("package.json", "utf8")) as {
@@ -12,9 +15,11 @@ const pkg = JSON.parse(await readFile("package.json", "utf8")) as {
     generateUpdatesFilesForAllChannels: boolean;
   };
 };
+// The release's first job names a nightly or preview version; the build jobs restage that exact
+// one, since the date may have changed by the time a build starts.
 const version =
-  channel === "stable"
-    ? tag.replace(/^v/, "")
+  channel === "stable" || prerelease(requested)?.[0] === channel
+    ? requested
     : `${inc(pkg.version.split("-")[0], "patch")}-${channel}.${new Date().toISOString().slice(0, 10).replaceAll("-", "")}.${process.env.GITHUB_RUN_NUMBER ?? "0"}`;
 if (!valid(version) || (channel === "stable" && prerelease(version)))
   throw new Error(

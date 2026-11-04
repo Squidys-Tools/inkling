@@ -14,17 +14,13 @@ on:
         description: Stable version override; defaults to the version the latest nightly previewed
         type: string
   schedule:
-    # Checks every 30 minutes; nightly-release.cjs ships at most one nightly per
-    # 8-hour slot (midnight, 8am and 4pm EST), and a late or dropped tick is caught
-    # by the next tick in the same slot.
+    # Every 30 minutes; tools/release/resolve.ts ships at most one nightly per 8-hour slot, so a
+    # late or dropped tick is caught by the next one in the same slot.
     - cron: "8,38 * * * *"
 
-# t3code-style serialization: nightlies (scheduled, dispatched nightly and
-# preview builds) share one group, stable gets its own so a nightly never
-# blocks it. Running publishers are never canceled and queue: max keeps every
-# pending run instead of the default newest-wins slot, so a queued stable tag
-# cannot be dropped. Scheduled runs recheck whether a nightly is due after
-# leaving the queue.
+# Nightly and preview runs share one group and stable gets its own, so a nightly never blocks a
+# stable. Publishers are never canceled, and `queue: max` keeps every pending run instead of only
+# the newest, so a queued stable tag cannot be dropped.
 concurrency:
   group: >-
     inkling-release-${{ (github.event_name == 'schedule' || inputs.channel == 'nightly' || inputs.channel == 'preview') && 'nightly' || 'stable' }}
@@ -35,297 +31,106 @@ permissions:
   contents: read
 
 jobs:
-  # Picks the commit every later job builds. Nightlies and tag pushes build the
-  # triggering commit. A manual stable release builds the latest published
-  # nightly's commit, so stable only ever ships a build nightly users have
-  # already run. Scheduled runs also decide here whether a nightly is due.
   resolve:
-    name: Resolve release commit
+    name: Resolve release
     if: github.repository == 'Squidys-Tools/inkling'
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions:
-      contents: read
     outputs:
-      ref: ${{ steps.resolve.outputs.ref }}
-      channel: ${{ steps.resolve.outputs.channel }}
       due: ${{ steps.resolve.outputs.due }}
-      nightly_version: ${{ steps.resolve.outputs.nightly_version }}
-    steps:
-      - name: Check out the release scripts
-        uses: actions/checkout@v7
-        with:
-          sparse-checkout: .github/scripts
-
-      - name: Resolve release commit
-        id: resolve
-        # Pinned to the v9 tag commit, like the other gate jobs.
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          DISPATCH_CHANNEL: ${{ inputs.channel }}
-        with:
-          script: |
-            const {
-              assertCommitOnDefaultBranch,
-              assertReleaseSource,
-              shouldReleaseNightly,
-              resolveLatestNightlyCommit,
-            } = require("./.github/scripts/nightly-release.cjs");
-
-            const channel =
-              context.eventName === "schedule"
-                ? "nightly"
-                : context.eventName === "workflow_dispatch"
-                  ? process.env.DISPATCH_CHANNEL || "preview"
-                  : "stable";
-            core.setOutput("channel", channel);
-            await assertReleaseSource({ github, context, releaseChannel: channel });
-
-            if (context.eventName === "schedule") {
-              core.setOutput("due", await shouldReleaseNightly({ github, context, core }));
-              core.setOutput("ref", context.sha);
-            } else if (context.eventName === "workflow_dispatch" && channel === "stable") {
-              const { tag, sha, version } = await resolveLatestNightlyCommit({ github, context, core });
-              await assertCommitOnDefaultBranch({ github, context, sha });
-              core.notice(`Stable release builds ${sha}, the commit shipped by ${tag}.`);
-              core.setOutput("ref", sha);
-              core.setOutput("nightly_version", version);
-            } else {
-              core.setOutput("ref", context.sha);
-            }
-
-  metadata:
-    name: Resolve release metadata
-    needs: resolve
-    if: needs.resolve.result == 'success' && needs.resolve.outputs.due != 'false'
-    runs-on: ubuntu-latest
-    outputs:
+      channel: ${{ steps.resolve.outputs.channel }}
+      ref: ${{ steps.resolve.outputs.ref }}
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       prerelease: ${{ steps.version.outputs.prerelease }}
-      channel: ${{ needs.resolve.outputs.channel }}
-      ref: ${{ needs.resolve.outputs.ref }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.resolve.outputs.ref }}
+          sparse-checkout: tools
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
-      - run: bun install --frozen-lockfile --ignore-scripts
+      - id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DISPATCH_CHANNEL: ${{ inputs.channel }}
+        run: bun tools/release/resolve.ts
+      - if: steps.resolve.outputs.due == 'true'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.resolve.outputs.ref }}
+      - if: steps.resolve.outputs.due == 'true'
+        run: bun install --frozen-lockfile --ignore-scripts
       - id: version
+        if: steps.resolve.outputs.due == 'true'
         env:
-          RELEASE_CHANNEL: ${{ needs.resolve.outputs.channel }}
-          RELEASE_VERSION: ${{ inputs.version || needs.resolve.outputs.nightly_version || github.ref_name }}
+          RELEASE_CHANNEL: ${{ steps.resolve.outputs.channel }}
+          RELEASE_VERSION: ${{ inputs.version || steps.resolve.outputs.nightly_version || github.ref_name }}
         run: bun tools/release/prepare.ts
 
-  # The same gates as ci.yml's static and test jobs, run on the commit being
-  # released. Keep them in sync. Publishing waits for both.
-  static:
-    name: Typecheck, lint and web builds
+  checks:
     needs: resolve
-    if: needs.resolve.result == 'success' && needs.resolve.outputs.due != 'false'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.resolve.outputs.ref }}
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: .bun-version
-      - run: bun install --frozen-lockfile
-      - name: Typecheck every workspace
-        run: bun run typecheck
-      - name: Check documented commands exist
-        run: bun tools/repo/command-refs.ts
-      - name: Check for unused code
-        run: bun run knip
-      - name: Lint and format
-        run: bun run lint
-      - name: Build the web preview
-        run: bun run build:web
-      - name: Build browser extension
-        run: bun run --cwd extension build
+    if: needs.resolve.outputs.due == 'true'
+    uses: ./.github/workflows/checks.yml
+    with:
+      ref: ${{ needs.resolve.outputs.ref }}
 
-  test:
-    name: Unit tests
+  package:
     needs: resolve
-    if: needs.resolve.result == 'success' && needs.resolve.outputs.due != 'false'
-    # Windows is inkling's main target, so the suite runs there.
-    runs-on: windows-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        # pwsh only fails a multi-line step on its last command; bash stops at the first failure.
-        shell: bash
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.resolve.outputs.ref }}
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: .bun-version
-      - run: bun install --frozen-lockfile
-      - name: Run unit tests
-        run: bun run test
-
-  build:
-    needs: [resolve, metadata]
-    if: needs.metadata.result == 'success'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-2025
-            target: win
-            name: windows
-          - os: ubuntu-latest
-            target: linux
-            name: linux
-          # onnxruntime-node ships no macOS x64 binary, so Intel Macs get no build.
-          - os: macos-15
-            target: mac
-            name: mac-arm64
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.metadata.outputs.ref }}
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: .bun-version
-      - run: bun install --frozen-lockfile --ignore-scripts
-      - uses: actions/cache@v6
-        with:
-          path: .artifacts/electron-model-cache/models
-          key: inkling-models-${{ hashFiles('packages/jobs/src/model-manifest.json') }}
-      - name: Stage exact release metadata
-        env:
-          RELEASE_CHANNEL: ${{ needs.metadata.outputs.channel }}
-          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-        run: bun tools/release/prepare.ts
-      - name: Build reviewed platform artifacts (never publish from builder)
-        env:
-          DIST_TARGET: ${{ matrix.target }}
-        shell: bash
-        run: |
-          umask 022
-          bun run dist "$DIST_TARGET"
-      # electron-builder still writes update-info yml for a preview build; it
-      # must never reach a release, where a channel feed could point at it.
-      - name: Strip preview update feeds
-        if: needs.metadata.outputs.channel == 'preview'
-        shell: bash
-        run: rm -f .artifacts/electron/*.yml
-      # The .deb depends on FFmpeg for local-video posters; the runner image has none.
-      - name: Install the video decoder the Linux package depends on
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ffmpeg
-      - name: Exercise actual packaged Linux processing and local update feeds
-        if: runner.os == 'Linux'
-        run: |
-          bun tools/smoke/packaged-backend.ts
-          bun tools/smoke/update-feed.ts .artifacts/electron/linux-unpacked
-          python3 -I -B apps/desktop/src/updates/update-helper.test.py
-          bun tools/smoke/media.ts .artifacts/electron/linux-unpacked
-          xvfb-run -a bun tools/smoke/launch.ts .artifacts/electron/linux-unpacked/inkling
-      - name: Exercise packaged macOS processing and its ad-hoc signature
-        if: runner.os == 'macOS'
-        run: |
-          codesign --verify --deep --strict .artifacts/electron/mac-arm64/inkling.app
-          bun tools/smoke/packaged-backend.ts
-          bun tools/smoke/launch.ts .artifacts/electron/mac-arm64/inkling.app/Contents/MacOS/inkling
-      - name: Exercise packaged Windows processing
-        if: runner.os == 'Windows'
-        run: |
-          bun tools/smoke/packaged-backend.ts
-          bun tools/smoke/launch.ts .artifacts/electron/win-unpacked/inkling.exe
-      - uses: actions/upload-artifact@v7
-        with:
-          name: release-${{ matrix.name }}
-          path: |
-            .artifacts/electron/*.exe
-            .artifacts/electron/*.deb
-            .artifacts/electron/*.AppImage
-            .artifacts/electron/*.dmg
-            .artifacts/electron/*.blockmap
-            .artifacts/electron/latest*.yml
-            .artifacts/electron/nightly*.yml
-            !.artifacts/electron/*-mac.yml
-          if-no-files-found: error
+    if: needs.resolve.outputs.due == 'true'
+    uses: ./.github/workflows/package.yml
+    with:
+      ref: ${{ needs.resolve.outputs.ref }}
+      channel: ${{ needs.resolve.outputs.channel }}
+      version: ${{ needs.resolve.outputs.version }}
 
   publish:
     name: Create the GitHub release
-    needs: [resolve, metadata, build, static, test]
-    # A preview-channel run only builds and checks the artifacts; it releases nothing.
+    needs: [resolve, checks, package]
     if: >-
-      needs.resolve.result == 'success' &&
-      needs.metadata.result == 'success' &&
-      needs.build.result == 'success' &&
-      needs.static.result == 'success' &&
-      needs.test.result == 'success' &&
       needs.resolve.outputs.channel != 'preview' &&
       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
       actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+      RELEASE_COMMIT: ${{ needs.resolve.outputs.ref }}
     steps:
       # Check out before downloading: a checkout cleans the workspace, which would delete the installers.
-      - name: Check out the release scripts
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
-          sparse-checkout: .github/scripts
+          sparse-checkout: tools
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
       - uses: actions/download-artifact@v8
         with:
           pattern: release-*
           merge-multiple: true
           path: release-assets
-      # Created with the workflow token, which GitHub does not use to start the
-      # tag-push trigger. A personal or app token here would start a second run.
-      - name: Create the release tag at the release commit
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
-          RELEASE_COMMIT: ${{ needs.metadata.outputs.ref }}
-        with:
-          script: |
-            const { ensureReleaseTag } = require("./.github/scripts/release-tag.cjs");
-            const outcome = await ensureReleaseTag({
-              github,
-              context,
-              tag: process.env.RELEASE_TAG,
-              sha: process.env.RELEASE_COMMIT,
-            });
-            core.notice(`Release tag ${process.env.RELEASE_TAG} ${outcome} at ${process.env.RELEASE_COMMIT}.`);
-      # The release starts as a draft so a channel's feed only goes live once
-      # every asset is attached; nightlies publish right after, stable stays a
-      # draft a maintainer reviews.
+      # Made with the workflow token, which GitHub does not let start the tag-push trigger. A
+      # personal or app token here would start a second run.
+      - run: bun tools/release/tag.ts
+      # The release starts as a draft so a channel's feed goes live only once every asset is
+      # attached. A nightly publishes right after; a stable stays a draft a maintainer reviews.
       - name: Create the release as a draft
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
-          RELEASE_COMMIT: ${{ needs.metadata.outputs.ref }}
-          PRERELEASE: ${{ needs.metadata.outputs.prerelease }}
-        shell: bash
+          PRERELEASE: ${{ needs.resolve.outputs.prerelease }}
         run: |
-          set -euo pipefail
           args=(--draft --target "$RELEASE_COMMIT" --title "inkling $RELEASE_TAG" --generate-notes)
           if [ "$PRERELEASE" = true ]; then args+=(--prerelease --latest=false); fi
           gh release create "$RELEASE_TAG" "${args[@]}" release-assets/*
-      - name: Publish the nightly once its assets are attached
-        if: needs.metadata.outputs.channel == 'nightly'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+      - name: Publish the nightly
+        if: needs.resolve.outputs.channel == 'nightly'
         run: gh release edit "$RELEASE_TAG" --draft=false
-      # Publishes made with the workflow token emit no release event, so the site
-      # deploy is dispatched directly. Dispatches run on the default branch.
+      # Publishes made with the workflow token emit no release event, so the site deploy that
+      # picks up the new installers is dispatched directly.
       - name: Deploy the site for the published nightly
-        if: needs.metadata.outputs.channel == 'nightly'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+        if: needs.resolve.outputs.channel == 'nightly'
         run: gh workflow run site-deploy.yml --ref main

@@ -5,7 +5,7 @@
       "entry": ["tools/**/*.ts", "benchmarks/fetch-macrumors.ts", "benchmarks/harness/index.ts"],
       "ignoreDependencies": ["@img/sharp-wasm32"],
       "ignoreBinaries": ["dpkg-deb"],
-      "ignore": [".claude/**", ".github/scripts/**"]
+      "ignore": [".claude/**"]
     },
     "apps/desktop": {
       "entry": ["src/main.ts", "src/preload.ts", "build.ts", "after-pack.ts"],
