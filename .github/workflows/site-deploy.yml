@@ -1,8 +1,9 @@
 name: Deploy site
 
 # The only way the marketing site reaches production. Every push to main that can
-# change the built site deploys it; run it by hand to pick up a newly published
-# release, since the build looks up the latest release's installers.
+# change the built site deploys it, and the Release workflow dispatches it after
+# each nightly publishes. Run it by hand after publishing a stable release, since
+# the build looks up the latest release's installers.
 on:
   push:
     branches: [main]

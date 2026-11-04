@@ -83,13 +83,15 @@ secrets or previews.
 The `Deploy site` workflow (`.github/workflows/site-deploy.yml`) is the only
 path to the production domain. It runs on every push to `main` whose paths match
 the preview filter above, plus the workflow file itself; keep the two lists in
-sync. On the `site-production` GitHub environment, which deploys only from
-`main` and needs a maintainer's approval, it builds a production deployment
+sync. The Release workflow dispatches it after each nightly publishes (the
+workflow token emits no release event, so a `release` trigger would not fire);
+after publishing a stable release, run `gh workflow run site-deploy.yml` to pick
+up the new installers. On the `site-production` GitHub environment, which
+deploys only from `main`, it builds a production deployment
 with no domain, promotes it
 through the Vercel API, and fails unless getinkling.dev then points at that
 deployment. A failed build leaves the previous site live. A newer push replaces a
-deploy still waiting in the queue. To redeploy without a push, as after a release,
-run `gh workflow run site-deploy.yml`. Both environments hold the `VERCEL_TOKEN`,
+deploy still waiting in the queue. Both environments hold the `VERCEL_TOKEN`,
 `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` secrets; `site-staging`, used only by
 previews, allows `main` plus `refs/pull/*/merge`.
 
