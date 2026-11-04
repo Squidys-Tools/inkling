@@ -34,7 +34,7 @@ export const base = stylex.create({
     position: "relative",
     display: "inline-flex",
     alignItems: "center",
-    gap: "14px",
+    gap: "0.3em",
     minHeight: "48px",
     fontSize: "1rem",
     "::after": {
@@ -50,16 +50,6 @@ export const base = stylex.create({
       transitionProperty: "transform",
       transitionDuration: { default: "0.28s", [media.reduced]: "0s" },
       transitionTimingFunction: landing.ease,
-    },
-  },
-  textLinkArrow: {
-    transitionProperty: "transform",
-    transitionDuration: { default: "0.16s", [media.reduced]: "0s" },
-    transitionTimingFunction: landing.ease,
-    transform: {
-      default: null,
-      [stylex.when.ancestor(":hover")]: "translate(3px, -2px)",
-      [stylex.when.ancestor(":focus-visible")]: "translate(3px, -2px)",
     },
   },
 });

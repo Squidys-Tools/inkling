@@ -133,7 +133,7 @@ function Notice({
             href={sourceUrl}
             target="_blank"
             rel="noreferrer"
-            aria-label={`${entry.name} source`}
+            aria-label={`${entry.name} source, opens in ${desktop ? "your browser" : "a new tab"}`}
             title={sourceUrl}
             onClick={(event) => {
               if (!desktop) return;
