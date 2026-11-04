@@ -1,8 +1,8 @@
 import * as stylex from "@stylexjs/stylex";
+import { isWebUrl } from "@inkling/ingestion/url";
 import { Button } from "@inkling/ui";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useLayoutEffect, useRef } from "react";
-import { isSafeNoteLink } from "./notes.ts";
 
 /** Edits the link under the selection. Only web URLs apply. */
 export function LinkPopover({
@@ -48,7 +48,7 @@ export function LinkPopover({
       <Button
         variant="primary"
         style={styles.action}
-        disabled={!isSafeNoteLink(draft.trim())}
+        disabled={!isWebUrl(draft.trim())}
         onClick={onApply}
       >
         Apply
