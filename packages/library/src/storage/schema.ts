@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { storageFailure } from "./errors.ts";
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 const itemsSchema = `
 CREATE TABLE IF NOT EXISTS items (
@@ -150,6 +150,16 @@ function migrateItemColumns(db: DatabaseSync, migrationNeeded: boolean) {
   }
 }
 
+// The metadata words search matches: what the user wrote or saved, never JSON keys, HTML tags or
+// bookkeeping. metadata.html is the markup of metadata.text. Unparseable legacy metadata is
+// indexed as it is, because a JSON error here would fail the write that fired the trigger.
+export const searchableMetadata = (column: string) => `CASE WHEN json_valid(${column}) THEN (
+  SELECT group_concat(atom, ' ') FROM json_tree(${column}) WHERE atom IS NOT NULL AND (
+    fullkey IN ('$.text', '$.quoteText', '$.attribution', '$.author', '$.fileName', '$.sourceUrl',
+      '$.social.authorName', '$.social.authorHandle', '$.social.text') OR path = '$.tags'
+    OR (fullkey = '$.extractedText' AND atom IS NOT json_extract(${column}, '$.text')))
+) ELSE ${column} END`;
+
 function dropFts(db: DatabaseSync) {
   db.exec(`
     DROP TRIGGER IF EXISTS items_fts_after_insert;
@@ -175,7 +185,7 @@ function setupFts(db: DatabaseSync) {
       DROP TRIGGER IF EXISTS items_fts_after_insert;
       CREATE TRIGGER items_fts_after_insert AFTER INSERT ON items BEGIN
         INSERT INTO items_fts(rowid, item_id, title, description, source_label, ocr_text, metadata, body)
-        VALUES (new.rowid, new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata, new.body);
+        VALUES (new.rowid, new.id, new.title, new.description, new.source_label, new.ocr_text, ${searchableMetadata("new.metadata")}, new.body);
       END;
       DROP TRIGGER IF EXISTS items_fts_after_delete;
       CREATE TRIGGER items_fts_after_delete AFTER DELETE ON items BEGIN
@@ -186,11 +196,12 @@ function setupFts(db: DatabaseSync) {
       AFTER UPDATE OF title, description, source_label, ocr_text, metadata, body ON items
       WHEN old.title IS NOT new.title OR old.description IS NOT new.description
         OR old.source_label IS NOT new.source_label OR old.ocr_text IS NOT new.ocr_text
-        OR old.metadata IS NOT new.metadata OR old.body IS NOT new.body
+        OR old.body IS NOT new.body
+        OR ${searchableMetadata("old.metadata")} IS NOT ${searchableMetadata("new.metadata")}
       BEGIN
         DELETE FROM items_fts WHERE rowid = old.rowid;
         INSERT INTO items_fts(rowid, item_id, title, description, source_label, ocr_text, metadata, body)
-        VALUES (new.rowid, new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata, new.body);
+        VALUES (new.rowid, new.id, new.title, new.description, new.source_label, new.ocr_text, ${searchableMetadata("new.metadata")}, new.body);
       END;
     `);
     const itemCount = (db.prepare("SELECT COUNT(*) AS count FROM items").get() as Row).count;
@@ -199,7 +210,7 @@ function setupFts(db: DatabaseSync) {
       db.exec(`
         DELETE FROM items_fts;
         INSERT INTO items_fts(rowid, item_id, title, description, source_label, ocr_text, metadata, body)
-        SELECT rowid, id, title, description, source_label, ocr_text, metadata, body FROM items;
+        SELECT rowid, id, title, description, source_label, ocr_text, ${searchableMetadata("metadata")}, body FROM items;
       `);
     }
     db.exec("COMMIT");
@@ -231,7 +242,7 @@ export function openDatabase(databasePath: string, { syncToDisk = true } = {}) {
   }
   // Before the backfill below: its per-row updates would otherwise each fire the old trigger,
   // which scans the whole library. setupFts rebuilds the index on item rowids afterwards.
-  if (version < 10) dropFts(db);
+  if (version < 11) dropFts(db);
   db.exec(jobsSchema);
   ensureColumns(db, "jobs", [
     ["worker_id", "TEXT"],

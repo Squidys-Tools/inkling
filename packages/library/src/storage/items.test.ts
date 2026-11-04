@@ -79,7 +79,7 @@ test("list rows keep card fields while full content stays available by item id",
   expect(JSON.stringify(articleCard)).not.toContain("indextextneedle");
   expect(noteCard).not.toHaveProperty("body");
   expect(noteCard?.description).toBe("Private note on snake_case & body.");
-  const htmlSearch = await library.searchItems("indexhtmlneedle");
+  const htmlSearch = await library.searchItems("indextextneedle");
   const textSearch = await library.searchItems("indextextneedle");
   const smartSpace = await library.createSpace({ name: "Reading", query: { tag: "reading" } });
   const regularSpace = await library.createSpace({ name: "Saved", kind: "regular" });
@@ -96,7 +96,7 @@ test("list rows keep card fields while full content stays available by item id",
   expect(ids(similarItems)).toEqual([note.id]);
   expect(similarItems[0]).not.toHaveProperty("body");
   const withoutFts = await trackedLibrary(join(root, "library.sqlite3"), { useFts5: false });
-  const fallbackSearch = await withoutFts.searchItems("indexhtmlneedle");
+  const fallbackSearch = await withoutFts.searchItems("indextextneedle");
   expect(ids(fallbackSearch)).toContain(article.id);
   expect(fallbackSearch[0]).not.toHaveProperty("body");
   expect(fallbackSearch[0]?.metadata).not.toHaveProperty("html");
