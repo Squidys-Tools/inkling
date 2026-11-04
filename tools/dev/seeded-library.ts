@@ -36,7 +36,8 @@ export async function seedLibrary(directory: string) {
   const databasePath = join(directory, "library.sqlite3");
   if (existsSync(databasePath)) return false;
   await mkdir(join(directory, "assets", "items"), { recursive: true });
-  const { db } = openDatabase(databasePath);
+  // A scratch library: reseeding is cheaper than syncing every migration to disk.
+  const { db } = openDatabase(databasePath, { syncToDisk: false });
   const base = Date.now() - 30 * 60 * 1000;
   const items: (SeedItem & { archived?: boolean })[] = [
     ...seedItems,

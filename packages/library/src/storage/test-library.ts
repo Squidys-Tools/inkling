@@ -45,7 +45,7 @@ export async function openTestLibrary(
   options: Omit<LibraryOptions, "databasePath" | "appVersion"> & { appVersion?: string } = {},
 ) {
   const runtime = ManagedRuntime.make(
-    libraryLayer({ databasePath, appVersion: "0.0.0-test", ...options }),
+    libraryLayer({ databasePath, appVersion: "0.0.0-test", syncToDisk: false, ...options }),
   );
   const run = <A, E>(effect: Effect.Effect<A, E, Services>) => runtime.runPromise(effect);
   const [library, jobs] = await run(
@@ -55,6 +55,7 @@ export async function openTestLibrary(
   );
   const db = new DatabaseSync(resolve(databasePath));
   db.exec("PRAGMA busy_timeout = 5000");
+  db.exec("PRAGMA synchronous = OFF");
   const fibers = new Set<Fiber.Fiber<unknown, unknown>>();
 
   const worker = async (workerOptions: WorkerOptions<Library | JobQueue>) => {

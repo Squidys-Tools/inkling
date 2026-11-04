@@ -55,13 +55,18 @@ test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to the current
   });
   expect((await migrated.getSpace("legacy-space"))?.kind).toBe("smart");
   expect(ids(await migrated.searchItems("Old"))).toEqual(["legacy-note"]);
-  const [busy] = await migrated.run(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      return yield* sql`PRAGMA busy_timeout`;
-    }),
-  );
-  expect(busy).toEqual({ timeout: 5000 });
+  const pragma = (library: typeof migrated, name: string) =>
+    library.run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        return (yield* sql.unsafe(`PRAGMA ${name}`))[0];
+      }),
+    );
+  expect(await pragma(migrated, "busy_timeout")).toEqual({ timeout: 5000 });
+  // Tests skip disk syncs; a library that syncs keeps SQLite's FULL (2) on its connection.
+  expect(await pragma(migrated, "synchronous")).toEqual({ synchronous: 0 });
+  const syncing = await trackedLibrary(databasePath, { syncToDisk: true });
+  expect(await pragma(syncing, "synchronous")).toEqual({ synchronous: 2 });
 });
 
 // A library saved by a newer app must survive an older app untouched, not be
