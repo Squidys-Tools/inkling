@@ -174,7 +174,6 @@ const styles = stylex.create({
     display: "flex",
     alignItems: "center",
     gap: "10px",
-    width: "100%",
     height: "32px",
     paddingLeft: space.s2,
     paddingRight: "10px",
