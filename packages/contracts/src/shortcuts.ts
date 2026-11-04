@@ -17,7 +17,7 @@ export type Command =
   | "forward";
 
 /** `mod` is Cmd on macOS and Ctrl elsewhere. `key` is a KeyboardEvent.key value. */
-export type Binding = { key: string; mod?: boolean; shift?: boolean; alt?: boolean };
+type Binding = { key: string; mod?: boolean; shift?: boolean; alt?: boolean };
 
 type Shortcut = {
   label: string;

@@ -32,12 +32,11 @@ export const Thumbnail = Schema.Struct({
 });
 export type Thumbnail = typeof Thumbnail.Type;
 
-export const Embedding = Schema.Struct({
+const Embedding = Schema.Struct({
   model: Text,
   bytes: Schema.Uint8Array,
   dimension: Schema.Number,
 });
-export type Embedding = typeof Embedding.Type;
 
 /** What reading a PDF reports, in order: progress, the page-one thumbnail, then its text. */
 export const PdfEvent = Schema.Union([
