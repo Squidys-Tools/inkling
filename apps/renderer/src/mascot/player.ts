@@ -93,8 +93,8 @@ export class MascotPlayer {
   }
 
   /** Keeps the figure moving for a while, e.g. while the pointer is over it. */
-  wake(ms = WAKE_MS) {
-    this.awakeMs = Math.max(this.awakeMs, ms);
+  wake() {
+    this.awakeMs = Math.max(this.awakeMs, WAKE_MS);
     this.sync();
   }
 
@@ -119,7 +119,7 @@ export class MascotPlayer {
   }
 
   /** Re-reads reduced motion and page visibility. */
-  refresh() {
+  private refresh() {
     this.sync();
     if (this.running) return;
     this.frame = this.engine.sample(this.clock);
