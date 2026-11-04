@@ -3,8 +3,6 @@ import { loadingColor } from "@inkling/ui/tokens.stylex";
 const mosaicColumns = 9;
 const mosaicRows = 12;
 export const revealSeconds = 4.4;
-/** Each moving card repaints a canvas every frame, so only this many do at once. */
-const maxLive = 8;
 
 const clamp = (value: number, low = 0, high = 1) => Math.min(high, Math.max(low, value));
 const smooth = (low: number, high: number, value: number) => {
@@ -35,6 +33,7 @@ export const stringSeed = (text: string) => {
 export async function sampleCells(url: string): Promise<readonly Rgb[] | null> {
   try {
     const image = new Image();
+    image.crossOrigin = "anonymous";
     image.src = url;
     await image.decode();
     const canvas = document.createElement("canvas");
@@ -105,6 +104,8 @@ export function drawCover(
   const aspect = width / height;
   const ring = ringGrow > 0.01 ? ringBalls(seconds, ringGrow, aspect) : null;
   const eased = ((progress - 0.1) / 0.9) * 1.06;
+  // Before the reveal begins no cell has grown, so the ring needs none of the mosaic maths.
+  const idle = eased <= 0;
   for (let row = 0; row < height; row++) {
     const y = (row + 0.5) / height;
     for (let column = 0; column < width; column++) {
@@ -118,7 +119,7 @@ export function drawCover(
       let red = 0;
       let green = 0;
       let blue = 0;
-      for (let dy = -1; dy <= 1; dy++) {
+      for (let dy = idle ? 2 : -1; dy <= 1; dy++) {
         const neighborRow = baseRow + dy;
         if (neighborRow < 0 || neighborRow >= mosaicRows) continue;
         for (let dx = -1; dx <= 1; dx++) {
@@ -199,6 +200,23 @@ type Frame = (seconds: number) => boolean | void;
 const live = new Set<Frame>();
 let handle = 0;
 
+/** A cap on how many cards move at once, so a batch of new items cannot repaint the whole grid. */
+function budget(max: number) {
+  let used = 0;
+  return () => {
+    if (used >= max) return null;
+    used++;
+    let held = true;
+    return () => {
+      if (held) used--;
+      held = false;
+    };
+  };
+}
+const canvasSlot = budget(8);
+/** The beam is a CSS animation, cheaper than a canvas, so more of them run. */
+export const beamSlot = budget(16);
+
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function tick(now: number) {
@@ -211,11 +229,18 @@ function tick(now: number) {
  * under reduced motion, it draws once and reports `animated: false`, leaving a still cover.
  */
 export function animate(frame: Frame) {
-  if (reducedMotion() || live.size >= maxLive) {
+  const release = reducedMotion() ? null : canvasSlot();
+  if (!release) {
     frame(performance.now() / 1000);
     return { animated: false, stop: () => {} };
   }
   live.add(frame);
   if (handle === 0) handle = requestAnimationFrame(tick);
-  return { animated: true, stop: () => void live.delete(frame) };
+  return {
+    animated: true,
+    stop: () => {
+      live.delete(frame);
+      release();
+    },
+  };
 }

@@ -7,6 +7,7 @@ import { beam } from "./beam.stylex.ts";
 import { beamBloom, beamEdges, beamGlow, beamStroke, beamWindow, solid } from "./beamGradients.ts";
 import {
   animate,
+  beamSlot,
   drawCover,
   type Mosaic,
   mosaicPhases,
@@ -21,8 +22,15 @@ import { ProcessingBadge } from "./Processing.tsx";
 
 /** A thin light travelling the card's edge while it waits for its thumbnail. */
 function Beam({ label, onPaper }: { label: string; onPaper: boolean }) {
+  const element = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const release = beamSlot();
+    if (!release && element.current) element.current.style.animationPlayState = "paused";
+    return release ?? undefined;
+  }, []);
   return (
     <span
+      ref={element}
       role="status"
       aria-label={label}
       {...stylex.props(styles.layer, styles.beam, onPaper && styles.dark)}
@@ -39,7 +47,11 @@ function Beam({ label, onPaper }: { label: string; onPaper: boolean }) {
   );
 }
 
-const canvasSize = (pixels: number) => Math.min(96, Math.max(24, Math.round(pixels / 4)));
+// The ring is cheap and shows its edges, so it draws sharper than the mosaic reveal.
+const canvasSize = (pixels: number, revealing: boolean) =>
+  revealing
+    ? Math.min(120, Math.max(24, Math.round(pixels / 3)))
+    : Math.min(200, Math.max(24, Math.round(pixels / 2)));
 
 /**
  * The cover over a card: a dark base with a ring of blobs while jobs run, which then
@@ -74,8 +86,8 @@ function Cover({
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
-    canvas.width = canvasSize(canvas.clientWidth);
-    canvas.height = canvasSize(canvas.clientHeight);
+    canvas.width = canvasSize(canvas.clientWidth, revealing);
+    canvas.height = canvasSize(canvas.clientHeight, revealing);
     const mosaic: Mosaic = {
       width: canvas.width,
       height: canvas.height,
@@ -215,6 +227,7 @@ const styles = stylex.create({
   },
   // The beam is light, so it is flipped to dark on the cards that are drawn on pale paper.
   dark: { filter: "invert(1)" },
+  paused: { animationPlayState: "paused" },
   stroke: {
     position: "absolute",
     inset: 0,
