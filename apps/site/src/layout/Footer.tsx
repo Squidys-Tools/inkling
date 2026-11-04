@@ -32,6 +32,11 @@ export function Footer() {
                 Download
               </Link>
             </li>
+            <li>
+              <Link to="/credits" {...stylex.props(styles.link)}>
+                Image credits
+              </Link>
+            </li>
           </ul>
           <ul {...stylex.props(styles.list)}>
             <li>

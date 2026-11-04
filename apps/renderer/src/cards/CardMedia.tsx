@@ -36,7 +36,7 @@ export function CardImage({ view, priority }: { view: CardView; priority: boolea
     image.addEventListener("load", loaded);
     if (image.src !== url) image.src = url;
     // React owns the host; the bounded cache owns its decoded image child.
-    // A masonry column change can remount the host without blanking that image.
+    // A cell that scrolls back into the grid remounts the host without blanking that image.
     container.append(image);
     if (image.complete) retainThumbnail(image);
     return () => {

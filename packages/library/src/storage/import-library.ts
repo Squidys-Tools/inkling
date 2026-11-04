@@ -203,9 +203,10 @@ export function makeImport(ctx: StorageContext) {
   ) {
     const stageDatabase = join(stageRoot, "library.sqlite3");
     yield* attempt(() => copyFile(join(exportRoot, "library.sqlite3"), stageDatabase));
-    // Opening migrates the staged copy to the current schema before it is read.
+    // Opening migrates the staged copy to the current schema before it is read. The copy
+    // is deleted after the import, so its migration skips the disk syncs.
     yield* Effect.try({
-      try: () => openDatabase(stageDatabase).db.close(),
+      try: () => openDatabase(stageDatabase, { syncToDisk: false }).db.close(),
       catch: (cause) => cause,
     });
     const stage = yield* withDatabaseFile({ filename: stageDatabase, disableWAL: true }, (staged) =>

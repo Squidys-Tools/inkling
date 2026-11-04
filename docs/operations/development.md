@@ -133,7 +133,7 @@ types by default.
 - In-app updates are off; [tech-stack.md](../tech-stack.md#update-checks) says why and what turning them on takes.
 - Screen capture uses the system picker on macOS 15 and later, and asks for Screen Recording permission on older versions.
 - The top-level `files` in `package.json` keeps only the build machine's `onnxruntime-node/bin/napi-v6/${platform}` directory, so build each package on its own system. Keep `files` out of the `win`, `mac` and `linux` blocks: electron-builder 26 prepends `**/*` to a list that holds only exclusions and packs the whole repository; `tools/smoke/packaged-backend.ts` fails if it does.
-- `isbinaryfile` is overridden to 5.x in `package.json`: the 4.x that `@electron/osx-sign` asks for crashes while sniffing the bundled ONNX models during signing.
+- `isbinaryfile` is overridden to 6.x in `package.json`: the 4.x that `@electron/osx-sign` asks for crashes while sniffing the bundled ONNX models during signing. 6.x is ESM-only, and `@electron/osx-sign` and `app-builder-lib` load it with `require()`, so electron-builder needs a Node that can `require()` an ES module: 20.19, 22.12 or later.
 
 ## Updates and releases
 
@@ -178,7 +178,7 @@ up. Scripts that import only `tools/ci/github.ts` run without `bun install`. Eac
 Dependabot updates the two together.
 
 - `ci.yml` runs on every push to `main` and every PR. It calls `checks.yml` (typecheck, lint,
-  Knip, web and extension builds on Linux, unit tests on Windows) and `package.yml` (package the
+  Knip, web and extension builds on Linux, unit tests on Windows and Linux) and `package.yml` (package the
   unpacked app on Windows and Linux, run the packaged smoke checks and launch it). A PR skips
   either when its diff cannot affect it; every commit on `main` runs both, each in its own run
   that no later merge cancels. macOS packages only on a PR that changes its `macos` paths and in

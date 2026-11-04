@@ -38,7 +38,7 @@ const panels: Panel[] = [
     body: "Put favourites in a regular Space, or let a Smart Space collect items that match a saved search. A little structure, only when you want it.",
     picture: {
       src: bear,
-      alt: "A brown bear beside a quiet lake and forested mountains.",
+      alt: "A brown bear on rocky ground, snowy trees behind it.",
     },
     caption: "Out in nature",
   },

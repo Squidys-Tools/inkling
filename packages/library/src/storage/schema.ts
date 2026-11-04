@@ -202,9 +202,11 @@ function setupFts(db: DatabaseSync) {
   }
 }
 
-export function openDatabase(databasePath: string) {
+/** `syncToDisk: false` skips each commit's disk sync, for files that need not survive a power cut. */
+export function openDatabase(databasePath: string, { syncToDisk = true } = {}) {
   const db = new DatabaseSync(databasePath);
   db.exec("PRAGMA busy_timeout = 5000");
+  if (!syncToDisk) db.exec("PRAGMA synchronous = OFF");
   const version = Number((db.prepare("PRAGMA user_version").get() as Row).user_version);
   // A newer app's library is left exactly as it is: migrating it down would lose data.
   if (version > SCHEMA_VERSION) {

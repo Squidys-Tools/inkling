@@ -33,9 +33,16 @@ jobs:
       - run: bun run --cwd extension build
 
   test:
-    name: Unit tests
-    # Windows is inkling's main target, so the suite runs there.
-    runs-on: windows-latest
+    name: Unit tests on ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          - os: ubuntu-latest
+            name: linux
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     defaults:
       run:

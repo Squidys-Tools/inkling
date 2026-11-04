@@ -12,26 +12,16 @@ import { openCardMenu, openItem, openReader, retryProcessing } from "./cardActio
 import { CardFace } from "./CardFace.tsx";
 import type { CardLayout } from "./CardMedia.tsx";
 
-export type GridContext = { layout: CardLayout };
-
 /** One cell of the masonry grid. It reads its card by id, so a change re-renders this cell only. */
-export function GridCell({
-  data: id,
-  index,
-  context,
-}: {
-  data: string;
-  index: number;
-  context: GridContext;
-}) {
+export function GridCell({ id, index, layout }: { id: string; index: number; layout: CardLayout }) {
   const card = useCard(id);
   const clock = useLabelClock();
   if (!card) return <div {...stylex.props(styles.gone)} />;
   const view = cardView(card, clock);
-  return context.layout === "archive" ? (
+  return layout === "archive" ? (
     <ArchiveTile view={view} index={index} />
   ) : (
-    <LibraryCard view={view} index={index} list={context.layout === "list"} />
+    <LibraryCard view={view} index={index} list={layout === "list"} />
   );
 }
 

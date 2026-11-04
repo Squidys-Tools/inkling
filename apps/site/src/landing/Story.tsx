@@ -6,6 +6,7 @@ import { repository } from "../layout/links.ts";
 import { base } from "./base.ts";
 import { Cast } from "./Cast.tsx";
 import { useCalm, useHydrated } from "./environment.ts";
+import { ExternalArrow } from "./ExternalArrow.tsx";
 import { media } from "./landing.stylex.ts";
 import { Questions } from "./Questions.tsx";
 import { ScrollPanels } from "./ScrollPanels.tsx";
@@ -134,10 +135,8 @@ function CloseToHome() {
                 styles.hood,
               )}
             >
-              Look under the hood{" "}
-              <span aria-hidden="true" {...stylex.props(base.textLinkArrow)}>
-                ↗
-              </span>
+              Look under the hood
+              <ExternalArrow />
             </a>
           </div>
           <div id="questions" {...stylex.props(styles.questions)}>

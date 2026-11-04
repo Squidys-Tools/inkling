@@ -99,7 +99,7 @@ export const seedItems: SeedItem[] = [
     4,
     1020,
     "A bear by the water",
-    "A brown bear beside a quiet lake, mountains behind it.",
+    "A brown bear on rocky ground, snowy trees behind it.",
     ["bear", "lake", "nature", "mountains"],
     { author: "Adam Willoughby-Knox", url: "https://unsplash.com/photos/_snqARKTgoc" },
   ),

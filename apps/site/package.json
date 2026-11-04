@@ -8,7 +8,7 @@
     "build": "vite build --config ../renderer/vite.config.ts --mode site && vite build"
   },
   "dependencies": {
-    "motion": "12.43.0",
+    "motion": "14.9.1",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

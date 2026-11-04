@@ -24,6 +24,9 @@ export type LibraryOptions = {
   jobQueue?: JobQueueOptions;
   // Tests turn FTS off to cover the LIKE fallback on SQLite builds without FTS5.
   useFts5?: boolean;
+  // Tests turn this off: nothing they check must survive a power cut, and a commit's
+  // disk sync costs about 100ms on CI disks.
+  syncToDisk?: boolean;
 };
 
 const makeLibrary = Effect.fnUntraced(function* (
@@ -76,6 +79,19 @@ export class Library extends Context.Service<
   Effect.Success<ReturnType<typeof makeLibrary>>
 >()("inkling/storage/Library") {}
 
+const clientLayer = (filename: string, syncToDisk: boolean) => {
+  const client = SqliteClient.layer({ filename, disableWAL: true });
+  if (syncToDisk) return client;
+  // The client holds one connection, so the pragma covers every query it runs.
+  const skipSyncs = Layer.effectDiscard(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`PRAGMA synchronous = OFF`;
+    }),
+  );
+  return skipSyncs.pipe(Layer.provideMerge(client));
+};
+
 // Migrations need multi-statement DDL, which the Effect client cannot run, so
 // they finish on a plain connection before the client opens the file.
 export function libraryLayer({
@@ -83,6 +99,7 @@ export function libraryLayer({
   jobQueue,
   useFts5,
   appVersion,
+  syncToDisk = true,
   ...options
 }: LibraryOptions) {
   const databasePath = resolve(options.databasePath);
@@ -90,7 +107,7 @@ export function libraryLayer({
     Effect.try({
       try: () => {
         mkdirSync(dirname(databasePath), { recursive: true });
-        const { db, fts5Enabled } = openDatabase(databasePath);
+        const { db, fts5Enabled } = openDatabase(databasePath, { syncToDisk });
         db.close();
         return fts5Enabled;
       },
@@ -102,7 +119,7 @@ export function libraryLayer({
           makeLibrary(databasePath, appVersion, fts5Enabled && useFts5 !== false, media),
         ).pipe(
           Layer.provideMerge(Layer.effect(JobQueue, makeJobQueue(jobQueue))),
-          Layer.provideMerge(SqliteClient.layer({ filename: databasePath, disableWAL: true })),
+          Layer.provideMerge(clientLayer(databasePath, syncToDisk)),
         ),
       ),
     ),
