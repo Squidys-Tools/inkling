@@ -486,15 +486,48 @@ button:disabled {
   height: 180px;
 }
 .mascot-hint {
+  --ink-pad: 200px;
+  position: relative;
   z-index: 60;
   max-width: min(300px, calc(100vw - 32px));
   padding: 24px 50px 24px 24px;
   border-radius: 22px;
-  background: var(--ink);
   color: var(--paper);
   font-size: 1rem;
   line-height: 1.45;
-  transform-origin: var(--radix-popover-content-transform-origin);
+}
+.mascot-hint.ink-plain {
+  background: var(--ink);
+}
+.mascot-hint p {
+  position: relative;
+}
+.ink-defs {
+  position: absolute;
+}
+.ink-layer {
+  position: absolute;
+  inset: calc(var(--ink-pad) * -1);
+  pointer-events: none;
+}
+.ink-blob,
+.ink-tether,
+.ink-drop {
+  position: absolute;
+  background: var(--ink);
+  opacity: 0;
+}
+.ink-blob {
+  inset: var(--ink-pad);
+  border-radius: 22px;
+}
+.ink-tether {
+  height: 28px;
+  border-radius: 14px;
+  transform-origin: 0 50%;
+}
+.ink-drop {
+  border-radius: 50%;
 }
 .hint-close {
   position: absolute;
