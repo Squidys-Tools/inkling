@@ -1,4 +1,4 @@
-import { createStore, useStore } from "../library/store.ts";
+import { createAtom, useSelector } from "@tanstack/react-store";
 import { type Appearance, parseAppearance } from "./appearanceModel.ts";
 
 function readAppearance() {
@@ -12,9 +12,9 @@ function readAppearance() {
   }
 }
 
-const appearance = createStore(readAppearance());
+const appearance = createAtom(readAppearance());
 
-export const useAppearance = () => useStore(appearance, (value) => value);
+export const useAppearance = () => useSelector(appearance);
 
 export function setAppearance<Key extends keyof Appearance>(key: Key, value: Appearance[Key]) {
   appearance.set((current) => ({ ...current, [key]: value }));

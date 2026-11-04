@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { valid, prerelease, inc } from "semver";
+import { inc, prerelease, valid } from "semver";
 
 const channel = process.env.RELEASE_CHANNEL ?? "stable";
 const requested = (process.env.RELEASE_VERSION ?? process.env.GITHUB_REF_NAME ?? "").replace(
@@ -8,7 +8,13 @@ const requested = (process.env.RELEASE_VERSION ?? process.env.GITHUB_REF_NAME ??
 );
 if (!["stable", "nightly", "preview"].includes(channel))
   throw new Error("Unsupported release channel");
-const pkg = JSON.parse(await readFile("package.json", "utf8"));
+const pkg = JSON.parse(await readFile("package.json", "utf8")) as {
+  version: string;
+  build: {
+    publish?: { releaseType: string }[];
+    generateUpdatesFilesForAllChannels: boolean;
+  };
+};
 // The release's first job names a nightly or preview version; the build jobs restage that exact
 // one, since the date may have changed by the time a build starts.
 const version =
@@ -23,7 +29,7 @@ pkg.version = version;
 // A preview build omits the publish config so the packaged app carries no
 // update feed; the workflow also strips the emitted yml from its artifacts.
 if (channel === "preview") delete pkg.build.publish;
-else pkg.build.publish[0].releaseType = channel === "nightly" ? "prerelease" : "release";
+else pkg.build.publish![0].releaseType = channel === "nightly" ? "prerelease" : "release";
 pkg.build.generateUpdatesFilesForAllChannels = false;
 await writeFile("package.json", JSON.stringify(pkg, null, 2) + "\n");
 if (process.env.GITHUB_OUTPUT)

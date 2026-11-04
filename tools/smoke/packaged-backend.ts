@@ -44,8 +44,8 @@ if (!process.versions.electron) {
   const require = createRequire(join(archive, "package.json"));
   const scratch = await mkdtemp(join(tmpdir(), "inkling-backend-smoke-"));
   const originalFontScan = process.env.DISABLE_SYSTEM_FONTS_LOAD;
-  let worker;
-  let inference;
+  let worker: import("tesseract.js").Worker | undefined;
+  let inference: import("onnxruntime-node").InferenceSession | undefined;
   try {
     // electron-builder 26 packs the whole repository when a files list holds only exclusions.
     assert.deepEqual(
@@ -57,7 +57,9 @@ if (!process.versions.electron) {
     const chunks = join(archive, "dist/desktop");
     const pdfChunk = (await readdir(chunks)).find((name) => /^worker-pdf-.*\.mjs$/.test(name));
     assert(pdfChunk, "the worker's packaged PDF chunk is present");
-    const pdf = await import(pathToFileURL(join(chunks, pdfChunk)).href);
+    const pdf: typeof import("../../packages/jobs/src/pdf.ts") = await import(
+      pathToFileURL(join(chunks, pdfChunk)).href
+    );
     const fixtures = join(root, "packages/jobs/src/fixtures");
     const native = await pdf.extractPdfTextByPages(
       await readFile(join(fixtures, "pdf-native-text-01.pdf")),
@@ -74,7 +76,7 @@ if (!process.versions.electron) {
     );
     console.log("PASS packaged PDF worker, fonts and raster thumbnail");
 
-    const { createWorker } = require("tesseract.js");
+    const { createWorker }: typeof import("tesseract.js") = require("tesseract.js");
     const tesseractDirectory = dirname(require.resolve("tesseract.js").replace(archive, unpacked));
     const languageDirectory = dirname(
       require.resolve("@tesseract.js-data/eng").replace(archive, unpacked),
@@ -90,20 +92,20 @@ if (!process.versions.electron) {
     const scanned = await pdf.extractPdfTextByPages(
       await readFile(join(fixtures, "pdf-scanned-01.pdf")),
       {
-        recognize: async (bytes) => (await worker.recognize(bytes)).data.text,
+        recognize: async (bytes) => (await worker!.recognize(bytes)).data.text,
       },
     );
     assert.equal(scanned.ocrPages, 1);
     assert.match(scanned.text.toLowerCase(), /memorandum/);
     console.log("PASS packaged English OCR worker and scanned PDF OCR");
 
-    const sharp = require("sharp");
-    const sharpEsm = (
+    const sharp: typeof import("sharp").default = require("sharp");
+    const sharpEsm: typeof import("sharp").default = (
       await import(pathToFileURL(require.resolve("sharp").replace(/index\.cjs$/, "index.mjs")).href)
     ).default;
     for (const backend of [sharp, sharpEsm]) {
       assert.equal(
-        Boolean(backend.versions.emscripten),
+        Boolean((backend.versions as Record<string, string | undefined>).emscripten),
         process.platform === "linux",
         "only Linux Electron selects the WASM backend",
       );
@@ -112,12 +114,12 @@ if (!process.versions.electron) {
     }
     console.log("PASS packaged sharp CJS/ESM resize and WebP decode");
 
-    const ort = require("onnxruntime-node");
+    const ort: typeof import("onnxruntime-node") = require("onnxruntime-node");
     const manifest = JSON.parse(
       await readFile(join(root, "packages/jobs/src/model-manifest.json"), "utf8"),
     );
     const modelRoot = join(resources, "models");
-    const { Tokenizer } = await import(
+    const { Tokenizer }: typeof import("@huggingface/tokenizers") = await import(
       pathToFileURL(require.resolve("@huggingface/tokenizers").replace(/\.cjs$/, ".mjs")).href
     );
     const tokenizer = new Tokenizer(
@@ -129,7 +131,7 @@ if (!process.versions.electron) {
     const tokens = tokenizer.encode("search_document: Libraries keep books and field notes.", {
       return_token_type_ids: true,
     });
-    const tensor = (values) =>
+    const tensor = (values: number[]) =>
       new ort.Tensor("int64", BigInt64Array.from(values, BigInt), [1, values.length]);
     inference = await ort.InferenceSession.create(
       join(modelRoot, manifest.text.name, manifest.text.model.path),

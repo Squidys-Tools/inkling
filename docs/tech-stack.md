@@ -11,7 +11,7 @@ inkling is a local-first desktop app built with Electron, React, TypeScript, Nod
 | Desktop shell | Electron | The same Chromium on Windows, macOS and Linux, so one design renders the same everywhere, with a narrow preload bridge |
 | UI | React + TypeScript + Vite, with the React Compiler | Mature component ecosystem and future web portability; components re-render only when their inputs change |
 | Styling | StyleX tokens and atomic CSS, Base UI headless primitives | One token set, no hand-written stylesheets, no theme to fight |
-| UI state | Small external stores read through `useSyncExternalStore` | The library store keeps cards by id and applies change events from the library process, so one finished job re-renders one card |
+| UI state | TanStack Store atoms read through `useSelector` | The library store keeps cards by id and applies change events from the library process, so one finished job re-renders one card |
 | Forms | Controlled inputs on React state, or on a UI store when a draft must outlive its form | Each form has one to three fields. TanStack Form, tried in November 2026, made each form longer and adds 68 KB of minified JavaScript (`@tanstack/react-form` 1.33) |
 | Routing | TanStack Router with hash history | Typed routes that work on `app://` and in the web preview |
 | Processes | Main, plus a library and a worker `utilityProcess` | A long OCR or embedding run cannot slow a search, and queries never wait behind window events |
@@ -31,9 +31,9 @@ URL ingestion downloads through Effect's HTTP client, which retries rate limits,
 
 ## Styling
 
-Components style themselves with `stylex.create` against the tokens in `packages/ui/src/tokens.stylex.ts`, the only file with color values. There are no hand-written stylesheets: global resets go on `<html>` and `<body>` through `stylex.props`, the reader turns sanitized article HTML into React elements with a StyleX style per tag, TipTap nodes get StyleX class names through their extensions, and fonts register through the `FontFace` API. The lint rules `inkling/no-color-literals` and `inkling/no-css-imports` keep it that way, so the only CSS shipped is what StyleX generates. Base UI supplies behavior and accessibility for dialogs, menus and buttons, with no theme of its own.
+Components style themselves with `stylex.create` against the tokens in `packages/ui/src/tokens.stylex.ts`, and the only CSS shipped is what StyleX generates. Without stylesheets, global resets go on `<html>` and `<body>` through `stylex.props`, the reader turns sanitized article HTML into React elements with a StyleX style per tag, TipTap nodes get StyleX class names through their extensions, and fonts register through the `FontFace` API. Base UI supplies behavior and accessibility for dialogs, menus and buttons, with no theme of its own.
 
-Floating controls over the library are glass: one `Glass` component in `packages/ui`, a CSS `backdrop-filter`. At most three glass surfaces are on screen, none resizing while it animates, and card surfaces never are. The library's top and bottom edges blur the cards under them with five stacked `backdrop-filter` layers each, 70px tall; on an Intel Iris Xe a scrolling grid held 75 fps with that, and dropped frames at ten layers.
+Floating controls over the library are glass: one `Glass` component in `packages/ui`, a CSS `backdrop-filter`. The compositor redraws a backdrop-filter layer whenever what is under it moves, so at most three glass surfaces are on screen, none resizes while it animates, and cards are never glass. The library's top and bottom edges blur the cards under them with five stacked `backdrop-filter` layers each, 70px tall; on an Intel Iris Xe a scrolling grid held 75 fps with that, and dropped frames at ten layers.
 
 ## Article extraction
 
@@ -68,13 +68,13 @@ SQLite triggers keep the FTS5 index in step with each write, so no job updates i
 | OCR | Tesseract |
 | Text and image embeddings | Nomic Embed Text and Vision v1.5 through local ONNX Runtime; [models.md](models.md) has the details |
 | PDF extraction | PDF.js text extraction, then Tesseract on rendered pages for scanned PDFs |
-| Vector search | A linear scan over stored vectors; evaluate `sqlite-vec` after benchmarking |
+| Vector search | A linear scan over stored vectors |
 | Image concepts (planned) | Deterministic image analysis plus a vision or embedding model |
 | Summaries (planned) | An optional quantized local LLM through llama.cpp |
 
-ONNX Runtime runs the models on CPU or GPU on every platform inkling ships for. llama.cpp suits a bundled or downloaded quantized language model and has Windows builds and a local server.
+ONNX Runtime runs the models on the CPU, with no GPU execution provider configured. llama.cpp suits a bundled or downloaded quantized language model and has Windows builds and a local server.
 
-Do not make `sqlite-vec` a hard dependency before benchmarking it: it is pre-1.0 and may break between releases.
+Benchmark `sqlite-vec` before making it a dependency: it is pre-1.0 and may break between releases.
 
 ## Model selection policy
 
@@ -88,9 +88,9 @@ The planned model selection supports three modes:
 
 ## Data, backup, and security
 
-An export is a SQLite snapshot, the asset files its items reference, and a manifest, so it carries source URLs, cleaned article content, notes, tags and Spaces. A restore queues OCR, thumbnail and embedding jobs again for the items it imports instead of trusting the derived data in the snapshot.
+An export is a SQLite snapshot, the asset files its items reference, and a manifest, so it carries source URLs, cleaned article content, notes, tags and Spaces. A restore imports items, Spaces, memberships and Smart Space exclusions but not the snapshot's embeddings: it queues an embedding for every item it imports, OCR again for images and PDFs, and a thumbnail or poster for any image or video without one.
 
-Treat all fetched HTML as untrusted. Sanitize article HTML before rendering, allowlist iframe providers, strip scripts/event handlers/unsafe URLs/untrusted `srcdoc`, keep remote content isolated from Electron's privileged main process, and do not expose arbitrary filesystem or shell commands through the preload bridge.
+Treat all fetched HTML as untrusted. Sanitize article HTML before rendering, allowlist iframe providers, and strip scripts, event handlers, unsafe URLs and untrusted `srcdoc`. Keep remote content isolated from Electron's privileged main process, and do not expose arbitrary filesystem or shell commands through the preload bridge.
 
 ## Update checks
 

@@ -63,7 +63,7 @@ jobs:
         env:
           RELEASE_CHANNEL: ${{ inputs.channel }}
           RELEASE_VERSION: ${{ inputs.version }}
-        run: bun tools/release/prepare.mjs
+        run: bun tools/release/prepare.ts
       - name: Package
         env:
           DIST_TARGET: ${{ inputs.channel != '' && matrix.target || 'dir' }}
@@ -91,13 +91,13 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ffmpeg
       - name: Check packaged OCR, PDF and native models
-        run: bun tools/smoke/packaged-backend.mjs ${{ matrix.app }}
+        run: bun tools/smoke/packaged-backend.ts ${{ matrix.app }}
       - name: Check the updater and media on the packaged runtime
         if: runner.os == 'Linux'
         run: |
-          bun tools/smoke/update-feed.mjs ${{ matrix.app }}
+          bun tools/smoke/update-feed.ts ${{ matrix.app }}
           python3 -I -B apps/desktop/src/updates/update-helper.test.py
-          bun tools/smoke/media.mjs ${{ matrix.app }} .artifacts/media-smoke
+          bun tools/smoke/media.ts ${{ matrix.app }}
       - name: Launch the packaged app and reach the library process
         run: ${{ matrix.launch }}
 
@@ -130,7 +130,7 @@ jobs:
   # A job of its own so a caller can leave it out: hosted macOS runners are scarce, and a job
   # GitHub never acquires is cancelled, which marks the commit failed.
   package-macos:
-    name: Package and launch on ${{ matrix.name }}
+    name: Package and launch on mac-arm64
     if: inputs.macos
     strategy:
       matrix:

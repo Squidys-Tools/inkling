@@ -95,14 +95,12 @@ export function makePhotoSearch({ sql }: StorageContext) {
     query: string,
     limit = 100,
     prompts: SubjectVectors | null = null,
-    excludedIds: readonly string[] = [],
   ) {
     const subjects = photoSearchSubjects(query);
     if (!subjects.length || !prompts || !photoSearchLabels.every((label) => prompts.has(label)))
       return [];
     const allowAmbiguity = visualSubjectQuery(query) !== null;
     const cap = clampLimit(limit, 100, 200);
-    const excluded = new Set(excludedIds);
     // The library owns writes; row count/rowid also notice external insert/delete fixtures.
     const [state] = yield* sql<{ changes: number; total: number; last: number }>`SELECT
       total_changes() AS changes, COUNT(*) AS total, COALESCE(MAX(rowid), 0) AS last FROM item_embeddings`;
@@ -131,10 +129,9 @@ export function makePhotoSearch({ sql }: StorageContext) {
         cached.matches.set(key, matches);
       }
     }
-    const scored = matches.filter((row) => !excluded.has(row.id));
-    if (!scored.length) return [];
+    if (!matches.length) return [];
     // Keep the complete boundary tie; the final sort uses the item's timestamp.
-    scored.sort((a, b) => b.score - a.score);
+    const scored = [...matches].sort((a, b) => b.score - a.score);
     const floor = scored[Math.min(cap, scored.length) - 1].score;
     const winners = scored.filter((row) => row.score >= floor);
     const scores = new Map(winners.map((row) => [row.id, row.score]));

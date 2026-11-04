@@ -28,8 +28,3 @@ export function errorMessage(error: unknown): string {
   }
   return error instanceof Error ? error.message : String(error);
 }
-
-export function toError(error: unknown) {
-  if (!(error instanceof SqlError)) return error;
-  return new Error(errorMessage(error), { cause: error });
-}
