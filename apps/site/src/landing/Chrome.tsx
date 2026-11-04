@@ -10,6 +10,7 @@ import { base } from "./base.ts";
 import { Cast } from "./Cast.tsx";
 import { DownloadButton } from "./DownloadButton.tsx";
 import { useCalm } from "./environment.ts";
+import { ExternalArrow } from "./ExternalArrow.tsx";
 import { landing, media } from "./landing.stylex.ts";
 
 export function Header() {
@@ -100,14 +101,19 @@ export function Finale({ calm, setCalm }: { calm: boolean; setCalm: (calm: boole
             <a href="#library" {...stylex.props(base.link, base.focus, styles.link)}>
               Try the library
             </a>
-            <a href={repository} {...stylex.props(base.link, base.focus, styles.link)}>
-              GitHub ↗
+            <a
+              href={repository}
+              {...stylex.props(stylex.defaultMarker(), base.link, base.focus, styles.link)}
+            >
+              GitHub
+              <ExternalArrow />
             </a>
             <a
               href={`${repository}/releases`}
-              {...stylex.props(base.link, base.focus, styles.link)}
+              {...stylex.props(stylex.defaultMarker(), base.link, base.focus, styles.link)}
             >
-              Releases ↗
+              Releases
+              <ExternalArrow />
             </a>
             <Link to="/credits" {...stylex.props(base.link, base.focus, styles.link)}>
               Image credits
@@ -234,6 +240,7 @@ const styles = stylex.create({
   link: {
     display: "inline-flex",
     alignItems: "center",
+    gap: "0.3em",
     minHeight: "44px",
     fontSize: "14px",
     textDecoration: { default: "none", ":hover": "underline" },
