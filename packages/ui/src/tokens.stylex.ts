@@ -55,6 +55,23 @@ export const siteColor = stylex.defineConsts({
   browserChrome: "#0c0c0b",
 });
 
+// The marketing landing page keeps its own neutral palette, apart from the app's warm one.
+// The privacy section is a light sheet inside the dark page.
+export const landingColor = stylex.defineVars({
+  paper: "#141414",
+  ink: "#f4f2ed",
+  surface: "#292929",
+  surfaceAlt: "#1c1c1c",
+  muted: "#b0aeaa",
+  demo: "#121212",
+  controlHover: "#3b3b3b",
+  closeHover: "rgba(0, 0, 0, 0.1)",
+  sheet: "#f4f2ed",
+  sheetInk: "#1b1b1b",
+  sheetMuted: "#56534f",
+  sheetDisc: "#e4e1db",
+});
+
 export const spaceColor = stylex.defineVars({
   orange: "#b0714f",
   green: "#7f9a8c",

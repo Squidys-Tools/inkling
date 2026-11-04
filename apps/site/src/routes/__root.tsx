@@ -1,5 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import { color, font, siteColor } from "@inkling/ui/tokens.stylex";
+import { color, font, landingColor, siteColor } from "@inkling/ui/tokens.stylex";
 import {
   createRootRoute,
   HeadContent,
@@ -11,13 +11,13 @@ import { Footer } from "../layout/Footer.tsx";
 import { Header } from "../layout/Header.tsx";
 import { NotFound } from "../layout/NotFound.tsx";
 import { shareImage } from "../layout/seo.ts";
-import { siteStylesheet } from "../landing/stylesheets.js";
+import { landing, media } from "../landing/landing.stylex.ts";
 import { registerFonts } from "@inkling/ui";
 import dmSans from "@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2?url";
 import { type ReactNode, Suspense, useEffect } from "react";
 
-// StyleX has a dedicated build target so home-only CSS never styles the other routes.
-const stylesheet = import.meta.env.DEV ? "/virtual:stylex.css" : siteStylesheet;
+// StyleX writes one stylesheet: a virtual module in dev, stylex.css beside the client bundle in a build.
+const stylesheet = import.meta.env.DEV ? "/virtual:stylex.css" : "/assets/stylex.css";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -52,9 +52,12 @@ export const Route = createRootRoute({
   ),
 });
 
+function useIsLanding() {
+  return useRouterState({ select: (state) => state.location.pathname === "/" });
+}
+
 function Layout() {
-  const isLanding = useRouterState({ select: (state) => state.location.pathname === "/" });
-  if (isLanding) return <Outlet />;
+  if (useIsLanding()) return <Outlet />;
   return (
     <>
       <Header />
@@ -66,12 +69,13 @@ function Layout() {
 
 function Shell({ children }: { children: ReactNode }) {
   useEffect(registerFonts, []);
+  const isLanding = useIsLanding();
   return (
-    <html lang="en" {...stylex.props(styles.html)}>
+    <html lang="en" {...stylex.props(styles.html, isLanding && styles.landingHtml)}>
       <head>
         <HeadContent />
       </head>
-      <body {...stylex.props(styles.body)}>
+      <body {...stylex.props(styles.body, isLanding && styles.landingBody)}>
         {children}
         <Scripts />
       </body>
@@ -90,4 +94,11 @@ const styles = stylex.create({
     WebkitFontSmoothing: "antialiased",
   },
   body: { margin: 0 },
+  landingHtml: {
+    backgroundColor: landingColor.paper,
+    color: landingColor.ink,
+    scrollBehavior: { default: "smooth", [media.reduced]: "auto" },
+    scrollPaddingTop: "24px",
+  },
+  landingBody: { fontFamily: landing.font, fontSize: landing.body, lineHeight: 1.5 },
 });
