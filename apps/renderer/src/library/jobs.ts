@@ -1,10 +1,10 @@
 import { libraryClient } from "./connection.ts";
 import { type Processing, withJobs } from "./processing.ts";
-import { createStore, useStore } from "./store.ts";
+import { createAtom, useSelector } from "@tanstack/react-store";
 
 export type { Processing } from "./processing.ts";
 
-const jobsStore = createStore<ReadonlyMap<string, Processing>>(new Map());
+const jobsStore = createAtom<ReadonlyMap<string, Processing>>(new Map());
 
 export async function refreshJobs(itemIds: readonly string[]) {
   if (itemIds.length === 0) return;
@@ -26,9 +26,9 @@ export async function retryJob(jobId: string) {
   return client.retryJob({ jobId });
 }
 
-export const useProcessing = (id: string) => useStore(jobsStore, (jobs) => jobs.get(id));
+export const useProcessing = (id: string) => useSelector(jobsStore, (jobs) => jobs.get(id));
 
-const activeJobs = createStore(0);
+const activeJobs = createAtom(0);
 let countRequests = 0;
 
 // Counts the library's queued and running jobs, those from before launch too.
@@ -44,4 +44,4 @@ export async function refreshActiveJobCount() {
 }
 
 /** How many jobs are queued or running, for the mascot's notification dot. */
-export const useActiveJobCount = () => useStore(activeJobs, (count) => count);
+export const useActiveJobCount = () => useSelector(activeJobs);

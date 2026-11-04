@@ -1,7 +1,7 @@
 import { storeCards } from "./cards.ts";
 import { libraryClient } from "./connection.ts";
 import { createSearch, type SearchState } from "./searchQuery.ts";
-import { useStore } from "./store.ts";
+import { useSelector } from "@tanstack/react-store";
 
 export const search = createSearch({
   run: async (query, semantic) => (await libraryClient()).search({ query, limit: 200, semantic }),
@@ -9,4 +9,4 @@ export const search = createSearch({
 });
 
 export const useSearch = <Selected>(select: (state: SearchState) => Selected) =>
-  useStore(search.store, select);
+  useSelector(search.store, select);

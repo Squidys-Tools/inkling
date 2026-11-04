@@ -1,6 +1,6 @@
 import type { LibraryCard } from "@inkling/contracts";
 import { errorMessage } from "./errors.ts";
-import { createStore, type Store } from "./store.ts";
+import { createAtom } from "@tanstack/react-store";
 
 export type SearchState = {
   /** What the field holds, updated on every keystroke. */
@@ -15,11 +15,6 @@ export type SearchState = {
 
 const idle: SearchState = { query: "", results: null, ran: "", status: "idle", error: null };
 
-type Timers = {
-  set: (run: () => void, delay: number) => number;
-  clear: (handle: number) => void;
-};
-
 /**
  * Search runs in the library process after a pause in typing or on Enter,
  * never per keystroke. Text matches show at once; the semantic answer, which
@@ -29,30 +24,18 @@ type Timers = {
 export function createSearch({
   run,
   onCards,
-  delay = 220,
-  timers = {
-    set: (callback, wait) => window.setTimeout(callback, wait),
-    clear: (handle) => window.clearTimeout(handle),
-  },
 }: {
   run: (query: string, semantic: boolean) => Promise<readonly LibraryCard[]>;
   onCards: (cards: readonly LibraryCard[]) => void;
-  delay?: number;
-  timers?: Timers;
 }) {
-  const store: Store<SearchState> = createStore(idle);
-  let timer: number | null = null;
+  const store = createAtom<SearchState>(idle);
+  let timer: ReturnType<typeof setTimeout> | undefined;
   let generation = 0;
   // Ids deleted or archived while the newest search was in flight; its answer was read before that.
   let removedSince = new Set<string>();
 
-  const cancelTimer = () => {
-    if (timer !== null) timers.clear(timer);
-    timer = null;
-  };
-
   async function execute(again = false) {
-    cancelTimer();
+    clearTimeout(timer);
     const query = store.get().query.trim();
     if (!query) return;
     const current = store.get();
@@ -103,21 +86,21 @@ export function createSearch({
   return {
     store,
     setQuery(query: string) {
-      cancelTimer();
+      clearTimeout(timer);
       if (!query.trim()) {
         generation += 1;
         store.set({ ...idle, query });
         return;
       }
       store.set((state) => ({ ...state, query }));
-      timer = timers.set(() => void execute(), delay);
+      timer = setTimeout(() => void execute(), 220);
     },
     /** Enter: search now instead of after the pause. */
     submit: () => execute(),
     /** Searches the current query again, after a restore replaced what it ran against. */
     rerun: () => execute(true),
     clear() {
-      cancelTimer();
+      clearTimeout(timer);
       generation += 1;
       store.set(idle);
     },

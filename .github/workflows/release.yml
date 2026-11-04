@@ -68,7 +68,7 @@ jobs:
         env:
           RELEASE_CHANNEL: ${{ steps.resolve.outputs.channel }}
           RELEASE_VERSION: ${{ inputs.version || steps.resolve.outputs.nightly_version || github.ref_name }}
-        run: bun tools/release/prepare.mjs
+        run: bun tools/release/prepare.ts
 
   checks:
     needs: resolve

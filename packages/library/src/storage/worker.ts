@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { Cause, Data, Duration, Effect, Exit, Option, PubSub, Schedule } from "effect";
+import type { Job } from "@inkling/contracts";
 import { errorMessage } from "./errors.ts";
-import { type Job, JOB_LEASE_MILLIS, JobQueue } from "./jobs.ts";
+import { JOB_LEASE_MILLIS, JobQueue } from "./jobs.ts";
 
 /** A job that cannot run yet goes back to pending without spending one of its retries. */
 export class JobPostponed extends Data.TaggedError("JobPostponed")<{ readonly reason: string }> {}
@@ -16,7 +17,6 @@ export type WorkerOptions<R> = {
   // A hung model, decoder, or fetch fails its job after this long instead of
   // holding the worker forever. Kinds without an entry get `defaultTimeout`.
   timeouts?: Partial<Record<string, Duration.Input>>;
-  defaultTimeout?: Duration.Input;
   pollInterval?: Duration.Input;
   workerId?: string;
   // Runs when nothing is claimable, so backfills only queue work while the worker is free.
@@ -25,10 +25,11 @@ export type WorkerOptions<R> = {
   ready?: Effect.Effect<void, never, R>;
 };
 
+const defaultTimeout = Duration.minutes(30);
+
 export const makeWorker = Effect.fnUntraced(function* <R>({
   processors,
   timeouts = {},
-  defaultTimeout = Duration.minutes(30),
   pollInterval = Duration.seconds(5),
   workerId = randomUUID(),
   onIdle,

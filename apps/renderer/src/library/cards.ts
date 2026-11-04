@@ -16,7 +16,7 @@ import {
 import { refreshJobs } from "./jobs.ts";
 import { activeScope, archivedScope, scopeKey } from "./scope.ts";
 import { spacesStore } from "./spaces.ts";
-import { createStore, useStore } from "./store.ts";
+import { createAtom, useSelector } from "@tanstack/react-store";
 
 import { warmThumbnail } from "../cards/thumbnailCache.ts";
 
@@ -35,9 +35,9 @@ const archived = scopeKey(archivedScope);
 const paged = [active, archived];
 const home = (card: LibraryCard) => (card.archived ? archived : active);
 
-const libraryIndex = createStore<IndexState>(emptyIndex);
+const libraryIndex = createAtom<IndexState>(emptyIndex);
 /** The scope the grid shows, which the library reloads when its membership may have moved. */
-export const shownScope = createStore<CardScope>(activeScope);
+export const shownScope = createAtom<CardScope>(activeScope);
 
 let requests = 0;
 
@@ -147,8 +147,8 @@ export function reloadAll() {
 
 export const useScope = (scope: CardScope) => {
   const key = scopeKey(scope);
-  return useStore(libraryIndex, (state) => state.scopes.get(key));
+  return useSelector(libraryIndex, (state) => state.scopes.get(key));
 };
-export const useCard = (id: string) => useStore(libraryIndex, (state) => state.cards.get(id));
+export const useCard = (id: string) => useSelector(libraryIndex, (state) => state.cards.get(id));
 export const useActiveTotal = () =>
-  useStore(libraryIndex, (state) => state.scopes.get(active)?.total);
+  useSelector(libraryIndex, (state) => state.scopes.get(active)?.total);
