@@ -58,6 +58,8 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
     "const canvasEntryLoads = countLoaded(canvasEntryUrl);",
     'if (pdfModuleLoads !== 1 || canvasEntryLoads !== 1 || !thumbnail.bytes.length) throw new Error("PDF job did not load and use its dependencies once");',
     "console.log(JSON.stringify({ pdfModuleLoads, canvasEntryLoads }));",
+    // The answer is in; an open handle must not keep spawnSync waiting.
+    "process.exit(0);",
   ].join("\n");
   try {
     const result = spawnSync(
@@ -77,6 +79,8 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
           ...process.env,
           INKLING_MODULE_LOAD_LOG: loadLogPath,
           INKLING_MODEL_CACHE_DIRECTORY: tempDirectory,
+          // The test counts loads of the canvas entry; the scan it would run takes seconds on Windows.
+          DISABLE_SYSTEM_FONTS_LOAD: "1",
         },
       },
     );

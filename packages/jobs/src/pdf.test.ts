@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { fixture, fixturePath } from "./test-fixtures.ts";
 import { spawnSync } from "node:child_process";
+import { availableParallelism } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
@@ -81,6 +82,8 @@ test("PDF.js extracts normalized text per page", async () => {
   expect(result.engine).toBe("pdf-text");
   expect(result.text.toLowerCase()).toContain("field notes");
   expect(result.text).toContain("margin");
+  // Loading pdf.js under Bun once made this undefined, and every later OCR pass waited forever.
+  expect(availableParallelism()).toBeGreaterThan(0);
 });
 
 test("PDF.js preserves page order and separators in a multi-page document", async () => {
