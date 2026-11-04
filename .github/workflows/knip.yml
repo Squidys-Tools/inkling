@@ -16,42 +16,21 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
-
-      - name: Run Knip autofix
-        # Knip is pinned in devDependencies (Dependabot-managed), so bunx
-        # resolves the local install — no unpinned registry fetch.
-        # No --allow-remove-files: only strips unused `export` keywords and
-        # prunes unused deps in package.json. Deleted files stay human-reviewed.
-        run: bunx knip --fix
-
-      - name: Sync lockfile after dependency pruning
-        # Knip --fix can remove entries from package.json; re-resolve so
-        # bun.lock stays in sync for the PR. No-op when nothing changed.
-        # --ignore-scripts also neuters dependency postinstall scripts, which
-        # matters here: this job carries a write-scoped GITHUB_TOKEN.
-        run: bun install --ignore-scripts
-
-      - name: Open cleanup PR
-        uses: peter-evans/create-pull-request@v8
+      # This job holds a write token, so no dependency's install script may run.
+      - run: bun install --frozen-lockfile --ignore-scripts
+      # Without --allow-remove-files, Knip only strips unused exports and prunes dependencies.
+      - run: bun run knip --fix
+      - run: bun install --ignore-scripts
+      - uses: peter-evans/create-pull-request@v8
         with:
           branch: chore/knip-cleanup
           delete-branch: true
           title: "chore: knip unused-code cleanup"
           body: |
-            Automated `knip --fix` run (every other day).
-
-            - Strips unused `export` keywords, prunes unused dependencies.
-            - Never deletes files (`--allow-remove-files` is off); review the diff before merging.
-            - If this PR is empty or noisy, tune `knip.json` entry/project patterns.
-          commit-message: "chore: knip unused-code cleanup"
+            Automated `knip --fix` run (every other day). It strips unused exports and prunes unused dependencies, and never deletes files. If this PR is empty or noisy, tune the patterns in `knip.json`.
+          commit-message: "root: strip unused exports and dependencies"
           labels: chore, automated
