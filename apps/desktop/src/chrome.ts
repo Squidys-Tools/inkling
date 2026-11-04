@@ -5,7 +5,7 @@ import type { BrowserWindowConstructorOptions } from "electron";
 export const windowBackground = "#0c0c0b";
 const titlebarHeight = 32;
 
-/** macOS keeps traffic lights; Linux and Windows use the old app's own controls. */
+/** macOS keeps its traffic lights; Windows and Linux draw their own controls. */
 export function windowChrome(platform: Platform): {
   chrome: WindowChrome;
   options: BrowserWindowConstructorOptions;
