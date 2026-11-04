@@ -15,14 +15,14 @@ mascot adds personality from a fixed spot and never covers content.
 
 ## Materials and tokens
 
-Tokens live in `packages/ui/src/tokens.stylex.ts`, the only file with color values: `color`, `spaceColor`, `font`, `text`, `space`, `radius`, `motion` and `layout`, plus the `cardColor`, `itemColor`, `onboardingColor` and `mascotColor` sets for those surfaces. Use them through `stylex.create` and `stylex.props` rather than raw values.
+Tokens live in `packages/ui/src/tokens.stylex.ts`, the only file with color values. Use them through `stylex.create` and `stylex.props` rather than raw values.
 
 - The ground and surfaces are dark and warm, and text is a warm off-white ink.
 - The copper accent marks focus rings, selection and the primary action. Green marks processing that is going well.
 - Notes and quotes sit on blue, green or yellow paper tints.
 - Spaces pick one of six colors: the accent orange, green, blue, pink, purple and yellow.
-- Body text uses the system UI stack, display text DM Sans, sizes and counts DM Mono, and quotes and note headings Libre Baskerville.
-- Floating controls over the library are glass, the one `Glass` component in `packages/ui`, with at most three on screen; card surfaces never are. [tech-stack.md](tech-stack.md#styling) says why.
+- Body text uses the system UI stack, display text DM Sans, sizes and counts DM Mono, and quotes and note headings Libre Baskerville. Note and Focus Mode text is Source Serif 4, and the reader offers font sets of its own.
+- Floating controls over the library are glass, the one `Glass` component in `packages/ui`; cards never are. [tech-stack.md](tech-stack.md#styling) gives the limit on glass and why.
 
 ## Mascot
 
@@ -37,5 +37,4 @@ Tokens live in `packages/ui/src/tokens.stylex.ts`, the only file with color valu
 
 - Search is the primary action and stays visible.
 - Motion communicates something and never draws attention to itself.
-- Timing: 150ms for micro-interactions, 200-300ms for mascot changes, 300ms for layout transitions, 400ms for moments of delight.
-- The default easing is `cubic-bezier(0.4, 0.0, 0.2, 1)`.
+- Durations and easings come from the `motion` tokens, whose durations drop to zero under reduced motion.
