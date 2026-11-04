@@ -3,13 +3,13 @@ import { Link, type LinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 
-type RowLook = { active?: boolean; tone?: "nav" | "footer" | "update"; compact?: boolean };
+type RowLook = { active?: boolean; tone?: "nav" | "footer" | "update"; compact: boolean };
 
 /** A sidebar destination keeps its name when only its icon is visible. */
 export function NavLink({
   active = false,
   tone = "nav",
-  compact = false,
+  compact,
   icon,
   label,
   count,
@@ -53,7 +53,7 @@ export function NavLink({
 export function NavButton({
   tone = "footer",
   active = false,
-  compact = false,
+  compact,
   icon,
   label,
   description,

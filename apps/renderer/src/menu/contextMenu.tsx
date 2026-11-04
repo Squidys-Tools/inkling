@@ -16,7 +16,7 @@ import type { ContextMenuItem } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useEffect, useMemo, useRef } from "react";
-import { createStore, useStore } from "../library/store.ts";
+import { createAtom, useSelector } from "@tanstack/react-store";
 import { presentMenu, type MenuAction } from "./presentation.ts";
 
 type Open = {
@@ -27,7 +27,7 @@ type Open = {
   resolve: (id: string | null) => void;
 };
 
-const openMenu = createStore<Open | null>(null);
+const openMenu = createAtom<Open | null>(null);
 
 /** Native and preview share presentation; callers retain their real action APIs. */
 export function showContextMenu(items: ContextMenuItem[], at: { x: number; y: number }) {
@@ -52,7 +52,7 @@ export function menuPoint(event: { clientX?: number; clientY?: number; currentTa
 }
 
 export function ContextMenuLayer() {
-  const menu = useStore(openMenu, (state) => state);
+  const menu = useSelector(openMenu);
   return menu ? <OpenContextMenu menu={menu} /> : null;
 }
 

@@ -32,12 +32,11 @@ export const Thumbnail = Schema.Struct({
 });
 export type Thumbnail = typeof Thumbnail.Type;
 
-export const Embedding = Schema.Struct({
+const Embedding = Schema.Struct({
   model: Text,
   bytes: Schema.Uint8Array,
   dimension: Schema.Number,
 });
-export type Embedding = typeof Embedding.Type;
 
 /** What reading a PDF reports, in order: progress, the page-one thumbnail, then its text. */
 export const PdfEvent = Schema.Union([
@@ -124,12 +123,9 @@ export const WorkerRpcs = RpcGroup.make(
   call("extractUrl", { url: Text }, UrlArticle),
 );
 
-/**
- * Windows and macOS posters come from the shell thumbnailer, which only main
- * can reach. The worker asks over its parent port and main answers in kind.
- */
-// Ids are unique across worker restarts, so a reply meant for a dead worker cannot
-// answer a new worker's request.
+// Windows and macOS posters come from the shell thumbnailer, which only main can reach,
+// so the worker asks over its parent port. Ids are unique across worker restarts, so a
+// reply meant for a dead worker cannot answer a new worker's request.
 export type ShellThumbnailRequest = {
   type: "shell-thumbnail";
   id: string;
