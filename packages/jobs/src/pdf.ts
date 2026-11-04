@@ -42,6 +42,10 @@ async function pdfjs() {
   canvasGlobals.DOMMatrix ??= DOMMatrix;
   canvasGlobals.ImageData ??= ImageData;
   canvasGlobals.Path2D ??= Path2D;
+  // pdf.js swaps a navigator without `language` (Bun's) for a bare object, and Bun's
+  // os.availableParallelism() then reads an undefined hardwareConcurrency.
+  const host = globalThis.navigator as { language?: string } | undefined;
+  if (host) host.language ??= "en-US";
   return loadPdfjs();
 }
 
