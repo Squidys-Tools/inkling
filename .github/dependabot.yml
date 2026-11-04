@@ -1,21 +1,47 @@
 version: 2
 
+# Updates open as soon as Dependabot allows. Hosted Dependabot runs at most once every 24 hours
+# (`daily` skips weekends, so this uses cron), and without a `cooldown` it holds each release
+# back 3 days; 1 day is the shortest cooldown it accepts. Groups hold only packages that must
+# move together; everything else gets its own PR.
 updates:
   - package-ecosystem: bun
+    # Dependabot reads every workspace manifest from the root's `workspaces`, so one entry
+    # covers apps/*, packages/*, tools/* and extension. An entry per workspace would open a
+    # second PR for the same dependency.
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: cron
+      cronjob: "0 6 * * *"
+    cooldown:
+      default-days: 1
+    open-pull-requests-limit: 100
+    # An exact pin stays exact: 4.1.1 becomes 4.1.2, never ^4.1.2.
+    versioning-strategy: increase
     groups:
-      bun-minor-and-patch:
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
+      effect:
+        patterns: [effect, "@effect/*"]
+      tanstack:
+        patterns: ["@tanstack/*"]
+      tiptap:
+        patterns: ["@tiptap/*"]
+      stylex:
+        patterns: ["@stylexjs/*"]
+      # electron-builder and electron-updater each pin builder-util-runtime exactly, and the app
+      # hands electron-updater a CancellationToken from it, so all three move together.
+      electron:
+        patterns: [electron, electron-builder, electron-updater, builder-util-runtime]
+      sharp:
+        patterns: [sharp, "@img/sharp-wasm32"]
+      # react-dom refuses to run with a react of another version.
+      react:
+        patterns: [react, react-dom]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: cron
+      cronjob: "0 6 * * *"
+    cooldown:
+      default-days: 1
+    open-pull-requests-limit: 100

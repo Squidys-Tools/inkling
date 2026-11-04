@@ -185,6 +185,14 @@ Dependabot updates the two together.
   [Updates and releases](#updates-and-releases).
 - `pr-size.yml` labels each PR by its changed lines (`tools/ci/pr-size.ts`).
 - `knip.yml` runs `knip --fix` every other day and opens a cleanup PR. It strips unused exports and prunes dependencies but never deletes files; if its PRs get noisy, tune the patterns in `knip.json` rather than disabling it. GitHub starts no workflows for a PR the workflow token opens, so close and reopen it to run CI.
+- `dependabot-lockfile.yml` rebuilds a Dependabot Bun PR's `bun.lock` with the Bun in
+  `.bun-version`, starting from the lockfile the PR branched from, and pushes it with
+  `[dependabot skip]` so Dependabot can still rebase. Dependabot's own Bun drops the `libc` and
+  `hasInstallScript` fields from every entry and keeps orphaned ones; the rebuild keeps the
+  entries main already has and writes the changed ones as Bun 1.4 does. The pushed commit gets no
+  CI run, because workflow-token pushes start none; main's CI covers it after the merge. The job
+  fails instead when the rebuild would lose an update (a transitive-only bump) or a `patches/`
+  file stops applying; fix those by hand.
 - `links.yml` checks Markdown links weekly. Add custom schemes such as `inkling://` and local hosts to `.lycheeignore`.
 
 ## Troubleshooting
