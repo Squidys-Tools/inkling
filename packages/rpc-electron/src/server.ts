@@ -11,7 +11,7 @@ export type PortSource = (onPort: (port: MessagePortMain) => void) => () => void
  * itself, the worker process). Main sends them as `{ type: "connect" }` with the
  * port attached.
  */
-export const parentPortSource: PortSource = (onPort) => {
+const parentPortSource: PortSource = (onPort) => {
   const listener = (event: Electron.MessageEvent) => {
     if ((event.data as { type?: unknown } | null)?.type !== "connect") return;
     for (const port of event.ports) onPort(port);
