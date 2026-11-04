@@ -14,7 +14,8 @@ const modal =
 function run(router: ReturnType<typeof useRouter>, command: Command) {
   // An open dialog owns the keyboard: it keeps Escape and the shortcuts
   // until it closes. The settings sheet lives in the URL, so back and
-  // forward still close and reopen it.
+  // forward from the mouse or the menu still close and reopen it (Base UI
+  // keeps Alt+arrow keys inside the sheet).
   const navigation = command === "back" || command === "forward";
   const owners = [...document.querySelectorAll(modal)];
   if (owners.some((dialog) => !navigation || dialog.id !== "settings-sheet")) return;
