@@ -7,8 +7,6 @@ import { labelClock } from "../library/labelClock.ts";
 import { libraryQuery } from "../queryClient.ts";
 import type { DescribedItem } from "./model.ts";
 
-// Tiles sit in two 139px columns. An image's height follows its shape within
-// the range the old design used; other tiles have fixed heights.
 const TILE_WIDTH = 139;
 const TILE_GAP = 8;
 
