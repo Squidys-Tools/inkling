@@ -1,11 +1,19 @@
 import type { LibraryChange } from "@inkling/contracts";
-import { QueryClient, queryOptions } from "@tanstack/react-query";
+import { QueryClient, type QueryFilters, queryOptions } from "@tanstack/react-query";
 import { type LibraryClient, libraryClient, onReconnect } from "./library/connection.ts";
 
+// Nothing here uses the network, and the library announces its own changes, so
+// reads neither pause offline nor refetch on focus. Failures show at once.
 export const queryClient = new QueryClient({
-  // Library changes arrive as events and invalidate what they name, so focus
-  // refetches would only repeat reads. Failures show at once instead of retrying.
-  defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+  defaultOptions: {
+    queries: {
+      networkMode: "always",
+      retry: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+    mutations: { networkMode: "always" },
+  },
 });
 
 declare module "@tanstack/react-query" {
@@ -29,8 +37,13 @@ export const libraryQuery = <T>(
     meta: { affects },
   });
 
+// Invalidating joins a first load already in flight, which may predate the
+// change or hang on a dead library port; cancelling first makes the newest read win.
+const reread = (filters: QueryFilters) =>
+  void queryClient.cancelQueries(filters).then(() => queryClient.invalidateQueries(filters));
+
 const invalidate = (change: LibraryChange) =>
-  void queryClient.invalidateQueries(
+  reread(
     change._tag === "LibraryReplaced"
       ? { queryKey: ["library"] }
       : { predicate: (query) => query.meta?.affects?.(change) === true },
@@ -48,6 +61,6 @@ export function followLibraryChanges() {
   void libraryClient().then(follow, () => {});
   onReconnect((client) => {
     follow(client);
-    void queryClient.invalidateQueries({ queryKey: ["library"] });
+    reread({ queryKey: ["library"] });
   });
 }

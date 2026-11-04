@@ -67,8 +67,8 @@ export function ReaderView({ id }: { id: string }) {
       ].filter((part) => part !== undefined)
     : [];
   const status =
-    (query.error && errorMessage(query.error)) ??
-    (article.error && errorMessage(article.error)) ??
+    (query.isLoadingError && errorMessage(query.error)) ??
+    (article.isLoadingError && errorMessage(article.error)) ??
     (detail === null
       ? "This item is no longer in your library."
       : detail && !article.isPending && !nodes

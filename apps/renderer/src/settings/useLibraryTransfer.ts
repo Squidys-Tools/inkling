@@ -9,6 +9,8 @@ import { formatExportSummary, formatImportSummary } from "./format.ts";
 
 type Transfer = { action: "export" | "import"; folder: string };
 
+const transferKey = ["libraryTransfer"];
+
 async function run({ action, folder }: Transfer) {
   const client = await libraryClient();
   if (action === "import")
@@ -33,6 +35,7 @@ export function useLibraryTransfer() {
     error: string;
   } | null>(null);
   const transfer = useMutation({
+    mutationKey: transferKey,
     mutationFn: run,
     onSuccess: (outcome) =>
       notify(outcome.action === "export" ? "Library exported" : "Library restored", {
@@ -50,7 +53,7 @@ export function useLibraryTransfer() {
       ),
     onSettled: () => {
       setFailure(null);
-      return queryClient.invalidateQueries({ queryKey: ["library", "overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["library", "overview"] });
     },
   });
 
@@ -67,7 +70,8 @@ export function useLibraryTransfer() {
           ? "Choose where to save the export"
           : "Choose an inkling export to restore",
       );
-      if (folder) transfer.mutate({ action, folder });
+      if (folder && queryClient.isMutating({ mutationKey: transferKey }) === 0)
+        transfer.mutate({ action, folder });
     } catch (error) {
       fail(
         action,
@@ -112,8 +116,8 @@ export function useLibraryOverview() {
     libraryQuery(["overview", "lastExport"], (client) => client.lastExport({})),
   );
   // The size walks every asset file. The cached figure shows at once and a fresh
-  // walk replaces it; fired together, a first visit shares one walk. After an
-  // export or restore only the walk runs again, since the cached figure is stale.
+  // walk replaces it; fired together, a first visit shares one walk. The walk's
+  // last figure stays on screen while it runs again after an export or restore.
   const size = useQuery({
     ...libraryQuery(["overview", "size"], (client) => client.librarySize({ refresh: true })),
     enabled: desktop !== undefined,

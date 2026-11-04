@@ -46,7 +46,8 @@ export function SimilarPanel({
         .map((card) => cardView(card, labelClock.get()));
     }),
   );
-  if (similar.error) return <p {...stylex.props(styles.note)}>{errorMessage(similar.error)}</p>;
+  if (similar.isLoadingError)
+    return <p {...stylex.props(styles.note)}>{errorMessage(similar.error)}</p>;
   if (!similar.data) return null;
   if (similar.data.length === 0) return <p {...stylex.props(styles.note)}>Nothing similar yet.</p>;
   return (

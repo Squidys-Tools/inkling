@@ -123,7 +123,7 @@ function ItemBody({
 
   const memberOf = memberships.data ?? [];
   const status =
-    (query.error && errorMessage(query.error)) ??
+    (query.isLoadingError && errorMessage(query.error)) ??
     (detail === null ? "This item is no longer in your library." : null);
 
   return (

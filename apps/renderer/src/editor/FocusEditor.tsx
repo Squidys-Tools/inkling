@@ -45,7 +45,7 @@ export function FocusEditor({ id }: { id: string }) {
 
   const kind = detail?.kind.toLowerCase();
   const status =
-    (query.error && errorMessage(query.error)) ??
+    (query.isLoadingError && errorMessage(query.error)) ??
     (detail === null
       ? "This note is no longer in your library."
       : detail && kind !== "note"

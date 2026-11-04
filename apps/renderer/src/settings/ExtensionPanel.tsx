@@ -29,7 +29,8 @@ export function ExtensionPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
-// The token stays out of the page until the user reveals it.
+// The token stays out of the page until the user reveals it, and out of the
+// query cache once it is hidden again or the panel closes.
 function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
   const queryClient = useQueryClient();
   const [revealed, setRevealed] = useState(false);
@@ -40,8 +41,13 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
     queryKey: tokenKey,
     queryFn: () => capture.pairingToken(),
     enabled: revealed,
+    staleTime: Infinity,
     gcTime: 0,
   });
+  const hide = () => {
+    setRevealed(false);
+    queryClient.removeQueries({ queryKey: tokenKey });
+  };
   const token = revealed ? tokenQuery.data : undefined;
   const test = useMutation({
     mutationFn: () => capture.testReceiver().catch(() => false),
@@ -52,15 +58,7 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
           : { text: "No answer from the receiver. Restart inkling and try again.", failed: true },
       ),
   });
-  const renew = useMutation({
-    mutationFn: () => capture.regeneratePairingToken(),
-    onSuccess: (value) => {
-      queryClient.setQueryData(tokenKey, value);
-      setRevealed(true);
-      setNotice({ text: "New pairing token issued. Update the extension.", failed: false });
-    },
-    onError: () => setNotice({ text: "Could not renew the pairing token.", failed: true }),
-  });
+  const renew = useMutation({ mutationFn: () => capture.regeneratePairingToken() });
 
   const copy = () => {
     if (!token) return;
@@ -99,8 +97,12 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
         <code aria-hidden={!token} {...stylex.props(styles.token)}>
           {token ?? "••••••••••••••••••••••••"}
         </code>
-        <SquareButton onClick={() => setRevealed(!revealed)}>
-          {revealed ? "Hide" : "Reveal"}
+        <SquareButton
+          onClick={() =>
+            token ? hide() : revealed ? void tokenQuery.refetch() : setRevealed(true)
+          }
+        >
+          {token ? "Hide" : "Reveal"}
         </SquareButton>
         <SquareButton disabled={!token} onClick={copy}>
           Copy
@@ -133,7 +135,19 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
               look="danger"
               onClick={() => {
                 setConfirmingRenew(false);
-                renew.mutate();
+                // Per-call callbacks skip a closed panel, so the token never lands in a cache nobody clears.
+                renew.mutate(undefined, {
+                  onSuccess: (value) => {
+                    queryClient.setQueryData(tokenKey, value);
+                    setRevealed(true);
+                    setNotice({
+                      text: "New pairing token issued. Update the extension.",
+                      failed: false,
+                    });
+                  },
+                  onError: () =>
+                    setNotice({ text: "Could not renew the pairing token.", failed: true }),
+                });
               }}
             >
               Renew
