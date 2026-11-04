@@ -6,16 +6,6 @@ import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.sty
 
 const MAX_BADGES = 2;
 
-const className =
-  (...styles: stylex.StyleXStyles[]) =>
-  () =>
-    stylex.props(...styles).className ?? "";
-
-/**
- * A faceted filter in the shape of shadcn/ui's data table example: a dashed
- * button that names the picked licenses, over a checklist with counts. Picking
- * keeps the list open, so several licenses combine.
- */
 export function LicenseFilter({
   counts,
   selected,
@@ -66,9 +56,9 @@ export function LicenseFilter({
           side="bottom"
           align="end"
           sideOffset={6}
-          className={className(styles.positioner)}
+          {...stylex.props(styles.positioner)}
         >
-          <Menu.Popup aria-label="Filter by license" className={className(styles.popup)}>
+          <Menu.Popup aria-label="Filter by license" {...stylex.props(styles.popup)}>
             <div {...stylex.props(styles.list)}>
               {counts.map(([license, count]) => (
                 <Menu.CheckboxItem
@@ -81,7 +71,7 @@ export function LicenseFilter({
                   }
                 >
                   <span {...stylex.props(styles.box, selected.has(license) && styles.boxChecked)}>
-                    <Menu.CheckboxItemIndicator className={className(styles.indicator)}>
+                    <Menu.CheckboxItemIndicator {...stylex.props(styles.indicator)}>
                       <HugeiconsIcon icon={Tick02Icon} size={11} strokeWidth={2.4} />
                     </Menu.CheckboxItemIndicator>
                   </span>
