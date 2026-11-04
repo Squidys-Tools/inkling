@@ -118,7 +118,6 @@ test("only current active photo vectors supplement recognized noun searches", as
   ]);
   expect(await library.searchPhotoSubjects("car maintenance notes", 20, prompts)).toEqual([]);
   expect(await library.searchPhotoSubjects("car", 20, null)).toEqual([]);
-  expect(await library.searchPhotoSubjects("car", 20, prompts, ["car"])).toEqual([]);
   await library.archiveItem("car", true);
   expect(await library.searchPhotoSubjects("car", 20, prompts)).toEqual([]);
   await library.storeEmbedding(
@@ -134,7 +133,7 @@ test("only current active photo vectors supplement recognized noun searches", as
   expect(await library.searchPhotoSubjects("car", 20, prompts)).toEqual([]);
 });
 
-test("excluded visual candidates are removed before truncation and ties keep the newest", async () => {
+test("visual candidates tied at the cap keep the newest", async () => {
   const { library } = await temporaryLibrary();
   const insert = library.db.prepare(`INSERT INTO items (id, kind, title, created_at, updated_at)
     VALUES (?, 'image', 'neutral', 1, ?)`);
@@ -149,7 +148,5 @@ test("excluded visual candidates are removed before truncation and ties keep the
       photoSearchLabels.length,
     );
   }
-  expect(ids(await library.searchPhotoSubjects("car", 2, prompts, ["image-7", "image-6"]))).toEqual(
-    ["image-5", "image-4"],
-  );
+  expect(ids(await library.searchPhotoSubjects("car", 2, prompts))).toEqual(["image-7", "image-6"]);
 });
