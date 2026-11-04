@@ -48,10 +48,16 @@ function Beam({ label, onPaper }: { label: string; onPaper: boolean }) {
 }
 
 // The ring is cheap and shows its edges, so it draws sharper than the mosaic reveal.
-const canvasSize = (pixels: number, revealing: boolean) =>
-  revealing
-    ? Math.min(120, Math.max(24, Math.round(pixels / 3)))
-    : Math.min(200, Math.max(24, Math.round(pixels / 2)));
+// Both sides share one scale, or the picture would stretch differently on every card shape.
+const canvasSize = (width: number, height: number, revealing: boolean) => {
+  const longest = Math.max(1, width, height);
+  const shortest = Math.max(1, Math.min(width, height));
+  const scale = Math.max(
+    24 / shortest,
+    Math.min(revealing ? 1 / 3 : 1 / 2, (revealing ? 120 : 200) / longest),
+  );
+  return { width: Math.round(width * scale), height: Math.round(height * scale) };
+};
 
 /**
  * The cover over a card: a dark base with a ring of blobs while jobs run, which then
@@ -86,8 +92,9 @@ function Cover({
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
-    canvas.width = canvasSize(canvas.clientWidth, revealing);
-    canvas.height = canvasSize(canvas.clientHeight, revealing);
+    const size = canvasSize(canvas.clientWidth, canvas.clientHeight, revealing);
+    canvas.width = size.width;
+    canvas.height = size.height;
     const mosaic: Mosaic = {
       width: canvas.width,
       height: canvas.height,

@@ -58,7 +58,9 @@ const ringBlobs = 9;
 
 /** Nine separate blobs drifting round a breathing circle, so neighbours pinch and part. */
 function ringBalls(seconds: number, grow: number, aspect: number) {
-  const breathe = 1 + 0.07 * Math.sin(seconds * 0.9);
+  // On a narrow card the ring shrinks to fit the width instead of being clipped.
+  const fit = Math.min(1, aspect / 0.7);
+  const breathe = (1 + 0.07 * Math.sin(seconds * 0.9)) * fit;
   return Array.from({ length: ringBlobs }, (_, index) => {
     const pace = hash(index + 1, 7);
     const offset = hash(index + 1, 13);
@@ -72,6 +74,7 @@ function ringBalls(seconds: number, grow: number, aspect: number) {
       y: 0.46 + radius * Math.sin(angle) * grow,
       r:
         (0.036 + 0.012 * pace + 0.008 * Math.sin(seconds * 1.5 + offset * 6.28)) *
+        fit *
         Math.max(0.001, grow),
     };
   });
@@ -103,6 +106,9 @@ export function drawCover(
   const data = image.data;
   const aspect = width / height;
   const ring = ringGrow > 0.01 ? ringBalls(seconds, ringGrow, aspect) : null;
+  // Cells are not square on a card that is not 3:4; stretching distances keeps the blobs round.
+  const stretchX = Math.sqrt(width / mosaicColumns / (height / mosaicRows));
+  const stretchY = 1 / stretchX;
   const eased = ((progress - 0.1) / 0.9) * 1.06;
   // Before the reveal begins no cell has grown, so the ring needs none of the mosaic maths.
   const idle = eased <= 0;
@@ -138,9 +144,9 @@ export function drawCover(
           const centerX = neighborColumn + 0.5 + 0.2 * Math.sin(seconds * 1.1 + phase * 6.28);
           const centerY = neighborRow + 0.5 + 0.2 * Math.cos(seconds * 0.9 + phase * 5);
           const size = 0.64 * live * (1 + 0.1 * Math.sin(seconds * 2 + phase * 9));
-          const share =
-            (size * size) /
-            ((cellX - centerX) * (cellX - centerX) + (cellY - centerY) * (cellY - centerY) + 0.02);
+          const offsetX = (cellX - centerX) * stretchX;
+          const offsetY = (cellY - centerY) * stretchY;
+          const share = (size * size) / (offsetX * offsetX + offsetY * offsetY + 0.02);
           const color = cells?.[cell] ?? baseInk;
           weight += share;
           red += color[0] * share;
