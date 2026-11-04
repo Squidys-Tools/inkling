@@ -63,11 +63,11 @@ function UpdateRow({ compact }: { compact: boolean }) {
 /** Codex is the only sidebar: full navigation or a persistent, usable compact rail. */
 export function Sidebar({
   open,
-  visualOpen = open,
+  visualOpen,
   narrow,
 }: {
   open: boolean;
-  visualOpen?: boolean;
+  visualOpen: boolean;
   narrow: boolean;
 }) {
   const total = useActiveTotal();
@@ -135,21 +135,19 @@ export function Sidebar({
               <span data-sidebar-label {...stylex.props(styles.wordmark)}>
                 inkling
               </span>
-              {
-                <button
-                  type="button"
-                  ref={reopenButton}
-                  aria-label="Close sidebar"
-                  title="Close sidebar"
-                  data-bench="sidebar-toggle"
-                  aria-expanded={open}
-                  aria-controls="library-navigation"
-                  onClick={toggle}
-                  {...stylex.props(styles.close)}
-                >
-                  <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
-                </button>
-              }
+              <button
+                type="button"
+                ref={reopenButton}
+                aria-label="Close sidebar"
+                title="Close sidebar"
+                data-bench="sidebar-toggle"
+                aria-expanded={open}
+                aria-controls="library-navigation"
+                onClick={toggle}
+                {...stylex.props(styles.close)}
+              >
+                <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
+              </button>
             </>
           )}
         </div>
