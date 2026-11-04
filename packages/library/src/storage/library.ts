@@ -27,22 +27,6 @@ export {
   VIDEO_POSTER_JOB,
 } from "./jobs.ts";
 
-export function resolveLibraryDataDirectory({
-  executablePath,
-  appDataDirectory,
-  portable = false,
-  overrideDirectory,
-}: {
-  executablePath: string;
-  appDataDirectory: string;
-  portable?: boolean;
-  overrideDirectory?: string | null;
-}) {
-  if (portable) return join(dirname(executablePath), "data");
-  if (overrideDirectory) return resolve(overrideDirectory);
-  return join(appDataDirectory, "com.inkling.library");
-}
-
 export type LibraryOptions = {
   databasePath: string;
   // Recorded in export manifests; main passes the running build's version.
@@ -79,12 +63,6 @@ const makeLibrary = Effect.fnUntraced(function* (
       fts5Enabled,
       schemaVersion: SCHEMA_VERSION,
     }),
-    // Rows written through this connection since it opened. The main process is
-    // the only writer, so an unchanged count means the library has not changed.
-    changeCount: () =>
-      sql<{ changes: number }>`SELECT total_changes() AS changes`.pipe(
-        Effect.map(([row]) => row.changes),
-      ),
     hasCompletedOnboarding: () =>
       sql`SELECT 1 FROM app_settings WHERE key = 'onboarding_completed'`.pipe(
         Effect.map((rows) => rows.length > 0),
