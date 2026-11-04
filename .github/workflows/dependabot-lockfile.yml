@@ -10,8 +10,9 @@ on:
 permissions:
   contents: read
 
+# Keyed by actor too, so a maintainer reopening the PR cannot cancel Dependabot's run mid-push.
 concurrency:
-  group: dependabot-lockfile-${{ github.event.pull_request.number }}
+  group: dependabot-lockfile-${{ github.event.pull_request.number }}-${{ github.actor }}
   cancel-in-progress: true
 
 jobs:
@@ -51,10 +52,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # Workflows on a Dependabot PR get a read-only token unless they ask for more. This job runs
-    # nothing from the PR: it commits the lockfile the job above built and starts CI on it.
+    # nothing from the PR: it only commits the lockfile the job above built.
     permissions:
       contents: write
-      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -64,7 +64,6 @@ jobs:
           name: bun-lock
           path: ${{ runner.temp }}/regenerated
       - env:
-          GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.head_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -72,7 +71,8 @@ jobs:
             echo "$HEAD_REF moved past $HEAD_SHA; the run for its new head handles it."
             exit 0
           fi
-          cp "$RUNNER_TEMP/regenerated/bun.lock" bun.lock
+          # A symlinked bun.lock in the branch must not redirect the copy into .git.
+          cp --remove-destination "$RUNNER_TEMP/regenerated/bun.lock" bun.lock
           if git diff --quiet -- bun.lock; then
             echo "Dependabot's bun.lock already matches the regeneration."
             exit 0
@@ -81,6 +81,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           # [dependabot skip] lets Dependabot still rebase the PR over this commit.
           git commit --quiet -m 'root: regenerate bun.lock with the pinned Bun [dependabot skip]' -- bun.lock
+          # A workflow-token push starts no workflows; main's CI tests this lockfile after the merge.
           git push origin "HEAD:refs/heads/$HEAD_REF"
-          # A push with the workflow token starts no workflows, so CI is dispatched on the new head.
-          gh workflow run ci.yml --ref "$HEAD_REF"

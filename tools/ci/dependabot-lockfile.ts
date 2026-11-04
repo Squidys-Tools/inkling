@@ -25,8 +25,9 @@ function resolvedVersions(lockfile: Lockfile) {
   return versions;
 }
 
-// A version Dependabot added that the regeneration resolves no version at or above means the
-// regeneration reverted that update, as it does for a transitive-only update.
+// A version Dependabot added with nothing at or above it on the same release line (the `^` range)
+// means the rebuild reverted that update, as it does for a transitive-only update. Comparing
+// across majors would let minimatch 10.x hide a reverted 3.1.5 -> 3.1.6 security bump.
 export function revertedUpdates(base: Lockfile, dependabot: Lockfile, regenerated: Lockfile) {
   const before = resolvedVersions(base);
   const after = resolvedVersions(regenerated);
@@ -34,7 +35,7 @@ export function revertedUpdates(base: Lockfile, dependabot: Lockfile, regenerate
   for (const [name, versions] of resolvedVersions(dependabot)) {
     for (const version of versions) {
       if (before.get(name)?.has(version)) continue;
-      const kept = [...(after.get(name) ?? [])].some((v) => Bun.semver.order(v, version) >= 0);
+      const kept = [...(after.get(name) ?? [])].some((v) => Bun.semver.satisfies(v, `^${version}`));
       if (!kept) reverted.push(`${name}@${version}`);
     }
   }
@@ -46,8 +47,8 @@ export function stalePatches(patchedDependencies: Record<string, string>, lockfi
   const versions = resolvedVersions(lockfile);
   return Object.entries(patchedDependencies)
     .filter(([spec]) => {
-      const [name, version] = parseSpec(spec) ?? [spec, ""];
-      return !versions.get(name)?.has(version);
+      const parsed = parseSpec(spec);
+      return parsed && !versions.get(parsed[0])?.has(parsed[1]);
     })
     .map(([spec, file]) => `${file} (${spec})`);
 }

@@ -6,7 +6,13 @@ const lockfile = (...specs: string[]) =>
     packages: Object.fromEntries(specs.map((spec) => [spec, [spec, "", {}, "sha512-"]])),
   }) as { packages: Record<string, [string, ...unknown[]]> };
 
-const base = lockfile("@babel/core@7.29.7", "debug@4.4.1", "@inkling/ui@workspace:packages/ui");
+const base = lockfile(
+  "@babel/core@7.29.7",
+  "debug@4.4.1",
+  "minimatch@3.1.5",
+  "minimatch@10.2.6",
+  "@inkling/ui@workspace:packages/ui",
+);
 
 test.each([
   ["keeps a direct update", lockfile("@babel/core@8.0.10"), lockfile("@babel/core@8.0.10"), []],
@@ -28,6 +34,12 @@ test.each([
     lockfile("debug@4.4.1"),
     ["debug@4.4.3"],
   ],
+  [
+    "flags a reverted update hidden by a newer major",
+    lockfile("minimatch@3.1.6", "minimatch@10.2.6"),
+    lockfile("minimatch@3.1.5", "minimatch@10.2.6"),
+    ["minimatch@3.1.6"],
+  ],
   ["flags a dropped package", lockfile("entities@9.0.0"), lockfile(), ["entities@9.0.0"]],
   [
     "ignores entries the base already had and non-registry entries",
@@ -40,12 +52,13 @@ test.each([
 });
 
 test.each([
-  ["passes a patch for the resolved version", lockfile("sharp@0.35.5"), []],
+  ["passes a patch for the resolved version", { "sharp@0.35.5": "p.patch" }, []],
   [
     "flags a patch for a version no longer resolved",
-    lockfile("sharp@0.35.6"),
-    ["p.patch (sharp@0.35.5)"],
+    { "sharp@0.35.4": "p.patch" },
+    ["p.patch (sharp@0.35.4)"],
   ],
-])("%s", (_name, regenerated, stale) => {
-  expect(stalePatches({ "sharp@0.35.5": "p.patch" }, regenerated)).toEqual(stale);
+  ["ignores a patch key without a version", { sharp: "p.patch" }, []],
+])("%s", (_name, patched, stale) => {
+  expect(stalePatches(patched, lockfile("sharp@0.35.5"))).toEqual(stale);
 });

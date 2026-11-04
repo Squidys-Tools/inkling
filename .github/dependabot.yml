@@ -1,9 +1,9 @@
 version: 2
 
-# Every update gets its own PR as soon as Dependabot sees it. Hosted Dependabot runs at most once
-# every 24 hours (`daily` skips weekends, so this uses cron), and without a `cooldown` it holds
-# each release back 3 days; 1 day is the shortest cooldown it accepts. Groups hold only packages
-# that must move together.
+# Updates open as soon as Dependabot allows. Hosted Dependabot runs at most once every 24 hours
+# (`daily` skips weekends, so this uses cron), and without a `cooldown` it holds each release
+# back 3 days; 1 day is the shortest cooldown it accepts. Groups hold only packages that must
+# move together; everything else gets its own PR.
 updates:
   - package-ecosystem: bun
     # Dependabot reads every workspace manifest from the root's `workspaces`, so one entry
