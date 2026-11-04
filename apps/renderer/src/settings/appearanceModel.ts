@@ -3,6 +3,11 @@ export const appearanceOptions = {
     { value: "pill", label: "Pill" },
     { value: "segmented", label: "Segmented" },
   ],
+  // Windows and Linux only: macOS keeps its traffic lights and has no caption pill.
+  windowControlsAtRest: [
+    { value: "hover", label: "On hover" },
+    { value: "always", label: "Always" },
+  ],
 } as const;
 
 export type Appearance = {
@@ -27,5 +32,6 @@ export function parseAppearance(
         : stored.viewToggle === "segmented"
           ? "segmented"
           : "pill",
+    windowControlsAtRest: stored.windowControlsAtRest === "always" ? "always" : "hover",
   };
 }
