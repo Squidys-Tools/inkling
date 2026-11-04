@@ -168,7 +168,9 @@ Never add signing secrets. Nightlies publish themselves; a stable release is pub
 ## CI
 
 Workflow logic lives in TypeScript under `tools/ci/` and `tools/release/`; the YAML only wires it
-up. Scripts that import only `tools/ci/github.ts` run without `bun install`.
+up. Scripts that import only `tools/ci/github.ts` run without `bun install`. Each third-party
+`uses:` pins the commit of a release tag, with the tag in a comment (`@<sha> # v7.0.1`), and
+Dependabot updates the two together.
 
 - `ci.yml` runs on every push to `main` and every PR. It calls `checks.yml` (typecheck, lint,
   Knip, web and extension builds on Linux, unit tests on Windows) and `package.yml` (package the
