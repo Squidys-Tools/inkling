@@ -5,6 +5,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { Toast } from "@base-ui/react/toast";
+import { createAtom } from "@tanstack/react-store";
 import { createNotifications } from "./toasts.ts";
 
 function load<T>(path: string, inject: Record<string, unknown>, exports: string): T {
@@ -181,23 +182,14 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
 
 test("form failure replacing a paste failure releases capture ownership on close or eviction without clearing a newer error", async () => {
   const notices = createNotifications();
-  const createStore = <T,>(initial: T) => {
-    let value = initial;
-    return {
-      get: () => value,
-      set: (next: T | ((current: T) => T)) => {
-        value = typeof next === "function" ? (next as (current: T) => T)(value) : next;
-      },
-    };
-  };
   const cap = load<{
     reportCaptureError: (message: string) => void;
     useCaptureState: (select: (value: { error: string | null }) => string | null) => string | null;
   }>(
     "../capture/capture.ts",
     {
-      createStore,
-      useStore: (store: { get: () => unknown }, select: (value: unknown) => unknown) =>
+      createAtom,
+      useSelector: (store: { get: () => unknown }, select: (value: unknown) => unknown) =>
         select(store.get()),
       errorMessage: (e: Error) => e.message,
       notifications: notices,

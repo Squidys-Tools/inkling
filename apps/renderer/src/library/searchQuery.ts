@@ -1,6 +1,6 @@
 import type { LibraryCard } from "@inkling/contracts";
 import { errorMessage } from "./errors.ts";
-import { createStore, type Store } from "./store.ts";
+import { createAtom, type Atom } from "@tanstack/react-store";
 
 export type SearchState = {
   /** What the field holds, updated on every keystroke. */
@@ -40,7 +40,7 @@ export function createSearch({
   delay?: number;
   timers?: Timers;
 }) {
-  const store: Store<SearchState> = createStore(idle);
+  const store: Atom<SearchState> = createAtom(idle);
   let timer: number | null = null;
   let generation = 0;
   // Ids deleted or archived while the newest search was in flight; its answer was read before that.

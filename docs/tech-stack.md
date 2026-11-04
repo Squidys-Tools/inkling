@@ -11,7 +11,7 @@ inkling is a local-first desktop app built with Electron, React, TypeScript, Nod
 | Desktop shell | Electron | The same Chromium on Windows, macOS and Linux, so one design renders the same everywhere, with a narrow preload bridge |
 | UI | React + TypeScript + Vite, with the React Compiler | Mature component ecosystem and future web portability; components re-render only when their inputs change |
 | Styling | StyleX tokens and atomic CSS, Base UI headless primitives | One token set, no hand-written stylesheets, no theme to fight |
-| UI state | Small external stores read through `useSyncExternalStore` | The library store keeps cards by id and applies change events from the library process, so one finished job re-renders one card |
+| UI state | TanStack Store atoms read through `useSelector` | The library store keeps cards by id and applies change events from the library process, so one finished job re-renders one card |
 | Forms | Controlled inputs on React state, or on a UI store when a draft must outlive its form | Each form has one to three fields. TanStack Form, tried in November 2026, made each form longer and adds 68 KB of minified JavaScript (`@tanstack/react-form` 1.33) |
 | Routing | TanStack Router with hash history | Typed routes that work on `app://` and in the web preview |
 | Processes | Main, plus a library and a worker `utilityProcess` | A long OCR or embedding run cannot slow a search, and queries never wait behind window events |

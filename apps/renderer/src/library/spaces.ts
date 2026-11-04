@@ -1,14 +1,14 @@
 import type { Space, SpaceColor, SpaceKind } from "@inkling/contracts";
 import { libraryClient } from "./connection.ts";
 import { errorMessage } from "./errors.ts";
-import { createStore, useStore } from "./store.ts";
+import { createAtom, useSelector } from "@tanstack/react-store";
 import { notify, notifyError } from "../notifications/toasts.ts";
 
 const spaceColors: readonly SpaceColor[] = ["blue", "orange", "green", "pink", "purple", "yellow"];
 
 type SpacesState = { spaces: readonly Space[]; loaded: boolean; error: string | null };
 
-export const spacesStore = createStore<SpacesState>({ spaces: [], loaded: false, error: null });
+export const spacesStore = createAtom<SpacesState>({ spaces: [], loaded: false, error: null });
 
 const ordered = (spaces: readonly Space[]) => [...spaces].sort((a, b) => a.position - b.position);
 
@@ -159,9 +159,9 @@ export async function setInSpace(spaceId: string, itemId: string, filed: boolean
   );
 }
 
-export const useSpaces = () => useStore(spacesStore, (state) => state.spaces);
+export const useSpaces = () => useSelector(spacesStore, (state) => state.spaces);
 export const useSpace = (id: string | null) =>
-  useStore(spacesStore, (state) =>
+  useSelector(spacesStore, (state) =>
     id ? state.spaces.find((space) => space.id === id) : undefined,
   );
-export const useSpaceError = () => useStore(spacesStore, (state) => state.error);
+export const useSpaceError = () => useSelector(spacesStore, (state) => state.error);

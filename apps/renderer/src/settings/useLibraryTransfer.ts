@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { desktop } from "../desktop.ts";
 import { libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
-import { createStore, useStore } from "../library/store.ts";
+import { createAtom, useSelector } from "@tanstack/react-store";
 import { notify, notifyError } from "../notifications/toasts.ts";
 import { formatExportSummary, formatImportSummary } from "./format.ts";
 
@@ -14,7 +14,7 @@ type Outcome =
 
 // Outside the panel, so an export or restore keeps its lock and its result
 // while the user looks at another section.
-const transfers = createStore<{ busy: "export" | "import" | null; outcome: Outcome | null }>({
+const transfers = createAtom<{ busy: "export" | "import" | null; outcome: Outcome | null }>({
   busy: null,
   outcome: null,
 });
@@ -80,8 +80,8 @@ function showFolder() {
 /** Export a copy of the library, or restore one, through a folder the user picks. Desktop app only. */
 export function useLibraryTransfer() {
   return {
-    busy: useStore(transfers, (state) => state.busy),
-    outcome: useStore(transfers, (state) => state.outcome),
+    busy: useSelector(transfers, (state) => state.busy),
+    outcome: useSelector(transfers, (state) => state.outcome),
     exportCopy: () => void transfer("export"),
     restoreCopy: () => void transfer("import"),
     showFolder,
@@ -97,7 +97,7 @@ export function useLibraryOverview() {
   const [kinds, setKinds] = useState<readonly KindCount[]>([]);
   const [sizeBytes, setSizeBytes] = useState<number | null>(null);
   const [lastCopy, setLastCopy] = useState<LastExport | null>(null);
-  const outcome = useStore(transfers, (state) => state.outcome);
+  const outcome = useSelector(transfers, (state) => state.outcome);
 
   useEffect(() => {
     let current = true;
