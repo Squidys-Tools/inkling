@@ -10,7 +10,6 @@ import { hostname } from "../library/assets.ts";
 import { menuPoint, showContextMenu } from "../menu/contextMenu.tsx";
 import type { DescribedItem } from "./model.ts";
 
-// Drawn at 15px with a 1.8 stroke, as in the old action bar.
 function Glyph({ children }: { children: ReactNode }) {
   return (
     <svg

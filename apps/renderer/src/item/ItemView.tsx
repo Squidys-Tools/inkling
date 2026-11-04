@@ -16,13 +16,14 @@ import { setInSpace, useSpaces } from "../library/spaces.ts";
 import { showWrittenCard } from "../library/writes.ts";
 import { ActionBar } from "./ActionBar.tsx";
 import { InfoPanel } from "./InfoPanel.tsx";
+import { findCard } from "./itemFlight.ts";
 import { describeItem } from "./model.ts";
 import { useItemNavigation } from "./navigation.ts";
 import { useItem, useMemberships } from "./queries.ts";
 import { SimilarPanel } from "./SimilarPanel.tsx";
 import { preloadPdfViewer, Stage } from "./Stage.tsx";
 import { useEscape } from "./useEscape.ts";
-import { findCard, useOpenMotion } from "./useOpenMotion.ts";
+import { useOpenMotion } from "./useOpenMotion.ts";
 import { useOcrOnOpen } from "./useOcrOnOpen.ts";
 
 /** An open item: its media on the dotted stage and the inspector beside it, over the library. */
