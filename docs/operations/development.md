@@ -10,8 +10,8 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 ## Layout
 
 - `apps/desktop`: Electron main process and preload. Windows, menus, dialogs,
-  the `app://` protocol, capture intake, updates, and the two processes below. It never opens the database.
-- `apps/renderer`: the React app. Routes, pages and stores, styled only with StyleX.
+  the `app://` protocol, capture intake, updates, and the two processes below.
+- `apps/renderer`: the React app. Routes, pages and stores.
 - `apps/site`: the marketing site, a TanStack Start app prerendered to static
   HTML. It imports the renderer's cards, mascot, welcome-screen demos and demo
   seed instead of copying them.
@@ -25,11 +25,12 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
   process call, the preload bridge type, the shortcut table, and the capture
   payloads the browser extension sends.
 - `packages/rpc-electron`: Effect RPC over Electron message ports.
-- `packages/ui`: design tokens (`tokens.stylex.ts`, the only file with color
-  values) and shared components.
-- `tools/`: the packaged and launch smokes (`smoke/`), the frame and first-page
-  benchmarks (`bench/`), model staging (`models/`), the lint plugin
-  (`oxlint-plugin/`), repository checks (`repo/`) and release staging (`release/`).
+- `packages/ui`: design tokens (`tokens.stylex.ts`) and shared components.
+- `tools/`: CI scripts (`ci/`), the packaged and launch smokes (`smoke/`), the frame and first-page
+  benchmarks (`bench/`), the `dev:app` launcher and its seeded library (`dev/`),
+  the README mascot animation (`mascot/`), model staging (`models/`), the lint
+  plugin (`oxlint-plugin/`), repository checks (`repo/`) and release staging
+  (`release/`).
 - `extension/`: the Chrome extension. `benchmarks/`: the extraction and OCR corpus and harness.
 
 ## Running
@@ -72,9 +73,9 @@ packaging command goes through `build:app`, so no shipped package carries the
 The marketing site deploys from a Vercel project whose root directory is
 `apps/site`; `apps/site/vercel.json` installs the Bun in `.bun-version` and
 serves `apps/site/dist/client`. Its download buttons link the installers of the
-latest GitHub release, looked up once per build, so redeploy the site after
-publishing a release. Build it with `bun run build:site`, which runs Vite on
-Node: under the Bun runtime, StyleX's production media-query parser fails.
+latest GitHub release, looked up once per build. Build it with
+`bun run build:site`, which runs Vite on Node: under the Bun runtime, StyleX's
+production media-query parser fails.
 
 Iterate on the site with `bun run dev:site` (hot reload; read the port from its
 output). It builds `/demo/` once at start, so restart it to see renderer changes there. Vercel's automatic Git deployments are disabled in
