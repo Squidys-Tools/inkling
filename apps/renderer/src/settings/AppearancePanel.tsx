@@ -1,7 +1,7 @@
 import { GridViewIcon, Layout01Icon } from "@hugeicons/core-free-icons";
 import * as stylex from "@stylexjs/stylex";
 import { SegmentedControl } from "@inkling/ui";
-import { desktop, platform } from "../desktop.ts";
+import { desktop, platform, useChromeControls } from "../desktop.ts";
 import {
   setViewToggleStyle,
   useViewToggleStyle,
@@ -13,7 +13,8 @@ import { inset, Panel, PanelBody, Row } from "./parts.tsx";
 
 export function AppearancePanel({ onClose }: { onClose: () => void }) {
   const viewToggle = useViewToggleStyle();
-  const { windowControls } = useAppearance();
+  const controls = useChromeControls();
+  const { windowControls, windowControlsAtRest } = useAppearance();
   return (
     <Panel title="Appearance" onClose={onClose}>
       <PanelBody>
@@ -44,6 +45,23 @@ export function AppearancePanel({ onClose }: { onClose: () => void }) {
                 options={appearanceOptions.windowControls}
                 value={windowControls}
                 onChange={(value) => setAppearance("windowControls", value)}
+                style={[inset.capsule, styles.segmented]}
+              />
+            }
+          />
+        )}
+        {controls === "custom-right" && (
+          <Row
+            icon={Layout01Icon}
+            title="Show window controls"
+            description="Hidden until the pointer reaches the top-right corner, or drawn all the time."
+            action={
+              <SegmentedControl
+                name="appearance-window-controls-at-rest"
+                label="Window controls visibility"
+                options={appearanceOptions.windowControlsAtRest}
+                value={windowControlsAtRest}
+                onChange={(value) => setAppearance("windowControlsAtRest", value)}
                 style={[inset.capsule, styles.segmented]}
               />
             }

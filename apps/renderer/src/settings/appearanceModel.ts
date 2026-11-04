@@ -10,6 +10,10 @@ export const appearanceOptions = {
     { value: "traffic-lights", label: "Traffic lights" },
     { value: "inset", label: "Inset pill" },
   ],
+  windowControlsAtRest: [
+    { value: "hover", label: "On hover" },
+    { value: "always", label: "Always" },
+  ],
 } as const;
 
 export type Appearance = {
@@ -35,6 +39,7 @@ export function parseAppearance(
           ? "segmented"
           : "pill",
     windowControls: stored.windowControls === "inset" ? "inset" : "traffic-lights",
+    windowControlsAtRest: stored.windowControlsAtRest === "always" ? "always" : "hover",
   };
 }
 

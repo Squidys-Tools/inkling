@@ -83,6 +83,7 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
         focused ? styles.expanded : styles.resting,
         captionPill && styles.captionCorridor,
         captionPill && focused && styles.captionExpanded,
+        captionPill && !focused && styles.captionResting,
       )}
     >
       <Glass ref={surface} aria-hidden="true" data-bench="search-surface" style={styles.surface} />
@@ -137,22 +138,24 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
 }
 
 const styles = stylex.create({
-  // The inset caption pill is always present, so a small window must leave it
-  // a real slot rather than letting the centered search field pass beneath it.
+  // The inset caption pill keeps its slot while hidden, so a small window must
+  // leave it room rather than letting the centered search field pass beneath it.
   captionCorridor: {
-    left: { default: "50%", "@media (max-width: 1023px)": "calc((100% - 124px) / 2)" },
-    maxWidth: { default: "none", "@media (max-width: 1023px)": "calc(100% - 124px)" },
+    left: { default: "50%", "@media (max-width: 1023px)": "calc((100% - 129px) / 2)" },
+    maxWidth: { default: "none", "@media (max-width: 1023px)": "calc(100% - 129px)" },
   },
   captionExpanded: {
     width: {
       default: "min(700px, calc(100% - 304px))",
-      "@media (max-width: 1023px)": "calc(100% - 124px)",
+      "@media (max-width: 1023px)": "calc(100% - 129px)",
     },
     minWidth: {
       default: "min(420px, calc(100% - 28px))",
       "@media (max-width: 1023px)": "0px",
     },
   },
+  // Follows the caption pill's 13px inset, so the resting field stays level with it.
+  captionResting: { top: "14px" },
   captionLabel: {
     boxSizing: { default: "content-box", "@media (max-width: 1023px)": "border-box" },
     minWidth: { default: "auto", "@media (max-width: 1023px)": "0px" },

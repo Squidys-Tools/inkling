@@ -5,7 +5,11 @@ test("old Appearance choices migrate, but sidebar style cannot turn Codex off", 
   const actual = parseAppearance(
     JSON.stringify({ sidebarStyle: "classic", viewToggle: "segmented", sidebarToggle: "edge" }),
   );
-  expect(actual).toEqual({ viewToggle: "segmented", windowControls: "traffic-lights" });
+  expect(actual).toEqual({
+    viewToggle: "segmented",
+    windowControls: "traffic-lights",
+    windowControlsAtRest: "hover",
+  });
   expect(actual).not.toHaveProperty("sidebarStyle");
   expect(actual).not.toHaveProperty("sidebarToggle");
   expect(parseAppearance(null, "segmented").viewToggle).toBe("segmented");
@@ -15,7 +19,11 @@ test("old Appearance choices migrate, but sidebar style cannot turn Codex off", 
 
 test("invalid or missing Appearance settings use known defaults", () => {
   for (const raw of [null, "not json", "null", "[]", '{"viewToggle":"oops"}'])
-    expect(parseAppearance(raw)).toEqual({ viewToggle: "pill", windowControls: "traffic-lights" });
+    expect(parseAppearance(raw)).toEqual({
+      viewToggle: "pill",
+      windowControls: "traffic-lights",
+      windowControlsAtRest: "hover",
+    });
 });
 
 test("the inset pill replaces macOS traffic lights only when chosen", () => {
@@ -24,4 +32,11 @@ test("the inset pill replaces macOS traffic lights only when chosen", () => {
   expect(chromeControlsFor("native-left", "traffic-lights")).toBe("native-left");
   expect(chromeControlsFor("custom-right", "traffic-lights")).toBe("custom-right");
   expect(chromeControlsFor("system-frame", "inset")).toBe("system-frame");
+});
+
+test("the pill stays hidden at rest unless Always is chosen", () => {
+  expect(parseAppearance('{"windowControlsAtRest":"always"}').windowControlsAtRest).toBe("always");
+  expect(parseAppearance('{"windowControlsAtRest":"sometimes"}').windowControlsAtRest).toBe(
+    "hover",
+  );
 });
