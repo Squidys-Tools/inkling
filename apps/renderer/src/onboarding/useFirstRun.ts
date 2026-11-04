@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { desktop } from "../desktop.ts";
@@ -12,27 +13,18 @@ import { firstScreenRendered } from "../shell/firstScreen.ts";
  */
 export function useFirstRun() {
   const navigate = useNavigate();
+  // Keyed outside "library", so a restore or a library restart never asks again.
+  const onboarding = useQuery({
+    queryKey: ["onboardingCompleted"],
+    queryFn: async () => (await libraryClient()).onboardingCompleted({}),
+    enabled: desktop !== undefined,
+  });
+  const welcome = onboarding.data === false;
+  const decided = !desktop || !onboarding.isPending;
   useEffect(() => {
-    if (!desktop) {
-      firstScreenRendered();
-      return;
-    }
-    let cancelled = false;
-    libraryClient()
-      .then((client) => client.onboardingCompleted({}))
-      .then(
-        (completed) => {
-          if (cancelled) return;
-          // The welcome page reports its own first render.
-          if (completed) firstScreenRendered();
-          else void navigate({ to: "/welcome", replace: true });
-        },
-        () => {
-          if (!cancelled) firstScreenRendered();
-        },
-      );
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate]);
+    if (!decided) return;
+    // The welcome page reports its own first render.
+    if (welcome) void navigate({ to: "/welcome", replace: true });
+    else firstScreenRendered();
+  }, [decided, welcome, navigate]);
 }
