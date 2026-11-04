@@ -1,7 +1,8 @@
 version: 2
 
-# Weekly run; each release also waits 2 days before a PR opens (without `cooldown` Dependabot
-# holds it 3 days; 1 is the shortest it accepts). Groups hold only packages that must
+# Updates open as soon as Dependabot allows. Hosted Dependabot runs at most once every 24 hours
+# (`daily` skips weekends, so this uses cron), and without a `cooldown` it holds each release
+# back 3 days; 1 day is the shortest cooldown it accepts. Groups hold only packages that must
 # move together; everything else gets its own PR.
 updates:
   - package-ecosystem: bun
@@ -10,9 +11,10 @@ updates:
     # second PR for the same dependency.
     directory: /
     schedule:
-      interval: weekly
+      interval: cron
+      cronjob: "0 6 * * *"
     cooldown:
-      default-days: 2
+      default-days: 1
     open-pull-requests-limit: 100
     # An exact pin stays exact: 4.1.1 becomes 4.1.2, never ^4.1.2.
     versioning-strategy: increase
@@ -38,7 +40,8 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: cron
+      cronjob: "0 6 * * *"
     cooldown:
-      default-days: 2
+      default-days: 1
     open-pull-requests-limit: 100
