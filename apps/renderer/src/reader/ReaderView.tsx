@@ -15,6 +15,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { controlsOnRight } from "../desktop.ts";
 import { hostname, webUrl } from "../library/assets.ts";
+import { errorMessage } from "../library/errors.ts";
 import { useStepBack } from "../item/navigation.ts";
 import { useArticleHtml, useItem } from "../item/queries.ts";
 import { useEscape } from "../item/useEscape.ts";
@@ -46,12 +47,12 @@ export function ReaderView({ id }: { id: string }) {
   useEffect(() => registerFontSet(fontSet), [fontSet]);
   const query = useItem(id);
   const article = useArticleHtml(id);
-  const detail = query.value;
+  const detail = query.data;
   const close = () =>
     stepBack(() => void navigate({ to: "/item/$id", params: { id }, replace: true }));
   useEscape(close);
 
-  const html = nonEmpty(article.value);
+  const html = nonEmpty(article.data);
   const sourceUrl = webUrl(detail?.sourceUrl);
   // Explicit, not left to the compiler: sanitizing runs once per html, never per render.
   const nodes = useMemo(
@@ -66,11 +67,11 @@ export function ReaderView({ id }: { id: string }) {
       ].filter((part) => part !== undefined)
     : [];
   const status =
-    query.error ??
-    article.error ??
+    (query.error && errorMessage(query.error)) ??
+    (article.error && errorMessage(article.error)) ??
     (detail === null
       ? "This item is no longer in your library."
-      : detail && !article.loading && !nodes
+      : detail && !article.isPending && !nodes
         ? "This item has no saved article to read."
         : null);
 

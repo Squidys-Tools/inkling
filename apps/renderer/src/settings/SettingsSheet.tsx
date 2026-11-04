@@ -13,6 +13,7 @@ import { LibraryPanel } from "./LibraryPanel.tsx";
 import { LicensesPanel } from "./LicensesPanel.tsx";
 import { railSections, type SettingsSection } from "./sections.ts";
 import { ScreenshotsPanel } from "./ScreenshotsPanel.tsx";
+import { useLibraryTransfer } from "./useLibraryTransfer.ts";
 import { UpdatesPanel } from "./UpdatesPanel.tsx";
 
 function useAppVersion(open: boolean) {
@@ -38,6 +39,7 @@ function useAppVersion(open: boolean) {
 export function SettingsSheet() {
   const open = useViewState((state) => state.settingsSheetOpen);
   const version = useAppVersion(open);
+  const transfer = useLibraryTransfer();
   const router = useRouter();
   const [section, setSection] = useState<SettingsSection>("general");
   // Panels' × reaches the store directly, so reset here as well as onOpenChange.
@@ -103,7 +105,7 @@ export function SettingsSheet() {
             <LicensesPanel onBack={() => setSection("general")} onClose={close} />
           )}
           {section === "appearance" && <AppearancePanel onClose={close} />}
-          {section === "library" && <LibraryPanel onClose={close} />}
+          {section === "library" && <LibraryPanel transfer={transfer} onClose={close} />}
           {section === "extension" && <ExtensionPanel onClose={close} />}
           {section === "screenshots" && <ScreenshotsPanel onClose={close} />}
           {section === "updates" && <UpdatesPanel onClose={close} />}

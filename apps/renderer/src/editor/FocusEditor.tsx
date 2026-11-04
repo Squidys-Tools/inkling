@@ -8,6 +8,7 @@ import { useItem } from "../item/queries.ts";
 import { useEscape } from "../item/useEscape.ts";
 import { useMounted } from "../item/useMounted.ts";
 import { libraryClient } from "../library/connection.ts";
+import { errorMessage } from "../library/errors.ts";
 import { showWrittenCard } from "../library/writes.ts";
 import { NoteEditor } from "./NoteEditor.tsx";
 import { noteBodyForEditor, noteBodyForStorage, normalizeNoteBody } from "./notes.ts";
@@ -26,7 +27,7 @@ export function FocusEditor({ id }: { id: string }) {
   const navigate = useNavigate();
   const stepBack = useStepBack();
   const query = useItem(id);
-  const detail = query.value;
+  const detail = query.data;
   // Every way out (Escape, Cancel, Back, the sidebar) asks before dropping unsaved
   // edits. Leaving waits for a save in flight, which leaves by itself when it lands.
   const dirty = useRef(false);
@@ -44,7 +45,7 @@ export function FocusEditor({ id }: { id: string }) {
 
   const kind = detail?.kind.toLowerCase();
   const status =
-    query.error ??
+    (query.error && errorMessage(query.error)) ??
     (detail === null
       ? "This note is no longer in your library."
       : detail && kind !== "note"

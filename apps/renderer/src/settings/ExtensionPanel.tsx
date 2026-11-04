@@ -1,10 +1,13 @@
 import { Link01Icon } from "@hugeicons/core-free-icons";
-import type { CaptureReceiver, DesktopBridge } from "@inkling/contracts/desktop";
+import type { DesktopBridge } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
-import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { desktop } from "../desktop.ts";
 import { EmptyState, Panel, PanelBody, settingsText, SquareButton, TextAction } from "./parts.tsx";
+
+const tokenKey = ["pairingToken"];
 
 export function ExtensionPanel({ onClose }: { onClose: () => void }) {
   return (
@@ -28,59 +31,43 @@ export function ExtensionPanel({ onClose }: { onClose: () => void }) {
 
 // The token stays out of the page until the user reveals it.
 function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
-  const [receiver, setReceiver] = useState<CaptureReceiver | "unknown" | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [revealed, setRevealed] = useState(false);
   const [confirmingRenew, setConfirmingRenew] = useState(false);
-  const [testing, setTesting] = useState(false);
   const [notice, setNotice] = useState<{ text: string; failed: boolean } | null>(null);
+  const receiver = useQuery({ queryKey: ["captureReceiver"], queryFn: () => capture.receiver() });
+  const tokenQuery = useQuery({
+    queryKey: tokenKey,
+    queryFn: () => capture.pairingToken(),
+    enabled: revealed,
+    gcTime: 0,
+  });
+  const token = revealed ? tokenQuery.data : undefined;
+  const test = useMutation({
+    mutationFn: () => capture.testReceiver().catch(() => false),
+    onSuccess: (reachable) =>
+      setNotice(
+        reachable
+          ? { text: "Extension receiver is reachable.", failed: false }
+          : { text: "No answer from the receiver. Restart inkling and try again.", failed: true },
+      ),
+  });
+  const renew = useMutation({
+    mutationFn: () => capture.regeneratePairingToken(),
+    onSuccess: (value) => {
+      queryClient.setQueryData(tokenKey, value);
+      setRevealed(true);
+      setNotice({ text: "New pairing token issued. Update the extension.", failed: false });
+    },
+    onError: () => setNotice({ text: "Could not renew the pairing token.", failed: true }),
+  });
 
-  useEffect(() => {
-    let current = true;
-    capture.receiver().then(
-      (status) => current && setReceiver(status),
-      () => current && setReceiver("unknown"),
-    );
-    return () => {
-      current = false;
-    };
-  }, [capture]);
-
-  const reveal = () => {
-    if (token) return setToken(null);
-    capture
-      .pairingToken()
-      .then(setToken, () => setNotice({ text: "Could not load the pairing token.", failed: true }));
-  };
   const copy = () => {
     if (!token) return;
     navigator.clipboard.writeText(token).then(
       () =>
         setNotice({ text: "Pairing token copied. Paste it into the extension.", failed: false }),
       () => setNotice({ text: "Copy failed. Reveal the token and copy it by hand.", failed: true }),
-    );
-  };
-  const test = () => {
-    setTesting(true);
-    capture
-      .testReceiver()
-      .catch(() => false)
-      .then((reachable) => {
-        setTesting(false);
-        setNotice(
-          reachable
-            ? { text: "Extension receiver is reachable.", failed: false }
-            : { text: "No answer from the receiver. Restart inkling and try again.", failed: true },
-        );
-      });
-  };
-  const renew = () => {
-    setConfirmingRenew(false);
-    capture.regeneratePairingToken().then(
-      (value) => {
-        setToken(value);
-        setNotice({ text: "New pairing token issued. Update the extension.", failed: false });
-      },
-      () => setNotice({ text: "Could not renew the pairing token.", failed: true }),
     );
   };
 
@@ -92,17 +79,17 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
       </p>
       <div {...stylex.props(styles.row)}>
         <p role="status" {...stylex.props(settingsText.hint)}>
-          {receiver === null
+          {receiver.isPending
             ? "Checking receiver…"
-            : receiver === "unknown" || !receiver.running
-              ? "Receiver not running"
-              : `Listening on 127.0.0.1:${receiver.port}`}
+            : receiver.data?.running
+              ? `Listening on 127.0.0.1:${receiver.data.port}`
+              : "Receiver not running"}
         </p>
         <SquareButton
-          disabled={receiver === null || receiver === "unknown" || !receiver.running || testing}
-          onClick={test}
+          disabled={!receiver.data?.running || test.isPending}
+          onClick={() => test.mutate()}
         >
-          {testing ? "Testing…" : "Test connection"}
+          {test.isPending ? "Testing…" : "Test connection"}
         </SquareButton>
       </div>
       <div {...stylex.props(styles.row)}>
@@ -112,7 +99,9 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
         <code aria-hidden={!token} {...stylex.props(styles.token)}>
           {token ?? "••••••••••••••••••••••••"}
         </code>
-        <SquareButton onClick={reveal}>{token ? "Hide" : "Reveal"}</SquareButton>
+        <SquareButton onClick={() => setRevealed(!revealed)}>
+          {revealed ? "Hide" : "Reveal"}
+        </SquareButton>
         <SquareButton disabled={!token} onClick={copy}>
           Copy
         </SquareButton>
@@ -120,6 +109,11 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
           Renew
         </SquareButton>
       </div>
+      {revealed && tokenQuery.isError && (
+        <p role="alert" {...stylex.props(styles.failed)}>
+          Could not load the pairing token.
+        </p>
+      )}
       {notice && (
         <p
           role={notice.failed ? "alert" : "status"}
@@ -135,7 +129,13 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
           </p>
           <div {...stylex.props(styles.confirmActions)}>
             <TextAction onClick={() => setConfirmingRenew(false)}>Cancel</TextAction>
-            <SquareButton look="danger" onClick={renew}>
+            <SquareButton
+              look="danger"
+              onClick={() => {
+                setConfirmingRenew(false);
+                renew.mutate();
+              }}
+            >
               Renew
             </SquareButton>
           </div>
