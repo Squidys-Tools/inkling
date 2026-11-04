@@ -5,6 +5,8 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { Toast } from "@base-ui/react/toast";
+import { bindingsFor, shortcuts } from "@inkling/contracts/shortcuts";
+import { useHotkey, useHotkeys } from "@tanstack/react-hotkeys";
 import { createAtom } from "@tanstack/react-store";
 import { createNotifications } from "./toasts.ts";
 
@@ -74,13 +76,14 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
   let fromMenu = (_command: string) => {};
   let escaped = 0;
   const router = {
-    navigate: () => {},
+    navigate: ({ to }: { to: string }) => calls.push(to),
     history: { back: () => calls.push("back"), forward: () => {} },
   };
   const { useCommands } = load<{ useCommands: () => void }>(
     "../shell/useCommands.ts",
     {
       useEffect: React.useEffect,
+      useHotkeys,
       useRouter: () => router,
       desktop: {
         onCommand: (fn: typeof fromMenu) => {
@@ -89,15 +92,15 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
         },
       },
       platform: "linux",
-      commandForKey: (event: KeyboardEvent) => (event.key === "k" ? "search" : undefined),
-      setSettingsSheetOpen: () => calls.push("settings"),
+      bindingsFor,
+      shortcuts,
       runHandledCommand: (command: string) => calls.push(command),
     },
     "useCommands",
   );
   const { useEscape } = load<{ useEscape: (run: () => void) => void }>(
     "../item/useEscape.ts",
-    { useEffect: React.useEffect, useEffectEvent: React.useEffectEvent },
+    { useHotkey },
     "useEscape",
   );
   // Root/events are real; StyleX and the SSR-safe Portal boundary are inert in JSDOM.
@@ -135,6 +138,15 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
     target.dispatchEvent(e);
     return e;
   };
+  const sideBack = () => {
+    const e = new f.dom.window.MouseEvent("mouseup", {
+      button: 3,
+      bubbles: true,
+      cancelable: true,
+    });
+    page.dispatchEvent(e);
+    return e;
+  };
   try {
     await act(async () => root.render(<App />));
     await act(async () =>
@@ -143,11 +155,13 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
     await act(async () => {
       fromMenu("search");
       fromMenu("openSettings");
-      page.dispatchEvent(new f.dom.window.KeyboardEvent("keydown", { key: "k", bubbles: true }));
-      page.dispatchEvent(new f.dom.window.MouseEvent("mouseup", { button: 3, bubbles: true }));
+      page.dispatchEvent(
+        new f.dom.window.KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
+      );
+      expect(sideBack().defaultPrevented).toBe(true);
       escape(page);
     });
-    expect(calls).toEqual(["search", "settings", "search", "back"]);
+    expect(calls).toEqual(["search", ".", "search", "back"]);
     expect(escaped).toBe(1);
     const modal = document.createElement("div");
     modal.setAttribute("role", "dialog");
@@ -155,11 +169,31 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
     document.body.append(modal);
     await act(async () => {
       fromMenu("search");
+      page.dispatchEvent(
+        new f.dom.window.KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
+      );
+      sideBack();
       escape(page);
     });
     expect(calls).toHaveLength(4);
     expect(escaped).toBe(1);
+    modal.id = "settings-sheet";
+    await act(async () => {
+      fromMenu("search");
+      sideBack();
+    });
+    expect(calls.slice(4)).toEqual(["back"]);
     modal.remove();
+    // A bare key runs from the page but stays text in a field.
+    const field = document.createElement("input");
+    document.body.append(field);
+    await act(async () => {
+      page.dispatchEvent(new f.dom.window.KeyboardEvent("keydown", { key: "n", bubbles: true }));
+      field.focus();
+      field.dispatchEvent(new f.dom.window.KeyboardEvent("keydown", { key: "n", bubbles: true }));
+    });
+    expect(calls.slice(5)).toEqual(["/add/note"]);
+    field.remove();
     for (const error of [false, true]) {
       await act(async () => {
         notices.dismiss("archive");
@@ -174,6 +208,45 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
       await act(async () => expect(escape(toast).defaultPrevented).toBe(true));
       expect(escaped).toBe(1);
     }
+  } finally {
+    await act(async () => root.unmount());
+    f.restore();
+  }
+});
+
+test("on macOS desktop, Cmd shortcuts reach commands only through the menu", async () => {
+  const f = fixture();
+  const calls: string[] = [];
+  const { useCommands } = load<{ useCommands: () => void }>(
+    "../shell/useCommands.ts",
+    {
+      useEffect: React.useEffect,
+      useHotkeys,
+      useRouter: () => ({}),
+      desktop: { onCommand: () => () => {} },
+      platform: "darwin",
+      bindingsFor,
+      shortcuts,
+      runHandledCommand: (command: string) => calls.push(command),
+    },
+    "useCommands",
+  );
+  function App() {
+    useCommands();
+    return null;
+  }
+  const root = createRoot(document.getElementById("root")!);
+  const key = (init: KeyboardEventInit) =>
+    document.body.dispatchEvent(
+      new f.dom.window.KeyboardEvent("keydown", { ...init, bubbles: true }),
+    );
+  try {
+    await act(async () => root.render(<App />));
+    await act(async () => {
+      key({ key: "k", metaKey: true });
+      key({ key: "/" });
+    });
+    expect(calls).toEqual(["search"]);
   } finally {
     await act(async () => root.unmount());
     f.restore();

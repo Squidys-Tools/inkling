@@ -6,6 +6,7 @@ import {
   SidebarLeftIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useNavigate, useSearch as useRouteSearch } from "@tanstack/react-router";
 import { useLayoutEffect, useRef } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
@@ -14,7 +15,7 @@ import { chrome } from "../desktop.ts";
 import { shownScope, useActiveTotal } from "../library/cards.ts";
 import { search, useSearch } from "../library/search.ts";
 import { useSelector } from "@tanstack/react-store";
-import { setSettingsSheetOpen, setSidebarOpen, useViewState } from "../libraryView/viewState.ts";
+import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { Mascot } from "../mascot/Mascot.tsx";
 import { useMascotMood } from "../mascot/useMascotMood.ts";
 import { useAppUpdate } from "../settings/useAppUpdate.ts";
@@ -39,7 +40,7 @@ function DotGrid() {
 function SidebarMascot() {
   const query = useSearch((state) => state.query);
   const captureFailed = useCaptureState((state) => state.error !== null);
-  // Codex keeps the mascot as the compact rail's way back, even during search.
+  // The mascot stays as the compact rail's way back, even during search.
   const mood = useMascotMood({ searchFocused: false, query, captureFailed });
   return <Mascot mood={mood} size={44} visible />;
 }
@@ -60,19 +61,22 @@ function UpdateRow({ compact }: { compact: boolean }) {
   );
 }
 
-/** Codex is the only sidebar: full navigation or a persistent, usable compact rail. */
 export function Sidebar({
   open,
-  visualOpen = open,
+  visualOpen,
   narrow,
 }: {
   open: boolean;
-  visualOpen?: boolean;
+  visualOpen: boolean;
   narrow: boolean;
 }) {
   const total = useActiveTotal();
   const shown = useSelector(shownScope, (scope) => scope._tag);
-  const settingsOpen = useViewState((state) => state.settingsSheetOpen);
+  const navigate = useNavigate();
+  const settingsOpen = useRouteSearch({
+    from: "__root__",
+    select: (search) => search.settings !== undefined,
+  });
 
   const compact = !visualOpen;
   const width = visualOpen ? sidebarExpanded : sidebarCompact;
@@ -135,21 +139,19 @@ export function Sidebar({
               <span data-sidebar-label {...stylex.props(styles.wordmark)}>
                 inkling
               </span>
-              {
-                <button
-                  type="button"
-                  ref={reopenButton}
-                  aria-label="Close sidebar"
-                  title="Close sidebar"
-                  data-bench="sidebar-toggle"
-                  aria-expanded={open}
-                  aria-controls="library-navigation"
-                  onClick={toggle}
-                  {...stylex.props(styles.close)}
-                >
-                  <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
-                </button>
-              }
+              <button
+                type="button"
+                ref={reopenButton}
+                aria-label="Close sidebar"
+                title="Close sidebar"
+                data-bench="sidebar-toggle"
+                aria-expanded={open}
+                aria-controls="library-navigation"
+                onClick={toggle}
+                {...stylex.props(styles.close)}
+              >
+                <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
+              </button>
             </>
           )}
         </div>
@@ -185,7 +187,9 @@ export function Sidebar({
             compact={compact}
             icon={<HugeiconsIcon icon={Settings01Icon} size={15} />}
             label="Settings"
-            onClick={() => setSettingsSheetOpen(true)}
+            onClick={() =>
+              void navigate({ to: ".", search: (prev) => ({ ...prev, settings: "general" }) })
+            }
           />
         </div>
       </aside>

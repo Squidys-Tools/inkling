@@ -4,7 +4,6 @@ import {
   sidebarCompact,
   sidebarExpanded,
   sidebarLabelFrames,
-  sidebarMotionFrames,
 } from "./sidebarGeometry.ts";
 
 /** Move real frame bounds without stretching images or exposing empty strips.
@@ -15,7 +14,6 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
   const previous = useRef({ inset, open, narrow });
   const flight = useRef<Animation | null>(null);
   const edgeFlight = useRef<Animation | null>(null);
-  const contentFlight = useRef<Animation | null>(null);
   const labelsFlight = useRef<Animation[]>([]);
   const [presentation, setPresentation] = useState({ requested: open, retained: open });
   if (presentation.requested !== open) {
@@ -43,7 +41,6 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
     const reversing = flight.current !== null;
     flight.current?.cancel();
     edgeFlight.current?.cancel();
-    contentFlight.current?.cancel();
     labelsFlight.current.forEach((animation) => animation.cancel());
     labelsFlight.current = [];
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -52,11 +49,6 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
       duration: changed && !reduced ? parseFloat(timing.transitionDuration) * 1000 || 300 : 0,
       easing: "cubic-bezier(0.2, 0, 0, 1)",
     };
-    const frames = sidebarMotionFrames(fromLeft, inset);
-    const content = element.firstElementChild;
-    // Real layout fills both edges throughout. A held destination width left
-    // an exposed strip; a transform stretched images. Neither is used here.
-    contentFlight.current = content?.animate(frames.content, { ...options, fill: "both" }) ?? null;
     if (sidebar) {
       const width = sidebar.offsetWidth;
       const radius = getComputedStyle(sidebar).borderTopRightRadius;
@@ -77,14 +69,13 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
         );
       }
     }
-    const animation = element.animate(frames.frame, options);
+    // Move real bounds; a transform here stretched images.
+    const animation = element.animate([{ left: `${fromLeft}px` }, { left: `${inset}px` }], options);
     flight.current = animation;
     void animation.finished.then(
       () => {
         if (flight.current !== animation) return;
         flight.current = null;
-        contentFlight.current?.cancel();
-        contentFlight.current = null;
         if (open) {
           labelsFlight.current.forEach((item) => item.cancel());
           labelsFlight.current = [];
@@ -112,7 +103,6 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
     () => () => {
       flight.current?.cancel();
       edgeFlight.current?.cancel();
-      contentFlight.current?.cancel();
       labelsFlight.current.forEach((animation) => animation.cancel());
     },
     [],

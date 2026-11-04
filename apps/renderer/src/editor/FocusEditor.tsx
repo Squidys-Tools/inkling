@@ -38,7 +38,8 @@ export function FocusEditor({ id }: { id: string }) {
   };
   useEscape(leave);
   useBlocker({
-    shouldBlockFn: async () => dirty.current && !(await confirmDiscard()),
+    shouldBlockFn: async ({ current, next }) =>
+      current.pathname !== next.pathname && dirty.current && !(await confirmDiscard()),
     enableBeforeUnload: false,
   });
 

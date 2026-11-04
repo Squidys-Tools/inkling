@@ -51,7 +51,7 @@ export function LibraryHost({
       (state?.status === "error" && /^space not found/iu.test(state.error ?? "")));
   const leaveGoneSpace = spaceGone && routeScope?._tag === "Space";
   useEffect(() => {
-    if (leaveGoneSpace) void navigate({ to: "/", replace: true });
+    if (leaveGoneSpace) void navigate({ to: "/", search: true, replace: true });
   }, [leaveGoneSpace, navigate]);
   const query = useSearch((search) => search.query.trim());
   const results = useSearch((search) => search.results);

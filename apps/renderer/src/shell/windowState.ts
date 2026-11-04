@@ -1,7 +1,6 @@
-type WindowState = {
-  isMaximized: () => Promise<boolean>;
-  onMaximized: (listener: (maximized: boolean) => void) => () => void;
-};
+import type { DesktopBridge } from "@inkling/contracts/desktop";
+
+type WindowState = Pick<DesktopBridge["window"], "isMaximized" | "onMaximized">;
 
 /** Subscribe before querying; a late initial reply must never overwrite a newer WM event. */
 export function observeMaximized(actions: WindowState, update: (maximized: boolean) => void) {

@@ -18,3 +18,6 @@ export const railSections = [
 ] as const;
 
 export type SettingsSection = (typeof railSections)[number]["id"] | "licenses";
+
+const sections = new Set<unknown>([...railSections.map(({ id }) => id), "licenses"]);
+export const isSettingsSection = (value: unknown): value is SettingsSection => sections.has(value);
