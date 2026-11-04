@@ -280,7 +280,6 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
       sql`NOT EXISTS (
       SELECT 1 FROM space_exclusions x WHERE x.space_id = ${space.id} AND x.item_id = i.id)`,
     ];
-    let from = sql.literal("items i");
     let rankedCandidates: ReturnType<typeof cardFromRow>[] | null = null;
     if (text && queryVector?.length) {
       const excluded = yield* sql<{ item_id: string }>`SELECT item_id FROM space_exclusions
@@ -297,8 +296,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     } else if (text && ctx.fts5Enabled) {
       const match = escapeFtsQuery(text);
       if (!match) return { cards: [], total: 0 };
-      from = sql.literal("items_fts f JOIN items i ON i.id = f.item_id");
-      clauses.push(sql`items_fts MATCH ${match}`);
+      clauses.push(sql`i.rowid IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ${match})`);
     } else if (text) {
       clauses.push(search.likeClause(sqlLikePattern(text), "i."));
     }
@@ -313,9 +311,9 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
       );
     }
     const where = sql.and(clauses);
-    const [{ total }] = yield* sql<{ total: number }>`SELECT COUNT(*) AS total FROM ${from}
+    const [{ total }] = yield* sql<{ total: number }>`SELECT COUNT(*) AS total FROM items i
       WHERE ${where}`;
-    const rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM ${from}
+    const rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM items i
       WHERE ${where} ORDER BY i.updated_at DESC, i.created_at DESC
       LIMIT ${rankedCandidates ? SMART_SPACE_CAP : cap}`;
     if (rankedCandidates) {
