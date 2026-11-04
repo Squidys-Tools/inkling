@@ -179,7 +179,7 @@
         ]
       }
     ],
-    "afterPack": "apps/desktop/after-pack.cjs",
+    "afterPack": "apps/desktop/after-pack.ts",
     "win": {
       "icon": "build/icon.ico",
       "target": [

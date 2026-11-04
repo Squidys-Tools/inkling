@@ -11,7 +11,7 @@ test("PR macOS signing is ad-hoc only and keeps strict verification, native smok
   expect(macJob).toContain("github.event.pull_request.head.repo.full_name == github.repository");
   const sign = macJob.indexOf("codesign --force --deep --sign - --timestamp=none");
   const verify = macJob.indexOf("codesign --verify --deep --strict");
-  const smoke = macJob.indexOf("bun tools/smoke/packaged-backend.mjs");
+  const smoke = macJob.indexOf("bun tools/smoke/packaged-backend.ts");
   const launch = macJob.indexOf("- name: Launch the packaged app");
   expect(sign).toBeGreaterThan(macJob.indexOf("run: bun run dist"));
   expect(verify).toBeGreaterThan(sign);

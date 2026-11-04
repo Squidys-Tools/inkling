@@ -18,7 +18,7 @@ Launches `bun run dev:app`'s app (build + Electron) against a scratch library, d
 
 ## Operational requirement: settle cleanup (T3)
 
-`t3.json` has an action "Clean verification scratch (.dev)" with `runOnSettle: true` that runs `bun .agents/skills/verify-inkling/scripts/clean-dev.mjs --settle`. T3 runs `runOnSettle` actions only for threads with their own worktree (main-checkout threads skip them), **and actions in `t3.json` only take effect after they are imported into the project's Settings > Actions**. If that action is not imported for this project, nothing cleans up on settle: tell the user. Settle runs while terminals may still be alive, so it never kills anything: if a recorded app pid (or any process naming our `.dev`) is still alive it exits 1 and leaves `.dev` alone. Always run the normal `cleanup` below yourself first; settle cleanup is the backstop, not the plan.
+`t3.json` has an action "Clean verification scratch (.dev)" with `runOnSettle: true` that runs `bun .claude/skills/verify-inkling/scripts/clean-dev.ts --settle`. T3 runs `runOnSettle` actions only for threads with their own worktree (main-checkout threads skip them), **and actions in `t3.json` only take effect after they are imported into the project's Settings > Actions**. If that action is not imported for this project, nothing cleans up on settle: tell the user. Settle runs while terminals may still be alive, so it never kills anything: if a recorded app pid (or any process naming our `.dev`) is still alive it exits 1 and leaves `.dev` alone. Always run the normal `cleanup` below yourself first; settle cleanup is the backstop, not the plan.
 
 ## Prerequisites
 
@@ -28,12 +28,12 @@ Launches `bun run dev:app`'s app (build + Electron) against a scratch library, d
 ## Launch
 
 ```sh
-bun .agents/skills/verify-inkling/scripts/instance.mjs launch            # seeded demo library (32 items, 3 Spaces)
-bun .agents/skills/verify-inkling/scripts/instance.mjs launch --empty    # empty library: opens on Welcome, no seed
-bun .agents/skills/verify-inkling/scripts/instance.mjs launch --skip-build   # reuse dist/ when you know it is current
+bun .claude/skills/verify-inkling/scripts/instance.ts launch            # seeded demo library (32 items, 3 Spaces)
+bun .claude/skills/verify-inkling/scripts/instance.ts launch --empty    # empty library: opens on Welcome, no seed
+bun .claude/skills/verify-inkling/scripts/instance.ts launch --skip-build   # reuse dist/ when you know it is current
 ```
 
-(All commands below take the same `bun .agents/skills/verify-inkling/scripts/instance.mjs` prefix; the path also works as `.claude/skills/verify-inkling/scripts/instance.mjs`.) Run from inside the worktree.
+(All commands below take the same `bun .claude/skills/verify-inkling/scripts/instance.ts` prefix.) Run from inside the worktree.
 
 It clears stale `.dev`, creates `.dev/verify-inkling/<run>/{library,agent-desktop}`, seeds the library with `seedLibrary` from `tools/dev/seeded-library.ts` (the same seed `dev:app` uses; it marks onboarding complete), runs `bun run build:app` (about 10 s warm), then starts `bun tools/dev/dev-app.ts --user-data-dir=<run>/library` detached (this is `dev:app` with an explicit, un-seeded data dir that we seeded ourselves). Ready means: Electron main found, its window listed by `agent-desktop list-windows`, `library.sqlite3` present, and the window snapshot shows the sidebar link "Everything" (or "Skip" with `--empty`). It prints a JSON object with `windowId`, `library`, `evidenceDir`, pids. About 15 s total. Logs: `.dev/verify-inkling/<run>/build.log`, `electron.log`.
 
@@ -44,7 +44,7 @@ It clears stale `.dev`, creates `.dev/verify-inkling/<run>/{library,agent-deskto
 Read-only. Run it first whenever anything looks off:
 
 ```sh
-bun .agents/skills/verify-inkling/scripts/instance.mjs doctor
+bun .claude/skills/verify-inkling/scripts/instance.ts doctor
 ```
 
 Every line must be PASS (exit 0): launcher pid alive and owning our `.dev` path, Electron main pid alive and owning it, library opens read-only with an item count, `dist/desktop` built (shows when), window found for our Electron pid, snapshot shows the ready marker. FAIL means relaunch (`cleanup`, then `launch`).
@@ -54,7 +54,7 @@ Every line must be PASS (exit 0): launcher pid alive and owning our `.dev` path,
 The helper wraps `agent-desktop` with `AGENT_DESKTOP_HOME` pointed under `.dev` (so ref/snapshot state is isolated and removed by cleanup). `{window}` expands to our app's window id, resolved from `list-windows` by our Electron pid.
 
 ```sh
-I="bun .agents/skills/verify-inkling/scripts/instance.mjs"
+I="bun .claude/skills/verify-inkling/scripts/instance.ts"
 $I tree                                   # flat list: ref role "name" value [actions]; prints the snapshot id
 $I tree --surface menu                    # same, while a menu is open
 $I ref button "Save to library"          # prints one fresh ref for an exact role + accessible name (retries only retry:safe errors)
@@ -95,21 +95,19 @@ A proof shows (1) state before, (2) each user action with the command that did i
 Run after every run, including failed ones and before you finish:
 
 ```sh
-bun .agents/skills/verify-inkling/scripts/instance.mjs cleanup
+bun .claude/skills/verify-inkling/scripts/instance.ts cleanup
 ```
 
 It stops the recorded pids (graceful `taskkill /T`, then `/F /T` after 4 s; only pids from `run.json` whose command line still names our `.dev`), verifies nothing referencing `.dev` remains, then deletes the whole `.dev` directory. If something unrecorded still references `.dev` it refuses and lists the pids: close those yourself. It takes about 15 s. Afterwards confirm: `.dev` gone, `ls .artifacts/verify-inkling/<run>/` still lists your evidence, other inkling windows untouched. Idempotent: with no `.dev` it says so and exits 0.
 
-Settle form (what T3 runs; never kills, fails safely if the app is alive): `bun .agents/skills/verify-inkling/scripts/clean-dev.mjs --settle`. Standalone stopping form: `clean-dev.mjs --stop`. Both refuse unless run with cwd inside this worktree, and operate only on the exact `<worktree>/.dev` (refused if it is a symlink).
+Settle form (what T3 runs; never kills, fails safely if the app is alive): `bun .claude/skills/verify-inkling/scripts/clean-dev.ts --settle`. Standalone stopping form: `clean-dev.ts --stop`. Both refuse unless run with cwd inside this worktree, and operate only on the exact `<worktree>/.dev` (refused if it is a symlink).
 
 ## Helpers
 
 | Script | What |
 |---|---|
-| `scripts/instance.mjs` | `launch [--empty] [--skip-build]`, `doctor`, `window`, `windows`, `ref <role> <name> [--contains] [--in <ref>]`, `tree [snapshot args]`, `ad <agent-desktop args>`, `shot <name>`, `db "<SELECT>"`, `cleanup` |
-| `scripts/clean-dev.mjs` | `--settle` / `--stop`: delete the worktree's `.dev`; shared guards and process logic |
-
-`.claude/skills/verify-inkling/` is a plain copy of this directory for Claude threads (no symlink). Edit `.agents/skills/verify-inkling/` first, then re-copy: `rm -rf .claude/skills/verify-inkling && cp -r .agents/skills/verify-inkling .claude/skills/verify-inkling`.
+| `scripts/instance.ts` | `launch [--empty] [--skip-build]`, `doctor`, `window`, `windows`, `ref <role> <name> [--contains] [--in <ref>]`, `tree [snapshot args]`, `ad <agent-desktop args>`, `shot <name>`, `db "<SELECT>"`, `cleanup` |
+| `scripts/clean-dev.ts` | `--settle` / `--stop`: delete the worktree's `.dev`; shared guards and process logic |
 
 Run with bun (they import `tools/dev/seeded-library.ts` and use `bun:sqlite`). Seed is the source for expected counts; if `seed-data.ts` changes, update the numbers in the feature files.
 

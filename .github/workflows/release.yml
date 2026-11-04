@@ -117,7 +117,7 @@ jobs:
         env:
           RELEASE_CHANNEL: ${{ needs.resolve.outputs.channel }}
           RELEASE_VERSION: ${{ inputs.version || needs.resolve.outputs.nightly_version || github.ref_name }}
-        run: bun tools/release/prepare.mjs
+        run: bun tools/release/prepare.ts
 
   # The same gates as ci.yml's static and test jobs, run on the commit being
   # released. Keep them in sync. Publishing waits for both.
@@ -204,7 +204,7 @@ jobs:
         env:
           RELEASE_CHANNEL: ${{ needs.metadata.outputs.channel }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-        run: bun tools/release/prepare.mjs
+        run: bun tools/release/prepare.ts
       - name: Build reviewed platform artifacts (never publish from builder)
         env:
           DIST_TARGET: ${{ matrix.target }}
@@ -225,21 +225,21 @@ jobs:
       - name: Exercise actual packaged Linux processing and local update feeds
         if: runner.os == 'Linux'
         run: |
-          bun tools/smoke/packaged-backend.mjs
-          bun tools/smoke/update-feed.mjs .artifacts/electron/linux-unpacked
+          bun tools/smoke/packaged-backend.ts
+          bun tools/smoke/update-feed.ts .artifacts/electron/linux-unpacked
           python3 -I -B apps/desktop/src/updates/update-helper.test.py
-          bun tools/smoke/media.mjs .artifacts/electron/linux-unpacked .artifacts/media-smoke
+          bun tools/smoke/media.ts .artifacts/electron/linux-unpacked
           xvfb-run -a bun tools/smoke/launch.ts .artifacts/electron/linux-unpacked/inkling
       - name: Exercise packaged macOS processing and its ad-hoc signature
         if: runner.os == 'macOS'
         run: |
           codesign --verify --deep --strict .artifacts/electron/mac-arm64/inkling.app
-          bun tools/smoke/packaged-backend.mjs
+          bun tools/smoke/packaged-backend.ts
           bun tools/smoke/launch.ts .artifacts/electron/mac-arm64/inkling.app/Contents/MacOS/inkling
       - name: Exercise packaged Windows processing
         if: runner.os == 'Windows'
         run: |
-          bun tools/smoke/packaged-backend.mjs
+          bun tools/smoke/packaged-backend.ts
           bun tools/smoke/launch.ts .artifacts/electron/win-unpacked/inkling.exe
       - uses: actions/upload-artifact@v7
         with:

@@ -1,13 +1,16 @@
 import { expect, test } from "bun:test";
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
-const { shouldReleaseNightly } = require("../../.github/scripts/nightly-release.cjs");
+import { shouldReleaseNightly } from "../../.github/scripts/nightly-release.cjs";
 
 const context = { repo: { owner: "o", repo: "r" }, sha: "candidate" };
 const core = { info() {} };
 
-function github(releases, comparisonStatus) {
+const nightly = (published_at: string) => ({
+  tag_name: "v0.1.1-nightly.20261103.14",
+  draft: false,
+  published_at,
+});
+
+function github(releases: ReturnType<typeof nightly>[], comparisonStatus: string) {
   return {
     paginate: async () => releases,
     rest: {
@@ -18,12 +21,6 @@ function github(releases, comparisonStatus) {
     },
   };
 }
-
-const nightly = (published_at) => ({
-  tag_name: "v0.1.1-nightly.20261103.14",
-  draft: false,
-  published_at,
-});
 
 // Slots open at 05:00, 13:00 and 21:00 UTC: midnight, 8am and 4pm EST.
 test.each([

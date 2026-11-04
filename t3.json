@@ -81,7 +81,7 @@
     },
     {
       "name": "Clean verification scratch (.dev)",
-      "command": "bun .agents/skills/verify-inkling/scripts/clean-dev.mjs --settle",
+      "command": "bun .claude/skills/verify-inkling/scripts/clean-dev.ts --settle",
       "icon": "debug",
       "runOnWorktreeCreate": false,
       "runOnSettle": true

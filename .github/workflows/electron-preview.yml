@@ -92,7 +92,7 @@ jobs:
         run: bun run dist
 
       - name: Check packaged OCR, PDF and native models
-        run: bun tools/smoke/packaged-backend.mjs
+        run: bun tools/smoke/packaged-backend.ts
 
       - name: Launch the packaged app and reach the library process
         run: bun tools/smoke/launch.ts .artifacts/electron/win-unpacked/inkling.exe
@@ -142,7 +142,7 @@ jobs:
         run: bun run dist
 
       - name: Check packaged Linux OCR, PDF and native models
-        run: bun tools/smoke/packaged-backend.mjs
+        run: bun tools/smoke/packaged-backend.ts
 
       - name: Launch the packaged app under Xvfb and reach the library process
         run: xvfb-run -a bun tools/smoke/launch.ts .artifacts/electron/linux-unpacked/inkling
@@ -203,7 +203,7 @@ jobs:
         run: codesign --verify --deep --strict .artifacts/electron/mac-arm64/inkling.app
 
       - name: Check packaged OCR, PDF and native models
-        run: bun tools/smoke/packaged-backend.mjs
+        run: bun tools/smoke/packaged-backend.ts
 
       - name: Launch the packaged app
         run: bun tools/smoke/launch.ts .artifacts/electron/mac-arm64/inkling.app/Contents/MacOS/inkling

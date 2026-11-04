@@ -7,7 +7,7 @@ test("compares only the latest push while its previous head is an ancestor", () 
       before: "previous-head",
       base: "main",
       head: "new-head",
-      isAncestor: (ancestor, descendant) =>
+      isAncestor: (ancestor: string, descendant: string) =>
         ancestor === "previous-head" && descendant === "new-head",
     }),
   ).toBe("previous-head");

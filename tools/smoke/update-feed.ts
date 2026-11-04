@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { createServer } from "node:http";
+import { createServer, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
 import { mkdtemp, mkdir, readFile, writeFile, rm, readdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -24,7 +25,10 @@ if (packaged && !process.versions.electron) {
   const require = packaged
     ? createRequire(join(packaged, "resources/app.asar/package.json"))
     : rootRequire;
-  const { AppImageUpdater, DebUpdater } = require("electron-updater");
+  const {
+    AppImageUpdater,
+    DebUpdater,
+  }: typeof import("electron-updater") = require("electron-updater");
   const { NodeHttpExecutor } = rootRequire(
     rootRequire.resolve("builder-util/out/nodeHttpExecutor.js", {
       paths: [rootRequire.resolve("electron-builder")],
@@ -33,7 +37,10 @@ if (packaged && !process.versions.electron) {
   const modulePath = packaged
     ? join(packaged, "resources/app.asar/dist/desktop/updates.mjs")
     : join(root, "apps/desktop/src/updates/controller.ts");
-  const { createUpdateController, createUpdatePreferences } = await import(
+  const {
+    createUpdateController,
+    createUpdatePreferences,
+  }: typeof import("../../apps/desktop/src/updates/controller.ts") = await import(
     pathToFileURL(modulePath).href
   );
   const scratch = await mkdtemp(join(tmpdir(), "inkling-real-update-"));
@@ -55,22 +62,24 @@ if (packaged && !process.versions.electron) {
   const debBytes = await readFile(debPath);
   let mode = "ok";
   let version = "0.1.1";
-  let requested;
+  let requested: ServerResponse | undefined;
   let onRequested = () => {};
   const server = createServer((req, res) => {
     // Node's reused sockets accumulate upstream timeout hooks; Electron net uses its own session.
     res.setHeader("Connection", "close");
-    const pathname = new URL(req.url, "http://localhost").pathname;
+    const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
     if (pathname.endsWith(".yml")) {
       if (mode === "offline") {
         res.writeHead(503).end("unavailable");
         return;
       }
-      const hash = (bytes) => createHash("sha512").update(bytes).digest("base64");
-      const files = [
-        ["inkling-test.AppImage", imageBytes],
-        ["inkling-test.deb", debBytes],
-      ].map(([url, bytes]) => ({
+      const hash = (bytes: Buffer) => createHash("sha512").update(bytes).digest("base64");
+      const files = (
+        [
+          ["inkling-test.AppImage", imageBytes],
+          ["inkling-test.deb", debBytes],
+        ] as const
+      ).map(([url, bytes]) => ({
         url,
         size: bytes.length,
         sha512: mode === "corrupt" ? hash(Buffer.from("wrong")) : hash(bytes),
@@ -90,10 +99,13 @@ if (packaged && !process.versions.electron) {
     res.writeHead(200, { "Content-Length": bytes.length, Connection: "close" });
     res.end(bytes);
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const feed = `http://127.0.0.1:${server.address().port}`;
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const feed = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   let sequence = 0;
-  async function setup(Kind, installer) {
+  async function setup(
+    Kind: typeof AppImageUpdater | typeof DebUpdater,
+    installer?: (file: string) => Promise<void>,
+  ) {
     const dir = join(scratch, String(sequence++));
     await mkdir(dir);
     const oldImage = join(dir, "inkling.AppImage");
@@ -117,9 +129,14 @@ if (packaged && !process.versions.electron) {
       relaunch: () => {},
     };
     const updater = new Kind({ provider: "generic", url: feed }, app);
-    updater.httpExecutor = new NodeHttpExecutor();
-    updater.httpExecutor.download =
-      require("electron-updater/out/electronHttpExecutor.js").ElectronHttpExecutor.prototype.download;
+    // Electron's net module exists only in the app's main process, so requests go over
+    // Node's http while downloads keep the app executor's cancellable download method.
+    Object.assign(updater, {
+      httpExecutor: Object.assign(new NodeHttpExecutor(), {
+        download: require("electron-updater/out/electronHttpExecutor.js").ElectronHttpExecutor
+          .prototype.download,
+      }),
+    });
     updater.disableDifferentialDownload = true;
     updater.logger = null;
     updater.setFeedURL({ provider: "generic", url: feed });
@@ -138,7 +155,7 @@ if (packaged && !process.versions.electron) {
   }
   try {
     const f = await setup(AppImageUpdater);
-    assert.equal((await f.controller.checkForUpdates()).version, version);
+    assert.equal((await f.controller.checkForUpdates())?.version, version);
     assert.equal((await f.controller.downloadUpdate(version)).status, "downloaded");
     assert.equal((await f.controller.installUpdate(version)).status, "installing");
     assert.deepEqual(await readFile(f.oldImage), imageBytes);
@@ -171,14 +188,14 @@ if (packaged && !process.versions.electron) {
     mode = "cancel";
     const canceled = await setup(DebUpdater);
     await canceled.controller.checkForUpdates();
-    const started = new Promise((resolve) => {
+    const started = new Promise<void>((resolve) => {
       onRequested = resolve;
     });
     const downloading = canceled.controller.downloadUpdate(version);
     await started;
     await assert.rejects(() => canceled.controller.setChannel("nightly"));
     await canceled.controller.cancelDownload();
-    requested.destroy();
+    requested!.destroy();
     assert.equal((await downloading).status, "cancelled");
     console.log(
       "PASS actual in-flight HTTP cancellation, no installer admission, single-flight channel guard",
@@ -189,7 +206,7 @@ if (packaged && !process.versions.electron) {
     const nightly = await setup(DebUpdater);
     assert.equal(await nightly.controller.checkForUpdates(), null);
     await nightly.controller.setChannel("nightly");
-    assert.equal((await nightly.controller.checkForUpdates()).version, version);
+    assert.equal((await nightly.controller.checkForUpdates())?.version, version);
     assert.equal(nightly.updater.allowDowngrade, false);
     mode = "offline";
     assert.equal(await nightly.controller.checkForUpdates(), null);
