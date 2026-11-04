@@ -31,6 +31,14 @@ const vendoredNotices = [
     noticeFile: "apps/renderer/licenses/LICENSE-rare-ui.md",
   },
   {
+    name: "border-beam",
+    license: "MIT",
+    sourceUrl: "https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/border-beam",
+    description:
+      "The light that travels a card's edge while it loads, in apps/renderer/src/cards/beamGradients.ts.",
+    noticeFile: "apps/renderer/licenses/LICENSE-border-beam.md",
+  },
+  {
     name: "React Bits Gradual Blur",
     license: "MIT + Commons Clause",
     sourceUrl: "https://reactbits.dev/animations/gradual-blur",

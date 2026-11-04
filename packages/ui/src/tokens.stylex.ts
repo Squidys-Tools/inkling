@@ -201,6 +201,28 @@ export const cardColor = stylex.defineVars({
   dropWash: "rgba(176, 113, 79, 0.1)",
 });
 
+// A card's loading states. The ring and mosaic draw on a canvas and the beam's
+// gradients mix these in CSS, so both take constants rather than variables.
+export const loadingColor = stylex.defineConsts({
+  ringInk: "#dad1c4",
+  mosaicBase: "#161412",
+  ringEdge: "rgba(218, 209, 196, 0.3)",
+  ringGlow: "rgba(218, 209, 196, 0.1)",
+  beamTint: "#b4b4b4",
+  beamTintDeep: "#8c8c8c",
+  beamTintSoft: "rgba(180, 180, 180, 0.225)",
+  beamTintDeepSoft: "rgba(140, 140, 140, 0.225)",
+  beamLightFaint: "rgba(255, 255, 255, 0.1)",
+  beamLightSoft: "rgba(255, 255, 255, 0.35)",
+  beamLightMid: "rgba(255, 255, 255, 0.6)",
+  beamLightStrong: "rgba(255, 255, 255, 0.85)",
+  beamMask: "#000000",
+  failedGrey: "#808080",
+  waitingVeil: "rgba(18, 17, 16, 0.34)",
+  failedVeil: "rgba(18, 17, 16, 0.52)",
+  failedEdge: "#34302d",
+});
+
 // The item view's stage, the reader and the note editor.
 export const itemColor = stylex.defineVars({
   stage: "#121110",

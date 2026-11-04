@@ -63,8 +63,7 @@ export function matchesSearch({ card, body }: Entry, query: string) {
     .every((term) => text.includes(term));
 }
 
-function job(itemId: string, status: Job["status"]): Job {
-  const now = Date.now();
+function job(itemId: string, status: Job["status"], now = Date.now()): Job {
   return {
     id: `job-${itemId}`,
     itemId,
@@ -90,8 +89,11 @@ export function createPreviewClient(): LibraryClient {
   const membership = new Map(Object.entries(seedMembership).map(([id, ids]) => [id, new Set(ids)]));
   const exclusions = new Map<string, Set<string>>();
   const jobs = new Map<string, Job>([
-    [seedJobs.processing, job(seedJobs.processing, "processing")],
-    [seedJobs.failed, job(seedJobs.failed, "failed")],
+    [
+      seedJobs.processing,
+      job(seedJobs.processing, "processing", items.get(seedJobs.processing)?.card.createdAt),
+    ],
+    [seedJobs.failed, job(seedJobs.failed, "failed", items.get(seedJobs.failed)?.card.createdAt)],
   ]);
   const listeners = new Set<(change: LibraryChange) => void>();
   const emit = (change: LibraryChange) => {

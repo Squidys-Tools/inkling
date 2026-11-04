@@ -7,7 +7,7 @@ import type { Processing } from "../library/jobs.ts";
 import { cardMarker, libraryMarker } from "../markers.stylex.ts";
 import { CardImage, CardMedia } from "./CardMedia.tsx";
 import { CardText } from "./CardText.tsx";
-import { ProcessingBadge } from "./Processing.tsx";
+import { CardState } from "./CardState.tsx";
 
 // The first rows load their images ahead of the rest.
 const priorityCount = 8;
@@ -95,7 +95,7 @@ export function CardFace({
             onRetry={onRetry}
           />
         )}
-        {!list && processing && <ProcessingBadge processing={processing} onRetry={onRetry} />}
+        {!list && <CardState view={view} processing={processing} onRetry={onRetry} />}
       </article>
     </div>
   );

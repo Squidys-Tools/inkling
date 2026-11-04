@@ -7,6 +7,8 @@ export type Processing = {
   progressCurrent: number;
   progressTotal: number | null;
   failedJob: { id: string; message: string } | null;
+  /** When the oldest job behind this state was queued: a new capture queues its jobs at once. */
+  startedAt: number;
 };
 
 /**
@@ -24,6 +26,7 @@ export function summarizeJobs(jobs: readonly Job[]): Processing | null {
   const active = current.filter((job) => job.status === "pending" || job.status === "processing");
   if (!failed && active.length === 0) return null;
   const totals = active.filter((job) => job.progressTotal !== null);
+  const deciding = active.length > 0 ? active : current.filter((job) => job === failed);
   return {
     active: active.length > 0,
     message: active.find((job) => job.progressMessage)?.progressMessage ?? null,
@@ -34,6 +37,7 @@ export function summarizeJobs(jobs: readonly Job[]): Processing | null {
     failedJob: failed
       ? { id: failed.id, message: failed.errorMessage ?? "Processing failed" }
       : null,
+    startedAt: Math.min(...deciding.map((job) => job.createdAt)),
   };
 }
 
@@ -44,7 +48,8 @@ const same = (left: Processing | undefined, right: Processing | null) =>
   left.message === right.message &&
   left.progressCurrent === right.progressCurrent &&
   left.progressTotal === right.progressTotal &&
-  left.failedJob?.id === right.failedJob?.id;
+  left.failedJob?.id === right.failedJob?.id &&
+  left.startedAt === right.startedAt;
 
 /** Applies fresh job lists for `itemIds`, keeping unchanged summaries so their cards stay put. */
 export function withJobs(
