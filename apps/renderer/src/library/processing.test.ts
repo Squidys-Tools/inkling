@@ -43,7 +43,19 @@ describe("job summaries", () => {
       progressCurrent: 1,
       progressTotal: 3,
       failedJob: { id: "1", message: "broken" },
+      startedAt: 2,
     });
+  });
+
+  it("dates a summary by the oldest running job, or the failure when nothing runs", () => {
+    const running = [
+      job({ id: "1", kind: "thumbnail", status: "processing", createdAt: 5 }),
+      job({ id: "2", kind: "ocr", status: "pending", createdAt: 3 }),
+      job({ id: "3", kind: "embedding", status: "completed", createdAt: 1 }),
+    ];
+    expect(summarizeJobs(running)?.startedAt).toBe(3);
+    const failed = [job({ id: "4", kind: "ocr", status: "failed", createdAt: 9 }), running[2]!];
+    expect(summarizeJobs(failed)?.startedAt).toBe(9);
   });
 
   it("keeps an unchanged summary's object so its card does not re-render", () => {
