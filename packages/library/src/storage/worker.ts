@@ -17,7 +17,6 @@ export type WorkerOptions<R> = {
   // A hung model, decoder, or fetch fails its job after this long instead of
   // holding the worker forever. Kinds without an entry get `defaultTimeout`.
   timeouts?: Partial<Record<string, Duration.Input>>;
-  defaultTimeout?: Duration.Input;
   pollInterval?: Duration.Input;
   workerId?: string;
   // Runs when nothing is claimable, so backfills only queue work while the worker is free.
@@ -26,10 +25,11 @@ export type WorkerOptions<R> = {
   ready?: Effect.Effect<void, never, R>;
 };
 
+const defaultTimeout = Duration.minutes(30);
+
 export const makeWorker = Effect.fnUntraced(function* <R>({
   processors,
   timeouts = {},
-  defaultTimeout = Duration.minutes(30),
   pollInterval = Duration.seconds(5),
   workerId = randomUUID(),
   onIdle,
