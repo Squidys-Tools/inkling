@@ -218,6 +218,7 @@ export function Aperture() {
             character={2}
             label="Inkling tip: find it in your own words"
             tip="Remember a colour, a subject, or a few words? Describe it to find what you saved."
+            pinned
             style={styles.buddy}
           />
           <MascotHint
@@ -225,6 +226,7 @@ export function Aperture() {
             side="right"
             label="Inkling tip: everything together"
             tip="Images, notes, articles and videos can all live in the same visual library. No perfect filing system required."
+            pinned
             style={styles.buddy}
           />
         </div>
