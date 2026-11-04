@@ -32,7 +32,7 @@ URL ingestion downloads through Effect's HTTP client, which retries rate limits,
 
 Components style themselves with `stylex.create` against the tokens in `packages/ui/src/tokens.stylex.ts`, the only file with color values. There are no hand-written stylesheets: global resets go on `<html>` and `<body>` through `stylex.props`, the reader turns sanitized article HTML into React elements with a StyleX style per tag, TipTap nodes get StyleX class names through their extensions, and fonts register through the `FontFace` API. The lint rules `inkling/no-color-literals` and `inkling/no-css-imports` keep it that way, so the only CSS shipped is what StyleX generates. Base UI supplies behavior and accessibility for dialogs, menus and buttons, with no theme of its own.
 
-Floating controls over the library are glass: one `Glass` component in `packages/ui`, a CSS `backdrop-filter`. At most three glass surfaces are on screen, none resizing while it animates, and card surfaces never are.
+Floating controls over the library are glass: one `Glass` component in `packages/ui`, a CSS `backdrop-filter`. At most three glass surfaces are on screen, none resizing while it animates, and card surfaces never are. The library's top and bottom edges blur the cards under them with five stacked `backdrop-filter` layers each, 70px tall; on an Intel Iris Xe a scrolling grid held 75 fps with that, and dropped frames at ten layers.
 
 ## Article extraction
 

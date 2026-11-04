@@ -1,45 +1,41 @@
 // Adapted from React Bits' Gradual Blur (https://reactbits.dev/animations/gradual-blur),
-// Copyright (c) 2026 David Haz, MIT + Commons Clause; see apps/renderer/licenses/LICENSE-react-bits.md.
+// DavidHDev/react-bits @ 1eeb6f1 src/content/Animations/GradualBlur/GradualBlur.jsx.
+// Copyright (c) 2026 David Haz, MIT + Commons Clause, as the repo's LICENSE.md @ 1eeb6f1
+// grants it; see apps/renderer/licenses/LICENSE-react-bits.md.
 
 import * as stylex from "@stylexjs/stylex";
 
 const layerCount = 5;
-const strength = 2;
+const maxBlur = 32;
 const height = 70;
 
 type Edge = "top" | "bottom";
 
-// Ease-in with exponential blur: nearly all of the blur sits at the outer edge.
-// A layer's backdrop-filter covers the whole strip and its mask only decides where
-// the result shows, so the cost is layers x height x radius.
+// Each layer's backdrop-filter blurs the whole strip and its mask only picks the band that
+// shows, so scrolling costs layers x height x radius: grow any of them only after measuring.
 function layerStyles(edge: Edge) {
   const direction = edge === "top" ? "to top" : "to bottom";
   const step = 100 / layerCount;
-  const round = (value: number) => Math.round(value * 10) / 10;
   return Array.from({ length: layerCount }, (_, index) => {
     const layer = index + 1;
-    const eased = (layer / layerCount) ** 2;
-    const blur = 2 ** (eased * 4) * 0.0625 * strength * 16;
-    const stops = [`transparent ${round(step * layer - step)}%`, `black ${round(step * layer)}%`];
-    if (step * layer + step <= 100) stops.push(`black ${round(step * layer + step)}%`);
-    if (step * layer + step * 2 <= 100)
-      stops.push(`transparent ${round(step * layer + step * 2)}%`);
-    const mask = `linear-gradient(${direction}, ${stops.join(", ")})`;
-    return { maskImage: mask, backdropFilter: `blur(${blur.toFixed(2)}px)` };
+    const blur = maxBlur * 2 ** (4 * ((layer / layerCount) ** 2 - 1));
+    const stops = [`transparent ${step * (layer - 1)}%`, `black ${step * layer}%`];
+    if (layer + 1 <= layerCount) stops.push(`black ${step * (layer + 1)}%`);
+    if (layer + 2 <= layerCount) stops.push(`transparent ${step * (layer + 2)}%`);
+    return {
+      mask: `linear-gradient(${direction}, ${stops.join(", ")})`,
+      blur: `blur(${blur.toFixed(2)}px)`,
+    };
   });
 }
 
 const layers = { top: layerStyles("top"), bottom: layerStyles("bottom") };
 
-/** Blurs whatever scrolls under the edge of the frame it sits in. */
 export function GradualBlur({ edge }: { edge: Edge }) {
   return (
-    <div
-      aria-hidden="true"
-      {...stylex.props(styles.strip, edge === "top" ? styles.top : styles.bottom)}
-    >
-      {layers[edge].map((style) => (
-        <div key={style.maskImage} style={style} {...stylex.props(styles.layer)} />
+    <div aria-hidden="true" {...stylex.props(styles.strip, styles[edge])}>
+      {layers[edge].map(({ mask, blur }) => (
+        <div key={mask} {...stylex.props(styles.layer(mask, blur))} />
       ))}
     </div>
   );
@@ -57,5 +53,10 @@ const styles = stylex.create({
   },
   top: { top: 0 },
   bottom: { bottom: 0 },
-  layer: { position: "absolute", inset: 0 },
+  layer: (mask: string, blur: string) => ({
+    position: "absolute",
+    inset: 0,
+    maskImage: mask,
+    backdropFilter: blur,
+  }),
 });
