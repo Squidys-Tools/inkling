@@ -34,10 +34,7 @@ export const color = stylex.defineVars({
   onCaptionClose: "#ffffff",
   success: "#7fa08d",
   successStrong: "#a5c3b1",
-  successSoft: "#26332c",
 
-  paperBlue: "#243136",
-  paperGreen: "#26332c",
   paperYellow: "#3a3524",
 
   glass: "rgba(12, 11, 10, 0.62)",
@@ -113,7 +110,6 @@ export const text = stylex.defineVars({
   lg: "15px",
   xl: "18px",
   xxl: "24px",
-  display: "32px",
 });
 
 // A 4px grid.
@@ -157,7 +153,6 @@ export const motion = stylex.defineVars({
 
 export const layout = stylex.defineVars({
   titlebar: "32px",
-  sidebar: "232px",
 });
 
 // The mascot draws on a canvas, which takes concrete colors, not CSS variables,
@@ -196,7 +191,6 @@ export const cardColor = stylex.defineVars({
   controlEdge: "#4a4842",
   tileMeta: "#6f685f",
   tileButton: "rgba(12, 12, 11, 0.72)",
-  tileButtonHover: "rgba(12, 12, 11, 0.9)",
   deleteHover: "#3a251d",
   deleteInkHover: "#f0b095",
   dangerTool: "#e08a5e",
@@ -206,15 +200,7 @@ export const cardColor = stylex.defineVars({
   addHighlight: "rgba(255, 255, 255, 0.55)",
   addLowlight: "rgba(0, 0, 0, 0.08)",
   addShadow: "rgba(0, 0, 0, 0.35)",
-  glassHighlight: "rgba(255, 255, 255, 0.1)",
-  glassTopEdge: "rgba(255, 255, 255, 0.16)",
-  glassBottomEdge: "rgba(255, 255, 255, 0.04)",
-  glassInnerShade: "rgba(0, 0, 0, 0.3)",
-  sidebarShadow: "rgba(0, 0, 0, 0.45)",
   sidebarScrim: "rgba(10, 10, 9, 0.48)",
-  kbdEdge: "#3e3a36",
-  roundControl: "#34302c",
-  roundControlHover: "#45403a",
   dropWash: "rgba(176, 113, 79, 0.1)",
 });
 

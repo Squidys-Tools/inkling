@@ -21,8 +21,8 @@ import { assetsDirectoryOf } from "./protocol.ts";
 import { appUpdates } from "./updates/app-updates.ts";
 
 // The page is untrusted, so every argument it sends is checked before use.
-function text(value: unknown, maxLength = 500) {
-  if (typeof value !== "string" || value.length > maxLength) throw new Error("Invalid request.");
+function text(value: unknown) {
+  if (typeof value !== "string" || value.length > 500) throw new Error("Invalid request.");
   return value;
 }
 function updateChannel(value: unknown): UpdateChannel {

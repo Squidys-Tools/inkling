@@ -1,6 +1,6 @@
 import type { Command, Platform } from "./shortcuts.ts";
 
-export type { Command, Platform } from "./shortcuts.ts";
+export type { Platform } from "./shortcuts.ts";
 
 /**
  * Main chooses native macOS traffic lights, the app's own right-hand buttons,

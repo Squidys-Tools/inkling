@@ -9,6 +9,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { IconButton } from "@inkling/ui";
 import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
+import { useHotkeys } from "@tanstack/react-hotkeys";
 import {
   getDocument,
   GlobalWorkerOptions,
@@ -16,7 +17,7 @@ import {
   type RenderTask,
 } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -124,26 +125,16 @@ export function PdfViewer({
 
   const turn = (delta: number) =>
     setPageNumber(Math.min(Math.max(1, page + delta), Math.max(1, pageCount)));
-  const turnOnKey = useEffectEvent(turn);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      // Alt+Left and the like are Back and Forward.
-      if (event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey) return;
-      // The Info and Similar tabs move with the arrow keys too.
-      if (
-        event.target instanceof Element &&
-        event.target.closest('input, textarea, select, [role="tablist"]')
-      )
-        return;
-      if (event.key === "ArrowLeft" || event.key === "PageUp") turnOnKey(-1);
-      else if (event.key === "ArrowRight" || event.key === "PageDown") turnOnKey(1);
-      else return;
-      event.preventDefault();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  // Arrow keys a focused field or the Info and Similar tabs use stay with them.
+  useHotkeys(
+    [
+      { hotkey: "ArrowLeft", callback: () => turn(-1) },
+      { hotkey: "PageUp", callback: () => turn(-1) },
+      { hotkey: "ArrowRight", callback: () => turn(1) },
+      { hotkey: "PageDown", callback: () => turn(1) },
+    ],
+    { ignoreDefaultPrevented: true },
+  );
 
   return (
     <section aria-label={title} {...stylex.props(styles.viewer)}>
