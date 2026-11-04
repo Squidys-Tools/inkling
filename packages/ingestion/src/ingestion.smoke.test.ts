@@ -252,7 +252,7 @@ test("ingestion pipeline", async () => {
     lookupHost,
     fetch: stubFetch(async (url) => {
       assert(
-        String(url).startsWith("https://www.youtube.com/oembed.json?url="),
+        String(url).startsWith("https://www.youtube.com/oembed?format=json&url="),
         "video indexing uses the provider oEmbed endpoint",
       );
       return new Response(
