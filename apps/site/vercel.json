@@ -5,5 +5,9 @@
   "buildCommand": "~/.bun/bin/bun run build",
   "outputDirectory": "dist/client",
   "cleanUrls": true,
+  "redirects": [
+    { "source": "/media/stories/credits.html", "destination": "/credits", "permanent": true },
+    { "source": "/media/stories/credits", "destination": "/credits", "permanent": true }
+  ],
   "git": { "deploymentEnabled": false }
 }

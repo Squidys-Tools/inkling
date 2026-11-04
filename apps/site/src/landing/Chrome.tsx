@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { GithubIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { landingColor } from "@inkling/ui/tokens.stylex";
+import { Link } from "@tanstack/react-router";
 import { useInView } from "motion/react";
 import { useRef } from "react";
 import { repository } from "../layout/links.ts";
@@ -114,12 +115,9 @@ export function Finale({ calm, setCalm }: { calm: boolean; setCalm: (calm: boole
               Releases
               <ExternalArrow />
             </a>
-            <a
-              href="/media/stories/credits.html"
-              {...stylex.props(base.link, base.focus, styles.link)}
-            >
+            <Link to="/credits" {...stylex.props(base.link, base.focus, styles.link)}>
               Image credits
-            </a>
+            </Link>
           </nav>
           <button
             type="button"
