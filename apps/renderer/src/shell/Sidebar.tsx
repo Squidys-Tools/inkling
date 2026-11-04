@@ -39,7 +39,7 @@ function DotGrid() {
 function SidebarMascot() {
   const query = useSearch((state) => state.query);
   const captureFailed = useCaptureState((state) => state.error !== null);
-  // Codex keeps the mascot as the compact rail's way back, even during search.
+  // The mascot stays as the compact rail's way back, even during search.
   const mood = useMascotMood({ searchFocused: false, query, captureFailed });
   return <Mascot mood={mood} size={44} visible />;
 }
@@ -60,7 +60,6 @@ function UpdateRow({ compact }: { compact: boolean }) {
   );
 }
 
-/** Codex is the only sidebar: full navigation or a persistent, usable compact rail. */
 export function Sidebar({
   open,
   visualOpen,
