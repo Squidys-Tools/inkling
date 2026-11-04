@@ -22,7 +22,6 @@ export function filterLicenses(
   licenses: ReadonlySet<string>,
 ) {
   const needle = query.trim().toLowerCase();
-  if (!needle && licenses.size === 0) return entries;
   return entries.filter(
     (entry) =>
       (licenses.size === 0 || licenses.has(entry.license)) &&
@@ -30,18 +29,4 @@ export function filterLicenses(
         field?.toLowerCase().includes(needle),
       ),
   );
-}
-
-let loading: Promise<ThirdPartyLicense[]> | undefined;
-
-/** Fetched on first open, so the notices never weigh on startup. A failure lets the next open retry. */
-export function loadLicenses() {
-  loading ??= fetch(new URL("third-party-licenses.json", document.baseURI)).then((response) => {
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json() as Promise<ThirdPartyLicense[]>;
-  });
-  loading.catch(() => {
-    loading = undefined;
-  });
-  return loading;
 }
