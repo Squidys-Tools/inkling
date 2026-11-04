@@ -32,7 +32,7 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
   );
   const probe = [
     'import { readFileSync } from "node:fs";',
-    'const { Effect, Exit } = await import("effect");',
+    'const { Cause, Effect, Exit } = await import("effect");',
     `const { makeWorkerHandlers } = await import(${JSON.stringify(handlersUrl)});`,
     'const loadedModules = () => readFileSync(process.env.INKLING_MODULE_LOAD_LOG, "utf8").trim().split("\\n").filter(Boolean);',
     "const countLoaded = (part) => loadedModules().filter((url) => url.includes(part)).length;",
@@ -59,7 +59,9 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
     "})));",
     "const pdfModuleLoads = countLoaded(pdfUrl);",
     "const canvasEntryLoads = countLoaded(canvasEntryUrl);",
-    'if (pdfModuleLoads !== 1 || canvasEntryLoads !== 1 || !Exit.isFailure(job)) throw new Error("The PDF job did not load its dependencies once and reject the file");',
+    // Only pdf.js's own parse error shows that the canvas entry and pdf.js both ran.
+    'const rejected = Exit.isFailure(job) && Cause.pretty(job.cause).includes("Invalid PDF structure");',
+    'if (pdfModuleLoads !== 1 || canvasEntryLoads !== 1 || !rejected) throw new Error("The PDF job did not load its dependencies once and have pdf.js reject the file");',
     "console.log(JSON.stringify({ pdfModuleLoads, canvasEntryLoads }));",
     // The answer is in; an open handle must not keep spawnSync waiting.
     "process.exit(0);",
