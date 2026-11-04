@@ -5,6 +5,8 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { Toast } from "@base-ui/react/toast";
+import { bindingsFor, shortcuts } from "@inkling/contracts/shortcuts";
+import { useHotkey, useHotkeys } from "@tanstack/react-hotkeys";
 import { createNotifications } from "./toasts.ts";
 
 function load<T>(path: string, inject: Record<string, unknown>, exports: string): T {
@@ -80,6 +82,7 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
     "../shell/useCommands.ts",
     {
       useEffect: React.useEffect,
+      useHotkeys,
       useRouter: () => router,
       desktop: {
         onCommand: (fn: typeof fromMenu) => {
@@ -88,7 +91,8 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
         },
       },
       platform: "linux",
-      commandForKey: (event: KeyboardEvent) => (event.key === "k" ? "search" : undefined),
+      bindingsFor,
+      shortcuts,
       setSettingsSheetOpen: () => calls.push("settings"),
       runHandledCommand: (command: string) => calls.push(command),
     },
@@ -96,7 +100,7 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
   );
   const { useEscape } = load<{ useEscape: (run: () => void) => void }>(
     "../item/useEscape.ts",
-    { useEffect: React.useEffect, useEffectEvent: React.useEffectEvent },
+    { useHotkey },
     "useEscape",
   );
   // Root/events are real; StyleX and the SSR-safe Portal boundary are inert in JSDOM.
@@ -142,7 +146,9 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
     await act(async () => {
       fromMenu("search");
       fromMenu("openSettings");
-      page.dispatchEvent(new f.dom.window.KeyboardEvent("keydown", { key: "k", bubbles: true }));
+      page.dispatchEvent(
+        new f.dom.window.KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
+      );
       page.dispatchEvent(new f.dom.window.MouseEvent("mouseup", { button: 3, bubbles: true }));
       escape(page);
     });
@@ -154,6 +160,9 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
     document.body.append(modal);
     await act(async () => {
       fromMenu("search");
+      page.dispatchEvent(
+        new f.dom.window.KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
+      );
       escape(page);
     });
     expect(calls).toHaveLength(4);

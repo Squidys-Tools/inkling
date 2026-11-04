@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { color, font } from "@inkling/ui/tokens.stylex";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useHotkey } from "@tanstack/react-hotkeys";
+import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "../mascot/motion.ts";
 import { preloadOnboardingPhotos } from "./media.ts";
 import { LAST_SCREEN, Screen } from "./screens.tsx";
@@ -71,14 +72,7 @@ export function Welcome({ onFinish }: { onFinish: () => void }) {
     leaveTimer.current = window.setTimeout(land, LEAVE_MS);
   };
 
-  const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (event.key === "Escape") go("close");
-  });
-  useEffect(() => {
-    const listener = (event: KeyboardEvent) => onKeyDown(event);
-    window.addEventListener("keydown", listener);
-    return () => window.removeEventListener("keydown", listener);
-  }, []);
+  useHotkey("Escape", () => go("close"));
 
   const nav = {
     onAdvance: () => go(screen === LAST_SCREEN ? "close" : screen + 1),
