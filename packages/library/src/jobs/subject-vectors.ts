@@ -1,5 +1,5 @@
 import { visualSubjects } from "@inkling/ingestion/photo-subjects";
-import { Duration, Effect } from "effect";
+import { Duration, Effect, Option } from "effect";
 import { photoSearchLabels, photoSearchSubjects } from "../storage/photo-search.ts";
 import {
   interfaceLabel,
@@ -48,8 +48,8 @@ export function makeSubjectVectors() {
   // Search adds confuser prompts without changing the Map the Smart Space classifier sees.
   let photoPrompts: SubjectVectors | null = null;
   const photoQueryPrompts = new Map<string, SubjectVectors>();
-  const loadPhotoSearchVectors = (query: string) =>
-    Effect.gen(function* () {
+  const loadPhotoSearchVectors = Effect.fnUntraced(
+    function* (query: string) {
       if (!photoPrompts) {
         const base = yield* loadSubjectVectors;
         if (!base) return null;
@@ -87,11 +87,11 @@ export function makeSubjectVectors() {
         photoQueryPrompts.delete(photoQueryPrompts.keys().next().value!);
       photoQueryPrompts.set(key, prompts);
       return prompts;
-    }).pipe(
-      Effect.timeoutOption(subjectWait),
-      Effect.map((result) => (result._tag === "Some" ? result.value : null)),
-      Effect.orElseSucceed(() => null),
-    );
+    },
+    Effect.timeoutOption(subjectWait),
+    Effect.map(Option.getOrNull),
+    Effect.orElseSucceed(() => null),
+  );
 
   return { loadSubjectVectors, loadPhotoSearchVectors };
 }

@@ -228,7 +228,8 @@ const storage = libraryLayer({
   databasePath,
   appVersion,
   jobQueue: {
-    onUpdated: (itemId) => Effect.runFork(publish({ _tag: "JobsChanged", itemIds: [itemId] })),
+    onUpdated: (itemId) =>
+      PubSub.publishUnsafe(changes, { _tag: "JobsChanged", itemIds: [itemId] }),
   },
   media: {
     // A header read on capture, kept here so a busy worker never delays a save.
