@@ -9,7 +9,7 @@
       ],
       "ignoreDependencies": ["@img/sharp-wasm32", "electron-builder"],
       "ignoreBinaries": ["dpkg-deb"],
-      "ignore": [".agents/**", ".claude/**", ".github/scripts/**"]
+      "ignore": [".agents/**", ".claude/**"]
     },
     "apps/desktop": {
       "entry": ["src/main.ts", "src/preload.ts", "build.ts", "after-pack.cjs"],

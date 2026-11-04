@@ -17,12 +17,11 @@ const CAPTURES_PATH = "/v1/captures";
 function send(
   response: ServerResponse,
   status: number,
-  statusText: string,
   headers: Record<string, string>,
   value?: unknown,
 ) {
   const body = Buffer.from(value === undefined ? "" : JSON.stringify(value), "utf8");
-  response.writeHead(status, statusText, {
+  response.writeHead(status, {
     "Content-Type": "application/json",
     "Content-Length": body.length,
     Connection: "close",
@@ -64,7 +63,7 @@ async function readBody(request: IncomingMessage) {
   return Buffer.concat(chunks, length);
 }
 
-type SaveCapture = (capture: DeepLinkCapture) => Promise<{ id: string } | null | undefined>;
+type SaveCapture = (capture: DeepLinkCapture) => Promise<{ id: string }>;
 
 async function handleRequest(
   request: IncomingMessage,
@@ -74,7 +73,7 @@ async function handleRequest(
   const origin = request.headers.origin;
   const cors = corsHeaders(origin);
   if (request.method === "OPTIONS") {
-    send(response, 204, "No Content", {
+    send(response, 204, {
       ...cors,
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Authorization, Content-Type",
@@ -83,36 +82,30 @@ async function handleRequest(
     return;
   }
   if (!originAllowed(origin)) {
-    send(response, 403, "Forbidden", cors, { error: "origin-not-allowed" });
+    send(response, 403, cors, { error: "origin-not-allowed" });
     return;
   }
   const presentedToken = bearerToken(request.headers);
   if (!presentedToken || !tokensEqual(presentedToken, token)) {
-    send(response, 401, "Unauthorized", cors, { error: "unauthorized" });
+    send(response, 401, cors, { error: "unauthorized" });
     return;
   }
   if (!allowRequest()) {
-    send(
-      response,
-      429,
-      "Too Many Requests",
-      { ...cors, "Retry-After": "60" },
-      { error: "rate-limited" },
-    );
+    send(response, 429, { ...cors, "Retry-After": "60" }, { error: "rate-limited" });
     return;
   }
   const path = requestPath(request.url ?? "/");
   if (request.method === "GET" && path === HEALTH_PATH) {
-    send(response, 200, "OK", cors, { status: "ok" });
+    send(response, 200, cors, { status: "ok" });
     return;
   }
   if (request.method !== "POST" || path !== CAPTURES_PATH) {
-    send(response, 404, "Not Found", cors, { error: "not-found" });
+    send(response, 404, cors, { error: "not-found" });
     return;
   }
   const contentType = request.headers["content-type"]?.split(";", 1)[0].trim().toLowerCase();
   if (contentType !== "application/json") {
-    send(response, 415, "Unsupported Media Type", cors, { error: "json-only" });
+    send(response, 415, cors, { error: "json-only" });
     return;
   }
   let body: Buffer;
@@ -121,7 +114,7 @@ async function handleRequest(
   } catch (error) {
     const reason = error instanceof Error ? error.message : "bad-request";
     const tooLarge = reason === "body-too-large";
-    send(response, tooLarge ? 413 : 400, tooLarge ? "Payload Too Large" : "Bad Request", cors, {
+    send(response, tooLarge ? 413 : 400, cors, {
       error: tooLarge ? "body-too-large" : "bad-request",
     });
     return;
@@ -130,7 +123,7 @@ async function handleRequest(
   try {
     capture = validateCapturePayload(body);
   } catch (error) {
-    send(response, 422, "Unprocessable Entity", cors, {
+    send(response, 422, cors, {
       error: "invalid-capture",
       message: error instanceof Error ? error.message : "invalid capture payload",
     });
@@ -141,11 +134,10 @@ async function handleRequest(
   // It stays bounded: quitting waits for this request.
   request.setTimeout(SAVE_TIMEOUT);
   try {
-    const item = await save(capture);
-    if (!item?.id) throw new Error("storage returned no item id");
-    send(response, 201, "Created", cors, { id: item.id });
+    const { id } = await save(capture);
+    send(response, 201, cors, { id });
   } catch {
-    send(response, 503, "Unavailable", cors, { error: "storage-unavailable" });
+    send(response, 503, cors, { error: "storage-unavailable" });
   }
 }
 
@@ -165,7 +157,7 @@ export async function startCaptureServer({
   const server = createServer({ maxHeaderSize: MAX_HEAD_BYTES }, (request, response) => {
     request.setTimeout(READ_TIMEOUT, () => {
       if (!response.headersSent) {
-        send(response, 400, "Bad Request", {}, { error: "bad-request" });
+        send(response, 400, {}, { error: "bad-request" });
       }
       request.destroy();
     });

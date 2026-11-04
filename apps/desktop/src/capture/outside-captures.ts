@@ -44,10 +44,6 @@ export function outsideCaptures({
   });
   let server: Awaited<ReturnType<typeof startCaptureServer>> | undefined;
   let screenshots: ReturnType<typeof createScreenshotImporter> | undefined;
-  const screenshotImporter = () => {
-    if (!screenshots) throw new Error("Screenshot import is not ready.");
-    return screenshots;
-  };
   const trustedScreenshot = (event: IpcMainInvokeEvent) => {
     if (!readyWindows.has(event.sender) || event.senderFrame !== event.sender.mainFrame)
       throw new Error("Only the library window can configure screenshot import.");
@@ -87,29 +83,30 @@ export function outsideCaptures({
         channels.captureTestReceiver,
         async () => (await server?.answersHealthCheck()) ?? false,
       );
-      screenshots = createScreenshotImporter({
+      const importer = createScreenshotImporter({
         preferencesPath: join(libraryDirectory, "screenshot-import.json"),
         defaultDirectory: join(app.getPath("pictures"), "Screenshots"),
         save: async (input) => (await library()).saveScreenshot(input),
       });
+      screenshots = importer;
       const choose = createSingleFlightDirectoryPicker<BrowserWindow>((parent, options) =>
         dialog.showOpenDialog(parent, options),
       );
       ipcMain.handle(channels.screenshotState, (event) => {
         trustedScreenshot(event);
-        return screenshotImporter().getState();
+        return importer.getState();
       });
       ipcMain.handle(channels.screenshotSetEnabled, (event, enabled: unknown) => {
         trustedScreenshot(event);
         if (typeof enabled !== "boolean") throw new Error("Enabled must be true or false.");
-        return screenshotImporter().configure(enabled);
+        return importer.configure(enabled);
       });
       ipcMain.handle(channels.screenshotChooseDirectory, async (event) => {
         const window = trustedScreenshot(event);
         const directory = await choose(window, "Choose a screenshots folder");
         trustedScreenshot(event);
-        const current = await screenshotImporter().getState();
-        return directory ? screenshotImporter().configure(current.enabled, directory) : current;
+        const current = await importer.getState();
+        return directory ? importer.configure(current.enabled, directory) : current;
       });
       try {
         server = await startCaptureServer({
