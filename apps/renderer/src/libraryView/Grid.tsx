@@ -4,6 +4,7 @@ import { flushSync } from "react-dom";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GridCell, type GridContext } from "../cards/Card.tsx";
 import type { CardLayout } from "../cards/CardMedia.tsx";
+import { GradualBlur } from "./GradualBlur.tsx";
 import { nextGeneration } from "./gridLayout.ts";
 import { warmCards } from "../library/cards.ts";
 import { viewState } from "./viewState.ts";
@@ -141,6 +142,8 @@ export function Grid({
           )}
         />
       )}
+      <GradualBlur edge="top" />
+      <GradualBlur edge="bottom" />
     </div>
   );
 }
@@ -150,9 +153,9 @@ const styles = stylex.create({
     position: "absolute",
     inset: 0,
   },
-  // The grid scrolls under the search bar and fades out at both edges with a
-  // mask rather than stacked blur layers. The side padding sits inside the
-  // scroller so the edge cards' focus ring and hover shadow are not clipped.
+  // The grid scrolls under the search bar and the dock, and GradualBlur blurs both edges.
+  // The side padding sits inside the scroller so the edge cards' focus ring and hover
+  // shadow are not clipped.
   masonry: {
     boxSizing: "border-box",
     width: "100%",
@@ -163,10 +166,13 @@ const styles = stylex.create({
     paddingTop: "8px",
     paddingBottom: "72px",
     scrollbarWidth: "none",
-    maskImage:
-      "linear-gradient(to bottom, transparent 0, black 30px, black calc(100% - 40px), transparent 100%)",
+    // Keeps the z-indexes inside cards below the search bar and the blur; without it an
+    // archive tile's Restore button sits over the search pill and takes its clicks.
+    isolation: "isolate",
   },
-  list: { gap: 0 },
+  // A list row's label and title sit at its top, so the first row starts below GradualBlur's
+  // 70px strip and stays sharp until it scrolls under.
+  list: { gap: 0, paddingTop: "70px" },
   // A pinned search has its own row under the bar, so the grid starts below it.
   pinned: { paddingTop: "136px" },
 });
