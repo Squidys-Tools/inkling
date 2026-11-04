@@ -10,6 +10,7 @@ import { viewState } from "./viewState.ts";
 import { animateArrival } from "./viewTransition.ts";
 
 const gap = 12;
+const sidePadding = 14;
 const targetWidth: Record<CardLayout, number> = {
   grid: 286,
   list: Number.POSITIVE_INFINITY,
@@ -86,7 +87,7 @@ export function Grid({
     if (!element) return;
     let columns = 0;
     const observer = new ResizeObserver(([entry]) => {
-      const next = Math.round(entry.contentRect.width);
+      const next = Math.round(entry.contentRect.width) - 2 * sidePadding;
       if (next <= 0) return;
       const nextColumns = columnCount(next, layout);
       if (nextColumns === columns) return;
@@ -148,16 +149,17 @@ const styles = stylex.create({
   frame: {
     position: "absolute",
     inset: 0,
-    paddingInline: "14px",
   },
   // The grid scrolls under the search bar and fades out at both edges with a
-  // mask rather than stacked blur layers.
+  // mask rather than stacked blur layers. The side padding sits inside the
+  // scroller so the edge cards' focus ring and hover shadow are not clipped.
   masonry: {
     boxSizing: "border-box",
     width: "100%",
     height: "100%",
     minWidth: 0,
     gap: `${gap}px`,
+    paddingInline: `${sidePadding}px`,
     paddingTop: "8px",
     paddingBottom: "72px",
     scrollbarWidth: "none",
