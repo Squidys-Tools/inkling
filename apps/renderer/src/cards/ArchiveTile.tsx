@@ -28,7 +28,7 @@ export function ArchiveTile({ view, index }: { view: CardView; index: number }) 
     void openCardMenu(view, menuPoint(event), navigate);
   };
   return (
-    <div {...stylex.props(styles.cell)} data-library-index={index}>
+    <div {...stylex.props(styles.cell)}>
       <article
         tabIndex={0}
         aria-label={`Archived ${view.kind}: ${view.title}`}

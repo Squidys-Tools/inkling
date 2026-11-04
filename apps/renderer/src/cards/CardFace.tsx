@@ -37,10 +37,7 @@ export function CardFace({
   const gridArticle = !list && view.treatment === "article";
 
   return (
-    <div
-      {...stylex.props(styles.cell, list && styles.listCell, cardMarker)}
-      data-library-index={index}
-    >
+    <div {...stylex.props(styles.cell, list && styles.listCell, cardMarker)}>
       {!list && <span {...stylex.props(styles.lift)} aria-hidden="true" />}
       <article
         tabIndex={0}
