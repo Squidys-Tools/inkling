@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { Cause, Data, Duration, Effect, Exit, Option, PubSub, Schedule } from "effect";
+import type { Job } from "@inkling/contracts";
 import { errorMessage } from "./errors.ts";
-import { type Job, JOB_LEASE_MILLIS, JobQueue } from "./jobs.ts";
+import { JOB_LEASE_MILLIS, JobQueue } from "./jobs.ts";
 
 /** A job that cannot run yet goes back to pending without spending one of its retries. */
 export class JobPostponed extends Data.TaggedError("JobPostponed")<{ readonly reason: string }> {}

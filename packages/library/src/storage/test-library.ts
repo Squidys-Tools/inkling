@@ -4,7 +4,8 @@ import { Effect, Fiber, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/sql";
 import { SqlError } from "effect/sql/SqlError";
 import { errorMessage } from "./errors.ts";
-import { JobQueue, Library, type LibraryOptions, libraryLayer } from "./library.ts";
+import { JobQueue } from "./jobs.ts";
+import { Library, type LibraryOptions, libraryLayer } from "./library.ts";
 import { makeWorker, type WorkerOptions } from "./worker.ts";
 
 type Services = Library | JobQueue | SqlClient.SqlClient;

@@ -15,7 +15,8 @@ import {
 } from "./export-folder.ts";
 import { IMAGE_THUMBNAIL_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
 import { openDatabase } from "./schema.ts";
-import { isInside, isMissing, isSafeItemId, isWebUrl, parseJson } from "./shared.ts";
+import { isInside } from "../paths.ts";
+import { isMissing, isSafeItemId, isWebUrl, parseJson } from "./shared.ts";
 import { normalizeSpaceColor, validateSmartQuery } from "./spaces.ts";
 
 type ImportedItem = {

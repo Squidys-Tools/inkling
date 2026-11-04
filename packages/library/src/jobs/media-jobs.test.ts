@@ -7,7 +7,7 @@ import {
   IMAGE_THUMBNAIL_JOB,
   JOB_LEASE_MILLIS,
   PDF_THUMBNAIL_JOB,
-} from "../storage/library.ts";
+} from "../storage/jobs.ts";
 import { closeLibrary } from "../storage/test-helpers.ts";
 import {
   cleanUpJobTests,

@@ -1,7 +1,8 @@
+import type { Job } from "@inkling/contracts";
 import { Effect } from "effect";
 import { storageFailure } from "../storage/errors.ts";
-import type { Job } from "../storage/jobs.ts";
-import { IMAGE_PALETTE_JOB, JobQueue, Library } from "../storage/library.ts";
+import { IMAGE_PALETTE_JOB, JobQueue } from "../storage/jobs.ts";
+import { Library } from "../storage/library.ts";
 import { assetPath, requireItem } from "./job-items.ts";
 import { workerClient } from "./worker-client.ts";
 

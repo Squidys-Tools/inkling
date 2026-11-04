@@ -16,16 +16,6 @@ import { openDatabase, SCHEMA_VERSION } from "./schema.ts";
 import { makeSearch } from "./search.ts";
 import { makeSpaces } from "./spaces.ts";
 
-export {
-  IMAGE_PALETTE_JOB,
-  IMAGE_THUMBNAIL_JOB,
-  JOB_LEASE_MILLIS,
-  JobQueue,
-  PDF_THUMBNAIL_JOB,
-  URL_ENRICHMENT_JOB,
-  VIDEO_POSTER_JOB,
-} from "./jobs.ts";
-
 export type LibraryOptions = {
   databasePath: string;
   // Recorded in export manifests; main passes the running build's version.

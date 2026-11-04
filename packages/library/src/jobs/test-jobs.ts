@@ -1,12 +1,13 @@
 import { afterAll, afterEach } from "bun:test";
 import { join } from "node:path";
+import type { Job } from "@inkling/contracts";
 import { IMAGE_MODEL, TEXT_MODEL, WorkerRpcs } from "@inkling/contracts/jobs";
 import { type WorkerOptions, workerHandlersLayer } from "@inkling/jobs/handlers";
 import { fixture } from "@inkling/jobs/test-fixtures";
 import { Effect, Exit, ManagedRuntime, Scope } from "effect";
 import { RpcTest } from "effect/rpc";
-import type { Job } from "../storage/jobs.ts";
-import type { JobQueue, Library } from "../storage/library.ts";
+import type { JobQueue } from "../storage/jobs.ts";
+import type { Library } from "../storage/library.ts";
 import type { TestLibrary } from "../storage/test-library.ts";
 import {
   closeAll,
