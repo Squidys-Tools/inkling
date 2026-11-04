@@ -1,5 +1,5 @@
 import type { SpaceKind } from "@inkling/contracts";
-import { createStore, useStore } from "../library/store.ts";
+import { createAtom, useSelector } from "@tanstack/react-store";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
 
 type SpaceDraft = {
@@ -13,9 +13,9 @@ type SpaceDraft = {
 const closed: SpaceDraft = { open: false, name: "", kind: "smart", query: "" };
 
 /** The new-Space form in the sidebar, which "Save as Space" opens from the search row. */
-export const spaceDraft = createStore<SpaceDraft>(closed);
+export const spaceDraft = createAtom<SpaceDraft>(closed);
 
-export const useSpaceDraft = () => useStore(spaceDraft, (draft) => draft);
+export const useSpaceDraft = () => useSelector(spaceDraft);
 
 export function openSpaceDraft(query = "") {
   setSidebarOpen(true);

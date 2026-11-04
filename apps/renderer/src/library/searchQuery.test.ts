@@ -1,13 +1,11 @@
 import type { LibraryCard } from "@inkling/contracts";
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, jest } from "bun:test";
 import { createSearch } from "./searchQuery.ts";
 
 const card = (id: string) => ({ id }) as LibraryCard;
 
-/** A search whose timers and library answers the test releases by hand. */
+/** A search whose library answers the test releases by hand, on a fake clock. */
 function harness({ text }: { text?: (query: string) => Promise<LibraryCard[]> } = {}) {
-  const timers = new Map<number, () => void>();
-  let nextTimer = 0;
   const pending: { query: string; resolve: (cards: LibraryCard[]) => void }[] = [];
   const stored: LibraryCard[] = [];
   const search = createSearch({
@@ -17,36 +15,29 @@ function harness({ text }: { text?: (query: string) => Promise<LibraryCard[]> } 
         ? new Promise((resolve) => pending.push({ query, resolve }))
         : (text?.(query) ?? Promise.reject(new Error("text pass off"))),
     onCards: (cards) => void stored.push(...cards),
-    timers: {
-      set: (run) => {
-        timers.set(++nextTimer, run);
-        return nextTimer;
-      },
-      clear: (handle) => void timers.delete(handle),
-    },
   });
-  const firePause = () => {
-    const due = [...timers.values()];
-    timers.clear();
-    for (const run of due) run();
-  };
+  const firePause = () => jest.advanceTimersByTime(220);
   const answer = async (query: string, ids: string[]) => {
     const index = pending.findIndex((request) => request.query === query);
     pending.splice(index, 1)[0].resolve(ids.map(card));
     await Promise.resolve();
     await Promise.resolve();
   };
-  return { search, firePause, answer, pending, timers, stored };
+  return { search, firePause, answer, pending, stored };
 }
+
+beforeEach(() => jest.useFakeTimers());
+afterEach(() => jest.useRealTimers());
 
 describe("search", () => {
   it("waits for a pause in typing and runs once for the last query", () => {
-    const { search, firePause, pending } = harness();
+    const { search, pending } = harness();
     search.setQuery("d");
     search.setQuery("de");
     search.setQuery("design");
+    jest.advanceTimersByTime(219);
     expect(pending).toHaveLength(0);
-    firePause();
+    jest.advanceTimersByTime(1);
     expect(pending.map((request) => request.query)).toEqual(["design"]);
   });
 
@@ -71,13 +62,23 @@ describe("search", () => {
   });
 
   it("runs at once on Enter and cancels the pending pause", async () => {
-    const { search, answer, pending, timers } = harness();
+    const { search, firePause, answer, pending } = harness();
     search.setQuery("tea");
     void search.submit();
-    expect(timers.size).toBe(0);
     expect(pending.map((request) => request.query)).toEqual(["tea"]);
+    expect(jest.getTimerCount()).toBe(0);
+    firePause();
+    expect(pending).toHaveLength(1);
     await answer("tea", ["a"]);
     expect(search.store.get().results).toEqual(["a"]);
+  });
+
+  it("runs at once and drops the pause when a restart reruns the search", () => {
+    const { search, pending } = harness();
+    search.setQuery("tea");
+    void search.rerun();
+    expect(pending.map((request) => request.query)).toEqual(["tea"]);
+    expect(jest.getTimerCount()).toBe(0);
   });
 
   it("takes removed items out of the results", async () => {

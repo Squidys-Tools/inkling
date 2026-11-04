@@ -74,7 +74,7 @@ function ItemBody({
   const [pdfOpen, setPdfOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
-  const detail = query.value;
+  const detail = query.data;
   const item = detail ? describeItem(detail) : null;
 
   useEscape(() => (pdfOpen ? setPdfOpen(false) : onClose()));
@@ -121,9 +121,10 @@ function ItemBody({
       notify("Deleted permanently");
   };
 
-  const memberOf = memberships.value ?? [];
+  const memberOf = memberships.data ?? [];
   const status =
-    query.error ?? (detail === null ? "This item is no longer in your library." : null);
+    (query.isLoadingError && errorMessage(query.error)) ??
+    (detail === null ? "This item is no longer in your library." : null);
 
   return (
     <div {...stylex.props(styles.layout)}>

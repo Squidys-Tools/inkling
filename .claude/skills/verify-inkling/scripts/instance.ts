@@ -1,9 +1,9 @@
 // Manage one worktree-scoped verification instance of inkling's desktop app.
-// Run `bun .agents/skills/verify-inkling/scripts/instance.mjs <command>` from
+// Run `bun .claude/skills/verify-inkling/scripts/instance.ts <command>` from
 // anywhere inside the worktree. State is under `.dev/`; evidence is under
 // `.artifacts/` and survives cleanup.
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync, type StdioOptions } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, statSync, writeFileSync } from "node:fs";
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
@@ -16,19 +16,22 @@ import {
   root,
   runHasLiveProcess,
   runStates,
-} from "./clean-dev.mjs";
+  type RunState,
+} from "./clean-dev.ts";
 import { seedLibrary } from "../../../../tools/dev/seeded-library.ts";
 
-const takeFlag = (args, flag, withValue) => {
+const takeFlag = (args: string[], flag: string) => {
   const at = args.indexOf(flag);
-  if (at < 0) return undefined;
-  return withValue ? args.splice(at, 2)[1] : args.splice(at, 1) && true;
+  return at >= 0 && args.splice(at, 1).length > 0;
 };
-const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
-const fail = (message) => {
+const takeOption = (args: string[], flag: string): string | undefined => {
+  const at = args.indexOf(flag);
+  return at >= 0 ? args.splice(at, 2)[1] : undefined;
+};
+function fail(message: string): never {
   console.error(`verify-inkling: ${message}`);
   process.exit(1);
-};
+}
 
 const currentRun = () => {
   const runs = runStates().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
@@ -36,7 +39,19 @@ const currentRun = () => {
   return runs[0];
 };
 
-const agentDesktop = (run, args, options = {}) =>
+type Window = { id: string; pid: number; title: string };
+type SnapshotNode = {
+  ref_id?: string;
+  role: string;
+  name?: string;
+  value?: unknown;
+  states?: string[];
+  available_actions?: string[];
+  children?: SnapshotNode[];
+};
+type Reply<T> = { ok: boolean; data: T; error?: { disposition?: { retry?: string } } };
+
+const agentDesktop = (run: RunState, args: string[], options: { stdio?: StdioOptions } = {}) =>
   spawnSync("agent-desktop", args, {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
@@ -45,24 +60,26 @@ const agentDesktop = (run, args, options = {}) =>
   });
 
 // The app's window id comes from list-windows, because several windows can identify as electron.exe.
-const ourWindows = (run) => {
+const ourWindows = (run: RunState): Window[] => {
   const listed = agentDesktop(run, ["list-windows"]);
   if (listed.status !== 0) return [];
   try {
-    return JSON.parse(listed.stdout).data.filter((w) => w.pid === run.electronPid);
+    return (JSON.parse(listed.stdout) as Reply<Window[]>).data.filter(
+      (w) => w.pid === run.electronPid,
+    );
   } catch {
     return [];
   }
 };
 
 // The main window is recorded at launch: a native dialog (e.g. delete confirmation) adds a second window with the same pid.
-const findWindowId = (run) => {
+const findWindowId = (run: RunState) => {
   const windows = ourWindows(run);
   if (run.windowId && windows.some((w) => w.id === run.windowId)) return run.windowId;
   return windows[0]?.id;
 };
 
-const snapshotText = (run, windowId) => {
+const snapshotText = (run: RunState, windowId: string) => {
   const snap = agentDesktop(run, [
     "snapshot",
     "--window-id",
@@ -75,10 +92,10 @@ const snapshotText = (run, windowId) => {
   return snap.status === 0 ? snap.stdout : "";
 };
 
-const readyMarker = (run) => (run.seeded ? "Everything" : "Skip");
+const readyMarker = (run: RunState) => (run.seeded ? "Everything" : "Skip");
 
 // Returns the pid of the launcher this run owns (cmd.exe on Windows, bun elsewhere); its tree is the app.
-const startDetached = (library, logPath) => {
+const startDetached = (library: string, logPath: string) => {
   const app = ["tools/dev/dev-app.ts", `--user-data-dir=${library}`];
   if (process.platform !== "win32") {
     const log = openSync(logPath, "w");
@@ -89,7 +106,7 @@ const startDetached = (library, logPath) => {
     });
     child.unref();
     closeSync(log);
-    return child.pid;
+    return child.pid!;
   }
   // A plain spawn lets the app inherit the caller's stdout pipe, so any caller reading
   // to EOF hangs for the app's lifetime. Start-Process (ShellExecute) inherits nothing;
@@ -107,7 +124,7 @@ const startDetached = (library, logPath) => {
   return pid;
 };
 
-const launch = async (flags) => {
+const launch = async (flags: string[]) => {
   const livePids = new Set(liveOwned().map((p) => p.pid));
   const live = runStates().filter((s) => runHasLiveProcess(s, livePids));
   if (live.length > 0)
@@ -125,7 +142,7 @@ const launch = async (flags) => {
   mkdirSync(evidenceDir, { recursive: true });
 
   const seeded = !flags.includes("--empty");
-  const run = {
+  const run: RunState = {
     runId,
     library,
     agentHome,
@@ -155,7 +172,7 @@ const launch = async (flags) => {
 
     const deadline = Date.now() + 120_000;
     while (Date.now() < deadline) {
-      await sleep(1000);
+      await Bun.sleep(1000);
       const table = listProcesses();
       if (!table.some((p) => p.pid === run.launcherPid))
         throw new Error(`launcher exited early; see ${join(base, "electron.log")}`);
@@ -184,8 +201,8 @@ const launch = async (flags) => {
     }
     throw new Error("app did not reach a usable window within 120s");
   } catch (error) {
-    console.error(`verify-inkling: ${error.message}; cleaning up the failed launch`);
-    await cleanDev("stop").catch((cleanError) =>
+    console.error(`verify-inkling: ${(error as Error).message}; cleaning up the failed launch`);
+    await cleanDev("stop").catch((cleanError: Error) =>
       console.error(`verify-inkling: ${cleanError.message}`),
     );
     process.exit(1);
@@ -195,10 +212,10 @@ const launch = async (flags) => {
 const doctor = () => {
   const run = currentRun();
   const table = new Map(listProcesses().map((p) => [p.pid, p]));
-  const checks = [];
-  const check = (label, ok, detail = "") => checks.push({ label, ok, detail });
-  const launcher = table.get(run.launcherPid);
-  const main = table.get(run.electronPid);
+  const checks: { label: string; ok: boolean; detail: string }[] = [];
+  const check = (label: string, ok: boolean, detail = "") => checks.push({ label, ok, detail });
+  const launcher = run.launcherPid === undefined ? undefined : table.get(run.launcherPid);
+  const main = run.electronPid === undefined ? undefined : table.get(run.electronPid);
   check(
     "launcher pid alive and owns our .dev path",
     Boolean(launcher && mentionsDev(launcher)),
@@ -214,10 +231,12 @@ const doctor = () => {
   try {
     const db = new Database(databasePath, { readonly: true });
     db.exec("PRAGMA busy_timeout = 5000");
-    items = db.query("SELECT COUNT(*) AS n FROM items WHERE archived = 0").get().n;
+    items = db
+      .query<{ n: number }, []>("SELECT COUNT(*) AS n FROM items WHERE archived = 0")
+      .get()!.n;
     db.close();
   } catch (error) {
-    check("library database opens read-only", false, error.message);
+    check("library database opens read-only", false, (error as Error).message);
   }
   if (items >= 0) check("library database opens read-only", true, `${items} active items`);
   const built = join(root, "dist", "desktop");
@@ -263,13 +282,12 @@ switch (command) {
   }
   case "ad": {
     const run = currentRun();
-    const id = rest.includes("{window}") ? findWindowId(run) : undefined;
-    if (rest.includes("{window}") && !id) fail("no window for this run's electron pid");
-    const out = agentDesktop(
-      run,
-      rest.map((arg) => (arg === "{window}" ? id : arg)),
-      { stdio: "inherit" },
+    const args = rest.map((arg) =>
+      arg === "{window}"
+        ? (findWindowId(run) ?? fail("no window for this run's electron pid"))
+        : arg,
     );
+    const out = agentDesktop(run, args, { stdio: "inherit" });
     process.exit(out.status ?? 1);
     break;
   }
@@ -277,8 +295,8 @@ switch (command) {
     // Prints one fresh ref for an exact role+name. Retries only errors agent-desktop marks retry:safe (nothing was delivered).
     const args = [...rest];
     const contains = takeFlag(args, "--contains");
-    const within = takeFlag(args, "--in", true);
-    const windowOverride = takeFlag(args, "--window", true);
+    const within = takeOption(args, "--in");
+    const windowOverride = takeOption(args, "--window");
     const [role, ...nameParts] = args;
     const name = nameParts.join(" ");
     if (!role || !name)
@@ -303,7 +321,7 @@ switch (command) {
       ]);
       last = found.stdout || found.stderr;
       try {
-        const parsed = JSON.parse(found.stdout);
+        const parsed = JSON.parse(found.stdout) as Reply<{ matches: { ref_id: string }[] }>;
         if (parsed.ok && parsed.data.matches.length === 1) {
           console.log(parsed.data.matches[0].ref_id);
           process.exit(0);
@@ -314,7 +332,7 @@ switch (command) {
       } catch {
         break;
       }
-      await sleep(500);
+      await Bun.sleep(500);
     }
     fail(`no ref for ${role} "${name}": ${last.slice(0, 300)}`);
     break;
@@ -323,9 +341,10 @@ switch (command) {
     // Flat, greppable view of one snapshot: ref, role, name, value, actions. Extra args pass to `snapshot` (e.g. --surface menu).
     const run = currentRun();
     const args = [...rest];
-    const id = takeFlag(args, "--window", true) ?? findWindowId(run);
+    const id = takeOption(args, "--window") ?? findWindowId(run);
     if (!id) fail("no window for this run's electron pid");
-    let parsed;
+    type Snapshot = Reply<{ snapshot_id: string; tree: SnapshotNode }>;
+    let parsed: Snapshot | undefined;
     for (let attempt = 0; attempt < 4; attempt++) {
       const snap = agentDesktop(run, [
         "snapshot",
@@ -338,20 +357,20 @@ switch (command) {
         ...args,
       ]);
       try {
-        parsed = JSON.parse(snap.stdout);
+        parsed = JSON.parse(snap.stdout) as Snapshot;
       } catch {
         fail(`snapshot gave no JSON: ${snap.stdout}${snap.stderr}`);
       }
       // A snapshot is read-only, so an error marked retry:safe (e.g. "atomic replace failed") is safe to repeat.
       if (parsed.ok || parsed.error?.disposition?.retry !== "safe") break;
-      await sleep(500);
+      await Bun.sleep(500);
     }
-    if (!parsed.ok) {
-      console.error(JSON.stringify(parsed.error));
+    if (!parsed?.ok) {
+      console.error(JSON.stringify(parsed?.error));
       process.exit(1);
     }
     console.log(`snapshot ${parsed.data.snapshot_id}`);
-    const walk = (node) => {
+    const walk = (node: SnapshotNode) => {
       if (node.ref_id) {
         const value = node.value
           ? `  value=${JSON.stringify(String(node.value).slice(0, 120))}`
@@ -393,13 +412,13 @@ switch (command) {
       const result = await cleanDev("stop");
       console.log(`cleanup: ${result.note}`);
     } catch (error) {
-      fail(error.message);
+      fail((error as Error).message);
     }
     break;
   }
   default:
     console.error(
-      "usage: instance.mjs launch [--empty] [--skip-build] | doctor | window | windows | ref <role> <name> [--contains] [--in <ref>] [--window <id>] | tree [--window <id>] [snapshot args] | ad <args> | shot <name> | db <sql> | cleanup",
+      "usage: instance.ts launch [--empty] [--skip-build] | doctor | window | windows | ref <role> <name> [--contains] [--in <ref>] [--window <id>] | tree [--window <id>] [snapshot args] | ad <args> | shot <name> | db <sql> | cleanup",
     );
     process.exit(64);
 }

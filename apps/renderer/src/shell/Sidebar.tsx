@@ -14,7 +14,7 @@ import { useCaptureState } from "../capture/capture.ts";
 import { chrome } from "../desktop.ts";
 import { shownScope, useActiveTotal } from "../library/cards.ts";
 import { search, useSearch } from "../library/search.ts";
-import { useStore } from "../library/store.ts";
+import { useSelector } from "@tanstack/react-store";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { Mascot } from "../mascot/Mascot.tsx";
 import { useMascotMood } from "../mascot/useMascotMood.ts";
@@ -71,7 +71,7 @@ export function Sidebar({
   narrow: boolean;
 }) {
   const total = useActiveTotal();
-  const shown = useStore(shownScope, (scope) => scope._tag);
+  const shown = useSelector(shownScope, (scope) => scope._tag);
   const navigate = useNavigate();
   const settingsOpen = useRouteSearch({
     from: "__root__",

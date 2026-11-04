@@ -8,7 +8,7 @@ import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.style
 import { shownScope, useScope } from "../library/cards.ts";
 import { search } from "../library/search.ts";
 import { createSpace, dismissSpaceError, useSpaceError, useSpaces } from "../library/spaces.ts";
-import { useStore } from "../library/store.ts";
+import { useSelector } from "@tanstack/react-store";
 import { SpaceRow } from "./SpaceRow.tsx";
 import {
   closeSpaceDraft,
@@ -27,7 +27,7 @@ export function SpacesSection({
   onExpand?: () => void;
 }) {
   const spaces = useSpaces();
-  const shown = useStore(shownScope, (scope) => scope);
+  const shown = useSelector(shownScope);
   const shownState = useScope(shown);
   const draft = useSpaceDraft();
   const error = useSpaceError();

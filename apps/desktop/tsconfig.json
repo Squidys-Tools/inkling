@@ -4,6 +4,7 @@
   "include": [
     "src",
     "build.ts",
+    "after-pack.ts",
     "../../packages/contracts/src",
     "../../packages/rpc-electron/src/server.ts",
     "../../packages/rpc-electron/src/client-main.ts",

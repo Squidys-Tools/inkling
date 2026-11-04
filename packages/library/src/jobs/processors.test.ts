@@ -5,7 +5,7 @@ import sharp from "sharp";
 import { IMAGE_MODEL, TEXT_MODEL } from "@inkling/contracts/jobs";
 import { fixture } from "@inkling/jobs/test-fixtures";
 import { Effect } from "effect";
-import { URL_ENRICHMENT_JOB } from "../storage/library.ts";
+import { URL_ENRICHMENT_JOB } from "../storage/jobs.ts";
 import { enqueueLongTextEmbeddings, enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
 import {
   cleanUpJobTests,

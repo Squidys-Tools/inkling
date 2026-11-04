@@ -25,7 +25,7 @@ function sanitizeElement(element: Element, pageUrl: string): void {
 /**
  * Keeps scripts, styles, forms and handlers out of stored HTML and the text
  * extracted from it, and resolves its links against the page. This is storage
- * hygiene on linkedom; the trust boundary is purifyHtml at render.
+ * hygiene on linkedom; the trust boundary is the renderer's articleTree.
  */
 export function cleanCapturedHtml(html: string, pageUrl: string): string {
   const { document } = parseHTML(`<html><head></head><body>${html}</body></html>`);

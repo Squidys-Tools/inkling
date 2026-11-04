@@ -33,7 +33,7 @@ async function flush() {
     }
   }
   void refreshJobs([...new Set([...items, ...jobs])]);
-  if (jobs.length > 0) void refreshActiveJobCount();
+  if (jobs.length > 0) refreshActiveJobCount();
 }
 
 // A Smart Space named for a photo subject ("Cats") collects by its name, so a rename reads it again.
@@ -56,11 +56,13 @@ async function spacesChanged() {
   });
 }
 
-/** Reads every store again: after the library process restarts, or a restore replaced its contents. */
+/**
+ * Reads every store again: after the library process restarts, or a restore
+ * replaced its contents. Library queries read again through `followLibraryChanges`.
+ */
 function reloadEverything() {
   reloadAll();
   void reloadSpaces();
-  void refreshActiveJobCount();
   void search.rerun();
 }
 
@@ -105,7 +107,6 @@ export function startLibrarySync() {
   // The sidebar counts everything, whichever scope the window opened on.
   ensureScope(activeScope);
   void reloadSpaces();
-  void refreshActiveJobCount();
   onReconnect((client) => {
     attach(client);
     reloadEverything();
