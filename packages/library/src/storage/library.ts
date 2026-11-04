@@ -12,7 +12,6 @@ import { makeImport } from "./import-library.ts";
 import { makeItems } from "./items.ts";
 import { makePhotoSearch } from "./photo-search.ts";
 import { JobQueue, type JobQueueOptions, makeJobQueue } from "./jobs.ts";
-import { toError } from "./errors.ts";
 import { openDatabase, SCHEMA_VERSION } from "./schema.ts";
 import { makeSearch } from "./search.ts";
 import { makeSpaces } from "./spaces.ts";
@@ -118,33 +117,4 @@ export function libraryLayer({
       ),
     ),
   );
-}
-
-type Promised<T> = {
-  [K in keyof T]: T[K] extends (...args: infer A) => Effect.Effect<infer R, infer _E, never>
-    ? (...args: A) => Promise<R>
-    : T[K];
-};
-
-// The Promise face of a service, for IPC handlers and tests. Rejections carry
-// the storage message the renderer shows, not the SQL client's summary.
-export function promised<T extends object>(
-  service: T,
-  run: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>,
-): Promised<T> {
-  const call =
-    (method: (...args: unknown[]) => unknown) =>
-    (...args: unknown[]) => {
-      const result = method(...args);
-      if (!Effect.isEffect(result)) return result;
-      return run(result as Effect.Effect<unknown, unknown>).catch((error: unknown) => {
-        throw toError(error);
-      });
-    };
-  return Object.fromEntries(
-    Object.entries(service).map(([key, value]) => [
-      key,
-      typeof value === "function" ? call(value) : value,
-    ]),
-  ) as Promised<T>;
 }
