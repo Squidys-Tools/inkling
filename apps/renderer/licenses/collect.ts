@@ -31,6 +31,14 @@ const vendoredNotices = [
     noticeFile: "apps/renderer/licenses/LICENSE-rare-ui.md",
   },
   {
+    name: "border-beam",
+    license: "MIT",
+    sourceUrl: "https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/border-beam",
+    description:
+      "The light that travels a card's edge while it loads, in apps/renderer/src/cards/beamGradients.ts.",
+    noticeFile: "apps/renderer/licenses/LICENSE-border-beam.md",
+  },
+  {
     name: "nomic-embed-text-v1.5",
     license: "Apache-2.0",
     sourceUrl: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5",

@@ -25,7 +25,8 @@ function Beam({ label, onPaper }: { label: string; onPaper: boolean }) {
   const element = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const release = beamSlot();
-    if (!release && element.current) element.current.style.animationPlayState = "paused";
+    // Past the cap only the turn stops; the fade-in still runs, so the beam shows as a still frame.
+    if (!release && element.current) element.current.style.animationPlayState = "paused, running";
     return release ?? undefined;
   }, []);
   return (
@@ -238,7 +239,6 @@ const styles = stylex.create({
   },
   // The beam is light, so it is flipped to dark on the cards that are drawn on pale paper.
   dark: { filter: "invert(1)" },
-  paused: { animationPlayState: "paused" },
   stroke: {
     position: "absolute",
     inset: 0,

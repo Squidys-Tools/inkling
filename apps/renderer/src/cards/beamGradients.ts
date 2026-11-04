@@ -1,7 +1,8 @@
 import { loadingColor } from "@inkling/ui/tokens.stylex";
 import { beam } from "./beam.stylex.ts";
 
-/** The border-beam library's (MIT) colour blobs: width, height, then where each sits on the card. */
+// From border-beam's mono palette; its notice is apps/renderer/licenses/LICENSE-border-beam.md.
+/** The colour blobs: width, height, then where each sits on the card. */
 const blobs = [
   [70, 40, "33%", "-7.4%"],
   [60, 35, "12%", "-5%"],
