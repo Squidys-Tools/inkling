@@ -222,7 +222,9 @@ test("on macOS desktop, Cmd shortcuts reach commands only through the menu", asy
   }
   const root = createRoot(document.getElementById("root")!);
   const key = (init: KeyboardEventInit) =>
-    document.body.dispatchEvent(new f.dom.window.KeyboardEvent("keydown", { ...init, bubbles: true }));
+    document.body.dispatchEvent(
+      new f.dom.window.KeyboardEvent("keydown", { ...init, bubbles: true }),
+    );
   try {
     await act(async () => root.render(<App />));
     await act(async () => {
