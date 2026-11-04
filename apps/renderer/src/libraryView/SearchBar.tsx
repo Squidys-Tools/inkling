@@ -5,7 +5,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
-import { chrome, platform } from "../desktop.ts";
+import { chrome } from "../desktop.ts";
 import { search, useSearch } from "../library/search.ts";
 import { MascotEyes } from "../mascot/Mascot.tsx";
 import { handleCommand } from "../shell/commands.ts";
@@ -75,14 +75,15 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
     [navigate],
   );
 
-  const linuxCaptions = platform === "linux" && chrome.controls === "custom-right";
+  const captionPill = chrome.controls === "custom-right";
   return (
     <div
       {...stylex.props(
         styles.field,
         focused ? styles.expanded : styles.resting,
-        linuxCaptions && styles.captionCorridor,
-        linuxCaptions && focused && styles.captionExpanded,
+        captionPill && styles.captionCorridor,
+        captionPill && focused && styles.captionExpanded,
+        captionPill && !focused && styles.captionResting,
       )}
     >
       <Glass ref={surface} aria-hidden="true" data-bench="search-surface" style={styles.surface} />
@@ -90,7 +91,7 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
         {...stylex.props(
           styles.label,
           focused && styles.labelExpanded,
-          linuxCaptions && styles.captionLabel,
+          captionPill && styles.captionLabel,
         )}
       >
         {!focused && (
@@ -110,7 +111,7 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
           ref={input}
           type="search"
           value={query}
-          placeholder={linuxCaptions ? "Search" : "Search your mind"}
+          placeholder={captionPill ? "Search" : "Search your mind"}
           aria-label="Search your mind"
           spellCheck={false}
           autoComplete="off"
@@ -137,22 +138,24 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
 }
 
 const styles = stylex.create({
-  // The inset Linux capsule is always present, so a small window must leave it
-  // a real slot rather than letting the centered search field pass beneath it.
+  // The inset caption pill keeps its slot while hidden, so a small window must
+  // leave it room rather than letting the centered search field pass beneath it.
   captionCorridor: {
-    left: { default: "50%", "@media (max-width: 1023px)": "calc((100% - 124px) / 2)" },
-    maxWidth: { default: "none", "@media (max-width: 1023px)": "calc(100% - 124px)" },
+    left: { default: "50%", "@media (max-width: 1023px)": "calc((100% - 129px) / 2)" },
+    maxWidth: { default: "none", "@media (max-width: 1023px)": "calc(100% - 129px)" },
   },
   captionExpanded: {
     width: {
       default: "min(700px, calc(100% - 304px))",
-      "@media (max-width: 1023px)": "calc(100% - 124px)",
+      "@media (max-width: 1023px)": "calc(100% - 129px)",
     },
     minWidth: {
       default: "min(420px, calc(100% - 28px))",
       "@media (max-width: 1023px)": "0px",
     },
   },
+  // Follows the caption pill's 13px inset, so the resting field stays level with it.
+  captionResting: { top: "14px" },
   captionLabel: {
     boxSizing: { default: "content-box", "@media (max-width: 1023px)": "border-box" },
     minWidth: { default: "auto", "@media (max-width: 1023px)": "0px" },

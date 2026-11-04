@@ -6,7 +6,7 @@ import { observeMaximized } from "./windowState.ts";
 
 type WindowActions = DesktopBridge["window"];
 
-/** Design C: a shared presentation seam. Linux opts in; Windows can adopt it independently. */
+/** The inset caption pill, drawn on Windows and Linux. */
 export function WindowControls({ actions }: { actions: WindowActions }) {
   const [maximized, setMaximized] = useState(false);
   useEffect(() => observeMaximized(actions, setMaximized), [actions]);
