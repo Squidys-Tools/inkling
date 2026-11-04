@@ -80,8 +80,6 @@ export type DesktopBridge = {
     close: () => Promise<void>;
     /** Shows the window once the first frame worth showing has painted. */
     ready: () => Promise<void>;
-    /** Shows or hides macOS's traffic lights; a no-op on other platforms. */
-    setNativeControlsVisible: (visible: boolean) => Promise<void>;
   };
   onCommand: (listener: (command: Command) => void) => () => void;
   onCaptures: (listener: (failures: FailedCapture[]) => void) => () => void;

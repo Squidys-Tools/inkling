@@ -1,7 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
-import { useEffect } from "react";
 import { layout, motion } from "@inkling/ui/tokens.stylex";
-import { desktop, platform, useChromeControls } from "../desktop.ts";
+import { chrome, desktop } from "../desktop.ts";
 import { useViewState } from "../libraryView/viewState.ts";
 import { useAppearance } from "../settings/appearance.ts";
 import { WindowControls } from "./WindowControls.tsx";
@@ -9,12 +8,8 @@ import { WindowControls } from "./WindowControls.tsx";
 /** The drag band, plus the inset caption pill wherever the app draws its own buttons. */
 export function TitleBar() {
   const open = useViewState((state) => state.sidebarOpen);
-  const controls = useChromeControls();
   const { windowControlsAtRest } = useAppearance();
-  useEffect(() => {
-    if (platform === "darwin")
-      void desktop?.window.setNativeControlsVisible(controls === "native-left");
-  }, [controls]);
+  const controls = chrome.controls;
   if (controls === "system-frame") return null;
   const custom = controls === "custom-right";
   return (

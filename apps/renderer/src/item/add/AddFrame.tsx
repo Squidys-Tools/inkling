@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { Button, Kbd } from "@inkling/ui";
 import { color, font, layout, space, text } from "@inkling/ui/tokens.stylex";
-import { useControlsOnRight } from "../../desktop.ts";
+import { controlsOnRight } from "../../desktop.ts";
 import type { FormEvent, ReactNode } from "react";
 
 /** The page around the quote and link forms: a title, the fields, and Save or Cancel. */
@@ -22,7 +22,6 @@ export function AddFrame({
   onCancel: () => void;
   children: ReactNode;
 }) {
-  const controlsOnRight = useControlsOnRight();
   return (
     <div data-escape-scope {...stylex.props(styles.page)}>
       <Button

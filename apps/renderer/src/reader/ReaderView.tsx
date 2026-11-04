@@ -13,7 +13,7 @@ import {
 } from "@inkling/ui/tokens.stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
-import { useControlsOnRight } from "../desktop.ts";
+import { controlsOnRight } from "../desktop.ts";
 import { hostname, webUrl } from "../library/assets.ts";
 import { useStepBack } from "../item/navigation.ts";
 import { useArticleHtml, useItem } from "../item/queries.ts";
@@ -41,7 +41,6 @@ function published(value: string | undefined) {
 /** A saved article in a distraction-free page: its sanitized text, a typeface, and the way back. */
 export function ReaderView({ id }: { id: string }) {
   const navigate = useNavigate();
-  const controlsOnRight = useControlsOnRight();
   const stepBack = useStepBack();
   const [fontSet, setFontSet] = useFontSet();
   useEffect(() => registerFontSet(fontSet), [fontSet]);

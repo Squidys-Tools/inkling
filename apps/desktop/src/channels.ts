@@ -11,7 +11,6 @@ export const channels = {
   windowMaximized: "inkling:window:maximized",
   windowClose: "inkling:window:close",
   windowReady: "inkling:window:ready",
-  windowSetNativeControlsVisible: "inkling:window:set-native-controls-visible",
   appVersion: "inkling:app-version",
   contextMenu: "inkling:context-menu",
   confirm: "inkling:confirm",

@@ -32,7 +32,6 @@ const bridge: DesktopBridge = {
     onMaximized: (listener) => subscribe(channels.windowMaximized, listener),
     close: () => invoke(channels.windowClose),
     ready: () => invoke(channels.windowReady),
-    setNativeControlsVisible: (visible) => invoke(channels.windowSetNativeControlsVisible, visible),
   },
   onCommand: (listener) => subscribe(channels.command, listener),
   onCaptures: (listener) => subscribe(channels.captures, listener),

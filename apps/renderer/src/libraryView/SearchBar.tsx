@@ -5,7 +5,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
-import { useChromeControls } from "../desktop.ts";
+import { chrome } from "../desktop.ts";
 import { search, useSearch } from "../library/search.ts";
 import { MascotEyes } from "../mascot/Mascot.tsx";
 import { handleCommand } from "../shell/commands.ts";
@@ -75,7 +75,7 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
     [navigate],
   );
 
-  const captionPill = useChromeControls() === "custom-right";
+  const captionPill = chrome.controls === "custom-right";
   return (
     <div
       {...stylex.props(

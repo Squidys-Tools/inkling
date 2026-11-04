@@ -10,7 +10,7 @@ import { useLayoutEffect, useRef } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { useCaptureState } from "../capture/capture.ts";
-import { useChromeControls } from "../desktop.ts";
+import { chrome } from "../desktop.ts";
 import { shownScope, useActiveTotal } from "../library/cards.ts";
 import { search, useSearch } from "../library/search.ts";
 import { useStore } from "../library/store.ts";
@@ -73,7 +73,6 @@ export function Sidebar({
   const total = useActiveTotal();
   const shown = useStore(shownScope, (scope) => scope._tag);
   const settingsOpen = useViewState((state) => state.settingsSheetOpen);
-  const controls = useChromeControls();
 
   const compact = !visualOpen;
   const width = visualOpen ? sidebarExpanded : sidebarCompact;
@@ -107,8 +106,8 @@ export function Sidebar({
           styles.sidebar,
           styles.width(width),
           narrow && styles.narrow,
-          controls === "custom-right" && styles.unifiedHeader,
-          controls === "native-left" && styles.belowLights,
+          chrome.controls === "custom-right" && styles.unifiedHeader,
+          chrome.controls === "native-left" && styles.belowLights,
         )}
       >
         <div {...stylex.props(styles.brand)}>
