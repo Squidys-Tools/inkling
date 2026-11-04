@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { channels } from "./channels.ts";
 import { bindMaximizedState } from "./window-state.ts";
 
 test("maximize and unmaximize report the owning window's real state only", () => {
@@ -6,19 +7,16 @@ test("maximize and unmaximize report the owning window's real state only", () =>
     destroyed = false;
   const handlers = new Map<string, () => void>();
   const messages: unknown[] = [];
-  bindMaximizedState(
-    {
-      isDestroyed: () => destroyed,
-      isMaximized: () => maximized,
-      on: (event, listener) => handlers.set(event, listener),
-      webContents: {
-        send: (...args) => {
-          messages.push(args);
-        },
+  bindMaximizedState({
+    isDestroyed: () => destroyed,
+    isMaximized: () => maximized,
+    on: (event, listener) => handlers.set(event, listener),
+    webContents: {
+      send: (...args) => {
+        messages.push(args);
       },
     },
-    "state-channel",
-  );
+  });
   maximized = true;
   handlers.get("maximize")?.();
   maximized = false;
@@ -26,7 +24,7 @@ test("maximize and unmaximize report the owning window's real state only", () =>
   destroyed = true;
   handlers.get("maximize")?.();
   expect(messages).toEqual([
-    ["state-channel", true],
-    ["state-channel", false],
+    [channels.windowMaximized, true],
+    [channels.windowMaximized, false],
   ]);
 });

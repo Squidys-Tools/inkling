@@ -7,7 +7,7 @@ const Metadata = Schema.Record(Schema.String, Schema.Unknown);
 
 // The fields a card draws from. Everything else in an item's metadata stays in
 // the library process until the item view asks for the detail.
-export const CardMetadata = Schema.Struct({
+const CardMetadata = Schema.Struct({
   tags: Schema.optional(Schema.Unknown),
   social: Schema.optional(Schema.Unknown),
   imageUrls: Schema.optional(Schema.Unknown),
@@ -93,15 +93,11 @@ export const Space = Schema.Struct({
 });
 export type Space = typeof Space.Type;
 
-export const JobKind = Schema.String;
-export const JobStatus = Schema.Literals(["pending", "processing", "completed", "failed"]);
-export type JobStatus = typeof JobStatus.Type;
-
 export const Job = Schema.Struct({
   id: Text,
   itemId: Text,
-  kind: JobKind,
-  status: JobStatus,
+  kind: Text,
+  status: Schema.Literals(["pending", "processing", "completed", "failed"]),
   retryCount: Schema.Number,
   maxRetries: Schema.Number,
   errorMessage: NullableText,
