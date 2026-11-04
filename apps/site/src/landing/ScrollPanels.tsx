@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { landingColor } from "@inkling/ui/tokens.stylex";
 import { useMotionValueEvent, useScroll } from "motion/react";
 import { useRef, useState } from "react";
+import bear from "../../../renderer/src/library/preview/site/animal-1020.jpg";
 import { base } from "./base.ts";
 import { useCalm, useMediaQuery } from "./environment.ts";
 import { landing, media } from "./landing.stylex.ts";
@@ -36,8 +37,8 @@ const panels: Panel[] = [
     title: "A corner of your own.",
     body: "Put favourites in a regular Space, or let a Smart Space collect items that match a saved search. A little structure, only when you want it.",
     picture: {
-      src: "/demo/assets/animal-1020-CF3jCN2d.jpg",
-      alt: "A brown bear beside a quiet lake and forested mountains.",
+      src: bear,
+      alt: "A brown bear on rocky ground, snowy trees behind it.",
     },
     caption: "Out in nature",
   },

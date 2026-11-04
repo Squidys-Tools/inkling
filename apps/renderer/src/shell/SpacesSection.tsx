@@ -35,7 +35,7 @@ export function SpacesSection({
   return (
     <div {...stylex.props(styles.section)}>
       <div {...stylex.props(styles.header, compact && styles.compactHeader)}>
-        {!compact && <span>Spaces</span>}
+        {!compact && <span data-sidebar-label>Spaces</span>}
         <button
           type="button"
           aria-label="Add a Space"

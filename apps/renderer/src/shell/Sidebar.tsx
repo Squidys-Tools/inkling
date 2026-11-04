@@ -144,6 +144,7 @@ export function Sidebar({
                 ref={reopenButton}
                 aria-label="Close sidebar"
                 title="Close sidebar"
+                data-sidebar-label
                 data-bench="sidebar-toggle"
                 aria-expanded={open}
                 aria-controls="library-navigation"

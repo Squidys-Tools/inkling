@@ -47,7 +47,7 @@ export function AddMenu({ compact }: { compact: boolean }) {
   };
 
   return (
-    <div {...stylex.props(styles.anchor)}>
+    <div data-sidebar-add {...stylex.props(styles.anchor)}>
       <input
         ref={files}
         type="file"
@@ -67,7 +67,11 @@ export function AddMenu({ compact }: { compact: boolean }) {
           {...stylex.props(styles.trigger, compact && styles.compact)}
         >
           <HugeiconsIcon icon={PlusSignIcon} size={16} />
-          {!compact && (saving ? "Saving…" : "Add")}
+          {!compact && (
+            <span data-sidebar-label data-sidebar-add-label {...stylex.props(styles.label)}>
+              {saving ? "Saving…" : "Add"}
+            </span>
+          )}
         </Menu.Trigger>
         <Menu.Portal>
           <Menu.Positioner
@@ -109,6 +113,7 @@ const open = stylex.keyframes({
 
 const styles = stylex.create({
   anchor: { position: "relative", marginBottom: "8px" },
+  label: { display: "inline-block", overflow: "hidden", whiteSpace: "nowrap" },
   fileInput: {
     position: "absolute",
     width: "1px",

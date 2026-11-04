@@ -245,7 +245,11 @@ const styles = stylex.create({
     flexShrink: 0,
     alignItems: "center",
     justifyContent: "space-between",
-    height: "40px",
+    // At phone width Close wraps to its own line instead of running into Similar.
+    height: { default: "40px", "@media (max-width: 360px)": "auto" },
+    minHeight: "40px",
+    flexWrap: { default: "nowrap", "@media (max-width: 360px)": "wrap" },
+    gap: { default: 0, "@media (max-width: 360px)": "8px 12px" },
   },
   tabs: { display: "flex", alignItems: "center", gap: "18px" },
   tab: {

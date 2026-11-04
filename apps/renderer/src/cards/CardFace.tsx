@@ -159,7 +159,8 @@ const styles = stylex.create({
   paper: { backgroundColor: cardColor.articlePaper },
   listShape: {
     display: "grid",
-    gridTemplateColumns: "155px minmax(0, 1fr)",
+    // A fixed 155px media column leaves a phone-width row about 48px for its text.
+    gridTemplateColumns: "clamp(64px, 32%, 155px) minmax(0, 1fr)",
     borderRadius: radius.panel,
   },
   strip: {

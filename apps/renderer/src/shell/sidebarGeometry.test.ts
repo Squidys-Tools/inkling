@@ -11,8 +11,17 @@ test("retained sidebar keeps an 8px gap and round right edge throughout the slid
   expect(sidebarClip(500, 240)).toBe(0);
 });
 
-test("opening-to-closing label reversal preserves painted opacity instead of flashing", () => {
-  expect(sidebarLabelFrames(1, true, false)).toEqual([{ opacity: 0 }, { opacity: 1 }]);
-  expect(sidebarLabelFrames(0.4, false, true)).toEqual([{ opacity: 0.4 }, { opacity: 0 }]);
-  expect(sidebarLabelFrames(0.2, true, true)).toEqual([{ opacity: 0.2 }, { opacity: 1 }]);
+test("labels leave before the edge clips them, arrive after it opens, and reverse from their painted opacity", () => {
+  expect(sidebarLabelFrames(1, false, false)).toEqual([
+    { opacity: 1, offset: 0 },
+    { opacity: 0, offset: 0.18 },
+    { opacity: 0, offset: 1 },
+  ]);
+  expect(sidebarLabelFrames(1, true, false)).toEqual([
+    { opacity: 0, offset: 0 },
+    { opacity: 0, offset: 0.8 },
+    { opacity: 1, offset: 1 },
+  ]);
+  expect(sidebarLabelFrames(0.4, false, true)[0]).toEqual({ opacity: 0.4, offset: 0 });
+  expect(sidebarLabelFrames(0.2, true, true)[0]).toEqual({ opacity: 0.2, offset: 0 });
 });

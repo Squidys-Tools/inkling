@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { color, radius } from "@inkling/ui/tokens.stylex";
 import { createFileRoute } from "@tanstack/react-router";
+import { seedItems } from "../../../renderer/src/library/preview/site/seed-data.ts";
 import { page } from "../layout/page.ts";
 import { seo } from "../layout/seo.ts";
 import { action, type } from "../parts/type.ts";
@@ -18,52 +19,26 @@ export const Route = createFileRoute("/credits")({
 
 const unsplashLicense = "https://unsplash.com/license";
 
-// The Lorem Picsum photos the landing page and the demo library show. Their
-// sources are in demo-provenance/manifest.json.
-const photos = [
-  {
-    title: "A black dog, taking a break",
-    alt: "A curious black Labrador looking up from a wooden deck.",
-    src: "/demo/assets/animal-237-p3afxhlQ.jpg",
-    author: "André Spieker",
-    source: "https://unsplash.com/photos/8wTPqxlnKM4",
-  },
-  {
-    title: "A jellyfish in deep blue",
-    alt: "An orange jellyfish moving through blue water.",
-    src: "/demo/assets/animal-1069-BfMrk0EX.jpg",
-    author: "Marat Gilyadzinov",
-    source: "https://unsplash.com/photos/wpTWYBll4_w",
-  },
-  {
-    title: "The blanket belongs to the pug",
-    alt: "A small pug wrapped up on a woodland walk.",
-    src: "/demo/assets/animal-1025-BwRTE-B8.jpg",
-    author: "Matthew Wiebe",
-    source: "https://unsplash.com/photos/U5rMrSI7Pn4",
-  },
-  {
-    title: "Lion, up close",
-    alt: "A lion looking straight at the camera.",
-    src: "/demo/assets/animal-1074-CnHrkRSc.jpg",
-    author: "Samuel Scrimshaw",
-    source: "https://unsplash.com/photos/sseiVD2XsOk",
-  },
-  {
-    title: "A bear by the water",
-    alt: "A brown bear on rocky ground, snowy trees behind it.",
-    src: "/demo/assets/animal-1020-CF3jCN2d.jpg",
-    author: "Adam Willoughby-Knox",
-    source: "https://unsplash.com/photos/_snqARKTgoc",
-  },
-  {
-    title: "A slow afternoon",
-    alt: "Walruses resting together on a quiet beach.",
-    src: "/demo/assets/animal-1084-GIOoak4V.jpg",
-    author: "Jay Ruzesky",
-    source: "https://unsplash.com/photos/h13Y8vyIXNU",
-  },
-];
+const files = import.meta.glob<string>("../../../renderer/src/library/preview/site/*.jpg", {
+  eager: true,
+  query: "?url",
+  import: "default",
+});
+
+// The demo library's photos, which the landing page also shows, with the credit each carries.
+const photos = seedItems.flatMap(({ title, description, file, credit }) =>
+  file && credit
+    ? [
+        {
+          title,
+          alt: description ?? "",
+          src: files[`../../../renderer/src/library/preview/site/${file}`],
+          author: credit.author,
+          source: credit.url,
+        },
+      ]
+    : [],
+);
 
 function Credits() {
   return (

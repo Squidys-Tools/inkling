@@ -117,7 +117,9 @@ export function SpaceRow({
           aria-current={selected ? "page" : undefined}
           {...stylex.props(styles.name)}
         >
-          <span {...stylex.props(styles.nameText)}>{space.name}</span>
+          <span data-sidebar-label {...stylex.props(styles.nameText)}>
+            {space.name}
+          </span>
           <span {...stylex.props(styles.count)}>{count?.toLocaleString()}</span>
         </Link>
       )}

@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build"
+    "dev": "vite build --config ../renderer/vite.config.ts --mode site && vite",
+    "build": "vite build --config ../renderer/vite.config.ts --mode site && vite build"
   },
   "dependencies": {
     "motion": "14.9.1",

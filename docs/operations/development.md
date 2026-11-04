@@ -54,6 +54,11 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 
 The web preview serves the demo seed in `apps/renderer/src/library/preview/` from
 memory, only in `dev` and in `build:web`'s preview mode, which writes `dist/web`.
+The site's interactive library at `/demo/` is the same preview built in `site`
+mode: the site's `dev` and `build` scripts build it into `apps/site/public/demo`
+first. It swaps in the seed in `preview/site/`: Unsplash photos whose credits the
+site's `/credits` page lists, which the dev seed's photos do not have. The build
+fails if a dev seed file still reaches it.
 `dev:app` runs the app on `.dev-library/` in the worktree, which
 `tools/dev/seeded-library.ts` fills with the same seed on first run, so both dev
 modes show the same library and a dev run can never touch or stamp the real one.
@@ -73,11 +78,11 @@ latest GitHub release, looked up once per build. Build it with
 production media-query parser fails.
 
 Iterate on the site with `bun run dev:site` (hot reload; read the port from its
-output). Vercel's automatic Git deployments are disabled in
+output). It builds `/demo/` once at start, so restart it to see renderer changes there. Vercel's automatic Git deployments are disabled in
 `apps/site/vercel.json`. The `Site preview` workflow invokes Vercel only for a
 same-repository PR targeting `main` that changes `apps/site`,
-`apps/renderer`, the site's imported `packages/contracts`, `packages/ingestion`
-or `packages/ui`, or a shared dependency or toolchain file. It runs
+`apps/renderer`, the site's imported `packages/contracts`, `packages/ingestion`,
+`packages/rpc-electron` or `packages/ui`, or a shared dependency or toolchain file. It runs
 `tools/ci/site-deploy.ts preview`, which deploys with the Vercel CLI and updates
 one PR comment with the preview URL. Fork PRs do not get Vercel secrets or
 previews.
