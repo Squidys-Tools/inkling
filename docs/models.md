@@ -30,7 +30,7 @@ records the error so it can be retried.
 
 The database stores the model identifier and vector dimension with every
 embedding, and an item keeps one vector of each kind, which its next embedding
-job replaces. Search and Find similar read only vectors from the current
+job replaces. Search and the Similar tab read only vectors from the current
 `TEXT_MODEL` and `IMAGE_MODEL` in `packages/contracts/src/jobs.ts`. At startup
 the library re-queues every image whose vector came from another image model;
 nothing does that for text, so changing `TEXT_MODEL` needs its own backfill or

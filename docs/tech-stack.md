@@ -88,7 +88,7 @@ The planned model selection supports three modes:
 
 ## Data, backup, and security
 
-An export is a SQLite snapshot, the asset files its items reference, and a manifest, so it carries source URLs, cleaned article content, notes, tags and Spaces. A restore imports items, Spaces and memberships but not the snapshot's embeddings: it queues an embedding for every item it imports, OCR again for images and PDFs, and a thumbnail or poster for any image or video without one.
+An export is a SQLite snapshot, the asset files its items reference, and a manifest, so it carries source URLs, cleaned article content, notes, tags and Spaces. A restore imports items, Spaces, memberships and Smart Space exclusions but not the snapshot's embeddings: it queues an embedding for every item it imports, OCR again for images and PDFs, and a thumbnail or poster for any image or video without one.
 
 Treat all fetched HTML as untrusted. Sanitize article HTML before rendering, allowlist iframe providers, and strip scripts, event handlers, unsafe URLs and untrusted `srcdoc`. Keep remote content isolated from Electron's privileged main process, and do not expose arbitrary filesystem or shell commands through the preload bridge.
 

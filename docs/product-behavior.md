@@ -18,7 +18,7 @@
 
 ### URL capture
 
-When a user pastes or saves a URL, the item and its card appear at once, titled with the domain unless the capture supplied a title. A video or X post link shows its own card kind from the start. A background job then fetches the page, extracts the article, sanitizes it, and stores its text, author, date, images and safe embeds. The page's title replaces the domain unless the user renamed the card first, and a description the user wrote is kept.
+When a user pastes or saves a URL, the item and its card appear at once, titled with the domain unless the capture supplied a title. A video link shows as a video card from the start. A background job then fetches the page, extracts the article, sanitizes it, and stores its text, author, date, images and safe embeds; an X post link becomes a post card once that job has run. The page's title replaces the domain unless the user renamed the card first, and a description the user wrote is kept.
 
 If extraction fails, retain the URL, title, domain, and any metadata that was successfully found.
 
@@ -28,7 +28,7 @@ Images can be added by file picker, drag-and-drop into the main library grid vie
 
 [extension/README.md](../extension/README.md) describes the Chrome extension's popup and right-click menu. The popup draws its preview with the library's own card components, and a title left blank there lets the app take the page's own. The app downloads a saved image itself; if that fails, it keeps the page instead.
 
-Background jobs read an image's text with OCR, take its color palette for the card, and embed it for semantic and similar-image search. None of this is shown as AI output.
+Background jobs read an image's text with OCR, take its color palette for the item view's details, and embed it for semantic and similar-image search. None of this is shown as AI output.
 
 ### Notes and quotes
 
@@ -55,7 +55,7 @@ Each card may show a title, source, preview, date, tags, summary, and relevant m
 
 ## Search
 
-Search takes plain words, with no operators or filters. It runs after a pause in typing or on Enter, never on each keystroke. Text matches show at once: titles, descriptions, note and article text, OCR text, domains, and metadata such as authors and tags. Matches by meaning, over text and image embeddings, join them when the query's embedding is ready, so a query finds items that never use its words. Text matches rank first. If the models are unavailable, text search still answers.
+Search takes plain words, with no operators or filters. It runs after a pause in typing or on Enter, never on each keystroke. Text matches show at once: titles, descriptions, note and article text, OCR text, domains, and metadata such as authors and tags. Matches by meaning, over text and image embeddings, join them when the query's embedding is ready, so a query finds items that never use its words. Text matches rank first. If the models are unavailable, text search still answers. Concepts and colors drawn from images and articles are planned to feed search and Smart Spaces too.
 
 The item view's Similar tab shows images that look like an image, or articles, notes and quotes close in meaning to a text item.
 
@@ -65,9 +65,9 @@ A Space is a collection in the sidebar. Users can create, rename, reorder, recol
 
 ### Smart Spaces
 
-A Smart Space saves the search in the field when it is created and runs it each time it loads, matching items the way search does. Its stored query can also hold a card kind and a tag, which no control in the app sets yet. Removing an item from a Smart Space excludes it there; the item's right-click menu then offers to allow it back in.
+A Smart Space saves the search that was in the field when Save as Space was chosen, and runs it each time it loads, matching items the way search does. Its stored query can also hold an item kind and a tag, which no control in the app sets yet. Removing an item from a Smart Space excludes it there; the item's right-click menu then offers to allow it back in.
 
-A Smart Space with no card kind filter whose search text names only photo subjects, or with no filters at all whose name does ("Cats", "Photos of dogs and horses"), shows images of those subjects instead of everything. The subjects are cat, dog, bird, horse, car, bicycle, flower, tree, mountain and beach, in English, with their plurals and a few synonyms (kitten, puppy, bike, pony). Each analyzed image is labelled by the nearest of these, a screenshot, or about ninety other common subjects, so a lion or a screenshot of a chat about cats stays out; close look-alikes such as a truck for a car can still get in. An image the user tagged with a subject always counts. An image that is not analyzed yet, or every image while the search model cannot answer (not downloaded yet, or the worker busy), counts when its title, description or OCR text name a subject; the preview, which has no image model, always works this way. Any other name leaves an unfiltered Smart Space listing everything, and the saved query never changes.
+A Smart Space with no item kind filter whose search text names only photo subjects, or with no filters at all whose name does ("Cats", "Photos of dogs and horses"), shows images of those subjects instead of everything. The subjects are cat, dog, bird, horse, car, bicycle, flower, tree, mountain and beach, in English, with their plurals and a few synonyms (kitten, puppy, bike, pony). Each analyzed image is labelled by the nearest of these, a screenshot, or about ninety other common subjects, so a lion or a screenshot of a chat about cats stays out; close look-alikes such as a truck for a car can still get in. An image the user tagged with a subject always counts. An image that is not analyzed yet, or every image while the search model cannot answer (not downloaded yet, or the worker busy), counts when its title, description or OCR text name a subject; the preview, which has no image model, always works this way. Any other name leaves an unfiltered Smart Space listing everything, and the saved query never changes.
 
 ### Regular Spaces
 
