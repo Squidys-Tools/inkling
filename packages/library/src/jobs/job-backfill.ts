@@ -2,10 +2,10 @@ import { Effect } from "effect";
 import {
   IMAGE_PALETTE_JOB,
   JobQueue,
-  Library,
   PDF_THUMBNAIL_JOB,
   VIDEO_POSTER_JOB,
-} from "../storage/library.ts";
+} from "../storage/jobs.ts";
+import { Library } from "../storage/library.ts";
 
 type Candidates = (
   library: Library["Service"],

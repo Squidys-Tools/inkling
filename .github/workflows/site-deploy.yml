@@ -1,9 +1,8 @@
 name: Deploy site
 
-# The only way the marketing site reaches production. Every push to main that can
-# change the built site deploys it, and the Release workflow dispatches it after
-# each nightly publishes. Run it by hand after publishing a stable release, since
-# the build looks up the latest release's installers.
+# The only way the marketing site reaches production. Every push to main that can change the
+# built site deploys it, and Release dispatches it after each nightly publishes. Run it by hand
+# after publishing a stable release: the build looks up the latest release's installers.
 on:
   push:
     branches: [main]
@@ -20,14 +19,15 @@ on:
       - 'tsconfig.base.json'
       - '.bun-version'
       - 'patches/**'
+      - 'tools/ci/**'
       - '.github/workflows/site-deploy.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A running deploy finishes; a newer push replaces any deploy still waiting, so the
-# last push to main is the one that ends up live.
+# A running deploy finishes; a newer push replaces any deploy still waiting, so the last push to
+# main is the one that ends up live.
 concurrency:
   group: site-deploy
   cancel-in-progress: false
@@ -41,66 +41,13 @@ jobs:
     environment:
       name: site-production
       url: https://getinkling.dev
-    env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: .bun-version
-
-      # Deploy from the repo root: the Vercel project's root directory is apps/site.
-      # Promote explicitly because `deploy --prod` exits 0 when it fails to move the domain;
-      # an abandoned run's build then never goes live. Use the API: the CLI's promote needs a
-      # signed-in user, and a team-scoped token has none ("User not found").
-      - name: Deploy
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${VERCEL_TOKEN:-}" || -z "${VERCEL_ORG_ID:-}" || -z "${VERCEL_PROJECT_ID:-}" ]]; then
-            echo "Missing a Vercel secret: VERCEL_TOKEN, VERCEL_ORG_ID or VERCEL_PROJECT_ID." >&2
-            exit 1
-          fi
-
-          output="$(
-            bunx vercel@65.9.0 deploy \
-              --prod \
-              --skip-domain \
-              --archive=tgz \
-              --yes \
-              --token "$VERCEL_TOKEN" \
-              --meta githubSha="$GITHUB_SHA"
-          )"
-          printf '%s\n' "$output"
-
-          # The CLI can print warnings to stdout ahead of the deployment URL.
-          url="$(printf '%s\n' "$output" | grep -E '^https://[[:alnum:].-]+\.vercel\.app$' || true)"
-          if [[ -z "$url" || "$url" == *$'\n'* ]]; then
-            echo "Expected exactly one deployment URL." >&2
-            exit 1
-          fi
-
-          api="https://api.vercel.com"
-          auth="Authorization: Bearer $VERCEL_TOKEN"
-          team="teamId=$VERCEL_ORG_ID"
-
-          id="$(curl -fsS -H "$auth" "$api/v13/deployments/${url#https://}?$team" | jq -er .id)"
-          curl -fsS -X POST -H "$auth" "$api/v10/projects/$VERCEL_PROJECT_ID/promote/$id?$team"
-
-          # Promotion can finish after the request returns.
-          for _ in $(seq 30); do
-            live="$(curl -fsS -H "$auth" "$api/v4/aliases/getinkling.dev?$team" | jq -r .deploymentId)"
-            if [[ "$live" == "$id" ]]; then
-              echo "getinkling.dev serves $url" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "getinkling.dev still points at $live, not $id." >&2
-          exit 1
+      - run: bun tools/ci/site-deploy.ts production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

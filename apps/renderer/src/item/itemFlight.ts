@@ -1,9 +1,9 @@
-import { createStore, useStore } from "../library/store.ts";
+import { createAtom, useSelector } from "@tanstack/react-store";
 import { usableOrigin, type FlightRect } from "./flightGeometry.ts";
 
-const painting = createStore(false);
+const painting = createAtom(false);
 export const setFlightPainting = (value: boolean) => painting.set(value);
-export const useFlightPainting = () => useStore(painting, (value) => value);
+export const useFlightPainting = () => useSelector(painting);
 
 export const findCard = (id: string) =>
   document.querySelector<HTMLElement>(`[data-bench="card"][data-item-id="${CSS.escape(id)}"]`);

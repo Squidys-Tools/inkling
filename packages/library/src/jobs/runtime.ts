@@ -1,5 +1,6 @@
 import { Effect, Layer } from "effect";
-import { JobQueue, type Library } from "../storage/library.ts";
+import { JobQueue } from "../storage/jobs.ts";
+import { type Library } from "../storage/library.ts";
 import { makeWorker, type Processor } from "../storage/worker.ts";
 import { enqueueLongTextEmbeddings, enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
 import { createJobProcessors, jobTimeouts } from "./processors.ts";

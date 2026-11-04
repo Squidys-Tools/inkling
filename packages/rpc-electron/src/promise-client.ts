@@ -40,7 +40,7 @@ export async function connect<Rpcs extends Rpc.Any>(
       Layer.provide(platform),
     ),
   );
-  const scope = Effect.runSync(Scope.make());
+  const scope = Scope.makeUnsafe();
   const rpc = (await runtime.runPromise(
     RpcClient.make(group).pipe(Scope.provide(scope)),
   )) as Record<

@@ -17,11 +17,17 @@ import {
 } from "./format.ts";
 import { KindBreakdown } from "./KindBreakdown.tsx";
 import { Panel, PanelBody, Row, settingsText, SquareButton } from "./parts.tsx";
-import { useLibraryOverview, useLibraryTransfer } from "./useLibraryTransfer.ts";
+import { useLibraryOverview, type useLibraryTransfer } from "./useLibraryTransfer.ts";
 
-export function LibraryPanel({ onClose }: { onClose: () => void }) {
+export function LibraryPanel({
+  transfer,
+  onClose,
+}: {
+  transfer: ReturnType<typeof useLibraryTransfer>;
+  onClose: () => void;
+}) {
   const { count, kinds, sizeBytes, lastCopy } = useLibraryOverview();
-  const { busy, outcome, exportCopy, restoreCopy, showFolder } = useLibraryTransfer();
+  const { busy, outcome, exportCopy, restoreCopy, showFolder } = transfer;
   const failure = (action: "export" | "import" | "folder") =>
     outcome?.action === action && "error" in outcome ? (
       <p role="alert" {...stylex.props(styles.failed)}>
@@ -40,11 +46,11 @@ export function LibraryPanel({ onClose }: { onClose: () => void }) {
           <div {...stylex.props(styles.headline)}>
             <div {...stylex.props(styles.figures)}>
               <p {...stylex.props(styles.count)}>
-                {count === null
+                {count === undefined
                   ? "Your library"
                   : `${count.toLocaleString()} ${count === 1 ? "thing" : "things"}`}
               </p>
-              {sizeBytes !== null && (
+              {sizeBytes !== undefined && (
                 <span {...stylex.props(settingsText.mono)}>
                   {formatByteSize(sizeBytes)} on disk
                 </span>

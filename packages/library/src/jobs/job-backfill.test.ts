@@ -3,7 +3,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Effect } from "effect";
 import { extractPdfTextByPages } from "@inkling/jobs/pdf";
-import { JobQueue, Library, PDF_THUMBNAIL_JOB } from "../storage/library.ts";
+import { JobQueue, PDF_THUMBNAIL_JOB } from "../storage/jobs.ts";
+import { Library } from "../storage/library.ts";
 import { createBackfill } from "./job-backfill.ts";
 import { cleanUpJobTests, createJobs, pdfFixture, savePdf, temporaryLibrary } from "./test-jobs.ts";
 

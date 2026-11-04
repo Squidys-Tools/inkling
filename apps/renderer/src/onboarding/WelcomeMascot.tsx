@@ -4,6 +4,8 @@ import type { BotExpression } from "../mascot/bot/expressions";
 import { MascotPortrait } from "../mascot/MascotPortrait.tsx";
 
 const FACE_HOLD_MS = 3400;
+/** The big mascots run this much slower, so they stay calm beside the text. */
+const SPEED = 0.55;
 
 /**
  * The large, cropped mascot on the first and last welcome screens. It drifts,
@@ -14,7 +16,6 @@ export function WelcomeMascot({
   size,
   faces,
   look,
-  speed,
   side,
   leaving,
   reducedMotion,
@@ -23,8 +24,6 @@ export function WelcomeMascot({
   faces: readonly BotExpression["id"][];
   /** Where the eyes stay pointed (toward the screen's text) through every face. */
   look: { yaw: number; pitch: number };
-  /** Playback rate of the animation and the face changes (1 = normal). */
-  speed: number;
   /** Which bottom corner it hangs off; it rises in from, and sinks back toward, that corner. */
   side: "left" | "right";
   /** Set while the screen plays its exit. */
@@ -37,10 +36,10 @@ export function WelcomeMascot({
     if (reducedMotion) return;
     const timer = window.setInterval(
       () => setFaceIndex((index) => (index + 1) % faces.length),
-      FACE_HOLD_MS / speed,
+      FACE_HOLD_MS / SPEED,
     );
     return () => window.clearInterval(timer);
-  }, [faces, reducedMotion, speed]);
+  }, [faces, reducedMotion]);
 
   // Its centre sits 0.2 of its size in from the container's side and bottom edges.
   const offset = -0.3 * size;
@@ -58,7 +57,7 @@ export function WelcomeMascot({
         size={size}
         expression={faces[faceIndex] ?? "neutre"}
         look={look}
-        speed={speed}
+        speed={SPEED}
       />
     </div>
   );

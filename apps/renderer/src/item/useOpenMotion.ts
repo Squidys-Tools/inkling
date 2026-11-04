@@ -3,7 +3,6 @@ import { type RefObject, useCallback, useEffectEvent, useLayoutEffect, useRef } 
 import { flightDuration, originTransform } from "./flightGeometry.ts";
 import { cardOrigin, setFlightPainting, takeItemOrigin } from "./itemFlight.ts";
 
-export { findCard } from "./itemFlight.ts";
 const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const ease = "cubic-bezier(0.85, 0, 0.15, 1)";
 type Flight = {
