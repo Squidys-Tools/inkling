@@ -31,29 +31,36 @@ const play = (list, el, keyframes, options) => {
   list.push(animation);
   return animation.finished.catch(() => {});
 };
-// Mascot and bubble are measured together: every offset below is relative to the line between them.
+// Offsets are in the bubble's frame, along the line from the mascot's center to the bubble's.
 function measure(trigger, box) {
   const m = trigger.getBoundingClientRect(),
     b = box.getBoundingClientRect(),
+    pad = parseFloat(getComputedStyle(box).getPropertyValue("--ink-pad")) || 0,
     vx = b.left + b.width / 2 - (m.left + m.width / 2),
     vy = b.top + b.height / 2 - (m.top + m.height / 2),
     d = Math.hypot(vx, vy) || 1,
     ux = vx / d,
-    uy = vy / d;
+    uy = vy / d,
+    r = m.width * 0.36,
+    edge = Math.min(b.width / 2 / (Math.abs(ux) || 1e-6), b.height / 2 / (Math.abs(uy) || 1e-6)),
+    reach = d - r * 0.9;
   return {
-    vx,
-    vy,
-    d,
     ux,
     uy,
     angle: Math.atan2(uy, ux),
-    r: m.width * 0.36,
     k: Math.min(1.2, Math.max(0.6, m.width / 160)),
-    mx: m.left + m.width / 2 - b.left,
-    my: m.top + m.height / 2 - b.top,
-    edge: Math.min(b.width / 2 / (Math.abs(ux) || 1e-6), b.height / 2 / (Math.abs(uy) || 1e-6)),
+    reach,
+    travel: reach - edge + 18,
+    mouth: `translate(${-vx + ux * r * 0.5}px,${-vy + uy * r * 0.5}px)`,
+    // Where the neck leaves the mascot, in ink-layer coordinates.
+    neckX: pad + m.left + m.width / 2 - b.left + ux * r * 0.9,
+    neckY: pad + m.top + m.height / 2 - b.top + uy * r * 0.9,
   };
 }
+const placeDrop = (drop, i, g) => {
+  const s = DROPS[i] * g.k;
+  drop.style.cssText = `left:${g.neckX - s / 2}px;top:${g.neckY - s / 2}px;width:${s}px;height:${s}px`;
+};
 const pose = (g, rows) =>
   rows.map(([offset, pull, along, across]) => ({
     offset,
@@ -71,6 +78,7 @@ export function InkHint({ trigger, getCharacter, reduced, register, tip, ref, ..
     drops = React.useRef([]),
     animations = React.useRef([]),
     shown = React.useRef(false),
+    leaving = React.useRef(false),
     session = React.useRef(0),
     done = React.useRef(safeToRemove);
   const settle = React.useCallback(() => {
@@ -80,36 +88,25 @@ export function InkHint({ trigger, getCharacter, reduced, register, tip, ref, ..
     if (figure) figure.style.transformOrigin = "";
   }, [getCharacter]);
   const emerge = React.useCallback(() => {
-    const el = box.current;
     const figure = getCharacter();
-    if (!el || !trigger.current || !figure || !blob.current) return;
     session.current += 1;
-    const pad = parseFloat(getComputedStyle(el).getPropertyValue("--ink-pad")) || 0;
     settle();
     shown.current = true;
-    const g = measure(trigger.current, el),
+    const g = measure(trigger.current, box.current),
       list = animations.current,
-      startX = -g.vx + g.ux * g.r * 0.5,
-      startY = -g.vy + g.uy * g.r * 0.5,
-      reach = g.d - g.r * 0.9,
-      travel = reach - g.edge + 18;
+      th = `rotate(${g.angle}rad)`;
     figure.style.transformOrigin = "50% 60%";
     play(list, figure, pose(g, OPEN_POSE), { duration: 1300, easing: "linear" });
     play(
       list,
       blob.current,
       [
-        {
-          opacity: 1,
-          transform: `translate(${startX}px,${startY}px) scale(.1,.22)`,
-          borderRadius: "90px",
-        },
+        { opacity: 1, transform: `${g.mouth} scale(.1,.22)`, borderRadius: "90px" },
         { opacity: 1, transform: "translate(0,0) scale(1,1)", borderRadius: "22px" },
       ],
       { duration: 640, delay: 160, easing: EMERGE },
     );
-    const th = `rotate(${g.angle}rad)`;
-    tether.current.style.cssText = `left:${pad + g.mx + g.ux * g.r * 0.9}px;top:${pad + g.my + g.uy * g.r * 0.9 - 14}px;width:${reach}px`;
+    tether.current.style.cssText = `left:${g.neckX}px;top:${g.neckY - 14}px;width:${g.reach}px`;
     play(
       list,
       tether.current,
@@ -122,8 +119,7 @@ export function InkHint({ trigger, getCharacter, reduced, register, tip, ref, ..
       { duration: 640, delay: 160, easing: EMERGE },
     );
     drops.current.forEach((d, i) => {
-      const s = DROPS[i] * g.k;
-      d.style.cssText = `left:${pad + g.mx + g.ux * g.r * 0.9 - s / 2}px;top:${pad + g.my + g.uy * g.r * 0.9 - s / 2}px;width:${s}px;height:${s}px`;
+      placeDrop(d, i, g);
       play(
         list,
         d,
@@ -131,12 +127,12 @@ export function InkHint({ trigger, getCharacter, reduced, register, tip, ref, ..
           { opacity: 1, transform: "translate(0,0) scale(.4)" },
           {
             opacity: 1,
-            transform: `translate(${g.ux * travel * 0.55}px,${g.uy * travel * 0.55}px) scale(1)`,
+            transform: `translate(${g.ux * g.travel * 0.55}px,${g.uy * g.travel * 0.55}px) scale(1)`,
             offset: 0.6,
           },
           {
             opacity: 1,
-            transform: `translate(${g.ux * travel}px,${g.uy * travel}px) scale(.6)`,
+            transform: `translate(${g.ux * g.travel}px,${g.uy * g.travel}px) scale(.6)`,
           },
         ],
         { duration: 540, delay: 200 + i * 90, easing: "ease-in-out" },
@@ -148,51 +144,36 @@ export function InkHint({ trigger, getCharacter, reduced, register, tip, ref, ..
     });
     play(list, close.current, [{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 700 });
   }, [trigger, getCharacter, settle]);
+  // Resolves false when a reopen started a new session before the swallow finished.
   const swallow = React.useCallback(async () => {
-    if (!box.current || !trigger.current || !getCharacter() || !blob.current) return true;
     const mine = session.current,
+      figure = getCharacter(),
       g = measure(trigger.current, box.current),
       list = animations.current,
-      pad = parseFloat(getComputedStyle(box.current).getPropertyValue("--ink-pad")) || 0,
-      th = `rotate(${g.angle}rad)`,
-      back = g.d - g.r * 0.9 - g.edge + 18;
-    await Promise.all([
-      play(list, text.current, [{ opacity: live(text.current, "opacity") }, { opacity: 0 }], {
-        duration: 140,
-      }),
-      play(list, close.current, [{ opacity: live(close.current, "opacity") }, { opacity: 0 }], {
-        duration: 140,
-      }),
-    ]);
+      th = `rotate(${g.angle}rad)`;
+    await Promise.all(
+      [text.current, close.current].map((el) =>
+        play(list, el, [{ opacity: live(el, "opacity") }, { opacity: 0 }], { duration: 140 }),
+      ),
+    );
     if (session.current !== mine) return false;
     drops.current.forEach((d, i) => {
-      const s = DROPS[i] * g.k;
-      d.style.cssText = `left:${pad + g.mx + g.ux * g.r * 0.9 - s / 2}px;top:${pad + g.my + g.uy * g.r * 0.9 - s / 2}px;width:${s}px;height:${s}px`;
+      placeDrop(d, i, g);
       play(
         list,
         d,
         [
           {
             opacity: 1,
-            transform: `translate(${g.ux * back}px,${g.uy * back}px) scale(.6)`,
+            transform: `translate(${g.ux * g.travel}px,${g.uy * g.travel}px) scale(.6)`,
           },
           { opacity: 1, transform: "translate(0,0) scale(.4)" },
         ],
         { duration: 380, delay: 80 + i * 80, easing: "ease-in" },
       );
     });
-    const figure = getCharacter(),
-      frames = pose(g, CLOSE_POSE),
-      from = {
-        opacity: live(blob.current, "opacity"),
-        transform: live(blob.current, "transform"),
-        borderRadius: live(blob.current, "borderRadius"),
-      };
+    const frames = pose(g, CLOSE_POSE);
     frames[0].transform = live(figure, "transform");
-    const mascotDone = play(list, figure, frames, {
-      duration: 1160,
-      easing: "linear",
-    });
     play(
       list,
       tether.current,
@@ -204,20 +185,20 @@ export function InkHint({ trigger, getCharacter, reduced, register, tip, ref, ..
       { duration: 600, easing: SUCK },
     );
     await Promise.all([
+      play(list, figure, frames, { duration: 1160, easing: "linear" }),
       play(
         list,
         blob.current,
         [
-          from,
           {
-            opacity: 1,
-            transform: `translate(${-g.vx + g.ux * g.r * 0.5}px,${-g.vy + g.uy * g.r * 0.5}px) scale(.1,.22)`,
-            borderRadius: "90px",
+            opacity: live(blob.current, "opacity"),
+            transform: live(blob.current, "transform"),
+            borderRadius: live(blob.current, "borderRadius"),
           },
+          { opacity: 1, transform: `${g.mouth} scale(.1,.22)`, borderRadius: "90px" },
         ],
         { duration: 600, easing: SUCK },
       ),
-      mascotDone,
     ]);
     return session.current === mine;
   }, [trigger, getCharacter]);
@@ -229,7 +210,6 @@ export function InkHint({ trigger, getCharacter, reduced, register, tip, ref, ..
       settle();
     };
   }, [reduced, register, emerge, settle]);
-  const leaving = React.useRef(false);
   React.useEffect(() => {
     done.current = safeToRemove;
   });
