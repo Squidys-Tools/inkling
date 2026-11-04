@@ -115,6 +115,7 @@ function Cover({
   return (
     <span role="status" aria-label={label} {...stylex.props(styles.layer)}>
       <canvas ref={canvasRef} aria-hidden="true" {...stylex.props(styles.cover)} />
+      <span aria-hidden="true" {...stylex.props(styles.layer, styles.rim)} />
     </span>
   );
 }
@@ -208,6 +209,9 @@ const styles = stylex.create({
     animationName: fadeIn,
     animationDuration: motion.layout,
     animationTimingFunction: "ease",
+  },
+  rim: {
+    boxShadow: `inset 0 0 0 1px ${loadingColor.ringEdge}, inset 0 0 14px 1px ${loadingColor.ringGlow}`,
   },
   drain: { backgroundColor: loadingColor.failedGrey, mixBlendMode: "saturation" },
   veil: {

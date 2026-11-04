@@ -206,6 +206,8 @@ export const cardColor = stylex.defineVars({
 export const loadingColor = stylex.defineConsts({
   ringInk: "#dad1c4",
   mosaicBase: "#161412",
+  ringEdge: "rgba(218, 209, 196, 0.3)",
+  ringGlow: "rgba(218, 209, 196, 0.1)",
   beamTint: "#b4b4b4",
   beamTintDeep: "#8c8c8c",
   beamTintSoft: "rgba(180, 180, 180, 0.225)",
