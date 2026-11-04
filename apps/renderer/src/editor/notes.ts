@@ -32,7 +32,3 @@ export function noteBodyForStorage(markdown: string, title: string, editedBody: 
     ? normalizedBody
     : normalizeNoteBody(`${titleHeading}\n\n${normalizedBody}`);
 }
-
-// A note link opens in the user's browser, so only web URLs are storable;
-// `javascript:` and data payloads never reach the stored Markdown.
-export { isWebUrl as isSafeNoteLink } from "@inkling/ingestion/url";
