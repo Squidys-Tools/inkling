@@ -7,7 +7,7 @@ import { useId } from "react";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { shownScope, useScope } from "../library/cards.ts";
 import { search } from "../library/search.ts";
-import { dismissSpaceError, useSpaceError, useSpaces } from "../library/spaces.ts";
+import { createSpace, dismissSpaceError, useSpaceError, useSpaces } from "../library/spaces.ts";
 import { useStore } from "../library/store.ts";
 import { SpaceRow } from "./SpaceRow.tsx";
 import {
@@ -102,7 +102,7 @@ function SpaceDraftForm() {
       {...stylex.props(styles.form)}
       onSubmit={async (event) => {
         event.preventDefault();
-        const created = await createDraftedSpace();
+        const created = await createDraftedSpace(createSpace);
         if (!created) return;
         search.clear();
         void navigate({ to: "/space/$id", params: { id: created.id } });
