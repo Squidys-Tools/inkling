@@ -1,4 +1,4 @@
-import { createStore, useStore } from "../library/store.ts";
+import { createAtom, useSelector } from "@tanstack/react-store";
 
 type ViewState = {
   list: boolean;
@@ -10,7 +10,7 @@ type ViewState = {
 };
 
 /** How the library is shown; it outlives any one page. */
-export const viewState = createStore<ViewState>({
+export const viewState = createAtom<ViewState>({
   list: false,
   entering: false,
   sidebarOpen: true,
@@ -18,7 +18,7 @@ export const viewState = createStore<ViewState>({
 });
 
 export const useViewState = <Selected>(select: (state: ViewState) => Selected) =>
-  useStore(viewState, select);
+  useSelector(viewState, select);
 
 export const setListMode = (list: boolean) => viewState.set((state) => ({ ...state, list }));
 export const setEntering = (entering: boolean) =>

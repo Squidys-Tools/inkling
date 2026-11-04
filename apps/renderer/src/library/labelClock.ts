@@ -1,9 +1,9 @@
-import { createStore, useStore } from "./store.ts";
+import { createAtom, useSelector } from "@tanstack/react-store";
 
 // Card date labels ("Just now", "Today") read the time when they are drawn.
 // This store changes only at the moment the earliest drawn label expires, so
 // cards redraw then and never on a repeating timer.
-export const labelClock = createStore(0);
+export const labelClock = createAtom(0);
 
 let wakeAt = Number.POSITIVE_INFINITY;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -24,4 +24,4 @@ export function expireLabelAt(at: number) {
   );
 }
 
-export const useLabelClock = () => useStore(labelClock, (tick) => tick);
+export const useLabelClock = () => useSelector(labelClock);
