@@ -1,4 +1,5 @@
 import type { ConfirmOptions, ContextMenuItem, Platform } from "@inkling/contracts/desktop";
+import { isWebUrl } from "@inkling/ingestion/url";
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from "electron";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,7 +62,7 @@ function createWindow() {
       spellcheck: true,
     },
   });
-  if (platform !== "darwin") bindMaximizedState(window, channels.windowMaximized);
+  if (platform !== "darwin") bindMaximizedState(window);
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isWebUrl(url)) void shell.openExternal(url);
     return { action: "deny" };
@@ -69,7 +70,7 @@ function createWindow() {
   window.webContents.on("will-navigate", (event, target) => {
     // Only the app page itself: a stray link in saved HTML must not move the
     // window to another same-origin path, where the preload would load again.
-    if (target.split("#")[0] !== appUrl().split("?")[0]) event.preventDefault();
+    if (target.split("#")[0] !== appUrl) event.preventDefault();
   });
   // The renderer calls `ready` once its first real frame has painted. The
   // timer only covers a renderer that never does: the window must appear.
@@ -81,7 +82,7 @@ function createWindow() {
   window.on("closed", () => {
     if (mainWindow === window) mainWindow = undefined;
   });
-  void window.loadURL(appUrl());
+  void window.loadURL(appUrl);
   mainWindow = window;
 }
 
@@ -90,15 +91,6 @@ function showMainWindow() {
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.focus();
 }
-
-const isWebUrl = (value: string) => {
-  try {
-    const { protocol } = new URL(value);
-    return protocol === "http:" || protocol === "https:";
-  } catch {
-    return false;
-  }
-};
 
 const windowOf = (event: Electron.IpcMainInvokeEvent) =>
   BrowserWindow.fromWebContents(event.sender);
