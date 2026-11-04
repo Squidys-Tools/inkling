@@ -14,7 +14,7 @@ const hash = (left: number, right: number) => {
   return wave - Math.floor(wave);
 };
 
-export type Rgb = readonly [number, number, number];
+type Rgb = readonly [number, number, number];
 
 const rgb = (hex: string): Rgb => {
   const value = Number.parseInt(hex.slice(1), 16);

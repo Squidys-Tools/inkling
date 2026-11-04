@@ -57,7 +57,11 @@ const canvasSize = (width: number, height: number, revealing: boolean) => {
     24 / shortest,
     Math.min(revealing ? 1 / 3 : 1 / 2, (revealing ? 120 : 200) / longest),
   );
-  return { width: Math.round(width * scale), height: Math.round(height * scale) };
+  // A card measured before layout reads 0 wide, and createImageData throws on a 0 side.
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
 };
 
 /**
@@ -214,7 +218,7 @@ const styles = stylex.create({
     display: "block",
     width: "100%",
     height: "100%",
-    animationName: fadeIn,
+    animationName: { default: fadeIn, "@media (prefers-reduced-motion: reduce)": "none" },
     animationDuration: motion.layout,
     animationTimingFunction: "ease",
   },
