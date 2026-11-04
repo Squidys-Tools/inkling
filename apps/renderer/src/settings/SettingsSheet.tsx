@@ -12,6 +12,7 @@ import { LibraryPanel } from "./LibraryPanel.tsx";
 import { LicensesPanel } from "./LicensesPanel.tsx";
 import { railSections, type SettingsSection } from "./sections.ts";
 import { ScreenshotsPanel } from "./ScreenshotsPanel.tsx";
+import { useLibraryTransfer } from "./useLibraryTransfer.ts";
 import { UpdatesPanel } from "./UpdatesPanel.tsx";
 
 function useAppVersion(open: boolean) {
@@ -41,6 +42,7 @@ export function SettingsSheet() {
   const shown = useSearch({ from: "__root__", select: (search) => search.settings });
   const open = shown !== undefined;
   const version = useAppVersion(open);
+  const transfer = useLibraryTransfer();
   const section = shown ?? "general";
   // The popup stays clickable while it fades out; a second close would step
   // back past the page, and a section click would reopen the sheet over it.
@@ -107,7 +109,7 @@ export function SettingsSheet() {
             <LicensesPanel onBack={() => show("general")} onClose={close} />
           )}
           {section === "appearance" && <AppearancePanel onClose={close} />}
-          {section === "library" && <LibraryPanel onClose={close} />}
+          {section === "library" && <LibraryPanel transfer={transfer} onClose={close} />}
           {section === "extension" && <ExtensionPanel onClose={close} />}
           {section === "screenshots" && <ScreenshotsPanel onClose={close} />}
           {section === "updates" && <UpdatesPanel onClose={close} />}

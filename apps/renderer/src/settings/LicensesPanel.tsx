@@ -7,37 +7,30 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
-import { useDeferredValue, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useDeferredValue, useState } from "react";
 import { desktop } from "../desktop.ts";
 import { LicenseFilter } from "./LicenseFilter.tsx";
-import {
-  filterLicenses,
-  licenseCounts,
-  loadLicenses,
-  type ThirdPartyLicense,
-} from "./licenseList.ts";
+import { filterLicenses, licenseCounts, type ThirdPartyLicense } from "./licenseList.ts";
 import { Panel, PanelBody, settingsText } from "./parts.tsx";
 
 export function LicensesPanel({ onBack, onClose }: { onBack: () => void; onClose: () => void }) {
-  const [entries, setEntries] = useState<ThirdPartyLicense[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  // Fetched on open rather than imported, so the notices stay out of the bundle.
+  const { data: entries, status } = useQuery({
+    queryKey: ["licenses"],
+    queryFn: async () => {
+      const response = await fetch(new URL("third-party-licenses.json", document.baseURI));
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return (await response.json()) as ThirdPartyLicense[];
+    },
+    staleTime: Infinity,
+  });
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const deferredQuery = useDeferredValue(query);
-
-  useEffect(() => {
-    let current = true;
-    loadLicenses().then(
-      (loaded) => current && setEntries(loaded),
-      () => current && setFailed(true),
-    );
-    return () => {
-      current = false;
-    };
-  }, []);
-
   const shown = entries && filterLicenses(entries, deferredQuery, picked);
+  const total = entries?.length;
 
   return (
     <Panel
@@ -53,13 +46,9 @@ export function LicensesPanel({ onBack, onClose }: { onBack: () => void; onClose
     >
       <div {...stylex.props(styles.toolbar)}>
         <span {...stylex.props(settingsText.mono, styles.tally)}>
-          {!entries || !shown
-            ? failed
-              ? ""
-              : "Loading…"
-            : shown.length !== entries.length
-              ? `${shown.length} of ${entries.length} notices`
-              : `${entries.length} notices`}
+          {status === "pending" && "Loading…"}
+          {shown &&
+            (shown.length === total ? `${total} notices` : `${shown.length} of ${total} notices`)}
         </span>
         <LicenseFilter
           counts={entries ? licenseCounts(entries) : []}
@@ -81,7 +70,7 @@ export function LicensesPanel({ onBack, onClose }: { onBack: () => void; onClose
         </label>
       </div>
       <PanelBody>
-        {failed && (
+        {status === "error" && (
           <p {...stylex.props(settingsText.body, styles.empty)}>
             The license list didn’t load. Open this page again to retry.
           </p>
@@ -233,7 +222,8 @@ const styles = stylex.create({
     borderBottomWidth: 1,
     borderBottomStyle: "solid",
     borderBottomColor: color.border,
-    // Hundreds of rows: only the ones on screen lay out.
+    // Only the rows on screen lay out. This also clips paint to the row, so
+    // focus rings inside it are inset.
     contentVisibility: "auto",
     containIntrinsicSize: "auto 45px",
   },
@@ -252,6 +242,7 @@ const styles = stylex.create({
     textAlign: "left",
     cursor: "pointer",
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
+    outlineOffset: "-2px",
   },
   chevron: {
     display: "inline-flex",
@@ -299,6 +290,7 @@ const styles = stylex.create({
     transitionProperty: "background-color, color, border-color",
     transitionDuration: motion.micro,
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
+    outlineOffset: "-2px",
   },
   details: {
     display: "flex",

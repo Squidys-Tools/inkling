@@ -3,7 +3,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
 import type { ShellThumbnail } from "@inkling/jobs/video-poster";
-import { VIDEO_POSTER_JOB } from "../storage/library.ts";
+import { VIDEO_POSTER_JOB } from "../storage/jobs.ts";
 import type { TestLibrary } from "../storage/test-library.ts";
 import { cleanUpJobTests, createJobs, temporaryLibrary } from "./test-jobs.ts";
 

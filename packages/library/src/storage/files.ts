@@ -5,7 +5,8 @@ import { Effect } from "effect";
 import type { SaveFileInput } from "@inkling/contracts";
 import type { StorageContext } from "./context.ts";
 import { writtenItem } from "./rows.ts";
-import { isInside, nonEmpty } from "./shared.ts";
+import { isInside } from "../paths.ts";
+import { nonEmpty } from "./shared.ts";
 import { attempt, invalidInput } from "./errors.ts";
 import { IMAGE_THUMBNAIL_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
 

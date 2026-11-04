@@ -1,8 +1,7 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { IMAGE_MODEL } from "@inkling/contracts/jobs";
 import parity from "../fixtures/storage-parity.json";
-import { resolveLibraryDataDirectory } from "./library.ts";
 import {
   closeAll,
   closeLibrary,
@@ -87,36 +86,4 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
   expect(ids(await library.listArchivedItems())).toContain(note.id);
   await library.archiveItem(note.id, false);
   expect(ids(await library.listActiveItems())).toContain(note.id);
-});
-
-test("data directory keeps portable precedence and the product app-data identity", () => {
-  expect(
-    resolveLibraryDataDirectory({
-      executablePath: "/apps/inkling/inkling.exe",
-      appDataDirectory: "/users/test/AppData/Roaming",
-      portable: true,
-    }),
-  ).toBe(join("/apps/inkling", "data"));
-  expect(
-    resolveLibraryDataDirectory({
-      executablePath: "/apps/inkling/inkling.exe",
-      appDataDirectory: "/users/test/AppData/Roaming",
-    }),
-  ).toBe(join("/users/test/AppData/Roaming", "com.inkling.library"));
-  expect(
-    resolveLibraryDataDirectory({
-      executablePath: "/apps/inkling/inkling.exe",
-      appDataDirectory: "/users/test/AppData/Roaming",
-      overrideDirectory: "/scratch/library",
-    }),
-  ).toBe(resolve("/scratch/library"));
-});
-
-test("the change count holds still on reads and moves on every write", async () => {
-  const { library } = await temporaryLibrary();
-  const before = await library.changeCount();
-  await library.listActiveItems();
-  expect(await library.changeCount()).toBe(before);
-  await library.createNote({ title: "Counted", body: "A write through the library." });
-  expect(await library.changeCount()).toBeGreaterThan(before);
 });

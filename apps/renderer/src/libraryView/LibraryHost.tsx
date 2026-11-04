@@ -8,7 +8,7 @@ import { loadScope, showScope, shownScope, useScope } from "../library/cards.ts"
 import { scopeFromPath, scopeKey } from "../library/scope.ts";
 import { search, useSearch } from "../library/search.ts";
 import { spacesStore, useSpace } from "../library/spaces.ts";
-import { useStore } from "../library/store.ts";
+import { useSelector } from "@tanstack/react-store";
 import { libraryMarker } from "../markers.stylex.ts";
 import { EmptyState } from "./EmptyState.tsx";
 import { FilterRow } from "./FilterRow.tsx";
@@ -40,10 +40,10 @@ export function LibraryHost({
     if (next) showScope(next);
   }, [pathname]);
 
-  const scope = useStore(shownScope, (shown) => shown);
+  const scope = useSelector(shownScope);
   const state = useScope(scope);
   const space = useSpace(scope._tag === "Space" ? scope.spaceId : null);
-  const spacesLoaded = useStore(spacesStore, (spaces) => spaces.loaded);
+  const spacesLoaded = useSelector(spacesStore, (spaces) => spaces.loaded);
   // A Space deleted here or in another window leaves for Everything instead of an error.
   const spaceGone =
     scope._tag === "Space" &&

@@ -16,7 +16,8 @@ import type { StorageContext } from "./context.ts";
 import { withDatabaseFile } from "./database-file.ts";
 import { attempt, invalidInput, storageFailure } from "./errors.ts";
 import { SCHEMA_VERSION } from "./schema.ts";
-import { isInside, isMissing, isSafeItemId, sha256File } from "./shared.ts";
+import { isInside } from "../paths.ts";
+import { isMissing, isSafeItemId, sha256File } from "./shared.ts";
 
 const LastExportJson = Schema.fromJsonString(
   Schema.Struct({ exportedAt: Schema.Finite, items: Schema.Int }),
