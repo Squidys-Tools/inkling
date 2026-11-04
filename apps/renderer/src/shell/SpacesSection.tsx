@@ -12,9 +12,9 @@ import { useStore } from "../library/store.ts";
 import { SpaceRow } from "./SpaceRow.tsx";
 import {
   closeSpaceDraft,
+  createDraftedSpace,
   openSpaceDraft,
   resumeSpaceDraft,
-  spaceDraft,
   updateSpaceDraft,
   useSpaceDraft,
 } from "./spaceDraft.ts";
@@ -102,11 +102,8 @@ function SpaceDraftForm() {
       {...stylex.props(styles.form)}
       onSubmit={async (event) => {
         event.preventDefault();
-        if (!draft.name.trim()) return;
-        const created = await createSpace(draft.name, draft.kind, draft.query);
+        const created = await createDraftedSpace(createSpace);
         if (!created) return;
-        // The draft may have changed while the Space was being made; only close the one that asked.
-        if (spaceDraft.get() === draft) closeSpaceDraft();
         search.clear();
         void navigate({ to: "/space/$id", params: { id: created.id } });
       }}
