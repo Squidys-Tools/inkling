@@ -1,5 +1,5 @@
 import { Effect, Layer } from "effect";
-import { JobQueue } from "../storage/jobs.ts";
+import { JobQueue, URL_ENRICHMENT_JOB } from "../storage/jobs.ts";
 import { type Library } from "../storage/library.ts";
 import { makeWorker, type Processor } from "../storage/worker.ts";
 import { enqueueLongTextEmbeddings, enqueueStaleImageEmbeddings } from "./embedding-jobs.ts";
@@ -12,7 +12,7 @@ type Services = Library | JobQueue | JobsWorker;
 const MAIN_LANES = 4;
 
 /**
- * Hands back jobs a previous run left behind, then runs both lanes until the
+ * Hands back jobs a previous run left behind, then runs every lane until the
  * layer closes. Closing it interrupts each lane, which hands its job back.
  * `onItemChanged` hears of each finished job, whose result may be on its card.
  */
@@ -51,8 +51,16 @@ export const jobLanesLayer = (onItemChanged: (itemId: string) => Effect.Effect<u
         timeouts: jobTimeouts,
         ready,
       });
+      // A saved page shows only its domain until this runs, and OCR and embeddings of a large
+      // import can hold every main lane for many minutes. Main lanes still take these jobs too.
+      const pages = yield* makeWorker<Services>({
+        processors: announced({ [URL_ENRICHMENT_JOB]: processors[URL_ENRICHMENT_JOB] }),
+        timeouts: jobTimeouts,
+        ready,
+      });
       for (const lane of main) yield* Effect.forkScoped(lane.run);
       yield* Effect.forkScoped(thumbnails.run);
+      yield* Effect.forkScoped(pages.run);
     }),
   );
 };

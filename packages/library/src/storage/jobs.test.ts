@@ -211,4 +211,15 @@ test("parallel lanes run each item's own jobs one at a time, in the order queued
   expect(await queue.enqueue("first", "generate_embedding")).toBe(embedding);
   expect(await queue.complete(ocr, "lane-b")).toBe(true);
   expect((await queue.claimNext("lane-c", main))?.kind).toBe("generate_embedding");
+
+  // A page's lane takes its download while every main lane is busy on other items, and
+  // the page's embedding still waits for that download on a main lane.
+  insert.run("page");
+  const pageKinds = [...main, "enrich_url"];
+  const download = await queue.enqueue("page", "enrich_url");
+  await queue.enqueue("page", "generate_embedding");
+  expect((await queue.claimNext("pages", ["enrich_url"]))?.id).toBe(download);
+  expect(await queue.claimNext("lane-d", pageKinds)).toBeNull();
+  expect(await queue.complete(download, "pages")).toBe(true);
+  expect((await queue.claimNext("lane-d", pageKinds))?.kind).toBe("generate_embedding");
 });
