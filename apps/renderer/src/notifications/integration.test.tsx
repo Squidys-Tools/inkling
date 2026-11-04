@@ -73,7 +73,7 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
   let fromMenu = (_command: string) => {};
   let escaped = 0;
   const router = {
-    navigate: () => {},
+    navigate: () => calls.push("navigate"),
     history: { back: () => calls.push("back"), forward: () => {} },
   };
   const { useCommands } = load<{ useCommands: () => void }>(
@@ -89,7 +89,6 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
       },
       platform: "linux",
       commandForKey: (event: KeyboardEvent) => (event.key === "k" ? "search" : undefined),
-      setSettingsSheetOpen: () => calls.push("settings"),
       runHandledCommand: (command: string) => calls.push(command),
     },
     "useCommands",
@@ -134,6 +133,11 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
     target.dispatchEvent(e);
     return e;
   };
+  const sideBack = () => {
+    const e = new f.dom.window.MouseEvent("mouseup", { button: 3, bubbles: true, cancelable: true });
+    page.dispatchEvent(e);
+    return e;
+  };
   try {
     await act(async () => root.render(<App />));
     await act(async () =>
@@ -143,10 +147,10 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
       fromMenu("search");
       fromMenu("openSettings");
       page.dispatchEvent(new f.dom.window.KeyboardEvent("keydown", { key: "k", bubbles: true }));
-      page.dispatchEvent(new f.dom.window.MouseEvent("mouseup", { button: 3, bubbles: true }));
+      expect(sideBack().defaultPrevented).toBe(true);
       escape(page);
     });
-    expect(calls).toEqual(["search", "settings", "search", "back"]);
+    expect(calls).toEqual(["search", "navigate", "search", "back"]);
     expect(escaped).toBe(1);
     const modal = document.createElement("div");
     modal.setAttribute("role", "dialog");
@@ -154,10 +158,17 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
     document.body.append(modal);
     await act(async () => {
       fromMenu("search");
+      sideBack();
       escape(page);
     });
     expect(calls).toHaveLength(4);
     expect(escaped).toBe(1);
+    modal.id = "settings-sheet";
+    await act(async () => {
+      fromMenu("search");
+      sideBack();
+    });
+    expect(calls.slice(4)).toEqual(["back"]);
     modal.remove();
     for (const error of [false, true]) {
       await act(async () => {

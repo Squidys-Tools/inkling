@@ -2,8 +2,9 @@ import { type Command, commandForKey } from "@inkling/contracts/shortcuts";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { desktop, platform } from "../desktop.ts";
-import { setSettingsSheetOpen } from "../libraryView/viewState.ts";
 import { runHandledCommand } from "./commands.ts";
+
+const modal = '[role="dialog"]:not([aria-modal="false"]), [role="alertdialog"]:not([aria-modal="false"])';
 
 const isEditable = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
@@ -16,13 +17,12 @@ export function useCommands() {
   useEffect(() => {
     const run = (command: Command) => {
       // An open dialog owns the keyboard: it keeps Escape and the shortcuts
-      // until it closes.
-      if (
-        document.querySelector(
-          '[role="dialog"]:not([aria-modal="false"]), [role="alertdialog"]:not([aria-modal="false"])',
-        )
-      )
-        return;
+      // until it closes. The settings sheet lives in the URL, so back and
+      // forward from the mouse or the menu still close and reopen it (Base UI
+      // keeps Alt+arrow keys inside the sheet).
+      const navigation = command === "back" || command === "forward";
+      const owners = [...document.querySelectorAll(modal)];
+      if (owners.some((dialog) => !navigation || dialog.id !== "settings-sheet")) return;
       switch (command) {
         case "addNote":
           return router.navigate({ to: "/add/note" });
@@ -31,7 +31,10 @@ export function useCommands() {
         case "addLink":
           return router.navigate({ to: "/add/link" });
         case "openSettings":
-          return setSettingsSheetOpen(true);
+          return router.navigate({
+            to: ".",
+            search: (prev) => ({ ...prev, settings: "general" }),
+          });
         case "back":
           return router.history.back();
         case "forward":
@@ -52,10 +55,12 @@ export function useCommands() {
       event.preventDefault();
       void run(command);
     };
-    // Mouse side buttons are back and forward on every system.
+    // Chromium also steps history itself on an uncancelled side-button
+    // mouseup, so without preventDefault one press moves two entries.
     const onMouseUp = (event: MouseEvent) => {
-      if (event.button === 3) void run("back");
-      if (event.button === 4) void run("forward");
+      if (event.button !== 3 && event.button !== 4) return;
+      event.preventDefault();
+      void run(event.button === 3 ? "back" : "forward");
     };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("mouseup", onMouseUp);

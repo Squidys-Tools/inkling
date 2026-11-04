@@ -2,10 +2,9 @@ import { Dialog } from "@base-ui/react/dialog";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
-import { useRouter } from "@tanstack/react-router";
+import { useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { desktop } from "../desktop.ts";
-import { setSettingsSheetOpen, useViewState } from "../libraryView/viewState.ts";
 import { AppearancePanel } from "./AppearancePanel.tsx";
 import { ExtensionPanel } from "./ExtensionPanel.tsx";
 import { GeneralPanel } from "./GeneralPanel.tsx";
@@ -32,29 +31,28 @@ function useAppVersion(open: boolean) {
 }
 
 /**
- * Settings as a sheet over the library. It owns focus, Escape and the scrim
- * until it closes, and every open lands on General.
+ * Settings as a sheet over the page under it. The open section lives in the
+ * URL: opening pushes one history entry on General, switching sections
+ * replaces it, and closing goes back to the page.
  */
 export function SettingsSheet() {
-  const open = useViewState((state) => state.settingsSheetOpen);
-  const version = useAppVersion(open);
   const router = useRouter();
-  const [section, setSection] = useState<SettingsSection>("general");
-  // Panels' × reaches the store directly, so reset here as well as onOpenChange.
+  const navigate = useNavigate();
+  const shown = useSearch({ from: "__root__", select: (search) => search.settings });
+  const open = shown !== undefined;
+  const version = useAppVersion(open);
+  const section = shown ?? "general";
+  const show = (settings: SettingsSection) =>
+    void navigate({ to: ".", search: (prev) => ({ ...prev, settings }), replace: true });
   const close = () => {
-    setSettingsSheetOpen(false);
-    setSection("general");
+    // A sheet opened by a link straight to it has no page of ours to go back to.
+    if (router.history.canGoBack()) router.history.back();
+    else void navigate({ to: ".", search: (prev) => ({ ...prev, settings: undefined }), replace: true });
   };
   const selected = section === "licenses" ? "general" : section;
 
   return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(next) => {
-        setSettingsSheetOpen(next);
-        if (!next) setSection("general");
-      }}
-    >
+    <Dialog.Root open={open} onOpenChange={(next) => !next && close()}>
       <Dialog.Portal>
         <Dialog.Backdrop {...stylex.props(styles.backdrop)} />
         <Dialog.Popup
@@ -73,7 +71,7 @@ export function SettingsSheet() {
                     <button
                       type="button"
                       aria-current={id === selected ? "page" : undefined}
-                      onClick={() => setSection(id)}
+                      onClick={() => show(id)}
                       {...stylex.props(styles.tab, id === selected && styles.tabSelected)}
                     >
                       <span
@@ -91,16 +89,13 @@ export function SettingsSheet() {
           </aside>
           {section === "general" && (
             <GeneralPanel
-              onShowLicenses={() => setSection("licenses")}
-              onShowWelcome={() => {
-                close();
-                void router.navigate({ to: "/welcome" });
-              }}
+              onShowLicenses={() => show("licenses")}
+              onShowWelcome={() => void navigate({ to: "/welcome", replace: true })}
               onClose={close}
             />
           )}
           {section === "licenses" && (
-            <LicensesPanel onBack={() => setSection("general")} onClose={close} />
+            <LicensesPanel onBack={() => show("general")} onClose={close} />
           )}
           {section === "appearance" && <AppearancePanel onClose={close} />}
           {section === "library" && <LibraryPanel onClose={close} />}
