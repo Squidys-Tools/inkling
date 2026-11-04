@@ -7,31 +7,21 @@ import {
   LibraryRpcs,
   type LibraryChange,
 } from "@inkling/contracts";
-import { smartSpaceSubjects, visualSubjects } from "@inkling/ingestion/photo-subjects";
+import { smartSpaceSubjects } from "@inkling/ingestion/photo-subjects";
 import { layerProtocol, type PortSource } from "@inkling/rpc-electron/server";
-import { Cause, Duration, Effect, Exit, Fiber, Layer, PubSub, Stream } from "effect";
+import { Cause, Effect, Exit, Fiber, Layer, PubSub, Stream } from "effect";
 import { RpcServer } from "effect/rpc";
 import { join } from "node:path";
 import { prefetchQueryVector, queryVector, warmQueryModel } from "./jobs/query-vector.ts";
 import { jobLanesLayer } from "./jobs/runtime.ts";
+import { makeSubjectVectors } from "./jobs/subject-vectors.ts";
 import { layerPorts } from "./jobs/worker-client.ts";
 import { createLibrarySizeCache } from "./library-size.ts";
 import { errorMessage } from "./storage/errors.ts";
 import { JobQueue, Library, libraryLayer } from "./storage/library.ts";
 import { cardItem } from "./storage/rows.ts";
-import {
-  photoSearchLabels,
-  photoSearchSubjects,
-  supplementPhotoMatches,
-} from "./storage/photo-search.ts";
+import { photoSearchSubjects, supplementPhotoMatches } from "./storage/photo-search.ts";
 import { snapshotDatabase } from "./storage/sqlite-snapshot.ts";
-import {
-  interfaceLabel,
-  interfacePrompt,
-  otherSubjects,
-  subjectPrompt,
-  type SubjectVectors,
-} from "./storage/visual-subject.ts";
 
 // The library process: the only owner of the SQLite file. Main starts it with
 // the library directory and app version and hands it one port per client.
@@ -70,84 +60,7 @@ const librarySize = createLibrarySizeCache(databasePath, join(libraryDirectory, 
 const changes = Effect.runSync(PubSub.unbounded<LibraryChange>());
 const publish = (change: LibraryChange) => PubSub.publish(changes, change);
 
-// The subject prompts never change, so each vector is embedded once and kept. Until
-// all are in, a photo Space matches by text; one open waits at most subjectWait, and
-// the vectors embedded so far carry over to the next open.
-const subjectWait = Duration.seconds(5);
-const subjectPrompts = [
-  ...[...visualSubjects, ...otherSubjects].map(
-    (subject) => [subject, subjectPrompt(subject)] as const,
-  ),
-  [interfaceLabel, interfacePrompt] as const,
-];
-const subjectVectors = new Map<string, ArrayLike<number>>();
-const loadSubjectVectors = Effect.suspend(() =>
-  Effect.forEach(
-    subjectPrompts.filter(([label]) => !subjectVectors.has(label)),
-    ([label, prompt]) =>
-      queryVector(prompt).pipe(
-        Effect.flatMap((vector) =>
-          vector?.length
-            ? Effect.sync(() => void subjectVectors.set(label, vector))
-            : Effect.fail(label),
-        ),
-      ),
-    // About a hundred short prompts on a cold first open; a few at once keeps it quick.
-    { discard: true, concurrency: 4 },
-  ),
-).pipe(
-  Effect.timeoutOption(subjectWait),
-  Effect.orElseSucceed(() => undefined),
-  Effect.map((): SubjectVectors | null =>
-    subjectVectors.size === subjectPrompts.length ? subjectVectors : null,
-  ),
-);
-
-// Search adds confuser prompts without changing the Map the Smart Space classifier sees.
-let photoPrompts: SubjectVectors | null = null;
-const photoQueryPrompts = new Map<string, SubjectVectors>();
-const loadPhotoSearchVectors = (query: string) =>
-  Effect.gen(function* () {
-    if (!photoPrompts) {
-      const base = yield* loadSubjectVectors;
-      if (!base) return null;
-      const extras = yield* Effect.forEach(
-        photoSearchLabels.filter((label) => !base.has(label)),
-        (label) =>
-          queryVector(subjectPrompt(label)).pipe(Effect.map((vector) => [label, vector] as const)),
-        { concurrency: 4 },
-      );
-      if (extras.some(([, vector]) => !vector?.length)) return null;
-      photoPrompts = new Map([
-        ...base,
-        ...extras.map(([label, vector]) => [label, vector!] as const),
-      ]);
-    }
-    const base = photoPrompts;
-    const wanted = photoSearchSubjects(query);
-    const missing = wanted.filter((label) => !base.has(label));
-    if (!missing.length) return base;
-    const key = JSON.stringify([...wanted].sort());
-    const remembered = photoQueryPrompts.get(key);
-    if (remembered) return remembered;
-    const extra = yield* Effect.forEach(missing, (label) =>
-      queryVector(subjectPrompt(label)).pipe(Effect.map((vector) => [label, vector] as const)),
-    );
-    if (extra.some(([, vector]) => !vector?.length)) return null;
-    // Never add query-specific prompts to the shared Space/search guard inventory.
-    const prompts = new Map([
-      ...base,
-      ...extra.map(([label, vector]) => [label, vector!] as const),
-    ]);
-    if (photoQueryPrompts.size >= 32)
-      photoQueryPrompts.delete(photoQueryPrompts.keys().next().value!);
-    photoQueryPrompts.set(key, prompts);
-    return prompts;
-  }).pipe(
-    Effect.timeoutOption(subjectWait),
-    Effect.map((result) => (result._tag === "Some" ? result.value : null)),
-    Effect.orElseSucceed(() => null),
-  );
+const { loadSubjectVectors, loadPhotoSearchVectors } = makeSubjectVectors();
 
 // Every failure reaches the renderer as one message it can show.
 const failure = (cause: unknown) => new LibraryError({ message: errorMessage(cause) });
