@@ -119,17 +119,9 @@ export function SquareButton({ look = "plain", ...props }: SquareButtonProps) {
   );
 }
 
-/** A secondary step: underlined text with an arrow, beside a button or in a sentence. */
-export function TextAction({
-  children,
-  ...props
-}: Omit<ComponentProps<typeof Button>, "variant" | "style">) {
-  return (
-    <Button variant="quiet" {...props} style={styles.textAction}>
-      {children}
-      <span aria-hidden="true">→</span>
-    </Button>
-  );
+/** A secondary step: underlined text beside a button or in a sentence. */
+export function TextAction(props: Omit<ComponentProps<typeof Button>, "variant" | "style">) {
+  return <Button variant="quiet" {...props} style={styles.textAction} />;
 }
 
 export const settingsText = stylex.create({
@@ -371,7 +363,6 @@ const styles = stylex.create({
     paddingInline: 0,
     borderWidth: 0,
     borderRadius: 0,
-    gap: space.s1,
     fontFamily: font.body,
     fontSize: text.md,
     fontWeight: 400,
