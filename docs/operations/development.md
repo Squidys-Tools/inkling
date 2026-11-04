@@ -97,7 +97,8 @@ previews, allows `main` plus `refs/pull/*/merge`.
 Packaged builds bundle the embedding models; [models.md](../models.md) covers how
 development builds fetch them. `bun run dist` runs electron-builder on Node,
 which loads the TypeScript `afterPack` hook (`apps/desktop/after-pack.ts`) only
-from Node 22.18, the first release that strips types by default.
+on Node 22.18 or later in the 22 line, or 23.6 and later: the releases that strip
+types by default.
 
 ## Linux packages
 
@@ -114,7 +115,7 @@ from Node 22.18, the first release that strips types by default.
 
 `bun tools/smoke/launch.ts` launches the `build:app` output against a scratch library and checks the window reached the library process; pass a packaged executable to launch that instead. On Linux without a display, run it under `xvfb-run -a`.
 
-`bun tools/smoke/media.ts` makes WebP thumbnails of the demo seed's photos and a poster of its clip with the system FFmpeg, and checks that the poster refuses unsupported files, URLs and remote playlists. Pass the unpacked Linux app directory to run the packaged worker's modules on its Electron runtime.
+`bun tools/smoke/media.ts` makes WebP thumbnails of the demo seed's photos and a poster of its clip with the system FFmpeg, and checks that the poster refuses unsupported files, a missing decoder, URLs and remote playlists. Pass the unpacked Linux app directory to run the packaged worker's modules on its Electron runtime.
 
 ## macOS app
 

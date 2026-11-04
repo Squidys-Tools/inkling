@@ -19,6 +19,7 @@ if (packaged && !process.versions.electron) {
     env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
     stdio: "inherit",
   });
+  if (child.error) throw child.error;
   assert.equal(child.status, 0, `packaged updater smoke: ${child.signal}`);
 } else {
   const rootRequire = createRequire(join(root, "package.json"));

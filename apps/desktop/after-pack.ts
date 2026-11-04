@@ -2,7 +2,7 @@ import { chmod, lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { AfterPackContext } from "electron-builder";
 
-// electron-builder loads this hook on whatever Node runs it, which strips the types itself from 22.18.
+// electron-builder loads this hook on whatever Node runs it, which strips types from 22.18 or 23.6.
 // The update helper refuses to run unless every folder above it is not group or
 // world writable, so the Linux packages ship with 755/644 whatever the build umask.
 async function normalize(directory: string) {

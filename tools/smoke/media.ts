@@ -18,6 +18,7 @@ if (packaged && !process.versions.electron) {
     env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
     stdio: "inherit",
   });
+  if (child.error) throw child.error;
   assert.equal(child.status, 0, `packaged media smoke ${child.signal}`);
 } else {
   const require = createRequire(
@@ -43,10 +44,17 @@ if (packaged && !process.versions.electron) {
   const decoderOptions = { decoderPath: process.env.INKLING_TEST_FFMPEG };
   const scratch = await mkdtemp(join(tmpdir(), "inkling-media-smoke-"));
   const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
-  const assertThumbnail = async (bytes: Buffer) => {
-    const info = await sharp(bytes).metadata();
+  // The reference runs on the same sharp, so a wrong size or a lost EXIF rotation fails.
+  const assertThumbnail = async (source: Buffer) => {
+    const [info, { info: reference }] = await Promise.all([
+      createImageThumbnail(source).then(({ bytes }) => sharp(bytes).metadata()),
+      sharp(source)
+        .rotate()
+        .resize({ width: 512, height: 512, fit: "inside", withoutEnlargement: true })
+        .toBuffer({ resolveWithObject: true }),
+    ]);
     assert.equal(info.format, "webp");
-    assert(info.width <= 512 && info.height <= 512);
+    assert.deepEqual([info.width, info.height], [reference.width, reference.height]);
     return info;
   };
   try {
@@ -59,7 +67,7 @@ if (packaged && !process.versions.electron) {
     ]) {
       const bytes = await readFile(join(seed, name));
       const original = hash(bytes);
-      await assertThumbnail((await createImageThumbnail(bytes)).bytes);
+      await assertThumbnail(bytes);
       assert.equal(hash(bytes), original);
     }
     const pixels = Buffer.alloc(1024 * 768 * 4);
@@ -75,14 +83,16 @@ if (packaged && !process.versions.electron) {
     const grid = await sharp(pixels, { raw: { width: 1024, height: 768, channels: 4 } })
       .png()
       .toBuffer();
-    assert((await assertThumbnail((await createImageThumbnail(grid)).bytes)).hasAlpha);
-    console.log("PASS image thumbnails are WebP within 512 px, keep alpha and leave originals");
+    assert((await assertThumbnail(grid)).hasAlpha);
+    console.log(
+      "PASS image thumbnails are upright WebP within 512 px, keep alpha and leave originals",
+    );
 
     const clip = join(seed, "saved-clip.mp4");
     const original = hash(await readFile(clip));
     const poster = await createVideoPoster(clip, decoderOptions);
     assert(poster, "real system decoder produces a frame");
-    await assertThumbnail((await createImageThumbnail(poster)).bytes);
+    await assertThumbnail(poster);
     const bad = join(scratch, "not-a-video.mp4");
     await writeFile(bad, "not a video");
     assert.equal(await createVideoPoster(bad, decoderOptions), null);
