@@ -28,7 +28,7 @@ type OcrWorkerFactory = (
 // Each Tesseract worker reads on one core, so a few of them read several images,
 // and the page modes and rotations of one image, at once. Each can hold hundreds of
 // megabytes: one per three cores and per 4 GB of memory, but at least two and at most four.
-export const defaultOcrWorkers = () =>
+const defaultOcrWorkers = () =>
   Math.min(
     4,
     Math.max(2, Math.min(Math.floor(availableParallelism() / 3), Math.floor(totalmem() / 4e9))),
@@ -37,7 +37,7 @@ export const defaultOcrWorkers = () =>
 // Tesseract's heap grows to the largest image a worker has read and never
 // shrinks, so passes over a large image run one at a time and the
 // worker that ran one is replaced afterwards. Small images keep the full pool.
-export const LARGE_OCR_PIXELS = 6_000_000;
+const LARGE_OCR_PIXELS = 6_000_000;
 const LARGE_OCR_PASSES = 1;
 
 export function createTesseractOcr({
@@ -201,8 +201,6 @@ export function createTesseractOcr({
         bestConfidence = result.data.confidence;
       }
     }
-    // Preserve all three page modes and the original confidence/word-count
-    // decisions; this optimization never skips OCR on an assumed textless image.
     for (const result of await passes([3, 6, 7].map((psm) => pass(image, psm, large))))
       consider(result);
     if (bestWordCount === 0 || bestConfidence < 70) {
@@ -253,7 +251,7 @@ export function createTesseractOcr({
         await Promise.race([
           Promise.all(inFlight),
           new Promise<void>((resolve) => {
-            timer = setTimeout(resolve, Math.min(2000, Math.max(0, shutdownGraceMillis)));
+            timer = setTimeout(resolve, shutdownGraceMillis);
           }),
         ]);
       } finally {

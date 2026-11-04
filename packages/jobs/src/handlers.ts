@@ -49,7 +49,6 @@ const vector = (embedding: { model: string; bytes: Buffer; vector: Float32Array 
   dimension: embedding.vector.length,
 });
 
-/** The worker's calls as plain functions; the RPC layer and tests share them. */
 export const makeWorkerHandlers = Effect.fnUntraced(function* ({
   modelCacheDirectory,
   bundledModelDirectory,
