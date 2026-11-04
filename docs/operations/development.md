@@ -96,7 +96,10 @@ deploy still waiting in the queue. Both environments hold the `VERCEL_TOKEN`,
 previews, allows `main` plus `refs/pull/*/merge`.
 
 Packaged builds bundle the embedding models; [models.md](../models.md) covers how
-development builds fetch them.
+development builds fetch them. `bun run dist` runs electron-builder on Node,
+which loads the TypeScript `afterPack` hook (`apps/desktop/after-pack.ts`) only
+on Node 22.18 or later in the 22 line, or 23.6 and later: the releases that strip
+types by default.
 
 ## Linux packages
 
@@ -109,11 +112,11 @@ development builds fetch them.
 - A pinned patch makes sharp use its WASM backend in Linux Electron, because the native libvips collides with Electron's GLib. When upgrading sharp, update the patch and `@img/sharp-wasm32` (a Knip runtime exception) together.
 - PDF rendering uses the bundled PDF.js fonts, character maps and WASM decoders, because the system-font scan crashes Linux Electron.
 
-`bun tools/smoke/packaged-backend.mjs` runs the unpacked build's PDF chunk, OCR worker, sharp and CPU models on Electron's Node runtime, with no GUI and no user library, on Windows, Linux or macOS. Run `bun run dist` first, or pass another unpacked app directory. It does not replace checking features in the installed app.
+`bun tools/smoke/packaged-backend.ts` runs the unpacked build's PDF chunk, OCR worker, sharp and CPU models on Electron's Node runtime, with no GUI and no user library, on Windows, Linux or macOS. Run `bun run dist` first, or pass another unpacked app directory. It does not replace checking features in the installed app.
 
 `bun tools/smoke/launch.ts` launches the `build:app` output against a scratch library and checks the window reached the library process; pass a packaged executable to launch that instead. On Linux without a display, run it under `xvfb-run -a`.
 
-`bun tools/smoke/media.mjs source <output>` records thumbnail and poster sizes, warm median timings and pixel error. Pass the unpacked app directory instead of `source` to measure the packaged runtime.
+`bun tools/smoke/media.ts` makes WebP thumbnails of the demo seed's photos and a poster of its clip with the system FFmpeg, and checks that the poster refuses unsupported files, a missing decoder, URLs and remote playlists. Pass the unpacked Linux app directory to run the packaged worker's modules on its Electron runtime.
 
 ## macOS app
 
@@ -124,7 +127,7 @@ development builds fetch them.
 - Gatekeeper blocks the first launch of a downloaded copy. The user allows it once in System Settings → Privacy & Security → Open Anyway.
 - In-app updates are off; [tech-stack.md](../tech-stack.md#update-checks) says why and what turning them on takes.
 - Screen capture uses the system picker on macOS 15 and later, and asks for Screen Recording permission on older versions.
-- The top-level `files` in `package.json` keeps only the build machine's `onnxruntime-node/bin/napi-v6/${platform}` directory, so build each package on its own system. Keep `files` out of the `win`, `mac` and `linux` blocks: electron-builder 26 prepends `**/*` to a list that holds only exclusions and packs the whole repository; `tools/smoke/packaged-backend.mjs` fails if it does.
+- The top-level `files` in `package.json` keeps only the build machine's `onnxruntime-node/bin/napi-v6/${platform}` directory, so build each package on its own system. Keep `files` out of the `win`, `mac` and `linux` blocks: electron-builder 26 prepends `**/*` to a list that holds only exclusions and packs the whole repository; `tools/smoke/packaged-backend.ts` fails if it does.
 - `isbinaryfile` is overridden to 5.x in `package.json`: the 4.x that `@electron/osx-sign` asks for crashes while sniffing the bundled ONNX models during signing.
 
 ## Updates and releases
@@ -144,7 +147,7 @@ To cut a release:
 3. For stable, review the draft, which holds notes generated from merged PR titles, and publish it. Until a channel has a published release, update checks on it show an error.
 4. For a stable release, add its section to `docs/changelog.md` from those notes, following the rules at the top of that file.
 
-To test the updater locally, run `bun tools/smoke/update-feed.mjs`, or pass `.artifacts/electron/linux-unpacked` to run it on the packaged runtime. It downloads from loopback feeds, verifies SHA512, replaces a scratch AppImage and checks Debian metadata, and never installs as root.
+To test the updater locally, run `bun tools/smoke/update-feed.ts`, or pass `.artifacts/electron/linux-unpacked` to run it on the packaged runtime. It downloads from loopback feeds, verifies SHA512, replaces a scratch AppImage and checks Debian metadata, and never installs as root.
 
 Never add signing secrets. Nightlies publish themselves; a stable release is published by hand. The Windows installer is not Authenticode-signed, so SmartScreen warns on install.
 
@@ -165,7 +168,9 @@ Never add signing secrets. Nightlies publish themselves; a stable release is pub
 ## CI
 
 Workflow logic lives in TypeScript under `tools/ci/` and `tools/release/`; the YAML only wires it
-up. Scripts that import only `tools/ci/github.ts` run without `bun install`.
+up. Scripts that import only `tools/ci/github.ts` run without `bun install`. Each third-party
+`uses:` pins the commit of a release tag, with the tag in a comment (`@<sha> # v7.0.1`), and
+Dependabot updates the two together.
 
 - `ci.yml` runs on every push to `main` and every PR. It calls `checks.yml` (typecheck, lint,
   Knip, web and extension builds on Linux, unit tests on Windows) and `package.yml` (package the

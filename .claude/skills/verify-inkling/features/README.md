@@ -4,8 +4,8 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 
 ## Baseline preconditions
 
-- Launch with `instance.mjs launch` (seeded demo library: Everything shows 32 active items; Spaces `Design references`, `Read later`, `Weekend reading`; 5 archived items). Run `doctor` and require all PASS.
-- Every recipe starts from that state and uses `$I` for `bun .agents/skills/verify-inkling/scripts/instance.mjs`.
+- Launch with `instance.ts launch` (seeded demo library: Everything shows 32 active items; Spaces `Design references`, `Read later`, `Weekend reading`; 5 archived items). Run `doctor` and require all PASS.
+- Every recipe starts from that state and uses `$I` for `bun .claude/skills/verify-inkling/scripts/instance.ts`.
 - Never drive an instance this run did not launch.
 
 ## Driving conventions

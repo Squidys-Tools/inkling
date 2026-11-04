@@ -4,11 +4,11 @@ import {
   IMAGE_PALETTE_JOB,
   IMAGE_THUMBNAIL_JOB,
   JobQueue,
-  Library,
   PDF_THUMBNAIL_JOB,
   URL_ENRICHMENT_JOB,
   VIDEO_POSTER_JOB,
-} from "../storage/library.ts";
+} from "../storage/jobs.ts";
+import { Library } from "../storage/library.ts";
 import type { Processor } from "../storage/worker.ts";
 import { generateEmbedding } from "./embedding-jobs.ts";
 import { createBackfill } from "./job-backfill.ts";

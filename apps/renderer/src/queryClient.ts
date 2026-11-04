@@ -39,7 +39,7 @@ export const libraryQuery = <T>(
 
 // Invalidating joins a first load already in flight, which may predate the
 // change or hang on a dead library port; cancelling first makes the newest read win.
-const reread = (filters: QueryFilters) =>
+export const reread = (filters: QueryFilters) =>
   void queryClient.cancelQueries(filters).then(() => queryClient.invalidateQueries(filters));
 
 const invalidate = (change: LibraryChange) =>
