@@ -31,6 +31,13 @@ const vendoredNotices = [
     noticeFile: "apps/renderer/licenses/LICENSE-rare-ui.md",
   },
   {
+    name: "React Bits Gradual Blur",
+    license: "MIT + Commons Clause",
+    sourceUrl: "https://reactbits.dev/animations/gradual-blur",
+    description: "The blur at the top and bottom edges of the library.",
+    noticeFile: "apps/renderer/licenses/LICENSE-react-bits.md",
+  },
+  {
     name: "nomic-embed-text-v1.5",
     license: "Apache-2.0",
     sourceUrl: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5",
