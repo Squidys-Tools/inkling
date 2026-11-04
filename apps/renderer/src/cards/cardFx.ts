@@ -86,6 +86,8 @@ export type Mosaic = {
   cells: readonly Rgb[] | null;
   phases: readonly number[];
   image: ImageData;
+  /** Whether the dark base is drawn, or left clear for a ring layer beneath to show through. */
+  base: boolean;
 };
 
 export const mosaicPhases = (seed: number) =>
@@ -165,7 +167,9 @@ export function drawCover(
       const ownOrder = clamp(
         (baseColumn / mosaicColumns + baseRow / mosaicRows) * 0.35 + ownPhase * 0.3,
       );
-      const baseAlpha = 1 - smooth(ownOrder * 0.25 + 0.04, ownOrder * 0.25 + 0.18, eased);
+      const baseAlpha = mosaic.base
+        ? 1 - smooth(ownOrder * 0.25 + 0.04, ownOrder * 0.25 + 0.18, eased)
+        : 0;
       let alpha = mosaicAlpha + baseAlpha * (1 - mosaicAlpha);
       const mix = (mosaicValue: number, baseValue: number) =>
         alpha > 0
@@ -200,7 +204,6 @@ export function drawCover(
 }
 
 export const ringGrowAt = (elapsed: number) => smooth(0, 0.9, elapsed);
-export const revealRingGrow = (progress: number) => 1 - smooth(0, 0.1, progress);
 
 type Frame = (seconds: number) => boolean | void;
 const live = new Set<Frame>();

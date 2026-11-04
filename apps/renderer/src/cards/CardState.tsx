@@ -1,6 +1,8 @@
+import { RotateCwIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { loadingColor, motion, radius } from "@inkling/ui/tokens.stylex";
+import { cardColor, color, font, loadingColor, motion, radius } from "@inkling/ui/tokens.stylex";
 import type { CardView } from "../library/cardModel.ts";
 import type { Processing } from "../library/jobs.ts";
 import { beam } from "./beam.stylex.ts";
@@ -11,7 +13,6 @@ import {
   drawCover,
   type Mosaic,
   mosaicPhases,
-  revealRingGrow,
   revealSeconds,
   ringGrowAt,
   sampleCells,
@@ -21,7 +22,7 @@ import { loadingPhase, startsReveal } from "./cardLoading.ts";
 import { ProcessingBadge } from "./Processing.tsx";
 
 /** A thin light travelling the card's edge while it waits for its thumbnail. */
-function Beam({ label, onPaper }: { label: string; onPaper: boolean }) {
+function Beam({ label }: { label: string }) {
   const element = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const release = beamSlot();
@@ -34,7 +35,7 @@ function Beam({ label, onPaper }: { label: string; onPaper: boolean }) {
       ref={element}
       role="status"
       aria-label={label}
-      {...stylex.props(styles.layer, styles.beam, onPaper && styles.dark)}
+      {...stylex.props(styles.layer, styles.beam)}
     >
       <span
         {...stylex.props(
@@ -64,28 +65,77 @@ const canvasSize = (width: number, height: number, revealing: boolean) => {
   };
 };
 
+const newMosaic = (
+  canvas: HTMLCanvasElement,
+  context: CanvasRenderingContext2D,
+  seed: number,
+  base: boolean,
+): Mosaic => ({
+  width: canvas.width,
+  height: canvas.height,
+  cells: null,
+  phases: mosaicPhases(seed),
+  image: context.createImageData(canvas.width, canvas.height),
+  base,
+});
+
+/** A dark cover with a breathing ring of blobs, drawn while a card's jobs run. */
+function Ring({ seed, label, leaving }: { seed: number; label: string; leaving: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    const size = canvasSize(canvas.clientWidth, canvas.clientHeight, false);
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const mosaic = newMosaic(canvas, context, seed, true);
+    const start = performance.now() / 1000;
+    const run = animate(
+      (now) => void drawCover(context, mosaic, now + seed, 0, ringGrowAt(now - start)),
+    );
+    if (!run.animated) drawCover(context, mosaic, seed, 0, 1);
+    return run.stop;
+  }, [seed]);
+  return (
+    <span
+      role="status"
+      aria-label={label}
+      {...stylex.props(styles.layer, leaving && styles.leaving)}
+    >
+      <canvas ref={canvasRef} aria-hidden="true" {...stylex.props(styles.cover)} />
+    </span>
+  );
+}
+
+// The ring is fully covered by then, so it can stop drawing and unmount.
+const coveredAt = 0.5;
+
 /**
- * The cover over a card: a dark base with a ring of blobs while jobs run, which then
- * resolves into the thumbnail's own colours as round blobs that grow and shrink away.
+ * The finished state: the thumbnail's own colours as round blobs that grow over the
+ * card, then shrink away to show it. It draws over the ring, which it lets go once covered.
  */
-function Cover({
+function Reveal({
   url,
   seed,
-  revealing,
   label,
+  overRing,
+  onCovered,
   onRevealed,
 }: {
   url: string;
   seed: number;
-  revealing: boolean;
-  label: string;
+  label: string | null;
+  overRing: boolean;
+  onCovered: () => void;
   onRevealed: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cells = useRef<Mosaic["cells"]>(null);
+  // Whether the ring is beneath is decided once: it unmounts mid-reveal, which must not restart it.
+  const [withRing] = useState(overRing);
   useEffect(() => {
     let current = true;
-    cells.current = null;
     void sampleCells(url).then((sampled) => {
       if (current) cells.current = sampled;
     });
@@ -97,47 +147,81 @@ function Cover({
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
-    const size = canvasSize(canvas.clientWidth, canvas.clientHeight, revealing);
+    const size = canvasSize(canvas.clientWidth, canvas.clientHeight, true);
     canvas.width = size.width;
     canvas.height = size.height;
-    const mosaic: Mosaic = {
-      width: canvas.width,
-      height: canvas.height,
-      cells: null,
-      phases: mosaicPhases(seed),
-      image: context.createImageData(canvas.width, canvas.height),
-    };
+    const mosaic = newMosaic(canvas, context, seed, !withRing);
     const start = performance.now() / 1000;
+    let covered = false;
     const run = animate((now) => {
       mosaic.cells = cells.current;
-      if (!revealing)
-        return void drawCover(context, mosaic, now + seed, 0, ringGrowAt(now - start));
       const progress = Math.min(1, (now - start) / revealSeconds);
-      drawCover(context, mosaic, now + seed, progress, revealRingGrow(progress));
+      drawCover(context, mosaic, now + seed, progress, 0);
+      if (!covered && progress >= coveredAt) {
+        covered = true;
+        onCovered();
+      }
       if (progress < 1) return false;
       onRevealed();
       return true;
     });
-    if (!run.animated) {
-      if (revealing) onRevealed();
-      else drawCover(context, mosaic, seed, 0, 1);
-    }
+    if (!run.animated) onRevealed();
     return run.stop;
-  }, [seed, revealing, onRevealed]);
+  }, [seed, withRing, onCovered, onRevealed]);
   return (
-    <span role="status" aria-label={label} {...stylex.props(styles.layer)}>
+    <span
+      role={label ? "status" : undefined}
+      aria-label={label ?? undefined}
+      aria-hidden={label ? undefined : true}
+      {...stylex.props(styles.layer)}
+    >
       <canvas ref={canvasRef} aria-hidden="true" {...stylex.props(styles.cover)} />
-      <span aria-hidden="true" {...stylex.props(styles.layer, styles.rim)} />
     </span>
   );
 }
 
+/** A thin edge on the cover so a dark card still reads against the dark grid. */
+function Rim() {
+  return <span aria-hidden="true" {...stylex.props(styles.layer, styles.rim)} />;
+}
+
+/** A card still waiting for its thumbnail: dimmed and greyed, but still readable. */
+function Dim() {
+  return (
+    <>
+      <span aria-hidden="true" {...stylex.props(styles.layer, styles.drain, styles.half)} />
+      <span aria-hidden="true" {...stylex.props(styles.layer, styles.dimVeil)} />
+    </>
+  );
+}
+
 /** A failed card: what was read, drained of colour and dimmed, and still. */
-function Failed() {
+function Failed({
+  failed,
+  onRetry,
+}: {
+  failed: NonNullable<Processing["failedJob"]>;
+  onRetry: (jobId: string) => void;
+}) {
   return (
     <>
       <span aria-hidden="true" {...stylex.props(styles.layer, styles.drain)} />
       <span aria-hidden="true" {...stylex.props(styles.layer, styles.veil)} />
+      <span {...stylex.props(styles.layer, styles.center)}>
+        <button
+          type="button"
+          aria-label={`${failed.message} Try again`}
+          title={failed.message}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRetry(failed.id);
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+          {...stylex.props(styles.retry)}
+        >
+          <HugeiconsIcon icon={RotateCwIcon} size={14} /> Try again
+        </button>
+      </span>
     </>
   );
 }
@@ -159,42 +243,55 @@ export function CardState({
   const phase = loadingPhase(view, processing);
   const [previous, setPrevious] = useState(phase);
   const [revealing, setRevealing] = useState(false);
+  const [ringUnder, setRingUnder] = useState(false);
   if (previous !== phase) {
     setPrevious(phase);
-    if (startsReveal(previous, phase, view.image)) setRevealing(true);
-    else if (phase !== null) setRevealing(false);
+    if (startsReveal(previous, phase, view.image)) {
+      setRevealing(true);
+      setRingUnder(previous === "processing");
+    } else if (phase !== null) {
+      setRevealing(false);
+      setRingUnder(false);
+    }
   }
-  const revealed = useCallback(() => setRevealing(false), []);
+  const covered = useCallback(() => setRingUnder(false), []);
+  const revealed = useCallback(() => {
+    setRevealing(false);
+    setRingUnder(false);
+  }, []);
   const label = processing?.message ?? "Processing";
   const seed = stringSeed(view.id) % 20;
-  const onPaper = view.kind === "Article" || view.media === "x-post" || view.media === "post";
-  if (revealing && view.image)
-    return <Cover url={view.image} seed={seed} revealing label={label} onRevealed={revealed} />;
-  const badge = processing && <ProcessingBadge processing={processing} onRetry={onRetry} />;
-  switch (phase) {
-    case "captured":
-      return <Beam label={label} onPaper={onPaper} />;
-    case "processing":
-      return (
-        view.image && (
-          <Cover
+  const ring = view.image !== undefined && (phase === "processing" || ringUnder);
+  const reveal = view.image !== undefined && revealing;
+  if (view.image && (ring || reveal))
+    return (
+      <>
+        {ring && <Ring seed={seed} label={label} leaving={revealing} />}
+        {reveal && (
+          <Reveal
             url={view.image}
             seed={seed}
-            revealing={false}
-            label={label}
+            label={ring ? null : label}
+            overRing={ring}
+            onCovered={covered}
             onRevealed={revealed}
           />
-        )
-      );
-    case "failed":
+        )}
+        <Rim />
+      </>
+    );
+  switch (phase) {
+    case "captured":
       return (
         <>
-          <Failed />
-          {badge}
+          <Dim />
+          <Beam label={label} />
         </>
       );
-    case null:
-      return badge;
+    case "failed":
+      return processing?.failedJob && <Failed failed={processing.failedJob} onRetry={onRetry} />;
+    default:
+      return processing && <ProcessingBadge processing={processing} onRetry={onRetry} />;
   }
 }
 
@@ -225,7 +322,36 @@ const styles = stylex.create({
   rim: {
     boxShadow: `inset 0 0 0 1px ${loadingColor.ringEdge}, inset 0 0 14px 1px ${loadingColor.ringGlow}`,
   },
+  leaving: {
+    opacity: 0,
+    transitionProperty: "opacity",
+    transitionDuration: "0.7s",
+    transitionDelay: "1.3s",
+    transitionTimingFunction: "linear",
+  },
   drain: { backgroundColor: loadingColor.failedGrey, mixBlendMode: "saturation" },
+  half: { opacity: 0.55 },
+  dimVeil: { backgroundColor: loadingColor.waitingVeil },
+  center: { display: "grid", placeItems: "center" },
+  retry: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    paddingBlock: 8,
+    paddingInline: 14,
+    borderRadius: radius.round,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: color.border,
+    backgroundColor: { default: cardColor.tileButton, ":hover": color.surface },
+    color: color.ink,
+    fontFamily: font.body,
+    fontSize: 12,
+    cursor: "pointer",
+    pointerEvents: "auto",
+    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
+    outlineOffset: 2,
+  },
   veil: {
     backgroundColor: loadingColor.failedVeil,
     boxShadow: `inset 0 0 0 1px ${loadingColor.failedEdge}`,
@@ -241,8 +367,6 @@ const styles = stylex.create({
     animationIterationCount: "infinite, 1",
     animationFillMode: "none, both",
   },
-  // The beam is light, so it is flipped to dark on the cards that are drawn on pale paper.
-  dark: { filter: "invert(1)" },
   stroke: {
     position: "absolute",
     inset: 0,

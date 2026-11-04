@@ -218,6 +218,7 @@ export const loadingColor = stylex.defineConsts({
   beamLightStrong: "rgba(255, 255, 255, 0.85)",
   beamMask: "#000000",
   failedGrey: "#808080",
+  waitingVeil: "rgba(18, 17, 16, 0.34)",
   failedVeil: "rgba(18, 17, 16, 0.52)",
   failedEdge: "#34302d",
 });
