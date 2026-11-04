@@ -10,12 +10,7 @@ import * as stylex from "@stylexjs/stylex";
 import { IconButton } from "@inkling/ui";
 import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useHotkeys } from "@tanstack/react-hotkeys";
-import {
-  getDocument,
-  GlobalWorkerOptions,
-  type PDFDocumentProxy,
-  type RenderTask,
-} from "pdfjs-dist";
+import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useEffect, useRef, useState } from "react";
 
@@ -90,11 +85,11 @@ export function PdfViewer({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (state.phase !== "ready" || !canvas || width === 0) return;
-    let cancelled = false;
-    let task: RenderTask | null = null;
+    const drawing = new AbortController();
+    const { signal } = drawing;
     void (async () => {
       const pdfPage = await state.document.getPage(page);
-      if (cancelled) return;
+      if (signal.aborted) return;
       const scale = zoom ?? clampZoom(width / pdfPage.getViewport({ scale: 1 }).width);
       const viewport = pdfPage.getViewport({ scale });
       const ratio = window.devicePixelRatio || 1;
@@ -102,25 +97,23 @@ export function PdfViewer({
       canvas.height = Math.floor(viewport.height * ratio);
       canvas.style.width = `${Math.floor(viewport.width)}px`;
       canvas.style.height = `${Math.floor(viewport.height)}px`;
-      task = pdfPage.render({
+      const task = pdfPage.render({
         canvas,
         viewport,
         transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
       });
+      signal.addEventListener("abort", () => task.cancel(), { once: true });
       try {
         await task.promise;
-        if (!cancelled) setRenderedScale(scale);
+        if (!signal.aborted) setRenderedScale(scale);
       } catch (error) {
         if (!(error instanceof Error && error.name === "RenderingCancelledException")) throw error;
       }
     })().catch((error: unknown) => {
-      if (!cancelled)
+      if (!signal.aborted)
         setState({ phase: "error", message: failure(error, "Couldn’t draw this page.") });
     });
-    return () => {
-      cancelled = true;
-      task?.cancel();
-    };
+    return () => drawing.abort();
   }, [state, page, zoom, width]);
 
   const turn = (delta: number) =>

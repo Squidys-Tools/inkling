@@ -135,12 +135,12 @@ function Reveal({
   // Whether the ring is beneath is decided once: it unmounts mid-reveal, which must not restart it.
   const [withRing] = useState(overRing);
   useEffect(() => {
-    let current = true;
+    const sampling = { cancelled: false };
     void sampleCells(url).then((sampled) => {
-      if (current) cells.current = sampled;
+      if (!sampling.cancelled) cells.current = sampled;
     });
     return () => {
-      current = false;
+      sampling.cancelled = true;
     };
   }, [url]);
   useEffect(() => {
@@ -152,13 +152,13 @@ function Reveal({
     canvas.height = size.height;
     const mosaic = newMosaic(canvas, context, seed, !withRing);
     const start = performance.now() / 1000;
-    let covered = false;
+    const reveal = { covered: false };
     const run = animate((now) => {
       mosaic.cells = cells.current;
       const progress = Math.min(1, (now - start) / revealSeconds);
       drawCover(context, mosaic, now + seed, progress, 0);
-      if (!covered && progress >= coveredAt) {
-        covered = true;
+      if (!reveal.covered && progress >= coveredAt) {
+        reveal.covered = true;
         onCovered();
       }
       if (progress < 1) return false;

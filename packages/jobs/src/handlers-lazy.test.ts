@@ -4,7 +4,6 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { fixturePath } from "./test-fixtures.ts";
 
 // Cold-starts a node child that imports effect and the PDF stack; slow while parallel workers share the CPU.
 test("the system-font scan waits for PDF jobs, including after BMP thumbnailing", () => {
@@ -14,6 +13,10 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
   const loadLogPath = join(tempDirectory, "module-loads.log");
   const loaderPath = join(tempDirectory, "loader.mjs");
   writeFileSync(loadLogPath, "");
+  // pdf.js rejects this only after the job has loaded pdf.ts and the canvas entry, so the
+  // probe skips a render whose first run reads fonts and takes seconds on a cold Windows runner.
+  const notAPdf = join(tempDirectory, "not-a.pdf");
+  writeFileSync(notAPdf, "not a PDF");
   writeFileSync(
     loaderPath,
     [
@@ -29,7 +32,7 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
   );
   const probe = [
     'import { readFileSync } from "node:fs";',
-    'const { Effect } = await import("effect");',
+    'const { Cause, Effect, Exit } = await import("effect");',
     `const { makeWorkerHandlers } = await import(${JSON.stringify(handlersUrl)});`,
     'const loadedModules = () => readFileSync(process.env.INKLING_MODULE_LOAD_LOG, "utf8").trim().split("\\n").filter(Boolean);',
     "const countLoaded = (part) => loadedModules().filter((url) => url.includes(part)).length;",
@@ -49,14 +52,16 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
     "bmp.writeUInt32LE(16 * 16 * 3, 34);",
     "const bmpThumbnail = await createImageThumbnail(bmp);",
     'if (!bmpThumbnail.bytes.length || countLoaded(canvasEntryUrl)) throw new Error("BMP thumbnail triggered the system-font scan");',
-    "const thumbnail = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {",
+    "const job = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {",
     "  const handlers = yield* makeWorkerHandlers({ modelCacheDirectory: process.env.INKLING_MODEL_CACHE_DIRECTORY });",
     '  if (countLoaded(pdfUrl) || countLoaded(canvasEntryUrl)) throw new Error("Handler construction loaded PDF dependencies");',
-    `  return yield* handlers.pdfThumbnail({ path: ${JSON.stringify(fixturePath("pdf-native-text-01.pdf"))} });`,
+    "  return yield* Effect.exit(handlers.pdfThumbnail({ path: process.env.INKLING_NOT_A_PDF }));",
     "})));",
     "const pdfModuleLoads = countLoaded(pdfUrl);",
     "const canvasEntryLoads = countLoaded(canvasEntryUrl);",
-    'if (pdfModuleLoads !== 1 || canvasEntryLoads !== 1 || !thumbnail.bytes.length) throw new Error("PDF job did not load and use its dependencies once");',
+    // Only pdf.js's own parse error shows that the canvas entry and pdf.js both ran.
+    'const rejected = Exit.isFailure(job) && Cause.pretty(job.cause).includes("Invalid PDF structure");',
+    'if (pdfModuleLoads !== 1 || canvasEntryLoads !== 1 || !rejected) throw new Error("The PDF job did not load its dependencies once and have pdf.js reject the file");',
     "console.log(JSON.stringify({ pdfModuleLoads, canvasEntryLoads }));",
     // The answer is in; an open handle must not keep spawnSync waiting.
     "process.exit(0);",
@@ -79,13 +84,15 @@ test("the system-font scan waits for PDF jobs, including after BMP thumbnailing"
           ...process.env,
           INKLING_MODULE_LOAD_LOG: loadLogPath,
           INKLING_MODEL_CACHE_DIRECTORY: tempDirectory,
+          INKLING_NOT_A_PDF: notAPdf,
           // The test counts loads of the canvas entry; the scan it would run takes seconds on Windows.
           DISABLE_SYSTEM_FONTS_LOAD: "1",
         },
       },
     );
 
-    expect(result.stderr).toBe("");
+    // pdf.js prints this before it rejects a file with no cross-reference table.
+    expect(result.stderr.replace(/^Warning: Indexing all PDF objects\s*/, "")).toBe("");
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({ pdfModuleLoads: 1, canvasEntryLoads: 1 });
   } finally {

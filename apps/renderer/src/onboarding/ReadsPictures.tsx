@@ -153,7 +153,7 @@ export function ReadsPictures({ reducedMotion }: { reducedMotion: boolean }) {
       return { text: el.dataset.scan ?? "", node: el.firstChild, at: center * SCAN_MS, line };
     });
     const started = performance.now();
-    let frame = 0;
+    const loop = { frame: 0 };
     const tick = (now: number) => {
       const elapsed = now - started;
       let pending = false;
@@ -175,10 +175,10 @@ export function ReadsPictures({ reducedMotion }: { reducedMotion: boolean }) {
                 Math.floor(progress * text.length),
               );
       }
-      if (pending) frame = requestAnimationFrame(tick);
+      if (pending) loop.frame = requestAnimationFrame(tick);
     };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    loop.frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(loop.frame);
   }, [phase]);
 
   const raised = phase !== "typing";

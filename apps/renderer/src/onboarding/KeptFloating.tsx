@@ -168,12 +168,11 @@ export function KeptFloating({ reducedMotion }: { reducedMotion: boolean }) {
     };
     window.addEventListener("pointermove", onPointerMove);
 
-    let frame = 0;
-    let start = 0;
+    const loop = { frame: 0, start: 0 };
     const tick = (ms: number) => {
-      frame = requestAnimationFrame(tick);
-      if (!start) start = ms;
-      const seconds = (ms - start) / 1000;
+      loop.frame = requestAnimationFrame(tick);
+      if (!loop.start) loop.start = ms;
+      const seconds = (ms - loop.start) / 1000;
       eased.x += (pointer.x - eased.x) * 0.06;
       eased.y += (pointer.y - eased.y) * 0.06;
       CARDS.forEach((card, index) => {
@@ -189,9 +188,9 @@ export function KeptFloating({ reducedMotion }: { reducedMotion: boolean }) {
         el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       });
     };
-    frame = requestAnimationFrame(tick);
+    loop.frame = requestAnimationFrame(tick);
     return () => {
-      cancelAnimationFrame(frame);
+      cancelAnimationFrame(loop.frame);
       window.removeEventListener("pointermove", onPointerMove);
     };
   }, [reducedMotion]);
