@@ -44,10 +44,10 @@
     "electron-updater": "6.8.11",
     "entities": "^9.0.0",
     "ipaddr.js": "^2.5.0",
-    "linkedom": "0.18.14",
+    "linkedom": "0.18.15",
     "onnxruntime-node": "1.31.1",
     "pdfjs-dist": "^6.4.299",
-    "semver": "7.8.5",
+    "semver": "7.8.6",
     "sharp": "0.35.5",
     "tesseract.js": "7.0.0"
   },
@@ -94,8 +94,11 @@
     "@rolldown/plugin-babel": "^0.3.0",
     "@stylexjs/stylex": "0.19.1",
     "@stylexjs/unplugin": "0.19.1",
+    "@tanstack/react-hotkeys": "0.22.0",
+    "@tanstack/react-query": "^5.105.3",
     "@tanstack/react-router": "^1.140.0",
     "@tanstack/react-start": "1.169.4",
+    "@tanstack/react-store": "0.11.2",
     "@tiptap/core": "3.32.2",
     "@tiptap/extension-list": "3.32.2",
     "@tiptap/markdown": "3.32.2",
@@ -179,7 +182,7 @@
         ]
       }
     ],
-    "afterPack": "apps/desktop/after-pack.cjs",
+    "afterPack": "apps/desktop/after-pack.ts",
     "win": {
       "icon": "build/icon.ico",
       "target": [

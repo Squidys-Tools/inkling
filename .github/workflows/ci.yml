@@ -2,24 +2,20 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "AGENTS.md"
+    branches: [main]
   pull_request:
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "AGENTS.md"
   workflow_dispatch:
+  schedule:
+    # Weekly CodeQL scan of main, for queries that changed while the code did not.
+    - cron: "30 3 * * 1"
 
 permissions:
   contents: read
 
+# A newer push replaces a PR's run. Every other run gets a group of its own: a shared group keeps
+# only one pending run and cancels the rest, which left merges to main with no result.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.event_name == 'pull_request' && format('ci-{0}', github.ref) || format('ci-{0}', github.run_id) }}
   cancel-in-progress: true
 
 jobs:
@@ -29,38 +25,21 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    # Only a PR skips what its diff cannot break. Every commit on main runs the checks and packages,
+    # so main's newest result always covers main, even after a docs-only merge.
     outputs:
-      code: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.code }}
+      code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' }}
+      app: ${{ github.event_name != 'pull_request' || steps.filter.outputs.app == 'true' }}
+      macos: ${{ github.event_name != 'pull_request' || steps.filter.outputs.macos == 'true' }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          # Blobless full history: the path filter needs every commit, not
-          # every blob. A shallow checkout can yield an empty diff and
-          # silently skip jobs.
-          fetch-depth: 0
-          filter: blob:none
-
-      - name: Filter changed paths
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
-        if: github.event_name != 'workflow_dispatch'
-        # Pinned to the v4 tag commit: this job gates security checks, so a
-        # hijacked floating tag must not be able to falsify filter outputs.
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        if: github.event_name == 'pull_request'
         with:
-          # For PR synchronize events, compare only the newest push with the
-          # previous head. The default PR diff compares the whole PR to main,
-          # which makes a docs-only follow-up rerun code checks.
-          token: ''
-          base: ${{ github.event.before || github.event.pull_request.base.sha }}
           predicate-quantifier: some-with-excludes
           filters: |
-            code:
+            code: &code
               - 'apps/**'
-              - '!apps/renderer/src/library/preview/seed-demo/**'
-              - '!apps/renderer/src/library/preview/seed.ts'
-              - '!apps/renderer/src/library/preview/seed-data.ts'
               - 'packages/**'
               - 'tools/**'
               - 'extension/**'
@@ -72,97 +51,78 @@ jobs:
               - 'bun.lock'
               - '.bun-version'
               - 'bunfig.toml'
-              - 'tsconfig.base.json'
               - '.oxlintrc.json'
               - '.oxfmtrc.json'
               - '.github/workflows/ci.yml'
+              - '.github/workflows/checks.yml'
+              - '.github/workflows/package.yml'
+            app:
+              - *code
+              - '!apps/site/**'
+              - '!apps/renderer/src/library/preview/seed-demo/**'
+              - '!apps/renderer/src/library/preview/seed.ts'
+              - '!apps/renderer/src/library/preview/seed-data.ts'
+              - '!benchmarks/**'
+              - '!extension/**'
+            # What can break the macOS package without breaking Windows or Linux.
+            macos:
+              - 'package.json'
+              - 'bun.lock'
+              - 'patches/**'
+              - 'build/**'
+              - 'apps/desktop/**'
+              - 'packages/jobs/**'
+              - 'tools/models/**'
+              - 'tools/repo/dist.ts'
+              - 'tools/smoke/**'
+              - '.github/workflows/package.yml'
 
-  static:
-    name: Typecheck, lint and web builds
+  checks:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: github.event_name != 'schedule' && needs.changes.outputs.code == 'true'
+    uses: ./.github/workflows/checks.yml
+
+  # macOS packages on a PR that changes its inputs and in every nightly, never on a push to main:
+  # with a dozen merges an hour its runner queue backs up until GitHub cancels jobs.
+  package:
+    needs: changes
+    if: github.event_name != 'schedule' && needs.changes.outputs.app == 'true'
+    uses: ./.github/workflows/package.yml
+    with:
+      macos: ${{ github.event_name != 'push' && needs.changes.outputs.macos == 'true' }}
+
+  codeql:
+    name: CodeQL
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    permissions:
+      contents: read
+      security-events: write
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
-          bun-version-file: .bun-version
+          languages: javascript-typescript
+          build-mode: none
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:javascript-typescript
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Typecheck every workspace
-        run: bun run typecheck
-
-      - name: Check documented commands exist
-        run: bun tools/repo/command-refs.ts
-
-      - name: Check for unused code
-        run: bun run knip
-
-      - name: Lint and format
-        run: bun run lint
-
-      # The app build runs only in the launch matrix: its demo-seed guard
-      # already executes there on all three OSes.
-      - name: Build the web preview
-        run: bun run build:web
-
-      - name: Build browser extension
-        run: bun run --cwd extension build
-
-  test:
-    name: Unit tests
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    # Windows is inkling's main target, so the suite runs there.
-    runs-on: windows-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        # pwsh only fails a multi-line step on its last command; bash stops at the first failure.
-        shell: bash
-
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: .bun-version
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Run unit tests
-        run: bun run test
-
-  launch:
-    name: Build and launch on ${{ matrix.os }}
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-15]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+  # The one check to require: it fails when any job above failed or was cancelled, and passes
+  # when the jobs a change does not need were skipped. A run a newer push replaced reports nothing.
+  result:
+    name: CI result
+    needs: [changes, checks, package, codeql, dependency-review]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: .bun-version
-      - run: bun install --frozen-lockfile
-      - run: bun run build:app
-      - name: Launch and reach the library process
-        if: runner.os == 'Linux'
-        run: xvfb-run -a bun tools/smoke/launch.ts
-      - name: Launch and reach the library process
-        if: runner.os != 'Linux'
-        run: bun tools/smoke/launch.ts
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

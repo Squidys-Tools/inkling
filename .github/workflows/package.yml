@@ -1,0 +1,147 @@
+name: Package
+
+# Packages the app on each OS, runs the packaged smoke checks and launches it. CI packages the
+# unpacked directory; Release passes a channel and gets the installers as `release-*` artifacts.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        default: ""
+      channel:
+        description: Release channel; empty for a CI build that releases nothing
+        type: string
+        default: ""
+      version:
+        type: string
+        default: ""
+      macos:
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package and launch on ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            name: windows
+            target: win
+            app: .artifacts/electron/win-unpacked
+            launch: bun tools/smoke/launch.ts .artifacts/electron/win-unpacked/inkling.exe
+          - os: ubuntu-latest
+            name: linux
+            target: linux
+            app: .artifacts/electron/linux-unpacked
+            launch: xvfb-run -a bun tools/smoke/launch.ts .artifacts/electron/linux-unpacked/inkling
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults: &defaults
+      run:
+        shell: bash
+    steps: &steps
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .artifacts/electron-model-cache/models
+          key: inkling-models-${{ matrix.name }}-${{ hashFiles('packages/jobs/src/model-manifest.json') }}
+          restore-keys: inkling-models-${{ matrix.name }}-
+
+      - name: Stage release metadata
+        if: inputs.channel != ''
+        env:
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: bun tools/release/prepare.ts
+      - name: Package
+        env:
+          DIST_TARGET: ${{ inputs.channel != '' && matrix.target || 'dir' }}
+        run: |
+          umask 022
+          bun run dist "$DIST_TARGET"
+      # electron-builder still writes update feeds for a preview build; a release must never
+      # carry one, or a channel's feed could point at it.
+      - name: Strip preview update feeds
+        if: inputs.channel == 'preview'
+        run: rm -f .artifacts/electron/*.yml
+      # electron-builder skips signing in pull_request runs, and an arm64 app without a valid
+      # signature does not launch: macOS calls it damaged. Seal it with the ad-hoc identity only.
+      - name: Ad-hoc sign the PR build
+        if: runner.os == 'macOS' && github.event_name == 'pull_request'
+        run: |
+          codesign --force --deep --sign - --timestamp=none .artifacts/electron/mac-arm64/inkling.app
+          codesign --display --verbose=4 .artifacts/electron/mac-arm64/inkling.app 2>&1 | grep -Fx 'Signature=adhoc'
+      - name: Check the signature
+        if: runner.os == 'macOS'
+        run: codesign --verify --deep --strict .artifacts/electron/mac-arm64/inkling.app
+
+      # The .deb depends on FFmpeg for local-video posters; the runner image has none.
+      - name: Install FFmpeg
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ffmpeg
+      - name: Check packaged OCR, PDF and native models
+        run: bun tools/smoke/packaged-backend.ts ${{ matrix.app }}
+      - name: Check the updater and media on the packaged runtime
+        if: runner.os == 'Linux'
+        run: |
+          bun tools/smoke/update-feed.ts ${{ matrix.app }}
+          python3 -I -B apps/desktop/src/updates/update-helper.test.py
+          bun tools/smoke/media.ts ${{ matrix.app }}
+      - name: Launch the packaged app and reach the library process
+        run: ${{ matrix.launch }}
+
+      - name: Upload the unpacked app
+        if: >-
+          inputs.channel == '' && runner.os != 'macOS' && github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: inkling-${{ matrix.name }}-pr${{ github.event.pull_request.number }}
+          path: ${{ matrix.app }}
+          if-no-files-found: error
+          retention-days: 3
+      - name: Upload the installers
+        if: inputs.channel != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-${{ matrix.name }}
+          path: |
+            .artifacts/electron/*.exe
+            .artifacts/electron/*.deb
+            .artifacts/electron/*.AppImage
+            .artifacts/electron/*.dmg
+            .artifacts/electron/*.blockmap
+            .artifacts/electron/latest*.yml
+            .artifacts/electron/nightly*.yml
+            !.artifacts/electron/*-mac.yml
+          if-no-files-found: error
+
+  # A job of its own so a caller can leave it out: hosted macOS runners are scarce, and a job
+  # GitHub never acquires is cancelled, which marks the commit failed.
+  package-macos:
+    name: Package and launch on mac-arm64
+    if: inputs.macos
+    strategy:
+      matrix:
+        include:
+          # onnxruntime-node ships no macOS x64 binary, so Intel Macs get no build.
+          - os: macos-15
+            name: mac-arm64
+            target: mac
+            app: .artifacts/electron/mac-arm64
+            launch: bun tools/smoke/launch.ts .artifacts/electron/mac-arm64/inkling.app/Contents/MacOS/inkling
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults: *defaults
+    steps: *steps

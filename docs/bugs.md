@@ -12,6 +12,6 @@ Rules for entries:
   - **Medium** — a real failure with a workaround.
   - **Low** — an edge case, or a failure mode that wastes the user's time.
 
-Nothing critical is open right now.
+Nothing is open right now.
 
 ## Open

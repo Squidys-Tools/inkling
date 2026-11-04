@@ -1,10 +1,12 @@
 import { libraryClient } from "./connection.ts";
 import { type Processing, withJobs } from "./processing.ts";
-import { createStore, useStore } from "./store.ts";
+import { useQuery } from "@tanstack/react-query";
+import { createAtom, useSelector } from "@tanstack/react-store";
+import { libraryQuery, reread } from "../queryClient.ts";
 
 export type { Processing } from "./processing.ts";
 
-const jobsStore = createStore<ReadonlyMap<string, Processing>>(new Map());
+const jobsStore = createAtom<ReadonlyMap<string, Processing>>(new Map());
 
 export async function refreshJobs(itemIds: readonly string[]) {
   if (itemIds.length === 0) return;
@@ -26,22 +28,13 @@ export async function retryJob(jobId: string) {
   return client.retryJob({ jobId });
 }
 
-export const useProcessing = (id: string) => useStore(jobsStore, (jobs) => jobs.get(id));
-
-const activeJobs = createStore(0);
-let countRequests = 0;
+export const useProcessing = (id: string) => useSelector(jobsStore, (jobs) => jobs.get(id));
 
 // Counts the library's queued and running jobs, those from before launch too.
-// Reads overlap during bursts of job changes, so only the newest answer lands.
-export async function refreshActiveJobCount() {
-  const request = ++countRequests;
-  try {
-    const count = await (await libraryClient()).activeJobs({});
-    if (request === countRequests) activeJobs.set(count);
-  } catch {
-    // The dot keeps its last count until the next job change reads it again.
-  }
-}
+// A failed read keeps the last count until the next job change reads it again.
+export const activeJobsQuery = libraryQuery(["activeJobs"], (client) => client.activeJobs({}));
+
+export const refreshActiveJobCount = () => reread({ queryKey: activeJobsQuery.queryKey });
 
 /** How many jobs are queued or running, for the mascot's notification dot. */
-export const useActiveJobCount = () => useStore(activeJobs, (count) => count);
+export const useActiveJobCount = () => useQuery(activeJobsQuery).data ?? 0;

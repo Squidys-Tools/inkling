@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Context, Effect, PubSub } from "effect";
 import { SqlClient } from "effect/sql";
 import type { Fragment } from "effect/sql/Statement";
-import type { Job as JobModel } from "@inkling/contracts";
+import type { Job } from "@inkling/contracts";
 import { storageFailure } from "./errors.ts";
 import { changes } from "./shared.ts";
 
@@ -37,8 +37,6 @@ type JobRow = {
 };
 
 type JobOwner = { item_id: string; kind: string };
-
-export type Job = JobModel;
 
 function jobFromRow(row: JobRow): Job {
   return {

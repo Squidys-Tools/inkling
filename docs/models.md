@@ -14,10 +14,10 @@ The worker process runs the published INT8 ONNX artifacts through ONNX
 Runtime. `packages/jobs/src/model-manifest.json` pins each file to a Hugging Face
 revision and a SHA-256 hash, and the app checks the hash before it loads a file.
 
-Packaged builds (the Windows installer, the `.deb` and the AppImage) bundle the
-model files in their resources directory, so they work offline. Development
-builds download the files into `<library data directory>/models/<model name>/`
-when an embedding job first needs them.
+Every build from `bun run dist` bundles the model files in its resources
+directory, so it works offline. An unpackaged run (`bun run dev:app`)
+downloads them into `<library data directory>/models/<model name>/` when an
+embedding job first needs them.
 
 Stored text uses the `search_document:` prefix and queries use
 `search_query:`. Vision preprocessing follows the model's 224px RGB
@@ -29,7 +29,9 @@ models are unavailable, lexical search still works, and the embedding job
 records the error so it can be retried.
 
 The database stores the model identifier and vector dimension with every
-embedding. Re-running an item's embedding job replaces its older vector of the
-same kind, so a model change is recovered by regenerating embeddings. After a
-model revision changes, regenerate existing embeddings before comparing
-similarity across items.
+embedding, and an item keeps one vector of each kind, which its next embedding
+job replaces. Search and the Similar tab read only vectors from the current
+`TEXT_MODEL` and `IMAGE_MODEL` in `packages/contracts/src/jobs.ts`. At startup
+the library re-queues every image whose vector came from another image model;
+nothing does that for text, so changing `TEXT_MODEL` needs its own backfill or
+text items drop out of semantic search until an edit re-queues their embedding.

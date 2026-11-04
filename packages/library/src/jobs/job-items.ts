@@ -1,7 +1,8 @@
+import type { Job } from "@inkling/contracts";
 import { Effect } from "effect";
 import { storageFailure } from "../storage/errors.ts";
-import type { Job } from "../storage/jobs.ts";
-import { JobQueue, Library } from "../storage/library.ts";
+import { JobQueue } from "../storage/jobs.ts";
+import { Library } from "../storage/library.ts";
 
 export const requireItem = Effect.fnUntraced(function* (id: string, kind?: string) {
   const library = yield* Library;
