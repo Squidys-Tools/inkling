@@ -77,7 +77,7 @@ export function Finale({ calm, setCalm }) {
             <a href="#library">Try the library</a>
             <a href={repository}>GitHub ↗</a>
             <a href={`${repository}/releases`}>Releases ↗</a>
-            <a href="/media/stories/credits.html">Image credits</a>
+            <a href="/credits">Image credits</a>
           </nav>
           <Button
             variant="ghost"

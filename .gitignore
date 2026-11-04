@@ -4,6 +4,9 @@ dist
 *.local
 .artifacts/
 
+# The site's /demo/, built from the renderer by apps/site's `demo` script
+apps/site/public/demo/
+
 # dev:app's seeded scratch library
 .dev-library/
 

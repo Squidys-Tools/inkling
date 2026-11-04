@@ -156,7 +156,7 @@ const styles = stylex.create({
     minWidth: 0,
     minHeight: 0,
     paddingTop: "17px",
-    paddingInline: "18px",
+    paddingInline: { default: "18px", "@media (max-width: 480px)": "12px" },
     paddingBottom: "16px",
   },
   quoteText: {
@@ -169,7 +169,8 @@ const styles = stylex.create({
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: "12px",
+    flexWrap: { default: "nowrap", "@media (max-width: 480px)": "wrap" },
+    gap: { default: "12px", "@media (max-width: 480px)": "6px 12px" },
     fontFamily: font.mono,
     fontSize: "10px",
     lineHeight: 1.2,

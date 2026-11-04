@@ -53,6 +53,11 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 
 The web preview serves the demo seed in `apps/renderer/src/library/preview/` from
 memory, only in `dev` and in `build:web`'s preview mode, which writes `dist/web`.
+The site's interactive library at `/demo/` is the same preview built in `site`
+mode: the site's `dev` and `build` scripts build it into `apps/site/public/demo`
+first. It swaps in the seed in `preview/site/`, whose Unsplash photos carry the
+credits the site's `/credits` page lists, because the dev seed's photos may not
+be published.
 `dev:app` runs the app on `.dev-library/` in the worktree, which
 `tools/dev/seeded-library.ts` fills with the same seed on first run, so both dev
 modes show the same library and a dev run can never touch or stamp the real one.

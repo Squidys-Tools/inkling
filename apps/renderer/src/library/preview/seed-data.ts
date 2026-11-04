@@ -1,4 +1,4 @@
-import type { Space } from "@inkling/contracts";
+import type { JobStatus, LibraryCard, Space } from "@inkling/contracts";
 
 // The demo library's records as data, with file names instead of bundler URLs:
 // the web preview (./seed.ts) projects them into cards, and tools/dev writes
@@ -11,10 +11,12 @@ export type SeedItem = {
   description?: string;
   source?: string;
   sourceUrl?: string;
-  /** A seed-demo file kept as the item's asset, and for images its thumbnail. */
+  /** A seed file kept as the item's asset, and for images its thumbnail. */
   file?: string;
-  /** A seed-demo file used only as the thumbnail. */
+  /** A seed file used only as the thumbnail. */
   thumbnailFile?: string;
+  /** Who took the photo in `file`; the site's /credits page lists these. */
+  credit?: { author: string; url: string };
   hasArticleContent?: boolean;
   /** Also appears once more, archived, as `archive-<id>`. */
   archivedCopy?: boolean;
@@ -448,4 +450,43 @@ export const seedMembership: Record<string, string[]> = {
 };
 
 /** One card mid-processing and one with a failed job, so both states show in the preview. */
-export const seedJobs = { processing: "preview-article", failed: "preview-file" };
+export const seedJobs: { itemId: string; status: JobStatus }[] = [
+  { itemId: "preview-article", status: "processing" },
+  { itemId: "preview-file", status: "failed" },
+];
+
+/**
+ * The cards the preview library starts with, newest first, and the archived
+ * copies. `url` turns a seed file name into the bundler's URL for it.
+ */
+export function projectSeed(items: SeedItem[], url: (file: string) => string) {
+  const day = 24 * 60 * 60 * 1000;
+  const base = Date.now() - 30 * 60 * 1000;
+  const card = (item: SeedItem): LibraryCard => ({
+    id: item.id,
+    kind: item.kind,
+    title: item.title,
+    description: item.description ?? null,
+    sourceUrl: item.sourceUrl ?? null,
+    sourceLabel: item.source ?? null,
+    localAssetPath: item.file ? url(item.file) : null,
+    thumbnailPath:
+      item.kind === "image" && item.file
+        ? url(item.file)
+        : item.thumbnailFile
+          ? url(item.thumbnailFile)
+          : null,
+    ocrText: "",
+    createdAt: base - Math.floor(item.index / 2) * day,
+    updatedAt: base - Math.floor(item.index / 2) * day,
+    archived: false,
+    hasArticleContent: item.hasArticleContent ?? false,
+    metadata: { ...item.metadata },
+  });
+  return {
+    active: items.map(card).sort((a, b) => b.createdAt - a.createdAt),
+    archived: items
+      .filter((item) => item.archivedCopy)
+      .map((item) => ({ ...card(item), id: `archive-${item.id}`, archived: true })),
+  };
+}

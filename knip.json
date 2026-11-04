@@ -19,8 +19,7 @@
       "entry": ["index.html"]
     },
     "apps/site": {
-      "entry": ["src/routes/**/*.tsx"],
-      "ignore": ["public/demo/**"]
+      "entry": ["src/routes/**/*.tsx"]
     },
     "packages/library": {
       "entry": ["src/storage/sqlite-snapshot-worker.ts"]
