@@ -12,10 +12,11 @@ on:
 permissions:
   contents: read
 
-# A newer push replaces a PR's run. Runs on main all finish, so each merge gets its own result.
+# A newer push replaces a PR's run. Every other run gets a group of its own: a shared group keeps
+# only one pending run and cancels the rest, which left merges to main with no result.
 concurrency:
-  group: ci-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.event_name == 'pull_request' && format('ci-{0}', github.ref) || format('ci-{0}', github.run_id) }}
+  cancel-in-progress: true
 
 jobs:
   changes:
@@ -24,21 +25,16 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    # Only a PR skips what its diff cannot break. Every commit on main runs the checks and packages,
+    # so main's newest result always covers main, even after a docs-only merge.
     outputs:
-      code: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.code == 'true' }}
-      app: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.app == 'true' }}
-      macos: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.macos == 'true' }}
+      code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' }}
+      app: ${{ github.event_name != 'pull_request' || steps.filter.outputs.app == 'true' }}
+      macos: ${{ github.event_name != 'pull_request' || steps.filter.outputs.macos == 'true' }}
     steps:
-      # A shallow checkout can yield an empty diff for a push and silently skip every job.
-      - uses: actions/checkout@v7
-        if: github.event_name == 'push'
-        with:
-          fetch-depth: 0
-          filter: blob:none
-      # A PR compares its whole diff with its base, through the API; a push compares with the previous head.
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
-        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request'
         with:
           predicate-quantifier: some-with-excludes
           filters: |
