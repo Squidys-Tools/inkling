@@ -77,7 +77,6 @@ export async function deleteForever(view: CardView) {
     });
 }
 
-/** The card's context menu, with the same actions as the old in-app one plus Space filing. */
 export async function openCardMenu(
   view: CardView,
   at: { x: number; y: number },
