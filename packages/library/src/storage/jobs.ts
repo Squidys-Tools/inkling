@@ -127,6 +127,7 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
   const claimNext = Effect.fnUntraced(function* (
     workerId: string,
     kinds: ReadonlyArray<string> | null = null,
+    itemKinds: ReadonlyArray<string> | null = kinds,
   ) {
     if (kinds && kinds.length === 0) return null;
     const kindFilter = kinds ? sql`AND kind IN ${sql.in(kinds)}` : sql.literal("");
@@ -136,8 +137,10 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
         // so its embedding still waits for its OCR text when several lanes claim.
         // Across items the most recently queued goes first: a fresh import is
         // indexed ahead of a backlog. Jobs queued in the same instant keep their order.
-        const busyFilter = kinds ? sql`AND busy.kind IN ${sql.in(kinds)}` : sql.literal("");
-        const earlierFilter = kinds ? sql`AND earlier.kind IN ${sql.in(kinds)}` : sql.literal("");
+        const busyFilter = itemKinds ? sql`AND busy.kind IN ${sql.in(itemKinds)}` : sql.literal("");
+        const earlierFilter = itemKinds
+          ? sql`AND earlier.kind IN ${sql.in(itemKinds)}`
+          : sql.literal("");
         const [row] = yield* sql<JobRow>`SELECT * FROM jobs WHERE status = 'pending' ${kindFilter}
           AND NOT EXISTS (SELECT 1 FROM jobs busy WHERE busy.item_id = jobs.item_id
             AND busy.status = 'processing' ${busyFilter})
