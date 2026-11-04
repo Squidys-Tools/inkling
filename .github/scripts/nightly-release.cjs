@@ -1,6 +1,13 @@
-// Ported from t3code's check-nightly-release.cjs. Scheduled runs tick every
-// 30 minutes; this gap, not the cron, sets how often a nightly ships.
-const MINIMUM_RELEASE_GAP_MS = 12 * 60 * 60 * 1000;
+// Ported from t3code's check-nightly-release.cjs. Nightlies ship in 8-hour slots
+// that open at midnight, 8am and 4pm EST (05:00, 13:00, 21:00 UTC). Scheduled runs
+// tick every 30 minutes; the first tick that finds its slot unreleased ships it.
+const SLOT_MS = 8 * 60 * 60 * 1000;
+// Midnight EST on 1 January 2026. Every slot is a multiple of SLOT_MS from here.
+const FIRST_SLOT_MS = Date.UTC(2026, 0, 1, 5);
+
+function currentSlotStart(now) {
+  return FIRST_SLOT_MS + Math.floor((now - FIRST_SLOT_MS) / SLOT_MS) * SLOT_MS;
+}
 
 function repositoryDefaultBranch(context) {
   const branch = context.payload.repository?.default_branch;
@@ -60,11 +67,8 @@ async function shouldReleaseNightly({ github, context, core, now = Date.now() })
     return true;
   }
 
-  const gapHours = MINIMUM_RELEASE_GAP_MS / 3600000;
-  if (now - Date.parse(lastNightly.published_at) < MINIMUM_RELEASE_GAP_MS) {
-    core.info(
-      `Nightly ${lastNightly.tag_name} was published less than ${gapHours} hours ago. Skipping.`,
-    );
+  if (Date.parse(lastNightly.published_at) >= currentSlotStart(now)) {
+    core.info(`Nightly ${lastNightly.tag_name} already shipped in this slot. Skipping.`);
     return false;
   }
 
@@ -80,7 +84,7 @@ async function shouldReleaseNightly({ github, context, core, now = Date.now() })
     return false;
   }
 
-  core.info(`New commits since ${lastNightly.tag_name}, and the ${gapHours}-hour gap has passed.`);
+  core.info(`New commits since ${lastNightly.tag_name}, and this slot has not shipped yet.`);
   return true;
 }
 
