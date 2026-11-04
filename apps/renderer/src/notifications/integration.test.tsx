@@ -75,7 +75,7 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
   let fromMenu = (_command: string) => {};
   let escaped = 0;
   const router = {
-    navigate: () => {},
+    navigate: ({ to }: { to: string }) => calls.push(to),
     history: { back: () => calls.push("back"), forward: () => {} },
   };
   const { useCommands } = load<{ useCommands: () => void }>(
@@ -168,6 +168,16 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
     expect(calls).toHaveLength(4);
     expect(escaped).toBe(1);
     modal.remove();
+    // A bare key runs from the page but stays text in a field.
+    const field = document.createElement("input");
+    document.body.append(field);
+    await act(async () => {
+      page.dispatchEvent(new f.dom.window.KeyboardEvent("keydown", { key: "n", bubbles: true }));
+      field.focus();
+      field.dispatchEvent(new f.dom.window.KeyboardEvent("keydown", { key: "n", bubbles: true }));
+    });
+    expect(calls.slice(4)).toEqual(["/add/note"]);
+    field.remove();
     for (const error of [false, true]) {
       await act(async () => {
         notices.dismiss("archive");
@@ -182,6 +192,44 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
       await act(async () => expect(escape(toast).defaultPrevented).toBe(true));
       expect(escaped).toBe(1);
     }
+  } finally {
+    await act(async () => root.unmount());
+    f.restore();
+  }
+});
+
+test("on macOS desktop, Cmd shortcuts reach commands only through the menu", async () => {
+  const f = fixture();
+  const calls: string[] = [];
+  const { useCommands } = load<{ useCommands: () => void }>(
+    "../shell/useCommands.ts",
+    {
+      useEffect: React.useEffect,
+      useHotkeys,
+      useRouter: () => ({}),
+      desktop: { onCommand: () => () => {} },
+      platform: "darwin",
+      bindingsFor,
+      shortcuts,
+      setSettingsSheetOpen: () => {},
+      runHandledCommand: (command: string) => calls.push(command),
+    },
+    "useCommands",
+  );
+  function App() {
+    useCommands();
+    return null;
+  }
+  const root = createRoot(document.getElementById("root")!);
+  const key = (init: KeyboardEventInit) =>
+    document.body.dispatchEvent(new f.dom.window.KeyboardEvent("keydown", { ...init, bubbles: true }));
+  try {
+    await act(async () => root.render(<App />));
+    await act(async () => {
+      key({ key: "k", metaKey: true });
+      key({ key: "/" });
+    });
+    expect(calls).toEqual(["search"]);
   } finally {
     await act(async () => root.unmount());
     f.restore();

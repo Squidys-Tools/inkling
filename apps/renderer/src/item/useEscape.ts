@@ -29,7 +29,9 @@ export function useEscape(onEscape: () => void) {
       event.preventDefault();
       onEscape();
     },
-    // Only an Escape this page acts on is prevented; the rest still reach menus and fields.
-    { preventDefault: false },
+    // On window, after document listeners such as Base UI's dismiss, so their preventDefault
+    // is seen. The callback prevents only what it acts on: the library's own preventDefault
+    // would run first and make the callback read its own press as handled.
+    { target: window, preventDefault: false },
   );
 }

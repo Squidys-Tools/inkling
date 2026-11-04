@@ -6,6 +6,9 @@ import { desktop, platform } from "../desktop.ts";
 import { setSettingsSheetOpen } from "../libraryView/viewState.ts";
 import { runHandledCommand } from "./commands.ts";
 
+// Mod resolves from the same platform that picked the bindings, not from the user agent.
+const hotkeyPlatform = { darwin: "mac", win32: "windows", linux: "linux" } as const;
+
 function run(router: ReturnType<typeof useRouter>, command: Command) {
   // An open dialog owns the keyboard: it keeps Escape and the shortcuts
   // until it closes.
@@ -52,6 +55,7 @@ export function useCommands() {
           options: { ignoreInputs: !binding.mod && !binding.alt },
         })),
     ),
+    { platform: hotkeyPlatform[platform] },
   );
 
   useEffect(() => {
