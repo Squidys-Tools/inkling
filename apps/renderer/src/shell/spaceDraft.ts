@@ -1,4 +1,5 @@
 import type { SpaceKind } from "@inkling/contracts";
+import { createSpace } from "../library/spaces.ts";
 import { createStore, useStore } from "../library/store.ts";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
 
@@ -31,3 +32,20 @@ export function resumeSpaceDraft() {
 export const updateSpaceDraft = (patch: Partial<SpaceDraft>) =>
   spaceDraft.set((draft) => ({ ...draft, ...patch }));
 export const closeSpaceDraft = () => spaceDraft.set(closed);
+
+let creating = false;
+
+/** Creates the drafted Space once, however often Enter or Create is pressed while it saves. */
+export async function createDraftedSpace() {
+  const draft = spaceDraft.get();
+  if (creating || !draft.name.trim()) return null;
+  creating = true;
+  try {
+    const created = await createSpace(draft.name, draft.kind, draft.query);
+    // The draft may have changed while the Space was being made; only close the one that asked.
+    if (created && spaceDraft.get() === draft) closeSpaceDraft();
+    return created;
+  } finally {
+    creating = false;
+  }
+}
