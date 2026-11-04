@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { Button, Kbd } from "@inkling/ui";
 import { color, font, itemColor, layout, radius, space, text } from "@inkling/ui/tokens.stylex";
-import { controlsOnRight } from "../desktop.ts";
+import { useControlsOnRight } from "../desktop.ts";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useRef, useState } from "react";
 import { errorMessage } from "../library/errors.ts";
@@ -43,6 +43,7 @@ export function NoteEditor({
   /** `changed` compares with the opening text as the editor writes it, so undoing every edit reads as unchanged. */
   onChange?: (markdown: string, changed: boolean) => void;
 }) {
+  const controlsOnRight = useControlsOnRight();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);

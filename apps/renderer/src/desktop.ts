@@ -1,4 +1,6 @@
 import type { DesktopBridge, Platform, WindowChrome } from "@inkling/contracts/desktop";
+import { useAppearance } from "./settings/appearance.ts";
+import { chromeControlsFor } from "./settings/appearanceModel.ts";
 
 declare global {
   interface Window {
@@ -19,12 +21,19 @@ const userAgentPlatform = (): Platform =>
 export const platform: Platform = desktop?.platform ?? userAgentPlatform();
 
 // The web preview has no window frame to leave room for.
-export const chrome: WindowChrome = desktop?.chrome ?? {
+const chrome: WindowChrome = desktop?.chrome ?? {
   controls: "system-frame",
   titlebarHeight: 32,
   controlsInset: 0,
 };
 
+/** The caption style on screen now. A macOS setting change applies at once, without a restart. */
+export function useChromeControls(): WindowChrome["controls"] {
+  return chromeControlsFor(chrome.controls, useAppearance().windowControls);
+}
+
 /** The window's own buttons fill the top-right of the titlebar band, so controls there sit below it. */
-export const controlsOnRight =
-  chrome.controls === "overlay-right" || chrome.controls === "custom-right";
+export function useControlsOnRight() {
+  const controls = useChromeControls();
+  return controls === "overlay-right" || controls === "custom-right";
+}

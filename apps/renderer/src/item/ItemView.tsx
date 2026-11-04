@@ -5,7 +5,7 @@ import { Button, Kbd } from "@inkling/ui";
 import { color, font, itemColor, layout, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { controlsOnRight, desktop } from "../desktop.ts";
+import { desktop, useControlsOnRight } from "../desktop.ts";
 import { reportActionError } from "../cards/actionError.ts";
 import { setArchived } from "../cards/cardActions.ts";
 import { notify } from "../notifications/toasts.ts";
@@ -66,6 +66,7 @@ function ItemBody({
   onOpenSimilar: (id: string) => void;
 }) {
   const navigate = useNavigate();
+  const controlsOnRight = useControlsOnRight();
   const query = useItem(id);
   const memberships = useMemberships(id);
   const regularSpaces = useSpaces().filter((space) => space.kind === "regular");

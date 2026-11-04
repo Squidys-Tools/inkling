@@ -61,7 +61,7 @@ function createWindow() {
       spellcheck: true,
     },
   });
-  if (platform !== "darwin") bindMaximizedState(window, channels.windowMaximized);
+  bindMaximizedState(window, channels.windowMaximized);
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isWebUrl(url)) void shell.openExternal(url);
     return { action: "deny" };
@@ -114,6 +114,9 @@ function registerIpc() {
     else window?.maximize();
   });
   ipcMain.handle(channels.windowClose, (event) => windowOf(event)?.close());
+  ipcMain.handle(channels.windowSetNativeControlsVisible, (event, visible: boolean) => {
+    if (platform === "darwin") windowOf(event)?.setWindowButtonVisibility(visible);
+  });
   ipcMain.handle(channels.windowReady, (event) => {
     const window = windowOf(event);
     if (window && !window.isVisible()) window.show();

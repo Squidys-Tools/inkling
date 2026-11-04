@@ -1,7 +1,14 @@
+import type { WindowChrome } from "@inkling/contracts/desktop";
+
 export const appearanceOptions = {
   viewToggle: [
     { value: "pill", label: "Pill" },
     { value: "segmented", label: "Segmented" },
+  ],
+  // Only macOS offers the choice; Windows and Linux always draw the inset pill.
+  windowControls: [
+    { value: "traffic-lights", label: "Traffic lights" },
+    { value: "inset", label: "Inset pill" },
   ],
 } as const;
 
@@ -27,5 +34,14 @@ export function parseAppearance(
         : stored.viewToggle === "segmented"
           ? "segmented"
           : "pill",
+    windowControls: stored.windowControls === "inset" ? "inset" : "traffic-lights",
   };
+}
+
+/** The caption style on screen: the inset pill takes over from macOS traffic lights when chosen. */
+export function chromeControlsFor(
+  base: WindowChrome["controls"],
+  windowControls: Appearance["windowControls"],
+): WindowChrome["controls"] {
+  return base === "native-left" && windowControls === "inset" ? "custom-right" : base;
 }
