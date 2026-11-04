@@ -78,7 +78,7 @@ export function GridReveal({
       image: null,
     };
     let loadedAt = -1;
-    let cancelled = false;
+    const effect = { cancelled: false };
 
     const render = (split: number, now: number) => {
       scene.split = split;
@@ -119,7 +119,7 @@ export function GridReveal({
       const image = new Image();
       image.decoding = "async";
       image.onload = () => {
-        if (cancelled || !image.naturalWidth || !image.naturalHeight) return;
+        if (effect.cancelled || !image.naturalWidth || !image.naturalHeight) return;
         scene.image = image;
         loadedAt = performance.now();
         scene.hasColors = readAverages(image, root, branches, scene.split);
@@ -132,43 +132,39 @@ export function GridReveal({
     if (reducedMotion) {
       loadNow.current = load;
       return () => {
-        cancelled = true;
+        effect.cancelled = true;
         loadNow.current = null;
         observer.disconnect();
       };
     }
 
-    let frameId = 0;
-    let last = 0;
-    let elapsed = 0;
-    let eased = 0;
-    let split = 0;
+    const loop = { frame: 0, last: 0, elapsed: 0, eased: 0, split: 0 };
     const tick = (now: number) => {
-      frameId = requestAnimationFrame(tick);
-      if (!last) last = now;
+      loop.frame = requestAnimationFrame(tick);
+      if (!loop.last) loop.last = now;
       load();
-      const dt = Math.min((now - last) / 1000, 0.05);
-      last = now;
-      elapsed += dt;
-      scene.clock = elapsed;
+      const dt = Math.min((now - loop.last) / 1000, 0.05);
+      loop.last = now;
+      loop.elapsed += dt;
+      scene.clock = loop.elapsed;
       const ready = scene.image !== null;
       // The image landing finishes the run, not the clock.
-      const target = ready ? 1 : selfPaced(elapsed * 1000, estimatedDuration);
-      eased += (target - eased) * (1 - Math.exp(-dt * 4.4));
-      const wanted = Math.min(eased, ready ? 1 : WAIT_CAP);
-      split += (wanted - split) * (1 - Math.exp(-dt * 3.2));
-      render(split, now);
+      const target = ready ? 1 : selfPaced(loop.elapsed * 1000, estimatedDuration);
+      loop.eased += (target - loop.eased) * (1 - Math.exp(-dt * 4.4));
+      const wanted = Math.min(loop.eased, ready ? 1 : WAIT_CAP);
+      loop.split += (wanted - loop.split) * (1 - Math.exp(-dt * 3.2));
+      render(loop.split, now);
       // Nothing moves after this, so the loop stops.
-      if (ready && eased > 0.995 && now - loadedAt > COLOR_MS && split > 0.9995) {
+      if (ready && loop.eased > 0.995 && now - loadedAt > COLOR_MS && loop.split > 0.9995) {
         render(1, now);
-        cancelAnimationFrame(frameId);
+        cancelAnimationFrame(loop.frame);
       }
     };
-    frameId = requestAnimationFrame(tick);
+    loop.frame = requestAnimationFrame(tick);
 
     return () => {
-      cancelled = true;
-      cancelAnimationFrame(frameId);
+      effect.cancelled = true;
+      cancelAnimationFrame(loop.frame);
       observer.disconnect();
     };
   }, [aspect, estimatedDuration, reducedMotion]);

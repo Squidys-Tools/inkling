@@ -14,14 +14,12 @@ export function Stage({ crop, children }: { crop: Crop; children: ReactNode }) {
 
   const measure = (box: HTMLDivElement | null) => {
     if (!box) return;
-    let seen = false;
     const resize = new ResizeObserver(([entry]) => {
       if (entry) setScale(Math.min(1.25, entry.contentRect.width / crop.width));
     });
     const reveal = new IntersectionObserver(
       ([entry]) => {
-        if (!entry?.isIntersecting || seen) return;
-        seen = true;
+        if (!entry?.isIntersecting) return;
         resize.observe(box);
         reveal.disconnect();
       },

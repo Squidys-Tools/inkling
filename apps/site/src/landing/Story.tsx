@@ -44,9 +44,9 @@ function Reveal({ children, style }: { children: ReactNode; style?: stylex.Style
   useEffect(() => {
     const el = ref.current;
     if (!el || !hydrated) return;
-    let animation: Animation | undefined;
+    const rise: { animation?: Animation } = {};
     const settle = () => {
-      animation?.cancel();
+      rise.animation?.cancel();
       el.style.opacity = "1";
       el.style.transform = "none";
     };
@@ -68,7 +68,7 @@ function Reveal({ children, style }: { children: ReactNode; style?: stylex.Style
         observer.disconnect();
         el.style.opacity = "1";
         el.style.transform = "none";
-        animation = el.animate(
+        rise.animation = el.animate(
           [
             { opacity: 0.35, transform: "translateY(24px)" },
             { opacity: 1, transform: "none" },
