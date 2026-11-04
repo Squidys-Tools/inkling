@@ -74,23 +74,22 @@ Node: under the Bun runtime, StyleX's production media-query parser fails.
 Iterate on the site with `bun run dev:site` (hot reload; read the port from its
 output). Vercel's automatic Git deployments are disabled in
 `apps/site/vercel.json`. The `Site preview` workflow invokes Vercel only for a
-same-repository PR targeting `main` when its latest push changes `apps/site`,
+same-repository PR targeting `main` that changes `apps/site`,
 `apps/renderer`, the site's imported `packages/contracts`, `packages/ingestion`
-or `packages/ui`, or a shared dependency or toolchain file. It uses Vercel CLI
-and updates one PR comment with the preview URL. Fork PRs do not get Vercel
-secrets or previews.
+or `packages/ui`, or a shared dependency or toolchain file. It runs
+`tools/ci/site-deploy.ts preview`, which deploys with the Vercel CLI and updates
+one PR comment with the preview URL. Fork PRs do not get Vercel secrets or
+previews.
 
 The `Deploy site` workflow (`.github/workflows/site-deploy.yml`) is the only
 path to the production domain. It runs on every push to `main` whose paths match
-the preview filter above, plus the workflow file itself; keep the two lists in
-sync. The Release workflow dispatches it after each nightly publishes (the
+the preview filter above; keep the two lists in sync. The Release workflow dispatches it after each nightly publishes (the
 workflow token emits no release event, so a `release` trigger would not fire);
 after publishing a stable release, run `gh workflow run site-deploy.yml` to pick
 up the new installers. On the `site-production` GitHub environment, which
-deploys only from `main`, it builds a production deployment
-with no domain, promotes it
-through the Vercel API, and fails unless getinkling.dev then points at that
-deployment. A failed build leaves the previous site live. A newer push replaces a
+deploys only from `main`, `tools/ci/site-deploy.ts production` builds a
+production deployment with no domain, promotes it through the Vercel API, and
+fails unless getinkling.dev then points at that deployment. A failed build leaves the previous site live. A newer push replaces a
 deploy still waiting in the queue. Both environments hold the `VERCEL_TOKEN`,
 `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` secrets; `site-staging`, used only by
 previews, allows `main` plus `refs/pull/*/merge`.
@@ -164,15 +163,23 @@ Never add signing secrets. Nightlies publish themselves; a stable release is pub
 
 ## CI
 
-Pushes and PRs that change only Markdown, `docs/` or `AGENTS.md` skip CI and the security scans.
+Workflow logic lives in TypeScript under `tools/ci/` and `tools/release/`; the YAML only wires it
+up. Scripts that import only `tools/ci/github.ts` run without `bun install`.
 
-- `ci.yml` runs the unit tests on `windows-latest`, the typecheck, lint, Knip and web/extension builds on `ubuntu-latest`, and builds and launches the app from source on Windows, Linux and macOS.
-- `security.yml` runs CodeQL when a PR opens or reopens and on about every fourth push to it, and dependency review on every PR push.
-- App changes in a same-repository PR (`electron-preview.yml`, skipped when only `apps/site/` changes) build the unpacked app on Windows, Linux and macOS, run the backend smoke and launch it (Linux under Xvfb); macOS also verifies its ad-hoc signature, and Windows and Linux upload the directory as a 3-day artifact.
-- `pr-size.yml` labels each PR by the size of its diff.
-- `knip.yml` runs `knip --fix` every other day and opens a cleanup PR. It strips unused exports and prunes dependencies but never deletes files; if its PRs get noisy, tune the patterns in `knip.json` rather than disabling it.
-- `links.yml` checks Markdown links weekly and fails the workflow when links are broken. Add custom schemes such as `inkling://` and local hosts to `.lycheeignore`.
-- `release.yml` builds releases; see [Updates and releases](#updates-and-releases).
+- `ci.yml` runs on every push to `main` and every PR. It calls `checks.yml` (typecheck, lint,
+  Knip, web and extension builds on Linux, unit tests on Windows) when code changed, and
+  `package.yml` (package the unpacked app, run the packaged smoke checks and launch it) on Windows
+  and Linux when the desktop app's inputs changed. macOS packages only on a PR that changes its
+  `macos` paths and in every release run, never on a push to `main`: hosted macOS runners queue
+  for long enough that GitHub cancels jobs, and a cancelled job marks the commit failed. It also
+  runs CodeQL, and dependency review on PRs. A same-repository PR's Windows and Linux builds are uploaded as 3-day
+  artifacts. `CI result` passes only when every job it needs passed or was skipped, so it is the
+  check to require.
+- `release.yml` runs the same `checks.yml` and `package.yml` on the commit it ships; see
+  [Updates and releases](#updates-and-releases).
+- `pr-size.yml` labels each PR by its changed lines (`tools/ci/pr-size.ts`).
+- `knip.yml` runs `knip --fix` every other day and opens a cleanup PR. It strips unused exports and prunes dependencies but never deletes files; if its PRs get noisy, tune the patterns in `knip.json` rather than disabling it. GitHub starts no workflows for a PR the workflow token opens, so close and reopen it to run CI.
+- `links.yml` checks Markdown links weekly. Add custom schemes such as `inkling://` and local hosts to `.lycheeignore`.
 
 ## Troubleshooting
 

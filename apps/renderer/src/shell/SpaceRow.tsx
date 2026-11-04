@@ -36,16 +36,16 @@ export function SpaceRow({
   space,
   selected,
   count,
-  compact = false,
-  canMoveUp = true,
-  canMoveDown = true,
+  compact,
+  canMoveUp,
+  canMoveDown,
 }: {
   space: Space;
   selected: boolean;
   count: number | undefined;
-  compact?: boolean;
-  canMoveUp?: boolean;
-  canMoveDown?: boolean;
+  compact: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
 }) {
   const navigate = useNavigate();
   const [renaming, setRenaming] = useState<string | null>(null);
