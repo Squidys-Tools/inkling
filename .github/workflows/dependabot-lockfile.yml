@@ -1,0 +1,86 @@
+name: Dependabot lockfile
+
+# Dependabot's Bun writes a bun.lock that Bun 1.4 would not: no libc or hasInstallScript fields,
+# and entries nothing depends on. This rebuilds a Dependabot PR's lockfile with the pinned Bun and
+# pushes it to the PR.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependabot-lockfile-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  regenerate:
+    name: Regenerate bun.lock
+    if: >-
+      github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' &&
+      startsWith(github.head_ref, 'dependabot/bun/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Bun runs on the PR's files here, so this job holds only a read token.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - run: bun tools/ci/dependabot-lockfile.ts
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bun-lock
+          path: bun.lock
+          if-no-files-found: error
+          retention-days: 1
+
+  push:
+    name: Push the regenerated bun.lock
+    needs: regenerate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Workflows on a Dependabot PR get a read-only token unless they ask for more. This job runs
+    # nothing from the PR: it commits the lockfile the job above built and starts CI on it.
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bun-lock
+          path: ${{ runner.temp }}/regenerated
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
+            echo "$HEAD_REF moved past $HEAD_SHA; the run for its new head handles it."
+            exit 0
+          fi
+          cp "$RUNNER_TEMP/regenerated/bun.lock" bun.lock
+          if git diff --quiet -- bun.lock; then
+            echo "Dependabot's bun.lock already matches the regeneration."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # [dependabot skip] lets Dependabot still rebase the PR over this commit.
+          git commit --quiet -m 'root: regenerate bun.lock with the pinned Bun [dependabot skip]' -- bun.lock
+          git push origin "HEAD:refs/heads/$HEAD_REF"
+          # A push with the workflow token starts no workflows, so CI is dispatched on the new head.
+          gh workflow run ci.yml --ref "$HEAD_REF"
