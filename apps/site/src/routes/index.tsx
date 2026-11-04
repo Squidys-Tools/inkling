@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LandingPage } from "../landing/index.jsx";
-import { landingStylesheets } from "../landing/stylesheets.js";
+import { LandingPage } from "../landing/LandingPage.tsx";
 import { seo } from "../layout/seo.ts";
 export const Route = createFileRoute("/")({
   head: () => {
@@ -14,7 +13,6 @@ export const Route = createFileRoute("/")({
       ...tags,
       links: [
         ...tags.links,
-        ...landingStylesheets,
         {
           rel: "preload",
           href: "/media/red-hat-400.ttf",
