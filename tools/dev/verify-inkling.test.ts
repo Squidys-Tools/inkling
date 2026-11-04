@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { runHasLiveProcess } from "../../.agents/skills/verify-inkling/scripts/clean-dev.mjs";
+import { runHasLiveProcess } from "../../.claude/skills/verify-inkling/scripts/clean-dev.ts";
 
 test("a live launcher keeps a run active before Electron's pid is recorded", () => {
   expect(runHasLiveProcess({ launcherPid: 41 }, new Set([41]))).toBe(true);
