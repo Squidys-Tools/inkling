@@ -31,3 +31,22 @@ export function resumeSpaceDraft() {
 export const updateSpaceDraft = (patch: Partial<SpaceDraft>) =>
   spaceDraft.set((draft) => ({ ...draft, ...patch }));
 export const closeSpaceDraft = () => spaceDraft.set(closed);
+
+let creating = false;
+
+/** Creates the drafted Space once, however often Enter or Create is pressed while it saves. */
+export async function createDraftedSpace<Created>(
+  create: (name: string, kind: SpaceKind, query: string) => Promise<Created | null>,
+) {
+  const draft = spaceDraft.get();
+  if (creating || !draft.name.trim()) return null;
+  creating = true;
+  try {
+    const created = await create(draft.name, draft.kind, draft.query);
+    // The draft may have changed while the Space was being made; only close the one that asked.
+    if (created && spaceDraft.get() === draft) closeSpaceDraft();
+    return created;
+  } finally {
+    creating = false;
+  }
+}

@@ -76,39 +76,3 @@ export function bindingLabel({ key, mod, shift, alt }: Binding, platform: Platfo
     .filter(Boolean)
     .join("+");
 }
-
-// The fields of a DOM KeyboardEvent this reads; main has no DOM types.
-type KeyEvent = {
-  key: string;
-  altKey: boolean;
-  ctrlKey: boolean;
-  metaKey: boolean;
-  shiftKey: boolean;
-  isComposing: boolean;
-};
-
-/**
- * The command a key press runs. Bindings without a modifier never fire while
- * the user types in a field, and nothing fires during IME composition.
- */
-export function commandForKey(event: KeyEvent, platform: Platform, inEditable: boolean) {
-  if (event.isComposing) return null;
-  const mod = platform === "darwin" ? event.metaKey : event.ctrlKey;
-  // Ctrl on macOS and Meta elsewhere belong to the system.
-  const foreign = platform === "darwin" ? event.ctrlKey : event.metaKey;
-  if (foreign) return null;
-  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-  for (const command of Object.keys(shortcuts) as Command[]) {
-    for (const binding of bindingsFor(command, platform)) {
-      const plain = !binding.mod && !binding.alt;
-      if (plain && inEditable) continue;
-      if (binding.key !== key || !!binding.mod !== mod || !!binding.alt !== event.altKey) continue;
-      // "?" already implies Shift on most layouts, so a bare symbol binding ignores Shift.
-      if (binding.shift !== undefined || binding.mod) {
-        if (!!binding.shift !== event.shiftKey) continue;
-      }
-      return command;
-    }
-  }
-  return null;
-}

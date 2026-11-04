@@ -3,6 +3,7 @@ import { layout, motion } from "@inkling/ui/tokens.stylex";
 import { chrome, desktop } from "../desktop.ts";
 import { useViewState } from "../libraryView/viewState.ts";
 import { useAppearance } from "../settings/appearance.ts";
+import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
 import { WindowControls } from "./WindowControls.tsx";
 
 /** The drag band, plus the inset caption pill wherever the app draws its own buttons. */
@@ -19,7 +20,7 @@ export function TitleBar() {
         {...stylex.props(
           styles.band,
           custom && styles.customBand,
-          custom && styles.clearSidebar(open ? 248 : 76),
+          custom && styles.clearSidebar(open ? sidebarExpanded : sidebarCompact),
           controls === "overlay-right" && styles.overlay,
         )}
       />

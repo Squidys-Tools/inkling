@@ -41,7 +41,7 @@ export function useToolbarState(editor: Editor) {
   });
 }
 
-export type ToolbarState = ReturnType<typeof useToolbarState>;
+type ToolbarState = ReturnType<typeof useToolbarState>;
 
 type Format = {
   label: string;

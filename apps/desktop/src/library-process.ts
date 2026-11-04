@@ -1,5 +1,6 @@
 import type { LibraryCannotOpen } from "@inkling/contracts";
 import { MessageChannelMain, type MessagePortMain, type WebContents } from "electron";
+import { channels } from "./channels.ts";
 import { superviseUtilityProcess } from "./utility-process.ts";
 
 const isCannotOpen = (message: unknown): message is LibraryCannotOpen =>
@@ -27,7 +28,7 @@ export function startLibraryProcess({
   const connect = (contents: WebContents) => {
     const { port1, port2 } = new MessageChannelMain();
     child.postMessage({ type: "connect" }, [port1]);
-    contents.postMessage("inkling:library-port", null, [port2]);
+    contents.postMessage(channels.libraryPort, null, [port2]);
   };
   const connectMain = () => {
     if (!mainClient) return;
