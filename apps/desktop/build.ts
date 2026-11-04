@@ -31,9 +31,12 @@ const results = await Promise.all([
       external,
     }),
   ),
-  // The library process starts this beside its own bundle for export snapshots.
+  // Each process starts its thread beside its own bundle: export snapshots and text embeddings.
   Bun.build({
-    entrypoints: ["packages/library/src/storage/sqlite-snapshot-worker.ts"],
+    entrypoints: [
+      "packages/library/src/storage/sqlite-snapshot-worker.ts",
+      "packages/jobs/src/text-inference-thread.ts",
+    ],
     outdir,
     target: "node",
     format: "esm",
