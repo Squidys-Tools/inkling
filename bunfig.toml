@@ -1,2 +1,5 @@
 [test]
 root = "."
+
+[install]
+exact = true
