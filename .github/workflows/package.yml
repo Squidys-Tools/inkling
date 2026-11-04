@@ -130,7 +130,7 @@ jobs:
   # A job of its own so a caller can leave it out: hosted macOS runners are scarce, and a job
   # GitHub never acquires is cancelled, which marks the commit failed.
   package-macos:
-    name: Package and launch on ${{ matrix.name }}
+    name: Package and launch on mac-arm64
     if: inputs.macos
     strategy:
       matrix:

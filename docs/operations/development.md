@@ -10,8 +10,8 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 ## Layout
 
 - `apps/desktop`: Electron main process and preload. Windows, menus, dialogs,
-  the `app://` protocol, capture intake, updates, and the two processes below. It never opens the database.
-- `apps/renderer`: the React app. Routes, pages and stores, styled only with StyleX.
+  the `app://` protocol, capture intake, updates, and the two processes below.
+- `apps/renderer`: the React app. Routes, pages and stores.
 - `apps/site`: the marketing site, a TanStack Start app prerendered to static
   HTML. It imports the renderer's cards, mascot, welcome-screen demos and demo
   seed instead of copying them.
@@ -25,11 +25,12 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
   process call, the preload bridge type, the shortcut table, and the capture
   payloads the browser extension sends.
 - `packages/rpc-electron`: Effect RPC over Electron message ports.
-- `packages/ui`: design tokens (`tokens.stylex.ts`, the only file with color
-  values) and shared components.
-- `tools/`: the packaged and launch smokes (`smoke/`), the frame and first-page
-  benchmarks (`bench/`), model staging (`models/`), the lint plugin
-  (`oxlint-plugin/`), repository checks (`repo/`) and release staging (`release/`).
+- `packages/ui`: design tokens (`tokens.stylex.ts`) and shared components.
+- `tools/`: CI scripts (`ci/`), the packaged and launch smokes (`smoke/`), the frame and first-page
+  benchmarks (`bench/`), the `dev:app` launcher and its seeded library (`dev/`),
+  the README mascot animation (`mascot/`), model staging (`models/`), the lint
+  plugin (`oxlint-plugin/`), repository checks (`repo/`) and release staging
+  (`release/`).
 - `extension/`: the Chrome extension. `benchmarks/`: the extraction and OCR corpus and harness.
 
 ## Running
@@ -67,9 +68,9 @@ packaging command goes through `build:app`, so no shipped package carries the
 The marketing site deploys from a Vercel project whose root directory is
 `apps/site`; `apps/site/vercel.json` installs the Bun in `.bun-version` and
 serves `apps/site/dist/client`. Its download buttons link the installers of the
-latest GitHub release, looked up once per build, so redeploy the site after
-publishing a release. Build it with `bun run build:site`, which runs Vite on
-Node: under the Bun runtime, StyleX's production media-query parser fails.
+latest GitHub release, looked up once per build. Build it with
+`bun run build:site`, which runs Vite on Node: under the Bun runtime, StyleX's
+production media-query parser fails.
 
 Iterate on the site with `bun run dev:site` (hot reload; read the port from its
 output). Vercel's automatic Git deployments are disabled in
@@ -170,14 +171,14 @@ Workflow logic lives in TypeScript under `tools/ci/` and `tools/release/`; the Y
 up. Scripts that import only `tools/ci/github.ts` run without `bun install`.
 
 - `ci.yml` runs on every push to `main` and every PR. It calls `checks.yml` (typecheck, lint,
-  Knip, web and extension builds on Linux, unit tests on Windows) when code changed, and
-  `package.yml` (package the unpacked app, run the packaged smoke checks and launch it) on Windows
-  and Linux when the desktop app's inputs changed. macOS packages only on a PR that changes its
-  `macos` paths and in every release run, never on a push to `main`: hosted macOS runners queue
-  for long enough that GitHub cancels jobs, and a cancelled job marks the commit failed. It also
-  runs CodeQL, and dependency review on PRs. A same-repository PR's Windows and Linux builds are uploaded as 3-day
-  artifacts. `CI result` passes only when every job it needs passed or was skipped, so it is the
-  check to require.
+  Knip, web and extension builds on Linux, unit tests on Windows) and `package.yml` (package the
+  unpacked app on Windows and Linux, run the packaged smoke checks and launch it). A PR skips
+  either when its diff cannot affect it; every commit on `main` runs both, each in its own run
+  that no later merge cancels. macOS packages only on a PR that changes its `macos` paths and in
+  every release run: hosted macOS runners queue for long enough that GitHub cancels jobs, and a
+  cancelled job marks the commit failed. CI also runs CodeQL, and dependency review on PRs. A
+  same-repository PR's Windows and Linux builds are uploaded as 3-day artifacts. `CI result`
+  passes only when every job it needs passed or was skipped, so it is the check to require.
 - `release.yml` runs the same `checks.yml` and `package.yml` on the commit it ships; see
   [Updates and releases](#updates-and-releases).
 - `pr-size.yml` labels each PR by its changed lines (`tools/ci/pr-size.ts`).

@@ -39,7 +39,14 @@ try {
     "the welcome opening",
   );
   await until(`document.visibilityState === "visible"`, "the window showing");
-  await page.evaluate(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
+  // A real key press: an event dispatched on window never reaches the document hotkey listeners.
+  for (const type of ["keyDown", "keyUp"])
+    await page.send("Input.dispatchKeyEvent", {
+      type,
+      key: "Escape",
+      code: "Escape",
+      windowsVirtualKeyCode: 27,
+    });
   await until(`/\\d+ items/.test(document.body?.innerText ?? "")`, "the library loading");
   page.close();
   console.log("smoke: the page reached the library process and left the welcome for the library");

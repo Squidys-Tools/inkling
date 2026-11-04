@@ -5,14 +5,14 @@ import { type LibraryClient, libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
 import { refreshJobs } from "../library/jobs.ts";
 import { spacesStore } from "../library/spaces.ts";
-import { createStore, useStore } from "../library/store.ts";
+import { createAtom, useSelector } from "@tanstack/react-store";
 import { type CaptureSpace, finishSpaceCapture } from "./captureSpace.ts";
 import { notifications, notify, notifyError } from "../notifications/toasts.ts";
 
 type CaptureState = { saving: number; error: string | null };
-const captureState = createStore<CaptureState>({ saving: 0, error: null });
+const captureState = createAtom<CaptureState>({ saving: 0, error: null });
 export const useCaptureState = <Selected>(select: (state: CaptureState) => Selected) =>
-  useStore(captureState, select);
+  useSelector(captureState, select);
 export const reportCaptureError = (message: string) => {
   captureState.set((state) => ({ ...state, error: message }));
   notifyError("Couldn’t save this yet", message, "capture-error", () =>
