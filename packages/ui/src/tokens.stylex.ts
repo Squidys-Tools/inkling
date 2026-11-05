@@ -265,3 +265,20 @@ export const onboardingColor = stylex.defineVars({
   badge: "rgba(14, 14, 12, 0.72)",
   badgeInk: "#d8d2c6",
 });
+
+// The /plains prototype: white type and frosted controls laid on a sunlit photo.
+export const plainsColor = stylex.defineVars({
+  sky: "#d9d6bf",
+  onPhoto: "#ffffff",
+  onPhotoSoft: "rgba(255, 255, 255, 0.86)",
+  photoShadow: "rgba(24, 30, 12, 0.38)",
+  frost: "rgba(255, 255, 255, 0.18)",
+  frostEdge: "rgba(255, 255, 255, 0.42)",
+  pill: "#ffffff",
+  pillInk: "#151513",
+  leafShade: "rgba(18, 26, 6, 0.34)",
+  appShadow: "rgba(8, 10, 4, 0.42)",
+  matchRing: "#f0e9df",
+  phoneBody: "#0b0b0a",
+  phoneEdge: "#3a3836",
+});

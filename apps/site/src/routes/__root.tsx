@@ -56,8 +56,14 @@ function useIsLanding() {
   return useRouterState({ select: (state) => state.location.pathname === "/" });
 }
 
+// Pages that draw their own header and footer.
+const bare = new Set(["/plains"]);
+
 function Layout() {
-  if (useIsLanding()) return <Outlet />;
+  const ownChrome = useRouterState({
+    select: (state) => bare.has(state.location.pathname.replace(/(?<=.)\/$/u, "")),
+  });
+  if (useIsLanding() || ownChrome) return <Outlet />;
   return (
     <>
       <Header />

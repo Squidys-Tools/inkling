@@ -16,9 +16,17 @@ export default defineConfig(({ command }) => ({
   define: { "import.meta.env.VITE_SITE_URL": JSON.stringify(siteUrl) },
   plugins: [
     // The demo seed's photos are full camera files; the cards only ever show them at column width.
+    // The /plains media name their own sizes and formats in each import.
     imagetools({
-      include: /\/seed-demo\/[^?]+\.jpg\?/u,
-      defaultDirectives: () => new URLSearchParams({ w: "480", format: "webp", quality: "70" }),
+      include: [
+        /\/seed-demo\/[^?]+\.jpg\?/u,
+        /\/plains\/media\/[^?]+\.(?:jpg|png|webp)\?/u,
+        /\/cards\/assets\/typed-texture\.png\?/u,
+      ],
+      defaultDirectives: (url) =>
+        url.pathname.includes("/seed-demo/")
+          ? new URLSearchParams({ w: "480", format: "webp", quality: "70" })
+          : new URLSearchParams(),
     }),
     latestRelease(),
     stylex.vite({
@@ -35,6 +43,7 @@ export default defineConfig(({ command }) => ({
         { path: "/features" },
         { path: "/privacy" },
         { path: "/credits" },
+        { path: "/plains", sitemap: { exclude: true } },
         { path: "/404", prerender: { outputPath: "/404.html" }, sitemap: { exclude: true } },
       ],
       sitemap: { enabled: siteUrl !== "", host: siteUrl },
