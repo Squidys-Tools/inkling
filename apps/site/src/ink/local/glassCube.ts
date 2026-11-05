@@ -1,9 +1,14 @@
-import { CARD_COUNT, fragmentSource, vertexSource } from "./shader.ts";
+import { fragmentSource, vertexSource } from "./shader.ts";
 
 const NOISE_SIZE = 48;
-const MAX_DPR = 1.5;
-const MAX_PIXELS = 900_000;
 const STILL_TIME = 38;
+const BASE_YAW = -Math.PI / 4;
+const PLATE_URL = "/media/ink/local/plate.webp";
+// Resolution scale per governor step; the browser upscales the canvas.
+const QUALITY = [1, 0.85, 0.72, 0.6, 0.5] as const;
+const BUDGET_MS = 20;
+const SAMPLE_FRAMES = 30;
+const MAX_PIXELS = 1_500_000;
 
 export type GlassCube = {
   drag: (dx: number, dy: number) => void;
@@ -23,7 +28,7 @@ function compile(gl: WebGL2RenderingContext, kind: number, source: string) {
   return null;
 }
 
-function program(gl: WebGL2RenderingContext) {
+function link(gl: WebGL2RenderingContext, fragmentSource: string) {
   const vertex = compile(gl, gl.VERTEX_SHADER, vertexSource);
   const fragment = compile(gl, gl.FRAGMENT_SHADER, fragmentSource);
   if (!vertex || !fragment) return null;
@@ -70,50 +75,6 @@ function noiseVolume() {
   return equalized;
 }
 
-type Card = {
-  x: number;
-  y: number;
-  z: number;
-  spin: number;
-  tilt: number;
-  speed: number;
-  sway: number;
-};
-
-function makeCards() {
-  const random = seeded(23);
-  return Array.from({ length: CARD_COUNT }, (): Card => ({
-    x: (random() * 2 - 1) * 0.72,
-    y: random(),
-    z: (random() * 2 - 1) * 0.72,
-    spin: random() * Math.PI * 2,
-    tilt: random() * Math.PI * 2,
-    speed: 0.6 + random() * 0.8,
-    sway: random() * Math.PI * 2,
-  }));
-}
-
-const WATER_TOP = 0.62;
-const WATER_BOTTOM = -0.9;
-
-function cardFrame(cards: Card[], time: number, out: Float32Array) {
-  cards.forEach((card, index) => {
-    const fall = (card.y + time * 0.006 * card.speed) % 1;
-    const y = WATER_TOP - fall * (WATER_TOP - WATER_BOTTOM);
-    const x = card.x + Math.sin(time * 0.11 * card.speed + card.sway) * 0.12;
-    const z = card.z + Math.cos(time * 0.09 * card.speed + card.sway) * 0.12;
-    const a = card.spin + time * 0.21 * card.speed;
-    const b = card.tilt + time * 0.17;
-    const u = [Math.cos(a) * 0.075, Math.sin(b) * 0.025, Math.sin(a) * 0.075];
-    const v = [
-      -Math.sin(a) * Math.cos(b) * 0.052,
-      Math.cos(b) * 0.052,
-      Math.cos(a) * Math.cos(b) * 0.052,
-    ];
-    out.set([x, y, z, ...u, ...v], index * 9);
-  });
-}
-
 function rotation(yaw: number, pitch: number) {
   const cy = Math.cos(yaw);
   const sy = Math.sin(yaw);
@@ -123,14 +84,19 @@ function rotation(yaw: number, pitch: number) {
   return new Float32Array([cy, sy * sp, -sy * cp, 0, cp, sp, sy, -cy * sp, cy * cp]);
 }
 
-export function createGlassCube(canvas: HTMLCanvasElement, calm: boolean): GlassCube | null {
+type Options = { calm: boolean; onReady: () => void; onLost: () => void };
+
+export function createGlassCube(canvas: HTMLCanvasElement, options: Options): GlassCube | null {
+  const { calm } = options;
   const gl = canvas.getContext("webgl2", {
     antialias: false,
     alpha: false,
+    depth: false,
+    stencil: false,
     powerPreference: "high-performance",
   });
   if (!gl) return null;
-  const shader = program(gl);
+  const shader = link(gl, fragmentSource);
   if (!shader) return null;
 
   const buffer = gl.createBuffer();
@@ -139,9 +105,9 @@ export function createGlassCube(canvas: HTMLCanvasElement, calm: boolean): Glass
   gl.enableVertexAttribArray(0);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
 
-  const texture = gl.createTexture();
+  const noise = gl.createTexture();
   gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_3D, texture);
+  gl.bindTexture(gl.TEXTURE_3D, noise);
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
   gl.texImage3D(
     gl.TEXTURE_3D,
@@ -160,26 +126,44 @@ export function createGlassCube(canvas: HTMLCanvasElement, calm: boolean): Glass
   for (const wrap of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T, gl.TEXTURE_WRAP_R])
     gl.texParameteri(gl.TEXTURE_3D, wrap, gl.REPEAT);
 
+  const plateTexture = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, plateTexture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
   gl.useProgram(shader);
   const uniform = (name: string) => gl.getUniformLocation(shader, name);
   const uResolution = uniform("uResolution");
   const uTime = uniform("uTime");
   const uRotation = uniform("uRotation");
-  const uCards = uniform("uCards");
   gl.uniform1i(uniform("uNoise"), 0);
+  gl.uniform1i(uniform("uPlate"), 1);
+  const base = rotation(BASE_YAW, 0);
+  gl.uniform3f(uniform("uPlateNormal"), base[2]!, base[5]!, base[8]!);
+  gl.uniform3f(uniform("uPlateAxis"), base[0]!, base[3]!, base[6]!);
 
-  const cards = makeCards();
-  const cardData = new Float32Array(CARD_COUNT * 9);
   const drag = { yaw: 0, pitch: 0, held: false };
   const eased = { yaw: 0, pitch: 0 };
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  const box = {
+    width: 1,
+    height: 1,
+    dpr: Math.min(coarse ? 1 : 1.5, window.devicePixelRatio || 1),
+  };
+  const governor = { level: 0, total: 0, count: 0 };
+  let loaded = false;
+  let disposed = false;
   let visible = false;
+  let pageShown = document.visibilityState === "visible";
   let frame = 0;
   let last = 0;
   let clock = STILL_TIME;
 
-  const resize = () => {
-    const box = canvas.getBoundingClientRect();
-    let dpr = Math.min(MAX_DPR, window.devicePixelRatio || 1);
+  const fit = () => {
+    let dpr = box.dpr * (QUALITY[governor.level] ?? 1);
     const pixels = box.width * box.height * dpr * dpr;
     if (pixels > MAX_PIXELS) dpr *= Math.sqrt(MAX_PIXELS / pixels);
     const width = Math.max(1, Math.round(box.width * dpr));
@@ -191,20 +175,31 @@ export function createGlassCube(canvas: HTMLCanvasElement, calm: boolean): Glass
   };
 
   const draw = () => {
-    resize();
-    const yaw = -0.62 + clock * 0.045 + eased.yaw;
+    if (!loaded) return;
+    fit();
+    const yaw = BASE_YAW + Math.sin((clock - STILL_TIME) * 0.07) * 0.05 + eased.yaw;
     gl.uniform2f(uResolution, canvas.width, canvas.height);
     gl.uniform1f(uTime, clock);
     gl.uniformMatrix3fv(uRotation, false, rotation(yaw, eased.pitch));
-    cardFrame(cards, clock, cardData);
-    gl.uniform3fv(uCards, cardData);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+  };
+
+  const govern = (ms: number) => {
+    if (ms > 100 || governor.level >= QUALITY.length - 1) return;
+    governor.total += ms;
+    governor.count += 1;
+    if (governor.count < SAMPLE_FRAMES) return;
+    if (governor.total / governor.count > BUDGET_MS) governor.level += 1;
+    governor.total = 0;
+    governor.count = 0;
   };
 
   const tick = (now: number) => {
     frame = 0;
-    const step = last ? Math.min(0.05, (now - last) / 1000) : 0;
+    const ms = last ? now - last : 0;
+    const step = Math.min(0.05, ms / 1000);
     last = now;
+    if (ms) govern(ms);
     clock += step;
     if (!drag.held) {
       drag.yaw *= Math.exp(-step * 0.8);
@@ -214,35 +209,60 @@ export function createGlassCube(canvas: HTMLCanvasElement, calm: boolean): Glass
     eased.yaw += (drag.yaw - eased.yaw) * follow;
     eased.pitch += (drag.pitch - eased.pitch) * follow;
     draw();
-    if (visible) frame = requestAnimationFrame(tick);
+    frame = requestAnimationFrame(tick);
   };
 
-  const start = () => {
-    if (frame || calm) return;
+  const stop = () => {
+    cancelAnimationFrame(frame);
+    frame = 0;
+  };
+  const sync = () => {
+    if (calm || !loaded || !visible || !pageShown) return stop();
+    if (frame) return;
     last = 0;
     frame = requestAnimationFrame(tick);
   };
 
-  const resizeObserver = new ResizeObserver(() => {
-    if (calm || !visible) draw();
+  const resizeObserver = new ResizeObserver(([entry]) => {
+    if (!entry) return;
+    box.width = entry.contentRect.width;
+    box.height = entry.contentRect.height;
+    if (!frame) draw();
   });
   resizeObserver.observe(canvas);
 
+  const onPage = () => {
+    pageShown = document.visibilityState === "visible";
+    sync();
+  };
+  document.addEventListener("visibilitychange", onPage);
+
+  const image = new Image();
+  image.decoding = "async";
+  image.onload = () => {
+    if (disposed) return;
+    gl.activeTexture(gl.TEXTURE1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    loaded = true;
+    draw();
+    options.onReady();
+    sync();
+  };
+  image.src = PLATE_URL;
+
   const onLost = (event: Event) => {
     event.preventDefault();
-    cancelAnimationFrame(frame);
-    frame = 0;
+    stop();
     visible = false;
+    options.onLost();
   };
   canvas.addEventListener("webglcontextlost", onLost);
-
-  draw();
 
   return {
     drag: (dx, dy) => {
       drag.held = true;
-      drag.yaw = Math.max(-0.6, Math.min(0.6, drag.yaw + dx * 0.006));
-      drag.pitch = Math.max(-0.12, Math.min(0.12, drag.pitch + dy * 0.002));
+      drag.yaw = Math.max(-0.3, Math.min(0.3, drag.yaw + dx * 0.004));
+      drag.pitch = Math.max(-0.08, Math.min(0.08, drag.pitch + dy * 0.0015));
       if (calm) {
         eased.yaw = drag.yaw;
         eased.pitch = drag.pitch;
@@ -254,17 +274,17 @@ export function createGlassCube(canvas: HTMLCanvasElement, calm: boolean): Glass
     },
     setVisible: (next) => {
       visible = next;
-      if (next) start();
-      else {
-        cancelAnimationFrame(frame);
-        frame = 0;
-      }
+      sync();
     },
     dispose: () => {
-      cancelAnimationFrame(frame);
+      disposed = true;
+      image.onload = null;
+      stop();
       resizeObserver.disconnect();
+      document.removeEventListener("visibilitychange", onPage);
       canvas.removeEventListener("webglcontextlost", onLost);
-      gl.deleteTexture(texture);
+      gl.deleteTexture(plateTexture);
+      gl.deleteTexture(noise);
       gl.deleteBuffer(buffer);
       gl.deleteProgram(shader);
     },
