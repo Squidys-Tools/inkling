@@ -20,7 +20,7 @@ const float ASPECT = 1376.0 / 768.0;
 // The develop front is ragged along y and drifts, so ink never arrives as a straight wall.
 const frontLine = `
 float frontAt(float y) {
-  return uFront + 0.14 * (texture(uFlow, vec2(y * 0.9, uTime * 0.015)).r - 0.5);
+  return uFront + 0.2 * (texture(uFlow, vec2(y * 2.3, uTime * 0.02)).r - 0.5);
 }
 `;
 
@@ -28,10 +28,10 @@ const flowField = `
 uniform float uTime;
 uniform float uFront;
 
-vec2 wind(vec2 uv) {
+vec2 wind(vec2 uv, float hold) {
   float slow = 1.0 - 0.75 * smoothstep(0.32, 0.62, uv.x);
   float sway = 3.0 * sin(uv.x * 7.0 - uTime * 0.4) * (1.0 - smoothstep(0.3, 0.55, uv.x));
-  return vec2(26.0 * slow, sway);
+  return vec2(26.0 * slow, sway) * (1.0 - hold);
 }
 
 vec3 emit(vec2 uv) {
@@ -101,8 +101,10 @@ uniform float uForm;
 uniform vec4 uPointer;
 
 void main() {
+  float blob = texture(uTarget, vUv).b;
+  float calm = blob * uForm * (1.0 - smoothstep(uFront - 0.05, uFront + 0.05, vUv.x));
   vec2 v = texture(uVelocity, vUv).xy;
-  vec2 back = vUv - uDt * (v + wind(vUv)) * uTexel;
+  vec2 back = vUv - uDt * (v + wind(vUv, calm)) * uTexel;
   v = texture(uVelocity, back).xy * exp(-uDt * 0.8);
 
   vec3 jet = emit(vUv);
@@ -122,8 +124,6 @@ void main() {
   vec2 toPointer = (vUv - uPointer.xy) * vec2(ASPECT, 1.0);
   v += uPointer.zw * exp(-dot(toPointer, toPointer) / 0.004);
 
-  float blob = texture(uTarget, vUv).b;
-  float calm = blob * uForm * (1.0 - smoothstep(uFront - 0.05, uFront + 0.05, vUv.x));
   v *= 1.0 - clamp(calm * uDt * 6.0, 0.0, 1.0);
   outColor = vec4(v, 0.0, 1.0);
 }
@@ -212,12 +212,14 @@ uniform sampler2D uFlow;
 uniform vec2 uSimTexel;
 uniform float uDt;
 uniform float uCondense;
+uniform float uForm;
 ${frontLine}
 
 void main() {
-  vec2 back = vUv - uDt * (texture(uVelocity, vUv).xy + wind(vUv)) * uSimTexel;
-  float d = texture(uDye, back).r;
   vec4 tg = texture(uTarget, vUv);
+  float calm = tg.b * uForm * (1.0 - smoothstep(uFront - 0.05, uFront + 0.05, vUv.x));
+  vec2 back = vUv - uDt * (texture(uVelocity, vUv).xy + wind(vUv, calm)) * uSimTexel;
+  float d = texture(uDye, back).r;
 
   float edge = max(uFront, 0.4);
   float reach = 1.0 - smoothstep(edge - 0.03, edge + 0.09, vUv.x);

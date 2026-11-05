@@ -439,6 +439,7 @@ export function createDevelopRenderer(
     dyePass.float("uDt", stepSeconds);
     dyePass.float("uTime", time);
     dyePass.float("uFront", front);
+    dyePass.float("uForm", form);
     dyePass.float("uCondense", 0.8 + 5.2 * form * form);
     blit(dye.write);
     dye.swap();
