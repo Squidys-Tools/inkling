@@ -212,7 +212,7 @@ void main() {
   float target = pow(smoothstep(0.015, 0.7, mask.r), 0.65);
   float grain = gnoise(vec3(st * vec2(4.2, 3.4) + vec2(0.0, -uTime * 0.05), uTime * 0.14));
   grain += 0.5 * gnoise(vec3(st * vec2(9.0, 7.2), uTime * 0.2 + 4.0));
-  float want = target * (1.5 + 1.9 * mask.g) * smoothstep(-0.32, 0.18, grain);
+  float want = min(2.0, target * (1.5 + 1.3 * mask.g) * smoothstep(-0.32, 0.18, grain));
   float rate = dye < want ? (1.8 + uCatchUp) * uGuide : 0.3 + 0.3 * (1.0 - target);
   dye += (want - dye) * (1.0 - exp(-uDt * rate));
 
@@ -267,7 +267,7 @@ void main() {
   float soft = 0.25 * (l + r + t + b);
   d = max(0.0, d + 0.25 * (d - soft)) * inDomain;
 
-  d *= mix(mix(0.3, 1.55, sample_.g), 1.0, smoothstep(0.7, 1.6, d));
+  d *= mix(mix(0.3, 1.55, sample_.g), 1.0, smoothstep(1.1, 2.2, d));
   float body = 1.0 - exp(-pow(d, 1.15) * 2.0);
   float edge = chipDistance(uv);
   float pill = 1.0 - smoothstep(-2.0, 2.0, edge);
