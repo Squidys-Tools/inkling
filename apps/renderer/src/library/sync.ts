@@ -88,6 +88,9 @@ function applyChange(change: LibraryChange) {
     case "LibraryReplaced":
       reloadEverything();
       return;
+    case "SearchIndexReady":
+      void search.rerun();
+      return;
   }
 }
 

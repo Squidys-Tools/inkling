@@ -11,6 +11,7 @@ import {
   removeTemporaryRoots,
   temporaryRoot,
   trackDatabase,
+  closeLibrary,
   trackedLibrary,
 } from "./test-helpers.ts";
 import { openDatabase, SCHEMA_VERSION } from "./schema.ts";
@@ -140,6 +141,56 @@ test("a v9 library rebuilds its search index on item rowids, without article mar
   expect(ids(await migrated.searchItems("renamed"))).toEqual(["second"]);
   expect(ids(await migrated.searchItems("plainword"))).toEqual(["first"]);
   expect(ids(await migrated.searchItems("markupword"))).toEqual([]);
+});
+
+test("an upgraded library opens with a partial index that builds behind writes and survives a restart", async () => {
+  const databasePath = join(temporaryRoot(), "v9.sqlite3");
+  const seed = await trackedLibrary(databasePath);
+  const made = [];
+  for (let index = 0; index < 45; index += 1) {
+    made.push(await seed.createNote({ title: `Waiting ${index}`, body: "backlogword" }));
+  }
+  const [first, second] = made;
+  if (!first || !second) throw new Error("notes were not saved");
+  await closeLibrary(seed);
+  const old = trackDatabase(new DatabaseSync(databasePath));
+  old.exec("DROP TABLE items_fts; PRAGMA user_version = 9;");
+  closeDatabase(old);
+
+  const library = await trackedLibrary(databasePath, { leaveSearchIndexPending: true });
+  expect(library.status().searchIndexing).toBe(true);
+  expect(ids(await library.searchItems("backlogword"))).toEqual([]);
+
+  // Saved, edited and deleted while the index is missing: each is right when it finishes.
+  const saved = await library.createNote({ title: "During", body: "savedword" });
+  await library.updateItem({ id: first.id, title: "editedword" });
+  await library.archiveItem(second.id, true);
+  await library.deleteItem(second.id);
+  expect(ids(await library.searchItems("savedword"))).toEqual([saved?.id]);
+  expect(ids(await library.searchItems("editedword"))).toEqual([first.id]);
+  await closeLibrary(library);
+
+  // A quit partway through keeps its place: the setting is still there, and nothing is doubled.
+  const partial = trackDatabase(new DatabaseSync(databasePath));
+  expect(
+    partial.prepare("SELECT value FROM app_settings WHERE key = 'search_index_pending'").get(),
+  ).toEqual({ value: "1" });
+  closeDatabase(partial);
+  const resumed = await trackedLibrary(databasePath, { leaveSearchIndexPending: true });
+  expect(resumed.status().searchIndexing).toBe(true);
+  await resumed.buildSearchIndex();
+  expect(resumed.status().searchIndexing).toBe(false);
+  expect(ids(await resumed.searchItems("backlogword"))).toHaveLength(44);
+  expect(
+    resumed.db
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM items) AS items, (SELECT COUNT(*) FROM items_fts) AS indexed,
+           (SELECT COUNT(*) FROM items i JOIN items_fts f ON f.rowid = i.rowid AND f.item_id = i.id) AS aligned,
+           (SELECT COUNT(*) FROM app_settings WHERE key = 'search_index_pending') AS pending`,
+      )
+      .get(),
+  ).toEqual({ items: 45, indexed: 45, aligned: 45, pending: 0 });
+  resumed.db.exec("INSERT INTO items_fts(items_fts) VALUES('integrity-check')");
 });
 
 test("the search index follows indexed columns only and each write touches only its own row", async () => {

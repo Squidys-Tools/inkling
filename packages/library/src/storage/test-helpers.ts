@@ -6,6 +6,7 @@ import type { LibraryOptions } from "./library.ts";
 import { openTestLibrary, type TestLibrary } from "./test-library.ts";
 
 export type Options = Omit<LibraryOptions, "databasePath" | "appVersion"> & {
+  leaveSearchIndexPending?: boolean;
   appVersion?: string;
 };
 

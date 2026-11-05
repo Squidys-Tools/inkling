@@ -241,9 +241,22 @@ const storage = libraryLayer({
 
 // The lanes depend on the worker client, so closing the server stops them, and
 // hands their jobs back, before the client and the database close.
+const searchIndex = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const library = yield* Library;
+    yield* Effect.forkScoped(
+      library.buildSearchIndex().pipe(
+        Effect.tap((built) => (built ? publish({ _tag: "SearchIndexReady" }) : Effect.void)),
+        Effect.catchCause((cause) => Effect.logError("search index build failed", cause)),
+      ),
+    );
+  }),
+);
+
 const server = Layer.mergeAll(
   RpcServer.layer(LibraryRpcs).pipe(Layer.provide(handlers), Layer.provide(layerProtocol())),
   jobLanesLayer(itemChanged),
+  searchIndex,
 ).pipe(Layer.provide(Layer.merge(storage, layerPorts(workerPorts))));
 
 const launched: Effect.Effect<never, unknown> = Layer.launch(server);
