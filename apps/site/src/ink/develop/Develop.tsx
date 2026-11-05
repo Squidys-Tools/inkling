@@ -3,7 +3,7 @@ import { font, inkDevelopColor } from "@inkling/ui/tokens.stylex";
 import { useEffect, useRef } from "react";
 import { useMediaQuery } from "../../landing/environment.ts";
 import { createDevelopRenderer } from "./renderer.ts";
-import { frameAt, frameRect, media, query } from "./timeline.ts";
+import { frame as plate, frameAt, frameRect, media, query } from "./timeline.ts";
 
 const faces = [
   ["/media/red-hat-500.ttf", "500"],
@@ -22,7 +22,15 @@ function registerRedHat() {
 }
 
 const phoneWidth = 640;
-const qualitySteps = [1, 0.82, 0.68, 0.55];
+// The governor gives up sim and dye resolution before it touches the canvas resolution.
+const qualitySteps = [
+  { sim: 192, dye: 512, scale: 1 },
+  { sim: 160, dye: 448, scale: 1 },
+  { sim: 128, dye: 384, scale: 1 },
+  { sim: 128, dye: 320, scale: 0.82 },
+  { sim: 96, dye: 256, scale: 0.68 },
+];
+const phoneQuality = 2;
 const slowFrameMs = 20;
 const sampleFrames = 30;
 
@@ -58,6 +66,7 @@ export function Develop() {
       spent: 0,
     };
     const box = { top: 0, travel: 1, width: 1, height: 1, phone: false, ratio: 1 };
+    const rect = { x: 0, y: 0, scale: 1 };
 
     const measure = () => {
       const rect = root.getBoundingClientRect();
@@ -67,6 +76,8 @@ export function Develop() {
       box.height = Math.max(1, surface.clientHeight);
       box.phone = window.innerWidth < phoneWidth;
       box.ratio = Math.min(window.devicePixelRatio || 1, box.phone ? 1 : 1.5);
+      Object.assign(rect, frameRect(box.width, box.height, box.phone));
+      if (box.phone) loop.quality = Math.max(loop.quality, phoneQuality);
     };
     measure();
 
@@ -109,12 +120,14 @@ export function Develop() {
 
       const renderer = gpu.renderer;
       if (renderer?.ready) {
+        const quality = qualitySteps[loop.quality];
         renderer.draw({
           time: loop.time,
           width: box.width,
           height: box.height,
-          scale: box.ratio * qualitySteps[loop.quality],
-          rect: frameRect(box.width, box.height, box.phone),
+          scale: box.ratio * quality.scale,
+          detail: quality,
+          rect,
           ...moment,
         });
         show(true);
@@ -139,6 +152,23 @@ export function Develop() {
     window.addEventListener("resize", measure);
     document.addEventListener("visibilitychange", wake);
 
+    const stir = (event: PointerEvent) => {
+      const width = plate.width * rect.scale;
+      const height = plate.height * rect.scale;
+      const x = (event.offsetX - rect.x) / width;
+      const y = (event.offsetY - rect.y) / height;
+      if (pointer.seen) gpu.renderer?.stir(x, y, x - pointer.x, y - pointer.y);
+      pointer.x = x;
+      pointer.y = y;
+      pointer.seen = true;
+    };
+    const pointer = { x: 0, y: 0, seen: false };
+    const leave = () => {
+      pointer.seen = false;
+    };
+    surface.addEventListener("pointermove", stir);
+    surface.addEventListener("pointerleave", leave);
+
     const lost = (event: Event) => {
       event.preventDefault();
       gpu.renderer = null;
@@ -156,6 +186,8 @@ export function Develop() {
       resize.disconnect();
       window.removeEventListener("resize", measure);
       document.removeEventListener("visibilitychange", wake);
+      surface.removeEventListener("pointermove", stir);
+      surface.removeEventListener("pointerleave", leave);
       surface.removeEventListener("webglcontextlost", lost);
       surface.removeEventListener("webglcontextrestored", restored);
       cancelAnimationFrame(loop.handle);

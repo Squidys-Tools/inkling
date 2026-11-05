@@ -26,6 +26,7 @@ export function frameAt(progress: number) {
   const bloom = ease(span(progress, 0.4, 0.82));
   return {
     form,
+    front: -0.2 + 1.32 * form,
     bloom,
     characters: Math.round(span(progress, 0, 0.14) * query.text.length),
     found: bloom > 0.92,
