@@ -1,6 +1,20 @@
-import { compositeFragment, flowFragment, quadVertex } from "./shaders.ts";
+import {
+  compositeFragment,
+  copyFragment,
+  curlFragment,
+  divergenceFragment,
+  dyeFragment,
+  pressureFragment,
+  projectFragment,
+  quadVertex,
+  velocityFragment,
+} from "./shaders.ts";
 
 const imageAspect = 1376 / 768;
+const domainAspect = 0.7 * imageAspect;
+const step = 1 / 30;
+const pressureIterations = 12;
+const warmSteps = 60;
 
 function compile(gl: WebGL2RenderingContext, fragment: string) {
   const program = gl.createProgram();
@@ -28,6 +42,8 @@ function compile(gl: WebGL2RenderingContext, fragment: string) {
   return { program, at };
 }
 
+type Program = ReturnType<typeof compile>;
+
 function upload(gl: WebGL2RenderingContext, image: TexImageSource, mipmaps: boolean) {
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -42,6 +58,51 @@ function upload(gl: WebGL2RenderingContext, image: TexImageSource, mipmaps: bool
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   return texture;
+}
+
+type Format = { internal: number; format: number; type: number };
+type Target = { texture: WebGLTexture; buffer: WebGLFramebuffer; width: number; height: number };
+
+function allocate(gl: WebGL2RenderingContext, width: number, height: number, format: Format) {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    format.internal,
+    width,
+    height,
+    0,
+    format.format,
+    format.type,
+    null,
+  );
+  const buffer = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  return { texture, buffer, width, height };
+}
+
+function release(gl: WebGL2RenderingContext, target: Target | undefined) {
+  if (!target) return;
+  gl.deleteTexture(target.texture);
+  gl.deleteFramebuffer(target.buffer);
+}
+
+class Swap {
+  constructor(
+    public read: Target,
+    public write: Target,
+  ) {}
+  flip() {
+    [this.read, this.write] = [this.write, this.read];
+  }
 }
 
 const ease = (x: number) => x * x * (3 - 2 * x);
@@ -77,14 +138,40 @@ export function plateDensity(cssWidth: number, cssHeight: number) {
 }
 
 export type Plates = { still: TexImageSource; clean: TexImageSource; mask: TexImageSource };
-export type Frame = { progress: number; time: number; hit: number; pour: number; flow: boolean };
+/** Pointer position on the canvas (0..1, y down) and its motion in canvas widths and heights per second. */
+export type Pointer = { x: number; y: number; dx: number; dy: number };
+export type Frame = {
+  progress: number;
+  time: number;
+  dt: number;
+  hit: number;
+  pour: number;
+  guide: number;
+  pointer?: Pointer;
+};
 
 export function createScene(canvas: HTMLCanvasElement, plates: Plates) {
-  const gl = canvas.getContext("webgl2", { antialias: false, alpha: false, depth: false });
-  if (!gl) throw new Error("webgl2 unavailable");
+  const context = canvas.getContext("webgl2", { antialias: false, alpha: false, depth: false });
+  if (!context) throw new Error("webgl2 unavailable");
+  const gl: WebGL2RenderingContext = context;
+  const live = gl.getExtension("EXT_color_buffer_float") !== null;
+  const half = (internal: number, format: number): Format =>
+    live
+      ? { internal, format, type: gl.HALF_FLOAT }
+      : { internal: gl.RGBA8, format: gl.RGBA, type: gl.UNSIGNED_BYTE };
+  const vector = half(gl.RG16F, gl.RG);
+  const scalar = half(gl.R16F, gl.RED);
 
-  const flowProgram = compile(gl, flowFragment);
-  const composite = compile(gl, compositeFragment);
+  const programs = {
+    curl: compile(gl, curlFragment),
+    velocity: compile(gl, velocityFragment),
+    divergence: compile(gl, divergenceFragment),
+    pressure: compile(gl, pressureFragment),
+    project: compile(gl, projectFragment),
+    dye: compile(gl, dyeFragment),
+    copy: compile(gl, copyFragment),
+    composite: compile(gl, compositeFragment),
+  };
 
   const quad = gl.createVertexArray();
   gl.bindVertexArray(quad);
@@ -95,25 +182,64 @@ export function createScene(canvas: HTMLCanvasElement, plates: Plates) {
 
   const still = upload(gl, plates.still, true);
   const clean = upload(gl, plates.clean, true);
-  const mask = upload(gl, plates.mask, false);
+  const mask = upload(gl, plates.mask, true);
+  const calm = allocate(gl, 1, 1, { internal: gl.RGBA8, format: gl.RGBA, type: gl.UNSIGNED_BYTE });
 
-  const flow = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, flow);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  const flowBuffer = gl.createFramebuffer();
-
+  let velocity: Swap | undefined;
+  let pressure: Swap | undefined;
+  let dye: Swap | undefined;
+  let curl: Target | undefined;
+  let divergence: Target | undefined;
+  let simLong = 0;
   let width = 0;
   let height = 0;
-  let flowWidth = 0;
-  let flowHeight = 0;
   let aspect = 1;
-  let flowReady = false;
+  let clock = 0;
+  let lag = 0;
+  let steps = 0;
+  let push: Pointer | undefined;
 
-  function resize(cssWidth: number, cssHeight: number, ratio: number, flowRatio: number) {
-    if (!gl) return;
+  const bind = (program: Program, textures: [string, WebGLTexture][]) => {
+    gl.useProgram(program.program);
+    textures.forEach(([name, texture], unit) => {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.uniform1i(program.at(name), unit);
+    });
+  };
+  const draw = (target: Target | null) => {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.buffer : null);
+    gl.viewport(0, 0, target ? target.width : width, target ? target.height : height);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  };
+
+  function grid(long: number) {
+    const simW = long;
+    const simH = Math.round(long / domainAspect);
+    const dyeW = Math.min(512, Math.max(256, long * 2));
+    const dyeH = Math.round(dyeW / domainAspect);
+    const previous = dye;
+    for (const swap of [velocity, pressure])
+      if (swap) for (const target of [swap.read, swap.write]) release(gl, target);
+    release(gl, curl);
+    release(gl, divergence);
+    velocity = new Swap(allocate(gl, simW, simH, vector), allocate(gl, simW, simH, vector));
+    pressure = new Swap(allocate(gl, simW, simH, scalar), allocate(gl, simW, simH, scalar));
+    curl = allocate(gl, simW, simH, scalar);
+    divergence = allocate(gl, simW, simH, scalar);
+    dye = new Swap(allocate(gl, dyeW, dyeH, vector), allocate(gl, dyeW, dyeH, vector));
+    if (previous) {
+      gl.bindVertexArray(quad);
+      bind(programs.copy, [["uSource", previous.read.texture]]);
+      draw(dye.read);
+      release(gl, previous.read);
+      release(gl, previous.write);
+    } else {
+      steps = 0;
+    }
+  }
+
+  function resize(cssWidth: number, cssHeight: number, ratio: number, long: number) {
     aspect = cssWidth / Math.max(1, cssHeight);
     const w = Math.max(1, Math.round(cssWidth * ratio));
     const h = Math.max(1, Math.round(cssHeight * ratio));
@@ -123,60 +249,136 @@ export function createScene(canvas: HTMLCanvasElement, plates: Plates) {
       canvas.width = w;
       canvas.height = h;
     }
-    const fw = Math.max(1, Math.round(cssWidth * flowRatio));
-    const fh = Math.max(1, Math.round(cssHeight * flowRatio));
-    if (fw !== flowWidth || fh !== flowHeight) {
-      flowWidth = fw;
-      flowHeight = fh;
-      gl.bindTexture(gl.TEXTURE_2D, flow);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, fw, fh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, flowBuffer);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, flow, 0);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      flowReady = false;
+    if (long !== simLong) {
+      simLong = long;
+      grid(long);
     }
   }
 
-  function render({ progress, time, hit, pour, flow: step }: Frame) {
-    if (!gl || width === 0) return;
-    const view = framing(aspect, progress);
+  function advance(frame: Frame, view: readonly number[]) {
+    if (!velocity || !pressure || !dye || !curl || !divergence) return;
+    const sim = velocity.read;
+    const texel = [1 / sim.width, 1 / sim.height] as const;
+    const source = [0.543 + 0.025 * Math.sin(clock * 0.37), 0.055] as const;
+    const catchUp = 0.9 * Math.max(0, 1 - steps / warmSteps) * frame.guide;
+
+    if (live) {
+      bind(programs.curl, [["uVelocity", sim.texture]]);
+      gl.uniform2f(programs.curl.at("uTexel"), ...texel);
+      draw(curl);
+
+      const pointer = [-1, -1, 0, 0];
+      if (push) {
+        const sx = view[0] + push.x * view[2];
+        const sy = view[1] + push.y * view[3];
+        pointer[0] = (sx - 0.15) / 0.7;
+        pointer[1] = sy;
+        pointer[2] = Math.max(-1, Math.min(1, push.dx)) * ((view[2] / 0.7) * sim.width) * 0.12;
+        pointer[3] = Math.max(-1, Math.min(1, push.dy)) * view[3] * sim.height * 0.12;
+        push = undefined;
+      }
+      const v = programs.velocity;
+      bind(v, [
+        ["uVelocity", sim.texture],
+        ["uCurl", curl.texture],
+        ["uDye", dye.read.texture],
+        ["uMask", mask],
+      ]);
+      gl.uniform2f(v.at("uTexel"), ...texel);
+      gl.uniform1f(v.at("uDt"), step);
+      gl.uniform1f(v.at("uTime"), clock);
+      gl.uniform1f(v.at("uGuide"), frame.guide);
+      gl.uniform1f(v.at("uPour"), frame.pour);
+      gl.uniform1f(v.at("uHit"), frame.hit);
+      gl.uniform2f(v.at("uSource"), ...source);
+      gl.uniform4f(v.at("uPointer"), pointer[0], pointer[1], pointer[2], pointer[3]);
+      draw(velocity.write);
+      velocity.flip();
+
+      bind(programs.divergence, [["uVelocity", velocity.read.texture]]);
+      gl.uniform2f(programs.divergence.at("uTexel"), ...texel);
+      draw(divergence);
+
+      const p = programs.pressure;
+      gl.useProgram(p.program);
+      gl.uniform2f(p.at("uTexel"), ...texel);
+      for (let i = 0; i < pressureIterations; i++) {
+        bind(p, [
+          ["uPressure", pressure.read.texture],
+          ["uDivergence", divergence.texture],
+        ]);
+        gl.uniform1f(p.at("uKeep"), i === 0 ? 0.8 : 1);
+        draw(pressure.write);
+        pressure.flip();
+      }
+
+      bind(programs.project, [
+        ["uPressure", pressure.read.texture],
+        ["uVelocity", velocity.read.texture],
+      ]);
+      gl.uniform2f(programs.project.at("uTexel"), ...texel);
+      draw(velocity.write);
+      velocity.flip();
+    }
+
+    const d = programs.dye;
+    bind(d, [
+      ["uVelocity", live ? velocity.read.texture : calm.texture],
+      ["uDye", dye.read.texture],
+      ["uMask", mask],
+    ]);
+    gl.uniform2f(d.at("uTexel"), 1 / dye.read.width, 1 / dye.read.height);
+    gl.uniform2f(d.at("uSimTexel"), ...texel);
+    gl.uniform1f(d.at("uDt"), step);
+    gl.uniform1f(d.at("uTime"), clock);
+    gl.uniform1f(d.at("uGuide"), frame.guide);
+    gl.uniform1f(d.at("uPour"), frame.pour);
+    gl.uniform1f(d.at("uHit"), frame.hit);
+    gl.uniform1f(d.at("uCatchUp"), catchUp);
+    gl.uniform1f(d.at("uProcedural"), live ? 0 : 1);
+    gl.uniform2f(d.at("uSource"), ...source);
+    draw(dye.write);
+    dye.flip();
+    steps += 1;
+  }
+
+  function render(frame: Frame) {
+    if (width === 0 || !velocity || !dye) return;
+    const view = framing(aspect, frame.progress);
     gl.bindVertexArray(quad);
+    if (frame.pointer) push = frame.pointer;
 
-    if (step || !flowReady) {
-      flowReady = true;
-      gl.bindFramebuffer(gl.FRAMEBUFFER, flowBuffer);
-      gl.viewport(0, 0, flowWidth, flowHeight);
-      gl.useProgram(flowProgram.program);
-      gl.uniform2f(flowProgram.at("uResolution"), flowWidth, flowHeight);
-      gl.uniform4f(flowProgram.at("uFrame"), ...view);
-      gl.uniform1f(flowProgram.at("uTime"), time);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    lag += Math.min(frame.dt, 0.1);
+    let budget = 2;
+    while (lag >= step && budget > 0) {
+      advance(frame, view);
+      clock += step;
+      lag -= step;
+      budget -= 1;
     }
+    lag = Math.min(lag, step);
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, width, height);
-    gl.useProgram(composite.program);
-    for (const [unit, texture, name] of [
-      [0, still, "uStill"],
-      [1, clean, "uClean"],
-      [2, mask, "uMask"],
-      [3, flow, "uFlow"],
-    ] as const) {
-      gl.activeTexture(gl.TEXTURE0 + unit);
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.uniform1i(composite.at(name), unit);
-    }
-    gl.uniform2f(composite.at("uResolution"), width, height);
-    gl.uniform4f(composite.at("uFrame"), ...view);
-    gl.uniform1f(composite.at("uTime"), time);
-    gl.uniform1f(composite.at("uPour"), pour);
-    gl.uniform1f(composite.at("uHit"), hit);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    const c = programs.composite;
+    bind(c, [
+      ["uStill", still],
+      ["uClean", clean],
+      ["uMask", mask],
+      ["uDye", dye.read.texture],
+      ["uVelocity", live ? velocity.read.texture : calm.texture],
+    ]);
+    gl.uniform2f(c.at("uResolution"), width, height);
+    gl.uniform2f(c.at("uDyeTexel"), 1 / dye.read.width, 1 / dye.read.height);
+    gl.uniform2f(c.at("uSimTexel"), 1 / velocity.read.width, 1 / velocity.read.height);
+    gl.uniform4f(c.at("uFrame"), ...view);
+    gl.uniform1f(c.at("uTime"), frame.time);
+    gl.uniform1f(c.at("uLag"), lag);
+    gl.uniform1f(c.at("uHit"), frame.hit);
+    draw(null);
   }
 
   function dispose() {
-    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
   }
 
-  return { resize, render, dispose };
+  return { resize, render, dispose, live };
 }

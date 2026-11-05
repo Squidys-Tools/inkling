@@ -1,4 +1,4 @@
-import { createScene, plateDensity, type Plates } from "./scene.ts";
+import { createScene, plateDensity, type Plates, type Pointer } from "./scene.ts";
 
 const plates = {
   still: "/media/ink/ocr/still.webp",
@@ -10,12 +10,15 @@ const faces = [
   ["/media/red-hat-500.ttf", "500"],
   ["/media/red-hat-700.ttf", "700"],
 ] as const;
-// Canvas scale, then flow-field scale, per quality step; the governor only ever steps down.
+// Sim grid long side, then canvas scale, per quality step; the governor only ever steps down, sim first.
 const levels = [
-  [1, 0.4],
-  [0.8, 0.32],
-  [0.62, 0.25],
+  [192, 1],
+  [160, 1],
+  [128, 1],
+  [112, 0.85],
+  [96, 0.7],
 ] as const;
+const phoneLevel = 2;
 
 function loadFaces() {
   for (const [url, weight] of faces) {
@@ -38,6 +41,7 @@ async function loadPlates(): Promise<Plates> {
 }
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
+const ease = (x: number) => x * x * (3 - 2 * x);
 
 type Parts = {
   section: HTMLElement;
@@ -77,7 +81,11 @@ export function startOcr({ section, canvas, image, typed, found }: Parts) {
   let hit = 0;
   let shownHit = "";
   let last = performance.now();
-  let level = 0;
+  let level = -1;
+  let pointer: Pointer | undefined;
+  let pointerAt = 0;
+  let pointerX = 0;
+  let pointerY = 0;
   let spent = 0;
   let sampled = 0;
   let top = 0;
@@ -101,14 +109,15 @@ export function startOcr({ section, canvas, image, typed, found }: Parts) {
     scrolled();
     if (!scene) return;
     const phone = cssWidth < 640;
+    if (level < 0) level = phone ? phoneLevel : 0;
     const ceiling = Math.min(window.devicePixelRatio || 1, phone ? 1 : 1.5);
     const ratio = Math.min(ceiling, Math.max(0.6, plateDensity(cssWidth, cssHeight) * 1.1));
-    const [scale, flowScale] = levels[level];
-    scene.resize(cssWidth, cssHeight, ratio * scale, flowScale);
+    const [simLong, scale] = levels[level];
+    scene.resize(cssWidth, cssHeight, ratio * scale, simLong);
   };
 
   const govern = (dt: number) => {
-    if (level === levels.length - 1) return;
+    if (level < 0 || level === levels.length - 1) return;
     spent += dt;
     sampled += 1;
     if (sampled < 30) return;
@@ -147,10 +156,13 @@ export function startOcr({ section, canvas, image, typed, found }: Parts) {
     scene.render({
       progress,
       time: (now - start) / 1000,
+      dt: elapsed / 1000,
       hit,
-      pour: clamp(0.08 + progress / 0.5),
-      flow: count % 2 === 0,
+      pour: 0.35 + 0.65 * (1 - ease(clamp((progress - 0.55) / 0.45))),
+      guide: 0.15 + 0.85 * ease(clamp((progress - 0.05) / 0.4)),
+      pointer,
     });
+    pointer = undefined;
     frame = requestAnimationFrame(tick);
   };
 
@@ -190,6 +202,23 @@ export function startOcr({ section, canvas, image, typed, found }: Parts) {
     },
   );
 
+  const moved = (event: PointerEvent) => {
+    const x = event.offsetX / Math.max(1, cssWidth);
+    const y = event.offsetY / Math.max(1, cssHeight);
+    const seconds = Math.max(0.008, (event.timeStamp - pointerAt) / 1000);
+    const fresh = event.timeStamp - pointerAt < 200;
+    pointer = {
+      x,
+      y,
+      dx: fresh ? (x - pointerX) / seconds : 0,
+      dy: fresh ? (y - pointerY) / seconds : 0,
+    };
+    pointerAt = event.timeStamp;
+    pointerX = x;
+    pointerY = y;
+  };
+  canvas.addEventListener("pointermove", moved, { passive: true });
+
   const contextLost = (event: Event) => {
     if (disposed) return;
     event.preventDefault();
@@ -224,6 +253,7 @@ export function startOcr({ section, canvas, image, typed, found }: Parts) {
     sizer.disconnect();
     window.removeEventListener("scroll", scrolled);
     document.removeEventListener("visibilitychange", update);
+    canvas.removeEventListener("pointermove", moved);
     canvas.removeEventListener("webglcontextlost", contextLost);
     canvas.removeEventListener("webglcontextrestored", contextRestored);
     pause();

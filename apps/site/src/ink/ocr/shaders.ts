@@ -16,117 +16,286 @@ float gnoise(vec3 p) {
     u.z);
 }
 
-float fbm(vec3 p) {
-  float sum = 0.0;
-  float amp = 0.5;
-  for (int i = 0; i < 3; i++) {
-    sum += amp * gnoise(p);
-    p = p * 2.07 + vec3(1.7, 9.2, 3.1);
-    amp *= 0.5;
-  }
-  return sum;
+vec2 curlNoise(vec2 p, float t) {
+  float e = 0.05;
+  float n = gnoise(vec3(p, t)) + 0.5 * gnoise(vec3(p * 2.1 + 3.7, t * 1.3));
+  float nx = gnoise(vec3(p + vec2(e, 0.0), t)) + 0.5 * gnoise(vec3((p + vec2(e, 0.0)) * 2.1 + 3.7, t * 1.3));
+  float ny = gnoise(vec3(p + vec2(0.0, e), t)) + 0.5 * gnoise(vec3((p + vec2(0.0, e)) * 2.1 + 3.7, t * 1.3));
+  return vec2(ny - n, n - nx) / e;
 }
 `;
 
-const frame = /* glsl */ `
-uniform vec4 uFrame;
-vec2 imageUv(vec2 screen) {
-  return uFrame.xy + vec2(screen.x, 1.0 - screen.y) * uFrame.zw;
+// The sim covers this slice of the moodboard plate: st (0..1, y down) maps to plate uv x 0.15..0.85, y 0..1.
+const domain = /* glsl */ `
+vec2 plateUv(vec2 st) {
+  return vec2(0.15 + 0.7 * st.x, st.y);
+}
+`;
+
+// Signed distance in plate pixels to the RAMEN chip drawn on the receipt.
+const chip = /* glsl */ `
+float chipDistance(vec2 uv) {
+  vec2 q = abs((uv - vec2(0.4993, 0.5)) * vec2(1376.0, 768.0)) - vec2(80.0, 12.0);
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - 30.0;
 }
 `;
 
 export const quadVertex = /* glsl */ `#version 300 es
 in vec2 aPosition;
+out vec2 vUv;
 void main() {
+  vUv = aPosition * 0.5 + 0.5;
   gl_Position = vec4(aPosition, 0.0, 1.0);
 }
 `;
 
-// Runs at a fraction of the canvas size: rg is the water's drift, b the fine tendril field, a the light shafts.
-export const flowFragment = /* glsl */ `#version 300 es
+const head = /* glsl */ `#version 300 es
 precision highp float;
-uniform vec2 uResolution;
-uniform float uTime;
-out vec4 outFlow;
-${noise}
-${frame}
+precision highp sampler2D;
+in vec2 vUv;
+uniform vec2 uTexel;
+`;
+
+export const curlFragment = /* glsl */ `${head}
+uniform sampler2D uVelocity;
+out vec4 outValue;
 void main() {
-  vec2 uv = imageUv(gl_FragCoord.xy / uResolution);
-  vec2 p = uv * vec2(1.79, 1.0);
-  float t = uTime;
-  vec2 warp = vec2(
-    fbm(vec3(p * 2.2 + vec2(0.0, t * 0.035), t * 0.05)),
-    fbm(vec3(p * 2.2 + vec2(5.2, 1.3 - t * 0.03), t * 0.05 + 7.0))
+  float l = texture(uVelocity, vUv - vec2(uTexel.x, 0.0)).y;
+  float r = texture(uVelocity, vUv + vec2(uTexel.x, 0.0)).y;
+  float t = texture(uVelocity, vUv + vec2(0.0, uTexel.y)).x;
+  float b = texture(uVelocity, vUv - vec2(0.0, uTexel.y)).x;
+  outValue = vec4(0.5 * (r - l - t + b), 0.0, 0.0, 1.0);
+}
+`;
+
+// Self-advection, vorticity confinement and every force on the water in one pass.
+export const velocityFragment = /* glsl */ `${head}
+uniform sampler2D uVelocity;
+uniform sampler2D uCurl;
+uniform sampler2D uDye;
+uniform sampler2D uMask;
+uniform float uDt;
+uniform float uTime;
+uniform float uGuide;
+uniform float uPour;
+uniform float uHit;
+uniform vec2 uSource;
+uniform vec4 uPointer;
+out vec4 outValue;
+${noise}
+${domain}
+void main() {
+  vec2 st = vUv;
+  vec2 here = texture(uVelocity, st).xy;
+  vec2 vel = texture(uVelocity, st - uDt * here * uTexel).xy;
+
+  float l = texture(uCurl, st - vec2(uTexel.x, 0.0)).x;
+  float r = texture(uCurl, st + vec2(uTexel.x, 0.0)).x;
+  float t = texture(uCurl, st + vec2(0.0, uTexel.y)).x;
+  float b = texture(uCurl, st - vec2(0.0, uTexel.y)).x;
+  float c = texture(uCurl, st).x;
+  vec2 swirl = 0.5 * vec2(abs(t) - abs(b), abs(r) - abs(l));
+  swirl /= length(swirl) + 0.0001;
+  vel += swirl * vec2(1.0, -1.0) * c * 18.0 * uDt;
+
+  vec2 p = plateUv(st);
+  float dye = texture(uDye, st).r;
+  vec4 mask = textureLod(uMask, p, 1.0);
+  vec2 e = vec2(0.02, 0.03);
+  vec2 pull = vec2(
+    textureLod(uMask, p + vec2(e.x, 0.0), 4.0).r - textureLod(uMask, p - vec2(e.x, 0.0), 4.0).r,
+    textureLod(uMask, p + vec2(0.0, e.y), 4.0).r - textureLod(uMask, p - vec2(0.0, e.y), 4.0).r
   );
-  vec3 q = vec3(p * 5.0 + warp * 2.4, t * 0.09);
-  vec2 drift = vec2(gnoise(q), gnoise(q + vec3(31.4, 17.9, 4.2)));
-  drift += warp * 0.9;
-  float wisps = 1.0 - abs(fbm(vec3(p * 9.0 + warp * 3.0 - vec2(0.0, t * 0.05), t * 0.07)) * 2.2);
-  wisps = smoothstep(0.55, 0.98, wisps);
-  float shafts = gnoise(vec3(p.x * 5.5 - p.y * 1.6, 0.0, t * 0.05)) + 0.5 * gnoise(vec3(p.x * 13.0 - p.y * 3.0, 3.0, t * 0.08));
-  outFlow = vec4(clamp(drift * 0.5 + 0.5, 0.0, 1.0), wisps, clamp(shafts * 0.5 + 0.5, 0.0, 1.0));
+  vec2 glowSlope = vec2(
+    textureLod(uMask, p + vec2(e.x, 0.0), 3.0).b - textureLod(uMask, p - vec2(e.x, 0.0), 3.0).b,
+    textureLod(uMask, p + vec2(0.0, e.y), 3.0).b - textureLod(uMask, p - vec2(0.0, e.y), 3.0).b
+  );
+
+  float cells = 1.0 / uTexel.y;
+  vel.y += uDt * min(dye, 1.0) * 8.0 * (1.0 - 0.8 * mask.r);
+  vel += uDt * min(dye, 1.5) * uGuide * pull * cells * 1.6 * (1.0 - mask.r);
+  vel -= uDt * min(dye, 1.5) * uHit * glowSlope * cells * 2.2;
+  vel += uDt * curlNoise(st * vec2(2.4, 2.0) + vec2(0.0, -uTime * 0.04), uTime * 0.09) * (9.0 + 16.0 * mask.r);
+
+  vec2 jet = (st - uSource) / uTexel;
+  float nozzle = exp(-dot(jet, jet) / 9.0) * uPour;
+  vel += uDt * nozzle * vec2(14.0 * sin(uTime * 0.9), 120.0);
+
+  vec2 hand = (st - uPointer.xy) / uTexel;
+  vel += uPointer.zw * exp(-dot(hand, hand) / 70.0);
+
+  vel *= exp(-uDt * (0.35 + 2.6 * mask.g));
+  vec2 inside = step(uTexel, st) * step(st, 1.0 - uTexel);
+  outValue = vec4(vel * inside.x * inside.y, 0.0, 1.0);
+}
+`;
+
+export const divergenceFragment = /* glsl */ `${head}
+uniform sampler2D uVelocity;
+out vec4 outValue;
+void main() {
+  vec2 c = texture(uVelocity, vUv).xy;
+  float l = texture(uVelocity, vUv - vec2(uTexel.x, 0.0)).x;
+  float r = texture(uVelocity, vUv + vec2(uTexel.x, 0.0)).x;
+  float t = texture(uVelocity, vUv + vec2(0.0, uTexel.y)).y;
+  float b = texture(uVelocity, vUv - vec2(0.0, uTexel.y)).y;
+  if (vUv.x - uTexel.x < 0.0) l = -c.x;
+  if (vUv.x + uTexel.x > 1.0) r = -c.x;
+  if (vUv.y + uTexel.y > 1.0) t = -c.y;
+  if (vUv.y - uTexel.y < 0.0) b = -c.y;
+  outValue = vec4(0.5 * (r - l + t - b), 0.0, 0.0, 1.0);
+}
+`;
+
+export const pressureFragment = /* glsl */ `${head}
+uniform sampler2D uPressure;
+uniform sampler2D uDivergence;
+uniform float uKeep;
+out vec4 outValue;
+void main() {
+  float l = texture(uPressure, vUv - vec2(uTexel.x, 0.0)).x;
+  float r = texture(uPressure, vUv + vec2(uTexel.x, 0.0)).x;
+  float t = texture(uPressure, vUv + vec2(0.0, uTexel.y)).x;
+  float b = texture(uPressure, vUv - vec2(0.0, uTexel.y)).x;
+  float d = texture(uDivergence, vUv).x;
+  outValue = vec4(uKeep * (l + r + t + b - d) * 0.25, 0.0, 0.0, 1.0);
+}
+`;
+
+export const projectFragment = /* glsl */ `${head}
+uniform sampler2D uPressure;
+uniform sampler2D uVelocity;
+out vec4 outValue;
+void main() {
+  float l = texture(uPressure, vUv - vec2(uTexel.x, 0.0)).x;
+  float r = texture(uPressure, vUv + vec2(uTexel.x, 0.0)).x;
+  float t = texture(uPressure, vUv + vec2(0.0, uTexel.y)).x;
+  float b = texture(uPressure, vUv - vec2(0.0, uTexel.y)).x;
+  vec2 vel = texture(uVelocity, vUv).xy - 0.5 * vec2(r - l, t - b);
+  outValue = vec4(vel, 0.0, 1.0);
+}
+`;
+
+// Carries ink on the flow, pours it in at the surface and relaxes it toward the board's plume.
+// Without float render targets uProcedural swaps the solved flow for curl noise.
+export const dyeFragment = /* glsl */ `${head}
+uniform sampler2D uVelocity;
+uniform sampler2D uDye;
+uniform sampler2D uMask;
+uniform vec2 uSimTexel;
+uniform float uDt;
+uniform float uTime;
+uniform float uGuide;
+uniform float uPour;
+uniform float uHit;
+uniform float uCatchUp;
+uniform float uProcedural;
+uniform vec2 uSource;
+out vec4 outValue;
+${noise}
+${domain}
+${chip}
+void main() {
+  vec2 st = vUv;
+  vec2 vel = texture(uVelocity, st).xy;
+  if (uProcedural > 0.5) {
+    vel = curlNoise(st * vec2(3.2, 2.6) + vec2(0.0, -uTime * 0.05), uTime * 0.11) * 3.2 + vec2(0.0, 9.0);
+  }
+  vec2 carried = texture(uDye, st - uDt * vel * uSimTexel).rg;
+  float dye = carried.r;
+  float streak = carried.g;
+  float seed = smoothstep(-0.18, 0.18, gnoise(vec3(st * vec2(30.0, 24.0), uTime * 0.015)));
+  streak += (seed - streak) * (1.0 - exp(-uDt * 0.12));
+
+  vec2 p = plateUv(st);
+  vec4 mask = textureLod(uMask, p, 1.0);
+  float target = pow(smoothstep(0.015, 0.7, mask.r), 0.65);
+  float grain = gnoise(vec3(st * vec2(4.2, 3.4) + vec2(0.0, -uTime * 0.05), uTime * 0.14));
+  grain += 0.5 * gnoise(vec3(st * vec2(9.0, 7.2), uTime * 0.2 + 4.0));
+  float want = target * (1.5 + 1.9 * mask.g) * smoothstep(-0.32, 0.18, grain);
+  float rate = dye < want ? (1.8 + uCatchUp) * uGuide : 0.3 + 0.3 * (1.0 - target);
+  dye += (want - dye) * (1.0 - exp(-uDt * rate));
+
+  vec2 jet = (st - uSource) / uSimTexel;
+  float pulse = smoothstep(-0.2, 0.6, gnoise(vec3(uTime * 0.8, st.x * 30.0, 1.0)));
+  dye += uDt * uPour * 4.5 * pulse * exp(-dot(jet * vec2(0.22, 0.8), jet * vec2(0.22, 0.8)) / 2.0);
+  dye *= 1.0 - uDt * (1.0 + 3.0 * uHit) * (1.0 - smoothstep(4.0, 26.0, chipDistance(p)));
+  dye *= smoothstep(0.035, 0.06, st.y);
+  outValue = vec4(clamp(dye, 0.0, 2.0), streak, 0.0, 1.0);
 }
 `;
 
 export const compositeFragment = /* glsl */ `#version 300 es
 precision highp float;
+precision highp sampler2D;
 uniform sampler2D uStill;
 uniform sampler2D uClean;
 uniform sampler2D uMask;
-uniform sampler2D uFlow;
+uniform sampler2D uDye;
+uniform sampler2D uVelocity;
 uniform vec2 uResolution;
+uniform vec2 uDyeTexel;
+uniform vec2 uSimTexel;
+uniform vec4 uFrame;
 uniform float uTime;
-uniform float uPour;
+uniform float uLag;
 uniform float uHit;
 out vec4 outColor;
 ${noise}
-${frame}
+${chip}
 
 void main() {
   vec2 screen = gl_FragCoord.xy / uResolution;
-  vec2 uv = imageUv(screen);
-  vec4 flow = texture(uFlow, screen);
-  vec2 drift = flow.rg * 2.0 - 1.0;
+  vec2 uv = uFrame.xy + vec2(screen.x, 1.0 - screen.y) * uFrame.zw;
+  vec2 st = vec2((uv.x - 0.15) / 0.7, uv.y);
+  float inDomain = step(0.0, st.x) * step(st.x, 1.0);
 
-  vec4 rest = texture(uMask, uv);
-  float surface = 1.0 - smoothstep(0.02, 0.09, uv.y);
-  float amount = mix(0.0035 + 0.011 * rest.r + 0.006 * surface, 0.0012, rest.g);
-  vec2 at = uv + drift * amount * vec2(0.56, 1.0);
-  vec2 inside = clamp(at, vec2(0.001), vec2(0.999));
-
+  vec2 vel = texture(uVelocity, st).xy;
+  vec2 inside = clamp(uv - vel * uSimTexel * 0.006, vec2(0.001), vec2(0.999));
   vec4 mask = texture(uMask, inside);
-  vec3 inked = texture(uStill, inside).rgb;
-  vec3 clean = texture(uClean, inside).rgb;
-  float ink = smoothstep(0.04, 0.5, mask.r);
+  vec3 color = texture(uClean, inside).rgb;
 
-  vec2 source = vec2(0.53, 0.0);
-  float spread = length((uv - source) * vec2(1.25, 0.82));
-  spread += 0.09 * fbm(vec3(uv * vec2(6.0, 4.0), uTime * 0.12));
-  float edge = uPour * 1.05;
-  float poured = 1.0 - smoothstep(edge - 0.07, edge, spread);
-  float front = exp(-pow((spread - edge + 0.035) * 18.0, 2.0)) * step(0.001, uPour) * step(uPour, 0.999);
+  vec2 at = st - vel * uSimTexel * uLag;
+  vec2 fine = vec2(gnoise(vec3(st * vec2(22.0, 18.0), uTime * 0.35)), gnoise(vec3(st * vec2(22.0, 18.0) + 9.1, uTime * 0.35)));
+  at += fine * uDyeTexel * 0.35;
+  vec2 sample_ = texture(uDye, at).rg;
+  float d = sample_.r;
+  float l = texture(uDye, at - vec2(uDyeTexel.x * 1.5, 0.0)).r;
+  float r = texture(uDye, at + vec2(uDyeTexel.x * 1.5, 0.0)).r;
+  float t = texture(uDye, at + vec2(0.0, uDyeTexel.y * 1.5)).r;
+  float b = texture(uDye, at - vec2(0.0, uDyeTexel.y * 1.5)).r;
+  float soft = 0.25 * (l + r + t + b);
+  d = max(0.0, d + 0.25 * (d - soft)) * inDomain;
 
-  vec3 color = mix(mix(clean, inked, 0.1), inked, poured);
-  vec3 tint = vec3(0.08, 0.09, 0.11);
-  color = mix(color, tint, ink * poured * flow.b * 0.38);
-  color = mix(color, clean, ink * poured * (1.0 - flow.b) * 0.08 * (1.0 - rest.g));
-  float near = max(ink, smoothstep(0.03, 0.25, textureLod(uMask, inside, 4.0).r));
-  color = mix(color, tint, front * near * flow.b * 0.6);
-
-  float water = (1.0 - mask.g) * (1.0 - ink);
-  color += vec3(0.03, 0.033, 0.035) * smoothstep(0.55, 0.85, flow.a) * water * (1.0 - smoothstep(0.35, 1.0, uv.y));
+  d *= mix(mix(0.3, 1.55, sample_.g), 1.0, smoothstep(0.7, 1.6, d));
+  float body = 1.0 - exp(-pow(d, 1.15) * 2.0);
+  float edge = chipDistance(uv);
+  float pill = 1.0 - smoothstep(-2.0, 2.0, edge);
+  body *= 1.0 - 0.95 * pill;
+  float core = smoothstep(0.5, 0.96, body);
+  float glowWide = textureLod(uMask, inside, 3.0).b;
+  vec3 wisp = mix(vec3(0.3, 0.33, 0.37), vec3(0.2, 0.28, 0.62), glowWide * uHit * 0.8);
+  vec3 ink = mix(wisp, vec3(0.04, 0.045, 0.055), core);
+  float paper = mask.g * (1.0 - smoothstep(0.4, 0.8, mask.b) * uHit);
+  color = mix(color, ink, clamp(body * (1.0 - 0.18 * paper), 0.0, 0.96));
 
   float glow = mask.b;
+  float ring = smoothstep(0.5, 0.9, glow);
+  float zone = max(pill, ring * (1.0 - smoothstep(0.0, 24.0, edge)));
+  color = mix(color, texture(uClean, inside).rgb, max(ring * 0.9, pill) * uHit);
+  float blue = smoothstep(0.08, 0.22, color.b - max(color.r, color.g));
   float grey = dot(color, vec3(0.299, 0.587, 0.114));
+  grey += (0.88 - grey) * blue * pill * (1.0 - uHit);
   vec3 dim = vec3(grey + (0.9 - grey) * 0.65 * smoothstep(0.3, 0.62, grey)) * vec3(0.97, 0.985, 1.0);
-  color = mix(color, dim, glow * (1.0 - uHit));
+  color = mix(color, vec3(grey) * vec3(0.97, 0.985, 1.0), glow * (1.0 - uHit));
+  color = mix(color, dim, zone * (1.0 - uHit));
   float pulse = 0.85 + 0.15 * sin(uTime * 1.7);
-  color += vec3(0.1, 0.16, 0.6) * glow * glow * uHit * pulse * 0.22;
+  color += vec3(0.1, 0.16, 0.6) * glow * glow * uHit * pulse * 0.24;
+  color += vec3(0.04, 0.07, 0.25) * glowWide * uHit * body * 0.5;
 
   float below = smoothstep(0.96, 1.0, uv.y);
   if (below > 0.0) {
     vec3 deep = textureLod(uStill, vec2(clamp(uv.x, 0.0, 1.0), 0.985), 5.0).rgb;
-    deep += vec3(0.02) * (smoothstep(0.5, 0.9, flow.a) - 0.3);
     color = mix(color, deep, below);
   }
   float above = 1.0 - smoothstep(-0.03, 0.0, uv.y);
@@ -139,5 +308,13 @@ void main() {
   color *= 1.0 - 0.05 * vignette;
   color += (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
   outColor = vec4(color, 1.0);
+}
+`;
+
+export const copyFragment = /* glsl */ `${head}
+uniform sampler2D uSource;
+out vec4 outValue;
+void main() {
+  outValue = texture(uSource, vUv);
 }
 `;
