@@ -56,8 +56,16 @@ function useIsLanding() {
   return useRouterState({ select: (state) => state.location.pathname === "/" });
 }
 
+// The /ink/ prototypes open standalone, without the shared header and footer.
+function useIsBare() {
+  return useRouterState({
+    select: (state) =>
+      state.location.pathname === "/" || state.location.pathname.startsWith("/ink/"),
+  });
+}
+
 function Layout() {
-  if (useIsLanding()) return <Outlet />;
+  if (useIsBare()) return <Outlet />;
   return (
     <>
       <Header />
