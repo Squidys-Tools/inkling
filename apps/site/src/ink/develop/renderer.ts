@@ -1,29 +1,31 @@
 import { fragmentSource, vertexSource } from "./shader.ts";
+import { frame as still } from "./timeline.ts";
 
 export type DevelopFrame = {
   time: number;
   width: number;
   height: number;
   scale: number;
-  rect: { x: number; y: number; halfWidth: number; halfHeight: number };
-  image: number;
+  rect: { x: number; y: number; scale: number };
   form: number;
   bloom: number;
-  dissolve: number;
 };
 
 const uniformNames = [
   "uResolution",
+  "uFrame",
   "uTime",
-  "uScale",
-  "uRect",
   "uForm",
   "uBloom",
-  "uDissolve",
-  "uSeed",
+  "uCell",
   "uReady",
-  "uImage",
+  "uStill",
+  "uMask",
+  "uFlow",
 ] as const;
+
+const flowSize = 128;
+const dotPitch = 6.5;
 
 function compile(gl: WebGL2RenderingContext, kind: number, source: string) {
   const shader = gl.createShader(kind);
@@ -36,10 +38,47 @@ function compile(gl: WebGL2RenderingContext, kind: number, source: string) {
   return null;
 }
 
-/** Draws the ink field onto `canvas`, or returns null where WebGL2 or the shader is unavailable. */
-export function createDevelopRenderer(canvas: HTMLCanvasElement, sources: readonly string[]) {
+/** A tiling, divergence-free flow field from a sum of periodic waves, packed into two bytes per texel. */
+function curlField() {
+  const waves = Array.from({ length: 10 }, (_, index) => {
+    const kx = ((index * 7) % 5) + 1;
+    const ky = ((index * 3) % 4) - 1;
+    return { kx, ky, phase: index * 2.39, amp: 1 / Math.hypot(kx, ky) };
+  });
+  const data = new Uint8Array(flowSize * flowSize * 4);
+  const vectors = new Float32Array(flowSize * flowSize * 2);
+  let peak = 0;
+  for (let y = 0; y < flowSize; y++) {
+    for (let x = 0; x < flowSize; x++) {
+      let vx = 0;
+      let vy = 0;
+      for (const wave of waves) {
+        const angle = (2 * Math.PI * (wave.kx * x + wave.ky * y)) / flowSize + wave.phase;
+        const slope = wave.amp * Math.cos(angle);
+        vx += slope * wave.ky;
+        vy -= slope * wave.kx;
+      }
+      const index = (y * flowSize + x) * 2;
+      vectors[index] = vx;
+      vectors[index + 1] = vy;
+      peak = Math.max(peak, Math.abs(vx), Math.abs(vy));
+    }
+  }
+  for (let index = 0; index < flowSize * flowSize; index++) {
+    data[index * 4] = Math.round((vectors[index * 2] / peak) * 127.5 + 127.5);
+    data[index * 4 + 1] = Math.round((vectors[index * 2 + 1] / peak) * 127.5 + 127.5);
+    data[index * 4 + 3] = 255;
+  }
+  return data;
+}
+
+/** Draws the develop scene onto `canvas`, or returns null where WebGL2 or the shader is unavailable. */
+export function createDevelopRenderer(
+  canvas: HTMLCanvasElement,
+  sources: { still: string; mask: string },
+) {
   const gl = canvas.getContext("webgl2", { antialias: false, alpha: false, depth: false });
-  if (!gl) return null;
+  if (!gl || gl.isContextLost()) return null;
   const vertex = compile(gl, gl.VERTEX_SHADER, vertexSource);
   const fragment = compile(gl, gl.FRAGMENT_SHADER, fragmentSource);
   if (!vertex || !fragment) return null;
@@ -61,58 +100,90 @@ export function createDevelopRenderer(canvas: HTMLCanvasElement, sources: readon
     uniformNames.map((name) => [name, gl.getUniformLocation(program, name)]),
   ) as Record<(typeof uniformNames)[number], WebGLUniformLocation | null>;
 
-  const ready = sources.map(() => false);
-  const textures = sources.map((src, index) => {
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
+  const texture = (unit: number, wrap: number) => {
+    const handle = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, handle);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+    return handle;
+  };
+
+  const photo = texture(0, gl.CLAMP_TO_EDGE);
+  const mask = texture(1, gl.CLAMP_TO_EDGE);
+  const flow = texture(2, gl.REPEAT);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    flowSize,
+    flowSize,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    curlField(),
+  );
+
+  let pending = 2;
+  let disposed = false;
+  const load = (src: string, unit: number, handle: WebGLTexture, mipmaps: boolean) => {
     const image = new Image();
     image.decoding = "async";
     image.onload = () => {
-      gl.bindTexture(gl.TEXTURE_2D, texture);
+      if (disposed || gl.isContextLost()) return;
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, handle);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-      ready[index] = true;
+      if (mipmaps) {
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      }
+      pending -= 1;
     };
     image.src = src;
-    return texture;
-  });
+  };
+  load(sources.still, 0, photo, true);
+  load(sources.mask, 1, mask, false);
+
+  gl.uniform1i(uniforms.uStill, 0);
+  gl.uniform1i(uniforms.uMask, 1);
+  gl.uniform1i(uniforms.uFlow, 2);
 
   return {
+    get ready() {
+      return pending === 0;
+    },
     draw(frame: DevelopFrame) {
-      const width = Math.round(frame.width * frame.scale);
-      const height = Math.round(frame.height * frame.scale);
+      const width = Math.max(1, Math.round(frame.width * frame.scale));
+      const height = Math.max(1, Math.round(frame.height * frame.scale));
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
       }
+      const ratio = width / frame.width;
+      const { x, y, scale } = frame.rect;
       gl.viewport(0, 0, width, height);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, textures[frame.image]);
-      const { x, y, halfWidth, halfHeight } = frame.rect;
       gl.uniform2f(uniforms.uResolution, width, height);
-      gl.uniform1f(uniforms.uTime, frame.time);
-      gl.uniform1f(uniforms.uScale, frame.scale);
       gl.uniform4f(
-        uniforms.uRect,
-        x * frame.scale,
-        y * frame.scale,
-        halfWidth * frame.scale,
-        halfHeight * frame.scale,
+        uniforms.uFrame,
+        x * ratio,
+        y * ratio,
+        still.width * scale * ratio,
+        still.height * scale * ratio,
       );
+      gl.uniform1f(uniforms.uTime, frame.time);
       gl.uniform1f(uniforms.uForm, frame.form);
       gl.uniform1f(uniforms.uBloom, frame.bloom);
-      gl.uniform1f(uniforms.uDissolve, frame.dissolve);
-      gl.uniform1f(uniforms.uSeed, frame.image * 1.7 + 0.3);
-      gl.uniform1f(uniforms.uReady, ready[frame.image] ? 1 : 0);
-      gl.uniform1i(uniforms.uImage, 0);
+      gl.uniform1f(uniforms.uCell, Math.max(4.5 * ratio, dotPitch * scale * ratio));
+      gl.uniform1f(uniforms.uReady, pending === 0 ? 1 : 0);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     },
     dispose() {
-      for (const texture of textures) gl.deleteTexture(texture);
+      disposed = true;
+      for (const handle of [photo, mask, flow]) gl.deleteTexture(handle);
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
       gl.deleteShader(vertex);
