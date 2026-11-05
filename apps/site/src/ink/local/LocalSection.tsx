@@ -35,7 +35,8 @@ function registerRedHat() {
 export function LocalSection() {
   // The prerendered page is the still: motion starts only once the browser says it may.
   const calm = useMediaQuery("(prefers-reduced-motion: reduce)", true);
-  const [state, setState] = useState<"waiting" | "ready" | "unsupported">("waiting");
+  const [state, setState] = useState<"waiting" | "ready" | "still">("waiting");
+  const [generation, setGeneration] = useState(0);
   const cube = useRef<GlassCube | null>(null);
   const pointer = useRef<{ id: number; x: number; y: number } | null>(null);
 
@@ -43,16 +44,26 @@ export function LocalSection() {
 
   const mount = (canvas: HTMLCanvasElement | null) => {
     if (!canvas) return;
-    const created = createGlassCube(canvas, calm);
+    const created = createGlassCube(canvas, {
+      calm,
+      onReady: () => setState("ready"),
+      onLost: () => setState("still"),
+    });
     if (!created) {
-      setState("unsupported");
+      setState("still");
       return;
     }
     cube.current = created;
-    setState("ready");
     const seen = new IntersectionObserver(([entry]) => created.setVisible(!!entry?.isIntersecting));
     seen.observe(canvas);
+    // A restored context has none of the old program or textures, so a fresh canvas rebuilds them.
+    const restore = () => {
+      setState("waiting");
+      setGeneration((count) => count + 1);
+    };
+    canvas.addEventListener("webglcontextrestored", restore);
     return () => {
+      canvas.removeEventListener("webglcontextrestored", restore);
       seen.disconnect();
       created.dispose();
       cube.current = null;
@@ -80,26 +91,23 @@ export function LocalSection() {
         Nothing leaves the glass.
       </h2>
       <div {...stylex.props(styles.stage)}>
-        {state === "unsupported" ? (
-          <img
-            src="/media/ink/local/glass-cube.webp"
-            alt=""
-            width={1600}
-            height={1000}
-            {...stylex.props(styles.fill)}
-          />
-        ) : (
-          <canvas
-            key={String(calm)}
-            ref={mount}
-            aria-hidden
-            onPointerDown={press}
-            onPointerMove={move}
-            onPointerUp={release}
-            onPointerCancel={release}
-            {...stylex.props(styles.fill, styles.canvas, state === "ready" && styles.shown)}
-          />
-        )}
+        <img
+          src="/media/ink/local/glass-cube.webp"
+          alt=""
+          width={1600}
+          height={1000}
+          {...stylex.props(styles.fill)}
+        />
+        <canvas
+          key={`${calm}-${generation}`}
+          ref={mount}
+          aria-hidden
+          onPointerDown={press}
+          onPointerMove={move}
+          onPointerUp={release}
+          onPointerCancel={release}
+          {...stylex.props(styles.fill, styles.canvas, state === "ready" && styles.shown)}
+        />
       </div>
       <dl {...stylex.props(styles.sheet)}>
         {spec.map(([label, value]) => (
@@ -148,6 +156,8 @@ const styles = stylex.create({
     marginTop: { default: "clamp(-120px, -6vw, -24px)", [media.phone]: "8px" },
   },
   fill: {
+    position: "absolute",
+    inset: 0,
     display: "block",
     width: "100%",
     height: "100%",
