@@ -265,3 +265,12 @@ export const onboardingColor = stylex.defineVars({
   badge: "rgba(14, 14, 12, 0.72)",
   badgeInk: "#d8d2c6",
 });
+
+// The ink-in-water close section: milky still water, ink, and the line around its quiet button.
+export const inkClose = stylex.defineVars({
+  water: "#f5f5f5",
+  ink: "#111110",
+  muted: "#6f6d68",
+  line: "rgba(17, 17, 16, 0.22)",
+  lineStrong: "rgba(17, 17, 16, 0.6)",
+});
