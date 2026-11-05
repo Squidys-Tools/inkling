@@ -6,7 +6,9 @@ import { useCalm, useHydrated } from "../../landing/environment.ts";
 import { ExternalArrow } from "../../landing/ExternalArrow.tsx";
 import { landing, media } from "../../landing/landing.stylex.ts";
 import { repository } from "../../layout/links.ts";
-import { createWater, type Layout, type Water } from "./water.ts";
+import { createWater, type Water } from "./water.ts";
+
+const portrait = "@media (orientation: portrait)";
 
 const faces = [
   ["/media/red-hat-400.ttf", "400"],
@@ -25,16 +27,10 @@ function registerRedHat() {
   }
 }
 
-const portrait = (canvas: HTMLCanvasElement) => canvas.clientHeight > canvas.clientWidth;
+const images = { plate: "/media/ink/close/plate.webp", clean: "/media/ink/close/clean.webp" };
 
-const layoutFor = (canvas: HTMLCanvasElement): Layout =>
-  portrait(canvas) ? { surface: 0.42, band: 0.08 } : { surface: 0.42, band: 0.12 };
-
-const dropX = (canvas: HTMLCanvasElement) => (portrait(canvas) ? 0.5 : 0.64);
-
-// Renders only while on screen, and lets the first drop fall once the section is well in view.
+// Renders only while on screen, and lets the drop fall once the section is well in view.
 function watch(canvas: HTMLCanvasElement, sim: Water) {
-  let dropped = false;
   const visible = new IntersectionObserver(
     ([entry]) => {
       if (!entry?.isIntersecting) {
@@ -42,10 +38,7 @@ function watch(canvas: HTMLCanvasElement, sim: Water) {
         return;
       }
       sim.start();
-      if (!dropped && entry.intersectionRatio >= 0.35) {
-        dropped = true;
-        sim.drop(dropX(canvas));
-      }
+      if (entry.intersectionRatio >= 0.35) sim.drop();
     },
     { threshold: [0, 0.35] },
   );
@@ -58,22 +51,40 @@ export function CloseSection() {
   const hydrated = useHydrated();
   const water = useRef<Water | null>(null);
   const [live, setLive] = useState(false);
+  const [fallback, setFallback] = useState(false);
 
   useEffect(registerRedHat, []);
 
   const mount = useCallback(
     (canvas: HTMLCanvasElement | null) => {
       if (!canvas) return;
-      const sim = createWater(canvas, () => layoutFor(canvas));
-      if (!sim) return;
+      const sim = createWater(canvas, images, () => {
+        setLive(false);
+        setFallback(true);
+      });
+      if (!sim) {
+        setFallback(true);
+        return;
+      }
       water.current = sim;
-      if (calm) sim.settle(dropX(canvas), 7);
-      setLive(true);
-      const unwatch = calm ? () => {} : watch(canvas, sim);
-      const resize = new ResizeObserver(() => sim.resize());
+      const life = new AbortController();
+      const resize = new ResizeObserver(([entry]) => {
+        if (entry) sim.resize(entry.contentRect.width, entry.contentRect.height);
+      });
       resize.observe(canvas);
+      sim.ready.then(
+        () => {
+          if (life.signal.aborted) return;
+          if (calm) sim.settle();
+          else life.signal.addEventListener("abort", watch(canvas, sim));
+          setLive(true);
+        },
+        () => {
+          if (!life.signal.aborted) setFallback(true);
+        },
+      );
       return () => {
-        unwatch();
+        life.abort();
         resize.disconnect();
         sim.dispose();
         water.current = null;
@@ -85,13 +96,13 @@ export function CloseSection() {
   const onPointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
     if (calm || !event.isPrimary) return;
     const box = event.currentTarget.getBoundingClientRect();
-    water.current?.drop((event.clientX - box.left) / box.width);
+    water.current?.ripple(event.clientX - box.left);
   };
 
   return (
     <section aria-labelledby="ink-close-title" {...stylex.props(styles.section)}>
-      <img src="/media/ink/close/still.webp" alt="" {...stylex.props(styles.fill, styles.still)} />
-      {hydrated && (
+      {fallback && <img src={images.plate} alt="" {...stylex.props(styles.still)} />}
+      {hydrated && !fallback && (
         <canvas
           key={calm ? "still" : "moving"}
           ref={mount}
@@ -122,7 +133,7 @@ const styles = stylex.create({
     position: "relative",
     isolation: "isolate",
     overflow: "hidden",
-    minHeight: { default: "100svh", [media.phone]: "640px" },
+    minHeight: { default: "100svh", [media.phone]: "max(640px, 100svh)" },
     backgroundColor: inkClose.water,
     color: inkClose.ink,
     fontFamily: landing.font,
@@ -133,7 +144,18 @@ const styles = stylex.create({
     width: "100%",
     height: "100%",
   },
-  still: { objectFit: "cover", objectPosition: "64% 50%", pointerEvents: "none" },
+  still: {
+    position: "absolute",
+    top: { default: 0, [portrait]: "auto" },
+    right: { default: 0, [portrait]: "auto" },
+    bottom: 0,
+    left: { default: 0, [portrait]: "calc(50% - min(190.7%, 84.9svh))" },
+    width: { default: "100%", [portrait]: "min(290%, 129svh)" },
+    height: { default: "100%", [portrait]: "auto" },
+    objectFit: "cover",
+    objectPosition: "66% 50%",
+    pointerEvents: "none",
+  },
   canvas: {
     display: "block",
     opacity: 0,
@@ -152,7 +174,7 @@ const styles = stylex.create({
     flexDirection: "column",
     justifyContent: { default: "center", [media.tablet]: "flex-start" },
     gap: { default: "48px", [media.phone]: "32px" },
-    minHeight: { default: "100svh", [media.phone]: "640px" },
+    minHeight: { default: "100svh", [media.phone]: "max(640px, 100svh)" },
     width: { default: "38%", [media.tablet]: "100%" },
     paddingInline: landing.gutter,
     paddingTop: { default: "0", [media.tablet]: "14svh" },

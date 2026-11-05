@@ -268,7 +268,7 @@ export const onboardingColor = stylex.defineVars({
 
 // The ink-in-water close section: milky still water, ink, and the line around its quiet button.
 export const inkClose = stylex.defineVars({
-  water: "#f3f1ec",
+  water: "#f5f5f5",
   ink: "#111110",
   muted: "#6f6d68",
   line: "rgba(17, 17, 16, 0.22)",

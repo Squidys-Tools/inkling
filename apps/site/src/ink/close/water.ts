@@ -1,40 +1,47 @@
-import { composite, dyeStep, MAX_DROPS, quadVertex, rippleStep } from "./shaders.ts";
+import { composite, MAX_RIPPLES, quadVertex } from "./shaders.ts";
 
-const RIPPLE_SIZE = 256;
-const STEP = 1 / 60;
-const FALL = 0.65;
-const Z_NEAR = 1;
-const Z_FAR = 7;
-const Z_DROP = 2.2;
+const PLATE = { width: 1376, height: 768, crown: 902 };
+const FALL = 0.62;
+const SETTLED = 6;
+const RIPPLE_LIFE = 6;
 const DPR_CAP = 1.5;
-
-type Target = { texture: WebGLTexture; framebuffer: WebGLFramebuffer };
-type Pair = { read: Target; write: Target; width: number; height: number };
-
-type Drop = {
-  x: number;
-  impact: number;
-  seed: number;
-  splashed: boolean;
-  ring: { y: number; gamma: number; radius: number };
-};
-
-export type Layout = { surface: number; band: number };
+const PHONE_DPR_CAP = 1;
+// The plates hold 1376 pixels across; rendering much denser than that only upsamples them.
+const PLATE_DENSITY = 1.3;
+const SLOW_FRAME_MS = 20;
+const VSYNC_FRAME_MS = 17.5;
+const GOVERNOR_FRAMES = 30;
+const MIN_QUALITY = 0.5;
 
 export type Water = {
-  drop: (x: number) => void;
-  settle: (x: number, seconds: number) => void;
+  ready: Promise<void>;
+  drop: () => void;
+  ripple: (x: number) => void;
+  settle: () => void;
   start: () => void;
   stop: () => void;
-  resize: () => void;
+  resize: (width: number, height: number) => void;
   dispose: () => void;
 };
 
-function compile(gl: WebGL2RenderingContext, vertex: string, fragment: string) {
+type Frame = { scale: number; x: number; y: number };
+
+/** Where the plate sits in a box of css pixels; portrait boxes center the crown below the copy. */
+function frameFor(width: number, height: number): Frame {
+  if (height > width) {
+    const scale = Math.min((2.9 * width) / PLATE.width, (0.72 * height) / PLATE.height);
+    return { scale, x: width / 2 - PLATE.crown * scale, y: height - PLATE.height * scale };
+  }
+  const scale = height / PLATE.height;
+  const center = Math.min(width * 0.66, width - 250 * scale);
+  return { scale, x: center - PLATE.crown * scale, y: 0 };
+}
+
+function compile(gl: WebGL2RenderingContext) {
   const program = gl.createProgram();
   for (const [type, source] of [
-    [gl.VERTEX_SHADER, vertex],
-    [gl.FRAGMENT_SHADER, fragment],
+    [gl.VERTEX_SHADER, quadVertex],
+    [gl.FRAGMENT_SHADER, composite],
   ] as const) {
     const shader = gl.createShader(type);
     if (!shader) throw new Error("shader");
@@ -43,68 +50,55 @@ function compile(gl: WebGL2RenderingContext, vertex: string, fragment: string) {
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
       throw new Error(gl.getShaderInfoLog(shader) ?? "shader");
     gl.attachShader(program, shader);
+    gl.deleteShader(shader);
   }
   gl.bindAttribLocation(program, 0, "position");
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS))
     throw new Error(gl.getProgramInfoLog(program) ?? "program");
-  const uniforms = new Map<string, WebGLUniformLocation | null>();
-  const at = (name: string) => {
-    if (!uniforms.has(name)) uniforms.set(name, gl.getUniformLocation(program, name));
-    return uniforms.get(name) ?? null;
+  const at = (name: string) => gl.getUniformLocation(program, name);
+  return {
+    program,
+    plate: at("plate"),
+    clean: at("clean"),
+    resolution: at("resolution"),
+    frame: at("frame"),
+    age: at("age"),
+    clock: at("clock"),
+    motion: at("motion"),
+    lod: at("lod"),
+    count: at("count"),
+    ripples: at("ripples"),
   };
-  return { program, at };
 }
 
-function target(gl: WebGL2RenderingContext, width: number, height: number): Target {
+async function upload(gl: WebGL2RenderingContext, url: string) {
+  const image = new Image();
+  image.decoding = "async";
+  image.src = url;
+  await image.decode();
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.HALF_FLOAT, null);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, image);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  const framebuffer = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-  gl.clearColor(0, 0, 0, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  return { texture, framebuffer };
+  return texture;
 }
 
-function pair(gl: WebGL2RenderingContext, width: number, height: number): Pair {
-  return { read: target(gl, width, height), write: target(gl, width, height), width, height };
-}
-
-function release(gl: WebGL2RenderingContext, p: Pair) {
-  for (const t of [p.read, p.write]) {
-    gl.deleteTexture(t.texture);
-    gl.deleteFramebuffer(t.framebuffer);
-  }
-}
-
-const swap = (p: Pair) => {
-  [p.read, p.write] = [p.write, p.read];
-};
-
-/** Returns null when the browser cannot run the simulation, so the caller shows the still. */
-export function createWater(canvas: HTMLCanvasElement, layout: () => Layout): Water | null {
-  const gl = canvas.getContext("webgl2", {
-    antialias: false,
-    alpha: false,
-    premultipliedAlpha: false,
-  });
+/** Returns null when the browser cannot run WebGL2, so the caller shows the still. */
+export function createWater(
+  canvas: HTMLCanvasElement,
+  images: { plate: string; clean: string },
+  onLost: () => void,
+): Water | null {
+  const gl = canvas.getContext("webgl2", { antialias: false, alpha: false, depth: false });
   if (!gl) return null;
-  if (!gl.getExtension("EXT_color_buffer_float") && !gl.getExtension("EXT_color_buffer_half_float"))
-    return null;
-
-  let ripple: ReturnType<typeof compile>;
-  let dye: ReturnType<typeof compile>;
-  let final: ReturnType<typeof compile>;
+  let shader: ReturnType<typeof compile>;
   try {
-    ripple = compile(gl, quadVertex, rippleStep);
-    dye = compile(gl, quadVertex, dyeStep);
-    final = compile(gl, quadVertex, composite);
+    shader = compile(gl);
   } catch {
     return null;
   }
@@ -115,197 +109,167 @@ export function createWater(canvas: HTMLCanvasElement, layout: () => Layout): Wa
   gl.enableVertexAttribArray(0);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
 
-  const waves = pair(gl, RIPPLE_SIZE, RIPPLE_SIZE);
-  let ink = pair(gl, 2, 2);
-  let aspect = 1;
-  let dyeAspect = 1;
-  let view = layout();
+  let textures: (WebGLTexture | null)[] = [];
+  let loaded = false;
+  let css = { width: canvas.clientWidth, height: canvas.clientHeight };
+  let frame = frameFor(css.width, css.height);
+  let density = 1;
+  let quality = 1;
 
-  let drops: Drop[] = [];
   let clock = 0;
-  let pending = 0;
+  let impact = Number.POSITIVE_INFINITY;
+  let motion = 1;
+  let ripples: { x: number; start: number; strength: number; radius: number }[] = [];
+  let splashed = false;
+  const rippleData = new Float32Array(MAX_RIPPLES * 4);
+
+  let raf = 0;
   let last = 0;
-  let frame = 0;
   let running = false;
   let lost = false;
-  let pendingImpulse: [number, number, number, number] | null = null;
+  let slow = 0;
+  let frames = 0;
+  let fast = 0;
+  let drops = 0;
 
-  const resize = () => {
-    const dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
-    const width = Math.max(1, Math.round(canvas.clientWidth * dpr));
-    const height = Math.max(1, Math.round(canvas.clientHeight * dpr));
-    view = layout();
-    aspect = width / height;
-    dyeAspect = width / (height * view.surface);
-    const dyeWidth = Math.min(768, Math.max(200, Math.round(canvas.clientWidth / 1.6)));
-    const dyeHeight = Math.max(64, Math.round(dyeWidth / dyeAspect));
+  const fit = () => {
+    const cap = css.width < 640 ? PHONE_DPR_CAP : DPR_CAP;
+    const dpr = Math.min(window.devicePixelRatio || 1, cap);
+    density = Math.min(dpr, PLATE_DENSITY / Math.max(frame.scale, 1e-3)) * quality;
+    const width = Math.max(1, Math.round(css.width * density));
+    const height = Math.max(1, Math.round(css.height * density));
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
       canvas.height = height;
     }
-    if (ink.width !== dyeWidth || ink.height !== dyeHeight) {
-      release(gl, ink);
-      ink = pair(gl, dyeWidth, dyeHeight);
-    }
-  };
-
-  const draw = (program: ReturnType<typeof compile>, out: Target | null, w: number, h: number) => {
-    gl.bindFramebuffer(gl.FRAMEBUFFER, out?.framebuffer ?? null);
-    gl.viewport(0, 0, w, h);
-    gl.useProgram(program.program);
-  };
-
-  const impactUv = (x: number) => {
-    const t = (1 / Z_NEAR - 1 / Z_DROP) / (1 / Z_NEAR - 1 / Z_FAR);
-    const xmax = (0.5 * aspect * Z_FAR) / Z_DROP;
-    const wx = (x - 0.5) * aspect;
-    return {
-      y: view.surface + view.band * t,
-      ripple: [(wx / xmax) * 0.5 + 0.5, (Z_DROP - Z_NEAR) / (Z_FAR - Z_NEAR)],
-    };
-  };
-
-  const step = () => {
-    clock += STEP;
-    for (const drop of drops) {
-      const age = clock - drop.impact;
-      if (age >= 0 && !drop.splashed) {
-        drop.splashed = true;
-        const { ripple: at } = impactUv(drop.x);
-        pendingImpulse = [at[0] ?? 0.5, at[1] ?? 0.5, 0.022, 1.4];
-      }
-      if (age > 0) {
-        const r = drop.ring;
-        r.y -= (r.gamma / (4 * Math.PI * r.radius)) * STEP;
-        r.gamma *= Math.exp(-STEP / 3);
-        r.radius += 0.07 * Math.exp(-age / 2.5) * STEP;
-      }
-    }
-    drops = drops.filter((d) => clock - d.impact < 30);
-
-    for (let i = 0; i < 2; i++) {
-      draw(ripple, waves.write, waves.width, waves.height);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, waves.read.texture);
-      gl.uniform1i(ripple.at("state"), 0);
-      gl.uniform2f(ripple.at("texel"), 1 / waves.width, 1 / waves.height);
-      const impulse = i === 0 && pendingImpulse ? pendingImpulse : [0.5, 0.5, 1, 0];
-      gl.uniform4f(
-        ripple.at("impulse"),
-        impulse[0] ?? 0,
-        impulse[1] ?? 0,
-        impulse[2] ?? 1,
-        impulse[3] ?? 0,
-      );
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-      swap(waves);
-    }
-    pendingImpulse = null;
-
-    const rings = new Float32Array(MAX_DROPS * 4);
-    const sources = new Float32Array(MAX_DROPS * 4);
-    drops.forEach((drop, i) => {
-      const age = clock - drop.impact;
-      if (age < 0) return;
-      const x = drop.x * dyeAspect;
-      rings.set([x, drop.ring.y, drop.ring.gamma, drop.ring.radius], i * 4);
-      const feed = age < 0.45 ? 34 * (1 - age / 0.45) : 0;
-      sources.set([x, Math.max(drop.ring.y, 0.93), 0.06, feed], i * 4);
-    });
-    draw(dye, ink.write, ink.width, ink.height);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, ink.read.texture);
-    gl.uniform1i(dye.at("dye"), 0);
-    gl.uniform2f(dye.at("texel"), 1 / ink.width, 1 / ink.height);
-    gl.uniform1f(dye.at("aspect"), dyeAspect);
-    gl.uniform1f(dye.at("time"), clock);
-    gl.uniform1f(dye.at("dt"), STEP);
-    gl.uniform1i(dye.at("count"), drops.length);
-    gl.uniform4fv(dye.at("rings"), rings);
-    gl.uniform4fv(dye.at("sources"), sources);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    swap(ink);
   };
 
   const render = () => {
-    draw(final, null, canvas.width, canvas.height);
+    if (!loaded || lost) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.useProgram(shader.program);
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, waves.read.texture);
-    gl.uniform1i(final.at("ripple"), 0);
+    gl.bindTexture(gl.TEXTURE_2D, textures[0] ?? null);
+    gl.uniform1i(shader.plate, 0);
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, ink.read.texture);
-    gl.uniform1i(final.at("dye"), 1);
-    gl.uniform2f(final.at("resolution"), canvas.width, canvas.height);
-    gl.uniform1f(final.at("surface"), view.surface);
-    gl.uniform1f(final.at("band"), view.band);
-    gl.uniform1f(final.at("time"), clock);
-    const data = new Float32Array(MAX_DROPS * 4);
-    drops.forEach((drop, i) => {
-      data.set([drop.x, impactUv(drop.x).y, drop.impact, drop.seed], i * 4);
-    });
-    gl.uniform1i(final.at("count"), drops.length);
-    gl.uniform4fv(final.at("drops"), data);
+    gl.bindTexture(gl.TEXTURE_2D, textures[1] ?? null);
+    gl.uniform1i(shader.clean, 1);
+    gl.uniform2f(shader.resolution, canvas.width, canvas.height);
+    const s = canvas.width / Math.max(css.width, 1);
+    gl.uniform3f(shader.frame, frame.scale * s, frame.x * s, frame.y * s);
+    gl.uniform1f(shader.age, clock - impact);
+    gl.uniform1f(shader.clock, clock);
+    gl.uniform1f(shader.motion, motion);
+    gl.uniform1f(shader.lod, Math.max(0, -Math.log2(frame.scale * s)));
+    ripples = ripples.filter((r) => clock - r.start < RIPPLE_LIFE);
+    rippleData.fill(0);
+    ripples.forEach((r, i) => rippleData.set([r.x, r.start, r.strength, r.radius], i * 4));
+    gl.uniform1i(shader.count, ripples.length);
+    gl.uniform4fv(shader.ripples, rippleData);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   };
 
+  // Steps resolution down after a slow window and back up after ~4s at vsync, so a stall
+  // while the page loads does not leave the scene soft; it stops climbing if it keeps falling.
+  const govern = (ms: number) => {
+    slow += ms;
+    frames += 1;
+    if (frames < GOVERNOR_FRAMES) return;
+    const average = slow / frames;
+    slow = 0;
+    frames = 0;
+    fast = average < VSYNC_FRAME_MS ? fast + 1 : 0;
+    if (average > SLOW_FRAME_MS && quality > MIN_QUALITY) {
+      quality = Math.max(MIN_QUALITY, quality * 0.8);
+      drops += 1;
+      fit();
+    } else if (fast >= 8 && quality < 1 && drops < 3) {
+      quality = Math.min(1, quality / 0.8);
+      fast = 0;
+      fit();
+    }
+  };
+
   const tick = (now: number) => {
-    frame = requestAnimationFrame(tick);
-    pending += Math.min(0.1, last ? (now - last) / 1000 : STEP);
+    raf = requestAnimationFrame(tick);
+    const ms = last ? now - last : 16.7;
     last = now;
-    while (pending >= STEP) {
-      step();
-      pending -= STEP;
+    govern(ms);
+    clock += Math.min(ms, 100) / 1000;
+    if (!splashed && clock >= impact) {
+      splashed = true;
+      if (ripples.length >= MAX_RIPPLES) ripples.shift();
+      ripples.push({ x: PLATE.crown, start: impact, strength: 2.2, radius: 190 });
     }
     render();
   };
 
-  const add = (x: number, delay: number) => {
-    if (drops.length >= MAX_DROPS) drops.shift();
-    drops.push({
-      x,
-      impact: clock + delay,
-      seed: Math.random() * 100,
-      splashed: false,
-      ring: { y: 1, gamma: 0.3, radius: 0.07 },
-    });
+  const onHidden = () => {
+    if (document.hidden) cancelAnimationFrame(raf);
+    else if (running && !lost) {
+      last = 0;
+      raf = requestAnimationFrame(tick);
+    }
   };
+  document.addEventListener("visibilitychange", onHidden);
 
-  const onLost = (event: Event) => {
+  const onContextLost = (event: Event) => {
     event.preventDefault();
     lost = true;
-    cancelAnimationFrame(frame);
+    cancelAnimationFrame(raf);
+    onLost();
   };
-  canvas.addEventListener("webglcontextlost", onLost);
+  canvas.addEventListener("webglcontextlost", onContextLost);
 
-  resize();
+  fit();
+  const ready = Promise.all([upload(gl, images.plate), upload(gl, images.clean)]).then((t) => {
+    textures = t;
+    loaded = true;
+    render();
+  });
 
   return {
-    drop: (x) => add(x, FALL),
-    settle: (x, seconds) => {
-      add(x, 0);
-      for (let i = 0; i < Math.round(seconds / STEP); i++) step();
-      for (const drop of drops) drop.impact = -1e3;
+    ready,
+    drop: () => {
+      if (impact === Number.POSITIVE_INFINITY) impact = clock + FALL;
+    },
+    ripple: (x) => {
+      const px = (x - frame.x) / frame.scale;
+      if (ripples.length >= MAX_RIPPLES) ripples.shift();
+      ripples.push({ x: px, start: clock, strength: 3, radius: 20 });
+    },
+    settle: () => {
+      motion = 0;
+      impact = -SETTLED;
+      splashed = true;
+      clock = 0;
       render();
     },
     start: () => {
       if (running || lost) return;
       running = true;
       last = 0;
-      frame = requestAnimationFrame(tick);
+      if (!document.hidden) raf = requestAnimationFrame(tick);
     },
     stop: () => {
       running = false;
-      cancelAnimationFrame(frame);
+      cancelAnimationFrame(raf);
     },
-    resize: () => {
-      resize();
-      if (!running && !lost) render();
+    resize: (width, height) => {
+      css = { width, height };
+      frame = frameFor(width, height);
+      fit();
+      render();
     },
     dispose: () => {
-      cancelAnimationFrame(frame);
-      canvas.removeEventListener("webglcontextlost", onLost);
-      release(gl, waves);
-      release(gl, ink);
+      running = false;
+      cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onHidden);
+      canvas.removeEventListener("webglcontextlost", onContextLost);
+      for (const t of textures) gl.deleteTexture(t);
+      gl.deleteBuffer(quad);
+      gl.deleteProgram(shader.program);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     },
   };
