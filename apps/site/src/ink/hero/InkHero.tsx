@@ -5,10 +5,10 @@ import release from "virtual:latest-release";
 import { useMediaQuery } from "../../landing/environment.ts";
 import { landing, media } from "../../landing/landing.stylex.ts";
 import { usePlatform } from "../../parts/platform.ts";
-import { createFluid, type Fluid } from "./fluid.ts";
+import { createInk, type Ink } from "./ink.ts";
 import { useAutoType } from "./useAutoType.ts";
 
-const still = "/media/ink/hero/still.webp";
+const plate = "/media/ink/hero/ink.webp";
 
 const faces = [
   ["/media/red-hat-400.ttf", "400"],
@@ -33,56 +33,79 @@ function useDownloadHref() {
   return "/download";
 }
 
-// Runs the field only while the section is on screen and the tab is visible.
+const coarse = "(pointer: coarse)";
+
+// Runs one loop only while the section is on screen and the tab is visible.
 function animate(
   canvas: HTMLCanvasElement,
   section: HTMLElement,
-  fluidRef: RefObject<Fluid | null>,
+  plate: HTMLImageElement,
+  inkRef: RefObject<Ink | null>,
   setLive: (live: boolean) => void,
 ) {
-  const fluid = createFluid(canvas);
-  if (!fluid) return;
-  fluidRef.current = fluid;
-  fluid.resize();
-  const state = { frame: 0, visible: true, shown: false };
-  const loop = (now: number) => {
-    fluid.frame(now / 1000);
-    if (!state.shown) {
-      state.shown = true;
-      setLive(true);
-    }
-    state.frame = requestAnimationFrame(loop);
-  };
-  const update = () => {
-    cancelAnimationFrame(state.frame);
-    state.frame = 0;
-    if (state.visible && document.visibilityState === "visible")
+  const state = { frame: 0, visible: true, shown: false, disposed: false };
+  let teardown = () => {};
+  const start = () => {
+    if (state.disposed) return;
+    const ink = createInk(canvas, plate);
+    if (!ink) return;
+    inkRef.current = ink;
+    const measure = () => {
+      const box = section.getBoundingClientRect();
+      const art = plate.getBoundingClientRect();
+      const ratio = matchMedia(coarse).matches ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
+      ink.resize(box.width, box.height, ratio, {
+        left: art.left - box.left,
+        top: art.top - box.top,
+        width: art.width,
+        height: art.height,
+      });
+    };
+    measure();
+    const loop = (now: number) => {
+      ink.frame(now / 1000);
+      if (!state.shown) {
+        state.shown = true;
+        setLive(true);
+      }
       state.frame = requestAnimationFrame(loop);
-  };
-  const intersection = new IntersectionObserver(([entry]) => {
-    state.visible = entry?.isIntersecting ?? true;
+    };
+    const update = () => {
+      cancelAnimationFrame(state.frame);
+      state.frame = 0;
+      if (state.visible && document.visibilityState === "visible")
+        state.frame = requestAnimationFrame(loop);
+    };
+    const intersection = new IntersectionObserver(([entry]) => {
+      state.visible = entry?.isIntersecting ?? true;
+      update();
+    });
+    intersection.observe(section);
+    const resize = new ResizeObserver(measure);
+    resize.observe(section);
+    const lost = (event: Event) => {
+      event.preventDefault();
+      state.visible = false;
+      cancelAnimationFrame(state.frame);
+      setLive(false);
+    };
+    canvas.addEventListener("webglcontextlost", lost);
+    document.addEventListener("visibilitychange", update);
     update();
-  });
-  intersection.observe(section);
-  const resize = new ResizeObserver(() => fluid.resize());
-  resize.observe(canvas);
-  const lost = (event: Event) => {
-    event.preventDefault();
-    state.visible = false;
-    cancelAnimationFrame(state.frame);
-    setLive(false);
+    teardown = () => {
+      cancelAnimationFrame(state.frame);
+      intersection.disconnect();
+      resize.disconnect();
+      canvas.removeEventListener("webglcontextlost", lost);
+      document.removeEventListener("visibilitychange", update);
+      ink.dispose();
+      inkRef.current = null;
+    };
   };
-  canvas.addEventListener("webglcontextlost", lost);
-  document.addEventListener("visibilitychange", update);
-  update();
+  plate.decode().then(start, () => {});
   return () => {
-    cancelAnimationFrame(state.frame);
-    intersection.disconnect();
-    resize.disconnect();
-    canvas.removeEventListener("webglcontextlost", lost);
-    document.removeEventListener("visibilitychange", update);
-    fluid.dispose();
-    fluidRef.current = null;
+    state.disposed = true;
+    teardown();
     setLive(false);
   };
 }
@@ -91,8 +114,9 @@ export function InkHero() {
   const calm = useMediaQuery("(prefers-reduced-motion: reduce)", true);
   const sectionRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const plateRef = useRef<HTMLImageElement>(null);
   const pillRef = useRef<HTMLFormElement>(null);
-  const fluidRef = useRef<Fluid | null>(null);
+  const inkRef = useRef<Ink | null>(null);
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
   const [live, setLive] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -104,44 +128,46 @@ export function InkHero() {
   useEffect(() => {
     const canvas = canvasRef.current;
     const section = sectionRef.current;
-    if (calm || !canvas || !section) return;
-    return animate(canvas, section, fluidRef, setLive);
+    const plate = plateRef.current;
+    if (calm || !canvas || !section || !plate) return;
+    return animate(canvas, section, plate, inkRef, setLive);
   }, [calm]);
 
-  // A keystroke kicks the ink just above the pill, roughly where the caret is.
+  // A keystroke nudges the ink just above the pill, roughly where the caret is.
   const stirFromKey = useCallback((progress: number) => {
-    const fluid = fluidRef.current;
-    const canvas = canvasRef.current;
+    const ink = inkRef.current;
+    const section = sectionRef.current;
     const pill = pillRef.current;
-    if (!fluid || !canvas || !pill) return;
-    const box = canvas.getBoundingClientRect();
+    if (!ink || !section || !pill) return;
+    const box = section.getBoundingClientRect();
     const rect = pill.getBoundingClientRect();
-    const caret = rect.left + rect.width * (0.12 + 0.76 * Math.min(1, progress));
-    const x = (caret - box.left) / box.width + (Math.random() - 0.5) * 0.06;
-    const y = 1 - (rect.top - box.top) / box.height + 0.06 + Math.random() * 0.08;
-    const angle = (Math.random() - 0.5) * 2.2;
-    const force = 380 + Math.random() * 420;
-    fluid.stir(x, y, Math.sin(angle) * force, Math.cos(angle) * force, 0.0022);
+    const caret = rect.left + rect.width * (0.1 + 0.8 * Math.min(1, progress));
+    const x = (caret - box.left) / box.width + (Math.random() - 0.5) * 0.04;
+    const y = 1 - (rect.top - box.top) / box.height + 0.03 + Math.random() * 0.05;
+    const angle = (Math.random() - 0.5) * 1.6;
+    const force = 0.006 + Math.random() * 0.008;
+    ink.stir(x, y, Math.sin(angle) * force, Math.cos(angle) * force, 0.004);
   }, []);
 
   const typed = useAutoType(!calm && live && !focused && query === "", stirFromKey);
 
   const stirFromPointer = (event: PointerEvent<HTMLElement>) => {
-    const fluid = fluidRef.current;
-    const canvas = canvasRef.current;
-    if (!fluid || !canvas) return;
-    const box = canvas.getBoundingClientRect();
+    const ink = inkRef.current;
+    const section = sectionRef.current;
+    if (!ink || !section) return;
+    const box = section.getBoundingClientRect();
     const x = (event.clientX - box.left) / box.width;
     const y = 1 - (event.clientY - box.top) / box.height;
     const previous = pointerRef.current;
+    if (previous && Math.hypot((x - previous.x) * box.width, (y - previous.y) * box.height) < 24)
+      return;
     pointerRef.current = { x, y };
     if (!previous) return;
-    const dx = (x - previous.x) * 5200;
-    const dy = (y - previous.y) * 5200;
-    const speed = Math.hypot(dx, dy);
-    if (speed < 4) return;
-    const clamp = Math.min(1, 900 / speed);
-    fluid.stir(x, y, dx * clamp, dy * clamp, 0.0012);
+    const aspect = box.width / box.height;
+    const dx = (x - previous.x) * aspect * 0.35;
+    const dy = (y - previous.y) * 0.35;
+    const clamp = Math.min(1, 0.03 / Math.max(1e-4, Math.hypot(dx, dy)));
+    ink.stir(x, y, dx * clamp, dy * clamp, 0.006);
   };
 
   const showTyped = query === "" && !focused;
@@ -156,16 +182,31 @@ export function InkHero() {
       }}
       {...stylex.props(styles.section)}
     >
-      <img src={still} alt="" aria-hidden="true" {...stylex.props(styles.layer, styles.still)} />
+      <img
+        ref={plateRef}
+        src={plate}
+        alt=""
+        aria-hidden="true"
+        decoding="async"
+        {...stylex.props(styles.plate)}
+      />
       <canvas
         ref={canvasRef}
         aria-hidden="true"
-        {...stylex.props(styles.layer, styles.canvas, live && styles.canvasLive)}
+        {...stylex.props(styles.canvas, live && styles.canvasLive)}
       />
 
       <a href="/" {...stylex.props(styles.wordmark)}>
         inkling
       </a>
+      <nav aria-label="inkling" {...stylex.props(styles.nav)}>
+        <a href="/features" {...stylex.props(styles.navLink)}>
+          features
+        </a>
+        <a href={downloadHref} {...stylex.props(styles.navLink)}>
+          download
+        </a>
+      </nav>
 
       <form
         ref={pillRef}
@@ -202,8 +243,8 @@ export function InkHero() {
           <p {...stylex.props(styles.lede)}>inkling finds it anyway.</p>
         </div>
         <div {...stylex.props(styles.action)}>
-          <a href={downloadHref} {...stylex.props(styles.download)}>
-            Download
+          <a href={downloadHref} {...stylex.props(styles.navLink, styles.phoneOnly)}>
+            download
           </a>
           <p {...stylex.props(styles.fine)}>Free · Open source · Windows, Linux, Mac</p>
         </div>
@@ -217,11 +258,14 @@ const blink = stylex.keyframes({
   "55%, 100%": { opacity: 0 },
 });
 
+// The plate is the moodboard ink cut to 664x639 frame pixels, with the pill's centre at
+// (314.5, 626). Both scale from the pill's height in the section so they stay registered.
 const styles = stylex.create({
   section: {
     position: "relative",
     isolation: "isolate",
     overflow: "hidden",
+    containerType: "size",
     boxSizing: "border-box",
     width: "100%",
     height: "100svh",
@@ -231,59 +275,87 @@ const styles = stylex.create({
     fontFamily: landing.font,
     touchAction: "pan-y",
   },
-  layer: {
+  plate: {
+    position: "absolute",
+    zIndex: -2,
+    top: 0,
+    left: { default: "calc(50% - 36.17cqh)", [media.phone]: "calc(50% - 28.13cqh)" },
+    width: { default: "76.37cqh", [media.phone]: "59.40cqh" },
+    height: "auto",
+    aspectRatio: "664 / 639",
+    display: "block",
+    pointerEvents: "none",
+    userSelect: "none",
+  },
+  canvas: {
     position: "absolute",
     inset: 0,
     zIndex: -1,
     width: "100%",
     height: "100%",
     display: "block",
-  },
-  still: {
-    objectFit: { default: "cover", [media.phone]: "contain" },
-    objectPosition: { default: "50% 40%", [media.phone]: "50% 22%" },
-    transform: { default: null, [media.phone]: "scale(1.65)" },
-    transformOrigin: "50% 22%",
-  },
-  canvas: {
     opacity: 0,
     transitionProperty: "opacity",
-    transitionDuration: "1.2s",
+    transitionDuration: "0.6s",
     transitionTimingFunction: landing.ease,
   },
   canvasLive: { opacity: 1 },
   wordmark: {
     position: "absolute",
-    top: { default: "28px", [media.phone]: "20px" },
+    top: { default: "clamp(24px, 4.4cqh, 40px)", [media.phone]: "20px" },
     left: landing.gutter,
     color: inkHeroColor.ink,
-    fontSize: "15px",
-    fontWeight: 500,
+    fontSize: { default: "clamp(22px, 2.2vw, 32px)", [media.phone]: "22px" },
+    fontWeight: 400,
     letterSpacing: "-0.02em",
+    lineHeight: 1,
     textDecoration: "none",
     outline: { default: null, ":focus-visible": `2px solid ${inkHeroColor.found}` },
     outlineOffset: "4px",
   },
+  nav: {
+    position: "absolute",
+    display: { default: "flex", [media.phone]: "none" },
+    top: { default: "clamp(28px, 4.8cqh, 44px)", [media.phone]: "22px" },
+    right: landing.gutter,
+    gap: "28px",
+  },
+  navLink: {
+    color: inkHeroColor.ink,
+    fontSize: "15px",
+    letterSpacing: "-0.005em",
+    lineHeight: 1,
+    textDecoration: "none",
+    opacity: { default: 1, ":hover": 0.6 },
+    transitionProperty: "opacity",
+    transitionDuration: "0.2s",
+    outline: { default: null, ":focus-visible": `2px solid ${inkHeroColor.found}` },
+    outlineOffset: "4px",
+  },
+  phoneOnly: { display: { default: "none", [media.phone]: "inline" } },
   pill: {
     position: "absolute",
     left: "50%",
-    top: { default: "66%", [media.phone]: "56%" },
+    top: { default: "72%", [media.phone]: "56%" },
     transform: "translate(-50%, -50%)",
     boxSizing: "border-box",
     display: "flex",
     alignItems: "center",
-    width: "min(400px, calc(100% - 40px))",
-    height: "52px",
+    width: {
+      default: "min(max(320px, 46.13cqh), calc(100% - 40px))",
+      [media.phone]: "calc(100% - 48px)",
+    },
+    height: { default: "clamp(48px, 6.67cqh, 62px)", [media.phone]: "52px" },
     margin: 0,
-    paddingInline: "22px",
+    paddingInline: "24px",
     borderRadius: "999px",
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: inkHeroColor.glassEdge,
     backgroundColor: inkHeroColor.glass,
-    backdropFilter: "blur(16px) saturate(140%)",
-    WebkitBackdropFilter: "blur(16px) saturate(140%)",
-    boxShadow: `0 22px 44px -22px ${inkHeroColor.glassShadow}, 0 0 0 1px ${inkHeroColor.glassRim}, inset 0 1px 0 ${inkHeroColor.glassEdge}`,
+    backdropFilter: "blur(14px) saturate(120%)",
+    WebkitBackdropFilter: "blur(14px) saturate(120%)",
+    boxShadow: `0 26px 40px -18px ${inkHeroColor.glassShadow}, 0 0 0 1px ${inkHeroColor.glassRim}, inset 0 1px 0 ${inkHeroColor.glassEdge}`,
     outline: { default: null, ":focus-within": `2px solid ${inkHeroColor.found}` },
     outlineOffset: "3px",
   },
@@ -306,8 +378,8 @@ const styles = stylex.create({
   },
   typed: {
     position: "absolute",
-    left: "22px",
-    right: "22px",
+    left: "24px",
+    right: "24px",
     top: "50%",
     transform: "translateY(-50%)",
     display: "flex",
@@ -323,7 +395,7 @@ const styles = stylex.create({
     display: "inline-block",
     flex: "none",
     width: "1.5px",
-    height: "20px",
+    height: "22px",
     marginLeft: "1px",
     backgroundColor: inkHeroColor.ink,
     animationName: blink,
@@ -336,53 +408,34 @@ const styles = stylex.create({
     position: "absolute",
     left: landing.gutter,
     right: landing.gutter,
-    bottom: { default: "clamp(24px, 5vh, 56px)", [media.phone]: "24px" },
+    bottom: { default: "clamp(24px, 4.4cqh, 44px)", [media.phone]: "24px" },
     display: "flex",
     flexDirection: { default: "row", [media.phone]: "column" },
     alignItems: { default: "flex-end", [media.phone]: "flex-start" },
     justifyContent: "space-between",
-    gap: { default: "32px", [media.phone]: "22px" },
+    gap: { default: "32px", [media.phone]: "14px" },
     pointerEvents: "none",
   },
-  copy: { display: "flex", flexDirection: "column", gap: "14px" },
+  copy: { display: "flex", flexDirection: "column", gap: "8px" },
   headline: {
     margin: 0,
-    maxWidth: "11ch",
-    fontSize: { default: "clamp(2.6rem, 5.4vw, 5.4rem)", [media.phone]: "2.6rem" },
+    fontSize: { default: "clamp(1.6rem, 2.3vw, 2.25rem)", [media.phone]: "1.75rem" },
     fontWeight: 400,
-    lineHeight: 0.95,
-    letterSpacing: "-0.055em",
+    lineHeight: 1.05,
+    letterSpacing: "-0.04em",
   },
   lede: {
     margin: 0,
     color: inkHeroColor.muted,
-    fontSize: { default: "17px", [media.phone]: "16px" },
+    fontSize: "15px",
     letterSpacing: "-0.01em",
   },
   action: {
     display: "flex",
     flexDirection: "column",
     alignItems: { default: "flex-end", [media.phone]: "flex-start" },
-    gap: "12px",
+    gap: "16px",
     pointerEvents: "auto",
-  },
-  download: {
-    display: "inline-flex",
-    alignItems: "center",
-    height: "46px",
-    paddingInline: "26px",
-    borderRadius: "999px",
-    backgroundColor: inkHeroColor.ink,
-    color: inkHeroColor.buttonInk,
-    fontSize: "15px",
-    fontWeight: 500,
-    letterSpacing: "-0.01em",
-    textDecoration: "none",
-    transform: { default: null, ":active": "scale(0.98)" },
-    transitionProperty: "transform",
-    transitionDuration: "0.15s",
-    outline: { default: null, ":focus-visible": `2px solid ${inkHeroColor.found}` },
-    outlineOffset: "4px",
   },
   fine: {
     margin: 0,

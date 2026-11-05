@@ -8,10 +8,11 @@ void main() {
 
 const header = `#version 300 es
 precision highp float;
-precision highp sampler2D;
 in vec2 vUv;
 out vec4 outColor;
 `;
+
+export const stirCount = 6;
 
 const noise = `
 vec2 hash2(vec2 p) {
@@ -33,237 +34,92 @@ float fbm(vec2 p) {
   float amp = 0.5;
   for (int i = 0; i < 4; i++) {
     sum += amp * gnoise(p);
-    p = p * 2.03 + vec2(17.1, 9.2);
+    p = mat2(1.6, 1.2, -1.2, 1.6) * p + vec2(17.1, 9.2);
     amp *= 0.5;
   }
   return sum;
 }
-vec2 curlNoise(vec2 p) {
-  const float e = 0.01;
-  float dx = fbm(p + vec2(e, 0.0)) - fbm(p - vec2(e, 0.0));
-  float dy = fbm(p + vec2(0.0, e)) - fbm(p - vec2(0.0, e));
-  return vec2(dy, -dx) / (2.0 * e);
+vec2 curl(vec2 p) {
+  const float e = 0.02;
+  float c = fbm(p);
+  float x = fbm(p + vec2(e, 0.0));
+  float y = fbm(p + vec2(0.0, e));
+  return vec2(y - c, c - x) / e;
 }
 `;
 
-export const advect = `${header}
-uniform sampler2D velocity;
-uniform sampler2D source;
-uniform vec2 texel;
-uniform float dt;
-uniform float dissipation;
-void main() {
-  vec2 back = vUv - dt * texture(velocity, vUv).xy * texel;
-  outColor = texture(source, back) / (1.0 + dissipation * dt);
-}`;
-
-export const curl = `${header}
-uniform sampler2D velocity;
-uniform vec2 texel;
-void main() {
-  float l = texture(velocity, vUv - vec2(texel.x, 0.0)).y;
-  float r = texture(velocity, vUv + vec2(texel.x, 0.0)).y;
-  float b = texture(velocity, vUv - vec2(0.0, texel.y)).x;
-  float t = texture(velocity, vUv + vec2(0.0, texel.y)).x;
-  outColor = vec4(0.5 * (r - l - t + b), 0.0, 0.0, 1.0);
-}`;
-
-// Vorticity confinement keeps the small eddies alive, the curl-noise field keeps the cloud
-// drifting, and a soft pull toward the anchor stops it wandering off the page.
-export const force = `${header}
-uniform sampler2D velocity;
-uniform sampler2D curl;
-uniform vec2 texel;
-uniform vec2 anchor;
+// Low-resolution flow field, rendered at a fraction of the canvas and every other frame.
+// rg holds a displacement in units of the section's height, packed around 0.5.
+export const flow = `${header}
 uniform float aspect;
 uniform float time;
-uniform float dt;
-uniform float confinement;
-uniform float drift;
+uniform vec4 stirs[${stirCount}];
+uniform vec2 pushes[${stirCount}];
 ${noise}
 void main() {
-  float l = abs(texture(curl, vUv - vec2(texel.x, 0.0)).x);
-  float r = abs(texture(curl, vUv + vec2(texel.x, 0.0)).x);
-  float b = abs(texture(curl, vUv - vec2(0.0, texel.y)).x);
-  float t = abs(texture(curl, vUv + vec2(0.0, texel.y)).x);
-  float c = texture(curl, vUv).x;
-  vec2 grad = 0.5 * vec2(r - l, t - b);
-  vec2 n = grad / (length(grad) + 1e-5);
-  vec2 vort = confinement * c * vec2(n.y, -n.x);
-
   vec2 p = vec2(vUv.x * aspect, vUv.y);
-  vec2 field = curlNoise(p * 1.8 + vec2(0.0, time * 0.035)) * 0.7
-    + curlNoise(p * 4.0 - vec2(time * 0.05, 0.0)) * 0.12;
-  vec2 offset = (vUv - anchor) * vec2(aspect, 1.0);
-  float near = exp(-dot(offset, offset) * 6.0);
-  vec2 pull = -offset * 18.0 * smoothstep(0.18, 0.5, length(offset));
+  float t = time;
+  vec2 warp = vec2(fbm(p * 1.7 + vec2(0.0, t * 0.03)), fbm(p * 1.7 + vec2(5.2, 1.3) - t * 0.025));
+  vec2 broad = curl(p * 1.25 + warp * 1.4 + vec2(t * 0.012, t * 0.035));
+  vec2 fine = curl(p * 4.2 + warp * 2.2 - vec2(0.0, t * 0.07));
+  vec2 d = broad * 0.0065 + fine * 0.0019;
 
-  vec2 v = texture(velocity, vUv).xy;
-  v += dt * (vort + field * drift * (0.35 + near) + pull);
-  outColor = vec4(v, 0.0, 1.0);
-}`;
-
-export const divergence = `${header}
-uniform sampler2D velocity;
-uniform vec2 texel;
-void main() {
-  vec2 c = texture(velocity, vUv).xy;
-  float l = texture(velocity, vUv - vec2(texel.x, 0.0)).x;
-  float r = texture(velocity, vUv + vec2(texel.x, 0.0)).x;
-  float b = texture(velocity, vUv - vec2(0.0, texel.y)).y;
-  float t = texture(velocity, vUv + vec2(0.0, texel.y)).y;
-  if (vUv.x - texel.x < 0.0) l = -c.x;
-  if (vUv.x + texel.x > 1.0) r = -c.x;
-  if (vUv.y - texel.y < 0.0) b = -c.y;
-  if (vUv.y + texel.y > 1.0) t = -c.y;
-  outColor = vec4(0.5 * (r - l + t - b), 0.0, 0.0, 1.0);
-}`;
-
-export const pressure = `${header}
-uniform sampler2D pressure;
-uniform sampler2D divergence;
-uniform vec2 texel;
-void main() {
-  float l = texture(pressure, vUv - vec2(texel.x, 0.0)).x;
-  float r = texture(pressure, vUv + vec2(texel.x, 0.0)).x;
-  float b = texture(pressure, vUv - vec2(0.0, texel.y)).x;
-  float t = texture(pressure, vUv + vec2(0.0, texel.y)).x;
-  float d = texture(divergence, vUv).x;
-  outColor = vec4((l + r + b + t - d) * 0.25, 0.0, 0.0, 1.0);
-}`;
-
-export const project = `${header}
-uniform sampler2D pressure;
-uniform sampler2D velocity;
-uniform vec2 texel;
-void main() {
-  float l = texture(pressure, vUv - vec2(texel.x, 0.0)).x;
-  float r = texture(pressure, vUv + vec2(texel.x, 0.0)).x;
-  float b = texture(pressure, vUv - vec2(0.0, texel.y)).x;
-  float t = texture(pressure, vUv + vec2(0.0, texel.y)).x;
-  vec2 v = texture(velocity, vUv).xy - 0.5 * vec2(r - l, t - b);
-  outColor = vec4(v, 0.0, 1.0);
-}`;
-
-export const scale = `${header}
-uniform sampler2D source;
-uniform float factor;
-void main() {
-  outColor = texture(source, vUv) * factor;
-}`;
-
-export const splat = `${header}
-uniform sampler2D target;
-uniform vec2 point;
-uniform vec3 value;
-uniform float radius;
-uniform float aspect;
-void main() {
-  vec2 d = (vUv - point) * vec2(aspect, 1.0);
-  float falloff = exp(-dot(d, d) / radius);
-  outColor = vec4(texture(target, vUv).xyz + value * falloff, 1.0);
-}`;
-
-// The ink keeps being fed from a falling thread at the top and a slow, noise-shaped bloom
-// at the anchor, so the cloud never thins out between visits.
-export const feed = `${header}
-uniform sampler2D dye;
-uniform vec2 anchor;
-uniform float aspect;
-uniform float time;
-uniform float dt;
-uniform float rate;
-${noise}
-void main() {
-  vec2 offset = (vUv - anchor) * vec2(aspect, 1.0);
-  float bloom = 0.0;
-  for (int i = 0; i < 3; i++) {
-    float k = float(i);
-    vec2 drift = vec2(0.17 * sin(time * 0.13 + k * 2.1), 0.1 * cos(time * 0.17 + k * 1.7));
-    vec2 o = offset - drift;
-    bloom += exp(-dot(o, o) / 0.009) * (0.55 + 0.45 * sin(time * 0.37 + k * 2.3));
+  for (int i = 0; i < ${stirCount}; i++) {
+    vec4 s = stirs[i];
+    if (s.w <= 0.0) continue;
+    vec2 o = (vUv - s.xy) * vec2(aspect, 1.0);
+    float r2 = dot(o, o);
+    float fall = exp(-r2 / s.z);
+    float age = s.w;
+    float shape = (1.0 - exp(-age * 7.0)) * exp(-age * 0.85);
+    vec2 swirl = vec2(-o.y, o.x) / (sqrt(r2) + 0.02);
+    d += (pushes[i] + swirl * length(pushes[i]) * 0.6) * fall * shape;
   }
-  float sway = 0.04 * sin(time * 0.21) + 0.02 * gnoise(vec2(vUv.y * 4.0, time * 0.1));
-  float thread = smoothstep(0.014, 0.0, abs(offset.x - sway)) * smoothstep(anchor.y + 0.08, 1.0, vUv.y);
-  float d = texture(dye, vUv).x;
-  float amount = rate * dt * (bloom + thread * 0.3);
-  outColor = vec4(min(d + amount * (1.0 - d * 0.35), 3.0), 0.0, 0.0, 1.0);
+  outColor = vec4(clamp(d * 6.0 + 0.5, 0.0, 1.0), 0.0, 1.0);
 }`;
 
-export const thread = `${header}
-uniform sampler2D velocity;
-uniform vec2 anchor;
-uniform float aspect;
-uniform float time;
-uniform float dt;
-${noise}
-void main() {
-  vec2 v = texture(velocity, vUv).xy;
-  vec2 offset = (vUv - anchor) * vec2(aspect, 1.0);
-  float sway = 0.04 * sin(time * 0.21) + 0.02 * gnoise(vec2(vUv.y * 4.0, time * 0.1));
-  float column = smoothstep(0.03, 0.0, abs(offset.x - sway)) * smoothstep(anchor.y, 1.0, vUv.y);
-  v.y -= dt * column * 40.0;
-  for (int i = 0; i < 3; i++) {
-    float k = float(i);
-    vec2 drift = vec2(0.17 * sin(time * 0.13 + k * 2.1), 0.1 * cos(time * 0.17 + k * 1.7));
-    vec2 o = offset - drift;
-    float pulse = max(0.0, sin(time * 0.37 + k * 2.3));
-    v += dt * normalize(o + 1e-4) * exp(-dot(o, o) / 0.02) * pulse * 90.0;
-  }
-  outColor = vec4(v, 0.0, 1.0);
-}`;
-
+// The ink is a plate cut from the moodboard photograph. The flow bends it: dense cores barely
+// breathe while thin veils and tendrils drift, and a faint bleed of the plate diffuses around them.
 export const display = `${header}
-uniform sampler2D dye;
-uniform vec2 texel;
+uniform sampler2D plate;
+uniform sampler2D flowField;
+uniform vec4 plateRect;
 uniform float aspect;
 uniform float time;
 uniform vec3 water;
 uniform vec3 ink;
+uniform vec3 veil;
 ${noise}
-float density(vec2 uv) {
-  return texture(dye, uv).x;
-}
-float caustic(vec2 p, float t) {
-  vec2 q = p;
-  float c = 0.0;
-  for (int i = 0; i < 3; i++) {
-    q += 0.55 * vec2(sin(q.y * 1.6 + t * 0.55), cos(q.x * 1.35 - t * 0.45));
-    c += 1.0 / (1.0 + 34.0 * abs(sin(q.x) + sin(q.y)));
-  }
-  return c / 3.0;
+float density(vec2 screen, float lod) {
+  vec2 uv = (screen - plateRect.xy) / plateRect.zw;
+  uv.y = 1.0 - uv.y;
+  // The plate's sides and bottom are clear water and its top row is the falling thread,
+  // so clamping extends the thread past the top edge instead of cutting it.
+  return textureLod(plate, clamp(uv, 0.0, 1.0), lod).a;
 }
 void main() {
   vec2 uv = vUv;
-  float d = density(uv);
-  float dl = density(uv - vec2(texel.x * 3.0, 0.0));
-  float dr = density(uv + vec2(texel.x * 3.0, 0.0));
-  float db = density(uv - vec2(0.0, texel.y * 3.0));
-  float dt = density(uv + vec2(0.0, texel.y * 3.0));
-  vec2 grad = vec2(dr - dl, dt - db);
+  vec2 d = (texture(flowField, uv).rg - 0.5) / 6.0;
+  d.x /= aspect;
 
-  vec2 p = vec2(uv.x * aspect, uv.y);
-  float light = caustic(p * 7.0 + grad * 6.0, time * 0.6);
-  float shade = 0.0;
-  for (int i = 1; i <= 4; i++) {
-    float k = float(i);
-    shade += density(uv + vec2(0.012 * k, -0.03 * k));
-  }
-  shade = 1.0 - exp(-shade * 0.08);
+  float body = density(uv, 4.5);
+  float freedom = mix(1.0, 0.28, smoothstep(0.35, 0.85, body));
+  vec2 centre = plateRect.xy + plateRect.zw * vec2(0.5, 0.42);
+  float breath = 0.012 * sin(time * 0.21) + 0.006 * sin(time * 0.37 + 1.3);
+  vec2 rest = centre + (uv - centre) * (1.0 - breath);
+  vec2 bent = rest + d * freedom;
 
-  vec2 centered = (uv - vec2(0.5, 0.56)) * vec2(aspect, 1.0);
-  float glow = smoothstep(1.2, 0.0, length(centered));
-  vec3 base = water * (0.975 + 0.035 * glow);
-  base += vec3(0.022, 0.024, 0.026) * light * (1.0 - shade);
-  base *= 1.0 - 0.07 * shade;
+  float a = density(bent, 0.0);
+  float soft = density(bent, 1.6);
+  a = clamp(a + 0.55 * (a - soft), 0.0, 1.0);
+  float bleed = density(rest + d * 2.6 + vec2(0.0, 0.004 * sin(time * 0.3)), 2.6);
+  float haze = max(0.0, bleed - soft) * 0.07;
+  float cover = clamp(a + haze, 0.0, 1.0);
 
-  float thick = 1.0 - exp(-d * 4.5);
-  vec3 normal = normalize(vec3(-grad * 1.6, 0.6));
-  float rim = pow(clamp(dot(normal, normalize(vec3(-0.4, 0.7, 0.6))), 0.0, 1.0), 3.0);
-  float veil = smoothstep(0.0, 0.5, thick) * (1.0 - smoothstep(0.55, 1.0, thick));
-  vec3 smoke = mix(ink, vec3(0.32, 0.33, 0.34), 0.55 * veil);
-  smoke += vec3(0.16) * rim * smoothstep(0.35, 0.9, thick);
-  vec3 color = mix(base, smoke, thick);
+  vec2 centred = (uv - vec2(0.5, 0.55)) * vec2(aspect, 1.0);
+  vec3 base = water * (1.012 - 0.03 * smoothstep(0.2, 1.3, length(centred)));
+  vec3 tone = mix(veil, ink, smoothstep(0.25, 0.9, a));
+  vec3 color = mix(base, tone, cover);
 
   float grain = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
   outColor = vec4(color + grain / 255.0, 1.0);
