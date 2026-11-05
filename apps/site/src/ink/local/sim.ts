@@ -189,8 +189,11 @@ vec4 sharp(vec2 uv) {
 void main() {
   vec2 v = texture(uVelocity, vUv).xy;
   vec4 d = sharp(vUv - v * uDt / uDomain);
-  d = max(d - uDt * 0.015, 0.0);
-  vec4 goal = vec4(texture(uTarget, vUv).rgb * 0.8, 0.0);
+  // Faint haze thins out faster than dense sheets, so the water between curls stays clear while cores hold.
+  d = max(d - uDt * (0.015 + 0.09 * (1.0 - smoothstep(0.0, 0.3, d))), 0.0);
+  // A slow drifting mask splits the board's broad grey masses into black cores and clear lanes that wander over time.
+  float lanes = texture(uNoise, vec3(vUv * uDomain * vec2(0.55, 0.4), uTime * 0.012 + 0.5)).r;
+  vec4 goal = vec4(texture(uTarget, vUv).rgb * (0.35 + 1.0 * smoothstep(0.3, 0.7, lanes)), 0.0);
   float patchy = smoothstep(0.55, 0.8, texture(uNoise, vec3(vUv * uDomain * 0.3, uTime * 0.04)).r);
   vec4 gap = goal - d;
   d += max(gap, 0.0) * smoothstep(0.15, 0.4, goal) * uGrow * uDt * (0.04 + 2.0 * patchy) + min(gap, 0.0) * uFade * uDt;
@@ -312,7 +315,7 @@ export function createSim(
     gl.uniform2f(f.uniform("uDomain"), ...DOMAIN);
     gl.uniform1f(f.uniform("uDt"), dt);
     gl.uniform1f(f.uniform("uTime"), time);
-    gl.uniform1f(f.uniform("uVorticity"), 0.07);
+    gl.uniform1f(f.uniform("uVorticity"), 0.055);
     gl.uniform1f(f.uniform("uSink"), 0.09);
     gl.uniform1f(f.uniform("uStir"), 0.16);
     gl.uniform1f(f.uniform("uSlosh"), slosh);

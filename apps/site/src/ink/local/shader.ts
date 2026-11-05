@@ -77,14 +77,16 @@ vec4 ink(vec2 uv) {
   vec4 l = texture(uDye, uv - vec2(e.x, 0.0));
   vec4 t = texture(uDye, uv + vec2(0.0, e.y));
   vec4 b = texture(uDye, uv - vec2(0.0, e.y));
-  vec4 sharp = max(c + (c - (r + l + t + b) * 0.25) * 1.2, 0.0);
+  vec4 sharp = max(c + (c - (r + l + t + b) * 0.25) * 0.7, 0.0);
   // Sheets of ink read darkest where they fold edge-on, so the density gradient adds an outline to each curl.
   vec4 edge = sqrt((r - l) * (r - l) + (t - b) * (t - b));
-  return sharp + edge * 1.2 * smoothstep(0.04, 0.3, c);
+  return sharp + edge * 0.4 * smoothstep(0.05, 0.35, c);
 }
 
 vec3 absorb(vec3 color, float density) {
-  float a = 2.7 * smoothstep(0.09, 0.85, density) + 3.0 * max(density - 0.7, 0.0);
+  // A soft knee: thin sheets stay translucent grey, folds and cores go to near black, faint haze leaves water clear.
+  float d = max(density - 0.1, 0.0) / 0.9;
+  float a = 3.6 * pow(d, 1.55) + 2.0 * max(density - 0.9, 0.0);
   return color * exp(-a * vec3(1.0, 1.06, 1.15));
 }
 
@@ -114,7 +116,7 @@ vec3 inWater(vec3 entry, vec3 dir, float exitT, vec4 card, vec3 cardLocal) {
     }
     vec3 p = entry + dir * t;
     vec4 d = ink(simUv(p)) * smoothstep(LEVEL, LEVEL - 0.03, p.y);
-    color = absorb(color, i == 0 ? d.g * 0.8 : i == 1 ? d.r : d.b);
+    color = absorb(color, i == 0 ? d.g * 0.6 : i == 1 ? d.r : d.b);
   }
   if (!carded) color = mix(color, PAPER * card.r, card.g);
   return color;
