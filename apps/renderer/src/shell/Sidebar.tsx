@@ -6,6 +6,7 @@ import {
   SidebarLeftIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch as useRouteSearch } from "@tanstack/react-router";
 import { useLayoutEffect, useRef } from "react";
 import * as stylex from "@stylexjs/stylex";
@@ -18,8 +19,10 @@ import { useSelector } from "@tanstack/react-store";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { Mascot } from "../mascot/Mascot.tsx";
 import { useMascotMood } from "../mascot/useMascotMood.ts";
+import { libraryQuery } from "../queryClient.ts";
 import { useAppUpdate } from "../settings/useAppUpdate.ts";
 import { AddMenu } from "./AddMenu.tsx";
+import { IndexingRing } from "./IndexingRing.tsx";
 import { NavButton, NavLink } from "./NavRow.tsx";
 import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
 import { SpacesSection } from "./SpacesSection.tsx";
@@ -36,6 +39,15 @@ function DotGrid() {
     </svg>
   );
 }
+
+const useSearchIndexing = () =>
+  useQuery(
+    libraryQuery(
+      ["searchIndexing"],
+      async (client) => (await client.status({})).searchIndexing,
+      (change) => change._tag === "SearchIndexReady",
+    ),
+  ).data === true;
 
 function SidebarMascot() {
   const query = useSearch((state) => state.query);
@@ -92,6 +104,8 @@ export function Sidebar({
     if (reopenButton.current?.getAttribute("aria-expanded") === String(open))
       reopenButton.current.focus({ preventScroll: true });
   }, [open, visualOpen]);
+  const indexing = useSearchIndexing();
+  const indexingRing = <IndexingRing label="Updating search for this version" />;
   return (
     <>
       {narrow && open && (
@@ -161,9 +175,9 @@ export function Sidebar({
             to="/"
             compact={compact}
             active={shown === "Active"}
-            icon={<DotGrid />}
+            icon={compact && indexing ? indexingRing : <DotGrid />}
             label="Everything"
-            count={total}
+            count={indexing ? indexingRing : total}
             onClick={() => search.clear()}
           />
         </nav>
