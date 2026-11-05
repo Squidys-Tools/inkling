@@ -27,8 +27,9 @@ function registerRedHat() {
 export function Library() {
   const section = useRef<HTMLElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const [live, setLive] = useState(false);
   const calm = useMediaQuery("(prefers-reduced-motion: reduce)", true);
+  const [liveFor, setLiveFor] = useState<boolean | null>(null);
+  const live = liveFor === calm;
 
   useEffect(() => {
     registerRedHat();
@@ -36,7 +37,13 @@ export function Library() {
     const area = section.current;
     if (!element || !area) return;
 
-    return play(element, area, calm, () => setLive(true));
+    return play(
+      element,
+      area,
+      calm,
+      () => setLiveFor(calm),
+      () => setLiveFor(null),
+    );
   }, [calm]);
 
   const posters = savedItems.filter((item): item is Photo => item.kind === "photo").slice(0, 7);
